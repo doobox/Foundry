@@ -111,6 +111,16 @@ struct PreviewHTTPRouterTests {
     }
 
     @Test
+    func eventStreamRequestKeepsItsRevisionQuery() throws {
+        let request = try #require(PreviewHTTPRequest(data: Data(
+            "GET /__foundry/events?revision=42 HTTP/1.1\r\nHost: localhost\r\n\r\n".utf8
+        )))
+
+        #expect(request.target == "/__foundry/events")
+        #expect(request.queryValue(named: "revision") == "42")
+    }
+
+    @Test
     func returnsNotFoundAndRejectsUnsupportedMethods() throws {
         let missing = PreviewHTTPRouter.response(for: Data("GET /missing HTTP/1.1\r\n\r\n".utf8), bundle: bundle)
         let post = PreviewHTTPRouter.response(for: Data("POST / HTTP/1.1\r\n\r\n".utf8), bundle: bundle)

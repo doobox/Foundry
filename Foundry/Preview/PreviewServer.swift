@@ -108,7 +108,7 @@ actor PreviewServer {
             if PreviewHTTPRequest.isComplete(request) || isComplete || error != nil || request.count >= 65_536 {
                 Task {
                     if let parsedRequest = PreviewHTTPRequest(data: request),
-                       parsedRequest.target.split(separator: "?", maxSplits: 1).first == "/__foundry/events" {
+                       parsedRequest.target == "/__foundry/events" {
                         await self.openEventStream(connection, request: parsedRequest)
                         return
                     }
@@ -165,11 +165,7 @@ actor PreviewServer {
             Task { await self?.removeEventStream(streamID) }
         })
 
-        let clientRevision = URLComponents(string: request.target)?
-            .queryItems?
-            .first(where: { $0.name == "revision" })?
-            .value
-            .flatMap(UInt64.init)
+        let clientRevision = request.queryValue(named: "revision").flatMap(UInt64.init)
         if clientRevision != revision {
             sendReloadEvent(to: connection)
         }
@@ -233,6 +229,12 @@ nonisolated struct PreviewHTTPRequest: Sendable {
     let query: String
     let headers: [String: String]
     let body: Data
+
+    func queryValue(named name: String) -> String? {
+        var components = URLComponents()
+        components.percentEncodedQuery = query
+        return components.queryItems?.first(where: { $0.name == name })?.value
+    }
 
     init?(data: Data) {
         let separator = Data("\r\n\r\n".utf8)
