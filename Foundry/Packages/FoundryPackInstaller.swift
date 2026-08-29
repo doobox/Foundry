@@ -4,12 +4,18 @@ import Foundation
 @MainActor
 enum FoundryPackInstaller {
     static func install(from sourceURL: URL) throws {
-        let pack = try FoundryPackLoader.load(from: sourceURL)
-        switch pack.type {
-        case .component:
-            _ = try ComponentPackageLoader.load(from: sourceURL)
-        case .theme:
-            _ = try ThemePackageLoader.load(from: sourceURL)
+        let packURLs = FoundryPackLoader.packURLs(in: sourceURL, includingRoot: true)
+        guard !packURLs.isEmpty else { throw FoundryPackLoadingError.wrongExtension }
+        for url in packURLs {
+            let pack = try FoundryPackLoader.load(from: url)
+            switch pack.type {
+            case .component:
+                _ = try ComponentPackageLoader.load(from: url)
+            case .theme:
+                _ = try ThemePackageLoader.load(from: url)
+            case .collection:
+                break
+            }
         }
 
         let destination = try FoundryPackLoader.installedPacksURL()

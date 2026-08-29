@@ -9,6 +9,15 @@
         ├── icon.svg
         └── assets/</code></pre>
 <h2>Contents</h2><p><code>Info.plist</code> identifies and configures the component.</p><h2>Resources</h2><p>Every HTML, CSS, JavaScript and asset file belongs under <code>Contents/Resources</code>. Paths declared in the plist are relative to this directory.</p>
+<h2>Nested packs</h2><p>A <code>.foundrypack</code> may contain any number of child <code>.foundrypack</code> packages, and those children may contain further packs without a depth limit. Foundry installs only the selected outer package and preserves the complete directory tree. Components and themes are discovered and run directly from their nested locations; they are never flattened into the installation directory.</p>
+<pre><code>Collection.foundrypack/
+├── Contents/
+│   └── Info.plist        type = collection
+├── Hero.foundrypack/     type = component
+└── Navigation.foundrypack/
+    ├── Contents/         type = component
+    └── Menu.foundrypack/ type = component</code></pre>
+<p>The outer pack may itself be a functional <code>component</code> or <code>theme</code>, or it may use <code>collection</code> when it exists only to group child packs.</p>
 <h2>icon.svg</h2><div class="api-meta"><span class="pill">Type: SVG file</span><span class="pill required">Required</span></div><p>Every component must provide a square SVG named exactly <code>icon.svg</code> directly inside <code>Contents/Resources</code>. Foundry uses it in the Components panel and component identity UI. The filename is convention-based and is not declared in <code>Info.plist</code>.</p>
 <div class="note">Foundry discovers <code>icon.svg</code> by convention. Templates and other assets must still be explicitly declared.</div>
 </main></div></body></html>

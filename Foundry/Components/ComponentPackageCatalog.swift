@@ -18,13 +18,9 @@ final class ComponentPackageCatalog {
     private func loadBundledComponents() {
         guard let containerURL = Bundle.main.url(
             forResource: "BuiltInComponents",
-            withExtension: "bundle"
-        ), let urls = try? FileManager.default.contentsOfDirectory(
-            at: containerURL,
-            includingPropertiesForKeys: [.isDirectoryKey],
-            options: [.skipsHiddenFiles]
+            withExtension: "foundrypack"
         ) else { return }
-        for url in urls where url.pathExtension == "foundrypack" {
+        for url in FoundryPackLoader.packURLs(in: containerURL, includingRoot: true) {
             guard let pack = try? FoundryPackLoader.load(from: url), pack.type == .component else { continue }
             reload(url)
         }

@@ -203,6 +203,25 @@ struct ComponentPackageTests {
         #expect(!shade.isInspectorVisible)
     }
 
+    @Test
+    func packDiscoveryRecursesThroughFunctionalAndCollectionPacksWithoutFlattening() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appending(path: "\(UUID().uuidString).foundrypack", directoryHint: .isDirectory)
+        let nested = root.appending(path: "Nested.foundrypack", directoryHint: .isDirectory)
+        let deeplyNested = nested.appending(path: "Deep.foundrypack", directoryHint: .isDirectory)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        try writePackHeader(type: .collection, identifier: "com.example.collection", at: root)
+        try writePackHeader(type: .component, identifier: "com.example.nested", at: nested)
+        try writePackHeader(type: .theme, identifier: "com.example.deep", at: deeplyNested)
+
+        let urls = FoundryPackLoader.packURLs(in: root, includingRoot: true)
+
+        #expect(urls.map(\.standardizedFileURL) == [root, deeplyNested, nested].map(\.standardizedFileURL).sorted { $0.path < $1.path })
+        #expect(try FoundryPackLoader.load(from: urls[0]).rootURL.standardizedFileURL == urls[0].standardizedFileURL)
+        #expect(deeplyNested.path.hasPrefix(nested.path))
+    }
+
     private var validManifest: String {
         """
         <?xml version="1.0" encoding="UTF-8"?>
@@ -271,5 +290,13 @@ struct ComponentPackageTests {
             try Data(contents.utf8).write(to: resourcesURL.appending(path: path))
         }
         return rootURL
+    }
+
+    private func writePackHeader(type: FoundryPackType, identifier: String, at rootURL: URL) throws {
+        let contentsURL = rootURL.appending(path: "Contents", directoryHint: .isDirectory)
+        try FileManager.default.createDirectory(at: contentsURL, withIntermediateDirectories: true)
+        let plist: [String: Any] = ["type": type.rawValue, "CFBundleIdentifier": identifier]
+        let data = try PropertyListSerialization.data(fromPropertyList: plist, format: .xml, options: 0)
+        try data.write(to: contentsURL.appending(path: "Info.plist"))
     }
 }

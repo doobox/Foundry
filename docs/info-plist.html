@@ -3,7 +3,7 @@
 <h1>Info.plist</h1><p class="lede">Every supported property-list entry for a component <code>.foundrypack</code> bundle.</p>
 
 <h2>Identity and library</h2>
-<section class="reference-entry"><h3>type</h3><div class="api-meta"><span class="pill">Type: String</span><span class="pill required">Required</span></div><p>Declares what the Foundry pack provides. Use <code>component</code> for a component bundle or <code>theme</code> for a theme bundle. The remaining entries documented on this page apply to component packs.</p><pre><code>&lt;key&gt;type&lt;/key&gt;
+<section class="reference-entry"><h3>type</h3><div class="api-meta"><span class="pill">Type: String</span><span class="pill required">Required</span></div><p>Declares what the Foundry pack provides. Use <code>component</code> for a component bundle, <code>theme</code> for a theme bundle, or <code>collection</code> for a non-functional pack that groups nested packs. A functional component or theme pack may also contain nested packs. The remaining entries documented on this page apply to component packs.</p><pre><code>&lt;key&gt;type&lt;/key&gt;
 &lt;string&gt;component&lt;/string&gt;</code></pre></section>
 
 <section class="reference-entry"><h3>CFBundleIdentifier</h3><div class="api-meta"><span class="pill">Type: String</span><span class="pill required">Required</span></div><p>The globally unique identity of the component. Use a lowercase reverse-domain identifier such as <code>uk.co.example.text</code>. Foundry uses it to identify the component in documents and to generate its package-wide CSS scope. Changing this value creates a different component identity.</p><pre><code>&lt;key&gt;CFBundleIdentifier&lt;/key&gt;

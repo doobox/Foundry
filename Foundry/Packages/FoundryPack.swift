@@ -3,6 +3,7 @@ import Foundation
 nonisolated enum FoundryPackType: String, Codable, Sendable {
     case component
     case theme
+    case collection
 }
 
 nonisolated struct FoundryPackHeader: Codable, Sendable {
@@ -75,13 +76,31 @@ nonisolated enum FoundryPackLoader {
         return url
     }
 
-    static func packURLs(in rootURL: URL) -> [URL] {
-        guard let urls = try? FileManager.default.contentsOfDirectory(
-            at: rootURL,
-            includingPropertiesForKeys: [.isDirectoryKey],
-            options: [.skipsHiddenFiles]
-        ) else { return [] }
-        return urls.filter { $0.pathExtension.lowercased() == "foundrypack" }
-            .sorted { $0.lastPathComponent.localizedStandardCompare($1.lastPathComponent) == .orderedAscending }
+    static func packURLs(in rootURL: URL, includingRoot: Bool = false) -> [URL] {
+        var results: [URL] = []
+        var visited: Set<URL> = []
+
+        func visit(_ url: URL, isRoot: Bool) {
+            let standardizedURL = url.standardizedFileURL
+            guard visited.insert(standardizedURL).inserted else { return }
+            guard let values = try? url.resourceValues(forKeys: [.isDirectoryKey, .isSymbolicLinkKey]),
+                  values.isDirectory == true,
+                  values.isSymbolicLink != true else { return }
+
+            if url.pathExtension.lowercased() == "foundrypack", (!isRoot || includingRoot) {
+                results.append(url)
+            }
+            guard let children = try? FileManager.default.contentsOfDirectory(
+                at: url,
+                includingPropertiesForKeys: [.isDirectoryKey, .isSymbolicLinkKey],
+                options: [.skipsHiddenFiles]
+            ) else { return }
+            for child in children {
+                visit(child, isRoot: false)
+            }
+        }
+
+        visit(rootURL, isRoot: true)
+        return results.sorted { $0.path < $1.path }
     }
 }

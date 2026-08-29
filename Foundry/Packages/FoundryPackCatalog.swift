@@ -35,9 +35,6 @@ final class FoundryPackCatalog {
 
     private func packURLs() -> [URL] {
         var roots: [URL] = Bundle.main.resourceURL.map { [$0] } ?? []
-        if let builtIns = Bundle.main.url(forResource: "BuiltInComponents", withExtension: "bundle") {
-            roots.append(builtIns)
-        }
         if let installedURL = try? FoundryPackLoader.installedPacksURL() {
             roots.append(installedURL)
         }
