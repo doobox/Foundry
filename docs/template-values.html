@@ -1,6 +1,6 @@
 <!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Templates · Foundry Developer</title><link rel="stylesheet" href="styles.css"><script src="app.js" defer></script></head><body><div class="shell"><nav data-doc-nav></nav><main><div class="breadcrumbs"><a href="index.html">Foundry Developer</a><span>›</span>Build components</div><p class="eyebrow">Template API</p><h1>Put values where they belong</h1><p class="lede">Foundry currently processes the HTML, CSS and editor CSS named by <code>Info.plist</code> for each component instance. The developer owns the resulting structure and selectors. The broader scoped template-file API is documented below as proposed work.</p>
-<div class="callout warning"><strong>Partly proposed.</strong> Instance- and page-scoped CSS dictionaries are implemented. Site scope, HTML placement, other template formats, Sass/SCSS compilation and PHP execution remain proposed.</div>
-<h2>Template scope</h2><p>Declare each additional CSS template as a dictionary containing its <code>path</code> and optional <code>scope</code>. Scope is about lifetime and deduplication, not selector choice.</p><dl class="syntax-list"><dt><code>instance</code></dt><dd>Default. Processed once for every component instance. Instance identity and control macros are available.</dd><dt><code>page</code></dt><dd>Processed once on each editing page that uses the component, regardless of how many instances are present. Deduplicated in the shared production stylesheet.</dd><dt><code>site</code> <span class="pill">Proposed</span></dt><dd>Will be processed once for the exported site when the component is used anywhere.</dd></dl>
+<div class="callout warning"><strong>Partly proposed.</strong> Instance-, page- and site-scoped CSS dictionaries are implemented. HTML placement, other template formats, Sass/SCSS compilation and PHP execution remain proposed.</div>
+<h2>Template scope</h2><p>Declare each additional CSS template as a dictionary containing its <code>path</code> and optional <code>scope</code>. Scope is about lifetime and deduplication, not selector choice.</p><dl class="syntax-list"><dt><code>instance</code></dt><dd>Default. Processed once for every component instance. Instance identity and control macros are available.</dd><dt><code>page</code></dt><dd>Processed once on each editing page that uses the component, regardless of how many instances are present. Deduplicated in the shared production stylesheet.</dd><dt><code>site</code></dt><dd>Processed once in the canvas preview and once in the shared production stylesheet when the component is used anywhere.</dd></dl>
 <pre><code>&lt;key&gt;files&lt;/key&gt;
 &lt;array&gt;
     &lt;dict&gt;
@@ -11,8 +11,12 @@
         &lt;key&gt;path&lt;/key&gt;&lt;string&gt;shared.css&lt;/string&gt;
         &lt;key&gt;scope&lt;/key&gt;&lt;string&gt;page&lt;/string&gt;
     &lt;/dict&gt;
+    &lt;dict&gt;
+        &lt;key&gt;path&lt;/key&gt;&lt;string&gt;site.css&lt;/string&gt;
+        &lt;key&gt;scope&lt;/key&gt;&lt;string&gt;site&lt;/string&gt;
+    &lt;/dict&gt;
 &lt;/array&gt;</code></pre>
-<p>Page templates are deduplicated by component bundle identifier. They reject <code>{{ id }}</code>, <code>{{ component.attributes }}</code>, <code>{{ control.* }}</code>, editable text, conditions and slots because there is no single component instance to supply those values. <span class="pill">Proposed</span> Site templates will follow the same macro rule.</p>
+<p>Page and site templates are deduplicated by component bundle identifier. They reject <code>{{ id }}</code>, <code>{{ component.attributes }}</code>, <code>{{ control.* }}</code>, editable text, conditions and slots because there is no single component instance to supply those values.</p>
 <div class="note"><strong>HTML placement is separate.</strong> An HTML template may add <code>placement</code> with <code>headStart</code>, <code>headEnd</code>, <code>bodyStart</code> or <code>bodyEnd</code>. This keeps scope (“how often?”) independent from placement (“where?”). The primary <code>html</code> template is always instance-scoped in the normal component flow.</div>
 <h2>Instance identity</h2><section class="reference-entry"><h3>{{ id }}</h3><p>Resolves to a stable, CSS-safe ID unique to the instance, such as <code>foundry-a12b…</code>.</p><pre><code>&lt;article id="{{ id }}" {{ component.attributes }}&gt;…&lt;/article&gt;
 

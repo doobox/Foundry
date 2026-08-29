@@ -303,10 +303,10 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
         var seenPackages: Set<String> = []
         let pageStyles = nodes.compactMap { node -> String? in
             guard let package = node.type.definition.package,
-                  !package.pageCSS.isEmpty,
+                  (!package.pageCSS.isEmpty || !package.siteCSS.isEmpty),
                   seenPackages.insert(package.manifest.identifier).inserted else { return nil }
             return ComponentTemplateRenderer.render(
-                package.pageCSS,
+                [package.pageCSS, package.siteCSS].filter { !$0.isEmpty }.joined(separator: "\n"),
                 context: .init(
                     instanceID: UUID(uuid: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)),
                     packageIdentifier: package.manifest.identifier,

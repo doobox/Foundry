@@ -60,13 +60,6 @@ nonisolated enum ComponentPackageValidator {
             diagnostics.append(.init(severity: .warning, location: "Info.plist:runtime", message: "Network access requires explicit user approval when this package is installed."))
         }
         for file in manifest.render.files {
-            if file.scope == .site {
-                diagnostics.append(.init(
-                    severity: .error,
-                    location: "Info.plist:templates.files.\(file.path)",
-                    message: "Site-scoped template files are not yet supported."
-                ))
-            }
             if file.placement != nil {
                 diagnostics.append(.init(
                     severity: .error,
@@ -102,7 +95,7 @@ nonisolated enum ComponentPackageValidator {
                 into: &diagnostics
             )
         }
-        for file in manifest.render.files where file.scope == .page {
+        for file in manifest.render.files where file.scope != .instance {
             guard isSafeRelativePath(file.path),
                   let template = try? String(contentsOf: rootURL.appending(path: file.path), encoding: .utf8) else {
                 continue
@@ -112,7 +105,7 @@ nonisolated enum ComponentPackageValidator {
                 diagnostics.append(.init(
                     severity: .error,
                     location: file.path,
-                    message: "Page-scoped templates cannot use instance, component, control, property, slot, condition, or editable-text macros."
+                    message: "Page- and site-scoped templates cannot use instance, component, control, property, slot, condition, or editable-text macros."
                 ))
             }
         }
