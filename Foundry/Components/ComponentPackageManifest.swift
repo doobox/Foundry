@@ -15,6 +15,7 @@ nonisolated struct ComponentPackageManifest: Codable, Equatable, Sendable {
     let assets: [String]
     let helpURL: URL?
     let missingComponent: ComponentPackageMissingComponent?
+    let requiresPhp: Bool
 
     enum CodingKeys: String, CodingKey {
         case type
@@ -31,6 +32,7 @@ nonisolated struct ComponentPackageManifest: Codable, Equatable, Sendable {
         case assets
         case helpURL
         case missingComponent
+        case requiresPhp
     }
 
     init(
@@ -47,7 +49,8 @@ nonisolated struct ComponentPackageManifest: Codable, Equatable, Sendable {
         render: ComponentPackageRender,
         assets: [String] = [],
         helpURL: URL? = nil,
-        missingComponent: ComponentPackageMissingComponent? = nil
+        missingComponent: ComponentPackageMissingComponent? = nil,
+        requiresPhp: Bool = false
     ) {
         self.type = type
         self.identifier = identifier
@@ -63,6 +66,7 @@ nonisolated struct ComponentPackageManifest: Codable, Equatable, Sendable {
         self.assets = assets
         self.helpURL = helpURL
         self.missingComponent = missingComponent
+        self.requiresPhp = requiresPhp
     }
 
     init(from decoder: Decoder) throws {
@@ -81,6 +85,7 @@ nonisolated struct ComponentPackageManifest: Codable, Equatable, Sendable {
         assets = try container.decodeIfPresent([String].self, forKey: .assets) ?? []
         helpURL = try container.decodeIfPresent(URL.self, forKey: .helpURL)
         missingComponent = try container.decodeIfPresent(ComponentPackageMissingComponent.self, forKey: .missingComponent)
+        requiresPhp = try container.decodeIfPresent(Bool.self, forKey: .requiresPhp) ?? false
     }
 }
 

@@ -4,6 +4,38 @@ import Testing
 
 struct ComponentPackageTests {
     @Test
+    func requiresPhpDefaultsToFalseAndForcesPhpPageExportWhenEnabled() throws {
+        let defaultManifest = try PropertyListDecoder().decode(
+            ComponentPackageManifest.self,
+            from: Data(validManifest.utf8)
+        )
+        #expect(!defaultManifest.requiresPhp)
+
+        let identifier = "com.example.php\(UUID().uuidString.replacingOccurrences(of: "-", with: "").lowercased())"
+        let manifest = validManifest
+            .replacingOccurrences(of: "com.example.card", with: identifier)
+            .replacingOccurrences(
+                of: "<key>templates</key>",
+                with: "<key>requiresPhp</key><true/>\n            <key>templates</key>"
+            )
+        let packageURL = try makePackage(
+            manifest: manifest,
+            template: "<section {{ component.attributes }}>{% slot id=\"content\" %}</section>"
+        )
+        defer { try? FileManager.default.removeItem(at: packageURL) }
+        let package = try ComponentPackageLoader.load(from: packageURL)
+        ComponentRegistry.register(package)
+
+        let component = ComponentNode(type: ComponentType(rawValue: identifier))
+        let site = Site(name: "PHP", pages: [Page(title: "Home", slug: "index", components: [component])])
+        let bundle = StaticSiteRenderer().render(site: site)
+
+        #expect(package.manifest.requiresPhp)
+        #expect(bundle.file(at: "index.php") != nil)
+        #expect(bundle.file(at: "index.html") == nil)
+    }
+
+    @Test
     func textPrimitivesUseAutomaticUniqueKeysAndStoredValues() throws {
         let template = #"<h2>%text="Start here"%</h2><p>%text%</p><small>%text="Note"%</small>"#
         let defaultContext = ComponentTemplateContext(

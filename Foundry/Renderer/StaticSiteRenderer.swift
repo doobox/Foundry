@@ -9,11 +9,12 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
         var files = site.pages.map { page in
             let isHome = page.slug == "index"
             let directory = isHome ? "" : joinedPath(folderPath(for: page.folderID, in: site), page.slug)
+            let pageExtension = requiresPhp(page) ? "php" : "html"
             let rootPrefix = directory.isEmpty
                 ? ""
                 : String(repeating: "../", count: directory.split(separator: "/").count)
             return SiteExportFile(
-                path: isHome ? "index.html" : joinedPath(directory, "index.html"),
+                path: isHome ? "index.\(pageExtension)" : joinedPath(directory, "index.\(pageExtension)"),
                 contents: render(
                     page: page,
                     language: site.language,
@@ -34,6 +35,12 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
             return SiteExportFile(path: exportPath, data: content.data)
         })
         return SiteExportBundle(files: files.sorted { $0.path < $1.path })
+    }
+
+    private func requiresPhp(_ page: Page) -> Bool {
+        page.components
+            .flatMap(\.flattened)
+            .contains { ComponentRegistry.definition(for: $0.type).package?.manifest.requiresPhp == true }
     }
 
     private func customExportPath(for asset: ProjectAsset, in site: Site) -> String? {

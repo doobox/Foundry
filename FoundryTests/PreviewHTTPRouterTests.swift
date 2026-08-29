@@ -37,6 +37,23 @@ struct PreviewHTTPRouterTests {
     }
 
     @Test
+    func servesPhpIndexAtTheCleanPageRoute() throws {
+        let phpBundle = SiteExportBundle(files: [
+            .init(path: "index.php", contents: "<h1>PHP Home</h1>")
+        ])
+
+        let response = PreviewHTTPRouter.response(
+            for: Data("GET / HTTP/1.1\r\nHost: localhost\r\n\r\n".utf8),
+            bundle: phpBundle
+        )
+        let responseString = try #require(String(data: response, encoding: .utf8))
+
+        #expect(responseString.contains("HTTP/1.1 200 OK"))
+        #expect(responseString.contains("Content-Type: text/html; charset=utf-8"))
+        #expect(responseString.hasSuffix("<h1>PHP Home</h1>"))
+    }
+
+    @Test
     func livePreviewPublishesRevisionAndReloadScript() throws {
         let revision = PreviewHTTPRouter.response(
             for: Data("GET /__foundry/revision HTTP/1.1\r\n\r\n".utf8),

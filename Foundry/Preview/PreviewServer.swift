@@ -129,20 +129,29 @@ nonisolated enum PreviewHTTPRouter {
         guard let path = safeBundlePath(requestTarget) else {
             return response(status: "403 Forbidden", body: Data(), contentType: "text/plain")
         }
-        guard let file = bundle.file(at: path) else {
+        let resolvedPath: String
+        if bundle.file(at: path) != nil {
+            resolvedPath = path
+        } else if path.hasSuffix("index.html") {
+            resolvedPath = String(path.dropLast(4)) + "php"
+        } else {
+            resolvedPath = path
+        }
+        guard let file = bundle.file(at: resolvedPath) else {
             return response(status: "404 Not Found", body: Data("Not Found".utf8), contentType: "text/plain")
         }
-        let body = liveReloadRevision.map { liveReloadBody(for: file.data, path: path, revision: $0) } ?? file.data
+        let body = liveReloadRevision.map { liveReloadBody(for: file.data, path: resolvedPath, revision: $0) } ?? file.data
         return response(
             status: "200 OK",
             body: method == "HEAD" ? Data() : body,
             contentLength: body.count,
-            contentType: mimeType(for: path)
+            contentType: mimeType(for: resolvedPath)
         )
     }
 
     private static func liveReloadBody(for data: Data, path: String, revision: UInt64) -> Data {
-        guard path.hasSuffix(".html"), var html = String(data: data, encoding: .utf8) else { return data }
+        guard path.hasSuffix(".html") || path.hasSuffix(".php"),
+              var html = String(data: data, encoding: .utf8) else { return data }
         let script = """
         <script>
         (() => {
@@ -199,7 +208,7 @@ nonisolated enum PreviewHTTPRouter {
 
     private static func mimeType(for path: String) -> String {
         switch URL(fileURLWithPath: path).pathExtension.lowercased() {
-        case "html": "text/html; charset=utf-8"
+        case "html", "php": "text/html; charset=utf-8"
         case "css": "text/css; charset=utf-8"
         case "js": "text/javascript; charset=utf-8"
         case "json": "application/json; charset=utf-8"
