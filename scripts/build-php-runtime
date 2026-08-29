@@ -3,8 +3,7 @@ set -eu
 
 php_version=8.5.9
 php_sha256=d735459c2cbaeb0673d416c33d372d9ff261d562f6b29da48f3e6aeaeca083af
-minimum_macos=14.0
-requested_architectures=${FOUNDRY_PHP_ARCHITECTURES:-"arm64 x86_64"}
+minimum_macos=27.0
 bison_version=3.8.2
 bison_sha256=9bba0214ccf7f1079c5d59210045227bcf619519840ebfa80cd3849cff5a5bf2
 
@@ -24,7 +23,7 @@ require_command() {
     fi
 }
 
-for command_name in awk curl shasum tar make xcrun lipo file; do
+for command_name in awk curl shasum tar make xcrun file; do
     require_command "$command_name"
 done
 
@@ -80,10 +79,9 @@ fi
 
 sdk_path=$(xcrun --sdk macosx --show-sdk-path)
 
-build_architecture() {
-    architecture=$1
-    source_root="$work_root/source-$architecture"
-    build_root="$work_root/build-$architecture"
+build_arm64() {
+    source_root="$work_root/source-arm64"
+    build_root="$work_root/build-arm64"
 
     rm -rf "$source_root" "$build_root"
     mkdir -p "$source_root" "$build_root"
@@ -91,9 +89,9 @@ build_architecture() {
 
     cd "$build_root"
     YACC="$bison_path -y" \
-    CFLAGS="-arch $architecture -isysroot $sdk_path -mmacosx-version-min=$minimum_macos" \
-    CPPFLAGS="-arch $architecture -isysroot $sdk_path -mmacosx-version-min=$minimum_macos" \
-    LDFLAGS="-arch $architecture -isysroot $sdk_path -mmacosx-version-min=$minimum_macos" \
+    CFLAGS="-arch arm64 -isysroot $sdk_path -mmacosx-version-min=$minimum_macos" \
+    CPPFLAGS="-arch arm64 -isysroot $sdk_path -mmacosx-version-min=$minimum_macos" \
+    LDFLAGS="-arch arm64 -isysroot $sdk_path -mmacosx-version-min=$minimum_macos" \
         "$source_root/configure" \
             --disable-all \
             --disable-phpdbg \
@@ -105,45 +103,17 @@ build_architecture() {
     make -j"$(sysctl -n hw.logicalcpu)"
 }
 
-case "$requested_architectures" in
-    "arm64")
-        build_architecture arm64
-        ;;
-    "x86_64")
-        build_architecture x86_64
-        ;;
-    "arm64 x86_64"|"x86_64 arm64")
-        build_architecture arm64
-        if ! arch -x86_64 /usr/bin/true >/dev/null 2>&1; then
-            echo "Rosetta 2 is required to build and validate the universal runtime." >&2
-            echo "For an arm64 development artifact, use FOUNDRY_PHP_ARCHITECTURES=arm64." >&2
-            exit 1
-        fi
-        build_architecture x86_64
-        ;;
-    *)
-        echo "FOUNDRY_PHP_ARCHITECTURES must be 'arm64', 'x86_64', or 'arm64 x86_64'." >&2
-        exit 1
-        ;;
-esac
+build_arm64
 
 rm -rf "$artifact_root"
 mkdir -p "$artifact_root"
-if [ "$requested_architectures" = "arm64 x86_64" ] || [ "$requested_architectures" = "x86_64 arm64" ]; then
-    lipo -create \
-        "$work_root/build-arm64/sapi/cgi/php-cgi" \
-        "$work_root/build-x86_64/sapi/cgi/php-cgi" \
-        -output "$artifact_root/php-cgi"
-else
-    cp "$work_root/build-$requested_architectures/sapi/cgi/php-cgi" "$artifact_root/php-cgi"
-fi
+cp "$work_root/build-arm64/sapi/cgi/php-cgi" "$artifact_root/php-cgi"
 chmod 755 "$artifact_root/php-cgi"
 cp "$work_root/source-arm64/LICENSE" "$artifact_root/PHP-LICENSE.txt"
 
-architectures=$(lipo -archs "$artifact_root/php-cgi")
-if [ "$architectures" != "$requested_architectures" ] &&
-   { [ "$requested_architectures" != "arm64 x86_64" ] || [ "$architectures" != "x86_64 arm64" ]; }; then
-    echo "Unexpected runtime architectures: $architectures" >&2
+architecture=$(file "$artifact_root/php-cgi")
+if ! printf '%s' "$architecture" | grep -q "Mach-O 64-bit executable arm64"; then
+    echo "Unexpected runtime architecture: $architecture" >&2
     exit 1
 fi
 
