@@ -210,7 +210,7 @@ nonisolated struct ComponentPackageTemplateFile: Codable, Equatable, Sendable {
         case site
     }
 
-    enum Placement: String, Codable, Sendable {
+    enum Placement: String, Codable, Hashable, Sendable {
         case headStart
         case headEnd
         case bodyStart

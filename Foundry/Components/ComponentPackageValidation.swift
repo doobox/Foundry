@@ -60,18 +60,33 @@ nonisolated enum ComponentPackageValidator {
             diagnostics.append(.init(severity: .warning, location: "Info.plist:runtime", message: "Network access requires explicit user approval when this package is installed."))
         }
         for file in manifest.render.files {
-            if file.placement != nil {
+            let fileExtension = URL(fileURLWithPath: file.path).pathExtension.lowercased()
+            if fileExtension == "css", file.placement != nil {
                 diagnostics.append(.init(
                     severity: .error,
                     location: "Info.plist:templates.files.\(file.path)",
-                    message: "Template placement is not yet supported."
+                    message: "CSS templates do not use HTML placement."
                 ))
             }
-            if URL(fileURLWithPath: file.path).pathExtension.lowercased() != "css" {
+            if fileExtension == "html", file.placement == nil {
                 diagnostics.append(.init(
                     severity: .error,
                     location: "Info.plist:templates.files.\(file.path)",
-                    message: "Instance template files currently support CSS only."
+                    message: "Additional HTML templates require placement."
+                ))
+            }
+            if fileExtension == "html", file.scope != .page {
+                diagnostics.append(.init(
+                    severity: .error,
+                    location: "Info.plist:templates.files.\(file.path)",
+                    message: "Placed HTML templates currently require page scope."
+                ))
+            }
+            if fileExtension != "css" && fileExtension != "html" {
+                diagnostics.append(.init(
+                    severity: .error,
+                    location: "Info.plist:templates.files.\(file.path)",
+                    message: "Template files currently support CSS and placed HTML."
                 ))
             }
         }
@@ -79,7 +94,7 @@ nonisolated enum ComponentPackageValidator {
             (manifest.render.html, true),
             (manifest.render.editorCSS, false)
         ] + manifest.render.files
-            .filter { $0.scope == .instance && $0.path.lowercased().hasSuffix(".css") }
+            .filter { $0.path.lowercased().hasSuffix(".css") || $0.path.lowercased().hasSuffix(".html") }
             .map { ($0.path as String?, false) }
         for declaredTemplate in templates {
             guard let path = declaredTemplate.path,

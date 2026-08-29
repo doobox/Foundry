@@ -7,6 +7,7 @@ nonisolated struct LoadedComponentPackage: Sendable {
     let css: String
     let pageCSS: String
     let siteCSS: String
+    let placedHTML: [LoadedPlacedHTMLTemplate]
     let editorCSS: String
     let runtimeJavaScript: String?
 
@@ -21,6 +22,11 @@ nonisolated struct LoadedComponentPackage: Sendable {
     var resourceRootURL: URL {
         rootURL.appending(path: "Contents/Resources", directoryHint: .isDirectory)
     }
+}
+
+nonisolated struct LoadedPlacedHTMLTemplate: Sendable {
+    let placement: ComponentPackageTemplateFile.Placement
+    let contents: String
 }
 
 nonisolated enum ComponentPackageLoadingError: Error, LocalizedError {
@@ -89,6 +95,10 @@ nonisolated enum ComponentPackageLoader {
         let siteCSS = try manifest.render.files
             .filter { $0.scope == .site && $0.path.lowercased().hasSuffix(".css") }
             .map { try read($0.path, from: resourceRootURL) }
+        let placedHTML = try manifest.render.files.compactMap { file -> LoadedPlacedHTMLTemplate? in
+            guard file.path.lowercased().hasSuffix(".html"), let placement = file.placement else { return nil }
+            return LoadedPlacedHTMLTemplate(placement: placement, contents: try read(file.path, from: resourceRootURL))
+        }
         return LoadedComponentPackage(
             manifest: manifest,
             rootURL: rootURL,
@@ -96,6 +106,7 @@ nonisolated enum ComponentPackageLoader {
             css: instanceCSS.joined(separator: "\n"),
             pageCSS: pageCSS.joined(separator: "\n"),
             siteCSS: siteCSS.joined(separator: "\n"),
+            placedHTML: placedHTML,
             editorCSS: try readIfPresent(manifest.render.editorCSS, from: resourceRootURL),
             runtimeJavaScript: try manifest.runtime.map { try read($0.entry, from: resourceRootURL) }
         )

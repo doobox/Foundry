@@ -256,7 +256,41 @@ struct ComponentPackageTests {
             rootURL: packageURL.appending(path: "Contents/Resources", directoryHint: .isDirectory)
         )
 
-        #expect(diagnostics.contains(where: { $0.message.contains("currently support CSS only") }))
+        #expect(diagnostics.contains(where: { $0.message.contains("support CSS and placed HTML") }))
+    }
+
+    @Test
+    func loaderProcessesPageScopedHTMLPlacements() throws {
+        let declaration = """
+        <key>files</key>
+        <array>
+            <dict>
+                <key>path</key><string>head.html</string>
+                <key>scope</key><string>page</string>
+                <key>placement</key><string>headEnd</string>
+            </dict>
+            <dict>
+                <key>path</key><string>body.html</string>
+                <key>scope</key><string>page</string>
+                <key>placement</key><string>bodyEnd</string>
+            </dict>
+        </array>
+        """
+        let manifestText = validManifest.replacingOccurrences(of: instanceCSSDeclaration, with: declaration)
+        let packageURL = try makePackage(
+            manifest: manifestText,
+            template: "<section {{ component.attributes }}>{% slot id=\"content\" %}</section>",
+            additionalFiles: [
+                "head.html": "<meta name=\"package\" content=\"{{ package.id }}\">",
+                "body.html": "<div data-package=\"{{ package.id }}\"></div>"
+            ]
+        )
+        defer { try? FileManager.default.removeItem(at: packageURL) }
+
+        let package = try ComponentPackageLoader.load(from: packageURL)
+
+        #expect(package.placedHTML.map(\.placement) == [.headEnd, .bodyEnd])
+        #expect(package.placedHTML.first?.contents.contains("{{ package.id }}") == true)
     }
 
     @Test

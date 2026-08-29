@@ -12,11 +12,16 @@ struct HTMLPageRenderer: PageRendering {
             : page.components.map { render($0, theme: theme, assets: assets, globalDefinitionID: $0.reusableDefinitionID, breakpoint: breakpoint) }.joined(separator: "\n")
         let browserTitle = page.metadata.browserTitle.isEmpty ? page.title : page.metadata.browserTitle
         let metadata = metadataHTML(for: page, browserTitle: browserTitle, assets: assets)
+        let headStart = placedHTML(for: page, placement: .headStart)
+        let headEnd = placedHTML(for: page, placement: .headEnd)
+        let bodyStart = placedHTML(for: page, placement: .bodyStart)
+        let bodyEnd = placedHTML(for: page, placement: .bodyEnd)
         let documentLanguage = language.trimmingCharacters(in: .whitespacesAndNewlines)
         return """
         <!doctype html>
         <html lang="\(escapeAttribute(documentLanguage.isEmpty ? "en" : documentLanguage))">
         <head>
+        \(headStart)
           <meta charset="utf-8">
           <meta name="viewport" content="width=device-width, initial-scale=1">
           <title>\(escape(browserTitle))</title>
@@ -159,10 +164,28 @@ struct HTMLPageRenderer: PageRendering {
             \(packageStyles(for: page, theme: theme, assets: assets, breakpoint: breakpoint))
             \(themeControlStyles(for: page, theme: theme, breakpoint: breakpoint))
           </style>
+        \(headEnd)
         </head>
-        <body>\(body)</body>
+        <body>\(bodyStart)\(body)\(bodyEnd)</body>
         </html>
         """
+    }
+
+    private func placedHTML(for page: Page, placement: ComponentPackageTemplateFile.Placement) -> String {
+        var seenPackages: Set<String> = []
+        return page.components.flatMap(flattened).compactMap { node -> String? in
+            guard let package = node.type.definition.package,
+                  seenPackages.insert(package.manifest.identifier).inserted else { return nil }
+            let templates = package.placedHTML.filter { $0.placement == placement }
+            guard !templates.isEmpty else { return nil }
+            let context = ComponentTemplateContext(
+                instanceID: UUID(uuid: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)),
+                packageIdentifier: package.manifest.identifier,
+                properties: [:],
+                slots: [:]
+            )
+            return templates.map { ComponentTemplateRenderer.render($0.contents, context: context) }.joined(separator: "\n")
+        }.joined(separator: "\n")
     }
 
     private func metadataHTML(
