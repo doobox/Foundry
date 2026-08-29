@@ -291,6 +291,37 @@ struct ComponentPackageTests {
     }
 
     @Test
+    func textAlignmentSmartControlProvidesValidatedLogicalValues() throws {
+        let item = """
+        <dict>
+            <key>id</key><string>alignment</string>
+            <key>title</key><string>Alignment</string>
+            <key>section</key><string>Typography</string>
+            <key>control</key><dict><key>type</key><string>textAlignment</string></dict>
+            <key>default</key><string>start</string>
+            <key>responsive</key><true/>
+            <key>inlineEditable</key><false/>
+        </dict>
+        """
+        let manifestText = validManifest.replacingOccurrences(
+            of: "<key>customItems</key>",
+            with: "<key>customItems</key>\n            <array>\n                \(item)\n            </array>\n            <key>unusedItems</key>"
+        )
+        let packageURL = try makePackage(
+            manifest: manifestText,
+            template: "<section {{ component.attributes }} style=\"text-align: {{ control.alignment }}\">{% slot id=\"content\" %}</section>"
+        )
+        defer { try? FileManager.default.removeItem(at: packageURL) }
+
+        let package = try ComponentPackageLoader.load(from: packageURL)
+        let property = try #require(ComponentPackageAdapter.definition(from: package).properties.first { $0.key.rawValue == "alignment" })
+
+        if case .textAlignment = property.control {} else { Issue.record("Expected the smart text-alignment control") }
+        #expect(property.defaultValue == .choice("start"))
+        #expect(property.isResponsive)
+    }
+
+    @Test
     func loaderProcessesPageScopedHTMLPlacements() throws {
         let declaration = """
         <key>files</key>

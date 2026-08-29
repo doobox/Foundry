@@ -127,6 +127,7 @@ nonisolated enum ComponentPackageAdapter {
         case .toggle: .toggle
         case .fontFamily: .themeFontFamily
         case .fontSize: .themeFontSize
+        case .textAlignment: .textAlignment
         }
     }
 
@@ -141,7 +142,7 @@ nonisolated enum ComponentPackageAdapter {
             switch control {
             case .url, .image: .url(value)
             case .color: .color(value)
-            case .select, .fontFamily, .fontSize: .choice(value)
+            case .select, .fontFamily, .fontSize, .textAlignment: .choice(value)
             default: .string(value)
             }
         }

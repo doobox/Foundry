@@ -131,6 +131,7 @@ nonisolated struct ComponentPackageControl: Codable, Equatable, Sendable {
         case toggle
         case fontFamily
         case fontSize
+        case textAlignment
     }
 
     let type: Kind

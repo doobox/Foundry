@@ -114,6 +114,15 @@ struct ComponentPropertyEditor: View {
                 source: stringBinding(as: .choice),
                 customValue: stringBinding(for: customValueKey)
             )
+        case .textAlignment:
+            Picker(definition.label, selection: stringBinding(as: .choice)) {
+                Label("Start", systemImage: "text.alignleft").labelStyle(.iconOnly).tag("start")
+                Label("Centre", systemImage: "text.aligncenter").labelStyle(.iconOnly).tag("center")
+                Label("End", systemImage: "text.alignright").labelStyle(.iconOnly).tag("end")
+                Label("Justify", systemImage: "text.justify").labelStyle(.iconOnly).tag("justify")
+            }
+            .pickerStyle(.segmented)
+            .help(definition.label)
         case .toggle:
             Toggle(definition.label, isOn: booleanBinding)
         case .asset:

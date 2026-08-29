@@ -336,6 +336,16 @@ nonisolated enum ComponentPackageValidator {
             } else {
                 diagnostics.append(.init(severity: .error, location: location, message: "A fontSize control requires a string default value."))
             }
+        case .textAlignment:
+            if case .string(let value) = property.defaultValue,
+               ["start", "center", "end", "justify"].contains(value) {
+                break
+            }
+            diagnostics.append(.init(
+                severity: .error,
+                location: location,
+                message: "A textAlignment default must be start, center, end, or justify."
+            ))
         default:
             if case .string = property.defaultValue {} else {
                 diagnostics.append(.init(severity: .error, location: location, message: "This control requires a string default value."))
