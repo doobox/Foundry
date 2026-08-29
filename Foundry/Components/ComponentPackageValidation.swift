@@ -163,7 +163,7 @@ nonisolated enum ComponentPackageValidator {
         manifest: ComponentPackageManifest,
         into diagnostics: inout [ComponentPackageDiagnostic]
     ) {
-        let propertyIDs = Set(manifest.properties.map(\.id))
+        let propertyIDs = Set(manifest.properties.filter { $0.control.type != .divider }.map(\.id))
         let slotIDs = Set(manifest.slots.map(\.id))
         let declaredAssets = Set(manifest.assets)
 
@@ -299,6 +299,8 @@ nonisolated enum ComponentPackageValidator {
     private static func validate(_ property: ComponentPackageProperty, into diagnostics: inout [ComponentPackageDiagnostic]) {
         let location = "Info.plist:customItems.\(property.id)"
         switch property.control.type {
+        case .divider:
+            break
         case .number:
             guard case .number(let value) = property.defaultValue else {
                 diagnostics.append(.init(severity: .error, location: location, message: "A number control requires a numeric default value."))

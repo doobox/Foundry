@@ -26,6 +26,8 @@ struct ComponentPropertyEditor: View {
                 }
             }
         }
+        .controlSize(.small)
+        .font(.callout)
     }
 
     @ViewBuilder
@@ -34,12 +36,15 @@ struct ComponentPropertyEditor: View {
         case .singleLineText:
             TextField(definition.label, text: stringBinding(as: .string))
         case .multilineText:
-            VStack(alignment: .leading, spacing: 6) {
-                Text(definition.label)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+            LabeledContent(definition.label) {
                 TextEditor(text: stringBinding(as: .string))
                     .frame(minHeight: 72)
+                    .padding(4)
+                    .background(.background, in: RoundedRectangle(cornerRadius: 5))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 5)
+                            .stroke(Color.secondary.opacity(0.25), lineWidth: 1)
+                    }
             }
         case .url:
             VStack(alignment: .leading, spacing: 4) {
@@ -123,6 +128,10 @@ struct ComponentPropertyEditor: View {
             }
             .pickerStyle(.segmented)
             .help(definition.label)
+        case .divider:
+            Divider()
+                .padding(.vertical, 4)
+                .accessibilityHidden(true)
         case .toggle:
             Toggle(definition.label, isOn: booleanBinding)
         case .asset:
@@ -132,7 +141,7 @@ struct ComponentPropertyEditor: View {
 
     private var assetPicker: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Picker("Image", selection: assetBinding) {
+            Picker(definition.label, selection: assetBinding) {
                 Text("No managed image").tag(nil as UUID?)
                 ForEach(assets) { asset in Text(asset.filename).tag(asset.id as UUID?) }
             }
@@ -314,25 +323,41 @@ private struct PackageColorControlEditor: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             if !choices.isEmpty {
-                Picker(label, selection: $source) {
-                    Text("Custom").tag("custom")
-                    ForEach(choices) { choice in
-                        Text(choice.label).tag(choice.value)
+                LabeledContent(label) {
+                    Picker("", selection: $source) {
+                        Text("Custom").tag("custom")
+                        ForEach(choices) { choice in
+                            Text(choice.label).tag(choice.value)
+                        }
                     }
+                    .labelsHidden()
                 }
             }
             if source == "custom" || choices.isEmpty {
-                ColorPicker(label, selection: $customColor, supportsOpacity: false)
+                LabeledContent(choices.isEmpty ? label : "Custom colour") {
+                    ColorPicker("", selection: $customColor, supportsOpacity: false)
+                        .labelsHidden()
+                }
             }
             if let adjustment {
-                LabeledContent("Lighter or darker", value: adjustment.wrappedValue.formatted() + "%")
-                    .font(.caption)
-                Slider(value: adjustment, in: -100...100, step: 1)
+                LabeledContent("Lighter or darker") {
+                    VStack(alignment: .trailing, spacing: 4) {
+                        Text(adjustment.wrappedValue.formatted() + "%")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Slider(value: adjustment, in: -100...100, step: 1)
+                    }
+                }
             }
             if let opacity {
-                LabeledContent("Opacity", value: opacity.wrappedValue.formatted(.percent.precision(.fractionLength(0))))
-                    .font(.caption)
-                Slider(value: opacity, in: 0...1, step: 0.01)
+                LabeledContent("Opacity") {
+                    VStack(alignment: .trailing, spacing: 4) {
+                        Text(opacity.wrappedValue.formatted(.percent.precision(.fractionLength(0))))
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Slider(value: opacity, in: 0...1, step: 0.01)
+                    }
+                }
             }
         }
     }
@@ -347,15 +372,21 @@ private struct PackageThemeValueEditor: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             if !choices.isEmpty {
-                Picker(label, selection: $source) {
-                    Text("Custom").tag("custom")
-                    ForEach(choices) { choice in
-                        Text(choice.label).tag(choice.value)
+                LabeledContent(label) {
+                    Picker("", selection: $source) {
+                        Text("Custom").tag("custom")
+                        ForEach(choices) { choice in
+                            Text(choice.label).tag(choice.value)
+                        }
                     }
+                    .labelsHidden()
                 }
             }
             if source == "custom" || choices.isEmpty {
-                TextField(label, text: $customValue)
+                LabeledContent(choices.isEmpty ? label : "Custom value") {
+                    TextField("", text: $customValue)
+                        .labelsHidden()
+                }
             }
         }
     }

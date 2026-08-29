@@ -394,7 +394,7 @@ struct ComponentPackageTests {
         <dict>
             <key>id</key><string>alignment</string>
             <key>title</key><string>Alignment</string>
-            <key>section</key><string>Typography</string>
+            <key>group</key><string>Typography</string>
             <key>control</key><dict><key>type</key><string>textAlignment</string></dict>
             <key>default</key><string>start</string>
             <key>responsive</key><true/>
@@ -417,6 +417,58 @@ struct ComponentPackageTests {
         if case .textAlignment = property.control {} else { Issue.record("Expected the smart text-alignment control") }
         #expect(property.defaultValue == .choice("start"))
         #expect(property.isResponsive)
+    }
+
+    @Test
+    func customItemsRequireTheGroupKey() throws {
+        let manifestText = validManifest.replacingOccurrences(
+            of: "<key>group</key><string>Content</string>",
+            with: "<key>section</key><string>Content</string>"
+        )
+
+        #expect(throws: DecodingError.self) {
+            try PropertyListDecoder().decode(ComponentPackageManifest.self, from: Data(manifestText.utf8))
+        }
+    }
+
+    @Test
+    func dividerCustomControlIsPresentationOnly() throws {
+        let item = """
+        <dict>
+            <key>id</key><string>contentDivider</string>
+            <key>group</key><string>Content</string>
+            <key>control</key><dict><key>type</key><string>divider</string></dict>
+        </dict>
+        """
+        let manifestText = validManifest.replacingOccurrences(
+            of: "<key>customItems</key>",
+            with: "<key>customItems</key>\n            <array>\n                \(item)\n            </array>\n            <key>unusedItems</key>"
+        )
+        let packageURL = try makePackage(
+            manifest: manifestText,
+            template: "<section {{ component.attributes }}>{% slot id=\"content\" %}</section>"
+        )
+        defer { try? FileManager.default.removeItem(at: packageURL) }
+
+        let package = try ComponentPackageLoader.load(from: packageURL)
+        let property = try #require(
+            ComponentPackageAdapter.definition(from: package).properties.first {
+                $0.key.rawValue == "contentDivider"
+            }
+        )
+        if case .divider = property.control {} else { Issue.record("Expected a divider control") }
+        #expect(!property.isResponsive)
+
+        let invalidPackageURL = try makePackage(
+            manifest: manifestText,
+            template: "<section {{ component.attributes }}>{{ control.contentDivider }}{% slot id=\"content\" %}</section>"
+        )
+        defer { try? FileManager.default.removeItem(at: invalidPackageURL) }
+        let diagnostics = ComponentPackageValidator.validate(
+            package.manifest,
+            rootURL: invalidPackageURL.appending(path: "Contents/Resources", directoryHint: .isDirectory)
+        )
+        #expect(diagnostics.contains { $0.message.contains("Unknown property 'contentDivider'") })
     }
 
     @Test
@@ -661,7 +713,7 @@ struct ComponentPackageTests {
                 <dict>
                     <key>id</key><string>title</string>
                     <key>title</key><string>Title</string>
-                    <key>section</key><string>Content</string>
+                    <key>group</key><string>Content</string>
                     <key>control</key><dict><key>type</key><string>text</string></dict>
                     <key>default</key><string>Hello</string>
                     <key>responsive</key><false/>

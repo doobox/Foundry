@@ -17,7 +17,7 @@
 				<string>typeface</string>
 				<key>title</key>
 				<string>Typeface</string>
-				<key>section</key>
+				<key>group</key>
 				<string>Typography</string>
 				<key>control</key>
 				<dict>
@@ -38,7 +38,7 @@
 				<string>textSize</string>
 				<key>title</key>
 				<string>Font Size</string>
-				<key>section</key>
+				<key>group</key>
 				<string>Typography</string>
 				<key>control</key>
 				<dict>
@@ -59,7 +59,7 @@
 				<string>textColor</string>
 				<key>title</key>
 				<string>Colour</string>
-				<key>section</key>
+				<key>group</key>
 				<string>Colour</string>
 				<key>control</key>
 				<dict>

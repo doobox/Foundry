@@ -379,21 +379,26 @@ private struct ComponentInspector: View {
             componentIdentityHeader
         }
 
-        ForEach(inspectorSections, id: \.rawValue) { section in
-            Section(section.rawValue) {
-                ForEach(properties(in: section)) { definition in
-                    propertyEditor(definition)
-                }
-            }
+        ForEach(inspectorGroups, id: \.rawValue) { group in
+            ComponentInspectorGroup(
+                group: group,
+                properties: properties(in: group),
+                component: component,
+                theme: theme,
+                assets: assets,
+                editor: editor,
+                editsSharedDefinition: reusableDefinition != nil && !isGlobalOverride,
+                breakpoint: breakpoint
+            )
         }
 
     }
 
-    private var inspectorSections: [ComponentPropertySection] {
-        component.type.definition.properties.reduce(into: []) { sections, property in
+    private var inspectorGroups: [ComponentPropertySection] {
+        component.type.definition.properties.reduce(into: []) { groups, property in
             guard property.isInspectorVisible,
-                  !sections.contains(property.section) else { return }
-            sections.append(property.section)
+                  !groups.contains(property.section) else { return }
+            groups.append(property.section)
         }
     }
 
@@ -401,18 +406,6 @@ private struct ComponentInspector: View {
         component.type.definition.properties.filter {
             $0.section == section && $0.isInspectorVisible
         }
-    }
-
-    private func propertyEditor(_ definition: ComponentPropertyDefinition) -> some View {
-        ComponentPropertyEditor(
-            definition: definition,
-            component: component,
-            theme: theme,
-            assets: assets,
-            editor: editor,
-            editsSharedDefinition: reusableDefinition != nil && !isGlobalOverride,
-            breakpoint: breakpoint
-        )
     }
 
     private var componentIdentityHeader: some View {
@@ -452,5 +445,85 @@ private struct ComponentInspector: View {
 
     private var componentDeveloper: String {
         component.type.definition.package?.manifest.author ?? "Foundry"
+    }
+}
+
+private struct ComponentInspectorGroup: View {
+    let group: ComponentPropertySection
+    let properties: [ComponentPropertyDefinition]
+    let component: ComponentNode
+    let theme: Theme
+    let assets: [ProjectAsset]
+    let editor: ProjectEditor
+    let editsSharedDefinition: Bool
+    let breakpoint: ResponsiveBreakpoint
+    @State private var isExpanded = true
+
+    var body: some View {
+        Section {
+            VStack(spacing: 0) {
+                ComponentInspectorGroupHeader(
+                    title: group.rawValue,
+                    isExpanded: $isExpanded
+                )
+
+                if isExpanded {
+                    VStack(spacing: 0) {
+                        ForEach(properties) { definition in
+                            ComponentPropertyEditor(
+                                definition: definition,
+                                component: component,
+                                theme: theme,
+                                assets: assets,
+                                editor: editor,
+                                editsSharedDefinition: editsSharedDefinition,
+                                breakpoint: breakpoint
+                            )
+                            .padding(.vertical, 8)
+                        }
+                    }
+                    .padding(.top, 4)
+                }
+            }
+        }
+    }
+}
+
+private struct ComponentInspectorGroupHeader: View {
+    let title: String
+    @Binding var isExpanded: Bool
+
+    var body: some View {
+        Button {
+            withAnimation(.easeInOut(duration: 0.15)) {
+                isExpanded.toggle()
+            }
+        } label: {
+            HStack(spacing: 8) {
+                Text(title)
+                    .font(.headline)
+                    .bold()
+                    .foregroundStyle(.primary)
+
+                Spacer(minLength: 8)
+
+                Image(systemName: "chevron.down")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                    .rotationEffect(.degrees(isExpanded ? 0 : -90))
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 8)
+            .background(
+                Color.primary.opacity(0.05),
+                in: RoundedRectangle(cornerRadius: 6)
+            )
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(title)
+        .accessibilityValue(isExpanded ? "Expanded" : "Collapsed")
+        .accessibilityHint(isExpanded ? "Collapses this group" : "Expands this group")
     }
 }

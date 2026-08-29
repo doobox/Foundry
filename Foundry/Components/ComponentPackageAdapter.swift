@@ -40,7 +40,7 @@ nonisolated enum ComponentPackageAdapter {
         return [ComponentPropertyDefinition(
             key: .init(rawValue: property.id),
             label: property.title,
-            section: .init(rawValue: property.section),
+            section: .init(rawValue: property.group),
             control: control(property.control),
             defaultValue: value(property.defaultValue, control: property.control.type),
             isResponsive: property.responsive
@@ -53,7 +53,7 @@ nonisolated enum ComponentPackageAdapter {
     ) -> [ComponentPropertyDefinition] {
         let key = ComponentProperty.Key(rawValue: property.id)
         let customKey = ComponentProperty.Key(rawValue: property.id + "Custom")
-        let section = ComponentPropertySection(rawValue: property.section)
+        let section = ComponentPropertySection(rawValue: property.group)
         return [
             .init(
                 key: key, label: property.title, section: section,
@@ -74,7 +74,7 @@ nonisolated enum ComponentPackageAdapter {
 
     private static func colorProperties(for property: ComponentPackageProperty) -> [ComponentPropertyDefinition] {
         let key = ComponentProperty.Key(rawValue: property.id)
-        let section = ComponentPropertySection(rawValue: property.section)
+        let section = ComponentPropertySection(rawValue: property.group)
         let customColorKey = ComponentProperty.Key(rawValue: property.id + "Custom")
         let colorMathKey = property.control.colorMath == true
             ? ComponentProperty.Key(rawValue: property.id + "ColorMath") : nil
@@ -135,6 +135,7 @@ nonisolated enum ComponentPackageAdapter {
         case .fontFamily: .themeFontFamily
         case .fontSize: .themeFontSize
         case .textAlignment: .textAlignment
+        case .divider: .divider
         }
     }
 

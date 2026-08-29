@@ -100,7 +100,7 @@ nonisolated struct ComponentPackageSlot: Codable, Equatable, Identifiable, Senda
 nonisolated struct ComponentPackageProperty: Codable, Equatable, Identifiable, Sendable {
     let id: String
     let title: String
-    let section: String
+    let group: String
     let control: ComponentPackageControl
     let defaultValue: ComponentPackageValue
     let responsive: Bool
@@ -110,12 +110,32 @@ nonisolated struct ComponentPackageProperty: Codable, Equatable, Identifiable, S
     enum CodingKeys: String, CodingKey {
         case id
         case title
-        case section
+        case group
         case control
         case defaultValue = "default"
         case responsive
         case inlineEditable
         case css
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        group = try container.decode(String.self, forKey: .group)
+        control = try container.decode(ComponentPackageControl.self, forKey: .control)
+        css = try container.decodeIfPresent(String.self, forKey: .css)
+
+        if control.type == .divider {
+            title = try container.decodeIfPresent(String.self, forKey: .title) ?? ""
+            defaultValue = try container.decodeIfPresent(ComponentPackageValue.self, forKey: .defaultValue) ?? .string("")
+            responsive = try container.decodeIfPresent(Bool.self, forKey: .responsive) ?? false
+            inlineEditable = try container.decodeIfPresent(Bool.self, forKey: .inlineEditable) ?? false
+        } else {
+            title = try container.decode(String.self, forKey: .title)
+            defaultValue = try container.decode(ComponentPackageValue.self, forKey: .defaultValue)
+            responsive = try container.decode(Bool.self, forKey: .responsive)
+            inlineEditable = try container.decode(Bool.self, forKey: .inlineEditable)
+        }
     }
 }
 
@@ -132,6 +152,7 @@ nonisolated struct ComponentPackageControl: Codable, Equatable, Sendable {
         case fontFamily
         case fontSize
         case textAlignment
+        case divider
     }
 
     let type: Kind
