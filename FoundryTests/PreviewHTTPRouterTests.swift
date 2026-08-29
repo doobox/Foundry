@@ -38,7 +38,7 @@ struct PreviewHTTPRouterTests {
     func convertsCGIResponseToHTTPAndInjectsLiveReload() throws {
         let cgi = PHPPreviewCGIResponse(
             statusCode: 201,
-            headers: ["Content-Type": "text/html; charset=utf-8"],
+            headers: ["Content-Type": "text/html; charset=utf-8", "X-PHP": "working"],
             body: Data("<body>Created</body>".utf8),
             diagnostics: ""
         )
@@ -47,8 +47,15 @@ struct PreviewHTTPRouterTests {
         let text = try #require(String(data: response, encoding: .utf8))
 
         #expect(text.contains("HTTP/1.1 201 Created"))
+        #expect(text.contains("X-PHP: working\r\n"))
         #expect(text.contains("/__foundry/revision"))
         #expect(text.contains("Created"))
+        let parts = text.components(separatedBy: "\r\n\r\n")
+        #expect(parts.count == 2)
+        let body = try #require(parts.last)
+        #expect(!body.contains("Cache-Control:"))
+        #expect(!body.contains("Connection:"))
+        #expect(!body.contains("X-Content-Type-Options:"))
     }
 
     @Test

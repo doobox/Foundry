@@ -347,21 +347,16 @@ nonisolated enum PreviewHTTPRouter {
         contentType: String,
         additionalHeaders: [String: String] = [:]
     ) -> Data {
-        let extraHeaders = additionalHeaders
-            .sorted { $0.key.localizedStandardCompare($1.key) == .orderedAscending }
-            .map { "\($0.key): \($0.value)\r\n" }
-            .joined()
-        let header = """
-        HTTP/1.1 \(status)\r
-        Content-Type: \(contentType)\r
-        Content-Length: \(contentLength ?? body.count)\r
-        \(extraHeaders)
-        Cache-Control: no-store\r
-        Connection: close\r
-        X-Content-Type-Options: nosniff\r
-        \r
-
-        """
+        var header = "HTTP/1.1 \(status)\r\n"
+        header += "Content-Type: \(contentType)\r\n"
+        header += "Content-Length: \(contentLength ?? body.count)\r\n"
+        for (name, value) in additionalHeaders.sorted(by: { $0.key.localizedStandardCompare($1.key) == .orderedAscending }) {
+            header += "\(name): \(value)\r\n"
+        }
+        header += "Cache-Control: no-store\r\n"
+        header += "Connection: close\r\n"
+        header += "X-Content-Type-Options: nosniff\r\n"
+        header += "\r\n"
         var data = Data(header.utf8)
         data.append(body)
         return data
