@@ -40,6 +40,10 @@ final class ComponentPackageCatalog {
     private func loadInstalledComponents() {
         guard let root = try? FoundryPackLoader.installedPacksURL() else { return }
         for url in FoundryPackLoader.packURLs(in: root) {
+            if url.pathExtension.lowercased() == "foundrydevpack" {
+                openDevelopmentPack(at: url)
+                continue
+            }
             guard let pack = try? FoundryPackLoader.load(from: url), pack.type == .component else { continue }
             reload(url)
         }
