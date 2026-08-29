@@ -53,7 +53,7 @@ nonisolated struct PHPPreviewRuntime: Sendable {
     let executableURL: URL
 
     static func bundled(bundleURL: URL = Bundle.main.bundleURL) throws -> PHPPreviewRuntime {
-        let executableURL = bundleURL.appending(path: "Contents/Helpers/PHP/php-cgi")
+        let executableURL = bundleURL.appending(path: "Contents/Resources/php-cgi")
         guard FileManager.default.isExecutableFile(atPath: executableURL.path) else {
             throw PHPPreviewRuntimeError.unavailable(executableURL)
         }

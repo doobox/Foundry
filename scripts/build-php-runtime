@@ -15,7 +15,7 @@ download_path="$download_root/php-$php_version.tar.gz"
 source_archive_url="https://www.php.net/distributions/php-$php_version.tar.gz"
 bison_download_path="$download_root/bison-$bison_version.tar.xz"
 bison_archive_url="https://ftp.gnu.org/gnu/bison/bison-$bison_version.tar.xz"
-artifact_root="$repository_root/RuntimeArtifacts/PHP"
+artifact_root="$repository_root/Foundry/PHPRuntime"
 
 require_command() {
     if ! command -v "$1" >/dev/null 2>&1; then

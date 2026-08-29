@@ -7,8 +7,13 @@ struct PHPPreviewRuntimeTests {
     func missingBundledRuntimeReportsItsExpectedLocation() {
         let bundleURL = URL(fileURLWithPath: "/tmp/FoundryMissingRuntime.app", isDirectory: true)
 
-        #expect(throws: PHPPreviewRuntimeError.self) {
+        do {
             _ = try PHPPreviewRuntime.bundled(bundleURL: bundleURL)
+            Issue.record("Expected the missing runtime to throw.")
+        } catch let PHPPreviewRuntimeError.unavailable(url) {
+            #expect(url.path.hasSuffix("Contents/Resources/php-cgi"))
+        } catch {
+            Issue.record("Unexpected error: \(error)")
         }
     }
 

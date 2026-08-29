@@ -15,7 +15,7 @@ build/
 .swiftpm/
 
 # Locally built, reproducible third-party runtime artifacts
-RuntimeArtifacts/
+Foundry/PHPRuntime/
 
 # Local environment files
 .env
