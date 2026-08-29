@@ -82,8 +82,9 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
         let bodyStart = placedHTML(for: page, placement: .bodyStart)
         let bodyEnd = placedHTML(for: page, placement: .bodyEnd)
         let scripts = packageScripts(for: page, theme: theme, assetPrefix: assetPrefix, assets: assets)
+        let php = packagePHP(for: page, theme: theme, assetPrefix: assetPrefix, assets: assets)
         let documentLanguage = language.trimmingCharacters(in: .whitespacesAndNewlines)
-        return """
+        let document = """
         <!doctype html>
         <html lang="\(escapeAttribute(documentLanguage.isEmpty ? "en" : documentLanguage))">
         <head>
@@ -100,6 +101,40 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
         </body>
         </html>
         """
+        return php.isEmpty ? document : php + "\n" + document
+    }
+
+    private func packagePHP(for page: Page, theme: Theme, assetPrefix: String, assets: [UUID: ProjectAssetContent]) -> String {
+        let nodes = page.components.flatMap(\.flattened)
+        let instancePHP = nodes.compactMap { node -> String? in
+            guard let package = node.type.definition.package, !package.instancePHP.isEmpty else { return nil }
+            return ComponentTemplateRenderer.render(
+                package.instancePHP,
+                context: .init(
+                    instanceID: node.id,
+                    packageIdentifier: package.manifest.identifier,
+                    properties: packageProperties(node, theme: theme, assetPrefix: assetPrefix, assets: assets),
+                    slots: [:]
+                )
+            )
+        }
+        var seenPackages: Set<String> = []
+        let sharedPHP = nodes.compactMap { node -> String? in
+            guard let package = node.type.definition.package,
+                  seenPackages.insert(package.manifest.identifier).inserted else { return nil }
+            let source = [package.pagePHP, package.sitePHP].filter { !$0.isEmpty }.joined(separator: "\n")
+            guard !source.isEmpty else { return nil }
+            return ComponentTemplateRenderer.render(
+                source,
+                context: .init(
+                    instanceID: UUID(uuid: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)),
+                    packageIdentifier: package.manifest.identifier,
+                    properties: [:],
+                    slots: [:]
+                )
+            )
+        }
+        return (instancePHP + sharedPHP).joined(separator: "\n")
     }
 
     private func packageScripts(for page: Page, theme: Theme, assetPrefix: String, assets: [UUID: ProjectAssetContent]) -> String {

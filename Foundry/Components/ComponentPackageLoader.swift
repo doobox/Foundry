@@ -11,6 +11,9 @@ nonisolated struct LoadedComponentPackage: Sendable {
     let instanceJavaScript: String
     let pageJavaScript: String
     let siteJavaScript: String
+    let instancePHP: String
+    let pagePHP: String
+    let sitePHP: String
     let editorCSS: String
 
     var lock: ComponentPackageLock {
@@ -108,6 +111,12 @@ nonisolated enum ComponentPackageLoader {
                 }
                 .joined(separator: "\n")
         }
+        func php(scope: ComponentPackageTemplateFile.Scope) throws -> String {
+            try manifest.render.files
+                .filter { $0.scope == scope && $0.path.lowercased().hasSuffix(".php") }
+                .map { try read($0.path, from: resourceRootURL) }
+                .joined(separator: "\n")
+        }
         return LoadedComponentPackage(
             manifest: manifest,
             rootURL: rootURL,
@@ -119,6 +128,9 @@ nonisolated enum ComponentPackageLoader {
             instanceJavaScript: try javascript(scope: .instance),
             pageJavaScript: try javascript(scope: .page),
             siteJavaScript: try javascript(scope: .site),
+            instancePHP: try php(scope: .instance),
+            pagePHP: try php(scope: .page),
+            sitePHP: try php(scope: .site),
             editorCSS: try readIfPresent(manifest.render.editorCSS, from: resourceRootURL),
         )
     }

@@ -263,7 +263,7 @@ struct ComponentPackageTests {
             rootURL: packageURL.appending(path: "Contents/Resources", directoryHint: .isDirectory)
         )
 
-        #expect(diagnostics.contains(where: { $0.message.contains("support CSS, JavaScript and placed HTML") }))
+        #expect(diagnostics.contains(where: { $0.message.contains("support CSS, JavaScript, PHP and placed HTML") }))
     }
 
     @Test
@@ -300,6 +300,73 @@ struct ComponentPackageTests {
         #expect(package.siteJavaScript.contains("site"))
         #expect(package.siteJavaScript.hasPrefix("(function (page) {"))
         #expect(package.siteJavaScript.hasSuffix("})(document);"))
+    }
+
+    @Test
+    func loaderProcessesScopedPHPTemplatesIntoExportedPagePrelude() throws {
+        let identifier = "com.example.phptemplates\(UUID().uuidString.replacingOccurrences(of: "-", with: "").lowercased())"
+        let declaration = """
+        <key>files</key>
+        <array>
+            <dict><key>path</key><string>instance.php</string><key>scope</key><string>instance</string></dict>
+            <dict><key>path</key><string>page.php</string><key>scope</key><string>page</string></dict>
+            <dict><key>path</key><string>site.php</string><key>scope</key><string>site</string></dict>
+        </array>
+        """
+        let manifestText = validManifest
+            .replacingOccurrences(of: "com.example.card", with: identifier)
+            .replacingOccurrences(of: "<key>templates</key>", with: "<key>requiresPhp</key><true/>\n            <key>templates</key>")
+            .replacingOccurrences(of: instanceCSSDeclaration, with: declaration)
+        let packageURL = try makePackage(
+            manifest: manifestText,
+            template: "<section id=\"{{ id }}\" {{ component.attributes }}>{% slot id=\"content\" %}</section>",
+            additionalFiles: [
+                "instance.php": "<?php $componentIDs[] = '{{ id }}'; ?>",
+                "page.php": "<?php $package = '{{ package.id }}'; ?>",
+                "site.php": "<?php $siteSetup = true; ?>"
+            ]
+        )
+        defer { try? FileManager.default.removeItem(at: packageURL) }
+
+        let package = try ComponentPackageLoader.load(from: packageURL)
+        ComponentRegistry.register(package)
+        let type = ComponentType(rawValue: identifier)
+        let first = ComponentNode(type: type)
+        let second = ComponentNode(type: type)
+        let site = Site(name: "PHP", pages: [Page(title: "Home", slug: "index", components: [first, second])])
+        let php = try #require(StaticSiteRenderer().render(site: site).file(at: "index.php")?.contents)
+
+        #expect(package.instancePHP.contains("$componentIDs"))
+        #expect(php.hasPrefix("<?php"))
+        #expect(php.contains(first.id.uuidString.lowercased()))
+        #expect(php.contains(second.id.uuidString.lowercased()))
+        #expect(php.components(separatedBy: "$package =").count - 1 == 1)
+        #expect(php.components(separatedBy: "$siteSetup =").count - 1 == 1)
+        let doctypeRange = try #require(php.range(of: "<!doctype html>"))
+        #expect(doctypeRange.lowerBound > php.startIndex)
+    }
+
+    @Test
+    func validatorRequiresPhpExtensionForPHPTemplates() throws {
+        let declaration = """
+        <key>files</key>
+        <array><dict><key>path</key><string>component.php</string></dict></array>
+        """
+        let manifestText = validManifest.replacingOccurrences(of: instanceCSSDeclaration, with: declaration)
+        let packageURL = try makePackage(
+            manifest: manifestText,
+            template: "<section {{ component.attributes }}>{% slot id=\"content\" %}</section>",
+            additionalFiles: ["component.php": "<?php return; ?>"]
+        )
+        defer { try? FileManager.default.removeItem(at: packageURL) }
+        let manifest = try PropertyListDecoder().decode(ComponentPackageManifest.self, from: Data(manifestText.utf8))
+
+        let diagnostics = ComponentPackageValidator.validate(
+            manifest,
+            rootURL: packageURL.appending(path: "Contents/Resources", directoryHint: .isDirectory)
+        )
+
+        #expect(diagnostics.contains { $0.location == "Info.plist:requiresPhp" })
     }
 
     @Test

@@ -72,6 +72,13 @@ nonisolated enum ComponentPackageValidator {
                     message: "JavaScript templates are emitted at the end of the body and do not use placement."
                 ))
             }
+            if fileExtension == "php", file.placement != nil {
+                diagnostics.append(.init(
+                    severity: .error,
+                    location: "Info.plist:templates.files.\(file.path)",
+                    message: "PHP templates run before page markup and do not use HTML placement."
+                ))
+            }
             if fileExtension == "html", file.placement == nil {
                 diagnostics.append(.init(
                     severity: .error,
@@ -86,19 +93,27 @@ nonisolated enum ComponentPackageValidator {
                     message: "Placed HTML templates currently require page scope."
                 ))
             }
-            if fileExtension != "css" && fileExtension != "html" && fileExtension != "js" {
+            if fileExtension != "css" && fileExtension != "html" && fileExtension != "js" && fileExtension != "php" {
                 diagnostics.append(.init(
                     severity: .error,
                     location: "Info.plist:templates.files.\(file.path)",
-                    message: "Template files currently support CSS, JavaScript and placed HTML."
+                    message: "Template files currently support CSS, JavaScript, PHP and placed HTML."
                 ))
             }
+        }
+        if !manifest.requiresPhp,
+           manifest.render.files.contains(where: { $0.path.lowercased().hasSuffix(".php") }) {
+            diagnostics.append(.init(
+                severity: .error,
+                location: "Info.plist:requiresPhp",
+                message: "Components with PHP templates must set requiresPhp to true."
+            ))
         }
         let templates: [(path: String?, requiresEditorAttributes: Bool)] = [
             (manifest.render.html, true),
             (manifest.render.editorCSS, false)
         ] + manifest.render.files
-            .filter { $0.path.lowercased().hasSuffix(".css") || $0.path.lowercased().hasSuffix(".html") || $0.path.lowercased().hasSuffix(".js") }
+            .filter { $0.path.lowercased().hasSuffix(".css") || $0.path.lowercased().hasSuffix(".html") || $0.path.lowercased().hasSuffix(".js") || $0.path.lowercased().hasSuffix(".php") }
             .map { ($0.path as String?, false) }
         for declaredTemplate in templates {
             guard let path = declaredTemplate.path,
