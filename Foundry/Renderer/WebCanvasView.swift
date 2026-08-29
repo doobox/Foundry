@@ -82,6 +82,87 @@ struct WebCanvasView: NSViewRepresentable {
           globalMenu.appendChild(globalMenuAction);
           document.body.appendChild(globalMenu);
 
+          const chromeHost = document.createElement('foundry-editor-chrome');
+          chromeHost.style.setProperty('position', 'fixed', 'important');
+          chromeHost.style.setProperty('inset', '0', 'important');
+          chromeHost.style.setProperty('display', 'block', 'important');
+          chromeHost.style.setProperty('pointer-events', 'none', 'important');
+          chromeHost.style.setProperty('z-index', '2147483647', 'important');
+          chromeHost.style.setProperty('overflow', 'visible', 'important');
+          chromeHost.style.setProperty('visibility', 'visible', 'important');
+          chromeHost.style.setProperty('opacity', '1', 'important');
+          chromeHost.style.setProperty('transform', 'none', 'important');
+          chromeHost.style.setProperty('clip', 'auto', 'important');
+          chromeHost.style.setProperty('clip-path', 'none', 'important');
+          const chromeRoot = chromeHost.attachShadow({ mode: 'closed' });
+          const chromeStyle = document.createElement('style');
+          chromeStyle.textContent = `
+            :host { all: initial; }
+            .title {
+              all: initial;
+              position: fixed;
+              display: none;
+              box-sizing: border-box;
+              max-width: calc(100vw - 16px);
+              padding: 3px 7px;
+              border-radius: 5px 5px 0 0;
+              overflow: hidden;
+              color: white;
+              background: #0A84FF;
+              font: 11px/16px system-ui, sans-serif;
+              white-space: nowrap;
+              text-overflow: ellipsis;
+              pointer-events: none;
+            }
+          `;
+          const chromeTitle = document.createElement('div');
+          chromeTitle.className = 'title';
+          chromeRoot.append(chromeStyle, chromeTitle);
+          document.documentElement.appendChild(chromeHost);
+          let hoveredComponent = null;
+          let chromeFrame = null;
+
+          const componentChromeColor = element => {
+            const overrideOwner = element.closest('[data-foundry-global-override="true"]');
+            return element.dataset.foundryGlobal && !overrideOwner ? '#34C759' : '#0A84FF';
+          };
+
+          const updateChromeTitle = () => {
+            chromeFrame = null;
+            if (!hoveredComponent || !hoveredComponent.isConnected || !editorOptions.showsTitles || activeInlineEdit) {
+              chromeTitle.style.display = 'none';
+              return;
+            }
+            const rect = hoveredComponent.getBoundingClientRect();
+            if (rect.width <= 0 || rect.height <= 0 || rect.bottom < 0 || rect.top > window.innerHeight) {
+              chromeTitle.style.display = 'none';
+              return;
+            }
+            chromeTitle.textContent = hoveredComponent.dataset.foundryName || '';
+            chromeTitle.style.background = componentChromeColor(hoveredComponent);
+            chromeTitle.style.left = Math.max(0, Math.min(rect.left + 1, window.innerWidth - 8)) + 'px';
+            chromeTitle.style.top = Math.max(0, rect.top) + 'px';
+            chromeTitle.style.transform = rect.top >= 22 ? 'translateY(-100%)' : 'none';
+            chromeTitle.style.display = 'block';
+          };
+
+          const scheduleChromeTitleUpdate = () => {
+            if (chromeFrame === null) chromeFrame = requestAnimationFrame(updateChromeTitle);
+          };
+
+          document.addEventListener('pointermove', event => {
+            const component = event.target.closest?.(selector) ?? null;
+            if (component === hoveredComponent) return;
+            hoveredComponent = component;
+            scheduleChromeTitleUpdate();
+          }, true);
+          document.addEventListener('pointerleave', () => {
+            hoveredComponent = null;
+            scheduleChromeTitleUpdate();
+          }, true);
+          document.addEventListener('scroll', scheduleChromeTitleUpdate, true);
+          window.addEventListener('resize', scheduleChromeTitleUpdate);
+
           const dismissGlobalMenu = () => {
             globalMenu.classList.remove('is-visible');
             globalMenuTarget = null;
@@ -227,6 +308,7 @@ struct WebCanvasView: NSViewRepresentable {
             editorOptions = { ...editorOptions, ...options };
             document.documentElement.classList.toggle('foundry-show-titles', editorOptions.showsTitles);
             document.documentElement.classList.toggle('foundry-show-outlines', editorOptions.showsOutlines);
+            scheduleChromeTitleUpdate();
           };
 
           window.foundrySetSelection = ids => {

@@ -98,10 +98,13 @@ struct CanvasBridgeTests {
         let page = Site.starter().pages[0]
         let html = HTMLPageRenderer().render(page: page, theme: .standard)
 
-        #expect(html.contains("foundry-show-titles"))
+        #expect(WebCanvasView.Coordinator.interactionScript.contains("foundry-show-titles"))
         #expect(html.contains("foundry-show-outlines"))
         #expect(WebCanvasView.Coordinator.interactionScript.contains("foundrySetEditorOptions"))
         #expect(WebCanvasView.Coordinator.interactionScript.contains("scrollsToSelection"))
+        #expect(WebCanvasView.Coordinator.interactionScript.contains("attachShadow({ mode: 'closed' })"))
+        #expect(WebCanvasView.Coordinator.interactionScript.contains("pointer-events', 'none'"))
+        #expect(!html.contains("data-foundry-name); position: absolute"))
     }
 
     @Test

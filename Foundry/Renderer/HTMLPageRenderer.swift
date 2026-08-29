@@ -60,30 +60,15 @@ struct HTMLPageRenderer: PageRendering {
               outline: 3px solid color-mix(in srgb, var(--editor-chrome) 55%, transparent); outline-offset: -3px;
               border-radius: 2px !important;
             }
-            [data-foundry-id]:hover:not(:has([data-foundry-id]:hover))::after {
-              content: attr(data-foundry-name); position: absolute; z-index: 1000;
-              left: 1px; top: -19px; padding: 3px 7px; border-radius: 5px 5px 0 0;
-              color: white; background: var(--editor-chrome); font: 11px system-ui; line-height: 16px;
-            }
             [data-foundry-global]:hover:not(:has([data-foundry-id]:hover)) {
               outline-color: var(--editor-chrome);
-            }
-            [data-foundry-global]:hover:not(:has([data-foundry-id]:hover))::after {
-              background: var(--editor-chrome);
             }
             [data-foundry-global-override="true"]:hover:not(:has([data-foundry-id]:hover)),
             [data-foundry-global-override="true"] [data-foundry-global]:hover:not(:has([data-foundry-id]:hover)) {
               outline-color: color-mix(in srgb, var(--editor-chrome) 55%, transparent);
             }
-            [data-foundry-global-override="true"]:hover:not(:has([data-foundry-id]:hover))::after,
-            [data-foundry-global-override="true"] [data-foundry-global]:hover:not(:has([data-foundry-id]:hover))::after {
-              background: var(--editor-chrome);
-            }
             html:not(.foundry-show-outlines) [data-foundry-id]:hover:not(:has([data-foundry-id]:hover)) {
               outline: none !important;
-            }
-            html:not(.foundry-show-titles) [data-foundry-id]:hover:not(:has([data-foundry-id]:hover))::after {
-              display: none !important;
             }
             .foundry-multi-drag-image {
               position: fixed; left: -1000px; top: -1000px; z-index: 2000;
@@ -147,7 +132,6 @@ struct HTMLPageRenderer: PageRendering {
               border-color: color-mix(in srgb, var(--editor-chrome) 42%, transparent);
             }
             [data-foundry-global].foundry-editing { outline-color: var(--editor-chrome) !important; }
-            .foundry-editing::after { display: none !important; }
             body {
               margin: 0; padding: 48px; background: var(--background);
               color: var(--text); font-family: var(--font-body);
