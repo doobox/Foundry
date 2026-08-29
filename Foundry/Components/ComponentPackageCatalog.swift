@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import Observation
 
@@ -10,10 +11,19 @@ final class ComponentPackageCatalog {
     private(set) var diagnostics: [URL: [ComponentPackageDiagnostic]] = [:]
     private(set) var packages: [String: LoadedComponentPackage] = [:]
     private var developmentWatchers: [URL: FoundryDevelopmentPackWatcher] = [:]
+    private var dirtyDevelopmentRoots: Set<URL> = []
+    private var applicationActiveObserver: NSObjectProtocol?
 
     private init() {
         loadBundledComponents()
         loadInstalledComponents()
+        applicationActiveObserver = NotificationCenter.default.addObserver(
+            forName: NSApplication.didBecomeActiveNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated { self?.reloadDirtyDevelopmentPacks() }
+        }
     }
 
     private func loadBundledComponents() {
@@ -76,10 +86,19 @@ final class ComponentPackageCatalog {
         guard developmentWatchers[rootURL] == nil else { return }
         developmentWatchers[rootURL] = FoundryDevelopmentPackWatcher(rootURL: rootURL) { [weak self] in
             Task { @MainActor [weak self] in
-                self?.reloadDevelopmentPack(at: rootURL)
-                FoundryPackCatalog.shared.reload()
+                self?.dirtyDevelopmentRoots.insert(rootURL)
             }
         }
+    }
+
+    private func reloadDirtyDevelopmentPacks() {
+        let roots = dirtyDevelopmentRoots
+        dirtyDevelopmentRoots.removeAll()
+        guard !roots.isEmpty else { return }
+        for rootURL in roots {
+            reloadDevelopmentPack(at: rootURL)
+        }
+        FoundryPackCatalog.shared.reload()
     }
 
     private func reloadDevelopmentPack(at rootURL: URL) {

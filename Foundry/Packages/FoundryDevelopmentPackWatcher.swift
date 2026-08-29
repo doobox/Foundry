@@ -26,10 +26,10 @@ nonisolated final class FoundryDevelopmentPackWatcher: @unchecked Sendable {
 
     private func rebuildSources() {
         sources.forEach { $0.cancel() }
-        sources = watchedURLs().compactMap(makeSource)
+        sources = Self.watchedURLs(in: rootURL).compactMap(makeSource)
     }
 
-    private func watchedURLs() -> [URL] {
+    static func watchedURLs(in rootURL: URL) -> [URL] {
         var urls = [rootURL]
         guard let enumerator = FileManager.default.enumerator(
             at: rootURL,
@@ -37,6 +37,10 @@ nonisolated final class FoundryDevelopmentPackWatcher: @unchecked Sendable {
             options: [.skipsHiddenFiles]
         ) else { return urls }
         for case let url as URL in enumerator {
+            if url.pathExtension.lowercased() == "foundrypack" {
+                enumerator.skipDescendants()
+                continue
+            }
             urls.append(url)
         }
         return urls

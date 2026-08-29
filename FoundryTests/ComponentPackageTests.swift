@@ -493,6 +493,26 @@ struct ComponentPackageTests {
         }
     }
 
+    @Test
+    func developmentPackWatcherTreatsNestedDistributionPacksAsOpaque() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appending(path: "\(UUID().uuidString).foundrydevpack", directoryHint: .isDirectory)
+        let resources = root.appending(path: "Contents/Resources", directoryHint: .isDirectory)
+        let sourceFile = resources.appending(path: "component.css")
+        let childPack = resources.appending(path: "Child.foundrypack", directoryHint: .isDirectory)
+        let childFile = childPack.appending(path: "Contents/Resources/child.css")
+        defer { try? FileManager.default.removeItem(at: root) }
+        try FileManager.default.createDirectory(at: childFile.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try Data().write(to: sourceFile)
+        try Data().write(to: childFile)
+
+        let watched = Set(FoundryDevelopmentPackWatcher.watchedURLs(in: root).map(\.standardizedFileURL))
+
+        #expect(watched.contains(sourceFile.standardizedFileURL))
+        #expect(!watched.contains(childPack.standardizedFileURL))
+        #expect(!watched.contains(childFile.standardizedFileURL))
+    }
+
     private var validManifest: String {
         """
         <?xml version="1.0" encoding="UTF-8"?>
