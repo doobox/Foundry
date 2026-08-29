@@ -48,7 +48,7 @@ struct PreviewHTTPRouterTests {
 
         #expect(text.contains("HTTP/1.1 201 Created"))
         #expect(text.contains("X-PHP: working\r\n"))
-        #expect(text.contains("/__foundry/revision"))
+        #expect(text.contains("/__foundry/events"))
         #expect(text.contains("Created"))
         let parts = text.components(separatedBy: "\r\n\r\n")
         #expect(parts.count == 2)
@@ -96,20 +96,18 @@ struct PreviewHTTPRouterTests {
     }
 
     @Test
-    func livePreviewPublishesRevisionAndReloadScript() throws {
-        let revision = PreviewHTTPRouter.response(
-            for: Data("GET /__foundry/revision HTTP/1.1\r\n\r\n".utf8),
-            bundle: bundle,
-            liveReloadRevision: 42
-        )
+    func livePreviewUsesASingleEventStreamForReloads() throws {
         let html = PreviewHTTPRouter.response(
             for: Data("GET / HTTP/1.1\r\n\r\n".utf8),
             bundle: bundle,
             liveReloadRevision: 42
         )
 
-        #expect(try #require(String(data: revision, encoding: .utf8)).hasSuffix("42"))
-        #expect(try #require(String(data: html, encoding: .utf8)).contains("/__foundry/revision"))
+        let text = try #require(String(data: html, encoding: .utf8))
+        #expect(text.contains("new EventSource('/__foundry/events?revision='"))
+        #expect(text.contains("addEventListener('reload'"))
+        #expect(!text.contains("setInterval"))
+        #expect(!text.contains("fetch('/__foundry/revision'"))
     }
 
     @Test

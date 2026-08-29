@@ -11,6 +11,7 @@ actor PreviewServer {
     private var startContinuation: CheckedContinuation<URL, any Error>?
     private var revision: UInt64 = 0
     private var documentRoot: URL?
+    private var eventStreams: [UUID: NWConnection] = [:]
 
     func publish(_ bundle: SiteExportBundle) async throws -> URL {
         let nextRoot = FileManager.default.temporaryDirectory
@@ -20,6 +21,7 @@ actor PreviewServer {
         documentRoot = nextRoot
         self.bundle = bundle
         revision &+= 1
+        publishReloadEvent()
         if let previousRoot {
             Task {
                 try? await Task.sleep(for: .seconds(10))
@@ -105,6 +107,11 @@ actor PreviewServer {
             if let data { request.append(data) }
             if PreviewHTTPRequest.isComplete(request) || isComplete || error != nil || request.count >= 65_536 {
                 Task {
+                    if let parsedRequest = PreviewHTTPRequest(data: request),
+                       parsedRequest.target.split(separator: "?", maxSplits: 1).first == "/__foundry/events" {
+                        await self.openEventStream(connection, request: parsedRequest)
+                        return
+                    }
                     let response = await self.phpResponse(
                         for: request,
                         bundle: bundle,
@@ -123,6 +130,64 @@ actor PreviewServer {
                 )
             }
         }
+    }
+
+    private func openEventStream(_ connection: NWConnection, request: PreviewHTTPRequest) {
+        guard request.method == "GET" else {
+            let response = Data("HTTP/1.1 405 Method Not Allowed\r\nContent-Length: 0\r\nConnection: close\r\n\r\n".utf8)
+            connection.send(content: response, completion: .contentProcessed { _ in connection.cancel() })
+            return
+        }
+
+        let streamID = UUID()
+        eventStreams[streamID] = connection
+        connection.stateUpdateHandler = { [weak self] state in
+            switch state {
+            case .failed, .cancelled:
+                break
+            default:
+                return
+            }
+            Task { await self?.removeEventStream(streamID) }
+        }
+        let headers = Data("""
+        HTTP/1.1 200 OK\r
+        Content-Type: text/event-stream\r
+        Cache-Control: no-cache\r
+        Connection: keep-alive\r
+        X-Content-Type-Options: nosniff\r
+        \r
+        retry: 1000\n
+        \n
+        """.utf8)
+        connection.send(content: headers, completion: .contentProcessed { [weak self] error in
+            guard error != nil else { return }
+            Task { await self?.removeEventStream(streamID) }
+        })
+
+        let clientRevision = URLComponents(string: request.target)?
+            .queryItems?
+            .first(where: { $0.name == "revision" })?
+            .value
+            .flatMap(UInt64.init)
+        if clientRevision != revision {
+            sendReloadEvent(to: connection)
+        }
+    }
+
+    private func publishReloadEvent() {
+        for connection in eventStreams.values {
+            sendReloadEvent(to: connection)
+        }
+    }
+
+    private func sendReloadEvent(to connection: NWConnection) {
+        let event = Data("event: reload\ndata: \(revision)\n\n".utf8)
+        connection.send(content: event, completion: .contentProcessed { _ in })
+    }
+
+    private func removeEventStream(_ id: UUID) {
+        eventStreams.removeValue(forKey: id)
     }
 
     private nonisolated func phpResponse(
@@ -224,16 +289,6 @@ nonisolated enum PreviewHTTPRouter {
             return response(status: "405 Method Not Allowed", body: Data(), contentType: "text/plain")
         }
         let requestTarget = String(parts[1])
-        if requestTarget.split(separator: "?", maxSplits: 1).first == "/__foundry/revision",
-           let liveReloadRevision {
-            let revisionData = Data(String(liveReloadRevision).utf8)
-            return response(
-                status: "200 OK",
-                body: method == "HEAD" ? Data() : revisionData,
-                contentLength: revisionData.count,
-                contentType: "text/plain; charset=utf-8"
-            )
-        }
         guard safeBundlePath(requestTarget) != nil else {
             return response(status: "403 Forbidden", body: Data(), contentType: "text/plain")
         }
@@ -311,12 +366,8 @@ nonisolated enum PreviewHTTPRouter {
         <script>
         (() => {
           const revision = '\(revision)';
-          setInterval(async () => {
-            try {
-              const next = await fetch('/__foundry/revision', { cache: 'no-store' }).then(r => r.text());
-              if (next !== revision) location.reload();
-            } catch (_) {}
-          }, 500);
+          const events = new EventSource('/__foundry/events?revision=' + encodeURIComponent(revision));
+          events.addEventListener('reload', () => location.reload());
         })();
         </script>
         """
