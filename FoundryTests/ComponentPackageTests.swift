@@ -196,6 +196,72 @@ struct ComponentPackageTests {
     }
 
     @Test
+    func loaderProcessesInstanceScopedCSSTemplateFiles() throws {
+        let manifest = validManifest.replacingOccurrences(
+            of: instanceCSSDeclaration,
+            with: """
+            <key>files</key>
+            <array>
+                <dict>
+                    <key>path</key><string>instance.css</string>
+                    <key>scope</key><string>instance</string>
+                </dict>
+                <dict>
+                    <key>path</key><string>default-scope.css</string>
+                </dict>
+            </array>
+            """
+        )
+        let packageURL = try makePackage(
+            manifest: manifest,
+            template: "<section {{ component.attributes }}>{% slot id=\"content\" %}</section>",
+            additionalFiles: [
+                "instance.css": "#{{ id }} { color: red; }",
+                "default-scope.css": "#{{ id }} { display: block; }"
+            ]
+        )
+        defer { try? FileManager.default.removeItem(at: packageURL) }
+
+        let package = try ComponentPackageLoader.load(from: packageURL)
+
+        #expect(package.manifest.render.files.map(\.scope) == [.instance, .instance])
+        #expect(package.css.contains("color: red"))
+        #expect(package.css.contains("display: block"))
+    }
+
+    @Test
+    func validatorRejectsUnimplementedTemplateScopesAndFormats() throws {
+        let manifestText = validManifest.replacingOccurrences(
+            of: instanceCSSDeclaration,
+            with: """
+            <key>files</key>
+            <array>
+                <dict><key>path</key><string>page.css</string><key>scope</key><string>page</string></dict>
+                <dict><key>path</key><string>component.scss</string><key>scope</key><string>instance</string></dict>
+            </array>
+            """
+        )
+        let packageURL = try makePackage(
+            manifest: manifestText,
+            template: "<section {{ component.attributes }}>{% slot id=\"content\" %}</section>",
+            additionalFiles: ["page.css": "body {}", "component.scss": ":host {}"]
+        )
+        defer { try? FileManager.default.removeItem(at: packageURL) }
+        let manifest = try PropertyListDecoder().decode(
+            ComponentPackageManifest.self,
+            from: Data(manifestText.utf8)
+        )
+
+        let diagnostics = ComponentPackageValidator.validate(
+            manifest,
+            rootURL: packageURL.appending(path: "Contents/Resources", directoryHint: .isDirectory)
+        )
+
+        #expect(diagnostics.contains(where: { $0.message.contains("Only instance-scoped") }))
+        #expect(diagnostics.contains(where: { $0.message.contains("currently support CSS only") }))
+    }
+
+    @Test
     func insertingIntoNamedSlotStoresTheSlotOnTheChild() throws {
         let parentID = UUID()
         var tree = [ComponentNode(id: parentID, type: .container)]
@@ -294,11 +360,23 @@ struct ComponentPackageTests {
             <key>templates</key>
             <dict>
                 <key>html</key><string>component.html</string>
-                <key>css</key><string>component.css</string>
+                \(instanceCSSDeclaration)
             </dict>
             <key>assets</key><array><string>images/icon.svg</string></array>
         </dict>
         </plist>
+        """
+    }
+
+    private var instanceCSSDeclaration: String {
+        """
+        <key>files</key>
+        <array>
+            <dict>
+                <key>path</key><string>component.css</string>
+                <key>scope</key><string>instance</string>
+            </dict>
+        </array>
         """
     }
 

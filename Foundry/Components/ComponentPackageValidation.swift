@@ -46,9 +46,9 @@ nonisolated enum ComponentPackageValidator {
             }
         }
 
-        let declaredFiles = ["icon.svg", manifest.render.html, manifest.render.css, manifest.render.editorCSS, manifest.runtime?.entry]
+        let declaredFiles = ["icon.svg", manifest.render.html, manifest.render.editorCSS, manifest.runtime?.entry]
             .compactMap { $0 }
-            .filter { !$0.isEmpty } + manifest.assets
+            .filter { !$0.isEmpty } + manifest.assets + manifest.render.files.map(\.path)
         for path in declaredFiles {
             if !isSafeRelativePath(path) {
                 diagnostics.append(.init(severity: .error, location: path, message: "Package paths must be relative and cannot contain '..'."))
@@ -59,11 +59,35 @@ nonisolated enum ComponentPackageValidator {
         if manifest.runtime?.capabilities.contains(.network) == true {
             diagnostics.append(.init(severity: .warning, location: "Info.plist:runtime", message: "Network access requires explicit user approval when this package is installed."))
         }
+        for file in manifest.render.files {
+            if file.scope != .instance {
+                diagnostics.append(.init(
+                    severity: .error,
+                    location: "Info.plist:templates.files.\(file.path)",
+                    message: "Only instance-scoped template files are currently supported."
+                ))
+            }
+            if file.placement != nil {
+                diagnostics.append(.init(
+                    severity: .error,
+                    location: "Info.plist:templates.files.\(file.path)",
+                    message: "Template placement is not yet supported."
+                ))
+            }
+            if URL(fileURLWithPath: file.path).pathExtension.lowercased() != "css" {
+                diagnostics.append(.init(
+                    severity: .error,
+                    location: "Info.plist:templates.files.\(file.path)",
+                    message: "Instance template files currently support CSS only."
+                ))
+            }
+        }
         let templates: [(path: String?, requiresEditorAttributes: Bool)] = [
             (manifest.render.html, true),
-            (manifest.render.css, false),
             (manifest.render.editorCSS, false)
-        ]
+        ] + manifest.render.files
+            .filter { $0.scope == .instance && $0.path.lowercased().hasSuffix(".css") }
+            .map { ($0.path as String?, false) }
         for declaredTemplate in templates {
             guard let path = declaredTemplate.path,
                   isSafeRelativePath(path),

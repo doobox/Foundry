@@ -105,7 +105,8 @@
     <key>templates</key>
     <dict>
         <key>html</key><string>component.html</string>
-        <key>css</key><string>component.css</string>
+        <key>files</key>
+        <array><dict><key>path</key><string>component.css</string><key>scope</key><string>instance</string></dict></array>
     </dict>
     <key>assets</key><array/>
 </dict>

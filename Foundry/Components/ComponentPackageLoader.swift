@@ -78,11 +78,14 @@ nonisolated enum ComponentPackageLoader {
             throw ComponentPackageLoadingError.unapprovedCapabilities(unapprovedCapabilities)
         }
 
+        let instanceCSS = try manifest.render.files
+            .filter { $0.scope == .instance && $0.path.lowercased().hasSuffix(".css") }
+            .map { try read($0.path, from: resourceRootURL) }
         return LoadedComponentPackage(
             manifest: manifest,
             rootURL: rootURL,
             htmlTemplate: try read(manifest.render.html, from: resourceRootURL),
-            css: try readIfPresent(manifest.render.css, from: resourceRootURL),
+            css: instanceCSS.joined(separator: "\n"),
             editorCSS: try readIfPresent(manifest.render.editorCSS, from: resourceRootURL),
             runtimeJavaScript: try manifest.runtime.map { try read($0.entry, from: resourceRootURL) }
         )

@@ -180,8 +180,65 @@ nonisolated enum ComponentPackageValue: Codable, Equatable, Sendable {
 
 nonisolated struct ComponentPackageRender: Codable, Equatable, Sendable {
     let html: String
-    let css: String?
     let editorCSS: String?
+    let files: [ComponentPackageTemplateFile]
+
+    enum CodingKeys: String, CodingKey {
+        case html
+        case editorCSS
+        case files
+    }
+
+    init(html: String, editorCSS: String? = nil, files: [ComponentPackageTemplateFile] = []) {
+        self.html = html
+        self.editorCSS = editorCSS
+        self.files = files
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        html = try container.decode(String.self, forKey: .html)
+        editorCSS = try container.decodeIfPresent(String.self, forKey: .editorCSS)
+        files = try container.decodeIfPresent([ComponentPackageTemplateFile].self, forKey: .files) ?? []
+    }
+}
+
+nonisolated struct ComponentPackageTemplateFile: Codable, Equatable, Sendable {
+    enum Scope: String, Codable, Sendable {
+        case instance
+        case page
+        case site
+    }
+
+    enum Placement: String, Codable, Sendable {
+        case headStart
+        case headEnd
+        case bodyStart
+        case bodyEnd
+    }
+
+    let path: String
+    let scope: Scope
+    let placement: Placement?
+
+    enum CodingKeys: String, CodingKey {
+        case path
+        case scope
+        case placement
+    }
+
+    init(path: String, scope: Scope = .instance, placement: Placement? = nil) {
+        self.path = path
+        self.scope = scope
+        self.placement = placement
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        path = try container.decode(String.self, forKey: .path)
+        scope = try container.decodeIfPresent(Scope.self, forKey: .scope) ?? .instance
+        placement = try container.decodeIfPresent(Placement.self, forKey: .placement)
+    }
 }
 
 nonisolated struct ComponentPackageRuntime: Codable, Equatable, Sendable {

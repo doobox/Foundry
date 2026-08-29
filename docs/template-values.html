@@ -1,18 +1,14 @@
 <!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Templates · Foundry Developer</title><link rel="stylesheet" href="styles.css"><script src="app.js" defer></script></head><body><div class="shell"><nav data-doc-nav></nav><main><div class="breadcrumbs"><a href="index.html">Foundry Developer</a><span>›</span>Build components</div><p class="eyebrow">Template API</p><h1>Put values where they belong</h1><p class="lede">Foundry currently processes the HTML, CSS and editor CSS named by <code>Info.plist</code> for each component instance. The developer owns the resulting structure and selectors. The broader scoped template-file API is documented below as proposed work.</p>
-<div class="callout warning"><strong>Proposed API.</strong> Scoped template dictionaries, HTML placement, additional template files, Sass/SCSS compilation and PHP execution described below are designed but not yet available in the app.</div>
-<h2>Template scope <span class="pill">Proposed</span></h2><p>Declare each additional template as a dictionary containing its <code>path</code> and optional <code>scope</code>. Scope is about lifetime and deduplication, not selector choice.</p><dl class="syntax-list"><dt><code>instance</code></dt><dd>Default. Processed once for every component instance. Instance identity and control macros are available.</dd><dt><code>page</code></dt><dd>Processed once on each page that uses the component, regardless of how many instances are present. Use it for shared page CSS, JavaScript or supporting output.</dd><dt><code>site</code></dt><dd>Processed once for the exported site when the component is used anywhere. Use it for genuinely site-wide generated files.</dd></dl>
+<div class="callout warning"><strong>Partly proposed.</strong> Instance-scoped CSS dictionaries are implemented. Page/site scope, HTML placement, other template formats, Sass/SCSS compilation and PHP execution remain proposed.</div>
+<h2>Template scope</h2><p>Declare each additional CSS template as a dictionary containing its <code>path</code> and optional <code>scope</code>. Scope is about lifetime and deduplication, not selector choice.</p><dl class="syntax-list"><dt><code>instance</code></dt><dd>Implemented and the default. Processed once for every component instance. Instance identity and control macros are available.</dd><dt><code>page</code> <span class="pill">Proposed</span></dt><dd>Will be processed once on each page that uses the component, regardless of how many instances are present.</dd><dt><code>site</code> <span class="pill">Proposed</span></dt><dd>Will be processed once for the exported site when the component is used anywhere.</dd></dl>
 <pre><code>&lt;key&gt;files&lt;/key&gt;
 &lt;array&gt;
     &lt;dict&gt;
         &lt;key&gt;path&lt;/key&gt;&lt;string&gt;component.css&lt;/string&gt;
         &lt;key&gt;scope&lt;/key&gt;&lt;string&gt;instance&lt;/string&gt;
     &lt;/dict&gt;
-    &lt;dict&gt;
-        &lt;key&gt;path&lt;/key&gt;&lt;string&gt;runtime.js&lt;/string&gt;
-        &lt;key&gt;scope&lt;/key&gt;&lt;string&gt;page&lt;/string&gt;
-    &lt;/dict&gt;
 &lt;/array&gt;</code></pre>
-<p>Foundry deduplicates <code>page</code> and <code>site</code> templates by component bundle identifier and template path. These scopes may use page-, site- and package-level macros, but not <code>{{ id }}</code>, <code>{{ component.attributes }}</code> or <code>{{ control.* }}</code>, because there is no single component instance to supply those values. Foundry reports an invalid scope/macro combination instead of silently choosing an instance.</p>
+<p><span class="pill">Proposed</span> Page and site templates will be deduplicated by component bundle identifier and template path. They will reject <code>{{ id }}</code>, <code>{{ component.attributes }}</code> and <code>{{ control.* }}</code>, because there is no single component instance to supply those values.</p>
 <div class="note"><strong>HTML placement is separate.</strong> An HTML template may add <code>placement</code> with <code>headStart</code>, <code>headEnd</code>, <code>bodyStart</code> or <code>bodyEnd</code>. This keeps scope (“how often?”) independent from placement (“where?”). The primary <code>html</code> template is always instance-scoped in the normal component flow.</div>
 <h2>Instance identity</h2><section class="reference-entry"><h3>{{ id }}</h3><p>Resolves to a stable, CSS-safe ID unique to the instance, such as <code>foundry-a12b…</code>.</p><pre><code>&lt;article id="{{ id }}" {{ component.attributes }}&gt;…&lt;/article&gt;
 
@@ -33,7 +29,9 @@
 <p>Name the file with <code>editorCSS</code> in <code>Info.plist</code>:</p><pre><code>&lt;key&gt;templates&lt;/key&gt;
 &lt;dict&gt;
     &lt;key&gt;html&lt;/key&gt;&lt;string&gt;component.html&lt;/string&gt;
-    &lt;key&gt;css&lt;/key&gt;&lt;string&gt;component.css&lt;/string&gt;
+    &lt;key&gt;files&lt;/key&gt;&lt;array&gt;
+        &lt;dict&gt;&lt;key&gt;path&lt;/key&gt;&lt;string&gt;component.css&lt;/string&gt;&lt;/dict&gt;
+    &lt;/array&gt;
     &lt;key&gt;editorCSS&lt;/key&gt;&lt;string&gt;editor.css&lt;/string&gt;
 &lt;/dict&gt;</code></pre>
 <p><code>editor.css</code> is processed with the same instance and control macros as every other template:</p><pre><code>#{{ id }} .content {
@@ -49,5 +47,5 @@
 <p>Foundry loads this stylesheet for the editing canvas and excludes it from production export.</p>
 <div class="callout warning"><strong>Keep it editorial.</strong> The normal component CSS should remain the source of truth for the published layout. Editor CSS should improve selection, empty states and drop targets without disguising how the component will actually render.</div>
 <div class="callout warning"><strong>Proposed format processing.</strong> The planned pipeline substitutes template values, compiles Sass and SCSS to CSS, and executes PHP through Foundry’s PHP runtime. JavaScript will be preserved as authored rather than transpiled.</div>
-<p>The currently implemented <code>html</code>, <code>css</code> and <code>editorCSS</code> paths are declared under <code>templates</code> in <code>Info.plist</code>.</p>
+<p>The currently implemented <code>html</code>, <code>files</code> and <code>editorCSS</code> entries are declared under <code>templates</code> in <code>Info.plist</code>.</p>
 </main></div></body></html>
