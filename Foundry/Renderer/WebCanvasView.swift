@@ -104,12 +104,14 @@ struct WebCanvasView: NSViewRepresentable {
               display: none;
               box-sizing: border-box;
               max-width: calc(100vw - 16px);
-              padding: 3px 7px;
-              border-radius: 5px 5px 0 0;
+              min-width: 96px;
+              padding: 2px 16px;
+              border-radius: 999px;
               overflow: hidden;
               color: white;
               background: #0A84FF;
               font: 11px/16px system-ui, sans-serif;
+              text-align: center;
               white-space: nowrap;
               text-overflow: ellipsis;
               pointer-events: none;
@@ -140,9 +142,9 @@ struct WebCanvasView: NSViewRepresentable {
             }
             chromeTitle.textContent = hoveredComponent.dataset.foundryName || '';
             chromeTitle.style.background = componentChromeColor(hoveredComponent);
-            chromeTitle.style.left = Math.max(0, Math.min(rect.left + 1, window.innerWidth - 8)) + 'px';
-            chromeTitle.style.top = Math.max(0, rect.top) + 'px';
-            chromeTitle.style.transform = rect.top >= 22 ? 'translateY(-100%)' : 'none';
+            chromeTitle.style.left = Math.max(8, Math.min(rect.left + rect.width / 2, window.innerWidth - 8)) + 'px';
+            chromeTitle.style.top = Math.max(10, rect.top) + 'px';
+            chromeTitle.style.transform = 'translate(-50%, -50%)';
             chromeTitle.style.display = 'block';
           };
 
