@@ -24,15 +24,8 @@ struct InspectorView: View {
     @Binding var editsSharedDefinition: Bool
 
     var body: some View {
-        Form {
-            if componentSelectionCount > 1 {
-                Section("Multiple Selection") {
-                    LabeledContent("Components", value: componentSelectionCount.formatted())
-                    Text("Group dragging and deletion apply to the selected components.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-            } else if let component {
+        Group {
+            if componentSelectionCount == 1, let component {
                 ComponentInspector(
                     component: component,
                     theme: theme,
@@ -44,31 +37,47 @@ struct InspectorView: View {
                     breakpoint: breakpoint,
                     editsSharedDefinition: $editsSharedDefinition
                 )
-            } else if let assetLibraryNode {
-                AssetLibraryNodeInspector(
-                    node: assetLibraryNode,
-                    library: assetLibrary,
-                    contents: assetContents,
-                    usageCount: assetUsageCount,
-                    renameAsset: renameAsset,
-                    renameFolder: renameAssetFolder
-                )
-            } else if let folder {
-                PageFolderInspector(folder: folder, folders: folders, editor: editor)
-            } else if let asset {
-                PageAssetInspector(asset: asset, content: assetContents[asset.id], folders: folders)
-            } else if let page {
-                PageInspector(page: page, folders: folders, editor: editor)
             } else {
-                ContentUnavailableView(
-                    "No Selection",
-                    systemImage: "slider.horizontal.3",
-                    description: Text("Select a page, folder, or component to edit it.")
-                )
+                Form {
+                    inspectorFormContent
+                }
+                .formStyle(.grouped)
             }
         }
-        .formStyle(.grouped)
         .navigationTitle("Inspector")
+    }
+
+    @ViewBuilder
+    private var inspectorFormContent: some View {
+        if componentSelectionCount > 1 {
+                Section("Multiple Selection") {
+                    LabeledContent("Components", value: componentSelectionCount.formatted())
+                    Text("Group dragging and deletion apply to the selected components.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+        } else if let assetLibraryNode {
+            AssetLibraryNodeInspector(
+                node: assetLibraryNode,
+                library: assetLibrary,
+                contents: assetContents,
+                usageCount: assetUsageCount,
+                renameAsset: renameAsset,
+                renameFolder: renameAssetFolder
+            )
+        } else if let folder {
+            PageFolderInspector(folder: folder, folders: folders, editor: editor)
+        } else if let asset {
+            PageAssetInspector(asset: asset, content: assetContents[asset.id], folders: folders)
+        } else if let page {
+            PageInspector(page: page, folders: folders, editor: editor)
+        } else {
+            ContentUnavailableView(
+                "No Selection",
+                systemImage: "slider.horizontal.3",
+                description: Text("Select a page, folder, or component to edit it.")
+            )
+        }
     }
 }
 
@@ -352,46 +361,47 @@ private struct ComponentInspector: View {
     @Binding var editsSharedDefinition: Bool
 
     var body: some View {
-        if reusableDefinition != nil {
-            Section("Global Component") {
+        ScrollView {
+            LazyVStack(spacing: 14) {
                 if let reusableDefinition {
-                    LabeledContent("Definition", value: reusableDefinition.name)
-                    Toggle(
-                        "Local Override",
-                        isOn: Binding(
-                            get: { isGlobalOverride },
-                            set: setGlobalOverride
+                    InspectorCard(title: "Global Component") {
+                        LabeledContent("Definition", value: reusableDefinition.name)
+                        Toggle(
+                            "Local Override",
+                            isOn: Binding(
+                                get: { isGlobalOverride },
+                                set: setGlobalOverride
+                            )
                         )
+                        Text(isGlobalOverride
+                             ? "This component is a local override. Changes apply only here."
+                             : "Changes apply to every linked instance.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
+                InspectorCard {
+                    componentIdentityHeader
+                }
+
+                ForEach(inspectorGroups, id: \.rawValue) { group in
+                    ComponentInspectorGroup(
+                        group: group,
+                        properties: properties(in: group),
+                        component: component,
+                        theme: theme,
+                        assets: assets,
+                        editor: editor,
+                        editsSharedDefinition: reusableDefinition != nil && !isGlobalOverride,
+                        breakpoint: breakpoint
                     )
-                    Text(isGlobalOverride
-                         ? "This component is a local override. Changes apply only here."
-                         : "Changes apply to every linked instance.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                } else {
-                    Label("The reusable definition is missing. This instance remains editable locally.", systemImage: "exclamationmark.triangle")
-                        .foregroundStyle(.orange)
                 }
             }
+            .padding(16)
         }
-
-        Section {
-            componentIdentityHeader
-        }
-
-        ForEach(inspectorGroups, id: \.rawValue) { group in
-            ComponentInspectorGroup(
-                group: group,
-                properties: properties(in: group),
-                component: component,
-                theme: theme,
-                assets: assets,
-                editor: editor,
-                editsSharedDefinition: reusableDefinition != nil && !isGlobalOverride,
-                breakpoint: breakpoint
-            )
-        }
-
+        .controlSize(.small)
+        .font(.callout)
     }
 
     private var inspectorGroups: [ComponentPropertySection] {
@@ -460,27 +470,49 @@ private struct ComponentInspectorGroup: View {
     @State private var isExpanded = true
 
     var body: some View {
-        Section {
-            DisclosureGroup(isExpanded: $isExpanded) {
-                VStack(spacing: 0) {
-                    ForEach(properties) { definition in
-                        ComponentPropertyEditor(
-                            definition: definition,
-                            component: component,
-                            theme: theme,
-                            assets: assets,
-                            editor: editor,
-                            editsSharedDefinition: editsSharedDefinition,
-                            breakpoint: breakpoint
-                        )
-                        .padding(.vertical, 8)
-                    }
+        DisclosureGroup(isExpanded: $isExpanded) {
+            VStack(spacing: 0) {
+                ForEach(properties) { definition in
+                    ComponentPropertyEditor(
+                        definition: definition,
+                        component: component,
+                        theme: theme,
+                        assets: assets,
+                        editor: editor,
+                        editsSharedDefinition: editsSharedDefinition,
+                        breakpoint: breakpoint
+                    )
+                    .padding(.vertical, 8)
                 }
-            } label: {
-                Text(group.rawValue)
             }
-            .disclosureGroupStyle(ComponentInspectorDisclosureStyle())
+        } label: {
+            Text(group.rawValue)
         }
+        .disclosureGroupStyle(ComponentInspectorDisclosureStyle())
+    }
+}
+
+private struct InspectorCard<Content: View>: View {
+    let title: String?
+    @ViewBuilder let content: Content
+
+    init(title: String? = nil, @ViewBuilder content: () -> Content) {
+        self.title = title
+        self.content = content()
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            if let title {
+                Text(title)
+                    .font(.headline)
+                    .bold()
+            }
+            content
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(14)
+        .background(Color.primary.opacity(0.045), in: RoundedRectangle(cornerRadius: 12))
     }
 }
 
@@ -506,12 +538,9 @@ private struct ComponentInspectorDisclosureStyle: DisclosureGroupStyle {
                         .rotationEffect(.degrees(configuration.isExpanded ? 0 : -90))
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 8)
-                .background(
-                    Color.primary.opacity(0.05),
-                    in: RoundedRectangle(cornerRadius: 6)
-                )
+                .padding(.horizontal, 14)
+                .padding(.vertical, 10)
+                .background(Color.primary.opacity(0.075))
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
@@ -520,9 +549,12 @@ private struct ComponentInspectorDisclosureStyle: DisclosureGroupStyle {
 
             if configuration.isExpanded {
                 configuration.content
-                    .padding(.top, 4)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 10)
                     .transition(.opacity)
             }
         }
+        .background(Color.primary.opacity(0.045))
+        .clipShape(RoundedRectangle(cornerRadius: 12))
     }
 }

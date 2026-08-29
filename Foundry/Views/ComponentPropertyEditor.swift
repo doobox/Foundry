@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 struct ComponentPropertyEditor: View {
@@ -82,6 +83,7 @@ struct ComponentPropertyEditor: View {
             PackageColorControlEditor(
                 label: definition.label,
                 choices: themeValues ? theme.colorChoices : [],
+                theme: theme,
                 source: stringBinding(as: .choice),
                 customColor: colorBinding(for: customColorKey),
                 adjustment: colorMathKey.map(numberBinding(for:)),
@@ -315,6 +317,7 @@ struct ComponentPropertyEditor: View {
 private struct PackageColorControlEditor: View {
     let label: String
     let choices: [ComponentPropertyChoice]
+    let theme: Theme
     @Binding var source: String
     @Binding var customColor: Color
     let adjustment: Binding<Double>?
@@ -325,9 +328,11 @@ private struct PackageColorControlEditor: View {
             if !choices.isEmpty {
                 LabeledContent(label) {
                     Picker("", selection: $source) {
-                        Text("Custom").tag("custom")
+                        colorChoiceLabel("Custom", color: customColor)
+                            .tag("custom")
                         ForEach(choices) { choice in
-                            Text(choice.label).tag(choice.value)
+                            colorChoiceLabel(choice.label, color: previewColor(for: choice.value))
+                                .tag(choice.value)
                         }
                     }
                     .labelsHidden()
@@ -337,6 +342,7 @@ private struct PackageColorControlEditor: View {
                 LabeledContent(choices.isEmpty ? label : "Custom colour") {
                     ColorPicker("", selection: $customColor, supportsOpacity: false)
                         .labelsHidden()
+                        .controlSize(.mini)
                 }
             }
             if let adjustment {
@@ -360,6 +366,37 @@ private struct PackageColorControlEditor: View {
                 }
             }
         }
+    }
+
+    private func colorChoiceLabel(_ title: String, color: Color) -> some View {
+        Label {
+            Text(title)
+        } icon: {
+            Image(nsImage: colorDotImage(color))
+                .renderingMode(.original)
+        }
+    }
+
+    private func colorDotImage(_ color: Color) -> NSImage {
+        let image = NSImage(size: NSSize(width: 15, height: 11))
+        image.lockFocus()
+
+        let dotRect = NSRect(x: 0.5, y: 0.5, width: 10, height: 10)
+        let dot = NSBezierPath(ovalIn: dotRect)
+        NSColor(color).setFill()
+        dot.fill()
+        NSColor.separatorColor.withAlphaComponent(0.6).setStroke()
+        dot.lineWidth = 0.75
+        dot.stroke()
+
+        image.unlockFocus()
+        image.isTemplate = false
+        return image
+    }
+
+    private func previewColor(for value: String) -> Color {
+        guard let role = ThemeColorRole(rawValue: value) else { return .clear }
+        return Color(hex: theme.color(for: role)) ?? .clear
     }
 }
 
