@@ -1,0 +1,64 @@
+{
+  "apiVersion": 1,
+  "id": "com.example.callout",
+  "version": "1.0.0",
+  "name": "Callout",
+  "description": "A starter component with editable content and a child slot.",
+  "author": "Example Developer",
+  "category": "Content component",
+  "tags": ["starter", "content"],
+  "icon": "icon.svg",
+  "slots": [
+    {
+      "id": "content",
+      "title": "Content",
+      "accepts": ["*"],
+      "minimum": 0,
+      "maximum": null
+    }
+  ],
+  "properties": [
+    {
+      "id": "title",
+      "title": "Title",
+      "section": "Content",
+      "control": {"type": "text"},
+      "default": "A useful callout",
+      "responsive": false,
+      "inlineEditable": true
+    },
+    {
+      "id": "background",
+      "title": "Background",
+      "section": "Appearance",
+      "control": {"type": "color"},
+      "default": "#EEF2FF",
+      "responsive": true,
+      "inlineEditable": false,
+      "css": "background-color:{{value}}"
+    },
+    {
+      "id": "padding",
+      "title": "Padding",
+      "section": "Layout",
+      "control": {
+        "type": "number",
+        "minimum": 0,
+        "maximum": 160,
+        "step": 4,
+        "unit": "px"
+      },
+      "default": 24,
+      "responsive": true,
+      "inlineEditable": false,
+      "css": "padding:{{value}}px"
+    }
+  ],
+  "render": {
+    "html": "component.html",
+    "css": "component.css",
+    "editorCSS": "editor.css"
+  },
+  "assets": [],
+  "helpURL": "https://example.com/callout"
+}

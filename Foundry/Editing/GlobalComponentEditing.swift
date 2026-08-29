@@ -1,0 +1,54 @@
+import Foundation
+
+@MainActor
+extension ProjectEditor {
+    @discardableResult
+    func saveGlobalComponent(componentID: UUID, name: String) -> UUID? {
+        guard let source = document.site.component(withID: componentID) else { return nil }
+        let definition = ReusableComponentDefinition(name: name, root: source.duplicatedForReusableDefinition())
+        mutate(actionName: "Create Global Component") { site in
+            site.globalComponents.append(definition)
+            site.updateComponent(id: componentID) { $0.reusableDefinitionID = definition.id }
+        }
+        return definition.id
+    }
+
+    @discardableResult
+    func insertGlobalComponent(definitionID: UUID, on pageID: UUID, placement: ComponentPlacement) -> UUID? {
+        guard let definition = document.site.globalComponents.first(where: { $0.id == definitionID }) else { return nil }
+        let instance = definition.root.duplicatedAsReusableInstance(of: definitionID)
+        var inserted = false
+        mutate(actionName: "Add \(definition.name)") { site in
+            guard let pageIndex = site.pages.firstIndex(where: { $0.id == pageID }) else { return }
+            inserted = site.pages[pageIndex].components.insert(instance, at: placement)
+        }
+        return inserted ? instance.id : nil
+    }
+
+    func renameGlobalComponent(definitionID: UUID, name: String) {
+        mutate(actionName: "Rename Global Component") { site in
+            guard let index = site.globalComponents.firstIndex(where: { $0.id == definitionID }) else { return }
+            site.globalComponents[index].name = name
+        }
+    }
+
+    func removeGlobalComponent(definitionID: UUID) {
+        mutate(actionName: "Delete Global Component") { site in
+            site.globalComponents.removeAll(where: { $0.id == definitionID })
+            for pageIndex in site.pages.indices {
+                site.pages[pageIndex].components.detachGlobalInstances(definitionID: definitionID)
+            }
+        }
+    }
+}
+
+nonisolated private extension Array where Element == ComponentNode {
+    mutating func detachGlobalInstances(definitionID: UUID) {
+        for index in indices {
+            if self[index].reusableDefinitionID == definitionID {
+                self[index].reusableDefinitionID = nil
+            }
+            self[index].children.detachGlobalInstances(definitionID: definitionID)
+        }
+    }
+}

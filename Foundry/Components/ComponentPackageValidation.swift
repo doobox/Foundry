@@ -1,0 +1,291 @@
+import Foundation
+
+nonisolated struct ComponentPackageDiagnostic: Equatable, Sendable {
+    enum Severity: String, Sendable {
+        case error
+        case warning
+    }
+
+    let severity: Severity
+    let location: String
+    let message: String
+}
+
+nonisolated enum ComponentPackageValidator {
+    private static let identifierExpression = try! NSRegularExpression(
+        pattern: #"^[a-z][a-z0-9_]*(\.[a-z0-9_]+)+$"#
+    )
+    private static let propertyExpression = try! NSRegularExpression(
+        pattern: #"^[A-Za-z][A-Za-z0-9_-]*$"#
+    )
+    static func validate(_ manifest: ComponentPackageManifest, rootURL: URL) -> [ComponentPackageDiagnostic] {
+        var diagnostics: [ComponentPackageDiagnostic] = []
+
+        validate(manifest.identifier, expression: identifierExpression, location: "Info.plist:CFBundleIdentifier", message: "Use a lowercase reverse-DNS identifier, for example com.example.hero.", into: &diagnostics)
+        if manifest.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            diagnostics.append(.init(severity: .error, location: "Info.plist:title", message: "A component title is required."))
+        }
+
+        validateUnique(manifest.properties.map(\.id), kind: "property", into: &diagnostics)
+        validateUnique(manifest.slots.map(\.id), kind: "slot", into: &diagnostics)
+        for control in manifest.themeControls {
+            switch control.type {
+            case .fontFamily:
+                if let defaultValue = control.defaultValue,
+                   !ThemeFontRole.allCases.map(\.rawValue).contains(defaultValue) {
+                    diagnostics.append(.init(
+                        severity: .error,
+                        location: "Info.plist:themeControls.fontFamily.default",
+                        message: "A fontFamily default must be body, headings, or monospaced."
+                    ))
+                }
+            }
+        }
+        if manifest.properties.filter(\.inlineEditable).count > 1 {
+            diagnostics.append(.init(
+                severity: .error,
+                location: "Info.plist:customItems",
+                message: "Only one property can be inline editable."
+            ))
+        }
+        for property in manifest.properties {
+            validate(property.id, expression: propertyExpression, location: "Info.plist:customItems.\(property.id)", message: "Property IDs must start with a letter and contain only letters, numbers, underscores, or hyphens.", into: &diagnostics)
+            validate(property, into: &diagnostics)
+        }
+        for slot in manifest.slots {
+            validate(slot.id, expression: propertyExpression, location: "Info.plist:slots.\(slot.id)", message: "Slot IDs must start with a letter and contain only letters, numbers, underscores, or hyphens.", into: &diagnostics)
+            if slot.minimum < 0 || (slot.maximum.map { $0 < slot.minimum } == true) {
+                diagnostics.append(.init(severity: .error, location: "Info.plist:slots.\(slot.id)", message: "Slot minimum and maximum values are inconsistent."))
+            }
+        }
+
+        let declaredFiles = [manifest.icon, manifest.render.html, manifest.render.css, manifest.render.editorCSS, manifest.runtime?.entry]
+            .compactMap { $0 }
+            .filter { !$0.isEmpty } + manifest.assets
+        for path in declaredFiles {
+            if !isSafeRelativePath(path) {
+                diagnostics.append(.init(severity: .error, location: path, message: "Package paths must be relative and cannot contain '..'."))
+            } else if !FileManager.default.fileExists(atPath: rootURL.appending(path: path).path) {
+                diagnostics.append(.init(severity: .error, location: path, message: "The declared package file does not exist."))
+            }
+        }
+        if manifest.runtime?.capabilities.contains(.network) == true {
+            diagnostics.append(.init(severity: .warning, location: "Info.plist:runtime", message: "Network access requires explicit user approval when this package is installed."))
+        }
+        if isSafeRelativePath(manifest.render.html),
+           let template = try? String(
+                contentsOf: rootURL.appending(path: manifest.render.html),
+                encoding: .utf8
+           ) {
+            validateTemplate(template, manifest: manifest, into: &diagnostics)
+        }
+        return diagnostics
+    }
+
+    private static func validateTemplate(
+        _ template: String,
+        manifest: ComponentPackageManifest,
+        into diagnostics: inout [ComponentPackageDiagnostic]
+    ) {
+        let templateLocation = manifest.render.html
+        let propertyIDs = Set(manifest.properties.map(\.id))
+        let slotIDs = Set(manifest.slots.map(\.id))
+        let declaredAssets = Set(manifest.assets)
+
+        if !template.matches(#"\{\{\s*component\.attributes\s*\}\}"#) {
+            diagnostics.append(.init(
+                severity: .error,
+                location: templateLocation,
+                message: "The root element must include {{ component.attributes }} so Foundry can select and edit the component."
+            ))
+        }
+
+        for reference in template.references(matching: #"%sentences\[(-?[0-9]+)\]%"#) {
+            guard let count = Int(reference.value), (1...10).contains(count) else {
+                diagnostics.append(templateDiagnostic(
+                    templateLocation,
+                    template: template,
+                    offset: reference.offset,
+                    message: "Sentence counts must be between 1 and 10."
+                ))
+                continue
+            }
+        }
+
+        for reference in template.references(matching: #"\{\{\s*property\.([A-Za-z][A-Za-z0-9_-]*)\s*\}\}"#) +
+            template.references(matching: #"\{%\s*if\s+property\.([A-Za-z][A-Za-z0-9_-]*)"#) {
+            if !propertyIDs.contains(reference.value) {
+                diagnostics.append(templateDiagnostic(
+                    templateLocation,
+                    template: template,
+                    offset: reference.offset,
+                    message: "Unknown property '\(reference.value)'. Declare it in Info.plist customItems."
+                ))
+            }
+        }
+
+        let slotReferences = template.references(
+            matching: #"\{%\s*slot\s+id\s*=\s*[\"']([A-Za-z][A-Za-z0-9_.-]*)[\"']"#
+        )
+        let legacySlotReferences = template.references(
+            matching: #"\{\{\s*slot\.([A-Za-z][A-Za-z0-9_.-]*)\s*\}\}"#
+        )
+        for reference in slotReferences + legacySlotReferences where !slotIDs.contains(reference.value) {
+            diagnostics.append(templateDiagnostic(
+                templateLocation,
+                template: template,
+                offset: reference.offset,
+                message: "Unknown slot '\(reference.value)'. Declare it in Info.plist."
+            ))
+        }
+        if let legacy = legacySlotReferences.first {
+            diagnostics.append(templateDiagnostic(
+                templateLocation,
+                template: template,
+                offset: legacy.offset,
+                severity: .warning,
+                message: "Use {% slot id=\"…\" %}; the {{ slot.… }} form cannot carry slot options."
+            ))
+        }
+        let referencedSlotIDs = Set((slotReferences + legacySlotReferences).map(\.value))
+        for slotID in slotIDs.subtracting(referencedSlotIDs).sorted() {
+            diagnostics.append(.init(
+                severity: .error,
+                location: templateLocation,
+                message: "Declared slot '\(slotID)' is not placed in the template."
+            ))
+        }
+
+        for reference in template.references(matching: #"\{\{\s*asset\.([^\s}]+)\s*\}\}"#) {
+            if !isSafeRelativePath(reference.value) {
+                diagnostics.append(templateDiagnostic(
+                    templateLocation,
+                    template: template,
+                    offset: reference.offset,
+                    message: "Asset paths must be relative and cannot contain '..'."
+                ))
+            } else if !declaredAssets.contains(reference.value) {
+                diagnostics.append(templateDiagnostic(
+                    templateLocation,
+                    template: template,
+                    offset: reference.offset,
+                    message: "Asset '\(reference.value)' must be declared in Info.plist."
+                ))
+            }
+        }
+
+        let ifCount = template.matchCount(#"\{%\s*if\b"#)
+        let endIfCount = template.matchCount(#"\{%\s*endif\s*%\}"#)
+        let elseCount = template.matchCount(#"\{%\s*else\s*%\}"#)
+        if ifCount != endIfCount || elseCount > ifCount {
+            diagnostics.append(.init(
+                severity: .error,
+                location: templateLocation,
+                message: "Conditional directives are unbalanced; every if requires one endif and at most one else."
+            ))
+        }
+
+        let supportedDirectiveNames: Set<String> = ["if", "else", "endif", "slot"]
+        for reference in template.references(matching: #"\{%\s*([A-Za-z]+)\b"#)
+            where !supportedDirectiveNames.contains(reference.value) {
+            diagnostics.append(templateDiagnostic(
+                templateLocation,
+                template: template,
+                offset: reference.offset,
+                message: "Unknown template directive '\(reference.value)'."
+            ))
+        }
+    }
+
+    private static func templateDiagnostic(
+        _ location: String,
+        template: String,
+        offset: Int,
+        severity: ComponentPackageDiagnostic.Severity = .error,
+        message: String
+    ) -> ComponentPackageDiagnostic {
+        let line = template.prefix(offset).reduce(1) { count, character in
+            character == "\n" ? count + 1 : count
+        }
+        return .init(severity: severity, location: "\(location):\(line)", message: message)
+    }
+
+    private static func validate(_ property: ComponentPackageProperty, into diagnostics: inout [ComponentPackageDiagnostic]) {
+        let location = "Info.plist:customItems.\(property.id)"
+        switch property.control.type {
+        case .number:
+            guard case .number(let value) = property.defaultValue else {
+                diagnostics.append(.init(severity: .error, location: location, message: "A number control requires a numeric default value."))
+                return
+            }
+            if let minimum = property.control.minimum, value < minimum {
+                diagnostics.append(.init(severity: .error, location: location, message: "The default value is below the control minimum."))
+            }
+            if let maximum = property.control.maximum, value > maximum {
+                diagnostics.append(.init(severity: .error, location: location, message: "The default value is above the control maximum."))
+            }
+        case .toggle:
+            if case .boolean = property.defaultValue {} else {
+                diagnostics.append(.init(severity: .error, location: location, message: "A toggle control requires a Boolean default value."))
+            }
+        case .select:
+            guard case .string(let value) = property.defaultValue,
+                  property.control.options?.contains(where: { $0.value == value }) == true else {
+                diagnostics.append(.init(severity: .error, location: location, message: "A select default must match one of its options."))
+                return
+            }
+        default:
+            if case .string = property.defaultValue {} else {
+                diagnostics.append(.init(severity: .error, location: location, message: "This control requires a string default value."))
+            }
+        }
+    }
+
+    private static func validateUnique(_ values: [String], kind: String, into diagnostics: inout [ComponentPackageDiagnostic]) {
+        var seen: Set<String> = []
+        for value in values where !seen.insert(value).inserted {
+            diagnostics.append(.init(severity: .error, location: "Info.plist", message: "Duplicate \(kind) identifier '\(value)'."))
+        }
+    }
+
+    private static func validate(
+        _ value: String,
+        expression: NSRegularExpression,
+        location: String,
+        message: String,
+        into diagnostics: inout [ComponentPackageDiagnostic]
+    ) {
+        let range = NSRange(value.startIndex..<value.endIndex, in: value)
+        if expression.firstMatch(in: value, range: range) == nil {
+            diagnostics.append(.init(severity: .error, location: location, message: message))
+        }
+    }
+
+    private static func isSafeRelativePath(_ path: String) -> Bool {
+        !path.isEmpty && !path.hasPrefix("/") && !path.split(separator: "/").contains("..")
+    }
+}
+
+private nonisolated struct ComponentTemplateReference {
+    let value: String
+    let offset: Int
+}
+
+private nonisolated extension String {
+    func matches(_ pattern: String) -> Bool {
+        matchCount(pattern) > 0
+    }
+
+    func matchCount(_ pattern: String) -> Int {
+        let expression = try! NSRegularExpression(pattern: pattern)
+        return expression.numberOfMatches(in: self, range: NSRange(startIndex..., in: self))
+    }
+
+    func references(matching pattern: String) -> [ComponentTemplateReference] {
+        let expression = try! NSRegularExpression(pattern: pattern)
+        return expression.matches(in: self, range: NSRange(startIndex..., in: self)).compactMap { match in
+            guard let valueRange = Range(match.range(at: 1), in: self) else { return nil }
+            return ComponentTemplateReference(value: String(self[valueRange]), offset: match.range.location)
+        }
+    }
+}

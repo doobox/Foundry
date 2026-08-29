@@ -1,0 +1,8 @@
+:host .callout {
+  border-radius: 16px;
+  box-sizing: border-box;
+}
+
+:host .callout h2 {
+  margin: 0 0 12px;
+}
