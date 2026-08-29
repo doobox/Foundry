@@ -22,7 +22,7 @@
     &lt;key&gt;scope&lt;/key&gt;&lt;string&gt;page&lt;/string&gt;
     &lt;key&gt;placement&lt;/key&gt;&lt;string&gt;headEnd&lt;/string&gt;
 &lt;/dict&gt;</code></pre><div class="note"><strong>Placement is separate from scope.</strong> Scope answers “how often?” while placement answers “where?”. The primary <code>html</code> template remains instance-scoped in the normal component flow. Additional placed HTML deliberately uses page scope; site-scoped HTML is not accepted because an exported site has no single HTML document.</div>
-<h2>JavaScript</h2><p>JavaScript templates accept <code>instance</code>, <code>page</code> and <code>site</code> scope. Foundry processes their allowed macros and emits the resulting source in a script block at the end of the body. A component using JavaScript must declare its required capabilities under <code>runtime</code> in <code>Info.plist</code>.</p><pre><code>&lt;dict&gt;
+<h2>JavaScript</h2><p>JavaScript templates accept <code>instance</code>, <code>page</code> and <code>site</code> scope. Foundry processes their allowed macros and emits the resulting source in a script block at the end of the body. The code runs as ordinary website JavaScript under the browser’s normal security rules.</p><pre><code>&lt;dict&gt;
     &lt;key&gt;path&lt;/key&gt;&lt;string&gt;component.js&lt;/string&gt;
     &lt;key&gt;scope&lt;/key&gt;&lt;string&gt;instance&lt;/string&gt;
 &lt;/dict&gt;</code></pre>

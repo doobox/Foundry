@@ -40,12 +40,6 @@
 <h2>Author controls</h2>
 <section class="reference-entry"><h3>customItems</h3><div class="api-meta"><span class="pill">Optional Dictionary array</span></div><p>Component-specific inspector values. Each item requires <code>id</code>, <code>title</code>, <code>section</code>, <code>control</code>, <code>default</code>, <code>responsive</code>, and <code>inlineEditable</code>. See <a href="custom-controls.html">Custom controls</a>.</p></section>
 <section class="reference-entry"><h3>slots</h3><div class="api-meta"><span class="pill">Optional Dictionary array</span></div><p>Named child-component regions. Each slot requires <code>id</code>, <code>title</code>, <code>accepts</code>, and <code>minimum</code>; <code>maximum</code> is optional. See <a href="slots.html">Child components</a>.</p></section>
-<h2>Runtime</h2>
-<section class="reference-entry"><h3>runtime</h3><div class="api-meta"><span class="pill">Optional Dictionary</span></div><p>Required when JavaScript template files are declared. <code>capabilities</code> explicitly lists any of <code>dom</code>, <code>timers</code>, <code>network</code>, and <code>localStorage</code>.</p><pre><code>&lt;key&gt;runtime&lt;/key&gt;
-&lt;dict&gt;
-    &lt;key&gt;capabilities&lt;/key&gt;
-    &lt;array&gt;&lt;string&gt;dom&lt;/string&gt;&lt;string&gt;timers&lt;/string&gt;&lt;/array&gt;
-&lt;/dict&gt;</code></pre></section>
 <h2>Support and recovery</h2>
 <section class="reference-entry"><h3>helpURL</h3><div class="api-meta"><span class="pill">Optional URL String</span></div><p>Absolute component support or documentation URL.</p></section>
 <section class="reference-entry"><h3>missingComponent</h3><div class="api-meta"><span class="pill">Optional Dictionary</span></div><p>Fallback retained when the package is unavailable. Accepts optional <code>message</code> and HTML <code>preview</code> Strings.</p></section>

@@ -171,30 +171,6 @@ struct ComponentPackageTests {
     }
 
     @Test
-    func loaderRejectsUnapprovedRuntimeCapabilities() throws {
-        let manifest = validManifest.replacingOccurrences(
-            of: "<key>assets</key>",
-            with: """
-            <key>runtime</key>
-            <dict>
-                <key>capabilities</key><array><string>network</string></array>
-            </dict>
-            <key>assets</key>
-            """
-        )
-        let packageURL = try makePackage(
-            manifest: manifest,
-            template: "<section {{ component.attributes }}>{{ property.title }}{% slot id=\"content\" %}</section>",
-            additionalFiles: [:]
-        )
-        defer { try? FileManager.default.removeItem(at: packageURL) }
-
-        #expect(throws: ComponentPackageLoadingError.self) {
-            try ComponentPackageLoader.load(from: packageURL)
-        }
-    }
-
-    @Test
     func loaderProcessesInstanceScopedCSSTemplateFiles() throws {
         let manifest = validManifest.replacingOccurrences(
             of: instanceCSSDeclaration,
@@ -268,10 +244,8 @@ struct ComponentPackageTests {
             <dict><key>path</key><string>site.js</string><key>scope</key><string>site</string></dict>
         </array>
         """
-        let runtime = "<key>runtime</key><dict><key>capabilities</key><array><string>dom</string></array></dict>"
         let manifestText = validManifest
             .replacingOccurrences(of: instanceCSSDeclaration, with: declaration)
-            .replacingOccurrences(of: "<key>assets</key>", with: runtime + "<key>assets</key>")
         let packageURL = try makePackage(
             manifest: manifestText,
             template: "<section {{ component.attributes }}>{% slot id=\"content\" %}</section>",

@@ -12,7 +12,6 @@ nonisolated struct ComponentPackageManifest: Codable, Equatable, Sendable {
     let slots: [ComponentPackageSlot]
     let properties: [ComponentPackageProperty]
     let render: ComponentPackageRender
-    let runtime: ComponentPackageRuntime?
     let assets: [String]
     let helpURL: URL?
     let missingComponent: ComponentPackageMissingComponent?
@@ -29,7 +28,6 @@ nonisolated struct ComponentPackageManifest: Codable, Equatable, Sendable {
         case slots
         case properties = "customItems"
         case render = "templates"
-        case runtime
         case assets
         case helpURL
         case missingComponent
@@ -47,7 +45,6 @@ nonisolated struct ComponentPackageManifest: Codable, Equatable, Sendable {
         slots: [ComponentPackageSlot] = [],
         properties: [ComponentPackageProperty] = [],
         render: ComponentPackageRender,
-        runtime: ComponentPackageRuntime? = nil,
         assets: [String] = [],
         helpURL: URL? = nil,
         missingComponent: ComponentPackageMissingComponent? = nil
@@ -63,7 +60,6 @@ nonisolated struct ComponentPackageManifest: Codable, Equatable, Sendable {
         self.slots = slots
         self.properties = properties
         self.render = render
-        self.runtime = runtime
         self.assets = assets
         self.helpURL = helpURL
         self.missingComponent = missingComponent
@@ -82,7 +78,6 @@ nonisolated struct ComponentPackageManifest: Codable, Equatable, Sendable {
         slots = try container.decodeIfPresent([ComponentPackageSlot].self, forKey: .slots) ?? []
         properties = try container.decodeIfPresent([ComponentPackageProperty].self, forKey: .properties) ?? []
         render = try container.decode(ComponentPackageRender.self, forKey: .render)
-        runtime = try container.decodeIfPresent(ComponentPackageRuntime.self, forKey: .runtime)
         assets = try container.decodeIfPresent([String].self, forKey: .assets) ?? []
         helpURL = try container.decodeIfPresent(URL.self, forKey: .helpURL)
         missingComponent = try container.decodeIfPresent(ComponentPackageMissingComponent.self, forKey: .missingComponent)
@@ -240,17 +235,6 @@ nonisolated struct ComponentPackageTemplateFile: Codable, Equatable, Sendable {
         scope = try container.decodeIfPresent(Scope.self, forKey: .scope) ?? .instance
         placement = try container.decodeIfPresent(Placement.self, forKey: .placement)
     }
-}
-
-nonisolated struct ComponentPackageRuntime: Codable, Equatable, Sendable {
-    enum Capability: String, Codable, Hashable, Sendable {
-        case dom
-        case timers
-        case network
-        case localStorage
-    }
-
-    let capabilities: [Capability]
 }
 
 nonisolated struct ComponentPackageMissingComponent: Codable, Equatable, Sendable {

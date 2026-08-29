@@ -56,9 +56,6 @@ nonisolated enum ComponentPackageValidator {
                 diagnostics.append(.init(severity: .error, location: path, message: "The declared package file does not exist."))
             }
         }
-        if manifest.runtime?.capabilities.contains(.network) == true {
-            diagnostics.append(.init(severity: .warning, location: "Info.plist:runtime", message: "Network access requires explicit user approval when this package is installed."))
-        }
         for file in manifest.render.files {
             let fileExtension = URL(fileURLWithPath: file.path).pathExtension.lowercased()
             if fileExtension == "css", file.placement != nil {
@@ -73,13 +70,6 @@ nonisolated enum ComponentPackageValidator {
                     severity: .error,
                     location: "Info.plist:templates.files.\(file.path)",
                     message: "JavaScript templates are emitted at the end of the body and do not use placement."
-                ))
-            }
-            if fileExtension == "js", manifest.runtime == nil {
-                diagnostics.append(.init(
-                    severity: .error,
-                    location: "Info.plist:templates.files.\(file.path)",
-                    message: "JavaScript templates require a runtime dictionary declaring capabilities."
                 ))
             }
             if fileExtension == "html", file.placement == nil {

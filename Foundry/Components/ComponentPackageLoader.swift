@@ -36,7 +36,6 @@ nonisolated enum ComponentPackageLoadingError: Error, LocalizedError {
     case unreadableManifest(Error)
     case invalid([ComponentPackageDiagnostic])
     case unreadableResource(String, Error)
-    case unapprovedCapabilities(Set<ComponentPackageRuntime.Capability>)
 
     var errorDescription: String? {
         switch self {
@@ -48,17 +47,12 @@ nonisolated enum ComponentPackageLoadingError: Error, LocalizedError {
             diagnostics.map { "\($0.location): \($0.message)" }.joined(separator: "\n")
         case .unreadableResource(let path, let error):
             "\(path) could not be read: \(error.localizedDescription)"
-        case .unapprovedCapabilities(let capabilities):
-            "The package requests capabilities that have not been approved: \(capabilities.map(\.rawValue).sorted().joined(separator: ", "))."
         }
     }
 }
 
 nonisolated enum ComponentPackageLoader {
-    static func load(
-        from rootURL: URL,
-        approvedCapabilities: Set<ComponentPackageRuntime.Capability> = [.dom, .timers]
-    ) throws -> LoadedComponentPackage {
+    static func load(from rootURL: URL) throws -> LoadedComponentPackage {
         let manifestURL = rootURL.appending(path: "Contents/Info.plist")
         guard FileManager.default.fileExists(atPath: manifestURL.path) else {
             throw ComponentPackageLoadingError.missingManifest
@@ -82,12 +76,6 @@ nonisolated enum ComponentPackageLoader {
         guard errors.isEmpty else {
             throw ComponentPackageLoadingError.invalid(diagnostics)
         }
-        let requestedCapabilities = Set(manifest.runtime?.capabilities ?? [])
-        let unapprovedCapabilities = requestedCapabilities.subtracting(approvedCapabilities)
-        guard unapprovedCapabilities.isEmpty else {
-            throw ComponentPackageLoadingError.unapprovedCapabilities(unapprovedCapabilities)
-        }
-
         let instanceCSS = try manifest.render.files
             .filter { $0.scope == .instance && $0.path.lowercased().hasSuffix(".css") }
             .map { try read($0.path, from: resourceRootURL) }

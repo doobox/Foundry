@@ -9,7 +9,7 @@
         ├── component.js
         ├── icon.svg
         └── assets/</code></pre>
-<h2>What goes where</h2><dl><dt>Contents/Info.plist</dt><dd>Identity, templates, inspector controls, slots and optional runtime declarations.</dd><dt>Contents/Resources</dt><dd>All templates, assets, runtime files and nested <code>.foundrypack</code> bundles. Paths declared in <code>Info.plist</code> are relative to this directory.</dd><dt>icon.svg</dt><dd>A square component icon placed directly in Resources. Foundry discovers this filename by convention.</dd></dl>
+<h2>What goes where</h2><dl><dt>Contents/Info.plist</dt><dd>Identity, templates, inspector controls and slots.</dd><dt>Contents/Resources</dt><dd>All templates, assets and nested <code>.foundrypack</code> bundles. Paths declared in <code>Info.plist</code> are relative to this directory.</dd><dt>icon.svg</dt><dd>A square component icon placed directly in Resources. Foundry discovers this filename by convention.</dd></dl>
 <h2>Pack types</h2><dl><dt>component</dt><dd>A functional component that produces markup and may also contain child packs.</dd><dt>theme</dt><dd>A functional theme pack that may also contain child packs.</dd><dt>collection</dt><dd>A non-functional outer pack used only to group child packs.</dd></dl>
 <div class="note"><strong>No extraction step.</strong> Installing an outer pack preserves its complete tree. Nested components continue to run from inside it.</div>
 <h2>Declared resources</h2><p>Text templates—including HTML, CSS, JavaScript, Sass, SCSS and PHP—are named under <code>templates</code>. Other exportable files are listed under <code>assets</code>. This makes package contents explicit and validation predictable.</p>
