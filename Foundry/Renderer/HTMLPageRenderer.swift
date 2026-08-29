@@ -294,7 +294,7 @@ struct HTMLPageRenderer: PageRendering {
         assets: [UUID: ProjectAssetContent],
         breakpoint: ResponsiveBreakpoint
     ) -> String {
-        page.components.flatMap(flattened).compactMap { sourceNode in
+        let instanceStyles = page.components.flatMap(flattened).compactMap { sourceNode in
             let node = sourceNode.resolved(at: breakpoint)
             guard let package = node.type.definition.package else { return nil }
             let css = ComponentTemplateRenderer.render(
@@ -308,6 +308,22 @@ struct HTMLPageRenderer: PageRendering {
             )
             return ComponentTemplateRenderer.scopedCSS(css, packageIdentifier: package.manifest.identifier)
         }.joined(separator: "\n")
+        var seenPackages: Set<String> = []
+        let pageStyles = page.components.flatMap(flattened).compactMap { node -> String? in
+            guard let package = node.type.definition.package,
+                  !package.pageCSS.isEmpty,
+                  seenPackages.insert(package.manifest.identifier).inserted else { return nil }
+            return ComponentTemplateRenderer.render(
+                package.pageCSS,
+                context: .init(
+                    instanceID: UUID(uuid: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)),
+                    packageIdentifier: package.manifest.identifier,
+                    properties: [:],
+                    slots: [:]
+                )
+            )
+        }.joined(separator: "\n")
+        return [instanceStyles, pageStyles].filter { !$0.isEmpty }.joined(separator: "\n")
     }
 
     private func themeControlStyles(

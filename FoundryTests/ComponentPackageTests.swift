@@ -236,7 +236,7 @@ struct ComponentPackageTests {
             with: """
             <key>files</key>
             <array>
-                <dict><key>path</key><string>page.css</string><key>scope</key><string>page</string></dict>
+                <dict><key>path</key><string>site.css</string><key>scope</key><string>site</string></dict>
                 <dict><key>path</key><string>component.scss</string><key>scope</key><string>instance</string></dict>
             </array>
             """
@@ -244,7 +244,7 @@ struct ComponentPackageTests {
         let packageURL = try makePackage(
             manifest: manifestText,
             template: "<section {{ component.attributes }}>{% slot id=\"content\" %}</section>",
-            additionalFiles: ["page.css": "body {}", "component.scss": ":host {}"]
+            additionalFiles: ["site.css": "body {}", "component.scss": ":host {}"]
         )
         defer { try? FileManager.default.removeItem(at: packageURL) }
         let manifest = try PropertyListDecoder().decode(
@@ -257,8 +257,39 @@ struct ComponentPackageTests {
             rootURL: packageURL.appending(path: "Contents/Resources", directoryHint: .isDirectory)
         )
 
-        #expect(diagnostics.contains(where: { $0.message.contains("Only instance-scoped") }))
+        #expect(diagnostics.contains(where: { $0.message.contains("Site-scoped") }))
         #expect(diagnostics.contains(where: { $0.message.contains("currently support CSS only") }))
+    }
+
+    @Test
+    func loaderProcessesPageScopedCSSAndRejectsInstanceMacrosThere() throws {
+        let declaration = """
+        <key>files</key>
+        <array>
+            <dict><key>path</key><string>page.css</string><key>scope</key><string>page</string></dict>
+        </array>
+        """
+        let manifestText = validManifest.replacingOccurrences(of: instanceCSSDeclaration, with: declaration)
+        let validURL = try makePackage(
+            manifest: manifestText,
+            template: "<section {{ component.attributes }}>{% slot id=\"content\" %}</section>",
+            additionalFiles: ["page.css": "[data-foundry-package=\"{{ package.id }}\"] { display: block; }"]
+        )
+        defer { try? FileManager.default.removeItem(at: validURL) }
+
+        let package = try ComponentPackageLoader.load(from: validURL)
+        #expect(package.css.isEmpty)
+        #expect(package.pageCSS.contains("{{ package.id }}"))
+
+        let invalidURL = try makePackage(
+            manifest: manifestText,
+            template: "<section {{ component.attributes }}>{% slot id=\"content\" %}</section>",
+            additionalFiles: ["page.css": "#{{ id }} { color: {{ control.title }}; }"]
+        )
+        defer { try? FileManager.default.removeItem(at: invalidURL) }
+        #expect(throws: ComponentPackageLoadingError.self) {
+            try ComponentPackageLoader.load(from: invalidURL)
+        }
     }
 
     @Test

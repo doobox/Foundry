@@ -5,6 +5,7 @@ nonisolated struct LoadedComponentPackage: Sendable {
     let rootURL: URL
     let htmlTemplate: String
     let css: String
+    let pageCSS: String
     let editorCSS: String
     let runtimeJavaScript: String?
 
@@ -81,11 +82,15 @@ nonisolated enum ComponentPackageLoader {
         let instanceCSS = try manifest.render.files
             .filter { $0.scope == .instance && $0.path.lowercased().hasSuffix(".css") }
             .map { try read($0.path, from: resourceRootURL) }
+        let pageCSS = try manifest.render.files
+            .filter { $0.scope == .page && $0.path.lowercased().hasSuffix(".css") }
+            .map { try read($0.path, from: resourceRootURL) }
         return LoadedComponentPackage(
             manifest: manifest,
             rootURL: rootURL,
             htmlTemplate: try read(manifest.render.html, from: resourceRootURL),
             css: instanceCSS.joined(separator: "\n"),
+            pageCSS: pageCSS.joined(separator: "\n"),
             editorCSS: try readIfPresent(manifest.render.editorCSS, from: resourceRootURL),
             runtimeJavaScript: try manifest.runtime.map { try read($0.entry, from: resourceRootURL) }
         )

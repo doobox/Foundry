@@ -285,7 +285,8 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
         for site: Site,
         assets: [UUID: ProjectAssetContent]
     ) -> String {
-        site.pages.flatMap { $0.components.flatMap(\.flattened) }.compactMap { node in
+        let nodes = site.pages.flatMap { $0.components.flatMap(\.flattened) }
+        let instanceStyles = nodes.compactMap { node in
             guard let package = node.type.definition.package else { return nil }
             let css = ComponentTemplateRenderer.render(
                 package.css,
@@ -299,6 +300,22 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
             )
             return ComponentTemplateRenderer.scopedCSS(css, packageIdentifier: package.manifest.identifier)
         }.joined(separator: "\n")
+        var seenPackages: Set<String> = []
+        let pageStyles = nodes.compactMap { node -> String? in
+            guard let package = node.type.definition.package,
+                  !package.pageCSS.isEmpty,
+                  seenPackages.insert(package.manifest.identifier).inserted else { return nil }
+            return ComponentTemplateRenderer.render(
+                package.pageCSS,
+                context: .init(
+                    instanceID: UUID(uuid: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)),
+                    packageIdentifier: package.manifest.identifier,
+                    properties: [:],
+                    slots: [:]
+                )
+            )
+        }.joined(separator: "\n")
+        return [instanceStyles, pageStyles].filter { !$0.isEmpty }.joined(separator: "\n")
     }
 
     private func themeControlStyles(for site: Site) -> String {
