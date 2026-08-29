@@ -86,7 +86,8 @@ struct CanvasView: View {
                             HStack(spacing: 0) {
                                 resizeHandle(
                                     direction: -1,
-                                    scale: scale
+                                    scale: scale,
+                                    accessibilityIdentifier: "canvas-resize-left"
                                 )
                                 ZStack(alignment: .top) {
                                     WebCanvasView(
@@ -117,7 +118,8 @@ struct CanvasView: View {
                                 .clipped()
                                 resizeHandle(
                                     direction: 1,
-                                    scale: scale
+                                    scale: scale,
+                                    accessibilityIdentifier: "canvas-resize-right"
                                 )
                             }
                             Spacer(minLength: canvasHorizontalPadding)
@@ -171,7 +173,8 @@ struct CanvasView: View {
 
     private func resizeHandle(
         direction: Double,
-        scale: Double
+        scale: Double,
+        accessibilityIdentifier: String
     ) -> some View {
         CanvasResizeHandle(
             onChanged: { translation in
@@ -188,12 +191,13 @@ struct CanvasView: View {
             onEnded: {
                 resizeStartWidth = nil
                 resizeStartScale = nil
-            }
+            },
+            accessibilityIdentifier: accessibilityIdentifier,
+            accessibilityValue: "viewport=\(Int(viewportWidth));scale=\(Int((scale * 100).rounded()))"
         )
             .frame(width: resizeHandleWidth)
             .frame(height: 44)
             .zIndex(2)
-            .accessibilityLabel("Resize canvas")
     }
 }
 
@@ -273,15 +277,28 @@ private final class CanvasVisibleWidthView: NSView {
 private struct CanvasResizeHandle: NSViewRepresentable {
     let onChanged: (CGFloat) -> Void
     let onEnded: () -> Void
+    let accessibilityIdentifier: String
+    let accessibilityValue: String
 
     func makeNSView(context: Context) -> ResizeHandleView {
-        ResizeHandleView(onChanged: onChanged, onEnded: onEnded)
+        let view = ResizeHandleView(onChanged: onChanged, onEnded: onEnded)
+        configureAccessibility(for: view)
+        return view
     }
 
     func updateNSView(_ view: ResizeHandleView, context: Context) {
         view.onChanged = onChanged
         view.onEnded = onEnded
+        configureAccessibility(for: view)
         view.needsDisplay = true
+    }
+
+    private func configureAccessibility(for view: ResizeHandleView) {
+        view.setAccessibilityElement(true)
+        view.setAccessibilityRole(.slider)
+        view.setAccessibilityLabel("Resize canvas")
+        view.setAccessibilityIdentifier(accessibilityIdentifier)
+        view.setAccessibilityValue(accessibilityValue)
     }
 }
 
@@ -303,6 +320,19 @@ private final class ResizeHandleView: NSView {
 
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 
+    override func keyDown(with event: NSEvent) {
+        switch event.specialKey {
+        case .leftArrow:
+            onChanged(-20)
+            onEnded()
+        case .rightArrow:
+            onChanged(20)
+            onEnded()
+        default:
+            super.keyDown(with: event)
+        }
+    }
+
     override func resetCursorRects() {
         addCursorRect(bounds, cursor: .resizeLeftRight)
     }
@@ -318,6 +348,7 @@ private final class ResizeHandleView: NSView {
     }
 
     override func mouseDown(with event: NSEvent) {
+        window?.makeFirstResponder(self)
         dragStartX = event.locationInWindow.x
         NSCursor.resizeLeftRight.push()
     }
