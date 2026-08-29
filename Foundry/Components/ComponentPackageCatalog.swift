@@ -9,6 +9,7 @@ final class ComponentPackageCatalog {
     private(set) var revision = 0
     private(set) var diagnostics: [URL: [ComponentPackageDiagnostic]] = [:]
     private(set) var packages: [String: LoadedComponentPackage] = [:]
+    private var developmentWatchers: [URL: FoundryDevelopmentPackWatcher] = [:]
 
     private init() {
         loadBundledComponents()
@@ -34,10 +35,10 @@ final class ComponentPackageCatalog {
         }
     }
 
-    private func reload(_ url: URL) {
+    private func reload(_ url: URL, allowsReplacement: Bool = false) {
         do {
             let package = try ComponentPackageLoader.load(from: url)
-            if let previous = packages[package.manifest.identifier], previous.rootURL != url {
+            if !allowsReplacement, let previous = packages[package.manifest.identifier], previous.rootURL != url {
                 diagnostics[url] = [
                     .init(
                         severity: .error,
@@ -67,5 +68,24 @@ final class ComponentPackageCatalog {
 
     func reloadInstalledPacks() {
         loadInstalledComponents()
+    }
+
+    func openDevelopmentPack(at rootURL: URL) {
+        let rootURL = rootURL.standardizedFileURL
+        reloadDevelopmentPack(at: rootURL)
+        guard developmentWatchers[rootURL] == nil else { return }
+        developmentWatchers[rootURL] = FoundryDevelopmentPackWatcher(rootURL: rootURL) { [weak self] in
+            Task { @MainActor [weak self] in
+                self?.reloadDevelopmentPack(at: rootURL)
+                FoundryPackCatalog.shared.reload()
+            }
+        }
+    }
+
+    private func reloadDevelopmentPack(at rootURL: URL) {
+        for url in FoundryPackLoader.packURLs(in: rootURL, includingRoot: true) {
+            guard let pack = try? FoundryPackLoader.load(from: url), pack.type == .component else { continue }
+            reload(url, allowsReplacement: true)
+        }
     }
 }

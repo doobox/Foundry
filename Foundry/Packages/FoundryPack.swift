@@ -30,7 +30,7 @@ nonisolated enum FoundryPackLoadingError: Error, LocalizedError {
     var errorDescription: String? {
         switch self {
         case .wrongExtension:
-            "Foundry extensions must use the .foundrypack extension."
+            "Foundry packs must use .foundrypack or .foundrydevpack."
         case .missingManifest:
             "The pack does not contain Contents/Info.plist."
         case .invalidManifest(let error):
@@ -41,7 +41,7 @@ nonisolated enum FoundryPackLoadingError: Error, LocalizedError {
 
 nonisolated enum FoundryPackLoader {
     static func load(from rootURL: URL) throws -> FoundryPack {
-        guard rootURL.pathExtension.lowercased() == "foundrypack" else {
+        guard isPackURL(rootURL) else {
             throw FoundryPackLoadingError.wrongExtension
         }
         let manifestURL = rootURL.appending(path: "Contents/Info.plist")
@@ -87,7 +87,7 @@ nonisolated enum FoundryPackLoader {
                   values.isDirectory == true,
                   values.isSymbolicLink != true else { return }
 
-            if url.pathExtension.lowercased() == "foundrypack", (!isRoot || includingRoot) {
+            if isPackURL(url), (!isRoot || includingRoot) {
                 results.append(url)
             }
             guard let children = try? FileManager.default.contentsOfDirectory(
@@ -104,5 +104,9 @@ nonisolated enum FoundryPackLoader {
         return results.sorted {
             $0.standardizedFileURL.path < $1.standardizedFileURL.path
         }
+    }
+
+    static func isPackURL(_ url: URL) -> Bool {
+        ["foundrypack", "foundrydevpack"].contains(url.pathExtension.lowercased())
     }
 }

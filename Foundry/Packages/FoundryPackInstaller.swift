@@ -36,7 +36,12 @@ enum FoundryPackInstaller {
 @MainActor
 final class FoundryApplicationDelegate: NSObject, NSApplicationDelegate {
     func application(_ application: NSApplication, open urls: [URL]) {
-        for url in urls where url.pathExtension.lowercased() == "foundrypack" {
+        for url in urls where FoundryPackLoader.isPackURL(url) {
+            if url.pathExtension.lowercased() == "foundrydevpack" {
+                ComponentPackageCatalog.shared.openDevelopmentPack(at: url)
+                FoundryPackCatalog.shared.openDevelopmentPack(at: url)
+                continue
+            }
             do {
                 try FoundryPackInstaller.install(from: url)
             } catch {

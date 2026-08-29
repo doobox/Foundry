@@ -28,6 +28,18 @@
 				<string>uk.co.garysimpson.foundry.pack</string>
 			</array>
 		</dict>
+		<dict>
+			<key>CFBundleTypeName</key>
+			<string>Foundry Development Pack</string>
+			<key>CFBundleTypeRole</key>
+			<string>Viewer</string>
+			<key>LSHandlerRank</key>
+			<string>Owner</string>
+			<key>LSItemContentTypes</key>
+			<array>
+				<string>uk.co.garysimpson.foundry.devpack</string>
+			</array>
+		</dict>
 	</array>
 	<key>UTExportedTypeDeclarations</key>
 	<array>
@@ -80,6 +92,23 @@
 				<key>public.mime-type</key>
 				<array>
 					<string>application/vnd.foundry.pack</string>
+				</array>
+			</dict>
+		</dict>
+		<dict>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.folder</string>
+			</array>
+			<key>UTTypeDescription</key>
+			<string>Foundry Development Pack</string>
+			<key>UTTypeIdentifier</key>
+			<string>uk.co.garysimpson.foundry.devpack</string>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.filename-extension</key>
+				<array>
+					<string>foundrydevpack</string>
 				</array>
 			</dict>
 		</dict>

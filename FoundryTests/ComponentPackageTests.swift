@@ -459,6 +459,40 @@ struct ComponentPackageTests {
         #expect(deeplyNested.path.hasPrefix(nested.path))
     }
 
+    @Test
+    func developmentPacksUseTheSameLoaderAndParticipateInRecursiveDiscovery() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appending(path: "\(UUID().uuidString).foundrydevpack", directoryHint: .isDirectory)
+        let nested = root.appending(path: "Nested.foundrypack", directoryHint: .isDirectory)
+        defer { try? FileManager.default.removeItem(at: root) }
+        try writePackHeader(type: .collection, identifier: "com.example.development", at: root)
+        try writePackHeader(type: .component, identifier: "com.example.development.child", at: nested)
+
+        let urls = FoundryPackLoader.packURLs(in: root, includingRoot: true)
+
+        #expect(urls.map(\.standardizedFileURL) == [root, nested].map(\.standardizedFileURL).sorted { $0.path < $1.path })
+        #expect(try FoundryPackLoader.load(from: root).identifier == "com.example.development")
+    }
+
+    @Test
+    func developmentPackWatcherObservesNestedFileChanges() async throws {
+        let root = FileManager.default.temporaryDirectory
+            .appending(path: "\(UUID().uuidString).foundrydevpack", directoryHint: .isDirectory)
+        let resources = root.appending(path: "Contents/Resources", directoryHint: .isDirectory)
+        let file = resources.appending(path: "component.css")
+        defer { try? FileManager.default.removeItem(at: root) }
+        try FileManager.default.createDirectory(at: resources, withIntermediateDirectories: true)
+        try Data("initial".utf8).write(to: file)
+
+        await confirmation("Nested dev-pack change is observed") { changed in
+            let watcher = FoundryDevelopmentPackWatcher(rootURL: root) { changed() }
+            try? await Task.sleep(for: .milliseconds(250))
+            try? Data("updated".utf8).write(to: file)
+            try? await Task.sleep(for: .milliseconds(700))
+            withExtendedLifetime(watcher) {}
+        }
+    }
+
     private var validManifest: String {
         """
         <?xml version="1.0" encoding="UTF-8"?>

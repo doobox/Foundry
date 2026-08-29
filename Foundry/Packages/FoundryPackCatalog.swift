@@ -9,6 +9,7 @@ final class FoundryPackCatalog {
     private(set) var packs: [String: FoundryPack] = [:]
     private(set) var themes: [String: LoadedThemePackage] = [:]
     private(set) var diagnostics: [URL: String] = [:]
+    private var developmentRoots: Set<URL> = []
 
     private init() {
         reload()
@@ -33,11 +34,17 @@ final class FoundryPackCatalog {
         }
     }
 
+    func openDevelopmentPack(at rootURL: URL) {
+        developmentRoots.insert(rootURL.standardizedFileURL)
+        reload()
+    }
+
     private func packURLs() -> [URL] {
         var roots: [URL] = Bundle.main.resourceURL.map { [$0] } ?? []
         if let installedURL = try? FoundryPackLoader.installedPacksURL() {
             roots.append(installedURL)
         }
+        roots.append(contentsOf: developmentRoots)
         return roots.flatMap { root -> [URL] in
             FoundryPackLoader.packURLs(in: root)
         }

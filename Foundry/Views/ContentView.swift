@@ -24,6 +24,7 @@ struct ContentView: View {
     @State private var previewRefreshTask: Task<Void, Never>?
     @State private var canvasViewportPreset: CanvasViewportPreset = .mobile
     @State private var canvasEditorOptions = CanvasEditorOptions()
+    @State private var componentCatalog = ComponentPackageCatalog.shared
     @State private var canvasViewportWidth = CanvasViewportPreset.mobile.viewportWidth
     @AppStorage(AppPreferenceKey.appearance)
     private var appearance: AppAppearance = .system
@@ -35,6 +36,7 @@ struct ContentView: View {
     private let renderer: any PageRendering = HTMLPageRenderer()
 
     var body: some View {
+        let _ = componentCatalog.revision
         DockingWorkspaceView(
             layout: $workspaceLayout,
             canvasViewportPreset: $canvasViewportPreset,
