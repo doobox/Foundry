@@ -66,6 +66,7 @@ nonisolated struct PHPPreviewRuntime: Sendable {
         let errorPipe = Pipe()
         let inputPipe = Pipe()
         process.executableURL = executableURL
+        process.arguments = ["-n", "-d", "display_errors=1", "-d", "html_errors=1", "-d", "log_errors=0"]
         process.standardOutput = outputPipe
         process.standardError = errorPipe
         process.standardInput = inputPipe

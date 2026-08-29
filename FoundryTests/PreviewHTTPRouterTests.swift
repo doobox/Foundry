@@ -17,6 +17,41 @@ struct PreviewHTTPRouterTests {
     }
 
     @Test
+    func parsesCompletePHPPostRequest() throws {
+        let header = Data("POST /contact/?source=test HTTP/1.1\r\nContent-Type: application/x-www-form-urlencoded\r\nContent-Length: 7\r\n\r\n".utf8)
+        var partial = header
+        partial.append(Data("name".utf8))
+        var complete = header
+        complete.append(Data("name=Jo".utf8))
+
+        #expect(!PreviewHTTPRequest.isComplete(partial))
+        #expect(PreviewHTTPRequest.isComplete(complete))
+        let request = try #require(PreviewHTTPRequest(data: complete))
+        #expect(request.method == "POST")
+        #expect(request.target == "/contact/")
+        #expect(request.query == "source=test")
+        #expect(request.headers["content-type"] == "application/x-www-form-urlencoded")
+        #expect(String(data: request.body, encoding: .utf8) == "name=Jo")
+    }
+
+    @Test
+    func convertsCGIResponseToHTTPAndInjectsLiveReload() throws {
+        let cgi = PHPPreviewCGIResponse(
+            statusCode: 201,
+            headers: ["Content-Type": "text/html; charset=utf-8"],
+            body: Data("<body>Created</body>".utf8),
+            diagnostics: ""
+        )
+
+        let response = PreviewHTTPRouter.response(for: cgi, method: "POST", revision: 9)
+        let text = try #require(String(data: response, encoding: .utf8))
+
+        #expect(text.contains("HTTP/1.1 201 Created"))
+        #expect(text.contains("/__foundry/revision"))
+        #expect(text.contains("Created"))
+    }
+
+    @Test
     func rejectsPathTraversal() {
         #expect(PreviewHTTPRouter.safeBundlePath("/../secret") == nil)
         #expect(PreviewHTTPRouter.safeBundlePath("/%2E%2E/secret") == nil)
