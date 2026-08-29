@@ -1,24 +1,76 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Component quick start · Foundry API</title><link rel="stylesheet" href="styles.css"><script src="app.js" defer></script></head><body data-base=""><div class="shell"><nav data-doc-nav></nav><main>
-<div class="breadcrumbs"><a href="index.html">Foundry API</a><span>›</span>Start here</div><h1>Component quick start</h1><p class="lede">Create the smallest useful Foundry component.</p>
-<h2>1. Create the bundle</h2><pre><code>MyText.foundrypack/
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Build a component · Foundry Developer</title><link rel="stylesheet" href="styles.css"><script src="app.js" defer></script></head><body><div class="shell"><nav data-doc-nav></nav><main><div class="breadcrumbs"><a href="index.html">Foundry Developer</a><span>›</span>Get started</div><p class="eyebrow">Quick start</p><h1>Build a component</h1><p class="lede">This component has editable text, a padding control, a theme colour control, responsive CSS and room for child components.</p>
+<div class="steps"><section class="step"><h2>Create the pack</h2><pre><code>Callout.foundrypack/
 └── Contents/
     ├── Info.plist
     └── Resources/
         ├── component.html
-        └── component.css</code></pre>
-<h2>2. Add Info.plist</h2><pre><code>&lt;key&gt;type&lt;/key&gt;
-&lt;string&gt;component&lt;/string&gt;
-&lt;key&gt;CFBundleIdentifier&lt;/key&gt;
-&lt;string&gt;uk.co.example.my-text&lt;/string&gt;
-&lt;key&gt;title&lt;/key&gt;
-&lt;string&gt;My Text&lt;/string&gt;
-&lt;key&gt;templates&lt;/key&gt;
+        ├── component.css
+        └── icon.svg</code></pre></section>
+<section class="step"><h2>Declare the component</h2><pre><code>&lt;?xml version="1.0" encoding="UTF-8"?&gt;
+&lt;!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd"&gt;
+&lt;plist version="1.0"&gt;
 &lt;dict&gt;
-    &lt;key&gt;html&lt;/key&gt;&lt;string&gt;component.html&lt;/string&gt;
-    &lt;key&gt;css&lt;/key&gt;&lt;string&gt;component.css&lt;/string&gt;
-&lt;/dict&gt;</code></pre>
-<h2>3. Add editable content</h2><pre><code>&lt;p class="my-text{{ component.class }}" {{ component.attributes }}&gt;
-    %text="Write something"%
-&lt;/p&gt;</code></pre><p>Foundry infers the content property and displays its editor in the inspector.</p>
-<h2>Next</h2><div class="page-links"><a class="card" href="info-plist.html"><strong>Info.plist reference</strong></a><a class="card" href="editable-text.html"><strong>Editable text</strong></a></div>
-</main></div></body></html>
+    &lt;key&gt;type&lt;/key&gt;&lt;string&gt;component&lt;/string&gt;
+    &lt;key&gt;CFBundleIdentifier&lt;/key&gt;&lt;string&gt;uk.co.example.callout&lt;/string&gt;
+    &lt;key&gt;title&lt;/key&gt;&lt;string&gt;Callout&lt;/string&gt;
+    &lt;key&gt;group&lt;/key&gt;&lt;string&gt;Content&lt;/string&gt;
+    &lt;key&gt;templates&lt;/key&gt;
+    &lt;dict&gt;
+        &lt;key&gt;html&lt;/key&gt;&lt;string&gt;component.html&lt;/string&gt;
+        &lt;key&gt;css&lt;/key&gt;&lt;string&gt;component.css&lt;/string&gt;
+    &lt;/dict&gt;
+    &lt;key&gt;customItems&lt;/key&gt;
+    &lt;array&gt;
+        &lt;dict&gt;
+            &lt;key&gt;id&lt;/key&gt;&lt;string&gt;padding&lt;/string&gt;
+            &lt;key&gt;title&lt;/key&gt;&lt;string&gt;Padding&lt;/string&gt;
+            &lt;key&gt;section&lt;/key&gt;&lt;string&gt;Layout&lt;/string&gt;
+            &lt;key&gt;control&lt;/key&gt;
+            &lt;dict&gt;
+                &lt;key&gt;type&lt;/key&gt;&lt;string&gt;number&lt;/string&gt;
+                &lt;key&gt;minimum&lt;/key&gt;&lt;integer&gt;0&lt;/integer&gt;
+                &lt;key&gt;maximum&lt;/key&gt;&lt;integer&gt;80&lt;/integer&gt;
+                &lt;key&gt;step&lt;/key&gt;&lt;integer&gt;4&lt;/integer&gt;
+                &lt;key&gt;unit&lt;/key&gt;&lt;string&gt;px&lt;/string&gt;
+            &lt;/dict&gt;
+            &lt;key&gt;default&lt;/key&gt;&lt;integer&gt;24&lt;/integer&gt;
+            &lt;key&gt;responsive&lt;/key&gt;&lt;true/&gt;
+            &lt;key&gt;inlineEditable&lt;/key&gt;&lt;false/&gt;
+        &lt;/dict&gt;
+        &lt;dict&gt;
+            &lt;key&gt;id&lt;/key&gt;&lt;string&gt;accentColor&lt;/string&gt;
+            &lt;key&gt;title&lt;/key&gt;&lt;string&gt;Accent&lt;/string&gt;
+            &lt;key&gt;section&lt;/key&gt;&lt;string&gt;Colour&lt;/string&gt;
+            &lt;key&gt;control&lt;/key&gt;
+            &lt;dict&gt;
+                &lt;key&gt;type&lt;/key&gt;&lt;string&gt;color&lt;/string&gt;
+                &lt;key&gt;themeValues&lt;/key&gt;&lt;true/&gt;
+                &lt;key&gt;colorMath&lt;/key&gt;&lt;true/&gt;
+            &lt;/dict&gt;
+            &lt;key&gt;default&lt;/key&gt;&lt;string&gt;accent&lt;/string&gt;
+            &lt;key&gt;responsive&lt;/key&gt;&lt;false/&gt;
+            &lt;key&gt;inlineEditable&lt;/key&gt;&lt;false/&gt;
+        &lt;/dict&gt;
+    &lt;/array&gt;
+    &lt;key&gt;slots&lt;/key&gt;
+    &lt;array&gt;
+        &lt;dict&gt;
+            &lt;key&gt;id&lt;/key&gt;&lt;string&gt;content&lt;/string&gt;
+            &lt;key&gt;title&lt;/key&gt;&lt;string&gt;Content&lt;/string&gt;
+            &lt;key&gt;accepts&lt;/key&gt;&lt;array&gt;&lt;string&gt;Components&lt;/string&gt;&lt;/array&gt;
+            &lt;key&gt;minimum&lt;/key&gt;&lt;integer&gt;0&lt;/integer&gt;
+        &lt;/dict&gt;
+    &lt;/array&gt;
+&lt;/dict&gt;
+&lt;/plist&gt;</code></pre></section>
+<section class="step"><h2>Own the markup</h2><pre><code>&lt;aside id="{{ id }}" {{ component.attributes }}&gt;
+    &lt;h2&gt;%text="A useful callout"%&lt;/h2&gt;
+    {% slot id="content" %}
+&lt;/aside&gt;</code></pre><p><code>{{ component.attributes }}</code> carries Foundry’s editor hooks. Put it on the element representing the component. <code>{{ id }}</code> is yours to place wherever the CSS should target.</p></section>
+<section class="step"><h2>Own the CSS</h2><pre><code>#{{ id }} {
+    padding: {{ control.padding }}px;
+    border-left: 4px solid {{ control.accentColor }};
+    background: {{ control.accentColor | lighten(42) }};
+}</code></pre><p>Foundry processes this file for every instance and breakpoint. It knows the values; you decide which element and declaration receive them.</p></section></div>
+<h2>Next</h2><div class="page-links"><a class="card" href="template-values.html"><strong>Template API</strong><p>Values, IDs, colour filters and assets.</p></a><a class="card" href="custom-controls.html"><strong>Custom controls</strong><p>Every inspector control type.</p></a></div></main></div></body></html>

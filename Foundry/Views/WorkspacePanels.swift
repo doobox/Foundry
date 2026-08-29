@@ -30,6 +30,7 @@ struct PagesPanel: View {
                 moveItem: moveTreeItem,
                 importURLs: importURLs
             )
+            .padding(.top, 12)
             .overlay {
                 if pages.isEmpty && folders.isEmpty {
                     ContentUnavailableView("No Pages", systemImage: "doc")
@@ -73,8 +74,6 @@ struct ComponentLibraryPanel: View {
     let addToPageEnd: (ComponentType) -> Void
     @State private var selectedType: ComponentType? = .container
     @State private var catalog = ComponentPackageCatalog.shared
-    @State private var isChoosingDevelopmentPackage = false
-    @State private var packageError: String?
 
     var body: some View {
         let _ = catalog.revision
@@ -125,55 +124,14 @@ struct ComponentLibraryPanel: View {
             if let selectedType {
                 ComponentLibraryDetail(type: selectedType)
             }
-
-            Divider()
-            HStack {
-                Button("Add Development Component", systemImage: "plus") {
-                    isChoosingDevelopmentPackage = true
-                }
-                .labelStyle(.iconOnly)
-                .help("Load and watch a .foundrycomponent-dev folder")
-                Spacer()
-            }
-            .padding(8)
         }
-        .fileImporter(
-            isPresented: $isChoosingDevelopmentPackage,
-            allowedContentTypes: [.folder],
-            allowsMultipleSelection: false
-        ) { result in
-            do {
-                guard let url = try result.get().first else { return }
-                catalog.addDevelopmentPackage(at: url)
-                if let errors = catalog.diagnostics[url]?.filter({ $0.severity == .error }),
-                   !errors.isEmpty {
-                    packageError = errors.map { "\($0.location): \($0.message)" }.joined(separator: "\n")
-                } else if let type = ComponentType.allCases.first(where: {
-                    $0.definition.package?.rootURL == url
-                }) {
-                    selectedType = type
-                }
-            } catch {
-                packageError = error.localizedDescription
-            }
-        }
-        .alert("Component Package Could Not Be Loaded", isPresented: packageErrorBinding) {
-            Button("OK", role: .cancel) { packageError = nil }
-        } message: {
-            Text(packageError ?? "The component package is invalid.")
-        }
-    }
-
-    private var packageErrorBinding: Binding<Bool> {
-        Binding(
-            get: { packageError != nil },
-            set: { if !$0 { packageError = nil } }
-        )
     }
 
     private var componentSections: [ComponentLibrarySection] {
         let types = ComponentType.allCases
-        let preferredCategories: [ComponentCategory] = [.layout, .content, .media]
+        let preferredCategories: [ComponentCategory] = [
+            .layout, .content, .media, .navigation, .forms, .interactive, .other
+        ]
         let remainingCategories = Set(types.map { $0.definition.category })
             .subtracting(preferredCategories)
             .sorted { $0.rawValue < $1.rawValue }
@@ -182,7 +140,7 @@ struct ComponentLibraryPanel: View {
             guard !categoryTypes.isEmpty else { return nil }
             return ComponentLibrarySection(
                 category: category,
-                title: category.rawValue.replacingOccurrences(of: " component", with: ""),
+                title: category.rawValue,
                 types: categoryTypes
             )
         }
@@ -302,37 +260,86 @@ private struct ComponentLibraryDetail: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            HStack(alignment: .top, spacing: 12) {
-                ComponentLibraryIcon(type: type, size: 56)
+            HStack(alignment: .center, spacing: 10) {
+                ComponentLibraryIcon(type: type, size: 32)
 
-                VStack(alignment: .leading, spacing: 3) {
+                VStack(alignment: .leading, spacing: 2) {
                     Text(type.displayName)
                         .font(.headline)
-                    Text(type.definition.category.rawValue)
-                        .font(.caption)
+                    Text(type.libraryDescription)
+                        .font(.callout)
                         .foregroundStyle(.secondary)
+                        .lineLimit(2)
                 }
             }
 
-            Text(type.libraryDescription)
-                .font(.callout)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
+            Divider()
 
-            Label(
-                type.definition.allowsChildren ? "Accepts child components" : "Content component",
-                systemImage: type.definition.allowsChildren ? "square.stack.3d.down.right" : "square"
-            )
+            Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 7) {
+                GridRow {
+                    Text("Developer")
+                        .foregroundStyle(.secondary)
+                    HStack(spacing: 5) {
+                        Text(componentDeveloper)
+                        if let helpURL = componentPackage?.manifest.helpURL {
+                            Link(destination: helpURL) {
+                                Image(systemName: "link")
+                            }
+                            .buttonStyle(.plain)
+                            .help("Open component documentation")
+                        }
+                    }
+                }
+                GridRow {
+                    Text("Version")
+                        .foregroundStyle(.secondary)
+                    Text(componentVersion)
+                }
+            }
             .font(.caption)
-            .foregroundStyle(.tertiary)
 
-            Text("Drag into the canvas or Structure to add")
-                .font(.caption)
-                .foregroundStyle(.secondary)
+            if !componentTags.isEmpty {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Tags")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    LazyVGrid(
+                        columns: [GridItem(.adaptive(minimum: 58), spacing: 5)],
+                        alignment: .leading,
+                        spacing: 5
+                    ) {
+                        ForEach(componentTags, id: \.self) { tag in
+                            Text(tag)
+                                .font(.caption2)
+                                .lineLimit(1)
+                                .padding(.horizontal, 7)
+                                .padding(.vertical, 3)
+                                .frame(maxWidth: .infinity)
+                                .background(.quaternary, in: Capsule())
+                        }
+                    }
+                }
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(14)
+        .padding(12)
         .accessibilityElement(children: .combine)
+    }
+
+    private var componentDeveloper: String {
+        componentPackage?.manifest.author ?? "Foundry"
+    }
+
+    private var componentVersion: String {
+        componentPackage?.manifest.version ?? "—"
+    }
+
+    private var componentTags: [String] {
+        componentPackage?.manifest.tags ?? []
+    }
+
+    private var componentPackage: LoadedComponentPackage? {
+        type.definition.package
     }
 }
 
@@ -347,7 +354,6 @@ private struct ComponentLibraryIcon: View {
                 Image(nsImage: image)
                     .resizable()
                     .scaledToFit()
-                    .padding(size * 0.18)
             } else {
                 Image(systemName: type.systemImage)
                     .font(.system(size: size * 0.5, weight: .medium))
@@ -355,7 +361,7 @@ private struct ComponentLibraryIcon: View {
             }
         }
         .frame(width: size, height: size)
-        .background(Color.accentColor.opacity(0.12), in: RoundedRectangle(cornerRadius: size * 0.22))
+        .clipShape(RoundedRectangle(cornerRadius: size * 0.16))
         .accessibilityHidden(true)
     }
 }
@@ -406,9 +412,11 @@ struct GlobalComponentLibraryPanel: View {
     let definitions: [ReusableComponentDefinition]
     let renameDefinition: (UUID, String) -> Void
     let deleteDefinition: (UUID) -> Void
+    let saveDraggedComponents: ([UUID]) -> Bool
     @State private var definitionToRename: ReusableComponentDefinition?
     @State private var definitionToDelete: ReusableComponentDefinition?
     @State private var renameText = ""
+    @State private var isDropTargeted = false
 
     var body: some View {
         List {
@@ -439,6 +447,20 @@ struct GlobalComponentLibraryPanel: View {
                 }
             }
         }
+        .dropDestination(for: String.self) { values, _ in
+            guard let value = values.first,
+                  let payload = ComponentDragPayload(value) else { return false }
+            switch payload {
+            case .node(let id):
+                return saveDraggedComponents([id])
+            case .nodes(let ids):
+                return saveDraggedComponents(ids)
+            case .library, .reusable, .global:
+                return false
+            }
+        } isTargeted: {
+            isDropTargeted = $0
+        }
         .overlay {
             if definitions.isEmpty {
                 ContentUnavailableView(
@@ -447,6 +469,12 @@ struct GlobalComponentLibraryPanel: View {
                     description: Text("Save a component as global from Structure to add it here.")
                 )
             }
+        }
+        .overlay {
+            RoundedRectangle(cornerRadius: 8)
+                .strokeBorder(Color.accentColor, lineWidth: isDropTargeted ? 2 : 0)
+                .padding(4)
+                .allowsHitTesting(false)
         }
         .alert("Rename Global Component", isPresented: renameAlertBinding) {
             TextField("Name", text: $renameText)
@@ -483,6 +511,7 @@ struct StructurePanel: View {
     let page: Page?
     @Binding var selectedComponentIDs: Set<UUID>
     @Binding var selectedComponentID: UUID?
+    let renameComponent: (UUID, String) -> Void
     let moveComponentsToPlacement: ([UUID], ComponentPlacement) -> Bool
     let insertComponent: (ComponentType, ComponentPlacement) -> Bool
     let insertReusableComponent: (UUID, ComponentPlacement) -> Bool
@@ -494,13 +523,8 @@ struct StructurePanel: View {
     let outdentComponent: () -> Void
     let deleteComponent: () -> Void
     let canPasteComponent: Bool
-    let selectedComponentName: String?
-    let isReusableInstance: Bool
-    let canUpdateReusableComponent: Bool
     let saveReusableComponent: (String) -> Void
     let saveGlobalComponent: (String) -> Void
-    let updateReusableComponent: () -> Void
-    let detachReusableComponent: () -> Void
     @State private var expandedComponentIDs: Set<UUID> = []
     @State private var isNamingReusableComponent = false
     @State private var reusableComponentName = ""
@@ -514,49 +538,30 @@ struct StructurePanel: View {
                     components: page.components,
                     selectedComponentIDs: $selectedComponentIDs,
                     primarySelectedComponentID: $selectedComponentID,
+                    renameComponent: renameComponent,
                     moveComponents: moveComponentsToPlacement,
                     insertComponent: insertComponent,
                     insertReusableComponent: insertReusableComponent,
-                    insertGlobalComponent: insertGlobalComponent
+                    insertGlobalComponent: insertGlobalComponent,
+                    duplicateComponent: duplicateComponent,
+                    copyComponent: copyComponent,
+                    pasteComponent: pasteComponent,
+                    canPasteComponent: canPasteComponent,
+                    saveAsReusableComponent: {
+                        reusableComponentName = $0
+                        isNamingReusableComponent = true
+                    },
+                    saveAsGlobalComponent: {
+                        globalComponentName = $0
+                        isNamingGlobalComponent = true
+                    },
+                    moveComponent: moveComponent,
+                    outdentComponent: outdentComponent,
+                    deleteComponent: deleteComponent
                 )
             } else {
                 ContentUnavailableView("No Page", systemImage: "doc")
             }
-
-            Divider()
-            HStack {
-                Menu("Component Actions", systemImage: "ellipsis.circle") {
-                    Button("Duplicate", action: duplicateComponent)
-                    Button("Copy", action: copyComponent)
-                    Button("Paste", action: pasteComponent)
-                        .disabled(!canPasteComponent)
-                    Button("Save as Reusable Component…") {
-                        reusableComponentName = selectedComponentName ?? "Reusable Component"
-                        isNamingReusableComponent = true
-                    }
-                    .disabled(selectedComponentID == nil)
-                    Button("Save as Global Component…") {
-                        globalComponentName = selectedComponentName ?? "Global Component"
-                        isNamingGlobalComponent = true
-                    }
-                    .disabled(selectedComponentID == nil)
-                    if isReusableInstance {
-                        Button("Update Reusable Definition", action: updateReusableComponent)
-                            .disabled(!canUpdateReusableComponent)
-                        Button("Detach from Reusable Definition", action: detachReusableComponent)
-                    }
-                    Divider()
-                    Button("Move Up") { moveComponent(-1) }
-                    Button("Move Down") { moveComponent(1) }
-                    Button("Move Out of Container", action: outdentComponent)
-                    Divider()
-                    Button("Delete", role: .destructive, action: deleteComponent)
-                }
-                .disabled(selectedComponentID == nil && !canPasteComponent)
-                Spacer()
-            }
-            .labelStyle(.iconOnly)
-            .padding(8)
         }
         .alert("Save Reusable Component", isPresented: $isNamingReusableComponent) {
             TextField("Name", text: $reusableComponentName)

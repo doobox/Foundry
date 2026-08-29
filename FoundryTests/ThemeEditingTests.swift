@@ -27,7 +27,7 @@ struct ThemeEditingTests {
         theme.colors.accent = "#123ABC"
         theme.spacing.large = 44
         var container = ComponentNode.make(.container)
-        container.setProperty(.backgroundColor, value: .token(.accentColor))
+        container.setProperty(.backgroundColor, value: .choice("accent"))
         container.setProperty(.padding, value: .token(.largeSpacing))
         let page = Page(title: "Tokens", slug: "tokens", components: [container])
 
@@ -38,18 +38,18 @@ struct ThemeEditingTests {
     }
 
     @Test @MainActor
-    func paragraphThemeColorUsesSemanticRoleAndSteppedShade() {
+    func paragraphColorResolvesThemeRoleMathAndOpacity() {
         _ = ComponentPackageCatalog.shared
         var paragraph = ComponentNode.make(.paragraph)
-        paragraph.setProperty(.themeColor, value: .choice(ThemeColorRole.accent.rawValue))
-        paragraph.setProperty(.themeColorShade, value: .number(700))
+        paragraph.setProperty(.init(rawValue: "textColor"), value: .choice(ThemeColorRole.accent.rawValue))
+        paragraph.setProperty(.init(rawValue: "textColorColorMath"), value: .number(-20))
+        paragraph.setProperty(.init(rawValue: "textColorOpacity"), value: .number(0.5))
 
-        let expected = Theme.standard.adjustedColor(role: "accent", shade: 700)
+        let darkened = ComponentTemplateRenderer.transformColor("#5B5BD6", target: 0, amount: 0.2)
+        let expected = ComponentTemplateRenderer.colorWithAlpha(darkened, alpha: 0.5)
         let page = Page(title: "Colour", slug: "colour", components: [paragraph])
         let html = HTMLPageRenderer().render(page: page, theme: .standard)
 
-        #expect(ThemeColorScale.color("#5B5BD6", shade: 500) == "#5B5BD6")
-        #expect(ThemeColorScale.color("#5B5BD6", shade: 50) != expected)
         #expect(html.contains("color: \(expected)"))
     }
 

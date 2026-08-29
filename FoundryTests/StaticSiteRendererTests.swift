@@ -20,10 +20,10 @@ struct StaticSiteRendererTests {
         #expect(css.contains("@media(min-width:768px)"))
         #expect(css.contains("@media(min-width:1024px)"))
         #expect(!css.contains("@media(max-width:"))
-        #expect(css.contains("padding:18px!important"))
-        #expect(css.contains("padding:24px!important"))
-        #expect(html.contains("padding: 8px"))
-        #expect(html.contains("c-\(componentID.uuidString.lowercased())"))
+        #expect(css.contains("padding: 8px"))
+        #expect(css.contains("padding: 18px"))
+        #expect(css.contains("padding: 24px"))
+        #expect(html.contains("id=\"foundry-\(componentID.uuidString.lowercased())\""))
         #expect(!html.contains("data-foundry"))
     }
 

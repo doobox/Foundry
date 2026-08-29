@@ -1,0 +1,19 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Child components · Foundry Developer</title><link rel="stylesheet" href="styles.css"><script src="app.js" defer></script></head><body><div class="shell"><nav data-doc-nav></nav><main><div class="breadcrumbs"><a href="index.html">Foundry Developer</a><span>›</span>Build components</div><p class="eyebrow">Composition</p><h1>Accept child components</h1><p class="lede">Any functional component can contain children. Declare one or more named slots in <code>Info.plist</code>, then place each slot exactly where its children should render.</p>
+<h2>Declare a slot</h2><pre><code>&lt;key&gt;slots&lt;/key&gt;
+&lt;array&gt;
+    &lt;dict&gt;
+        &lt;key&gt;id&lt;/key&gt;&lt;string&gt;content&lt;/string&gt;
+        &lt;key&gt;title&lt;/key&gt;&lt;string&gt;Content&lt;/string&gt;
+        &lt;key&gt;accepts&lt;/key&gt;&lt;array&gt;&lt;string&gt;Components&lt;/string&gt;&lt;/array&gt;
+        &lt;key&gt;minimum&lt;/key&gt;&lt;integer&gt;0&lt;/integer&gt;
+        &lt;key&gt;maximum&lt;/key&gt;&lt;integer&gt;6&lt;/integer&gt;
+    &lt;/dict&gt;
+&lt;/array&gt;</code></pre>
+<h2>Place it in HTML</h2><pre><code>&lt;section id="{{ id }}" {{ component.attributes }}&gt;
+    &lt;header&gt;%text="Section title"%&lt;/header&gt;
+    &lt;div class="items"&gt;
+        {% slot id="content" %}
+    &lt;/div&gt;
+&lt;/section&gt;</code></pre>
+<h2>Slot fields</h2><dl><dt>id</dt><dd>Stable identifier matching the template’s slot ID.</dd><dt>title</dt><dd>Name shown in Foundry.</dd><dt>accepts</dt><dd>Accepted component identifiers or supported categories.</dd><dt>minimum</dt><dd>Required minimum child count.</dd><dt>maximum</dt><dd>Optional upper limit. Omit for no limit.</dd></dl>
+<div class="note"><strong>Packaging and composition are separate.</strong> A component can both contain child components at runtime and contain nested <code>.foundrypack</code> products inside its bundle.</div></main></div></body></html>

@@ -1,0 +1,32 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Text alignment · Foundry Developer</title><link rel="stylesheet" href="styles.css"><script src="app.js" defer></script></head><body><div class="shell"><nav data-doc-nav></nav><main>
+<div class="breadcrumbs"><a href="index.html">Foundry Developer</a><span>›</span><a href="theme-controls.html">Smart controls</a></div><p class="eyebrow">Proposed smart control</p><h1>Text alignment <span class="pill">Proposed</span></h1><div class="callout warning"><strong>Not yet implemented.</strong> This page describes the agreed developer API for the upcoming <code>textAlignment</code> control.</div><p class="lede"><code>textAlignment</code> will provide a preconfigured segmented control with familiar alignment symbols and resolve to a logical CSS <code>text-align</code> value.</p>
+
+<div class="api-meta"><span class="pill">Control type: textAlignment</span><span class="pill">Output: CSS keyword</span><span class="pill">Default: start</span></div>
+
+<h2>Info.plist declaration</h2><pre><code>&lt;key&gt;customItems&lt;/key&gt;
+&lt;array&gt;
+    &lt;dict&gt;
+        &lt;key&gt;id&lt;/key&gt;&lt;string&gt;alignment&lt;/string&gt;
+        &lt;key&gt;title&lt;/key&gt;&lt;string&gt;Alignment&lt;/string&gt;
+        &lt;key&gt;section&lt;/key&gt;&lt;string&gt;Typography&lt;/string&gt;
+        &lt;key&gt;control&lt;/key&gt;
+        &lt;dict&gt;
+            &lt;key&gt;type&lt;/key&gt;&lt;string&gt;textAlignment&lt;/string&gt;
+        &lt;/dict&gt;
+        &lt;key&gt;default&lt;/key&gt;&lt;string&gt;start&lt;/string&gt;
+        &lt;key&gt;responsive&lt;/key&gt;&lt;true/&gt;
+        &lt;key&gt;inlineEditable&lt;/key&gt;&lt;false/&gt;
+    &lt;/dict&gt;
+&lt;/array&gt;</code></pre>
+
+<h2>Template value</h2><pre><code>#{{ id }} {
+    text-align: {{ control.alignment }};
+}</code></pre><p>The macro returns one of the documented keywords below. Foundry does not generate the declaration or decide which element receives it.</p>
+
+<h2>Values</h2><section class="reference-entry"><h3>start</h3><div class="api-meta"><span class="pill">Default</span></div><p>Aligns text to the logical start edge. This is left in left-to-right writing modes and right in right-to-left writing modes.</p></section><section class="reference-entry"><h3>center</h3><p>Centres each line within its content box.</p></section><section class="reference-entry"><h3>end</h3><p>Aligns text to the logical end edge. This is right in left-to-right writing modes and left in right-to-left writing modes.</p></section><section class="reference-entry"><h3>justify</h3><p>Adjusts spacing so text fills the available inline width.</p></section>
+
+<h2>Inspector behaviour</h2><p>Foundry presents the four choices as a single segmented control using start, centre, end and justified text-alignment symbols. Each segment has an accessibility label and tooltip; the stored value is the CSS keyword, never the symbol name.</p>
+<dl><dt>Responsive</dt><dd>When the custom item sets <code>responsive</code> to <code>true</code>, the author may override alignment at each breakpoint with normal inheritance and reset behaviour.</dd><dt>Writing direction</dt><dd><code>start</code> and <code>end</code> are logical values, so components remain correct for both left-to-right and right-to-left content.</dd><dt>Theme dependency</dt><dd>None. This smart control does not need <code>themeValues</code>.</dd></dl>
+
+<div class="note"><strong>No options array required.</strong> The choices, symbols, validation and output contract are part of the smart control.</div>
+</main></div></body></html>

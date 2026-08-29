@@ -32,6 +32,8 @@ private struct GeneralSettingsView: View {
     private var overridesCanvasBackground = false
     @AppStorage(AppPreferenceKey.canvasBackgroundColor)
     private var canvasBackgroundHex = CanvasBackgroundPreference.defaultColor
+    @AppStorage(AppPreferenceKey.enablesCanvasWebInspector)
+    private var enablesCanvasWebInspector = false
 
     var body: some View {
         Form {
@@ -62,10 +64,15 @@ private struct GeneralSettingsView: View {
                 Text("Changes the workspace behind the page without affecting the exported site.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+
+                Toggle("Enable Canvas Web Inspector", isOn: $enablesCanvasWebInspector)
+                Text("Adds Inspect Element to the canvas context menu and exposes the canvas through Safari’s Develop menu.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
         }
         .formStyle(.grouped)
-        .frame(width: 560, height: 260)
+        .frame(width: 560, height: 310)
     }
 
     private var canvasBackgroundColor: Binding<Color> {

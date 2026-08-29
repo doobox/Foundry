@@ -453,6 +453,14 @@ private struct WorkspaceColumnView<PanelContent: View>: View {
         VStack(spacing: 0) {
             tabBar
             Divider()
+            HStack {
+                Text(column.selectedPanel.title)
+                    .font(.headline)
+                Spacer()
+            }
+            .padding(.horizontal, 12)
+            .frame(height: 38)
+            Divider()
             panelContent(column.selectedPanel)
                 .scrollContentBackground(.hidden)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)

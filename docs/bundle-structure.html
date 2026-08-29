@@ -1,23 +1,16 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Bundle structure · Foundry API</title><link rel="stylesheet" href="styles.css"><script src="app.js" defer></script></head><body data-base=""><div class="shell"><nav data-doc-nav></nav><main>
-<div class="breadcrumbs"><a href="index.html">Foundry API</a><span>›</span>Component bundles</div><h1>Bundle structure</h1><p class="lede">A component uses the standard macOS bundle layout.</p>
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Pack structure · Foundry Developer</title><link rel="stylesheet" href="styles.css"><script src="app.js" defer></script></head><body><div class="shell"><nav data-doc-nav></nav><main><div class="breadcrumbs"><a href="index.html">Foundry Developer</a><span>›</span>Packages</div><p class="eyebrow">Packages</p><h1>Pack structure</h1><p class="lede">A <code>.foundrypack</code> is a standard macOS-style bundle. Foundry keeps it intact and runs its components directly from their packaged locations.</p>
 <pre><code>Example.foundrypack/
 └── Contents/
     ├── Info.plist
     └── Resources/
         ├── component.html
         ├── component.css
+        ├── editor.css
+        ├── component.js
         ├── icon.svg
         └── assets/</code></pre>
-<h2>Contents</h2><p><code>Info.plist</code> identifies and configures the component.</p><h2>Resources</h2><p>Every HTML, CSS, JavaScript and asset file belongs under <code>Contents/Resources</code>. Paths declared in the plist are relative to this directory.</p>
-<h2>Nested packs</h2><p>A <code>.foundrypack</code> may contain any number of child <code>.foundrypack</code> packages, and those children may contain further packs without a depth limit. Foundry installs only the selected outer package and preserves the complete directory tree. Components and themes are discovered and run directly from their nested locations; they are never flattened into the installation directory.</p>
-<pre><code>Collection.foundrypack/
-├── Contents/
-│   └── Info.plist        type = collection
-├── Hero.foundrypack/     type = component
-└── Navigation.foundrypack/
-    ├── Contents/         type = component
-    └── Menu.foundrypack/ type = component</code></pre>
-<p>The outer pack may itself be a functional <code>component</code> or <code>theme</code>, or it may use <code>collection</code> when it exists only to group child packs.</p>
-<h2>icon.svg</h2><div class="api-meta"><span class="pill">Type: SVG file</span><span class="pill required">Required</span></div><p>Every component must provide a square SVG named exactly <code>icon.svg</code> directly inside <code>Contents/Resources</code>. Foundry uses it in the Components panel and component identity UI. The filename is convention-based and is not declared in <code>Info.plist</code>.</p>
-<div class="note">Foundry discovers <code>icon.svg</code> by convention. Templates and other assets must still be explicitly declared.</div>
-</main></div></body></html>
+<h2>What goes where</h2><dl><dt>Contents/Info.plist</dt><dd>Identity, templates, inspector controls, slots and optional runtime declarations.</dd><dt>Contents/Resources</dt><dd>All templates, assets, runtime files and nested <code>.foundrypack</code> bundles. Paths declared in <code>Info.plist</code> are relative to this directory.</dd><dt>icon.svg</dt><dd>A square component icon placed directly in Resources. Foundry discovers this filename by convention.</dd></dl>
+<h2>Pack types</h2><dl><dt>component</dt><dd>A functional component that produces markup and may also contain child packs.</dd><dt>theme</dt><dd>A functional theme pack that may also contain child packs.</dd><dt>collection</dt><dd>A non-functional outer pack used only to group child packs.</dd></dl>
+<div class="note"><strong>No extraction step.</strong> Installing an outer pack preserves its complete tree. Nested components continue to run from inside it.</div>
+<h2>Declared resources</h2><p>Text templates—including HTML, CSS, JavaScript, Sass, SCSS and PHP—are named under <code>templates</code>. Other exportable files are listed under <code>assets</code>. This makes package contents explicit and validation predictable.</p>
+<div class="page-links"><a class="card" href="nested-packs.html"><strong>Nested packs</strong><p>Build functional packs and collections recursively.</p></a><a class="card" href="info-plist.html"><strong>Info.plist</strong><p>See every plist key.</p></a></div></main></div></body></html>

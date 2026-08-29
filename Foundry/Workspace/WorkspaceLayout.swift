@@ -30,8 +30,8 @@ nonisolated enum WorkspacePanel: String, Codable, CaseIterable, Identifiable, Se
         switch self {
         case .pages: "Pages"
         case .components: "Components"
-        case .reusableComponents: "Reusable"
-        case .globalComponents: "Globals"
+        case .reusableComponents: "Reusable Components"
+        case .globalComponents: "Global Components"
         case .structure: "Structure"
         case .assets: "Assets"
         case .canvas: "Canvas"

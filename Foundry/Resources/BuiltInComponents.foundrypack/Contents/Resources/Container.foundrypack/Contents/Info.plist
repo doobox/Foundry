@@ -33,8 +33,8 @@
             <key>id</key><string>backgroundColor</string>
             <key>title</key><string>Background</string>
             <key>section</key><string>Appearance</string>
-            <key>control</key><dict><key>type</key><string>color</string></dict>
-            <key>default</key><string>#FFFFFF</string>
+            <key>control</key><dict><key>type</key><string>color</string><key>themeValues</key><true/><key>customColor</key><string>#FFFFFF</string></dict>
+            <key>default</key><string>custom</string>
             <key>responsive</key><false/>
             <key>inlineEditable</key><false/>
         </dict>
@@ -51,8 +51,8 @@
             <key>id</key><string>borderColor</string>
             <key>title</key><string>Border colour</string>
             <key>section</key><string>Border</string>
-            <key>control</key><dict><key>type</key><string>color</string></dict>
-            <key>default</key><string>#D9D9DE</string>
+            <key>control</key><dict><key>type</key><string>color</string><key>customColor</key><string>#D9D9DE</string></dict>
+            <key>default</key><string>custom</string>
             <key>responsive</key><false/>
             <key>inlineEditable</key><false/>
         </dict>

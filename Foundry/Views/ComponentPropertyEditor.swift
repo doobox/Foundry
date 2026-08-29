@@ -73,6 +73,15 @@ struct ComponentPropertyEditor: View {
                     )
                 }
             }
+        case .packageColor(let themeValues, let customColorKey, let colorMathKey, let opacityKey):
+            PackageColorControlEditor(
+                label: definition.label,
+                choices: themeValues ? theme.colorChoices : [],
+                source: stringBinding(as: .choice),
+                customColor: colorBinding(for: customColorKey),
+                adjustment: colorMathKey.map(numberBinding(for:)),
+                opacity: opacityKey.map(numberBinding(for:))
+            )
         case .choice(let choices):
             Picker(definition.label, selection: stringBinding(as: .choice)) {
                 ForEach(choices) { choice in
@@ -91,33 +100,20 @@ struct ComponentPropertyEditor: View {
                     Text(choice.label).tag(choice.value)
                 }
             }
-        case .themeColor:
-            VStack(alignment: .leading, spacing: 8) {
-                Picker(definition.label, selection: stringBinding(as: .choice)) {
-                    ForEach(theme.colorChoices) { choice in
-                        Text(choice.label).tag(choice.value)
-                    }
-                }
-                LabeledContent("Shade", value: "\(selectedThemeShade)")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                Slider(
-                    value: themeShadeIndexBinding,
-                    in: 0...Double(ThemeColorScale.shades.count - 1),
-                    step: 1
-                )
-                HStack {
-                    Text("Lighter")
-                    Spacer()
-                    Circle()
-                        .fill(Color(hex: resolvedThemeColor) ?? .clear)
-                        .frame(width: 16, height: 16)
-                    Spacer()
-                    Text("Darker")
-                }
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-            }
+        case .packageFontFamily(let themeValues, let customValueKey):
+            PackageThemeValueEditor(
+                label: definition.label,
+                choices: themeValues ? theme.fontFamilyChoices : [],
+                source: stringBinding(as: .choice),
+                customValue: stringBinding(for: customValueKey)
+            )
+        case .packageFontSize(let themeValues, let customValueKey):
+            PackageThemeValueEditor(
+                label: definition.label,
+                choices: themeValues ? theme.fontSizeChoices : [],
+                source: stringBinding(as: .choice),
+                customValue: stringBinding(for: customValueKey)
+            )
         case .toggle:
             Toggle(definition.label, isOn: booleanBinding)
         case .asset:
@@ -158,10 +154,24 @@ struct ComponentPropertyEditor: View {
         )
     }
 
+    private func stringBinding(for key: ComponentProperty.Key) -> Binding<String> {
+        Binding(
+            get: { displayComponent.property(key) },
+            set: { setProperty(.string($0), key: key) }
+        )
+    }
+
     private var numberBinding: Binding<Double> {
         Binding(
             get: { displayComponent.numberProperty(definition.key, theme: theme) },
             set: { setProperty(.number($0)) }
+        )
+    }
+
+    private func numberBinding(for key: ComponentProperty.Key) -> Binding<Double> {
+        Binding(
+            get: { displayComponent.numberProperty(key, theme: theme) },
+            set: { setProperty(.number($0), key: key) }
         )
     }
 
@@ -172,6 +182,13 @@ struct ComponentPropertyEditor: View {
         )
     }
 
+    private func colorBinding(for key: ComponentProperty.Key) -> Binding<Color> {
+        Binding(
+            get: { Color(hex: displayComponent.colorProperty(key, theme: theme)) ?? .black },
+            set: { setProperty(.color($0.hexString ?? "#000000"), key: key) }
+        )
+    }
+
     private var booleanBinding: Binding<Bool> {
         Binding(
             get: { displayComponent.propertyValue(definition.key).booleanValue ?? false },
@@ -179,28 +196,6 @@ struct ComponentPropertyEditor: View {
         )
     }
 
-    private var selectedThemeShade: Int {
-        ThemeColorScale.nearestShade(
-            to: Int(displayComponent.numberProperty(.themeColorShade, theme: theme).rounded())
-        )
-    }
-
-    private var themeShadeIndexBinding: Binding<Double> {
-        Binding(
-            get: { Double(ThemeColorScale.shades.firstIndex(of: selectedThemeShade) ?? 5) },
-            set: { index in
-                let safeIndex = min(max(Int(index.rounded()), 0), ThemeColorScale.shades.count - 1)
-                setProperty(.number(Double(ThemeColorScale.shades[safeIndex])), key: .themeColorShade)
-            }
-        )
-    }
-
-    private var resolvedThemeColor: String {
-        theme.adjustedColor(
-            role: displayComponent.property(.themeColor),
-            shade: Double(selectedThemeShade)
-        )
-    }
 
     private var selectedToken: DesignToken? {
         displayComponent.propertyValue(definition.key).tokenValue
@@ -294,6 +289,64 @@ struct ComponentPropertyEditor: View {
             case .string: .string(string)
             case .url: .url(string)
             case .choice: .choice(string)
+            }
+        }
+    }
+}
+
+private struct PackageColorControlEditor: View {
+    let label: String
+    let choices: [ComponentPropertyChoice]
+    @Binding var source: String
+    @Binding var customColor: Color
+    let adjustment: Binding<Double>?
+    let opacity: Binding<Double>?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            if !choices.isEmpty {
+                Picker(label, selection: $source) {
+                    Text("Custom").tag("custom")
+                    ForEach(choices) { choice in
+                        Text(choice.label).tag(choice.value)
+                    }
+                }
+            }
+            if source == "custom" || choices.isEmpty {
+                ColorPicker(label, selection: $customColor, supportsOpacity: false)
+            }
+            if let adjustment {
+                LabeledContent("Lighter or darker", value: adjustment.wrappedValue.formatted() + "%")
+                    .font(.caption)
+                Slider(value: adjustment, in: -100...100, step: 1)
+            }
+            if let opacity {
+                LabeledContent("Opacity", value: opacity.wrappedValue.formatted(.percent.precision(.fractionLength(0))))
+                    .font(.caption)
+                Slider(value: opacity, in: 0...1, step: 0.01)
+            }
+        }
+    }
+}
+
+private struct PackageThemeValueEditor: View {
+    let label: String
+    let choices: [ComponentPropertyChoice]
+    @Binding var source: String
+    @Binding var customValue: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            if !choices.isEmpty {
+                Picker(label, selection: $source) {
+                    Text("Custom").tag("custom")
+                    ForEach(choices) { choice in
+                        Text(choice.label).tag(choice.value)
+                    }
+                }
+            }
+            if source == "custom" || choices.isEmpty {
+                TextField(label, text: $customValue)
             }
         }
     }

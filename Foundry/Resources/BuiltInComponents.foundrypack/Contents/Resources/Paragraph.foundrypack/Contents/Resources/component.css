@@ -1,0 +1,5 @@
+#{{ id }} {
+    color: {{ control.textColor }};
+    font-family: {{ control.typeface }};
+    font-size: {{ control.textSize }};
+}

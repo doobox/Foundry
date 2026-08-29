@@ -135,10 +135,17 @@ nonisolated enum ComponentPropertyControl: Sendable {
     case url
     case number(range: ClosedRange<Double>, step: Double, unit: String)
     case color
+    case packageColor(
+        themeValues: Bool,
+        customColorKey: ComponentProperty.Key,
+        colorMathKey: ComponentProperty.Key?,
+        opacityKey: ComponentProperty.Key?
+    )
     case choice([ComponentPropertyChoice])
     case themeFontFamily
     case themeFontSize
-    case themeColor
+    case packageFontFamily(themeValues: Bool, customValueKey: ComponentProperty.Key)
+    case packageFontSize(themeValues: Bool, customValueKey: ComponentProperty.Key)
     case toggle
     case asset
 
@@ -150,9 +157,6 @@ nonisolated enum ComponentPropertyControl: Sendable {
         if case .themeFontSize = self { true } else { false }
     }
 
-    var isThemeColor: Bool {
-        if case .themeColor = self { true } else { false }
-    }
 }
 
 nonisolated struct ComponentPropertyChoice: Identifiable, Sendable {

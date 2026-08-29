@@ -24,7 +24,7 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
                 )
             )
         }
-        files.append(.init(path: "assets/site.css", contents: stylesheet(for: site)))
+        files.append(.init(path: "assets/site.css", contents: stylesheet(for: site, assets: assets)))
         files.append(contentsOf: site.assets.compactMap { asset in
             assets[asset.id].map { SiteExportFile(path: asset.exportPath, data: $0.data) }
         })
@@ -212,7 +212,7 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
         return styles
     }
 
-    private func stylesheet(for site: Site) -> String {
+    private func stylesheet(for site: Site, assets: [UUID: ProjectAssetContent]) -> String {
         let theme = site.theme
         return """
         \(theme.remoteFontImports)
@@ -221,19 +221,45 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
         body{margin:0;padding:48px;background:var(--background);color:var(--text);font-family:var(--font-body);font-size:var(--font-size-base);line-height:var(--font-size-base-line-height)}
         h1,h2,h3,h4,h5,h6,.heading{font-family:var(--font-heading)}code,pre,kbd,samp{font-family:var(--font-monospace)}
         .button{display:block;width:fit-content;text-decoration:none;font-weight:600}.columns{display:grid}.image{display:block;width:100%;height:auto}.spacer{min-height:8px}
-        \(packageStyles(for: site))
+        \(packageStyles(for: site, assets: assets))
         \(themeControlStyles(for: site))
-        \(responsiveStyles(for: site))
+        \(responsiveStyles(for: site, assets: assets))
         """
     }
 
-    private func responsiveStyles(for site: Site) -> String {
+    private func responsiveStyles(
+        for site: Site,
+        assets: [UUID: ProjectAssetContent]
+    ) -> String {
         let nodes = site.pages.flatMap { $0.components.flatMap(\.flattened) }
         return [ResponsiveBreakpoint.tabletPortrait, .tabletLandscape, .desktop].compactMap { breakpoint in
             guard let minimumWidth = breakpoint.minimumWidth else { return nil }
             let rules = nodes.compactMap { node -> String? in
                 guard node.responsiveOverrides?.contains(where: { $0.breakpoint == breakpoint }) == true else { return nil }
                 let resolved = node.resolved(at: breakpoint)
+                if let package = resolved.type.definition.package {
+                    let css = ComponentTemplateRenderer.render(
+                        package.css,
+                        context: .init(
+                            instanceID: resolved.id,
+                            packageIdentifier: package.manifest.identifier,
+                            properties: packageProperties(
+                                resolved,
+                                theme: site.theme,
+                                assetPrefix: "",
+                                assets: assets
+                            ),
+                            slots: [:],
+                            componentClass: componentClass(resolved)
+                        )
+                    )
+                    let scopedCSS = ComponentTemplateRenderer.scopedCSS(
+                        css,
+                        packageIdentifier: package.manifest.identifier
+                    )
+                    let themeCSS = themeControlDeclarations(for: resolved, theme: site.theme)
+                    return scopedCSS + (themeCSS.isEmpty ? "" : ".\(componentClass(resolved)){\(themeCSS)}")
+                }
                 var declarations = sharedStyles(for: resolved, theme: site.theme)
                 switch resolved.type.definition.renderKind {
                 case .text, .heading, .button:
@@ -242,18 +268,6 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
                     declarations += "grid-template-columns:repeat(\(clamped(resolved.numberProperty(.columnCount), to: 1...6)),minmax(0,1fr));gap:\(clamped(resolved.numberProperty(.gap), to: 0...120))px;"
                 case .spacer:
                     declarations += "min-height:\(clamped(resolved.numberProperty(.height), to: 0...600))px;"
-                case .package:
-                    if let package = resolved.type.definition.package {
-                        declarations += package.manifest.properties.compactMap { property in
-                            guard property.responsive, let template = property.css else { return nil }
-                            let key = ComponentProperty.Key(rawValue: property.id)
-                            return template.replacingOccurrences(
-                                of: "{{value}}",
-                                with: safeCSSValue(resolved.propertyValue(key))
-                            ) + ";"
-                        }.joined()
-                    }
-                    declarations += themeControlDeclarations(for: resolved, theme: site.theme)
                 default:
                     break
                 }
@@ -267,12 +281,23 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
         "c-" + node.id.uuidString.lowercased()
     }
 
-    private func packageStyles(for site: Site) -> String {
-        let packages = site.pages.flatMap { $0.components.flatMap(\.flattened) }.compactMap { $0.type.definition.package }
-        var seen: Set<String> = []
-        return packages.compactMap { package in
-            guard seen.insert(package.manifest.identifier).inserted else { return nil }
-            return ComponentTemplateRenderer.scopedCSS(package.css, packageIdentifier: package.manifest.identifier)
+    private func packageStyles(
+        for site: Site,
+        assets: [UUID: ProjectAssetContent]
+    ) -> String {
+        site.pages.flatMap { $0.components.flatMap(\.flattened) }.compactMap { node in
+            guard let package = node.type.definition.package else { return nil }
+            let css = ComponentTemplateRenderer.render(
+                package.css,
+                context: .init(
+                    instanceID: node.id,
+                    packageIdentifier: package.manifest.identifier,
+                    properties: packageProperties(node, theme: site.theme, assetPrefix: "", assets: assets),
+                    slots: [:],
+                    componentClass: componentClass(node)
+                )
+            )
+            return ComponentTemplateRenderer.scopedCSS(css, packageIdentifier: package.manifest.identifier)
         }.joined(separator: "\n")
     }
 
@@ -284,6 +309,7 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
     }
 
     private func themeControlDeclarations(for node: ComponentNode, theme: Theme) -> String {
+        guard node.type.definition.package == nil else { return "" }
         var declarations = ""
         if node.type.definition.properties.contains(where: { $0.control.isThemeFontFamily }) {
             declarations += "font-family:\(theme.fontCSSVariable(for: node.property(.themeFontFamily)));"
@@ -291,9 +317,6 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
         if node.type.definition.properties.contains(where: { $0.control.isThemeFontSize }) {
             declarations += ThemeTypographyControlCSS.declarations(for: node, theme: theme)
                 .joined(separator: ";") + ";"
-        }
-        if node.type.definition.properties.contains(where: { $0.control.isThemeColor }) {
-            declarations += "color:\(theme.adjustedColor(role: node.property(.themeColor), shade: node.numberProperty(.themeColorShade)));"
         }
         return declarations
     }
@@ -324,6 +347,34 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
             }
             if case .color = definition.control {
                 return (definition.key.rawValue, .string(node.colorProperty(definition.key, theme: theme)))
+            }
+            if case .packageColor(_, let customColorKey, let colorMathKey, let opacityKey) = definition.control {
+                return (
+                    definition.key.rawValue,
+                    .string(ComponentPackageColorResolver.resolve(
+                        node: node, key: definition.key, theme: theme,
+                        customColorKey: customColorKey,
+                        colorMathKey: colorMathKey, opacityKey: opacityKey
+                    ))
+                )
+            }
+            if case .themeFontFamily = definition.control {
+                return (definition.key.rawValue, .string(theme.fontCSSVariable(for: node.property(definition.key))))
+            }
+            if case .themeFontSize = definition.control {
+                return (definition.key.rawValue, .string(theme.fontSizeCSSVariable(for: node.property(definition.key))))
+            }
+            if case .packageFontFamily(let themeValues, let customValueKey) = definition.control {
+                let source = node.property(definition.key)
+                let resolved = !themeValues || source == "custom"
+                    ? node.property(customValueKey) : theme.fontCSSVariable(for: source)
+                return (definition.key.rawValue, .string(resolved))
+            }
+            if case .packageFontSize(let themeValues, let customValueKey) = definition.control {
+                let source = node.property(definition.key)
+                let resolved = !themeValues || source == "custom"
+                    ? node.property(customValueKey) : theme.fontSizeCSSVariable(for: source)
+                return (definition.key.rawValue, .string(resolved))
             }
             if case .number = definition.control {
                 return (definition.key.rawValue, .number(node.numberProperty(definition.key, theme: theme)))

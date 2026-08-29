@@ -71,6 +71,33 @@ struct ComponentPackageTests {
     }
 
     @Test
+    func developerExpressionsResolveInstanceControlsAndReadableColorFilters() {
+        let id = UUID(uuidString: "AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE")!
+        let context = ComponentTemplateContext(
+            instanceID: id,
+            packageIdentifier: "com.example.card",
+            properties: ["accent": .string("#336699"), "padding": .number(24)],
+            slots: [:]
+        )
+        let template = """
+        #{{ id }} {
+          padding: {{ control.padding }}px;
+          color: {{ control.accent }};
+          border-color: {{ control.accent | lighten(20) }};
+          background-color: {{ control.accent | darken(25) }};
+        }
+        """
+
+        let rendered = ComponentTemplateRenderer.render(template, context: context)
+
+        #expect(rendered.contains("#foundry-aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"))
+        #expect(rendered.contains("padding: 24px"))
+        #expect(rendered.contains("color: #336699"))
+        #expect(rendered.contains("border-color: #5C85AD"))
+        #expect(rendered.contains("background-color: #264D73"))
+    }
+
+    @Test
     func templateRendersEscapedPropertiesConditionsSlotsAssetsAndEditorHooks() {
         let context = ComponentTemplateContext(
             instanceID: UUID(uuidString: "AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE")!,
@@ -191,16 +218,25 @@ struct ComponentPackageTests {
     }
 
     @Test @MainActor
-    func paragraphRequestsThemeTextColorAtTheBaseShade() throws {
+    func paragraphUsesUnifiedCustomColorWithOptInCapabilities() throws {
         _ = ComponentPackageCatalog.shared
         let properties = ComponentType.paragraph.definition.properties
-        let color = try #require(properties.first(where: { $0.key == .themeColor }))
-        let shade = try #require(properties.first(where: { $0.key == .themeColorShade }))
+        let color = try #require(properties.first(where: { $0.key.rawValue == "textColor" }))
+        let custom = try #require(properties.first(where: { $0.key.rawValue == "textColorCustom" }))
+        let colorMath = try #require(properties.first(where: { $0.key.rawValue == "textColorColorMath" }))
+        let opacity = try #require(properties.first(where: { $0.key.rawValue == "textColorOpacity" }))
 
         #expect(color.defaultValue == .choice(ThemeColorRole.text.rawValue))
-        #expect(color.control.isThemeColor)
-        #expect(shade.defaultValue == .number(500))
-        #expect(!shade.isInspectorVisible)
+        if case .packageColor(let themeValues, _, let mathKey, let opacityKey) = color.control {
+            #expect(themeValues)
+            #expect(mathKey == colorMath.key)
+            #expect(opacityKey == opacity.key)
+        } else {
+            Issue.record("Paragraph should use the package colour control")
+        }
+        #expect(custom.defaultValue == .color("#000000"))
+        #expect(colorMath.defaultValue == .number(0))
+        #expect(opacity.defaultValue == .number(1))
     }
 
     @Test

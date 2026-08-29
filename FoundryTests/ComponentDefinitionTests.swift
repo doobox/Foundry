@@ -51,8 +51,8 @@ struct ComponentDefinitionTests {
         let decoded = try JSONDecoder().decode(ComponentNode.self, from: data)
 
         #expect(decoded == original)
-        #expect(decoded.propertyValue(.themeFontFamily) == .choice("body"))
-        #expect(decoded.propertyValue(.themeFontSize) == .choice("base"))
+        #expect(decoded.propertyValue(.init(rawValue: "typeface")) == .choice("body"))
+        #expect(decoded.propertyValue(.init(rawValue: "textSize")) == .choice("base"))
     }
 
     @Test
@@ -62,10 +62,8 @@ struct ComponentDefinitionTests {
             properties: [.init(key: .text, value: .string("Legacy"))]
         )
 
-        #expect(legacyText.property(.themeFontFamily) == "body")
-        #expect(legacyText.property(.themeFontSize) == "base")
-        #expect(legacyText.property(.themeTextAlignment) == "left")
-        #expect(legacyText.property(.themeFontWeight) == "400")
+        #expect(legacyText.property(.init(rawValue: "typeface")) == "body")
+        #expect(legacyText.property(.init(rawValue: "textSize")) == "base")
     }
 
     @Test
@@ -87,11 +85,11 @@ struct ComponentDefinitionTests {
         var button = ComponentNode.make(.button)
         container.setProperty(.padding, value: .number(24))
         container.setProperty(.borderWidth, value: .number(2))
-        container.setProperty(.borderColor, value: .color("#ABCDEF"))
+        container.setProperty(.init(rawValue: "borderColorCustom"), value: .color("#ABCDEF"))
         container.setProperty(.cornerRadius, value: .number(28))
         container.setProperty(.maxWidth, value: .number(920))
-        text.setProperty(.themeTextAlignment, value: .choice("center"))
-        text.setProperty(.themeFontWeight, value: .choice("700"))
+        text.setProperty(.init(rawValue: "typeface"), value: .choice("heading"))
+        text.setProperty(.init(rawValue: "textSize"), value: .choice("xl"))
         button.setProperty(.accessibilityLabel, value: .string("Open \"details\""))
         container.children = [text, button]
 
@@ -102,8 +100,8 @@ struct ComponentDefinitionTests {
         #expect(html.contains("border: 2px solid #ABCDEF"))
         #expect(html.contains("border-radius: 28px"))
         #expect(html.contains("max-width: 920px"))
-        #expect(html.contains("text-align: center"))
-        #expect(html.contains("font-weight: 700"))
+        #expect(html.contains("font-family: var(--font-heading)"))
+        #expect(html.contains("font-size: var(--font-size-xl)"))
         #expect(html.contains("aria-label=\"Open &quot;details&quot;\""))
         #expect(html.contains("[data-foundry-id]:hover:not(:has([data-foundry-id]:hover))"))
     }

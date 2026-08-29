@@ -26,8 +26,10 @@ struct ThemePanel: View {
 
             Section("Typography") {
                 TextField("Body font", text: bodyFontBinding)
-                Stepper(value: baseSizeBinding, in: 10...40, step: 1) {
-                    LabeledContent("Base size", value: "\(theme.typography.baseSize.formatted()) px")
+                ForEach(theme.typography.customFontSizes) { token in
+                    Stepper(value: fontSizeBinding(for: token.id), in: 0.5...16, step: 0.125) {
+                        LabeledContent(token.title, value: "\(token.size.formatted()) rem")
+                    }
                 }
             }
         }
@@ -59,10 +61,10 @@ struct ThemePanel: View {
         )
     }
 
-    private var baseSizeBinding: Binding<Double> {
+    private func fontSizeBinding(for id: String) -> Binding<Double> {
         Binding(
-            get: { theme.typography.baseSize },
-            set: editor.setThemeBaseSize
+            get: { theme.typography.fontSizes.first(where: { $0.id == id })?.size ?? 1 },
+            set: { editor.setThemeFontSize(id: id, value: $0) }
         )
     }
 }

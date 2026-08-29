@@ -41,32 +41,6 @@ nonisolated enum ThemeColorRole: String, Codable, CaseIterable, Identifiable, Se
     var title: String { rawValue.capitalized }
 }
 
-nonisolated enum ThemeColorScale {
-    static let shades = [50, 100, 200, 300, 400, 500, 600, 700, 800, 900, 950]
-
-    static func nearestShade(to value: Int) -> Int {
-        shades.min(by: { abs($0 - value) < abs($1 - value) }) ?? 500
-    }
-
-    static func color(_ hex: String, shade: Int) -> String {
-        let cleaned = hex.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
-        guard cleaned.count == 6, let value = UInt64(cleaned, radix: 16) else { return hex }
-        let source = (
-            red: Double((value >> 16) & 0xFF),
-            green: Double((value >> 8) & 0xFF),
-            blue: Double(value & 0xFF)
-        )
-        let shade = nearestShade(to: shade)
-        guard shade != 500 else { return String(format: "#%06llX", value) }
-        let target = shade < 500 ? 255.0 : 0.0
-        let amount = min(abs(Double(shade - 500)) / 500.0, 0.9)
-        func channel(_ source: Double) -> Int {
-            min(max(Int((source + (target - source) * amount).rounded()), 0), 255)
-        }
-        return String(format: "#%02X%02X%02X", channel(source.red), channel(source.green), channel(source.blue))
-    }
-}
-
 nonisolated struct SpacingTokens: Codable, Equatable, Sendable {
     var small: Double
     var medium: Double
@@ -221,11 +195,6 @@ nonisolated extension Theme {
         case .text: colors.text
         case .accent: colors.accent
         }
-    }
-
-    func adjustedColor(role: String, shade: Double) -> String {
-        let role = ThemeColorRole(rawValue: role) ?? .text
-        return ThemeColorScale.color(color(for: role), shade: Int(shade.rounded()))
     }
 
     var fontFamilyChoices: [ComponentPropertyChoice] {

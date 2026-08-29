@@ -11,7 +11,6 @@ nonisolated struct ComponentPackageManifest: Codable, Equatable, Sendable {
     let tags: [String]
     let slots: [ComponentPackageSlot]
     let properties: [ComponentPackageProperty]
-    let themeControls: [ComponentPackageThemeControl]
     let render: ComponentPackageRender
     let runtime: ComponentPackageRuntime?
     let assets: [String]
@@ -29,7 +28,6 @@ nonisolated struct ComponentPackageManifest: Codable, Equatable, Sendable {
         case tags
         case slots
         case properties = "customItems"
-        case themeControls
         case render = "templates"
         case runtime
         case assets
@@ -48,7 +46,6 @@ nonisolated struct ComponentPackageManifest: Codable, Equatable, Sendable {
         tags: [String] = [],
         slots: [ComponentPackageSlot] = [],
         properties: [ComponentPackageProperty] = [],
-        themeControls: [ComponentPackageThemeControl] = [],
         render: ComponentPackageRender,
         runtime: ComponentPackageRuntime? = nil,
         assets: [String] = [],
@@ -65,7 +62,6 @@ nonisolated struct ComponentPackageManifest: Codable, Equatable, Sendable {
         self.tags = tags
         self.slots = slots
         self.properties = properties
-        self.themeControls = themeControls
         self.render = render
         self.runtime = runtime
         self.assets = assets
@@ -85,36 +81,11 @@ nonisolated struct ComponentPackageManifest: Codable, Equatable, Sendable {
         tags = try container.decodeIfPresent([String].self, forKey: .tags) ?? []
         slots = try container.decodeIfPresent([ComponentPackageSlot].self, forKey: .slots) ?? []
         properties = try container.decodeIfPresent([ComponentPackageProperty].self, forKey: .properties) ?? []
-        themeControls = try container.decodeIfPresent([ComponentPackageThemeControl].self, forKey: .themeControls) ?? []
         render = try container.decode(ComponentPackageRender.self, forKey: .render)
         runtime = try container.decodeIfPresent(ComponentPackageRuntime.self, forKey: .runtime)
         assets = try container.decodeIfPresent([String].self, forKey: .assets) ?? []
         helpURL = try container.decodeIfPresent(URL.self, forKey: .helpURL)
         missingComponent = try container.decodeIfPresent(ComponentPackageMissingComponent.self, forKey: .missingComponent)
-    }
-}
-
-nonisolated struct ComponentPackageThemeControl: Codable, Equatable, Sendable {
-    enum Kind: String, Codable, Equatable, Sendable {
-        case fontFamily
-        case fontSize
-        case color
-    }
-
-    let type: Kind
-    let title: String?
-    let group: String?
-    let defaultValue: String?
-    let shade: Int?
-    let responsive: Bool?
-
-    enum CodingKeys: String, CodingKey {
-        case type
-        case title
-        case group
-        case defaultValue = "default"
-        case shade
-        case responsive
     }
 }
 
@@ -158,6 +129,8 @@ nonisolated struct ComponentPackageControl: Codable, Equatable, Sendable {
         case url
         case image
         case toggle
+        case fontFamily
+        case fontSize
     }
 
     let type: Kind
@@ -166,6 +139,10 @@ nonisolated struct ComponentPackageControl: Codable, Equatable, Sendable {
     let step: Double?
     let unit: String?
     let options: [ComponentPackageOption]?
+    let themeValues: Bool?
+    let colorMath: Bool?
+    let opacity: Bool?
+    let customColor: String?
 }
 
 nonisolated struct ComponentPackageOption: Codable, Equatable, Identifiable, Sendable {

@@ -40,13 +40,12 @@ nonisolated enum ComponentTemplateRenderer {
         var result = renderText(in: template, context: context)
         result = renderConditions(in: result, context: context)
         result = renderSlots(in: result, context: context)
-        let expression = try! NSRegularExpression(pattern: #"\{\{\s*([A-Za-z0-9_./-]+)\s*\}\}"#)
+        let expression = try! NSRegularExpression(pattern: #"\{\{\s*([^{}]+?)\s*\}\}"#)
         let matches = expression.matches(in: result, range: NSRange(result.startIndex..., in: result)).reversed()
         for match in matches {
             guard let wholeRange = Range(match.range(at: 0), in: result),
-                  let keyRange = Range(match.range(at: 1), in: result) else { continue }
-            let key = String(result[keyRange])
-            let replacement = value(for: key, context: context)
+                  let expressionRange = Range(match.range(at: 1), in: result) else { continue }
+            let replacement = value(forExpression: String(result[expressionRange]), context: context)
             result.replaceSubrange(wholeRange, with: replacement)
         }
         return result
@@ -124,8 +123,20 @@ nonisolated enum ComponentTemplateRenderer {
         )
     }
 
+    private static func value(forExpression expression: String, context: ComponentTemplateContext) -> String {
+        let parts = expression.split(separator: "|").map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+        guard let key = parts.first else { return "" }
+        var result = value(for: key, context: context)
+        for filter in parts.dropFirst() {
+            result = apply(filter: filter, to: result)
+        }
+        return result
+    }
+
     private static func value(for key: String, context: ComponentTemplateContext) -> String {
-        if key == "instance.id" { return context.instanceID.uuidString }
+        if key == "id" || key == "instance.id" {
+            return "foundry-" + context.instanceID.uuidString.lowercased()
+        }
         if key == "package.id" { return escape(context.packageIdentifier) }
         if key == "component.class" {
             return context.componentClass.isEmpty ? "" : " " + escapeAttribute(context.componentClass)
@@ -139,13 +150,56 @@ nonisolated enum ComponentTemplateRenderer {
         if key.hasPrefix("slot.") {
             return context.slots[String(key.dropFirst("slot.".count))] ?? ""
         }
-        guard key.hasPrefix("property."),
-              let value = context.properties[String(key.dropFirst("property.".count))] else { return "" }
+        let prefix = key.hasPrefix("control.") ? "control." : "property."
+        guard key.hasPrefix(prefix),
+              let value = context.properties[String(key.dropFirst(prefix.count))] else { return "" }
         switch value {
         case .string(let value): return escape(value)
         case .number(let value): return value.formatted(.number.locale(Locale(identifier: "en_US_POSIX")))
         case .boolean(let value): return value ? "true" : "false"
         }
+    }
+
+    private static func apply(filter: String, to value: String) -> String {
+        let expression = try! NSRegularExpression(
+            pattern: #"^(lighten|darken)\(\s*([0-9]+(?:\.[0-9]+)?)\s*\)$"#
+        )
+        guard let match = expression.firstMatch(in: filter, range: NSRange(filter.startIndex..., in: filter)),
+              let nameRange = Range(match.range(at: 1), in: filter),
+              let argumentRange = Range(match.range(at: 2), in: filter),
+              let argument = Double(filter[argumentRange]) else { return value }
+        switch String(filter[nameRange]) {
+        case "lighten": return transformColor(value, target: 255, amount: argument / 100)
+        case "darken": return transformColor(value, target: 0, amount: argument / 100)
+        default: return value
+        }
+    }
+
+    static func transformColor(_ value: String, target: Double, amount: Double) -> String {
+        guard let color = rgb(value) else { return value }
+        let amount = min(max(amount, 0), 1)
+        return hex(
+            color.red + (target - color.red) * amount,
+            color.green + (target - color.green) * amount,
+            color.blue + (target - color.blue) * amount
+        )
+    }
+
+    static func colorWithAlpha(_ value: String, alpha: Double) -> String {
+        guard let color = rgb(value) else { return value }
+        let alpha = min(max(alpha, 0), 1).formatted(.number.precision(.fractionLength(0...3)))
+        return "rgb(\(Int(color.red)) \(Int(color.green)) \(Int(color.blue)) / \(alpha))"
+    }
+
+    private static func rgb(_ value: String) -> (red: Double, green: Double, blue: Double)? {
+        let cleaned = value.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
+        guard cleaned.count == 6, let color = UInt64(cleaned, radix: 16) else { return nil }
+        return (Double((color >> 16) & 0xFF), Double((color >> 8) & 0xFF), Double(color & 0xFF))
+    }
+
+    private static func hex(_ red: Double, _ green: Double, _ blue: Double) -> String {
+        func channel(_ value: Double) -> Int { min(max(Int(value.rounded()), 0), 255) }
+        return String(format: "#%02X%02X%02X", channel(red), channel(green), channel(blue))
     }
 
     private static func renderConditions(in template: String, context: ComponentTemplateContext) -> String {

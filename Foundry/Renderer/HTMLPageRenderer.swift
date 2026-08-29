@@ -156,7 +156,7 @@ struct HTMLPageRenderer: PageRendering {
             .image { display: block; width: 100%; height: auto; }
             .spacer { min-height: 8px; }
             .unavailable { padding: 16px; border: 2px dashed #C33; color: #922; background: #FFF5F5; }
-            \(packageStyles(for: page))
+            \(packageStyles(for: page, theme: theme, assets: assets, breakpoint: breakpoint))
             \(themeControlStyles(for: page, theme: theme, breakpoint: breakpoint))
           </style>
         </head>
@@ -288,15 +288,25 @@ struct HTMLPageRenderer: PageRendering {
         }
     }
 
-    private func packageStyles(for page: Page) -> String {
-        let packages = page.components.flatMap(flattened).compactMap { $0.type.definition.package }
-        var seen: Set<String> = []
-        return packages.compactMap { package in
-            guard seen.insert(package.manifest.identifier).inserted else { return nil }
-            return ComponentTemplateRenderer.scopedCSS(
+    private func packageStyles(
+        for page: Page,
+        theme: Theme,
+        assets: [UUID: ProjectAssetContent],
+        breakpoint: ResponsiveBreakpoint
+    ) -> String {
+        page.components.flatMap(flattened).compactMap { sourceNode in
+            let node = sourceNode.resolved(at: breakpoint)
+            guard let package = node.type.definition.package else { return nil }
+            let css = ComponentTemplateRenderer.render(
                 package.css + "\n" + package.editorCSS,
-                packageIdentifier: package.manifest.identifier
+                context: .init(
+                    instanceID: node.id,
+                    packageIdentifier: package.manifest.identifier,
+                    properties: packageProperties(node, theme: theme, assets: assets),
+                    slots: [:]
+                )
             )
+            return ComponentTemplateRenderer.scopedCSS(css, packageIdentifier: package.manifest.identifier)
         }.joined(separator: "\n")
     }
 
@@ -307,17 +317,13 @@ struct HTMLPageRenderer: PageRendering {
     ) -> String {
         page.components.flatMap(flattened).compactMap { sourceNode in
             let node = sourceNode.resolved(at: breakpoint)
+            guard node.type.definition.package == nil else { return nil }
             var declarations: [String] = []
             if node.type.definition.properties.contains(where: { $0.control.isThemeFontFamily }) {
                 declarations.append("font-family: \(theme.fontCSSVariable(for: node.property(.themeFontFamily)))")
             }
             if node.type.definition.properties.contains(where: { $0.control.isThemeFontSize }) {
                 declarations.append(contentsOf: ThemeTypographyControlCSS.declarations(for: node, theme: theme))
-            }
-            if node.type.definition.properties.contains(where: { $0.control.isThemeColor }) {
-                declarations.append(
-                    "color: \(theme.adjustedColor(role: node.property(.themeColor), shade: node.numberProperty(.themeColorShade)))"
-                )
             }
             guard !declarations.isEmpty else { return nil }
             return "[data-foundry-id=\"\(node.id.uuidString)\"] { \(declarations.joined(separator: "; ")); }"
@@ -333,6 +339,34 @@ struct HTMLPageRenderer: PageRendering {
             }
             if case .color = definition.control {
                 return (definition.key.rawValue, .string(node.colorProperty(definition.key, theme: theme)))
+            }
+            if case .packageColor(_, let customColorKey, let colorMathKey, let opacityKey) = definition.control {
+                return (
+                    definition.key.rawValue,
+                    .string(ComponentPackageColorResolver.resolve(
+                        node: node, key: definition.key, theme: theme,
+                        customColorKey: customColorKey,
+                        colorMathKey: colorMathKey, opacityKey: opacityKey
+                    ))
+                )
+            }
+            if case .themeFontFamily = definition.control {
+                return (definition.key.rawValue, .string(theme.fontCSSVariable(for: node.property(definition.key))))
+            }
+            if case .themeFontSize = definition.control {
+                return (definition.key.rawValue, .string(theme.fontSizeCSSVariable(for: node.property(definition.key))))
+            }
+            if case .packageFontFamily(let themeValues, let customValueKey) = definition.control {
+                let source = node.property(definition.key)
+                let resolved = !themeValues || source == "custom"
+                    ? node.property(customValueKey) : theme.fontCSSVariable(for: source)
+                return (definition.key.rawValue, .string(resolved))
+            }
+            if case .packageFontSize(let themeValues, let customValueKey) = definition.control {
+                let source = node.property(definition.key)
+                let resolved = !themeValues || source == "custom"
+                    ? node.property(customValueKey) : theme.fontSizeCSSVariable(for: source)
+                return (definition.key.rawValue, .string(resolved))
             }
             if case .number = definition.control {
                 return (definition.key.rawValue, .number(node.numberProperty(definition.key, theme: theme)))

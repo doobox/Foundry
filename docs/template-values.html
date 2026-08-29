@@ -1,0 +1,53 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Templates · Foundry Developer</title><link rel="stylesheet" href="styles.css"><script src="app.js" defer></script></head><body><div class="shell"><nav data-doc-nav></nav><main><div class="breadcrumbs"><a href="index.html">Foundry Developer</a><span>›</span>Build components</div><p class="eyebrow">Template API</p><h1>Put values where they belong</h1><p class="lede">Foundry currently processes the HTML, CSS and editor CSS named by <code>Info.plist</code> for each component instance. The developer owns the resulting structure and selectors. The broader scoped template-file API is documented below as proposed work.</p>
+<div class="callout warning"><strong>Proposed API.</strong> Scoped template dictionaries, HTML placement, additional template files, Sass/SCSS compilation and PHP execution described below are designed but not yet available in the app.</div>
+<h2>Template scope <span class="pill">Proposed</span></h2><p>Declare each additional template as a dictionary containing its <code>path</code> and optional <code>scope</code>. Scope is about lifetime and deduplication, not selector choice.</p><dl class="syntax-list"><dt><code>instance</code></dt><dd>Default. Processed once for every component instance. Instance identity and control macros are available.</dd><dt><code>page</code></dt><dd>Processed once on each page that uses the component, regardless of how many instances are present. Use it for shared page CSS, JavaScript or supporting output.</dd><dt><code>site</code></dt><dd>Processed once for the exported site when the component is used anywhere. Use it for genuinely site-wide generated files.</dd></dl>
+<pre><code>&lt;key&gt;files&lt;/key&gt;
+&lt;array&gt;
+    &lt;dict&gt;
+        &lt;key&gt;path&lt;/key&gt;&lt;string&gt;component.css&lt;/string&gt;
+        &lt;key&gt;scope&lt;/key&gt;&lt;string&gt;instance&lt;/string&gt;
+    &lt;/dict&gt;
+    &lt;dict&gt;
+        &lt;key&gt;path&lt;/key&gt;&lt;string&gt;runtime.js&lt;/string&gt;
+        &lt;key&gt;scope&lt;/key&gt;&lt;string&gt;page&lt;/string&gt;
+    &lt;/dict&gt;
+&lt;/array&gt;</code></pre>
+<p>Foundry deduplicates <code>page</code> and <code>site</code> templates by component bundle identifier and template path. These scopes may use page-, site- and package-level macros, but not <code>{{ id }}</code>, <code>{{ component.attributes }}</code> or <code>{{ control.* }}</code>, because there is no single component instance to supply those values. Foundry reports an invalid scope/macro combination instead of silently choosing an instance.</p>
+<div class="note"><strong>HTML placement is separate.</strong> An HTML template may add <code>placement</code> with <code>headStart</code>, <code>headEnd</code>, <code>bodyStart</code> or <code>bodyEnd</code>. This keeps scope (“how often?”) independent from placement (“where?”). The primary <code>html</code> template is always instance-scoped in the normal component flow.</div>
+<h2>Instance identity</h2><section class="reference-entry"><h3>{{ id }}</h3><p>Resolves to a stable, CSS-safe ID unique to the instance, such as <code>foundry-a12b…</code>.</p><pre><code>&lt;article id="{{ id }}" {{ component.attributes }}&gt;…&lt;/article&gt;
+
+#{{ id }} { border-radius: 12px; }
+#{{ id }} .title { font-weight: 700; }</code></pre></section>
+<h2>Control values</h2><section class="reference-entry"><h3>{{ control.&lt;id&gt; }}</h3><p>Resolves a value declared by <code>customItems</code> or a named theme control. Responsive values resolve at the breakpoint currently being rendered.</p><pre><code>#{{ id }} {
+    max-width: {{ control.maxWidth }}px;
+    text-align: {{ control.alignment }};
+}
+
+#{{ id }} .media {
+    opacity: {{ control.imageOpacity }};
+}</code></pre></section>
+<h2>Component hooks</h2><dl class="syntax-list"><dt><code>{{ component.attributes }}</code></dt><dd>Required editor metadata. Place it on the element that represents the component.</dd><dt><code>{{ component.class }}</code></dt><dd>Foundry’s generated class fragment when a template needs to append it to its own class attribute.</dd></dl>
+<div class="note"><strong>No hidden selector rules.</strong> Foundry does not assume that a control belongs on the top-level element. Use the same control more than once or target any descendant your component requires.</div>
+<h2>Supported template files</h2><dl><dt>HTML</dt><dd>Component markup rendered by Foundry.</dd><dt>CSS</dt><dd>Component styles used by the canvas and export.</dd><dt>JavaScript <span class="pill">Proposed as a template file</span></dt><dd>Client-side component behaviour with instance and control values substituted.</dd><dt>Sass and SCSS <span class="pill">Proposed</span></dt><dd>Developer-authored stylesheet source with macros substituted and compiled to CSS.</dd><dt>PHP <span class="pill">Proposed</span></dt><dd>Server-side source exported with macros substituted and executed through Foundry’s PHP runtime.</dd><dt>Editor CSS</dt><dd>Canvas-only CSS excluded from production export.</dd></dl>
+<h2>Editor CSS</h2><p>Editor CSS adds authoring affordances that are useful inside Foundry but should not appear on the published site. A component might use it to:</p><ul><li>give an empty container enough height to receive a dropped component;</li><li>outline or tint an editable region;</li><li>show a short placeholder label when real content is absent;</li><li>make a small interaction target easier to select on the canvas.</li></ul>
+<p>Name the file with <code>editorCSS</code> in <code>Info.plist</code>:</p><pre><code>&lt;key&gt;templates&lt;/key&gt;
+&lt;dict&gt;
+    &lt;key&gt;html&lt;/key&gt;&lt;string&gt;component.html&lt;/string&gt;
+    &lt;key&gt;css&lt;/key&gt;&lt;string&gt;component.css&lt;/string&gt;
+    &lt;key&gt;editorCSS&lt;/key&gt;&lt;string&gt;editor.css&lt;/string&gt;
+&lt;/dict&gt;</code></pre>
+<p><code>editor.css</code> is processed with the same instance and control macros as every other template:</p><pre><code>#{{ id }} .content {
+    min-height: 72px;
+    outline: 1px dashed rgb(0 0 0 / 0.25);
+    outline-offset: -1px;
+}
+
+#{{ id }} .content:empty::before {
+    content: "Drop components here";
+    color: rgb(0 0 0 / 0.45);
+}</code></pre>
+<p>Foundry loads this stylesheet for the editing canvas and excludes it from production export.</p>
+<div class="callout warning"><strong>Keep it editorial.</strong> The normal component CSS should remain the source of truth for the published layout. Editor CSS should improve selection, empty states and drop targets without disguising how the component will actually render.</div>
+<div class="callout warning"><strong>Proposed format processing.</strong> The planned pipeline substitutes template values, compiles Sass and SCSS to CSS, and executes PHP through Foundry’s PHP runtime. JavaScript will be preserved as authored rather than transpiled.</div>
+<p>The currently implemented <code>html</code>, <code>css</code> and <code>editorCSS</code> paths are declared under <code>templates</code> in <code>Info.plist</code>.</p>
+</main></div></body></html>

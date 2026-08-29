@@ -62,6 +62,8 @@ struct CanvasView: View {
     private var overridesCanvasBackground = false
     @AppStorage(AppPreferenceKey.canvasBackgroundColor)
     private var canvasBackgroundHex = CanvasBackgroundPreference.defaultColor
+    @AppStorage(AppPreferenceKey.enablesCanvasWebInspector)
+    private var enablesCanvasWebInspector = false
     @State private var resizeStartWidth: Double?
     @State private var resizeStartScale: Double?
     @State private var visibleCanvasWidth = 0.0
@@ -97,8 +99,10 @@ struct CanvasView: View {
                                         ),
                                         selectedComponentIDs: selectedComponentIDs,
                                         editorOptions: editorOptions,
+                                        enablesWebInspector: enablesCanvasWebInspector,
                                         handleMessage: handleMessage
                                     )
+                                    .id(enablesCanvasWebInspector)
                                     .frame(width: viewportWidth, height: logicalHeight)
                                     .background(.white)
                                     .shadow(color: .black.opacity(0.12), radius: 12, y: 4)
@@ -202,13 +206,14 @@ private struct CanvasVisibleWidthReader: NSViewRepresentable {
 
     func updateNSView(_ view: CanvasVisibleWidthView, context: Context) {
         view.onChange = onChange
-        view.reportVisibleWidth()
+        view.scheduleVisibleWidthReport()
     }
 }
 
 private final class CanvasVisibleWidthView: NSView {
     var onChange: (CGFloat) -> Void
     private var windowResizeObserver: NSObjectProtocol?
+    private var reportIsScheduled = false
 
     init(onChange: @escaping (CGFloat) -> Void) {
         self.onChange = onChange
@@ -235,18 +240,28 @@ private final class CanvasVisibleWidthView: NSView {
                 object: window,
                 queue: .main
             ) { [weak self] _ in
-                self?.reportVisibleWidth()
+                self?.scheduleVisibleWidthReport()
             }
         }
-        reportVisibleWidth()
+        scheduleVisibleWidthReport()
     }
 
     override func layout() {
         super.layout()
-        reportVisibleWidth()
+        scheduleVisibleWidthReport()
     }
 
-    func reportVisibleWidth() {
+    func scheduleVisibleWidthReport() {
+        guard !reportIsScheduled else { return }
+        reportIsScheduled = true
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            self.reportIsScheduled = false
+            self.reportVisibleWidth()
+        }
+    }
+
+    private func reportVisibleWidth() {
         guard let window, let contentView = window.contentView else { return }
         let frameInWindowContent = convert(bounds, to: contentView)
         let width = frameInWindowContent.intersection(contentView.bounds).width

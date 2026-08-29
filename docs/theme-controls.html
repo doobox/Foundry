@@ -1,18 +1,23 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Theme controls · Foundry API</title><link rel="stylesheet" href="styles.css"><script src="app.js" defer></script></head><body data-base=""><div class="shell"><nav data-doc-nav></nav><main>
-<div class="breadcrumbs"><a href="index.html">Foundry API</a><span>›</span>Theme controls</div><h1>Theme controls</h1><p class="lede">The shared dictionary entries accepted by every Foundry-provided theme control.</p>
-<section class="reference-entry"><h3>type</h3><div class="api-meta"><span class="pill">Type: String</span><span class="pill required">Required</span></div><p>Identifies the control Foundry should provide. Supported values are <a href="font-family.html"><code>fontFamily</code></a> and <a href="font-size.html"><code>fontSize</code></a>. Unknown values prevent the component plist from loading.</p></section>
-<section class="reference-entry"><h3>title</h3><div class="api-meta"><span class="pill">Type: String</span><span class="pill">Control-specific default</span></div><p>The label displayed beside the control in the inspector. Omit it to use the standard title defined by Foundry for that control.</p></section>
-<section class="reference-entry"><h3>group</h3><div class="api-meta"><span class="pill">Type: String</span><span class="pill">Control-specific default</span></div><p>The inspector group containing the control. Controls with the same group name are displayed together.</p></section>
-<section class="reference-entry"><h3>default</h3><div class="api-meta"><span class="pill">Type: Control-specific</span><span class="pill">Control-specific default</span></div><p>The value assigned when a new component instance is inserted. Supported values and the fallback are documented by each control type.</p></section>
-<section class="reference-entry"><h3>responsive</h3><div class="api-meta"><span class="pill">Type: Boolean</span><span class="pill">Default: false</span></div><p>When <code>true</code>, the inspector permits different values at supported breakpoints. Values inherit from narrower breakpoints until the user creates an override, and an override can be reset to restore inheritance.</p></section>
-<h2>Example</h2><pre><code>&lt;key&gt;themeControls&lt;/key&gt;
-&lt;array&gt;
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Smart controls · Foundry Developer</title><link rel="stylesheet" href="styles.css"><script src="app.js" defer></script></head><body><div class="shell"><nav data-doc-nav></nav><main><div class="breadcrumbs"><a href="index.html">Foundry Developer</a><span>›</span>Smart controls</div><p class="eyebrow">Inspector API</p><h1>Useful controls, already designed</h1><p class="lede">A smart control is a preconfigured <code>customItems</code> control for a common web concept. Foundry supplies the right editor, choices, symbols, validation and template value; the component developer supplies the ID and decides where the value is used.</p>
+<h2>The same custom-item model</h2><p>Smart controls do not introduce a second plist collection. They live in <code>customItems</code>, store one developer-named value and resolve through the usual template macro.</p>
+<pre><code>&lt;dict&gt;
+    &lt;key&gt;id&lt;/key&gt;&lt;string&gt;alignment&lt;/string&gt;
+    &lt;key&gt;title&lt;/key&gt;&lt;string&gt;Alignment&lt;/string&gt;
+    &lt;key&gt;section&lt;/key&gt;&lt;string&gt;Typography&lt;/string&gt;
+    &lt;key&gt;control&lt;/key&gt;
     &lt;dict&gt;
-        &lt;key&gt;type&lt;/key&gt;&lt;string&gt;fontFamily&lt;/string&gt;
-        &lt;key&gt;title&lt;/key&gt;&lt;string&gt;Typeface&lt;/string&gt;
-        &lt;key&gt;group&lt;/key&gt;&lt;string&gt;Typography&lt;/string&gt;
-        &lt;key&gt;default&lt;/key&gt;&lt;string&gt;heading&lt;/string&gt;
-        &lt;key&gt;responsive&lt;/key&gt;&lt;true/&gt;
+        &lt;key&gt;type&lt;/key&gt;&lt;string&gt;textAlignment&lt;/string&gt;
     &lt;/dict&gt;
-&lt;/array&gt;</code></pre>
+    &lt;key&gt;default&lt;/key&gt;&lt;string&gt;start&lt;/string&gt;
+    &lt;key&gt;responsive&lt;/key&gt;&lt;true/&gt;
+    &lt;key&gt;inlineEditable&lt;/key&gt;&lt;false/&gt;
+&lt;/dict&gt;</code></pre>
+<pre><code>#{{ id }} {
+    text-align: {{ control.alignment }};
+}</code></pre>
+<p><span class="pill">Proposed</span> For <code>textAlignment</code>, Foundry will provide a segmented control with the correct alignment symbols, portable choices and validated CSS output. The developer will not need to rebuild that option list for every component.</p>
+<h2>What makes a control smart?</h2><dl><dt>Purpose-built UI</dt><dd>Segmented symbols, specialised pickers, previews, unit handling or other interaction appropriate to the value.</dd><dt>Known semantics</dt><dd>Foundry understands the value well enough to validate it and present sensible defaults.</dd><dt>Stable output</dt><dd>The control resolves to a documented CSS-safe value through <code>{{ control.&lt;id&gt; }}</code>.</dd><dt>Optional theme data</dt><dd>Where relevant, <code>themeValues</code> adds compatible project-theme choices alongside custom values.</dd><dt>Responsive support</dt><dd>The same control can inherit and override values at Foundry breakpoints.</dd></dl>
+<h2>Initial smart-control families</h2><div class="card-grid"><a class="card" href="colour.html"><strong>Colour</strong><p>Custom and theme colours, optional colour math and opacity.</p></a><a class="card" href="text-alignment.html"><strong>Text alignment</strong><p>Symbol-based segmented selection with logical CSS output.</p></a><a class="card" href="font-family.html"><strong>Font family</strong><p>Custom families, semantic roles and project fonts.</p></a><a class="card" href="font-size.html"><strong>Font size</strong><p>Custom measurements and the project type scale.</p></a></div>
+<h2>Good candidates</h2><dl><dt>Typography</dt><dd>Font weight, line height, letter spacing, text decoration, text transform and whitespace.</dd><dt>Layout</dt><dd>Display, flex/grid alignment, gap, sizing, overflow and aspect ratio.</dd><dt>Appearance</dt><dd>Border style, corner radius, shadow, opacity and blend mode.</dd><dt>Media</dt><dd>Object fit, object position, loading behaviour and aspect ratio.</dd><dt>Links and behaviour</dt><dd>Link target, relationship, cursor and visibility.</dd><dt>Accessibility</dt><dd>Landmark role, labels and appropriate ARIA choices where a component genuinely needs them.</dd></dl>
+<div class="note"><strong>Smart does not mean generated CSS.</strong> Foundry provides the value and editor; the component’s own templates still determine the target element and declaration.</div>
 </main></div></body></html>

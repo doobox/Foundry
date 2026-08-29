@@ -8,6 +8,7 @@ nonisolated enum AppPreferenceKey {
     static let externalPreviewAutoReload = "preview.externalAutoReload"
     static let overridesCanvasBackground = "canvas.background.override"
     static let canvasBackgroundColor = "canvas.background.color"
+    static let enablesCanvasWebInspector = "canvas.webInspector.enabled"
 }
 
 nonisolated enum AppAppearance: String, CaseIterable, Identifiable {

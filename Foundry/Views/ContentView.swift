@@ -12,7 +12,7 @@ struct ContentView: View {
     @State private var selectedAssetLibraryNodeID: UUID?
     @State private var selectedComponentIDs: Set<UUID> = []
     @State private var selectedComponentID: UUID?
-    @State private var copiedComponent: ComponentNode?
+    @State private var copiedComponents: [ComponentNode] = []
     @State private var editsSharedReusableDefinition = false
     @State private var workspaceLayout = WorkspaceLayout.restored()
     @State private var detachedPanelWindows = DetachedPanelWindowCoordinator()
@@ -22,9 +22,9 @@ struct ContentView: View {
     @State private var previewSessionApplicationIdentifier: String?
     @State private var isPreviewSessionOpen = false
     @State private var previewRefreshTask: Task<Void, Never>?
-    @State private var canvasViewportPreset: CanvasViewportPreset = .desktop
+    @State private var canvasViewportPreset: CanvasViewportPreset = .mobile
     @State private var canvasEditorOptions = CanvasEditorOptions()
-    @State private var canvasViewportWidth = CanvasViewportPreset.desktop.viewportWidth
+    @State private var canvasViewportWidth = CanvasViewportPreset.mobile.viewportWidth
     @AppStorage(AppPreferenceKey.appearance)
     private var appearance: AppAppearance = .system
     @AppStorage(AppPreferenceKey.externalPreviewAutoReload)
@@ -169,13 +169,15 @@ struct ContentView: View {
             GlobalComponentLibraryPanel(
                 definitions: document.site.globalComponents,
                 renameDefinition: renameGlobalComponent,
-                deleteDefinition: deleteGlobalComponent
+                deleteDefinition: deleteGlobalComponent,
+                saveDraggedComponents: saveDraggedComponentsAsGlobals
             )
         case .structure:
             StructurePanel(
                 page: selectedPage,
                 selectedComponentIDs: $selectedComponentIDs,
                 selectedComponentID: inspectableComponentSelection,
+                renameComponent: { editor.renameComponent(id: $0, name: $1) },
                 moveComponentsToPlacement: moveComponentsFromStructure,
                 insertComponent: insertComponentFromLibrary,
                 insertReusableComponent: insertReusableComponentFromLibrary,
@@ -186,14 +188,9 @@ struct ContentView: View {
                 moveComponent: moveComponent,
                 outdentComponent: outdentComponent,
                 deleteComponent: deleteComponent,
-                canPasteComponent: copiedComponent != nil,
-                selectedComponentName: selectedComponent?.name,
-                isReusableInstance: selectedComponent?.reusableDefinitionID != nil,
-                canUpdateReusableComponent: selectedReusableDefinition != nil,
+                canPasteComponent: !copiedComponents.isEmpty,
                 saveReusableComponent: saveReusableComponent,
-                saveGlobalComponent: saveGlobalComponent,
-                updateReusableComponent: updateReusableComponent,
-                detachReusableComponent: detachReusableComponent
+                saveGlobalComponent: saveGlobalComponent
             )
         case .assets:
             AssetsPanel(
@@ -601,6 +598,24 @@ struct ContentView: View {
         workspaceLayout.activate(.globalComponents)
     }
 
+    private func saveDraggedComponentsAsGlobals(_ componentIDs: [UUID]) -> Bool {
+        guard let selectedPage else { return false }
+        let requestedIDs = Set(componentIDs)
+        func flattenedIDs(_ nodes: [ComponentNode]) -> [UUID] {
+            nodes.flatMap { [$0.id] + flattenedIDs($0.children) }
+        }
+        let orderedTopLevelIDs = flattenedIDs(selectedPage.components).filter { id in
+            guard requestedIDs.contains(id) else { return false }
+            return Set(selectedPage.components.ancestorIDs(of: id)).isDisjoint(with: requestedIDs)
+        }
+        guard !orderedTopLevelIDs.isEmpty else { return false }
+        let createdIDs = editor.saveGlobalComponents(componentIDs: orderedTopLevelIDs)
+        if !createdIDs.isEmpty {
+            editsSharedReusableDefinition = true
+        }
+        return createdIDs.count == orderedTopLevelIDs.count
+    }
+
     private func renameGlobalComponent(_ definitionID: UUID, _ name: String) {
         editor.renameGlobalComponent(definitionID: definitionID, name: name)
     }
@@ -634,25 +649,27 @@ struct ContentView: View {
     }
 
     private func duplicateComponent() {
-        guard let pageID = selectedPage?.id,
-              let componentID = selectedComponentID else {
-            return
-        }
-        selectedComponentID = editor.duplicateComponent(
-            id: componentID,
+        guard let pageID = selectedPage?.id else { return }
+        let duplicateIDs = editor.duplicateComponents(
+            ids: topLevelSelectedComponentIDs,
             on: pageID
         )
+        selectedComponentIDs = Set(duplicateIDs)
+        selectedComponentID = duplicateIDs.last
     }
 
     private func copyComponent() {
-        copiedComponent = selectedComponent
+        guard let selectedPage else {
+            copiedComponents = []
+            return
+        }
+        copiedComponents = topLevelSelectedComponentIDs.compactMap {
+            selectedPage.components.node(withID: $0)
+        }
     }
 
     private func pasteComponent() {
-        guard let pageID = selectedPage?.id,
-              let copiedComponent else {
-            return
-        }
+        guard let pageID = selectedPage?.id, !copiedComponents.isEmpty else { return }
         let placement: ComponentPlacement
         if let selectedComponent {
             placement = selectedComponent.type.definition.allowsChildren
@@ -661,11 +678,13 @@ struct ContentView: View {
         } else {
             placement = .end
         }
-        selectedComponentID = editor.pasteComponent(
-            copiedComponent,
+        let pastedIDs = editor.pasteComponents(
+            copiedComponents,
             on: pageID,
             placement: placement
         )
+        selectedComponentIDs = Set(pastedIDs)
+        selectedComponentID = pastedIDs.last
     }
 
     private func moveComponent(_ offset: Int) {

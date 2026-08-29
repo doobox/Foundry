@@ -136,20 +136,14 @@ private struct ThemeSettingsDetail: View {
     let section: ThemeWindowSection
     let theme: Theme
     let editor: ProjectEditor
+    @State private var expandedFontSizeID: String?
 
     var body: some View {
         Group {
             if section == .fontFamily {
                 ThemeFontFamilyEditor(theme: theme, editor: editor)
             } else {
-                Form {
-            Section {
-                Text(section.title)
-                    .font(.title2.weight(.semibold))
-                Text(sectionDescription)
-                    .foregroundStyle(.secondary)
-            }
-
+                List {
             switch section {
             case .screens:
                 pendingSettings("Screen-specific theme overrides will live here.")
@@ -172,8 +166,53 @@ private struct ThemeSettingsDetail: View {
             case .fontFamily:
                 EmptyView()
             case .fontSize:
-                Stepper(value: baseSizeBinding, in: 10...40, step: 1) {
-                    LabeledContent("Base Size", value: "\(theme.typography.baseSize.formatted()) px")
+                VStack(alignment: .leading, spacing: 14) {
+                    Text("Base Font")
+                        .font(.headline)
+                        .foregroundStyle(.secondary)
+                    HStack(spacing: 12) {
+                        Text("Root Size")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .frame(width: 76, alignment: .leading)
+                            .lineLimit(1)
+                        Slider(value: baseSizeBinding, in: 10...24, step: 1)
+                            .frame(minWidth: 180)
+                        TextField(
+                            "Root Size",
+                            value: baseSizeBinding,
+                            format: .number.precision(.fractionLength(0...2))
+                        )
+                        .labelsHidden()
+                        .textFieldStyle(.roundedBorder)
+                        .multilineTextAlignment(.trailing)
+                        .frame(width: 72)
+                        Text("px")
+                            .foregroundStyle(.secondary)
+                            .frame(width: 28, alignment: .leading)
+                    }
+                    .padding(12)
+                    .background(.quaternary, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                }
+                .listRowBackground(Color.clear)
+                .listRowSeparator(.hidden)
+                .listRowInsets(EdgeInsets(top: 10, leading: 0, bottom: 12, trailing: 0))
+                Section {
+                    ForEach(theme.typography.customFontSizes) { token in
+                        fontSizeEditor(token)
+                    }
+                    .onMove(perform: editor.moveThemeFontSizes)
+                } header: {
+                    HStack {
+                        Text("Custom Sizes")
+                        Spacer()
+                        Button("Add Size", systemImage: "plus") {
+                            editor.addThemeFontSize()
+                        }
+                        .labelStyle(.iconOnly)
+                        .buttonStyle(.borderless)
+                        .help("Add Custom Font Size")
+                    }
                 }
             case .spacing:
                 Section("Spacing Scale") {
@@ -195,34 +234,15 @@ private struct ThemeSettingsDetail: View {
             case .typography:
                 Section("Base Typography") {
                     TextField("Body Font", text: bodyFontBinding)
-                    Stepper(value: baseSizeBinding, in: 10...40, step: 1) {
-                        LabeledContent("Base Size", value: "\(theme.typography.baseSize.formatted()) px")
-                    }
                 }
             case .themes:
                 EmptyView()
                 }
             }
-            .formStyle(.grouped)
+            .listStyle(.inset)
             }
         }
         .navigationTitle(section.title)
-    }
-
-    private var sectionDescription: String {
-        switch section {
-        case .screens: "Define the screen sizes used by responsive theme values."
-        case .page: "Set the default appearance shared by every page."
-        case .colors: "Define the reusable colors available throughout the project."
-        case .fontFamily: "Choose the font families used by the theme."
-        case .fontSize: "Define the theme's type-size scale."
-        case .spacing: "Define consistent spacing values for layouts and components."
-        case .shadows: "Create reusable elevation and shadow styles."
-        case .borderWidth: "Define reusable border thickness values."
-        case .borderRadius: "Define reusable corner-radius values."
-        case .typography: "Compose the theme's reusable text styles."
-        case .themes: "Browse installed themes."
-        }
     }
 
     @ViewBuilder
@@ -255,11 +275,170 @@ private struct ThemeSettingsDetail: View {
         )
     }
 
+    private func fontSizeBinding(for id: String) -> Binding<Double> {
+        Binding(
+            get: { theme.typography.fontSizes.first(where: { $0.id == id })?.size ?? 1 },
+            set: { editor.setThemeFontSize(id: id, value: $0) }
+        )
+    }
+
+    private func pixelSizeBinding(for id: String) -> Binding<Double> {
+        Binding(
+            get: {
+                let rem = theme.typography.fontSizes.first(where: { $0.id == id })?.size ?? 1
+                return rem * theme.typography.baseSize
+            },
+            set: { pixels in
+                editor.setThemeFontSize(
+                    id: id,
+                    value: pixels / max(theme.typography.baseSize, 1)
+                )
+            }
+        )
+    }
+
     private var baseSizeBinding: Binding<Double> {
         Binding(
             get: { theme.typography.baseSize },
             set: editor.setThemeBaseSize
         )
+    }
+
+    private func lineHeightBinding(for id: String) -> Binding<Double> {
+        Binding(
+            get: {
+                let lineHeight = theme.typography.customFontSizes
+                    .first(where: { $0.id == id })?.lineHeight ?? .normal
+                return Double(ThemeLineHeight.allCases.firstIndex(of: lineHeight) ?? 3)
+            },
+            set: { value in
+                let index = min(max(Int(value.rounded()), 0), ThemeLineHeight.allCases.count - 1)
+                editor.setThemeFontSizeLineHeight(id: id, value: ThemeLineHeight.allCases[index])
+            }
+        )
+    }
+
+    private func fontSizeTitleBinding(for id: String) -> Binding<String> {
+        Binding(
+            get: { theme.typography.fontSizes.first(where: { $0.id == id })?.title ?? "" },
+            set: { editor.setThemeFontSizeTitle(id: id, value: $0) }
+        )
+    }
+
+    private func remDescription(_ value: Double) -> String {
+        let rem = value.formatted(.number.precision(.fractionLength(0...3)))
+        let pixels = (value * theme.typography.baseSize).formatted(
+            .number.precision(.fractionLength(0...1))
+        )
+        return "\(rem) rem (\(pixels) px)"
+    }
+
+    @ViewBuilder
+    private func fontSizeEditor(_ token: ThemeFontSize) -> some View {
+        VStack(spacing: 0) {
+            HStack(spacing: 10) {
+                Button {
+                    withAnimation(.snappy(duration: 0.2)) {
+                        expandedFontSizeID = expandedFontSizeID == token.id ? nil : token.id
+                    }
+                } label: {
+                    Image(systemName: "chevron.right")
+                        .rotationEffect(.degrees(expandedFontSizeID == token.id ? 90 : 0))
+                }
+                .buttonStyle(.plain)
+                .help(expandedFontSizeID == token.id ? "Collapse" : "Expand")
+
+                TextField("Name", text: fontSizeTitleBinding(for: token.id))
+                    .labelsHidden()
+                    .textFieldStyle(.roundedBorder)
+                    .frame(minWidth: 120, idealWidth: 220, maxWidth: 300)
+
+                Spacer()
+
+                Text(remDescription(token.size))
+                    .foregroundStyle(.secondary)
+                Button(role: .destructive) {
+                    if expandedFontSizeID == token.id {
+                        expandedFontSizeID = nil
+                    }
+                    editor.removeThemeFontSize(id: token.id)
+                } label: {
+                    Image(systemName: "trash")
+                }
+                .buttonStyle(.borderless)
+                .help("Delete Custom Size")
+            }
+
+            if expandedFontSizeID == token.id {
+                Divider()
+                    .padding(.vertical, 12)
+
+                VStack(alignment: .leading, spacing: 14) {
+                    sizeEditor(token)
+                    lineHeightEditor(token)
+                }
+            }
+        }
+        .padding(12)
+        .background(.quaternary, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .listRowBackground(Color.clear)
+        .listRowSeparator(.hidden)
+        .listRowInsets(EdgeInsets(top: 6, leading: 0, bottom: 6, trailing: 0))
+    }
+
+    private func sizeEditor(_ token: ThemeFontSize) -> some View {
+        HStack(spacing: 12) {
+            Text("Size")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .frame(width: 76, alignment: .leading)
+                .lineLimit(1)
+            Slider(value: pixelSizeBinding(for: token.id), in: 8...160, step: 1)
+                .frame(minWidth: 180)
+            HStack(spacing: 12) {
+                TextField(
+                    "Rem",
+                    value: fontSizeBinding(for: token.id),
+                    format: .number.precision(.fractionLength(0...3))
+                )
+                .labelsHidden()
+                .textFieldStyle(.roundedBorder)
+                .multilineTextAlignment(.trailing)
+                .frame(width: 72)
+                Text("rem")
+                    .foregroundStyle(.secondary)
+                    .frame(width: 28, alignment: .leading)
+                TextField(
+                    "Pixels",
+                    value: pixelSizeBinding(for: token.id),
+                    format: .number.precision(.fractionLength(0...1))
+                )
+                .labelsHidden()
+                .textFieldStyle(.roundedBorder)
+                .multilineTextAlignment(.trailing)
+                .frame(width: 72)
+                Text("px")
+                    .foregroundStyle(.secondary)
+                    .frame(width: 20, alignment: .leading)
+            }
+            .frame(width: 228, alignment: .trailing)
+        }
+    }
+
+    private func lineHeightEditor(_ token: ThemeFontSize) -> some View {
+        HStack(spacing: 12) {
+            Text("Line Height")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .frame(width: 76, alignment: .leading)
+                .lineLimit(1)
+            Slider(value: lineHeightBinding(for: token.id), in: 0...5, step: 1)
+            .labelsHidden()
+            .frame(minWidth: 180)
+            Text(token.lineHeight.title)
+                .foregroundStyle(.secondary)
+                .frame(width: 228, alignment: .leading)
+        }
     }
 }
 
@@ -431,7 +610,7 @@ private struct ThemeFontFamilyEditor: View {
     private func definition(for reference: ThemeFontReference) -> ThemeFontDefinition {
         return switch reference {
         case .role(.body): theme.typography.bodyFont
-        case .role(.headings): theme.typography.headingFont
+        case .role(.heading): theme.typography.headingFont
         case .role(.monospaced): theme.typography.monospacedFont
         case .custom(let id):
             theme.typography.customFonts.first(where: { $0.id == id })?.font

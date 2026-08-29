@@ -1,137 +1,64 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Info.plist · Foundry API</title><link rel="stylesheet" href="styles.css"><script src="app.js" defer></script></head><body data-base=""><div class="shell"><nav data-doc-nav></nav><main>
-<div class="breadcrumbs"><a href="index.html">Foundry API</a><span>›</span>Component bundles</div>
-<h1>Info.plist</h1><p class="lede">Every supported property-list entry for a component <code>.foundrypack</code> bundle.</p>
-
-<h2>Identity and library</h2>
-<section class="reference-entry"><h3>type</h3><div class="api-meta"><span class="pill">Type: String</span><span class="pill required">Required</span></div><p>Declares what the Foundry pack provides. Use <code>component</code> for a component bundle, <code>theme</code> for a theme bundle, or <code>collection</code> for a non-functional pack that groups nested packs. A functional component or theme pack may also contain nested packs. The remaining entries documented on this page apply to component packs.</p><pre><code>&lt;key&gt;type&lt;/key&gt;
-&lt;string&gt;component&lt;/string&gt;</code></pre></section>
-
-<section class="reference-entry"><h3>CFBundleIdentifier</h3><div class="api-meta"><span class="pill">Type: String</span><span class="pill required">Required</span></div><p>The globally unique identity of the component. Use a lowercase reverse-domain identifier such as <code>uk.co.example.text</code>. Foundry uses it to identify the component in documents and to generate its package-wide CSS scope. Changing this value creates a different component identity.</p><pre><code>&lt;key&gt;CFBundleIdentifier&lt;/key&gt;
-&lt;string&gt;uk.co.example.text&lt;/string&gt;</code></pre></section>
-
-<section class="reference-entry"><h3>title</h3><div class="api-meta"><span class="pill">Type: String</span><span class="pill required">Required</span></div><p>The human-readable component name displayed in Foundry’s component library, inspector and editor chrome.</p><pre><code>&lt;key&gt;title&lt;/key&gt;
-&lt;string&gt;Text&lt;/string&gt;</code></pre></section>
-
-<section class="reference-entry"><h3>description</h3><div class="api-meta"><span class="pill">Type: String</span><span class="pill">Default: empty</span></div><p>A short explanation of what the component does. Foundry displays it with the component’s library information.</p></section>
-
-<section class="reference-entry"><h3>author</h3><div class="api-meta"><span class="pill">Type: String</span><span class="pill">Optional</span></div><p>The developer, company or publisher responsible for the component.</p></section>
-
-<section class="reference-entry"><h3>version</h3><div class="api-meta"><span class="pill">Type: String</span><span class="pill">Optional</span></div><p>A human-readable component version displayed by Foundry, such as <code>1.0</code> or <code>2.1.3</code>. This is Foundry’s simple version entry and is not <code>CFBundleShortVersionString</code>.</p><pre><code>&lt;key&gt;version&lt;/key&gt;
-&lt;string&gt;1.0&lt;/string&gt;</code></pre></section>
-
-<section class="reference-entry"><h3>group</h3><div class="api-meta"><span class="pill">Type: String</span><span class="pill">Default: Other</span></div><p>The preset component-library group in which Foundry displays the component. Supported values are <code>Layout</code>, <code>Content</code>, <code>Media</code>, <code>Navigation</code>, <code>Forms</code>, <code>Interactive</code> and <code>Other</code>. Matching is case-insensitive. A missing or unsupported value resolves to <code>Other</code>.</p><pre><code>&lt;key&gt;group&lt;/key&gt;
-&lt;string&gt;Content&lt;/string&gt;</code></pre></section>
-
-<section class="reference-entry"><h3>tags</h3><div class="api-meta"><span class="pill">Type: Array of Strings</span><span class="pill">Default: empty array</span></div><p>Additional terms used when searching the component library. Tags should describe purpose and common terminology rather than repeat the title.</p><pre><code>&lt;key&gt;tags&lt;/key&gt;
-&lt;array&gt;
-    &lt;string&gt;copy&lt;/string&gt;
-    &lt;string&gt;paragraph&lt;/string&gt;
-&lt;/array&gt;</code></pre></section>
-
-<h2>Templates and content</h2>
-<section class="reference-entry"><h3>templates</h3><div class="api-meta"><span class="pill">Type: Dictionary</span><span class="pill required">Required</span></div><p>Declares the files Foundry processes when rendering this component. Every path is relative to <code>Contents/Resources</code>.</p>
-<dl><dt>html</dt><dd><strong>String, required.</strong> The component’s HTML template.</dd><dt>css</dt><dd><strong>String, optional.</strong> Component CSS included in the canvas and export, scoped to this bundle identifier.</dd><dt>editorCSS</dt><dd><strong>String, optional.</strong> Canvas-only CSS that is not included in exported sites.</dd></dl>
-<pre><code>&lt;key&gt;templates&lt;/key&gt;
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Info.plist · Foundry Developer</title><link rel="stylesheet" href="styles.css"><script src="app.js" defer></script></head><body><div class="shell"><nav data-doc-nav></nav><main><div class="breadcrumbs"><a href="index.html">Foundry Developer</a><span>›</span>Reference</div><p class="eyebrow">Plist reference</p><h1>Info.plist</h1><p class="lede">The current developer-facing keys accepted by a component <code>.foundrypack</code>. Paths are relative to <code>Contents/Resources</code>.</p>
+<h2>Identity</h2>
+<section class="reference-entry"><h3>type</h3><div class="api-meta"><span class="pill required">Required String</span></div><p><code>component</code>, <code>theme</code>, or <code>collection</code>. The remaining component-specific keys on this page apply when the type is <code>component</code>.</p></section>
+<section class="reference-entry"><h3>CFBundleIdentifier</h3><div class="api-meta"><span class="pill required">Required String</span></div><p>Globally unique, stable reverse-domain identity, for example <code>uk.co.example.callout</code>. Changing it creates a different component.</p></section>
+<section class="reference-entry"><h3>title</h3><div class="api-meta"><span class="pill required">Required String</span></div><p>Human-readable library and inspector name.</p></section>
+<section class="reference-entry"><h3>description</h3><div class="api-meta"><span class="pill">Optional String</span></div><p>Short library description.</p></section>
+<section class="reference-entry"><h3>author</h3><div class="api-meta"><span class="pill">Optional String</span></div><p>Developer, company or publisher.</p></section>
+<section class="reference-entry"><h3>version</h3><div class="api-meta"><span class="pill">Optional String</span></div><p>Human-readable component version such as <code>1.0</code> or <code>2.1.3</code>.</p></section>
+<section class="reference-entry"><h3>group</h3><div class="api-meta"><span class="pill">Optional String</span><span class="pill">Default: Other</span></div><p>Library group: <code>Layout</code>, <code>Content</code>, <code>Media</code>, <code>Navigation</code>, <code>Forms</code>, <code>Interactive</code>, or <code>Other</code>.</p></section>
+<section class="reference-entry"><h3>tags</h3><div class="api-meta"><span class="pill">Optional String array</span></div><p>Additional component-library search terms.</p></section>
+<h2>Rendering</h2>
+<section class="reference-entry"><h3>templates</h3><div class="api-meta"><span class="pill required">Required Dictionary</span></div><p>Declares the component templates currently processed by Foundry.</p><dl><dt>html</dt><dd>Required primary HTML template filename. Processed once per component instance.</dd><dt>css</dt><dd>Optional component CSS template filename. Processed once per component instance.</dd><dt>editorCSS</dt><dd>Optional instance-scoped, canvas-only CSS template excluded from production export.</dd></dl><pre><code>&lt;key&gt;templates&lt;/key&gt;
 &lt;dict&gt;
     &lt;key&gt;html&lt;/key&gt;&lt;string&gt;component.html&lt;/string&gt;
     &lt;key&gt;css&lt;/key&gt;&lt;string&gt;component.css&lt;/string&gt;
     &lt;key&gt;editorCSS&lt;/key&gt;&lt;string&gt;editor.css&lt;/string&gt;
-&lt;/dict&gt;</code></pre></section>
-
-<section class="reference-entry"><h3>assets</h3><div class="api-meta"><span class="pill">Type: Array of Strings</span><span class="pill">Default: empty array</span></div><p>Static resource files belonging to the component. Declared assets can be referenced from templates and are copied when Foundry exports the site. Each path is relative to <code>Contents/Resources</code>.</p></section>
-
-<section class="reference-entry"><h3>customItems</h3><div class="api-meta"><span class="pill">Type: Array of Dictionaries</span><span class="pill">Default: empty array</span></div><p>Declares component-specific values that Foundry presents in the inspector. Every dictionary creates one stored property on each component instance.</p>
-<dl>
-<dt>id</dt><dd><strong>String, required.</strong> Stable identifier used in stored component data and template substitutions. It must be unique within this component.</dd>
-<dt>title</dt><dd><strong>String, required.</strong> Human-readable label shown beside the inspector control.</dd>
-<dt>section</dt><dd><strong>String, required.</strong> Inspector section in which the control is displayed. Items with an identical value are grouped together.</dd>
-<dt>control</dt><dd><strong>Dictionary, required.</strong> Describes the inspector control. See the control dictionary entries below.</dd>
-<dt>default</dt><dd><strong>String, Number or Boolean, required.</strong> Initial value assigned to a newly created component. Its plist type must match the selected control.</dd>
-<dt>responsive</dt><dd><strong>Boolean, required.</strong> When <code>true</code>, Foundry stores values per breakpoint. When <code>false</code>, one value applies at every breakpoint.</dd>
-<dt>inlineEditable</dt><dd><strong>Boolean, required.</strong> Allows the value to be edited directly on the canvas when supported by the component template.</dd>
-<dt>css</dt><dd><strong>String, optional.</strong> CSS declaration template generated from the selected value.</dd>
-</dl>
-<h4>control dictionary</h4><dl>
-<dt>type</dt><dd><strong>String, required.</strong> One of <code>text</code>, <code>textArea</code>, <code>number</code>, <code>color</code>, <code>select</code>, <code>url</code>, <code>image</code> or <code>toggle</code>.</dd>
-<dt>minimum</dt><dd><strong>Number, optional.</strong> Lowest value accepted by a <code>number</code> control.</dd>
-<dt>maximum</dt><dd><strong>Number, optional.</strong> Highest value accepted by a <code>number</code> control.</dd>
-<dt>step</dt><dd><strong>Number, optional.</strong> Increment used by a <code>number</code> control.</dd>
-<dt>unit</dt><dd><strong>String, optional.</strong> CSS unit associated with a numeric value, such as <code>px</code>, <code>rem</code> or <code>%</code>.</dd>
-<dt>options</dt><dd><strong>Array of Dictionaries, optional.</strong> Choices for a <code>select</code> control. Each dictionary requires a String <code>value</code> stored by Foundry and a String <code>title</code> shown to the user.</dd>
-</dl>
-<pre><code>&lt;key&gt;customItems&lt;/key&gt;
+&lt;/dict&gt;</code></pre>
+<div class="callout warning"><strong>Proposed template dictionaries.</strong> The following <code>files</code>, <code>scope</code> and <code>placement</code> API is designed but not yet accepted by the app.</div><pre><code>&lt;key&gt;files&lt;/key&gt;
 &lt;array&gt;
-    &lt;dict&gt;
-        &lt;key&gt;id&lt;/key&gt;&lt;string&gt;alignment&lt;/string&gt;
-        &lt;key&gt;title&lt;/key&gt;&lt;string&gt;Alignment&lt;/string&gt;
-        &lt;key&gt;section&lt;/key&gt;&lt;string&gt;Typography&lt;/string&gt;
-        &lt;key&gt;control&lt;/key&gt;
         &lt;dict&gt;
-            &lt;key&gt;type&lt;/key&gt;&lt;string&gt;select&lt;/string&gt;
-            &lt;key&gt;options&lt;/key&gt;
-            &lt;array&gt;
-                &lt;dict&gt;&lt;key&gt;value&lt;/key&gt;&lt;string&gt;left&lt;/string&gt;&lt;key&gt;title&lt;/key&gt;&lt;string&gt;Left&lt;/string&gt;&lt;/dict&gt;
-                &lt;dict&gt;&lt;key&gt;value&lt;/key&gt;&lt;string&gt;center&lt;/string&gt;&lt;key&gt;title&lt;/key&gt;&lt;string&gt;Centre&lt;/string&gt;&lt;/dict&gt;
-            &lt;/array&gt;
+            &lt;key&gt;path&lt;/key&gt;&lt;string&gt;component.css&lt;/string&gt;
+            &lt;key&gt;scope&lt;/key&gt;&lt;string&gt;instance&lt;/string&gt;
         &lt;/dict&gt;
-        &lt;key&gt;default&lt;/key&gt;&lt;string&gt;left&lt;/string&gt;
-        &lt;key&gt;responsive&lt;/key&gt;&lt;true/&gt;
-        &lt;key&gt;inlineEditable&lt;/key&gt;&lt;false/&gt;
-        &lt;key&gt;css&lt;/key&gt;&lt;string&gt;text-align: {{ value }};&lt;/string&gt;
-    &lt;/dict&gt;
-&lt;/array&gt;</code></pre></section>
-
-<section class="reference-entry"><h3>themeControls</h3><div class="api-meta"><span class="pill">Type: Array of Dictionaries</span><span class="pill">Default: empty array</span></div><p>Requests standard inspector controls supplied by Foundry and backed by values available in the active theme. See <a href="theme-controls.html">Theme controls</a> for the shared dictionary entries and supported control types.</p></section>
-
-<section class="reference-entry"><h3>slots</h3><div class="api-meta"><span class="pill">Type: Array of Dictionaries</span><span class="pill">Default: empty array</span></div><p>Declares named regions that accept child components. A component with no slots is a leaf component.</p><dl>
-<dt>id</dt><dd><strong>String, required.</strong> Stable slot identifier. It must be unique within the component and correspond to the slot used by its HTML template.</dd>
-<dt>title</dt><dd><strong>String, required.</strong> Human-readable name Foundry displays for the region.</dd>
-<dt>accepts</dt><dd><strong>Array of Strings, required.</strong> Component identifiers or supported categories that may be placed in the slot.</dd>
-<dt>minimum</dt><dd><strong>Integer, required.</strong> Minimum number of child components the slot requires.</dd>
-<dt>maximum</dt><dd><strong>Integer, optional.</strong> Maximum number of children allowed. Omit it when the slot has no upper limit.</dd>
-</dl><pre><code>&lt;key&gt;slots&lt;/key&gt;
-&lt;array&gt;
-    &lt;dict&gt;
-        &lt;key&gt;id&lt;/key&gt;&lt;string&gt;content&lt;/string&gt;
-        &lt;key&gt;title&lt;/key&gt;&lt;string&gt;Content&lt;/string&gt;
-        &lt;key&gt;accepts&lt;/key&gt;&lt;array&gt;&lt;string&gt;Components&lt;/string&gt;&lt;/array&gt;
-        &lt;key&gt;minimum&lt;/key&gt;&lt;integer&gt;0&lt;/integer&gt;
-    &lt;/dict&gt;
-&lt;/array&gt;</code></pre></section>
-
-<h2>Runtime and recovery</h2>
-<section class="reference-entry"><h3>runtime</h3><div class="api-meta"><span class="pill">Type: Dictionary</span><span class="pill">Optional</span></div><p>Declares an optional JavaScript runtime entry point and the browser capabilities it needs. Omit this dictionary for components that require no runtime script.</p><dl><dt>entry</dt><dd><strong>String, required.</strong> JavaScript file relative to <code>Contents/Resources</code>.</dd><dt>capabilities</dt><dd><strong>Array of Strings, required.</strong> Explicit runtime permissions. Supported values are <code>dom</code>, <code>timers</code>, <code>network</code> and <code>localStorage</code>.</dd></dl><pre><code>&lt;key&gt;runtime&lt;/key&gt;
+        &lt;dict&gt;
+            &lt;key&gt;path&lt;/key&gt;&lt;string&gt;component.js&lt;/string&gt;
+            &lt;key&gt;scope&lt;/key&gt;&lt;string&gt;page&lt;/string&gt;
+        &lt;/dict&gt;
+        &lt;dict&gt;
+            &lt;key&gt;path&lt;/key&gt;&lt;string&gt;styles/component.scss&lt;/string&gt;
+            &lt;key&gt;scope&lt;/key&gt;&lt;string&gt;instance&lt;/string&gt;
+        &lt;/dict&gt;
+        &lt;dict&gt;
+            &lt;key&gt;path&lt;/key&gt;&lt;string&gt;server/component.php&lt;/string&gt;
+            &lt;key&gt;scope&lt;/key&gt;&lt;string&gt;site&lt;/string&gt;
+        &lt;/dict&gt;
+&lt;/array&gt;</code></pre><p>When implemented, <code>page</code> and <code>site</code> entries will be deduplicated by component bundle identifier and path and will reject instance-only macros. Sass/SCSS compilation and PHP execution are also proposed. See <a href="template-values.html">Templates</a>.</p></section>
+<section class="reference-entry"><h3>assets</h3><div class="api-meta"><span class="pill">Optional String array</span></div><p>Static component resources copied during export.</p></section>
+<h2>Author controls</h2>
+<section class="reference-entry"><h3>customItems</h3><div class="api-meta"><span class="pill">Optional Dictionary array</span></div><p>Component-specific inspector values. Each item requires <code>id</code>, <code>title</code>, <code>section</code>, <code>control</code>, <code>default</code>, <code>responsive</code>, and <code>inlineEditable</code>. See <a href="custom-controls.html">Custom controls</a>.</p></section>
+<section class="reference-entry"><h3>slots</h3><div class="api-meta"><span class="pill">Optional Dictionary array</span></div><p>Named child-component regions. Each slot requires <code>id</code>, <code>title</code>, <code>accepts</code>, and <code>minimum</code>; <code>maximum</code> is optional. See <a href="slots.html">Child components</a>.</p></section>
+<h2>Runtime</h2>
+<section class="reference-entry"><h3>runtime</h3><div class="api-meta"><span class="pill">Optional Dictionary</span></div><p><code>entry</code> names the JavaScript file. <code>capabilities</code> explicitly lists any of <code>dom</code>, <code>timers</code>, <code>network</code>, and <code>localStorage</code>.</p><pre><code>&lt;key&gt;runtime&lt;/key&gt;
 &lt;dict&gt;
     &lt;key&gt;entry&lt;/key&gt;&lt;string&gt;component.js&lt;/string&gt;
     &lt;key&gt;capabilities&lt;/key&gt;
     &lt;array&gt;&lt;string&gt;dom&lt;/string&gt;&lt;string&gt;timers&lt;/string&gt;&lt;/array&gt;
 &lt;/dict&gt;</code></pre></section>
-
-<section class="reference-entry"><h3>helpURL</h3><div class="api-meta"><span class="pill">Type: String (URL)</span><span class="pill">Optional</span></div><p>An absolute support or documentation URL associated with the component. Foundry can expose this link when the user needs help or when the component cannot be loaded.</p><pre><code>&lt;key&gt;helpURL&lt;/key&gt;
-&lt;string&gt;https://example.com/components/text&lt;/string&gt;</code></pre></section>
-
-<section class="reference-entry"><h3>missingComponent</h3><div class="api-meta"><span class="pill">Type: Dictionary</span><span class="pill">Optional</span></div><p>Controls the fallback retained in a document when the component package is unavailable.</p><dl><dt>message</dt><dd><strong>String, optional.</strong> Explanation shown in place of the unavailable component.</dd><dt>preview</dt><dd><strong>String, optional.</strong> HTML preview preserved for the missing component.</dd></dl><pre><code>&lt;key&gt;missingComponent&lt;/key&gt;
-&lt;dict&gt;
-    &lt;key&gt;message&lt;/key&gt;&lt;string&gt;Install the Text component to edit this content.&lt;/string&gt;
-    &lt;key&gt;preview&lt;/key&gt;&lt;string&gt;&amp;lt;p&amp;gt;Text component&amp;lt;/p&amp;gt;&lt;/string&gt;
-&lt;/dict&gt;</code></pre></section>
-
-<h2>Complete minimal plist</h2><pre><code>&lt;?xml version="1.0" encoding="UTF-8"?&gt;
+<h2>Support and recovery</h2>
+<section class="reference-entry"><h3>helpURL</h3><div class="api-meta"><span class="pill">Optional URL String</span></div><p>Absolute component support or documentation URL.</p></section>
+<section class="reference-entry"><h3>missingComponent</h3><div class="api-meta"><span class="pill">Optional Dictionary</span></div><p>Fallback retained when the package is unavailable. Accepts optional <code>message</code> and HTML <code>preview</code> Strings.</p></section>
+<h2>Minimal component Info.plist</h2><pre><code>&lt;?xml version="1.0" encoding="UTF-8"?&gt;
 &lt;!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
   "http://www.apple.com/DTDs/PropertyList-1.0.dtd"&gt;
 &lt;plist version="1.0"&gt;
 &lt;dict&gt;
-    &lt;key&gt;type&lt;/key&gt;
-    &lt;string&gt;component&lt;/string&gt;
-    &lt;key&gt;CFBundleIdentifier&lt;/key&gt;
-    &lt;string&gt;uk.co.example.text&lt;/string&gt;
-    &lt;key&gt;title&lt;/key&gt;
-    &lt;string&gt;Text&lt;/string&gt;
+    &lt;key&gt;type&lt;/key&gt;&lt;string&gt;component&lt;/string&gt;
+    &lt;key&gt;CFBundleIdentifier&lt;/key&gt;&lt;string&gt;uk.co.example.component&lt;/string&gt;
+    &lt;key&gt;title&lt;/key&gt;&lt;string&gt;Example&lt;/string&gt;
     &lt;key&gt;templates&lt;/key&gt;
     &lt;dict&gt;
-        &lt;key&gt;html&lt;/key&gt;
-        &lt;string&gt;component.html&lt;/string&gt;
+        &lt;key&gt;html&lt;/key&gt;&lt;string&gt;component.html&lt;/string&gt;
     &lt;/dict&gt;
 &lt;/dict&gt;
-&lt;/plist&gt;</code></pre>
-</main></div></body></html>
+&lt;/plist&gt;</code></pre></main></div></body></html>

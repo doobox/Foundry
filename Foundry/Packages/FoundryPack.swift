@@ -101,6 +101,8 @@ nonisolated enum FoundryPackLoader {
         }
 
         visit(rootURL, isRoot: true)
-        return results.sorted { $0.path < $1.path }
+        return results.sorted {
+            $0.standardizedFileURL.path < $1.standardizedFileURL.path
+        }
     }
 }

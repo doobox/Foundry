@@ -28,44 +28,6 @@ nonisolated enum ComponentPackageValidator {
 
         validateUnique(manifest.properties.map(\.id), kind: "property", into: &diagnostics)
         validateUnique(manifest.slots.map(\.id), kind: "slot", into: &diagnostics)
-        for control in manifest.themeControls {
-            switch control.type {
-            case .fontFamily:
-                if let defaultValue = control.defaultValue,
-                   !ThemeFontRole.allCases.map(\.rawValue).contains(defaultValue) {
-                    diagnostics.append(.init(
-                        severity: .error,
-                        location: "Info.plist:themeControls.fontFamily.default",
-                        message: "A fontFamily default must be body, heading, or monospaced."
-                    ))
-                }
-            case .fontSize:
-                if let defaultValue = control.defaultValue,
-                   !Theme.standard.typography.fontSizes.map(\.id).contains(defaultValue) {
-                    diagnostics.append(.init(
-                        severity: .error,
-                        location: "Info.plist:themeControls.fontSize.default",
-                        message: "A fontSize default must use the standard scale from xs through 9xl."
-                    ))
-                }
-            case .color:
-                if let defaultValue = control.defaultValue,
-                   ThemeColorRole(rawValue: defaultValue) == nil {
-                    diagnostics.append(.init(
-                        severity: .error,
-                        location: "Info.plist:themeControls.color.default",
-                        message: "A color default must be background, surface, text, or accent."
-                    ))
-                }
-                if let shade = control.shade, !ThemeColorScale.shades.contains(shade) {
-                    diagnostics.append(.init(
-                        severity: .error,
-                        location: "Info.plist:themeControls.color.shade",
-                        message: "A color shade must be one of 50, 100, 200, 300, 400, 500, 600, 700, 800, 900, or 950."
-                    ))
-                }
-            }
-        }
         if manifest.properties.filter(\.inlineEditable).count > 1 {
             diagnostics.append(.init(
                 severity: .error,
@@ -97,27 +59,40 @@ nonisolated enum ComponentPackageValidator {
         if manifest.runtime?.capabilities.contains(.network) == true {
             diagnostics.append(.init(severity: .warning, location: "Info.plist:runtime", message: "Network access requires explicit user approval when this package is installed."))
         }
-        if isSafeRelativePath(manifest.render.html),
-           let template = try? String(
-                contentsOf: rootURL.appending(path: manifest.render.html),
-                encoding: .utf8
-           ) {
-            validateTemplate(template, manifest: manifest, into: &diagnostics)
+        let templates: [(path: String?, requiresEditorAttributes: Bool)] = [
+            (manifest.render.html, true),
+            (manifest.render.css, false),
+            (manifest.render.editorCSS, false)
+        ]
+        for declaredTemplate in templates {
+            guard let path = declaredTemplate.path,
+                  isSafeRelativePath(path),
+                  let template = try? String(contentsOf: rootURL.appending(path: path), encoding: .utf8) else {
+                continue
+            }
+            validateTemplate(
+                template,
+                location: path,
+                requiresEditorAttributes: declaredTemplate.requiresEditorAttributes,
+                manifest: manifest,
+                into: &diagnostics
+            )
         }
         return diagnostics
     }
 
     private static func validateTemplate(
         _ template: String,
+        location templateLocation: String,
+        requiresEditorAttributes: Bool,
         manifest: ComponentPackageManifest,
         into diagnostics: inout [ComponentPackageDiagnostic]
     ) {
-        let templateLocation = manifest.render.html
         let propertyIDs = Set(manifest.properties.map(\.id))
         let slotIDs = Set(manifest.slots.map(\.id))
         let declaredAssets = Set(manifest.assets)
 
-        if !template.matches(#"\{\{\s*component\.attributes\s*\}\}"#) {
+        if requiresEditorAttributes && !template.matches(#"\{\{\s*component\.attributes\s*\}\}"#) {
             diagnostics.append(.init(
                 severity: .error,
                 location: templateLocation,
@@ -125,7 +100,7 @@ nonisolated enum ComponentPackageValidator {
             ))
         }
 
-        for reference in template.references(matching: #"\{\{\s*property\.([A-Za-z][A-Za-z0-9_-]*)\s*\}\}"#) +
+        for reference in template.references(matching: #"\{\{\s*(?:control|property)\.([A-Za-z][A-Za-z0-9_-]*)"#) +
             template.references(matching: #"\{%\s*if\s+property\.([A-Za-z][A-Za-z0-9_-]*)"#) {
             if !propertyIDs.contains(reference.value) {
                 diagnostics.append(templateDiagnostic(
@@ -133,6 +108,27 @@ nonisolated enum ComponentPackageValidator {
                     template: template,
                     offset: reference.offset,
                     message: "Unknown property '\(reference.value)'. Declare it in Info.plist customItems."
+                ))
+            }
+        }
+
+        let supportedFilters: Set<String> = ["lighten", "darken"]
+        for reference in template.references(matching: #"\|\s*([A-Za-z][A-Za-z0-9_-]*)\s*\("#)
+            where !supportedFilters.contains(reference.value) {
+            diagnostics.append(templateDiagnostic(
+                templateLocation,
+                template: template,
+                offset: reference.offset,
+                message: "Unknown template filter '\(reference.value)'."
+            ))
+        }
+        for property in manifest.properties where property.control.colorMath != true {
+            let escapedID = NSRegularExpression.escapedPattern(for: property.id)
+            if template.matches(#"\{\{\s*control\."# + escapedID + #"\s*\|\s*(?:lighten|darken)\s*\("#) {
+                diagnostics.append(.init(
+                    severity: .error,
+                    location: templateLocation,
+                    message: "Enable colorMath on '\(property.id)' before using lighten or darken filters."
                 ))
             }
         }
@@ -160,13 +156,15 @@ nonisolated enum ComponentPackageValidator {
                 message: "Use {% slot id=\"…\" %}; the {{ slot.… }} form cannot carry slot options."
             ))
         }
-        let referencedSlotIDs = Set((slotReferences + legacySlotReferences).map(\.value))
-        for slotID in slotIDs.subtracting(referencedSlotIDs).sorted() {
-            diagnostics.append(.init(
-                severity: .error,
-                location: templateLocation,
-                message: "Declared slot '\(slotID)' is not placed in the template."
-            ))
+        if requiresEditorAttributes {
+            let referencedSlotIDs = Set((slotReferences + legacySlotReferences).map(\.value))
+            for slotID in slotIDs.subtracting(referencedSlotIDs).sorted() {
+                diagnostics.append(.init(
+                    severity: .error,
+                    location: templateLocation,
+                    message: "Declared slot '\(slotID)' is not placed in the template."
+                ))
+            }
         }
 
         for reference in template.references(matching: #"\{\{\s*asset\.([^\s}]+)\s*\}\}"#) {
@@ -247,6 +245,37 @@ nonisolated enum ComponentPackageValidator {
                 diagnostics.append(.init(severity: .error, location: location, message: "A select default must match one of its options."))
                 return
             }
+        case .color:
+            guard case .string(let value) = property.defaultValue else {
+                diagnostics.append(.init(severity: .error, location: location, message: "A color control requires a string default value."))
+                return
+            }
+            let themeDefaults = Set(ThemeColorRole.allCases.map(\.rawValue))
+            if value != "custom" && (!property.control.themeValues.orFalse || !themeDefaults.contains(value)) {
+                diagnostics.append(.init(severity: .error, location: location, message: "A color default must be custom, or a known theme role when themeValues is enabled."))
+            }
+            if let customColor = property.control.customColor,
+               !customColor.matches(#"^#[0-9A-Fa-f]{6}$"#) {
+                diagnostics.append(.init(severity: .error, location: location, message: "customColor must be a six-digit hexadecimal colour."))
+            }
+        case .fontFamily:
+            if case .string(let value) = property.defaultValue {
+                let roles = Set(ThemeFontRole.allCases.map(\.rawValue))
+                if value != "custom" && (!property.control.themeValues.orFalse || !roles.contains(value)) {
+                    diagnostics.append(.init(severity: .error, location: location, message: "A fontFamily default must be custom, or a known theme role when themeValues is enabled."))
+                }
+            } else {
+                diagnostics.append(.init(severity: .error, location: location, message: "A fontFamily control requires a string default value."))
+            }
+        case .fontSize:
+            if case .string(let value) = property.defaultValue {
+                let sizes = Set(Theme.standard.typography.fontSizes.map(\.id))
+                if value != "custom" && (!property.control.themeValues.orFalse || !sizes.contains(value)) {
+                    diagnostics.append(.init(severity: .error, location: location, message: "A fontSize default must be custom, or a known theme size when themeValues is enabled."))
+                }
+            } else {
+                diagnostics.append(.init(severity: .error, location: location, message: "A fontSize control requires a string default value."))
+            }
         default:
             if case .string = property.defaultValue {} else {
                 diagnostics.append(.init(severity: .error, location: location, message: "This control requires a string default value."))
@@ -277,6 +306,10 @@ nonisolated enum ComponentPackageValidator {
     private static func isSafeRelativePath(_ path: String) -> Bool {
         !path.isEmpty && !path.hasPrefix("/") && !path.split(separator: "/").contains("..")
     }
+}
+
+private nonisolated extension Optional where Wrapped == Bool {
+    var orFalse: Bool { self ?? false }
 }
 
 private nonisolated struct ComponentTemplateReference {

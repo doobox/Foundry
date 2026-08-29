@@ -1,8 +1,9 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Editable text · Foundry API</title><link rel="stylesheet" href="styles.css"><script src="app.js" defer></script></head><body data-base=""><div class="shell"><nav data-doc-nav></nav><main>
-<div class="breadcrumbs"><a href="index.html">Foundry API</a><span>›</span>Templates</div><h1>Editable text</h1><p class="lede">Text primitives create canvas-editable content without property declarations or generated HTML wrappers.</p>
-<h2>Text with a default</h2><pre><code>%text="Default text"%</code></pre><p>Foundry uses the supplied string until the user edits the component.</p>
-<h2>Generated placeholder paragraph</h2><pre><code>%text%</code></pre><p>Foundry supplies one standard Lorem ipsum paragraph as the initial content.</p>
-<h2>Multiple values</h2><pre><code>&lt;h2&gt;%text="Title"%&lt;/h2&gt;
-&lt;p&gt;%text%&lt;/p&gt;
-&lt;small&gt;%text="Footnote"%&lt;/small&gt;</code></pre><p>Primitives may be repeated and mixed. Foundry generates stable internal property keys in declaration order, so developers do not need to name them.</p><p>Each primitive expands to escaped plain text. Foundry does not add a paragraph, span or other exported wrapper; the component developer supplies the surrounding HTML.</p>
-</main></div></body></html>
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Editable text · Foundry Developer</title><link rel="stylesheet" href="styles.css"><script src="app.js" defer></script></head><body><div class="shell"><nav data-doc-nav></nav><main><div class="breadcrumbs"><a href="index.html">Foundry Developer</a><span>›</span>Build components</div><p class="eyebrow">Content</p><h1>Editable text</h1><p class="lede">Add canvas-editable plain text without declaring a custom control or accepting a Foundry-generated HTML wrapper.</p>
+<h2>With your own default</h2><pre><code>&lt;h2&gt;%text="A useful heading"%&lt;/h2&gt;</code></pre><p>The supplied text is used until the site author edits it.</p>
+<h2>With placeholder copy</h2><pre><code>&lt;p&gt;%text%&lt;/p&gt;</code></pre><p>Foundry supplies its standard placeholder paragraph as the initial value.</p>
+<h2>Use it more than once</h2><pre><code>&lt;article id="{{ id }}" {{ component.attributes }}&gt;
+    &lt;h2&gt;%text="Title"%&lt;/h2&gt;
+    &lt;p&gt;%text%&lt;/p&gt;
+    &lt;small&gt;%text="Footnote"%&lt;/small&gt;
+&lt;/article&gt;</code></pre><p>Foundry assigns stable internal property keys in declaration order. Each primitive expands to escaped plain text. The surrounding element always belongs to the developer.</p>
+<div class="callout warning"><strong>Use custom controls for named values.</strong> If text needs a meaningful template ID, responsive variants, or use outside its immediate markup position, declare it under <code>customItems</code>.</div></main></div></body></html>

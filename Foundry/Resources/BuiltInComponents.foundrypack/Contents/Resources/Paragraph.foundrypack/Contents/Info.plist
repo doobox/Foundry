@@ -1,0 +1,107 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+	<dict>
+		<key>type</key>
+		<string>component</string>
+		<key>CFBundleIdentifier</key>
+		<string>foundry.content.paragraph</string>
+		<key>assets</key>
+		<array />
+		<key>author</key>
+		<string>Foundry</string>
+		<key>customItems</key>
+		<array>
+			<dict>
+				<key>id</key>
+				<string>typeface</string>
+				<key>title</key>
+				<string>Typeface</string>
+				<key>section</key>
+				<string>Typography</string>
+				<key>control</key>
+				<dict>
+					<key>type</key>
+					<string>fontFamily</string>
+					<key>themeValues</key>
+					<true />
+				</dict>
+				<key>default</key>
+				<string>body</string>
+				<key>responsive</key>
+				<true />
+				<key>inlineEditable</key>
+				<false />
+			</dict>
+			<dict>
+				<key>id</key>
+				<string>textSize</string>
+				<key>title</key>
+				<string>Font Size</string>
+				<key>section</key>
+				<string>Typography</string>
+				<key>control</key>
+				<dict>
+					<key>type</key>
+					<string>fontSize</string>
+					<key>themeValues</key>
+					<true />
+				</dict>
+				<key>default</key>
+				<string>base</string>
+				<key>responsive</key>
+				<false />
+				<key>inlineEditable</key>
+				<false />
+			</dict>
+			<dict>
+				<key>id</key>
+				<string>textColor</string>
+				<key>title</key>
+				<string>Colour</string>
+				<key>section</key>
+				<string>Colour</string>
+				<key>control</key>
+				<dict>
+					<key>type</key>
+					<string>color</string>
+					<key>themeValues</key>
+					<true />
+					<key>colorMath</key>
+					<true />
+					<key>opacity</key>
+					<true />
+					<key>customColor</key>
+					<string>#000000</string>
+				</dict>
+				<key>default</key>
+				<string>text</string>
+				<key>responsive</key>
+				<true />
+				<key>inlineEditable</key>
+				<false />
+			</dict>
+		</array>
+		<key>description</key>
+		<string>Adds a paragraph of body text to the page.</string>
+		<key>group</key>
+		<string>Content</string>
+		<key>slots</key>
+		<array />
+		<key>tags</key>
+		<array>
+			<string>built-in</string>
+		</array>
+		<key>templates</key>
+		<dict>
+			<key>css</key>
+			<string>component.css</string>
+			<key>html</key>
+			<string>component.html</string>
+		</dict>
+		<key>title</key>
+		<string>Paragraph</string>
+		<key>version</key>
+		<string>1.0</string>
+	</dict>
+</plist>
