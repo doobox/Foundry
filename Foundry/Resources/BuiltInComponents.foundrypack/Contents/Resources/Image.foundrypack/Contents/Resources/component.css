@@ -1,0 +1,10 @@
+#{{ id }} {
+    margin: 0;
+}
+
+#{{ id }} .foundry-image {
+    display: block;
+    width: 100%;
+    max-width: 100%;
+    height: auto;
+}

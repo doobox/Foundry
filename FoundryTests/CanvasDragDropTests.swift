@@ -27,6 +27,30 @@ struct CanvasDragDropTests {
     }
 
     @Test
+    func decodesExistingAndFinderImageInsertMessages() {
+        let assetID = UUID()
+        let existing = CanvasMessage.decode([
+            "version": 1,
+            "event": "insertImageComponent",
+            "assetID": assetID.uuidString,
+            "placement": ["kind": "end"]
+        ])
+        let finder = CanvasMessage.decode([
+            "version": 1,
+            "event": "insertImageComponent",
+            "assetFilename": "photo.png",
+            "assetMediaType": "image/png",
+            "assetData": Data([1, 2, 3]).base64EncodedString(),
+            "placement": ["kind": "end"]
+        ])
+
+        #expect(existing?.assetID == assetID)
+        #expect(existing?.event == .insertImageComponent)
+        #expect(finder?.assetFilename == "photo.png")
+        #expect(finder?.event == .insertImageComponent)
+    }
+
+    @Test
     func rejectsIncompletePlacementMessages() {
         #expect(CanvasMessage.decode([
             "version": 1,
@@ -89,6 +113,8 @@ struct CanvasDragDropTests {
         #expect(script.contains("data-foundry-root-drop-zone"))
         #expect(script.contains("kind: 'end'"))
         #expect(script.contains("data-foundry-adjacent-target"))
+        #expect(script.contains("foundry-image-asset:"))
+        #expect(script.contains("insertImageComponent"))
     }
 }
 

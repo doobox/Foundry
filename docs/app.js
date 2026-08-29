@@ -20,7 +20,8 @@ if (nav) {
     nav.innerHTML = `
         <a class="brand" href="${base}index.html"><img class="brand-mark" src="${base}assets/foundry-icon.png" alt=""><span>Foundry Developer</span></a>
         <input class="search" type="search" placeholder="Search topics" aria-label="Filter documentation">
-        <div data-nav-sections></div>`;
+        <div data-nav-sections></div>
+        <a class="nav-todo" ${current === "todo.html" ? 'aria-current="page"' : ""} href="${base}todo.html">TODO</a>`;
     const container = nav.querySelector("[data-nav-sections]");
     const render = (query = "") => {
         const normalized = query.trim().toLowerCase();

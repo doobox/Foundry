@@ -87,6 +87,25 @@ struct ComponentPackageTests {
     }
 
     @Test
+    func imagePrimitiveCreatesAnImplicitResponsiveImageSource() {
+        let template = "<figure {{ component.attributes }}>%image%</figure>"
+        let editorContext = ComponentTemplateContext(
+            instanceID: UUID(), packageIdentifier: "com.example.image",
+            properties: [:], slots: [:], componentAttributes: "data-editor=\"true\""
+        )
+        let exportContext = ComponentTemplateContext(
+            instanceID: UUID(), packageIdentifier: "com.example.image",
+            properties: ["source": .string("assets/hero & wide.jpg")], slots: [:]
+        )
+
+        #expect(ComponentTemplateRenderer.hasImagePrimitive(in: template))
+        #expect(ComponentTemplateRenderer.render(template, context: editorContext).contains("data-foundry-image-drop-zone"))
+        let exported = ComponentTemplateRenderer.render(template, context: exportContext)
+        #expect(exported.contains("class=\"foundry-image\""))
+        #expect(exported.contains("src=\"assets/hero &amp; wide.jpg\""))
+    }
+
+    @Test
     func textPrimitivePreservesEditedLineBreaks() {
         let template = "<p>%text%</p>"
         let context = ComponentTemplateContext(
@@ -517,6 +536,8 @@ struct ComponentPackageTests {
         #expect(builtIns.allSatisfy { $0.renderKind == .package })
         #expect(builtIns.allSatisfy { $0.package?.rootURL.pathExtension == "foundrypack" })
         #expect(Set(builtIns.compactMap { $0.package?.manifest.identifier }).count == builtIns.count)
+        #expect(ComponentType.image.definition.package?.manifest.identifier == ComponentType.image.rawValue)
+        #expect(ComponentType.image.definition.properties.contains { $0.key == .source && !$0.isInspectorVisible })
     }
 
     @Test @MainActor

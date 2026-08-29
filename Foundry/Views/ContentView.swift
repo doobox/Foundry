@@ -473,7 +473,8 @@ struct ContentView: View {
                   page.components.node(withID: componentID)?.type == .image,
                   let filename = message.assetFilename,
                   let mediaType = message.assetMediaType,
-                  UTType(mimeType: mediaType)?.conforms(to: .image) == true,
+                  let type = imageType(filename: filename, mediaType: mediaType),
+                  type.conforms(to: .image),
                   let encoded = message.assetData,
                   let data = Data(base64Encoded: encoded),
                   data.count <= 25_000_000 else { return }
@@ -481,7 +482,7 @@ struct ContentView: View {
             let assetID = document.importAsset(
                 data: data,
                 filename: filename,
-                mediaType: mediaType,
+                mediaType: type.preferredMIMEType ?? mediaType,
                 undoManager: undoManager
             )
             if let asset = document.site.assets.first(where: { $0.id == assetID }) {
@@ -495,7 +496,56 @@ struct ContentView: View {
             undoManager?.setActionName("Import Image")
             selectedComponentID = componentID
             workspaceLayout.activate(.structure)
+        case .insertImageComponent:
+            guard let placement = validatedPlacement(message.placement, on: page) else { return }
+            let asset: ProjectAsset
+            undoManager?.beginUndoGrouping()
+            if let assetID = message.assetID {
+                guard let existingAsset = document.site.assets.first(where: {
+                    $0.id == assetID && UTType(mimeType: $0.mediaType)?.conforms(to: .image) == true
+                }) else {
+                    undoManager?.endUndoGrouping()
+                    return
+                }
+                asset = existingAsset
+            } else {
+                guard let filename = message.assetFilename,
+                      let mediaType = message.assetMediaType,
+                      let type = imageType(filename: filename, mediaType: mediaType),
+                      type.conforms(to: .image),
+                      let encoded = message.assetData,
+                      let data = Data(base64Encoded: encoded),
+                      data.count <= 25_000_000 else {
+                    undoManager?.endUndoGrouping()
+                    return
+                }
+                let assetID = document.importAsset(
+                    data: data,
+                    filename: filename,
+                    mediaType: type.preferredMIMEType ?? mediaType,
+                    undoManager: undoManager
+                )
+                guard let importedAsset = document.site.assets.first(where: { $0.id == assetID }) else {
+                    undoManager?.endUndoGrouping()
+                    return
+                }
+                asset = importedAsset
+            }
+            guard let componentID = editor.insertComponent(type: .image, on: page.id, placement: placement) else {
+                undoManager?.endUndoGrouping()
+                return
+            }
+            editor.setProperty(id: componentID, key: .source, value: .url(asset.reference))
+            undoManager?.endUndoGrouping()
+            undoManager?.setActionName("Add Image")
+            selectedComponentIDs = [componentID]
+            selectedComponentID = componentID
+            workspaceLayout.activate(.structure)
         }
+    }
+
+    private func imageType(filename: String, mediaType: String) -> UTType? {
+        UTType(mimeType: mediaType) ?? UTType(filenameExtension: URL(fileURLWithPath: filename).pathExtension)
     }
 
     private func validatedPlacement(_ value: CanvasMessage.Placement?, on page: Page) -> ComponentPlacement? {

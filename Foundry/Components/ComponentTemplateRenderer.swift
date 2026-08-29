@@ -38,6 +38,7 @@ nonisolated enum ComponentTemplateRenderer {
 
     static func render(_ template: String, context: ComponentTemplateContext) -> String {
         var result = renderText(in: template, context: context)
+        result = renderImage(in: result, context: context)
         result = renderConditions(in: result, context: context)
         result = renderSlots(in: result, context: context)
         let expression = try! NSRegularExpression(pattern: #"\{\{\s*([^{}]+?)\s*\}\}"#)
@@ -58,6 +59,10 @@ nonisolated enum ComponentTemplateRenderer {
                 defaultValue: primitiveDefault(match: match, in: template)
             )
         }
+    }
+
+    static func hasImagePrimitive(in template: String) -> Bool {
+        template.range(of: #"%image%"#, options: .regularExpression) != nil
     }
 
     static func scopedCSS(_ css: String, packageIdentifier: String) -> String {
@@ -87,6 +92,18 @@ nonisolated enum ComponentTemplateRenderer {
             }
         }
         return result
+    }
+
+    private static func renderImage(in template: String, context: ComponentTemplateContext) -> String {
+        guard hasImagePrimitive(in: template) else { return template }
+        let source = stringValue(context.properties["source"]) ?? ""
+        let image: String
+        if source.isEmpty && !context.componentAttributes.isEmpty {
+            image = "<span class=\"foundry-image-drop-zone\" data-foundry-image-drop-zone>Drop an image here</span>"
+        } else {
+            image = "<img class=\"foundry-image\" data-foundry-image-drop-zone src=\"\(escapeAttribute(source))\" alt=\"\">"
+        }
+        return template.replacingOccurrences(of: "%image%", with: image)
     }
 
     private static func primitiveMatches(in template: String) -> [NSTextCheckingResult] {

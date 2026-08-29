@@ -18,6 +18,7 @@ nonisolated struct CanvasMessage: Codable, Equatable, Sendable {
     let assetFilename: String?
     let assetMediaType: String?
     let assetData: String?
+    let assetID: UUID?
 
     init(
         version: Int = currentVersion,
@@ -34,7 +35,8 @@ nonisolated struct CanvasMessage: Codable, Equatable, Sendable {
         propertyValue: String? = nil,
         assetFilename: String? = nil,
         assetMediaType: String? = nil,
-        assetData: String? = nil
+        assetData: String? = nil,
+        assetID: UUID? = nil
     ) {
         self.version = version
         self.event = event
@@ -51,6 +53,7 @@ nonisolated struct CanvasMessage: Codable, Equatable, Sendable {
         self.assetFilename = assetFilename
         self.assetMediaType = assetMediaType
         self.assetData = assetData
+        self.assetID = assetID
     }
 
     nonisolated enum Event: String, Codable, Sendable {
@@ -62,6 +65,7 @@ nonisolated struct CanvasMessage: Codable, Equatable, Sendable {
         case moveComponent
         case editComponent
         case importImageAsset
+        case insertImageComponent
     }
 
     nonisolated struct Placement: Codable, Equatable, Sendable {
@@ -136,11 +140,17 @@ nonisolated struct CanvasMessage: Codable, Equatable, Sendable {
                 propertyKey != nil && propertyValue != nil && hasNoAssetPayload
         case .importImageAsset:
             componentID != nil && componentType == nil && reusableDefinitionID == nil && globalDefinitionID == nil && placement == nil &&
-                propertyKey == nil && propertyValue == nil && assetFilename != nil && assetMediaType != nil && assetData != nil
+                propertyKey == nil && propertyValue == nil && assetFilename != nil && assetMediaType != nil && assetData != nil && assetID == nil
+        case .insertImageComponent:
+            componentID == nil && componentType == nil && reusableDefinitionID == nil && globalDefinitionID == nil && placement?.componentPlacement != nil &&
+                propertyKey == nil && propertyValue == nil && (
+                    (assetID != nil && assetFilename == nil && assetMediaType == nil && assetData == nil) ||
+                    (assetID == nil && assetFilename != nil && assetMediaType != nil && assetData != nil)
+                )
         }
     }
 
     private var hasNoAssetPayload: Bool {
-        assetFilename == nil && assetMediaType == nil && assetData == nil
+        assetFilename == nil && assetMediaType == nil && assetData == nil && assetID == nil
     }
 }

@@ -135,7 +135,7 @@ nonisolated enum ComponentPackageValidator {
                 continue
             }
             if template.matches(#"\{\{\s*(?:id|instance\.id|component\.|control\.|property\.|slot\.)"#) ||
-                template.matches(#"\{%\s*(?:slot|if)\b"#) || template.matches(#"%text(?:=|%)"#) {
+                template.matches(#"\{%\s*(?:slot|if)\b"#) || template.matches(#"%(?:text(?:=|%)|image%)"#) {
                 diagnostics.append(.init(
                     severity: .error,
                     location: file.path,

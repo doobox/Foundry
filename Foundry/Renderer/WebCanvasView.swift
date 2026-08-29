@@ -373,9 +373,15 @@ struct WebCanvasView: NSViewRepresentable {
             clearDrop();
             if (event.dataTransfer.types.includes('Files')) {
               event.preventDefault();
-              const image = event.target.closest('[data-foundry-type="Image"]');
-              if (image) image.classList.add('foundry-drop-inside');
-              event.dataTransfer.dropEffect = image ? 'copy' : 'none';
+              const imageZone = event.target.closest('[data-foundry-image-drop-zone]');
+              const image = imageZone?.closest(selector);
+              if (image) {
+                image.classList.add('foundry-drop-inside');
+              } else {
+                placement = intendedPlacement(event);
+                if (placement.element) placement.element.classList.add('foundry-drop-' + placement.kind);
+              }
+              event.dataTransfer.dropEffect = 'copy';
               return;
             }
             const carriesComponentText = Array.from(event.dataTransfer.types).some(type =>
@@ -401,20 +407,28 @@ struct WebCanvasView: NSViewRepresentable {
             clearDragSources();
             const file = event.dataTransfer.files[0];
             if (file) {
-              const image = event.target.closest('[data-foundry-type="Image"]');
+              const imageZone = event.target.closest('[data-foundry-image-drop-zone]');
+              const image = imageZone?.closest(selector);
+              const target = placement || intendedPlacement(event);
               clearDrop();
-              if (!image || !file.type.startsWith('image/') || file.size > 25000000) return;
+              const isImage = file.type.startsWith('image/') || /\\.(?:avif|gif|heic|heif|jpe?g|png|svg|webp)$/i.test(file.name);
+              if (!isImage || file.size > 25000000) return;
               const reader = new FileReader();
               reader.onload = () => {
                 const encoded = String(reader.result).split(',', 2)[1];
-                window.webkit.messageHandlers.foundryCanvas.postMessage({
+                const message = {
                   version: 1,
-                  event: 'importImageAsset',
-                  componentID: image.dataset.foundryId,
+                  event: image ? 'importImageAsset' : 'insertImageComponent',
                   assetFilename: file.name,
-                  assetMediaType: file.type,
+                  assetMediaType: file.type || 'application/octet-stream',
                   assetData: encoded
-                });
+                };
+                if (image) {
+                  message.componentID = image.dataset.foundryId;
+                } else {
+                  message.placement = { kind: target.kind, targetID: target.targetID, slotID: target.slotID };
+                }
+                window.webkit.messageHandlers.foundryCanvas.postMessage(message);
               };
               reader.readAsDataURL(file);
               return;
@@ -441,6 +455,9 @@ struct WebCanvasView: NSViewRepresentable {
             } else if (value.startsWith('foundry-node:')) {
               message.event = 'moveComponent';
               message.componentID = value.substring('foundry-node:'.length);
+            } else if (value.startsWith('foundry-image-asset:')) {
+              message.event = 'insertImageComponent';
+              message.assetID = value.substring('foundry-image-asset:'.length);
             } else {
               return;
             }

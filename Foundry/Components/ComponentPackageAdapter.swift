@@ -10,6 +10,13 @@ nonisolated enum ComponentPackageAdapter {
                 isResponsive: false, isInspectorVisible: false
             )
         }
+        let implicitImageProperties: [ComponentPropertyDefinition] = ComponentTemplateRenderer.hasImagePrimitive(in: package.htmlTemplate) ? [
+            ComponentPropertyDefinition(
+                key: .source, label: "Image", section: .content,
+                control: .asset, defaultValue: .url(""),
+                isResponsive: false, isInspectorVisible: false
+            )
+        ] : []
         let inlineEditableProperty = manifest.properties.first(where: \.inlineEditable).map {
             ComponentProperty.Key(rawValue: $0.id)
         } ?? implicitTextProperties.first?.key
@@ -21,7 +28,7 @@ nonisolated enum ComponentPackageAdapter {
             allowsChildren: !manifest.slots.isEmpty,
             inlineEditableProperty: inlineEditableProperty,
             renderKind: .package,
-            properties: manifest.properties.flatMap(propertyDefinitions) + implicitTextProperties,
+            properties: manifest.properties.flatMap(propertyDefinitions) + implicitTextProperties + implicitImageProperties,
             package: package
         )
     }

@@ -156,6 +156,9 @@ struct PagesOutlineView: NSViewRepresentable {
             guard let item = item as? PageOutlineItem else { return nil }
             let pasteboardItem = NSPasteboardItem()
             pasteboardItem.setString(item.payload, forType: .pageTreeItem)
+            if item.isImageAsset {
+                pasteboardItem.setString("foundry-image-asset:\(item.id.uuidString)", forType: .string)
+            }
             return pasteboardItem
         }
 
@@ -215,7 +218,10 @@ struct PagesOutlineView: NSViewRepresentable {
                     return item
                 }
                 let assetItems = (assetsByParent[parentID] ?? []).map {
-                    PageOutlineItem(kind: .asset($0.1.id), title: $0.1.filename, order: $0.1.exportOrder)
+                    PageOutlineItem(
+                        kind: .asset($0.1.id), title: $0.1.filename, order: $0.1.exportOrder,
+                        isImageAsset: $0.1.mediaType.hasPrefix("image/")
+                    )
                 }
                 return (pageItems + folderItems + assetItems).sorted(by: PageOutlineItem.sort)
             }
@@ -352,6 +358,7 @@ private final class PageOutlineItem: NSObject {
     let kind: PageTreeItem
     let title: String
     let order: Int
+    let isImageAsset: Bool
     var children: [PageOutlineItem] = []
     var id: UUID { kind.id }
     var isFolder: Bool {
@@ -369,14 +376,15 @@ private final class PageOutlineItem: NSObject {
         switch kind {
         case .page: "doc"
         case .folder: "folder"
-        case .asset: "doc.richtext"
+        case .asset: isImageAsset ? "photo" : "doc.richtext"
         }
     }
 
-    init(kind: PageTreeItem, title: String, order: Int) {
+    init(kind: PageTreeItem, title: String, order: Int, isImageAsset: Bool = false) {
         self.kind = kind
         self.title = title
         self.order = order
+        self.isImageAsset = isImageAsset
     }
 
     static func sort(_ lhs: PageOutlineItem, _ rhs: PageOutlineItem) -> Bool {
