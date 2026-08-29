@@ -85,6 +85,39 @@ final class FoundryUITests: XCTestCase {
     }
 
     @MainActor
+    func testDesktopCanvasCannotResizePastLargestDeviceWidth() throws {
+        let app = XCUIApplication()
+        app.launchArguments = [
+            "-ApplePersistenceIgnoreState", "YES",
+            "-foundry.workspace.layout.v1", "ui-test-desktop-resize-limit"
+        ]
+        app.launch()
+        app.typeKey("n", modifierFlags: .command)
+
+        let desktopButton = app.buttons["Desktop"]
+        let resizeHandle = app.descendants(matching: .any)["canvas-resize-right"]
+
+        XCTAssertTrue(desktopButton.waitForExistence(timeout: 5))
+        desktopButton.click()
+        XCTAssertTrue(resizeHandle.waitForExistence(timeout: 5))
+
+        let initialHandleValue = try XCTUnwrap(resizeHandle.value as? String)
+        let initialViewport = try metric("viewport", from: initialHandleValue)
+        let initialScale = try metric("scale", from: initialHandleValue)
+        XCTAssertEqual(initialViewport, 1440)
+        XCTAssertLessThan(initialScale, 100)
+
+        resizeHandle.click()
+        for _ in 0..<12 {
+            app.typeKey(.rightArrow, modifierFlags: [])
+        }
+
+        let resizedHandleValue = try XCTUnwrap(resizeHandle.value as? String)
+        XCTAssertEqual(try metric("viewport", from: resizedHandleValue), initialViewport)
+        XCTAssertEqual(try metric("scale", from: resizedHandleValue), initialScale)
+    }
+
+    @MainActor
     func testLaunchPerformance() throws {
         measure(metrics: [XCTApplicationLaunchMetric()]) {
             XCUIApplication().launch()

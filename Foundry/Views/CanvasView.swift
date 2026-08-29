@@ -185,7 +185,7 @@ struct CanvasView: View {
                 let logicalTranslation = Double(translation) / startingScale
                 viewportWidth = min(
                     max(startingWidth + (logicalTranslation * direction * 2), 320),
-                    1600
+                    CanvasViewportPreset.desktop.viewportWidth
                 )
             },
             onEnded: {
