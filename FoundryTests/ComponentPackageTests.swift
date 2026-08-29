@@ -177,7 +177,6 @@ struct ComponentPackageTests {
             with: """
             <key>runtime</key>
             <dict>
-                <key>entry</key><string>component.js</string>
                 <key>capabilities</key><array><string>network</string></array>
             </dict>
             <key>assets</key>
@@ -186,7 +185,7 @@ struct ComponentPackageTests {
         let packageURL = try makePackage(
             manifest: manifest,
             template: "<section {{ component.attributes }}>{{ property.title }}{% slot id=\"content\" %}</section>",
-            additionalFiles: ["component.js": "export function mount() {}"]
+            additionalFiles: [:]
         )
         defer { try? FileManager.default.removeItem(at: packageURL) }
 
@@ -256,7 +255,39 @@ struct ComponentPackageTests {
             rootURL: packageURL.appending(path: "Contents/Resources", directoryHint: .isDirectory)
         )
 
-        #expect(diagnostics.contains(where: { $0.message.contains("support CSS and placed HTML") }))
+        #expect(diagnostics.contains(where: { $0.message.contains("support CSS, JavaScript and placed HTML") }))
+    }
+
+    @Test
+    func loaderProcessesScopedJavaScriptTemplates() throws {
+        let declaration = """
+        <key>files</key>
+        <array>
+            <dict><key>path</key><string>instance.js</string><key>scope</key><string>instance</string></dict>
+            <dict><key>path</key><string>page.js</string><key>scope</key><string>page</string></dict>
+            <dict><key>path</key><string>site.js</string><key>scope</key><string>site</string></dict>
+        </array>
+        """
+        let runtime = "<key>runtime</key><dict><key>capabilities</key><array><string>dom</string></array></dict>"
+        let manifestText = validManifest
+            .replacingOccurrences(of: instanceCSSDeclaration, with: declaration)
+            .replacingOccurrences(of: "<key>assets</key>", with: runtime + "<key>assets</key>")
+        let packageURL = try makePackage(
+            manifest: manifestText,
+            template: "<section {{ component.attributes }}>{% slot id=\"content\" %}</section>",
+            additionalFiles: [
+                "instance.js": "document.querySelector('#{{ id }}');",
+                "page.js": "console.log('{{ package.id }} page');",
+                "site.js": "console.log('{{ package.id }} site');"
+            ]
+        )
+        defer { try? FileManager.default.removeItem(at: packageURL) }
+
+        let package = try ComponentPackageLoader.load(from: packageURL)
+
+        #expect(package.instanceJavaScript.contains("{{ id }}"))
+        #expect(package.pageJavaScript.contains("page"))
+        #expect(package.siteJavaScript.contains("site"))
     }
 
     @Test

@@ -249,7 +249,6 @@ nonisolated struct ComponentPackageRuntime: Codable, Equatable, Sendable {
         case localStorage
     }
 
-    let entry: String
     let capabilities: [Capability]
 }
 

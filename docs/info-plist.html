@@ -9,7 +9,7 @@
 <section class="reference-entry"><h3>group</h3><div class="api-meta"><span class="pill">Optional String</span><span class="pill">Default: Other</span></div><p>Library group: <code>Layout</code>, <code>Content</code>, <code>Media</code>, <code>Navigation</code>, <code>Forms</code>, <code>Interactive</code>, or <code>Other</code>.</p></section>
 <section class="reference-entry"><h3>tags</h3><div class="api-meta"><span class="pill">Optional String array</span></div><p>Additional component-library search terms.</p></section>
 <h2>Rendering</h2>
-<section class="reference-entry"><h3>templates</h3><div class="api-meta"><span class="pill required">Required Dictionary</span></div><p>Declares the component templates currently processed by Foundry.</p><dl><dt>html</dt><dd>Required primary HTML template filename. Processed once per component instance.</dd><dt>files</dt><dd>Optional array of template dictionaries. CSS accepts <code>instance</code> (default), <code>page</code>, or <code>site</code> scope. Additional HTML requires <code>page</code> scope and a <code>placement</code> of <code>headStart</code>, <code>headEnd</code>, <code>bodyStart</code>, or <code>bodyEnd</code>.</dd><dt>editorCSS</dt><dd>Optional instance-scoped, canvas-only CSS template excluded from production export.</dd></dl><pre><code>&lt;key&gt;templates&lt;/key&gt;
+<section class="reference-entry"><h3>templates</h3><div class="api-meta"><span class="pill required">Required Dictionary</span></div><p>Declares the component templates currently processed by Foundry.</p><dl><dt>html</dt><dd>Required primary HTML template filename. Processed once per component instance.</dd><dt>files</dt><dd>Optional array of template dictionaries. CSS and JavaScript accept <code>instance</code> (default), <code>page</code>, or <code>site</code> scope. Additional HTML requires <code>page</code> scope and a <code>placement</code> of <code>headStart</code>, <code>headEnd</code>, <code>bodyStart</code>, or <code>bodyEnd</code>.</dd><dt>editorCSS</dt><dd>Optional instance-scoped, canvas-only CSS template excluded from production export.</dd></dl><pre><code>&lt;key&gt;templates&lt;/key&gt;
 &lt;dict&gt;
     &lt;key&gt;html&lt;/key&gt;&lt;string&gt;component.html&lt;/string&gt;
     &lt;key&gt;files&lt;/key&gt;
@@ -18,15 +18,15 @@
             &lt;key&gt;path&lt;/key&gt;&lt;string&gt;component.css&lt;/string&gt;
             &lt;key&gt;scope&lt;/key&gt;&lt;string&gt;instance&lt;/string&gt;
         &lt;/dict&gt;
+        &lt;dict&gt;
+            &lt;key&gt;path&lt;/key&gt;&lt;string&gt;component.js&lt;/string&gt;
+            &lt;key&gt;scope&lt;/key&gt;&lt;string&gt;instance&lt;/string&gt;
+        &lt;/dict&gt;
     &lt;/array&gt;
     &lt;key&gt;editorCSS&lt;/key&gt;&lt;string&gt;editor.css&lt;/string&gt;
 &lt;/dict&gt;</code></pre>
-<div class="callout warning"><strong>Proposed formats.</strong> JavaScript template files, Sass/SCSS and PHP are designed but not yet accepted by the app.</div><pre><code>&lt;key&gt;files&lt;/key&gt;
+<div class="callout warning"><strong>Proposed formats.</strong> Sass/SCSS and PHP are designed but not yet accepted by the app.</div><pre><code>&lt;key&gt;files&lt;/key&gt;
 &lt;array&gt;
-        &lt;dict&gt;
-            &lt;key&gt;path&lt;/key&gt;&lt;string&gt;component.js&lt;/string&gt;
-            &lt;key&gt;scope&lt;/key&gt;&lt;string&gt;page&lt;/string&gt;
-        &lt;/dict&gt;
         &lt;dict&gt;
             &lt;key&gt;path&lt;/key&gt;&lt;string&gt;styles/component.scss&lt;/string&gt;
             &lt;key&gt;scope&lt;/key&gt;&lt;string&gt;instance&lt;/string&gt;
@@ -41,9 +41,8 @@
 <section class="reference-entry"><h3>customItems</h3><div class="api-meta"><span class="pill">Optional Dictionary array</span></div><p>Component-specific inspector values. Each item requires <code>id</code>, <code>title</code>, <code>section</code>, <code>control</code>, <code>default</code>, <code>responsive</code>, and <code>inlineEditable</code>. See <a href="custom-controls.html">Custom controls</a>.</p></section>
 <section class="reference-entry"><h3>slots</h3><div class="api-meta"><span class="pill">Optional Dictionary array</span></div><p>Named child-component regions. Each slot requires <code>id</code>, <code>title</code>, <code>accepts</code>, and <code>minimum</code>; <code>maximum</code> is optional. See <a href="slots.html">Child components</a>.</p></section>
 <h2>Runtime</h2>
-<section class="reference-entry"><h3>runtime</h3><div class="api-meta"><span class="pill">Optional Dictionary</span></div><p><code>entry</code> names the JavaScript file. <code>capabilities</code> explicitly lists any of <code>dom</code>, <code>timers</code>, <code>network</code>, and <code>localStorage</code>.</p><pre><code>&lt;key&gt;runtime&lt;/key&gt;
+<section class="reference-entry"><h3>runtime</h3><div class="api-meta"><span class="pill">Optional Dictionary</span></div><p>Required when JavaScript template files are declared. <code>capabilities</code> explicitly lists any of <code>dom</code>, <code>timers</code>, <code>network</code>, and <code>localStorage</code>.</p><pre><code>&lt;key&gt;runtime&lt;/key&gt;
 &lt;dict&gt;
-    &lt;key&gt;entry&lt;/key&gt;&lt;string&gt;component.js&lt;/string&gt;
     &lt;key&gt;capabilities&lt;/key&gt;
     &lt;array&gt;&lt;string&gt;dom&lt;/string&gt;&lt;string&gt;timers&lt;/string&gt;&lt;/array&gt;
 &lt;/dict&gt;</code></pre></section>

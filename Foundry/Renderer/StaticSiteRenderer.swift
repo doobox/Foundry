@@ -74,6 +74,7 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
         let headEnd = placedHTML(for: page, placement: .headEnd)
         let bodyStart = placedHTML(for: page, placement: .bodyStart)
         let bodyEnd = placedHTML(for: page, placement: .bodyEnd)
+        let scripts = packageScripts(for: page, theme: theme, assetPrefix: assetPrefix, assets: assets)
         let documentLanguage = language.trimmingCharacters(in: .whitespacesAndNewlines)
         return """
         <!doctype html>
@@ -88,10 +89,31 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
         \(headEnd)
         </head>
         <body>
-        \(bodyStart)\(body)\(bodyEnd)
+        \(bodyStart)\(body)\(bodyEnd)\(scripts)
         </body>
         </html>
         """
+    }
+
+    private func packageScripts(for page: Page, theme: Theme, assetPrefix: String, assets: [UUID: ProjectAssetContent]) -> String {
+        let nodes = page.components.flatMap(\.flattened)
+        let instanceScripts = nodes.compactMap { node -> String? in
+            guard let package = node.type.definition.package, !package.instanceJavaScript.isEmpty else { return nil }
+            return ComponentTemplateRenderer.render(
+                package.instanceJavaScript,
+                context: .init(instanceID: node.id, packageIdentifier: package.manifest.identifier, properties: packageProperties(node, theme: theme, assetPrefix: assetPrefix, assets: assets), slots: [:])
+            )
+        }
+        var seenPackages: Set<String> = []
+        let sharedScripts = nodes.compactMap { node -> String? in
+            guard let package = node.type.definition.package,
+                  seenPackages.insert(package.manifest.identifier).inserted else { return nil }
+            let source = [package.pageJavaScript, package.siteJavaScript].filter { !$0.isEmpty }.joined(separator: "\n")
+            guard !source.isEmpty else { return nil }
+            return ComponentTemplateRenderer.render(source, context: .init(instanceID: UUID(uuid: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)), packageIdentifier: package.manifest.identifier, properties: [:], slots: [:]))
+        }
+        let source = (instanceScripts + sharedScripts).joined(separator: "\n")
+        return source.isEmpty ? "" : "<script>\n\(source)\n</script>"
     }
 
     private func placedHTML(for page: Page, placement: ComponentPackageTemplateFile.Placement) -> String {

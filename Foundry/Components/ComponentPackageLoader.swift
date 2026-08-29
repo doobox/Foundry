@@ -8,8 +8,10 @@ nonisolated struct LoadedComponentPackage: Sendable {
     let pageCSS: String
     let siteCSS: String
     let placedHTML: [LoadedPlacedHTMLTemplate]
+    let instanceJavaScript: String
+    let pageJavaScript: String
+    let siteJavaScript: String
     let editorCSS: String
-    let runtimeJavaScript: String?
 
     var lock: ComponentPackageLock {
         .init(identifier: manifest.identifier)
@@ -99,6 +101,12 @@ nonisolated enum ComponentPackageLoader {
             guard file.path.lowercased().hasSuffix(".html"), let placement = file.placement else { return nil }
             return LoadedPlacedHTMLTemplate(placement: placement, contents: try read(file.path, from: resourceRootURL))
         }
+        func javascript(scope: ComponentPackageTemplateFile.Scope) throws -> String {
+            try manifest.render.files
+                .filter { $0.scope == scope && $0.path.lowercased().hasSuffix(".js") }
+                .map { try read($0.path, from: resourceRootURL) }
+                .joined(separator: "\n")
+        }
         return LoadedComponentPackage(
             manifest: manifest,
             rootURL: rootURL,
@@ -107,8 +115,10 @@ nonisolated enum ComponentPackageLoader {
             pageCSS: pageCSS.joined(separator: "\n"),
             siteCSS: siteCSS.joined(separator: "\n"),
             placedHTML: placedHTML,
+            instanceJavaScript: try javascript(scope: .instance),
+            pageJavaScript: try javascript(scope: .page),
+            siteJavaScript: try javascript(scope: .site),
             editorCSS: try readIfPresent(manifest.render.editorCSS, from: resourceRootURL),
-            runtimeJavaScript: try manifest.runtime.map { try read($0.entry, from: resourceRootURL) }
         )
     }
 

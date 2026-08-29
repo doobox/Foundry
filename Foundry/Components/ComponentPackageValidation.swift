@@ -46,7 +46,7 @@ nonisolated enum ComponentPackageValidator {
             }
         }
 
-        let declaredFiles = ["icon.svg", manifest.render.html, manifest.render.editorCSS, manifest.runtime?.entry]
+        let declaredFiles = ["icon.svg", manifest.render.html, manifest.render.editorCSS]
             .compactMap { $0 }
             .filter { !$0.isEmpty } + manifest.assets + manifest.render.files.map(\.path)
         for path in declaredFiles {
@@ -68,6 +68,20 @@ nonisolated enum ComponentPackageValidator {
                     message: "CSS templates do not use HTML placement."
                 ))
             }
+            if fileExtension == "js", file.placement != nil {
+                diagnostics.append(.init(
+                    severity: .error,
+                    location: "Info.plist:templates.files.\(file.path)",
+                    message: "JavaScript templates are emitted at the end of the body and do not use placement."
+                ))
+            }
+            if fileExtension == "js", manifest.runtime == nil {
+                diagnostics.append(.init(
+                    severity: .error,
+                    location: "Info.plist:templates.files.\(file.path)",
+                    message: "JavaScript templates require a runtime dictionary declaring capabilities."
+                ))
+            }
             if fileExtension == "html", file.placement == nil {
                 diagnostics.append(.init(
                     severity: .error,
@@ -82,11 +96,11 @@ nonisolated enum ComponentPackageValidator {
                     message: "Placed HTML templates currently require page scope."
                 ))
             }
-            if fileExtension != "css" && fileExtension != "html" {
+            if fileExtension != "css" && fileExtension != "html" && fileExtension != "js" {
                 diagnostics.append(.init(
                     severity: .error,
                     location: "Info.plist:templates.files.\(file.path)",
-                    message: "Template files currently support CSS and placed HTML."
+                    message: "Template files currently support CSS, JavaScript and placed HTML."
                 ))
             }
         }
@@ -94,7 +108,7 @@ nonisolated enum ComponentPackageValidator {
             (manifest.render.html, true),
             (manifest.render.editorCSS, false)
         ] + manifest.render.files
-            .filter { $0.path.lowercased().hasSuffix(".css") || $0.path.lowercased().hasSuffix(".html") }
+            .filter { $0.path.lowercased().hasSuffix(".css") || $0.path.lowercased().hasSuffix(".html") || $0.path.lowercased().hasSuffix(".js") }
             .map { ($0.path as String?, false) }
         for declaredTemplate in templates {
             guard let path = declaredTemplate.path,
