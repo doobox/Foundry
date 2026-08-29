@@ -27,11 +27,21 @@
     &lt;key&gt;scope&lt;/key&gt;&lt;string&gt;instance&lt;/string&gt;
     &lt;key&gt;closure&lt;/key&gt;&lt;true/&gt;
 &lt;/dict&gt;</code></pre>
-<pre><code>(function () {
+<h3>The component helper</h3><p>An instance-scoped closure receives <code>component</code>, the native HTML element carrying that instance’s <code>{{ id }}</code>. The developer can query and update descendants without finding the instance manually.</p><pre><code>&lt;div id="{{ id }}" {{ component.attributes }}&gt;
+    &lt;button class="show-button"&gt;Show message&lt;/button&gt;
+    &lt;p class="message" hidden&gt;Hello from Foundry&lt;/p&gt;
+&lt;/div&gt;</code></pre><pre><code>const button = component.querySelector(".show-button");
+const message = component.querySelector(".message");
+
+button.addEventListener("click", () =&gt; {
+    message.hidden = false;
+});</code></pre><p>Foundry produces:</p><pre><code>(function (component) {
     "use strict";
 
-    // The processed contents of component.js
-})();</code></pre><p><code>closure</code> is optional and defaults to <code>true</code>. Set it to <code>false</code> only when the file intentionally creates globals; Foundry will then emit the processed source without a wrapper. Each template receives a separate closure.</p>
+    const button = component.querySelector(".show-button");
+    const message = component.querySelector(".message");
+    button.addEventListener("click", () =&gt; { message.hidden = false; });
+})(document.getElementById("foundry-a12b"));</code></pre><p>Page- and site-scoped closures receive <code>page</code>, which is the browser’s <code>document</code>. <code>closure</code> is optional and defaults to <code>true</code>. Set it to <code>false</code> only when the file intentionally creates globals; raw files receive no helper. Each template receives a separate closure.</p>
 <h2>Instance identity</h2><section class="reference-entry"><h3>{{ id }}</h3><p>Resolves to a stable, CSS-safe ID unique to the instance, such as <code>foundry-a12b…</code>.</p><pre><code>&lt;article id="{{ id }}" {{ component.attributes }}&gt;…&lt;/article&gt;
 
 #{{ id }} { border-radius: 12px; }

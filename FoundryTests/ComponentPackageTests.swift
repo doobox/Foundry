@@ -189,7 +189,7 @@ struct ComponentPackageTests {
         )
         let packageURL = try makePackage(
             manifest: manifest,
-            template: "<section {{ component.attributes }}>{% slot id=\"content\" %}</section>",
+            template: "<section id=\"{{ id }}\" {{ component.attributes }}>{% slot id=\"content\" %}</section>",
             additionalFiles: [
                 "instance.css": "#{{ id }} { color: red; }",
                 "default-scope.css": "#{{ id }} { display: block; }"
@@ -217,7 +217,7 @@ struct ComponentPackageTests {
         )
         let packageURL = try makePackage(
             manifest: manifestText,
-            template: "<section {{ component.attributes }}>{% slot id=\"content\" %}</section>",
+            template: "<section id=\"{{ id }}\" {{ component.attributes }}>{% slot id=\"content\" %}</section>",
             additionalFiles: ["component.scss": ":host {}"]
         )
         defer { try? FileManager.default.removeItem(at: packageURL) }
@@ -248,7 +248,7 @@ struct ComponentPackageTests {
             .replacingOccurrences(of: instanceCSSDeclaration, with: declaration)
         let packageURL = try makePackage(
             manifest: manifestText,
-            template: "<section {{ component.attributes }}>{% slot id=\"content\" %}</section>",
+            template: "<section id=\"{{ id }}\" {{ component.attributes }}>{% slot id=\"content\" %}</section>",
             additionalFiles: [
                 "instance.js": "document.querySelector('#{{ id }}');",
                 "page.js": "console.log('{{ package.id }} page');",
@@ -259,13 +259,15 @@ struct ComponentPackageTests {
 
         let package = try ComponentPackageLoader.load(from: packageURL)
 
-        #expect(package.instanceJavaScript.hasPrefix("(function () {"))
+        #expect(package.instanceJavaScript.hasPrefix("(function (component) {"))
         #expect(package.instanceJavaScript.contains("\"use strict\";"))
         #expect(package.instanceJavaScript.contains("{{ id }}"))
+        #expect(package.instanceJavaScript.contains("document.getElementById(\"{{ id }}\")"))
         #expect(package.pageJavaScript.contains("page"))
         #expect(!package.pageJavaScript.contains("(function ()"))
         #expect(package.siteJavaScript.contains("site"))
-        #expect(package.siteJavaScript.hasPrefix("(function () {"))
+        #expect(package.siteJavaScript.hasPrefix("(function (page) {"))
+        #expect(package.siteJavaScript.hasSuffix("})(document);"))
     }
 
     @Test

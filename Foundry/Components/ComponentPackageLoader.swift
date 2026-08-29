@@ -95,11 +95,15 @@ nonisolated enum ComponentPackageLoader {
                 .map { file in
                     let source = try read(file.path, from: resourceRootURL)
                     guard file.closure else { return source }
+                    let parameter = scope == .instance ? "component" : "page"
+                    let argument = scope == .instance
+                        ? "document.getElementById(\"{{ id }}\")"
+                        : "document"
                     return """
-                    (function () {
+                    (function (\(parameter)) {
                         "use strict";
                     \(source)
-                    })();
+                    })(\(argument));
                     """
                 }
                 .joined(separator: "\n")
