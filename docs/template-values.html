@@ -22,10 +22,16 @@
     &lt;key&gt;scope&lt;/key&gt;&lt;string&gt;page&lt;/string&gt;
     &lt;key&gt;placement&lt;/key&gt;&lt;string&gt;headEnd&lt;/string&gt;
 &lt;/dict&gt;</code></pre><div class="note"><strong>Placement is separate from scope.</strong> Scope answers “how often?” while placement answers “where?”. The primary <code>html</code> template remains instance-scoped in the normal component flow. Additional placed HTML deliberately uses page scope; site-scoped HTML is not accepted because an exported site has no single HTML document.</div>
-<h2>JavaScript</h2><p>JavaScript templates accept <code>instance</code>, <code>page</code> and <code>site</code> scope. Foundry processes their allowed macros and emits the resulting source in a script block at the end of the body. The code runs as ordinary website JavaScript under the browser’s normal security rules.</p><pre><code>&lt;dict&gt;
+<h2>JavaScript</h2><p>JavaScript templates accept <code>instance</code>, <code>page</code> and <code>site</code> scope. Foundry processes their allowed macros and emits the resulting source in a script block at the end of the body. The code runs as ordinary website JavaScript under the browser’s normal security rules.</p><p>Each JavaScript file is wrapped in its own immediately invoked function by default, keeping its variables out of the global scope. The developer writes an ordinary file; Foundry places the complete processed source inside the wrapper.</p><pre><code>&lt;dict&gt;
     &lt;key&gt;path&lt;/key&gt;&lt;string&gt;component.js&lt;/string&gt;
     &lt;key&gt;scope&lt;/key&gt;&lt;string&gt;instance&lt;/string&gt;
+    &lt;key&gt;closure&lt;/key&gt;&lt;true/&gt;
 &lt;/dict&gt;</code></pre>
+<pre><code>(function () {
+    "use strict";
+
+    // The processed contents of component.js
+})();</code></pre><p><code>closure</code> is optional and defaults to <code>true</code>. Set it to <code>false</code> only when the file intentionally creates globals; Foundry will then emit the processed source without a wrapper. Each template receives a separate closure.</p>
 <h2>Instance identity</h2><section class="reference-entry"><h3>{{ id }}</h3><p>Resolves to a stable, CSS-safe ID unique to the instance, such as <code>foundry-a12b…</code>.</p><pre><code>&lt;article id="{{ id }}" {{ component.attributes }}&gt;…&lt;/article&gt;
 
 #{{ id }} { border-radius: 12px; }

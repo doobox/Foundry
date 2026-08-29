@@ -240,7 +240,7 @@ struct ComponentPackageTests {
         <key>files</key>
         <array>
             <dict><key>path</key><string>instance.js</string><key>scope</key><string>instance</string></dict>
-            <dict><key>path</key><string>page.js</string><key>scope</key><string>page</string></dict>
+            <dict><key>path</key><string>page.js</string><key>scope</key><string>page</string><key>closure</key><false/></dict>
             <dict><key>path</key><string>site.js</string><key>scope</key><string>site</string></dict>
         </array>
         """
@@ -259,9 +259,13 @@ struct ComponentPackageTests {
 
         let package = try ComponentPackageLoader.load(from: packageURL)
 
+        #expect(package.instanceJavaScript.hasPrefix("(function () {"))
+        #expect(package.instanceJavaScript.contains("\"use strict\";"))
         #expect(package.instanceJavaScript.contains("{{ id }}"))
         #expect(package.pageJavaScript.contains("page"))
+        #expect(!package.pageJavaScript.contains("(function ()"))
         #expect(package.siteJavaScript.contains("site"))
+        #expect(package.siteJavaScript.hasPrefix("(function () {"))
     }
 
     @Test

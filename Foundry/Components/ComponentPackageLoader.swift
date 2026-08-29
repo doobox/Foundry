@@ -92,7 +92,16 @@ nonisolated enum ComponentPackageLoader {
         func javascript(scope: ComponentPackageTemplateFile.Scope) throws -> String {
             try manifest.render.files
                 .filter { $0.scope == scope && $0.path.lowercased().hasSuffix(".js") }
-                .map { try read($0.path, from: resourceRootURL) }
+                .map { file in
+                    let source = try read(file.path, from: resourceRootURL)
+                    guard file.closure else { return source }
+                    return """
+                    (function () {
+                        "use strict";
+                    \(source)
+                    })();
+                    """
+                }
                 .joined(separator: "\n")
         }
         return LoadedComponentPackage(

@@ -216,17 +216,20 @@ nonisolated struct ComponentPackageTemplateFile: Codable, Equatable, Sendable {
     let path: String
     let scope: Scope
     let placement: Placement?
+    let closure: Bool
 
     enum CodingKeys: String, CodingKey {
         case path
         case scope
         case placement
+        case closure
     }
 
-    init(path: String, scope: Scope = .instance, placement: Placement? = nil) {
+    init(path: String, scope: Scope = .instance, placement: Placement? = nil, closure: Bool = true) {
         self.path = path
         self.scope = scope
         self.placement = placement
+        self.closure = closure
     }
 
     init(from decoder: Decoder) throws {
@@ -234,6 +237,7 @@ nonisolated struct ComponentPackageTemplateFile: Codable, Equatable, Sendable {
         path = try container.decode(String.self, forKey: .path)
         scope = try container.decodeIfPresent(Scope.self, forKey: .scope) ?? .instance
         placement = try container.decodeIfPresent(Placement.self, forKey: .placement)
+        closure = try container.decodeIfPresent(Bool.self, forKey: .closure) ?? true
     }
 }
 
