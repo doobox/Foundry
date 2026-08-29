@@ -135,7 +135,7 @@ struct CanvasInsertionEditingTests {
 
     @Test
     func adjacentAndInsidePlacementsNormalizeSlotMembership() {
-        var target = ComponentNode.make(.text)
+        var target = ComponentNode.make(.paragraph)
         target.slotID = "secondary"
         var parent = ComponentNode.make(.container)
         parent.children = [target]

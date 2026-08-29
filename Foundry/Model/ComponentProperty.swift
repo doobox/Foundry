@@ -26,6 +26,18 @@ nonisolated struct ComponentProperty: Codable, Equatable, Identifiable, Sendable
         static let textColor = Key(rawValue: "textColor")
         static let fontSize = Key(rawValue: "fontSize")
         static let themeFontFamily = Key(rawValue: "themeFontFamily")
+        static let themeFontSize = Key(rawValue: "themeFontSize")
+        static let themeColor = Key(rawValue: "themeColor")
+        static let themeColorShade = Key(rawValue: "themeColorShade")
+        static let themeTextAlignment = Key(rawValue: "themeTextAlignment")
+        static let themeFontWeight = Key(rawValue: "themeFontWeight")
+        static let themeLineHeight = Key(rawValue: "themeLineHeight")
+        static let themeLetterSpacing = Key(rawValue: "themeLetterSpacing")
+        static let themeItalic = Key(rawValue: "themeItalic")
+        static let themeTextShadow = Key(rawValue: "themeTextShadow")
+        static let themeTextCase = Key(rawValue: "themeTextCase")
+        static let themeWhitespace = Key(rawValue: "themeWhitespace")
+        static let themeUnderline = Key(rawValue: "themeUnderline")
         static let accessibilityLabel = Key(rawValue: "accessibilityLabel")
         static let marginTop = Key(rawValue: "marginTop")
         static let marginBottom = Key(rawValue: "marginBottom")
@@ -77,6 +89,57 @@ nonisolated struct ComponentProperty: Codable, Equatable, Identifiable, Sendable
         var booleanValue: Bool? {
             guard case .boolean(let value) = self else { return nil }
             return value
+        }
+    }
+}
+
+nonisolated enum ThemeTypographyControlCSS {
+    static func declarations(for node: ComponentNode, theme: Theme) -> [String] {
+        let keys = Set(node.type.definition.properties.map(\.key))
+        guard keys.contains(.themeFontSize) else { return [] }
+
+        let sizeReference = node.property(.themeFontSize)
+        let lineHeight = node.property(.themeLineHeight)
+        var declarations = [
+            "font-size: \(theme.fontSizeCSSVariable(for: sizeReference))",
+            "line-height: \(resolvedLineHeight(lineHeight, sizeReference: sizeReference, theme: theme))",
+            "text-align: \(node.property(.themeTextAlignment))",
+            "font-weight: \(node.property(.themeFontWeight))",
+            "letter-spacing: \(letterSpacing(node.property(.themeLetterSpacing)))",
+            "font-style: \(node.propertyValue(.themeItalic).booleanValue == true ? "italic" : "normal")",
+            "text-shadow: \(textShadow(node.property(.themeTextShadow)))",
+            "text-transform: \(node.property(.themeTextCase))",
+            "white-space: \(node.property(.themeWhitespace))",
+            "text-decoration-line: \(node.property(.themeUnderline))"
+        ]
+        declarations.removeAll { $0.hasSuffix(": none") && $0.hasPrefix("text-transform") }
+        return declarations
+    }
+
+    private static func resolvedLineHeight(_ value: String, sizeReference: String, theme: Theme) -> String {
+        guard value != "theme", let lineHeight = ThemeLineHeight(rawValue: value) else {
+            return theme.lineHeightCSSVariable(for: sizeReference)
+        }
+        return lineHeight.value.formatted(.number.precision(.fractionLength(0...3)))
+    }
+
+    private static func letterSpacing(_ value: String) -> String {
+        switch value {
+        case "tighter": "-0.05em"
+        case "tight": "-0.025em"
+        case "wide": "0.025em"
+        case "wider": "0.05em"
+        case "widest": "0.1em"
+        default: "0em"
+        }
+    }
+
+    private static func textShadow(_ value: String) -> String {
+        switch value {
+        case "small": "0 1px 2px rgb(0 0 0 / 0.18)"
+        case "medium": "0 2px 4px rgb(0 0 0 / 0.22)"
+        case "large": "0 4px 10px rgb(0 0 0 / 0.28)"
+        default: "none"
         }
     }
 }

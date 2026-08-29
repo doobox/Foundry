@@ -13,7 +13,7 @@ nonisolated struct LoadedComponentPackage: Sendable {
     }
 
     var iconURL: URL {
-        resourceRootURL.appending(path: manifest.icon)
+        resourceRootURL.appending(path: "icon.svg")
     }
 
     var resourceRootURL: URL {
@@ -60,6 +60,10 @@ nonisolated enum ComponentPackageLoader {
             manifest = try PropertyListDecoder().decode(ComponentPackageManifest.self, from: data)
         } catch {
             throw ComponentPackageLoadingError.unreadableManifest(error)
+        }
+
+        guard manifest.type == .component else {
+            throw ComponentPackageLoadingError.unreadableManifest(CocoaError(.fileReadCorruptFile))
         }
 
         let resourceRootURL = rootURL.appending(path: "Contents/Resources", directoryHint: .isDirectory)

@@ -5,9 +5,9 @@ import Testing
 struct ComponentPlacementTests {
     @Test
     func insertsBeforeAndAfterTargets() {
-        let first = ComponentNode.make(.text)
+        let first = ComponentNode.make(.paragraph)
         let second = ComponentNode.make(.button)
-        let before = ComponentNode.make(.text)
+        let before = ComponentNode.make(.paragraph)
         let after = ComponentNode.make(.button)
         var tree = [first, second]
 
@@ -22,7 +22,7 @@ struct ComponentPlacementTests {
     @Test
     func movesComponentIntoContainer() {
         let container = ComponentNode.make(.container)
-        let text = ComponentNode.make(.text)
+        let text = ComponentNode.make(.paragraph)
         var tree = [container, text]
 
         let moved = tree.moveNode(withID: text.id, to: .inside(container.id))
@@ -34,7 +34,7 @@ struct ComponentPlacementTests {
 
     @Test
     func rejectsChildrenForLeafComponents() {
-        let text = ComponentNode.make(.text)
+        let text = ComponentNode.make(.paragraph)
         let button = ComponentNode.make(.button)
         var tree = [text, button]
 

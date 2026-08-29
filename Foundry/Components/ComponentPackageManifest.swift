@@ -1,13 +1,14 @@
 import Foundation
 
 nonisolated struct ComponentPackageManifest: Codable, Equatable, Sendable {
+    let type: FoundryPackType
     let identifier: String
     let name: String
     let description: String
     let author: String?
+    let version: String?
     let category: String
     let tags: [String]
-    let icon: String
     let slots: [ComponentPackageSlot]
     let properties: [ComponentPackageProperty]
     let themeControls: [ComponentPackageThemeControl]
@@ -18,13 +19,14 @@ nonisolated struct ComponentPackageManifest: Codable, Equatable, Sendable {
     let missingComponent: ComponentPackageMissingComponent?
 
     enum CodingKeys: String, CodingKey {
+        case type
         case identifier = "CFBundleIdentifier"
         case name = "title"
         case description
         case author
+        case version
         case category = "group"
         case tags
-        case icon
         case slots
         case properties = "customItems"
         case themeControls
@@ -36,13 +38,14 @@ nonisolated struct ComponentPackageManifest: Codable, Equatable, Sendable {
     }
 
     init(
+        type: FoundryPackType = .component,
         identifier: String,
         name: String,
         description: String = "",
         author: String? = nil,
-        category: String = "Components",
+        version: String? = nil,
+        category: String = "Other",
         tags: [String] = [],
-        icon: String = "",
         slots: [ComponentPackageSlot] = [],
         properties: [ComponentPackageProperty] = [],
         themeControls: [ComponentPackageThemeControl] = [],
@@ -52,13 +55,14 @@ nonisolated struct ComponentPackageManifest: Codable, Equatable, Sendable {
         helpURL: URL? = nil,
         missingComponent: ComponentPackageMissingComponent? = nil
     ) {
+        self.type = type
         self.identifier = identifier
         self.name = name
         self.description = description
         self.author = author
+        self.version = version
         self.category = category
         self.tags = tags
-        self.icon = icon
         self.slots = slots
         self.properties = properties
         self.themeControls = themeControls
@@ -71,13 +75,14 @@ nonisolated struct ComponentPackageManifest: Codable, Equatable, Sendable {
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
+        type = try container.decode(FoundryPackType.self, forKey: .type)
         identifier = try container.decode(String.self, forKey: .identifier)
         name = try container.decode(String.self, forKey: .name)
         description = try container.decodeIfPresent(String.self, forKey: .description) ?? ""
         author = try container.decodeIfPresent(String.self, forKey: .author)
-        category = try container.decodeIfPresent(String.self, forKey: .category) ?? "Components"
+        version = try container.decodeIfPresent(String.self, forKey: .version)
+        category = try container.decodeIfPresent(String.self, forKey: .category) ?? "Other"
         tags = try container.decodeIfPresent([String].self, forKey: .tags) ?? []
-        icon = try container.decodeIfPresent(String.self, forKey: .icon) ?? ""
         slots = try container.decodeIfPresent([ComponentPackageSlot].self, forKey: .slots) ?? []
         properties = try container.decodeIfPresent([ComponentPackageProperty].self, forKey: .properties) ?? []
         themeControls = try container.decodeIfPresent([ComponentPackageThemeControl].self, forKey: .themeControls) ?? []
@@ -92,12 +97,15 @@ nonisolated struct ComponentPackageManifest: Codable, Equatable, Sendable {
 nonisolated struct ComponentPackageThemeControl: Codable, Equatable, Sendable {
     enum Kind: String, Codable, Equatable, Sendable {
         case fontFamily
+        case fontSize
+        case color
     }
 
     let type: Kind
     let title: String?
     let group: String?
     let defaultValue: String?
+    let shade: Int?
     let responsive: Bool?
 
     enum CodingKeys: String, CodingKey {
@@ -105,6 +113,7 @@ nonisolated struct ComponentPackageThemeControl: Codable, Equatable, Sendable {
         case title
         case group
         case defaultValue = "default"
+        case shade
         case responsive
     }
 }

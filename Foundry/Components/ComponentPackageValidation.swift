@@ -36,7 +36,32 @@ nonisolated enum ComponentPackageValidator {
                     diagnostics.append(.init(
                         severity: .error,
                         location: "Info.plist:themeControls.fontFamily.default",
-                        message: "A fontFamily default must be body, headings, or monospaced."
+                        message: "A fontFamily default must be body, heading, or monospaced."
+                    ))
+                }
+            case .fontSize:
+                if let defaultValue = control.defaultValue,
+                   !Theme.standard.typography.fontSizes.map(\.id).contains(defaultValue) {
+                    diagnostics.append(.init(
+                        severity: .error,
+                        location: "Info.plist:themeControls.fontSize.default",
+                        message: "A fontSize default must use the standard scale from xs through 9xl."
+                    ))
+                }
+            case .color:
+                if let defaultValue = control.defaultValue,
+                   ThemeColorRole(rawValue: defaultValue) == nil {
+                    diagnostics.append(.init(
+                        severity: .error,
+                        location: "Info.plist:themeControls.color.default",
+                        message: "A color default must be background, surface, text, or accent."
+                    ))
+                }
+                if let shade = control.shade, !ThemeColorScale.shades.contains(shade) {
+                    diagnostics.append(.init(
+                        severity: .error,
+                        location: "Info.plist:themeControls.color.shade",
+                        message: "A color shade must be one of 50, 100, 200, 300, 400, 500, 600, 700, 800, 900, or 950."
                     ))
                 }
             }
@@ -59,7 +84,7 @@ nonisolated enum ComponentPackageValidator {
             }
         }
 
-        let declaredFiles = [manifest.icon, manifest.render.html, manifest.render.css, manifest.render.editorCSS, manifest.runtime?.entry]
+        let declaredFiles = ["icon.svg", manifest.render.html, manifest.render.css, manifest.render.editorCSS, manifest.runtime?.entry]
             .compactMap { $0 }
             .filter { !$0.isEmpty } + manifest.assets
         for path in declaredFiles {
@@ -98,18 +123,6 @@ nonisolated enum ComponentPackageValidator {
                 location: templateLocation,
                 message: "The root element must include {{ component.attributes }} so Foundry can select and edit the component."
             ))
-        }
-
-        for reference in template.references(matching: #"%sentences\[(-?[0-9]+)\]%"#) {
-            guard let count = Int(reference.value), (1...10).contains(count) else {
-                diagnostics.append(templateDiagnostic(
-                    templateLocation,
-                    template: template,
-                    offset: reference.offset,
-                    message: "Sentence counts must be between 1 and 10."
-                ))
-                continue
-            }
         }
 
         for reference in template.references(matching: #"\{\{\s*property\.([A-Za-z][A-Za-z0-9_-]*)\s*\}\}"#) +

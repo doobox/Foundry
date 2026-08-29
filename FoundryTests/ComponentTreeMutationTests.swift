@@ -6,7 +6,7 @@ struct ComponentTreeMutationTests {
     @Test
     func appendsChildToRequestedContainer() {
         let container = ComponentNode.make(.container)
-        let child = ComponentNode.make(.text)
+        let child = ComponentNode.make(.paragraph)
         var tree = [container]
 
         let changed = tree.append(child, to: container.id)
@@ -18,7 +18,7 @@ struct ComponentTreeMutationTests {
 
     @Test
     func updatesNestedComponentWithoutChangingIdentity() {
-        let child = ComponentNode.make(.text)
+        let child = ComponentNode.make(.paragraph)
         var tree = [ComponentNode(type: .container, children: [child])]
 
         let changed = tree.updateNode(withID: child.id) {
@@ -44,7 +44,7 @@ struct ComponentTreeMutationTests {
 
     @Test
     func findsEveryAncestorNeededToRevealNestedSelection() {
-        let selected = ComponentNode.make(.text)
+        let selected = ComponentNode.make(.paragraph)
         let innerContainer = ComponentNode(type: .container, children: [selected])
         let outerContainer = ComponentNode(type: .container, children: [innerContainer])
         let tree = [outerContainer]
@@ -56,7 +56,7 @@ struct ComponentTreeMutationTests {
 
     @Test
     func structureProjectionShowsExpandedChildrenAtTheirDepth() {
-        let grandchild = ComponentNode.make(.text)
+        let grandchild = ComponentNode.make(.paragraph)
         let child = ComponentNode(type: .container, children: [grandchild])
         let parent = ComponentNode(type: .container, children: [child])
 
@@ -73,7 +73,7 @@ struct ComponentTreeMutationTests {
     func structureProjectionHidesOnlyCollapsedDescendants() {
         let child = ComponentNode.make(.button)
         let parent = ComponentNode(type: .container, children: [child])
-        let sibling = ComponentNode.make(.text)
+        let sibling = ComponentNode.make(.paragraph)
 
         let items = StructureTreeItem.flatten(
             [parent, sibling],

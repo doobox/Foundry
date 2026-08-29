@@ -5,10 +5,20 @@ struct StructureOutlineView: NSViewRepresentable {
     let components: [ComponentNode]
     @Binding var selectedComponentIDs: Set<UUID>
     @Binding var primarySelectedComponentID: UUID?
+    let renameComponent: (UUID, String) -> Void
     let moveComponents: ([UUID], ComponentPlacement) -> Bool
     let insertComponent: (ComponentType, ComponentPlacement) -> Bool
     let insertReusableComponent: (UUID, ComponentPlacement) -> Bool
     let insertGlobalComponent: (UUID, ComponentPlacement) -> Bool
+    let duplicateComponent: () -> Void
+    let copyComponent: () -> Void
+    let pasteComponent: () -> Void
+    let canPasteComponent: Bool
+    let saveAsReusableComponent: (String) -> Void
+    let saveAsGlobalComponent: (String) -> Void
+    let moveComponent: (Int) -> Void
+    let outdentComponent: () -> Void
+    let deleteComponent: () -> Void
 
     func makeCoordinator() -> Coordinator {
         Coordinator(parent: self)
@@ -16,7 +26,8 @@ struct StructureOutlineView: NSViewRepresentable {
 
     func makeNSView(context: Context) -> NSScrollView {
         let column = NSTableColumn(identifier: .componentColumn)
-        let outlineView = NSOutlineView()
+        let outlineView = StructureNativeOutlineView()
+        outlineView.handleKeyEvent = context.coordinator.handleKeyEvent
         outlineView.addTableColumn(column)
         outlineView.outlineTableColumn = column
         outlineView.headerView = nil
@@ -26,6 +37,9 @@ struct StructureOutlineView: NSViewRepresentable {
         outlineView.allowsMultipleSelection = true
         outlineView.dataSource = context.coordinator
         outlineView.delegate = context.coordinator
+        let contextMenu = NSMenu()
+        contextMenu.delegate = context.coordinator
+        outlineView.menu = contextMenu
         outlineView.registerForDraggedTypes([.string])
         outlineView.setDraggingSourceOperationMask(.move, forLocal: true)
         outlineView.setDraggingSourceOperationMask(.copy, forLocal: false)
@@ -46,12 +60,12 @@ struct StructureOutlineView: NSViewRepresentable {
     }
 
     @MainActor
-    final class Coordinator: NSObject, NSOutlineViewDataSource, NSOutlineViewDelegate {
+    final class Coordinator: NSObject, NSOutlineViewDataSource, NSOutlineViewDelegate, NSTextFieldDelegate, NSMenuDelegate {
         var parent: StructureOutlineView
         weak var outlineView: NSOutlineView?
         private var roots: [Item] = []
         private var itemsByID: [UUID: Item] = [:]
-        private var displayedSignature: [UUID] = []
+        private var displayedSignature: [String] = []
         private var isRestoringSelection = false
 
         init(parent: StructureOutlineView) {
@@ -59,7 +73,7 @@ struct StructureOutlineView: NSViewRepresentable {
         }
 
         func reload(components: [ComponentNode], selectedIDs: Set<UUID>) {
-            let signature = flattenedIDs(components)
+            let signature = flattenedSignature(components)
             if signature != displayedSignature {
                 let expandedIDs = expandedItemIDs()
                 displayedSignature = signature
@@ -93,11 +107,197 @@ struct StructureOutlineView: NSViewRepresentable {
             let cell = outlineView.makeView(withIdentifier: identifier, owner: nil) as? NSTableCellView
                 ?? makeCell(identifier: identifier)
             cell.textField?.stringValue = item.component.name
-            cell.imageView?.image = NSImage(
-                systemSymbolName: item.component.type.systemImage,
-                accessibilityDescription: item.component.name
-            )
+            cell.textField?.identifier = NSUserInterfaceItemIdentifier(item.id.uuidString)
+            cell.textField?.delegate = self
+            cell.imageView?.image = componentIcon(for: item.component)
+            cell.imageView?.setAccessibilityLabel(item.component.name)
             return cell
+        }
+
+        private func componentIcon(for component: ComponentNode) -> NSImage? {
+            if let iconURL = component.type.definition.package?.iconURL,
+               let icon = NSImage(contentsOf: iconURL) {
+                return icon
+            }
+            return NSImage(
+                systemSymbolName: component.type.systemImage,
+                accessibilityDescription: component.name
+            )
+        }
+
+        func menuNeedsUpdate(_ menu: NSMenu) {
+            menu.removeAllItems()
+            guard let outlineView else { return }
+            let row = outlineView.clickedRow >= 0 ? outlineView.clickedRow : outlineView.selectedRow
+            guard row >= 0, let item = outlineView.item(atRow: row) as? Item else { return }
+            selectForContextAction(item)
+            let generatedMenu = contextMenu(for: item)
+            for menuItem in generatedMenu.items {
+                generatedMenu.removeItem(menuItem)
+                menu.addItem(menuItem)
+            }
+        }
+
+        private func contextMenu(for item: Item) -> NSMenu {
+            let menu = NSMenu()
+            menu.addItem(menuItem("Rename", action: #selector(renameFromContextMenu(_:)), item: item, key: "\r", modifiers: []))
+            menu.addItem(.separator())
+            menu.addItem(menuItem("Duplicate", action: #selector(duplicateFromContextMenu(_:)), item: item, key: "d"))
+            menu.addItem(menuItem("Copy", action: #selector(copyFromContextMenu(_:)), item: item, key: "c"))
+            let pasteItem = menuItem("Paste", action: #selector(pasteFromContextMenu(_:)), item: item, key: "v")
+            pasteItem.isEnabled = parent.canPasteComponent
+            menu.addItem(pasteItem)
+            menu.addItem(.separator())
+            menu.addItem(menuItem("Save as Reusable Component…", action: #selector(saveReusableFromContextMenu(_:)), item: item))
+            menu.addItem(menuItem("Save as Global Component…", action: #selector(saveGlobalFromContextMenu(_:)), item: item))
+            menu.addItem(.separator())
+            menu.addItem(menuItem("Move Up", action: #selector(moveUpFromContextMenu(_:)), item: item, key: String(Character(UnicodeScalar(NSUpArrowFunctionKey)!)), modifiers: [.command, .option]))
+            menu.addItem(menuItem("Move Down", action: #selector(moveDownFromContextMenu(_:)), item: item, key: String(Character(UnicodeScalar(NSDownArrowFunctionKey)!)), modifiers: [.command, .option]))
+            menu.addItem(menuItem("Move Out of Container", action: #selector(outdentFromContextMenu(_:)), item: item, key: String(Character(UnicodeScalar(NSLeftArrowFunctionKey)!)), modifiers: [.command, .option]))
+            menu.addItem(.separator())
+            menu.addItem(menuItem("Delete", action: #selector(deleteFromContextMenu(_:)), item: item, key: String(Character(UnicodeScalar(NSDeleteCharacter)!)), modifiers: []))
+            return menu
+        }
+
+        private func menuItem(
+            _ title: String,
+            action: Selector,
+            item: Item,
+            key: String = "",
+            modifiers: NSEvent.ModifierFlags = .command
+        ) -> NSMenuItem {
+            let menuItem = NSMenuItem(title: title, action: action, keyEquivalent: key)
+            menuItem.target = self
+            menuItem.representedObject = item.id
+            menuItem.keyEquivalentModifierMask = modifiers
+            return menuItem
+        }
+
+        func handleKeyEvent(_ event: NSEvent) -> Bool {
+            guard let outlineView, outlineView.currentEditor() == nil else { return false }
+            let modifiers = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+            let character = event.charactersIgnoringModifiers?.lowercased()
+
+            if modifiers == .command {
+                switch character {
+                case "d": parent.duplicateComponent(); return true
+                case "c": parent.copyComponent(); return true
+                case "v" where parent.canPasteComponent: parent.pasteComponent(); return true
+                default: break
+                }
+            }
+
+            if modifiers == [.command, .option] {
+                switch event.keyCode {
+                case 126: parent.moveComponent(-1); return true
+                case 125: parent.moveComponent(1); return true
+                case 123: parent.outdentComponent(); return true
+                default: break
+                }
+            }
+
+            switch event.keyCode {
+            case 36, 76:
+                beginRenamingSelectedRow()
+                return true
+            case 51, 117:
+                parent.deleteComponent()
+                return true
+            default:
+                return false
+            }
+        }
+
+        private func beginRenamingSelectedRow() {
+            guard let outlineView, outlineView.selectedRow >= 0 else { return }
+            outlineView.editColumn(0, row: outlineView.selectedRow, with: nil, select: true)
+        }
+
+        @objc private func renameFromContextMenu(_ sender: NSMenuItem) {
+            guard let item = contextItem(from: sender),
+                  let outlineView else { return }
+            let row = outlineView.row(forItem: item)
+            guard row >= 0 else { return }
+            selectForContextAction(item)
+            outlineView.editColumn(0, row: row, with: nil, select: true)
+        }
+
+        @objc private func duplicateFromContextMenu(_ sender: NSMenuItem) {
+            perform(sender, action: parent.duplicateComponent)
+        }
+
+        @objc private func copyFromContextMenu(_ sender: NSMenuItem) {
+            perform(sender, action: parent.copyComponent)
+        }
+
+        @objc private func pasteFromContextMenu(_ sender: NSMenuItem) {
+            perform(sender, action: parent.pasteComponent)
+        }
+
+        @objc private func saveReusableFromContextMenu(_ sender: NSMenuItem) {
+            guard let item = contextItem(from: sender) else { return }
+            selectForContextAction(item)
+            parent.saveAsReusableComponent(item.component.name)
+        }
+
+        @objc private func saveGlobalFromContextMenu(_ sender: NSMenuItem) {
+            guard let item = contextItem(from: sender) else { return }
+            selectForContextAction(item)
+            parent.saveAsGlobalComponent(item.component.name)
+        }
+
+        @objc private func moveUpFromContextMenu(_ sender: NSMenuItem) {
+            perform(sender) { parent.moveComponent(-1) }
+        }
+
+        @objc private func moveDownFromContextMenu(_ sender: NSMenuItem) {
+            perform(sender) { parent.moveComponent(1) }
+        }
+
+        @objc private func outdentFromContextMenu(_ sender: NSMenuItem) {
+            perform(sender, action: parent.outdentComponent)
+        }
+
+        @objc private func deleteFromContextMenu(_ sender: NSMenuItem) {
+            perform(sender, action: parent.deleteComponent)
+        }
+
+        private func perform(_ sender: NSMenuItem, action: () -> Void) {
+            guard let item = contextItem(from: sender) else { return }
+            selectForContextAction(item)
+            action()
+        }
+
+        private func contextItem(from sender: NSMenuItem) -> Item? {
+            guard let componentID = sender.representedObject as? UUID else { return nil }
+            return itemsByID[componentID]
+        }
+
+        private func selectForContextAction(_ item: Item) {
+            guard let outlineView else { return }
+            let row = outlineView.row(forItem: item)
+            guard row >= 0 else { return }
+            if parent.selectedComponentIDs.contains(item.id) {
+                parent.primarySelectedComponentID = item.id
+                return
+            }
+            outlineView.selectRowIndexes(IndexSet(integer: row), byExtendingSelection: false)
+            parent.selectedComponentIDs = [item.id]
+            parent.primarySelectedComponentID = item.id
+        }
+
+        func controlTextDidEndEditing(_ notification: Notification) {
+            guard let textField = notification.object as? NSTextField,
+                  let identifier = textField.identifier?.rawValue,
+                  let componentID = UUID(uuidString: identifier),
+                  let item = itemsByID[componentID] else { return }
+            let name = textField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !name.isEmpty else {
+                textField.stringValue = item.component.name
+                return
+            }
+            guard name != item.component.name else { return }
+            parent.renameComponent(componentID, name)
         }
 
         func outlineViewSelectionDidChange(_ notification: Notification) {
@@ -196,7 +396,13 @@ struct StructureOutlineView: NSViewRepresentable {
             cell.identifier = identifier
             let imageView = NSImageView()
             imageView.symbolConfiguration = .init(pointSize: 14, weight: .regular)
+            imageView.imageScaling = .scaleProportionallyUpOrDown
+            imageView.wantsLayer = true
+            imageView.layer?.cornerRadius = 18 * 0.16
+            imageView.layer?.masksToBounds = true
             let textField = NSTextField(labelWithString: "")
+            textField.isEditable = true
+            textField.isSelectable = true
             textField.lineBreakMode = .byTruncatingTail
             imageView.translatesAutoresizingMaskIntoConstraints = false
             textField.translatesAutoresizingMaskIntoConstraints = false
@@ -249,9 +455,18 @@ struct StructureOutlineView: NSViewRepresentable {
             return false
         }
 
-        private func flattenedIDs(_ components: [ComponentNode]) -> [UUID] {
-            components.flatMap { [$0.id] + flattenedIDs($0.children) }
+        private func flattenedSignature(_ components: [ComponentNode]) -> [String] {
+            components.flatMap { ["\($0.id.uuidString):\($0.name)"] + flattenedSignature($0.children) }
         }
+    }
+}
+
+private final class StructureNativeOutlineView: NSOutlineView {
+    var handleKeyEvent: ((NSEvent) -> Bool)?
+
+    override func keyDown(with event: NSEvent) {
+        if handleKeyEvent?(event) == true { return }
+        super.keyDown(with: event)
     }
 }
 

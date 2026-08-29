@@ -369,21 +369,8 @@ private struct ComponentInspector: View {
             }
         }
 
-        Section("Component") {
-            LabeledContent("Type", value: component.type.displayName)
-            TextField(
-                "Name",
-                text: Binding(
-                    get: { component.name },
-                    set: {
-                        if reusableDefinition != nil, !isGlobalOverride {
-                            editor.renameSharedReusableComponentInstance(componentID: component.id, name: $0)
-                        } else {
-                            editor.renameComponent(id: component.id, name: $0)
-                        }
-                    }
-                )
-            )
+        Section {
+            componentIdentityHeader
         }
 
         ForEach(inspectorSections, id: \.rawValue) { section in
@@ -394,28 +381,11 @@ private struct ComponentInspector: View {
             }
         }
 
-        if let inlineContentProperty {
-            Section {
-                DisclosureGroup {
-                    propertyEditor(inlineContentProperty)
-                    Text("This content can also be edited directly on the canvas.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                } label: {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Content")
-                        Text("Editable on canvas")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-            }
-        }
     }
 
     private var inspectorSections: [ComponentPropertySection] {
         component.type.definition.properties.reduce(into: []) { sections, property in
-            guard property.key != component.type.definition.inlineEditableProperty,
+            guard property.isInspectorVisible,
                   !sections.contains(property.section) else { return }
             sections.append(property.section)
         }
@@ -423,7 +393,7 @@ private struct ComponentInspector: View {
 
     private func properties(in section: ComponentPropertySection) -> [ComponentPropertyDefinition] {
         component.type.definition.properties.filter {
-            $0.section == section && $0.key != component.type.definition.inlineEditableProperty
+            $0.section == section && $0.isInspectorVisible
         }
     }
 
@@ -439,8 +409,42 @@ private struct ComponentInspector: View {
         )
     }
 
-    private var inlineContentProperty: ComponentPropertyDefinition? {
-        guard let key = component.type.definition.inlineEditableProperty else { return nil }
-        return component.type.definition.properties.first(where: { $0.key == key })
+    private var componentIdentityHeader: some View {
+        HStack(spacing: 12) {
+            Group {
+                if let icon = componentIcon {
+                    Image(nsImage: icon)
+                        .resizable()
+                        .scaledToFit()
+                } else {
+                    Image(systemName: component.type.systemImage)
+                        .font(.title2)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .frame(width: 32, height: 32)
+            .background(.quaternary, in: RoundedRectangle(cornerRadius: 32 * 0.16))
+            .clipShape(RoundedRectangle(cornerRadius: 32 * 0.16))
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(component.type.displayName)
+                    .font(.headline)
+                Text(componentDeveloper)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+
+            Spacer(minLength: 0)
+        }
+        .padding(.vertical, 4)
+    }
+
+    private var componentIcon: NSImage? {
+        guard let package = component.type.definition.package else { return nil }
+        return NSImage(contentsOf: package.iconURL)
+    }
+
+    private var componentDeveloper: String {
+        component.type.definition.package?.manifest.author ?? "Foundry"
     }
 }

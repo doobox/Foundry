@@ -1,0 +1,18 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Theme controls · Foundry API</title><link rel="stylesheet" href="styles.css"><script src="app.js" defer></script></head><body data-base=""><div class="shell"><nav data-doc-nav></nav><main>
+<div class="breadcrumbs"><a href="index.html">Foundry API</a><span>›</span>Theme controls</div><h1>Theme controls</h1><p class="lede">The shared dictionary entries accepted by every Foundry-provided theme control.</p>
+<section class="reference-entry"><h3>type</h3><div class="api-meta"><span class="pill">Type: String</span><span class="pill required">Required</span></div><p>Identifies the control Foundry should provide. Supported values are <a href="font-family.html"><code>fontFamily</code></a> and <a href="font-size.html"><code>fontSize</code></a>. Unknown values prevent the component plist from loading.</p></section>
+<section class="reference-entry"><h3>title</h3><div class="api-meta"><span class="pill">Type: String</span><span class="pill">Control-specific default</span></div><p>The label displayed beside the control in the inspector. Omit it to use the standard title defined by Foundry for that control.</p></section>
+<section class="reference-entry"><h3>group</h3><div class="api-meta"><span class="pill">Type: String</span><span class="pill">Control-specific default</span></div><p>The inspector group containing the control. Controls with the same group name are displayed together.</p></section>
+<section class="reference-entry"><h3>default</h3><div class="api-meta"><span class="pill">Type: Control-specific</span><span class="pill">Control-specific default</span></div><p>The value assigned when a new component instance is inserted. Supported values and the fallback are documented by each control type.</p></section>
+<section class="reference-entry"><h3>responsive</h3><div class="api-meta"><span class="pill">Type: Boolean</span><span class="pill">Default: false</span></div><p>When <code>true</code>, the inspector permits different values at supported breakpoints. Values inherit from narrower breakpoints until the user creates an override, and an override can be reset to restore inheritance.</p></section>
+<h2>Example</h2><pre><code>&lt;key&gt;themeControls&lt;/key&gt;
+&lt;array&gt;
+    &lt;dict&gt;
+        &lt;key&gt;type&lt;/key&gt;&lt;string&gt;fontFamily&lt;/string&gt;
+        &lt;key&gt;title&lt;/key&gt;&lt;string&gt;Typeface&lt;/string&gt;
+        &lt;key&gt;group&lt;/key&gt;&lt;string&gt;Typography&lt;/string&gt;
+        &lt;key&gt;default&lt;/key&gt;&lt;string&gt;heading&lt;/string&gt;
+        &lt;key&gt;responsive&lt;/key&gt;&lt;true/&gt;
+    &lt;/dict&gt;
+&lt;/array&gt;</code></pre>
+</main></div></body></html>

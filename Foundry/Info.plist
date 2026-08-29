@@ -16,11 +16,23 @@
 				<string>uk.co.garysimpson.foundry.project</string>
 			</array>
 		</dict>
+		<dict>
+			<key>CFBundleTypeName</key>
+			<string>Foundry Pack</string>
+			<key>CFBundleTypeRole</key>
+			<string>Viewer</string>
+			<key>LSHandlerRank</key>
+			<string>Owner</string>
+			<key>LSItemContentTypes</key>
+			<array>
+				<string>uk.co.garysimpson.foundry.pack</string>
+			</array>
+		</dict>
 	</array>
 	<key>UTExportedTypeDeclarations</key>
 	<array>
-			<dict>
-				<key>UTTypeConformsTo</key>
+		<dict>
+			<key>UTTypeConformsTo</key>
 			<array>
 				<string>com.apple.package</string>
 			</array>
@@ -38,19 +50,40 @@
 				<array>
 					<string>application/vnd.foundry.project</string>
 				</array>
-				</dict>
 			</dict>
+		</dict>
+		<dict>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.data</string>
+			</array>
+			<key>UTTypeDescription</key>
+			<string>Foundry Workspace Panel</string>
+			<key>UTTypeIdentifier</key>
+			<string>uk.co.garysimpson.foundry.workspace-panel</string>
+		</dict>
+		<dict>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>com.apple.package</string>
+			</array>
+			<key>UTTypeDescription</key>
+			<string>Foundry Pack</string>
+			<key>UTTypeIdentifier</key>
+			<string>uk.co.garysimpson.foundry.pack</string>
+			<key>UTTypeTagSpecification</key>
 			<dict>
-				<key>UTTypeConformsTo</key>
+				<key>public.filename-extension</key>
 				<array>
-					<string>public.data</string>
+					<string>foundrypack</string>
 				</array>
-				<key>UTTypeDescription</key>
-				<string>Foundry Workspace Panel</string>
-				<key>UTTypeIdentifier</key>
-				<string>uk.co.garysimpson.foundry.workspace-panel</string>
+				<key>public.mime-type</key>
+				<array>
+					<string>application/vnd.foundry.pack</string>
+				</array>
 			</dict>
-		</array>
+		</dict>
+	</array>
 	<key>UTImportedTypeDeclarations</key>
 	<array>
 		<dict>

@@ -37,6 +37,22 @@ struct ThemeEditingTests {
         #expect(html.contains("padding: 44px"))
     }
 
+    @Test @MainActor
+    func paragraphThemeColorUsesSemanticRoleAndSteppedShade() {
+        _ = ComponentPackageCatalog.shared
+        var paragraph = ComponentNode.make(.paragraph)
+        paragraph.setProperty(.themeColor, value: .choice(ThemeColorRole.accent.rawValue))
+        paragraph.setProperty(.themeColorShade, value: .number(700))
+
+        let expected = Theme.standard.adjustedColor(role: "accent", shade: 700)
+        let page = Page(title: "Colour", slug: "colour", components: [paragraph])
+        let html = HTMLPageRenderer().render(page: page, theme: .standard)
+
+        #expect(ThemeColorScale.color("#5B5BD6", shade: 500) == "#5B5BD6")
+        #expect(ThemeColorScale.color("#5B5BD6", shade: 50) != expected)
+        #expect(html.contains("color: \(expected)"))
+    }
+
     @Test
     func themeChangesParticipateInUndoAndRedo() {
         let document = FoundryDocument()

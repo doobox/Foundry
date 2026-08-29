@@ -1,0 +1,24 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Component quick start · Foundry API</title><link rel="stylesheet" href="styles.css"><script src="app.js" defer></script></head><body data-base=""><div class="shell"><nav data-doc-nav></nav><main>
+<div class="breadcrumbs"><a href="index.html">Foundry API</a><span>›</span>Start here</div><h1>Component quick start</h1><p class="lede">Create the smallest useful Foundry component.</p>
+<h2>1. Create the bundle</h2><pre><code>MyText.foundrypack/
+└── Contents/
+    ├── Info.plist
+    └── Resources/
+        ├── component.html
+        └── component.css</code></pre>
+<h2>2. Add Info.plist</h2><pre><code>&lt;key&gt;type&lt;/key&gt;
+&lt;string&gt;component&lt;/string&gt;
+&lt;key&gt;CFBundleIdentifier&lt;/key&gt;
+&lt;string&gt;uk.co.example.my-text&lt;/string&gt;
+&lt;key&gt;title&lt;/key&gt;
+&lt;string&gt;My Text&lt;/string&gt;
+&lt;key&gt;templates&lt;/key&gt;
+&lt;dict&gt;
+    &lt;key&gt;html&lt;/key&gt;&lt;string&gt;component.html&lt;/string&gt;
+    &lt;key&gt;css&lt;/key&gt;&lt;string&gt;component.css&lt;/string&gt;
+&lt;/dict&gt;</code></pre>
+<h2>3. Add editable content</h2><pre><code>&lt;p class="my-text{{ component.class }}" {{ component.attributes }}&gt;
+    %text="Write something"%
+&lt;/p&gt;</code></pre><p>Foundry infers the content property and displays its editor in the inspector.</p>
+<h2>Next</h2><div class="page-links"><a class="card" href="info-plist.html"><strong>Info.plist reference</strong></a><a class="card" href="editable-text.html"><strong>Editable text</strong></a></div>
+</main></div></body></html>

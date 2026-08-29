@@ -24,6 +24,7 @@ struct HTMLPageRenderer: PageRendering {
           <style>
             \(theme.remoteFontImports)
             :root {
+              font-size: \(theme.typography.baseSize)px;
               --background: \(theme.colors.background);
               --surface: \(theme.colors.surface);
               --text: \(theme.colors.text);
@@ -32,6 +33,7 @@ struct HTMLPageRenderer: PageRendering {
               --font-heading: \(theme.typography.headingFont.cssFamily);
               --font-monospace: \(theme.typography.monospacedFont.cssFamily);
               \(theme.customFontCSSVariables)
+              \(theme.fontSizeCSSVariables)
               --editor-component: #0A84FF;
               --editor-global: #34C759;
               --space-s: \(theme.spacing.small)px;
@@ -53,7 +55,7 @@ struct HTMLPageRenderer: PageRendering {
               border-radius: 2px !important;
             }
             [data-foundry-id]:hover:not(:has([data-foundry-id]:hover))::after {
-              content: attr(data-foundry-type); position: absolute; z-index: 1000;
+              content: attr(data-foundry-name); position: absolute; z-index: 1000;
               left: 1px; top: -19px; padding: 3px 7px; border-radius: 5px 5px 0 0;
               color: white; background: var(--editor-chrome); font: 11px system-ui; line-height: 16px;
             }
@@ -101,6 +103,9 @@ struct HTMLPageRenderer: PageRendering {
               outline: 3px solid var(--editor-chrome) !important; outline-offset: -3px;
               border-radius: 2px !important;
             }
+            [contenteditable="true"]:focus:not(.foundry-selected) {
+              outline: none !important;
+            }
             .foundry-drag-source { opacity: 0.4 !important; }
             [data-foundry-global].foundry-selected { outline-color: var(--editor-chrome) !important; }
             [data-foundry-global-override="true"].foundry-selected,
@@ -139,13 +144,11 @@ struct HTMLPageRenderer: PageRendering {
             .foundry-editing::after { display: none !important; }
             body {
               margin: 0; padding: 48px; background: var(--background);
-              color: var(--text); font: \(theme.typography.baseSize)px var(--font-body);
+              color: var(--text); font-family: var(--font-body);
+              font-size: var(--font-size-base); line-height: var(--font-size-base-line-height);
             }
             h1, h2, h3, h4, h5, h6, .heading { font-family: var(--font-heading); }
             code, pre, kbd, samp { font-family: var(--font-monospace); }
-            .container {
-              box-shadow: 0 12px 40px rgba(0,0,0,.08);
-            }
             .button {
               display: block; width: fit-content; text-decoration: none; font-weight: 600;
             }
@@ -193,11 +196,10 @@ struct HTMLPageRenderer: PageRendering {
         let node = sourceNode.resolved(at: breakpoint)
         let globalDefinitionID = node.reusableDefinitionID ?? globalDefinitionID
         switch node.type.definition.renderKind {
-        case .container, .section:
+        case .section:
             let style = sharedStyles(for: node, theme: theme).joined(separator: "; ")
             let children = renderedChildren(of: node, theme: theme, assets: assets, globalDefinitionID: globalDefinitionID, breakpoint: breakpoint)
-            let className = node.type.definition.renderKind == .section ? "section" : "container"
-            return "<section class=\"\(className)\" \(attributes(for: node, globalDefinitionID: globalDefinitionID)) style=\"\(style)\">\(children)</section>"
+            return "<section class=\"section\" \(attributes(for: node, globalDefinitionID: globalDefinitionID)) style=\"\(style)\">\(children)</section>"
         case .columns:
             let count = clamped(node.numberProperty(.columnCount), to: 1...6)
             let gap = clamped(node.numberProperty(.gap), to: 0...120)
@@ -305,11 +307,20 @@ struct HTMLPageRenderer: PageRendering {
     ) -> String {
         page.components.flatMap(flattened).compactMap { sourceNode in
             let node = sourceNode.resolved(at: breakpoint)
-            guard node.type.definition.properties.contains(where: { $0.control.isThemeFontFamily }) else {
-                return nil
+            var declarations: [String] = []
+            if node.type.definition.properties.contains(where: { $0.control.isThemeFontFamily }) {
+                declarations.append("font-family: \(theme.fontCSSVariable(for: node.property(.themeFontFamily)))")
             }
-            let family = theme.fontCSSVariable(for: node.property(.themeFontFamily))
-            return "[data-foundry-id=\"\(node.id.uuidString)\"] { font-family: \(family); }"
+            if node.type.definition.properties.contains(where: { $0.control.isThemeFontSize }) {
+                declarations.append(contentsOf: ThemeTypographyControlCSS.declarations(for: node, theme: theme))
+            }
+            if node.type.definition.properties.contains(where: { $0.control.isThemeColor }) {
+                declarations.append(
+                    "color: \(theme.adjustedColor(role: node.property(.themeColor), shade: node.numberProperty(.themeColorShade)))"
+                )
+            }
+            guard !declarations.isEmpty else { return nil }
+            return "[data-foundry-id=\"\(node.id.uuidString)\"] { \(declarations.joined(separator: "; ")); }"
         }.joined(separator: "\n")
     }
 
@@ -401,7 +412,7 @@ struct HTMLPageRenderer: PageRendering {
         let globalAttributes = globalDefinitionID.map {
             " data-foundry-global=\"\($0.uuidString)\" data-foundry-global-override=\"\(node.overridesGlobalDefinition == true)\""
         } ?? ""
-        return "data-foundry-id=\"\(node.id.uuidString)\" data-foundry-type=\"\(escapeAttribute(node.type.displayName))\" data-foundry-accepts-children=\"\(acceptsChildren)\" data-foundry-inline-property=\"\(editableProperty)\"\(globalAttributes)"
+        return "data-foundry-id=\"\(node.id.uuidString)\" data-foundry-type=\"\(escapeAttribute(node.type.displayName))\" data-foundry-name=\"\(escapeAttribute(node.name))\" data-foundry-accepts-children=\"\(acceptsChildren)\" data-foundry-inline-property=\"\(editableProperty)\"\(globalAttributes)"
     }
 
     private func cssAlignment(_ value: String) -> String {

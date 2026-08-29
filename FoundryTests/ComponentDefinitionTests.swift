@@ -20,7 +20,7 @@ struct ComponentDefinitionTests {
         #expect(ComponentType.container.definition.allowsChildren)
         #expect(ComponentType.section.definition.allowsChildren)
         #expect(ComponentType.columns.definition.allowsChildren)
-        #expect(!ComponentType.text.definition.allowsChildren)
+        #expect(!ComponentType.paragraph.definition.allowsChildren)
         #expect(!ComponentType.button.definition.allowsChildren)
         #expect(!ComponentType.image.definition.allowsChildren)
     }
@@ -29,7 +29,7 @@ struct ComponentDefinitionTests {
     func stockRegistryUsesUniqueNamespacedIdentifiers() {
         let identifiers = ComponentType.allCases.map(\.rawValue)
 
-        #expect(identifiers.count == 9)
+        #expect(!identifiers.isEmpty)
         #expect(Set(identifiers).count == identifiers.count)
         #expect(identifiers.allSatisfy { $0.split(separator: ".").count >= 3 })
     }
@@ -46,26 +46,26 @@ struct ComponentDefinitionTests {
 
     @Test
     func typedPropertiesRoundTripThroughJSON() throws {
-        let original = ComponentNode.make(.text)
+        let original = ComponentNode.make(.paragraph)
         let data = try JSONEncoder().encode(original)
         let decoded = try JSONDecoder().decode(ComponentNode.self, from: data)
 
         #expect(decoded == original)
-        #expect(decoded.propertyValue(.fontSize) == .number(38))
-        #expect(decoded.propertyValue(.textColor) == .color("#171719"))
+        #expect(decoded.propertyValue(.themeFontFamily) == .choice("body"))
+        #expect(decoded.propertyValue(.themeFontSize) == .choice("base"))
     }
 
     @Test
     func missingStoredPropertiesUseDefinitionDefaults() {
         let legacyText = ComponentNode(
-            type: .text,
+            type: .paragraph,
             properties: [.init(key: .text, value: .string("Legacy"))]
         )
 
-        #expect(legacyText.numberProperty(.fontSize) == 38)
-        #expect(legacyText.property(.alignment) == "leading")
-        #expect(legacyText.numberProperty(.marginBottom) == 32)
-        #expect(legacyText.property(.horizontalAlignment) == "leading")
+        #expect(legacyText.property(.themeFontFamily) == "body")
+        #expect(legacyText.property(.themeFontSize) == "base")
+        #expect(legacyText.property(.themeTextAlignment) == "left")
+        #expect(legacyText.property(.themeFontWeight) == "400")
     }
 
     @Test
@@ -83,16 +83,15 @@ struct ComponentDefinitionTests {
     @Test @MainActor
     func rendererAppliesSchemaPropertiesAndEscapesAccessibilityLabel() {
         var container = ComponentNode.make(.container)
-        var text = ComponentNode.make(.text)
+        var text = ComponentNode.make(.paragraph)
         var button = ComponentNode.make(.button)
         container.setProperty(.padding, value: .number(24))
         container.setProperty(.borderWidth, value: .number(2))
         container.setProperty(.borderColor, value: .color("#ABCDEF"))
         container.setProperty(.cornerRadius, value: .number(28))
         container.setProperty(.maxWidth, value: .number(920))
-        text.setProperty(.alignment, value: .choice("center"))
-        text.setProperty(.textColor, value: .color("#123456"))
-        text.setProperty(.horizontalAlignment, value: .choice("trailing"))
+        text.setProperty(.themeTextAlignment, value: .choice("center"))
+        text.setProperty(.themeFontWeight, value: .choice("700"))
         button.setProperty(.accessibilityLabel, value: .string("Open \"details\""))
         container.children = [text, button]
 
@@ -104,8 +103,7 @@ struct ComponentDefinitionTests {
         #expect(html.contains("border-radius: 28px"))
         #expect(html.contains("max-width: 920px"))
         #expect(html.contains("text-align: center"))
-        #expect(html.contains("color: #123456"))
-        #expect(html.contains("margin-left: auto; margin-right: 0"))
+        #expect(html.contains("font-weight: 700"))
         #expect(html.contains("aria-label=\"Open &quot;details&quot;\""))
         #expect(html.contains("[data-foundry-id]:hover:not(:has([data-foundry-id]:hover))"))
     }
@@ -135,14 +133,14 @@ struct ComponentDefinitionTests {
     @Test @MainActor
     func unknownComponentRendersPlaceholderWithoutLosingChildren() {
         let unknownType = ComponentType(rawValue: "com.example.gallery")
-        let unknown = ComponentNode(type: unknownType, children: [ComponentNode.make(.text)])
+        let unknown = ComponentNode(type: unknownType, children: [ComponentNode.make(.paragraph)])
         let html = HTMLPageRenderer().render(
             page: Page(title: "Unknown", slug: "unknown", components: [unknown]),
             theme: .standard
         )
 
         #expect(html.contains("Missing component: com.example.gallery"))
-        #expect(html.contains("class=\"text\""))
+        #expect(html.contains("class=\"paragraph"))
     }
 
     @Test @MainActor

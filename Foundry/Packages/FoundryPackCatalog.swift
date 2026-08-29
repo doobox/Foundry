@@ -22,9 +22,9 @@ final class FoundryPackCatalog {
         for url in packURLs() {
             do {
                 let pack = try FoundryPackLoader.load(from: url)
-                packs[pack.manifest.identifier] = pack
-                for themeURL in pack.themeURLs {
-                    let theme = try ThemePackageLoader.load(from: themeURL)
+                packs[pack.identifier] = pack
+                if pack.type == .theme {
+                    let theme = try ThemePackageLoader.load(from: url)
                     themes[theme.manifest.identifier] = theme
                 }
             } catch {
@@ -34,21 +34,15 @@ final class FoundryPackCatalog {
     }
 
     private func packURLs() -> [URL] {
-        var roots: [URL] = []
-        if let resourceURL = Bundle.main.resourceURL {
-            roots.append(resourceURL)
+        var roots: [URL] = Bundle.main.resourceURL.map { [$0] } ?? []
+        if let builtIns = Bundle.main.url(forResource: "BuiltInComponents", withExtension: "bundle") {
+            roots.append(builtIns)
         }
         if let installedURL = try? FoundryPackLoader.installedPacksURL() {
             roots.append(installedURL)
         }
         return roots.flatMap { root -> [URL] in
-            guard let enumerator = FileManager.default.enumerator(
-                at: root,
-                includingPropertiesForKeys: [.isDirectoryKey],
-                options: [.skipsHiddenFiles, .skipsPackageDescendants]
-            ) else { return [] }
-            return enumerator.compactMap { $0 as? URL }
-                .filter { $0.pathExtension == "foundrypack" }
+            FoundryPackLoader.packURLs(in: root)
         }
     }
 }

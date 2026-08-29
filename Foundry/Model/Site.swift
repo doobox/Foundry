@@ -110,8 +110,8 @@ nonisolated struct Site: Codable, Equatable, Identifiable, Sendable {
             name: "Hero",
             children: [
                 ComponentNode(
-                    type: .text,
-                    name: "Heading",
+                    type: .paragraph,
+                    name: "Paragraph",
                     properties: [
                         .init(key: .text, value: .string("Build something remarkable."))
                     ]

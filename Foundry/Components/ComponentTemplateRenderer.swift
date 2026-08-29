@@ -34,18 +34,7 @@ nonisolated struct ComponentTextPrimitive: Equatable, Sendable {
 }
 
 nonisolated enum ComponentTemplateRenderer {
-    private static let loremSentences = [
-        "Lorem ipsum dolor sit amet, consectetur adipiscing elit.",
-        "Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.",
-        "Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.",
-        "Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur.",
-        "Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.",
-        "Integer posuere erat a ante venenatis dapibus posuere velit aliquet.",
-        "Maecenas faucibus mollis interdum, donec sed odio dui.",
-        "Cras mattis consectetur purus sit amet fermentum.",
-        "Aenean lacinia bibendum nulla sed consectetur.",
-        "Praesent commodo cursus magna, vel scelerisque nisl consectetur et."
-    ]
+    private static let loremParagraph = "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum."
 
     static func render(_ template: String, context: ComponentTemplateContext) -> String {
         var result = renderText(in: template, context: context)
@@ -93,20 +82,17 @@ nonisolated enum ComponentTemplateRenderer {
             let key = "content\(index + 1)"
             let declaredDefault = primitiveDefault(match: match, in: result)
             let currentValue = stringValue(context.properties[key]) ?? declaredDefault
-            let attributes = context.componentAttributes.isEmpty
-                ? ""
-                : " data-foundry-inline-property=\"\(escapeAttribute(key))\""
-            result.replaceSubrange(
-                wholeRange,
-                with: "<span\(attributes)>\(escape(currentValue))</span>"
-            )
+            result.replaceSubrange(wholeRange, with: escapeText(currentValue))
+            if !context.componentAttributes.isEmpty {
+                addInlineEditingAttribute(for: key, atUTF16Offset: match.range.location, to: &result)
+            }
         }
         return result
     }
 
     private static func primitiveMatches(in template: String) -> [NSTextCheckingResult] {
         let expression = try! NSRegularExpression(
-            pattern: #"%text=\"([^\"]*)\"%|%sentences\[([0-9]+)\]%"#
+            pattern: #"%text(?:="([^"]*)")?%"#
         )
         return expression.matches(in: template, range: NSRange(template.startIndex..., in: template))
     }
@@ -115,9 +101,27 @@ nonisolated enum ComponentTemplateRenderer {
         if let textRange = Range(match.range(at: 1), in: template) {
             return String(template[textRange])
         }
-        let count = Range(match.range(at: 2), in: template)
-            .flatMap { Int(template[$0]) } ?? 1
-        return loremSentences.prefix(min(max(count, 1), 10)).joined(separator: " ")
+        return loremParagraph
+    }
+
+    private static func addInlineEditingAttribute(
+        for key: String,
+        atUTF16Offset offset: Int,
+        to result: inout String
+    ) {
+        let textPosition = String.Index(utf16Offset: offset, in: result)
+        guard let tagStart = result[..<textPosition].lastIndex(of: "<"),
+              let tagEnd = result[tagStart...].firstIndex(of: ">"),
+              tagEnd < textPosition else { return }
+        let tag = result[tagStart...tagEnd]
+        guard !tag.hasPrefix("</"),
+              !tag.hasPrefix("<!"),
+              !tag.hasPrefix("<?"),
+              !tag.contains("data-foundry-inline-property=") else { return }
+        result.insert(
+            contentsOf: " data-foundry-inline-property=\"\(escapeAttribute(key))\"",
+            at: tagEnd
+        )
     }
 
     private static func value(for key: String, context: ComponentTemplateContext) -> String {
@@ -218,6 +222,12 @@ nonisolated enum ComponentTemplateRenderer {
             .replacingOccurrences(of: ">", with: "&gt;")
             .replacingOccurrences(of: "\"", with: "&quot;")
             .replacingOccurrences(of: "'", with: "&#39;")
+    }
+
+    private static func escapeText(_ value: String) -> String {
+        escape(value.replacingOccurrences(of: "\r\n", with: "\n"))
+            .replacingOccurrences(of: "\r", with: "\n")
+            .replacingOccurrences(of: "\n", with: "<br>")
     }
 
     private static func escapeAttribute(_ value: String) -> String {

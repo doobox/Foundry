@@ -85,6 +85,39 @@ struct ComponentPropertyEditor: View {
                     Text(choice.label).tag(choice.value)
                 }
             }
+        case .themeFontSize:
+            Picker(definition.label, selection: stringBinding(as: .choice)) {
+                ForEach(theme.fontSizeChoices) { choice in
+                    Text(choice.label).tag(choice.value)
+                }
+            }
+        case .themeColor:
+            VStack(alignment: .leading, spacing: 8) {
+                Picker(definition.label, selection: stringBinding(as: .choice)) {
+                    ForEach(theme.colorChoices) { choice in
+                        Text(choice.label).tag(choice.value)
+                    }
+                }
+                LabeledContent("Shade", value: "\(selectedThemeShade)")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Slider(
+                    value: themeShadeIndexBinding,
+                    in: 0...Double(ThemeColorScale.shades.count - 1),
+                    step: 1
+                )
+                HStack {
+                    Text("Lighter")
+                    Spacer()
+                    Circle()
+                        .fill(Color(hex: resolvedThemeColor) ?? .clear)
+                        .frame(width: 16, height: 16)
+                    Spacer()
+                    Text("Darker")
+                }
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+            }
         case .toggle:
             Toggle(definition.label, isOn: booleanBinding)
         case .asset:
@@ -146,6 +179,29 @@ struct ComponentPropertyEditor: View {
         )
     }
 
+    private var selectedThemeShade: Int {
+        ThemeColorScale.nearestShade(
+            to: Int(displayComponent.numberProperty(.themeColorShade, theme: theme).rounded())
+        )
+    }
+
+    private var themeShadeIndexBinding: Binding<Double> {
+        Binding(
+            get: { Double(ThemeColorScale.shades.firstIndex(of: selectedThemeShade) ?? 5) },
+            set: { index in
+                let safeIndex = min(max(Int(index.rounded()), 0), ThemeColorScale.shades.count - 1)
+                setProperty(.number(Double(ThemeColorScale.shades[safeIndex])), key: .themeColorShade)
+            }
+        )
+    }
+
+    private var resolvedThemeColor: String {
+        theme.adjustedColor(
+            role: displayComponent.property(.themeColor),
+            shade: Double(selectedThemeShade)
+        )
+    }
+
     private var selectedToken: DesignToken? {
         displayComponent.propertyValue(definition.key).tokenValue
     }
@@ -181,22 +237,26 @@ struct ComponentPropertyEditor: View {
         )
     }
 
-    private func setProperty(_ value: ComponentProperty.Value) {
+    private func setProperty(
+        _ value: ComponentProperty.Value,
+        key: ComponentProperty.Key? = nil
+    ) {
+        let key = key ?? definition.key
         if effectiveBreakpoint == .mobile {
             if editsSharedDefinition {
-                editor.setSharedReusableProperty(componentID: component.id, key: definition.key, value: value)
+                editor.setSharedReusableProperty(componentID: component.id, key: key, value: value)
             } else {
-                editor.setProperty(id: component.id, key: definition.key, value: value)
+                editor.setProperty(id: component.id, key: key, value: value)
             }
         } else if editsSharedDefinition {
             editor.setSharedReusableResponsiveProperty(
                 componentID: component.id,
-                key: definition.key,
+                key: key,
                 value: value,
                 breakpoint: effectiveBreakpoint
             )
         } else {
-            editor.setResponsiveProperty(id: component.id, key: definition.key, value: value, breakpoint: effectiveBreakpoint)
+            editor.setResponsiveProperty(id: component.id, key: key, value: value, breakpoint: effectiveBreakpoint)
         }
     }
 

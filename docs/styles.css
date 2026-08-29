@@ -1,0 +1,197 @@
+:root {
+    color-scheme: light dark;
+    --background: #0f1115;
+    --surface: #181b22;
+    --surface-raised: #20242d;
+    --text: #f4f5f7;
+    --muted: #a9afbc;
+    --accent: #6ea8fe;
+    --border: #303641;
+    --code: #11141a;
+    font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+* { box-sizing: border-box; }
+
+body {
+    margin: 0;
+    background: var(--background);
+    color: var(--text);
+    line-height: 1.65;
+}
+
+a { color: var(--accent); }
+
+.shell {
+    display: grid;
+    grid-template-columns: 260px minmax(0, 820px);
+    gap: 72px;
+    width: min(1220px, calc(100% - 48px));
+    margin: 0 auto;
+    padding: 48px 0 96px;
+}
+
+nav {
+    position: sticky;
+    top: 32px;
+    align-self: start;
+}
+
+.brand {
+    display: block;
+    margin-bottom: 28px;
+    color: var(--text);
+    font-size: 1.2rem;
+    font-weight: 750;
+    text-decoration: none;
+}
+
+nav ul {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.search {
+    width: 100%;
+    margin: 0 0 24px;
+    padding: 9px 11px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--surface);
+    color: var(--text);
+    font: inherit;
+}
+
+.nav-section { margin: 26px 0 8px; }
+.nav-section:first-of-type { margin-top: 0; }
+.nav-heading {
+    margin: 0 0 6px;
+    color: var(--text);
+    font-size: 0.72rem;
+    font-weight: 750;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+}
+.nav-empty { color: var(--muted); font-size: 0.85rem; }
+
+nav a {
+    display: block;
+    padding: 6px 0;
+    color: var(--muted);
+    text-decoration: none;
+}
+
+nav a:hover, nav a[aria-current="page"] { color: var(--text); }
+
+main { min-width: 0; }
+
+.breadcrumbs {
+    margin-bottom: 20px;
+    color: var(--muted);
+    font-size: 0.86rem;
+}
+
+.breadcrumbs a { color: var(--muted); text-decoration: none; }
+.breadcrumbs span { padding: 0 7px; }
+
+h1, h2, h3 { line-height: 1.2; letter-spacing: -0.02em; }
+h1 { margin: 0 0 16px; font-size: clamp(2.4rem, 7vw, 4.8rem); }
+h2 { margin-top: 56px; padding-top: 8px; font-size: 1.7rem; }
+h3 { margin-top: 32px; }
+
+.lede { color: var(--muted); font-size: 1.2rem; }
+
+.card-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 16px;
+    margin-top: 36px;
+}
+
+.card {
+    display: block;
+    padding: 22px;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    background: var(--surface);
+    color: var(--text);
+    text-decoration: none;
+}
+
+.card:hover { background: var(--surface-raised); }
+.card p { margin-bottom: 0; color: var(--muted); }
+
+pre {
+    overflow-x: auto;
+    padding: 20px;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: var(--code);
+    font-size: 0.9rem;
+    line-height: 1.5;
+}
+
+code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+:not(pre) > code { padding: 0.15em 0.35em; border-radius: 5px; background: var(--surface-raised); }
+
+.note {
+    margin: 28px 0;
+    padding: 16px 18px;
+    border-left: 3px solid var(--accent);
+    background: var(--surface);
+    color: var(--muted);
+}
+
+.api-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 24px 0;
+}
+
+.reference-entry {
+    margin: 34px 0;
+    padding-top: 22px;
+    border-top: 1px solid var(--border);
+}
+
+.reference-entry h3 {
+    margin: 0 0 10px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 1.15rem;
+    letter-spacing: 0;
+}
+
+.reference-entry .api-meta { margin: 10px 0 16px; }
+.reference-entry p:last-child { margin-bottom: 0; }
+
+.required { border-color: color-mix(in srgb, var(--accent) 60%, var(--border)); color: var(--text); }
+
+.pill {
+    padding: 4px 9px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: var(--surface);
+    color: var(--muted);
+    font-size: 0.8rem;
+}
+
+.page-links {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+    gap: 12px;
+    margin: 24px 0;
+}
+
+dl { display: grid; grid-template-columns: max-content 1fr; gap: 10px 24px; }
+dt { font-family: ui-monospace, monospace; color: var(--accent); }
+dd { margin: 0; }
+
+@media (max-width: 760px) {
+    .shell { grid-template-columns: 1fr; gap: 32px; padding-top: 24px; }
+    nav { position: static; }
+    nav ul { display: flex; flex-wrap: wrap; gap: 8px 20px; }
+    dl { grid-template-columns: 1fr; gap: 4px; }
+    dd { margin-bottom: 12px; }
+}

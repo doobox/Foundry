@@ -4,8 +4,8 @@ import Testing
 
 struct ComponentPackageTests {
     @Test
-    func textPrimitivesUseAutomaticUniqueKeysAndStoredValues() {
-        let template = #"<h2>%text=\"Start here\"%</h2><p>%sentences[2]%</p><small>%text=\"Note\"%</small>"#
+    func textPrimitivesUseAutomaticUniqueKeysAndStoredValues() throws {
+        let template = #"<h2>%text="Start here"%</h2><p>%text%</p><small>%text="Note"%</small>"#
         let defaultContext = ComponentTemplateContext(
             instanceID: UUID(),
             packageIdentifier: "com.example.text",
@@ -25,8 +25,10 @@ struct ComponentPackageTests {
 
         let primitives = ComponentTemplateRenderer.textPrimitives(in: template)
         #expect(primitives.map(\.key) == ["content1", "content2", "content3"])
-        #expect(primitives[0].defaultValue == "Start here")
-        #expect(primitives[1].defaultValue.components(separatedBy: ".").count >= 3)
+        let first = try #require(primitives.first)
+        let paragraph = try #require(primitives.dropFirst().first)
+        #expect(first.defaultValue == "Start here")
+        #expect(paragraph.defaultValue.components(separatedBy: ".").count >= 3)
         #expect(ComponentTemplateRenderer.render(template, context: defaultContext).contains("Start here"))
         let edited = ComponentTemplateRenderer.render(template, context: editedContext)
         #expect(edited.contains("Edited &amp; ready"))
@@ -35,8 +37,8 @@ struct ComponentPackageTests {
     }
 
     @Test
-    func sentencePrimitiveUsesTheRequestedCount() {
-        let template = "<p>%sentences[3]%</p>"
+    func bareTextPrimitiveUsesOneLoremParagraphWithoutAnExportedWrapper() {
+        let template = "<p>%text%</p>"
         let context = ComponentTemplateContext(
             instanceID: UUID(),
             packageIdentifier: "com.example.text",
@@ -46,8 +48,26 @@ struct ComponentPackageTests {
 
         let primitive = ComponentTemplateRenderer.textPrimitives(in: template)[0]
         #expect(primitive.key == "content1")
-        #expect(primitive.defaultValue.components(separatedBy: ".").count >= 4)
-        #expect(ComponentTemplateRenderer.render(template, context: context).contains("Lorem ipsum"))
+        #expect(primitive.defaultValue.components(separatedBy: ".").count >= 6)
+        let rendered = ComponentTemplateRenderer.render(template, context: context)
+        #expect(rendered.hasPrefix("<p>Lorem ipsum"))
+        #expect(!rendered.contains("<span"))
+    }
+
+    @Test
+    func textPrimitivePreservesEditedLineBreaks() {
+        let template = "<p>%text%</p>"
+        let context = ComponentTemplateContext(
+            instanceID: UUID(),
+            packageIdentifier: "com.example.text",
+            properties: ["content1": .string("First line\nSecond & final line")],
+            slots: [:]
+        )
+
+        #expect(
+            ComponentTemplateRenderer.render(template, context: context)
+                == "<p>First line<br>Second &amp; final line</p>"
+        )
     }
 
     @Test
@@ -107,7 +127,10 @@ struct ComponentPackageTests {
             from: Data(validManifest.utf8)
         )
 
-        let diagnostics = ComponentPackageValidator.validate(manifest, rootURL: packageURL)
+        let diagnostics = ComponentPackageValidator.validate(
+            manifest,
+            rootURL: packageURL.appending(path: "Contents/Resources", directoryHint: .isDirectory)
+        )
         let messages = diagnostics.map(\.message)
 
         #expect(messages.contains(where: { $0.contains("component.attributes") }))
@@ -149,7 +172,7 @@ struct ComponentPackageTests {
     func insertingIntoNamedSlotStoresTheSlotOnTheChild() throws {
         let parentID = UUID()
         var tree = [ComponentNode(id: parentID, type: .container)]
-        let child = ComponentNode.make(.text)
+        let child = ComponentNode.make(.paragraph)
 
         let didInsert = tree.insert(child, at: .insideSlot(parentID, "sidebar"))
 
@@ -163,8 +186,21 @@ struct ComponentPackageTests {
         let builtIns = ComponentRegistry.builtInTypes.map(\.definition)
 
         #expect(builtIns.allSatisfy { $0.renderKind == .package })
-        #expect(builtIns.allSatisfy { $0.package?.rootURL.pathExtension == "foundrycomponent" })
+        #expect(builtIns.allSatisfy { $0.package?.rootURL.pathExtension == "foundrypack" })
         #expect(Set(builtIns.compactMap { $0.package?.manifest.identifier }).count == builtIns.count)
+    }
+
+    @Test @MainActor
+    func paragraphRequestsThemeTextColorAtTheBaseShade() throws {
+        _ = ComponentPackageCatalog.shared
+        let properties = ComponentType.paragraph.definition.properties
+        let color = try #require(properties.first(where: { $0.key == .themeColor }))
+        let shade = try #require(properties.first(where: { $0.key == .themeColorShade }))
+
+        #expect(color.defaultValue == .choice(ThemeColorRole.text.rawValue))
+        #expect(color.control.isThemeColor)
+        #expect(shade.defaultValue == .number(500))
+        #expect(!shade.isInspectorVisible)
     }
 
     private var validManifest: String {
@@ -173,6 +209,7 @@ struct ComponentPackageTests {
         <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
         <plist version="1.0">
         <dict>
+            <key>type</key><string>component</string>
             <key>CFBundleIdentifier</key><string>com.example.card</string>
             <key>title</key><string>Card</string>
             <key>description</key><string>A test card.</string>
@@ -216,7 +253,7 @@ struct ComponentPackageTests {
         additionalFiles: [String: String] = [:]
     ) throws -> URL {
         let rootURL = FileManager.default.temporaryDirectory
-            .appending(path: "\(UUID().uuidString).foundrycomponent", directoryHint: .isDirectory)
+            .appending(path: "\(UUID().uuidString).foundrypack", directoryHint: .isDirectory)
         let resourcesURL = rootURL.appending(path: "Contents/Resources", directoryHint: .isDirectory)
         try FileManager.default.createDirectory(at: resourcesURL, withIntermediateDirectories: true)
         try FileManager.default.createDirectory(

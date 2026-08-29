@@ -1,0 +1,16 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Font size control · Foundry API</title><link rel="stylesheet" href="styles.css"><script src="app.js" defer></script></head><body data-base=""><div class="shell"><nav data-doc-nav></nav><main>
+<div class="breadcrumbs"><a href="index.html">Foundry API</a><span>›</span><a href="theme-controls.html">Theme controls</a><span>›</span>fontSize</div><h1>Font size — <code>fontSize</code></h1><p class="lede">Adds a theme-aware type-size picker and applies its selection to the component root.</p>
+<div class="api-meta"><span class="pill">Control type: fontSize</span><span class="pill">Output: theme size reference</span></div>
+<section class="reference-entry"><h3>title</h3><div class="api-meta"><span class="pill">Type: String</span><span class="pill">Default: Font size</span></div><p>The label displayed for the size picker in the component inspector.</p></section>
+<section class="reference-entry"><h3>group</h3><div class="api-meta"><span class="pill">Type: String</span><span class="pill">Default: Typography</span></div><p>The inspector group containing the size picker.</p></section>
+<section class="reference-entry"><h3>default</h3><div class="api-meta"><span class="pill">Type: String</span><span class="pill">Default: base</span></div><p>The theme size assigned to a newly inserted component. Portable component defaults use the standard names <code>xs</code>, <code>sm</code>, <code>base</code>, <code>lg</code>, <code>xl</code>, and <code>2xl</code> through <code>9xl</code>. An unsupported default prevents the component from loading.</p></section>
+<section class="reference-entry"><h3>responsive</h3><div class="api-meta"><span class="pill">Type: Boolean</span><span class="pill">Default: false</span></div><p>Enables independent theme-size selection at each responsive breakpoint when set to <code>true</code>.</p></section>
+<h2>Stored value and output</h2><p>Foundry stores the stable size name rather than copying a literal measurement. Each custom theme size contains a <code>rem</code> font size and one of Tailwind’s named line heights: <code>none</code>, <code>tight</code>, <code>snug</code>, <code>normal</code>, <code>relaxed</code>, or <code>loose</code>. Foundry emits both <code>font-size</code> and the corresponding unitless <code>line-height</code> through theme variables, relative to the theme's configurable root size.</p>
+<h2>Example</h2><pre><code>&lt;dict&gt;
+    &lt;key&gt;type&lt;/key&gt;&lt;string&gt;fontSize&lt;/string&gt;
+    &lt;key&gt;title&lt;/key&gt;&lt;string&gt;Font Size&lt;/string&gt;
+    &lt;key&gt;group&lt;/key&gt;&lt;string&gt;Typography&lt;/string&gt;
+    &lt;key&gt;default&lt;/key&gt;&lt;string&gt;base&lt;/string&gt;
+    &lt;key&gt;responsive&lt;/key&gt;&lt;true/&gt;
+&lt;/dict&gt;</code></pre>
+</main></div></body></html>

@@ -15,9 +15,17 @@ final class FoundryUITests: XCTestCase {
         app.launch()
         app.typeKey("n", modifierFlags: .command)
 
-        let addPageButton = app.buttons["Add Page"]
-        XCTAssertTrue(addPageButton.waitForExistence(timeout: 5))
-        addPageButton.click()
+        let pagesTab = app.buttons["Pages"]
+        XCTAssertTrue(pagesTab.waitForExistence(timeout: 5))
+        pagesTab.click()
+
+        let addMenu = app.menuButtons["Add"]
+        XCTAssertTrue(addMenu.waitForExistence(timeout: 5))
+        addMenu.click()
+
+        let newPage = app.menuItems["New Page"]
+        XCTAssertTrue(newPage.waitForExistence(timeout: 5))
+        newPage.click()
 
         XCTAssertTrue(app.staticTexts["Page 2"].waitForExistence(timeout: 5))
 
@@ -25,15 +33,15 @@ final class FoundryUITests: XCTestCase {
         XCTAssertTrue(componentsTab.waitForExistence(timeout: 5))
         componentsTab.click()
 
-        let container = app.descendants(matching: .any)["component-library-foundry.layout.container"]
-        XCTAssertTrue(container.waitForExistence(timeout: 5))
-        container.rightClick()
+        let paragraph = app.descendants(matching: .any)["component-library-foundry.content.paragraph"]
+        XCTAssertTrue(paragraph.waitForExistence(timeout: 5))
+        paragraph.rightClick()
 
         let addToPageEnd = app.menuItems["Add to Page End"]
         XCTAssertTrue(addToPageEnd.waitForExistence(timeout: 5))
         addToPageEnd.click()
 
-        XCTAssertTrue(app.staticTexts["Container"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Paragraph"].waitForExistence(timeout: 5))
     }
 
     @MainActor

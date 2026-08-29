@@ -85,7 +85,7 @@ struct ProjectEditor {
         mutate(actionName: "Edit Theme Font Family") { site in
             switch role {
             case .body: site.theme.typography.bodyFont.family = value
-            case .headings: site.theme.typography.headingFont.family = value
+            case .heading: site.theme.typography.headingFont.family = value
             case .monospaced: site.theme.typography.monospacedFont.family = value
             }
         }
@@ -152,7 +152,7 @@ struct ProjectEditor {
         mutate(actionName: actionName) { site in
             switch reference {
             case .role(.body): update(&site.theme.typography.bodyFont)
-            case .role(.headings): update(&site.theme.typography.headingFont)
+            case .role(.heading): update(&site.theme.typography.headingFont)
             case .role(.monospaced): update(&site.theme.typography.monospacedFont)
             case .custom(let id):
                 guard let index = site.theme.typography.customFonts.firstIndex(where: { $0.id == id }) else { return }
@@ -161,8 +161,82 @@ struct ProjectEditor {
         }
     }
 
+    func setThemeFontSize(id: String, value: Double) {
+        guard value.isFinite, value > 0 else { return }
+        mutate(actionName: "Edit Theme Font Size") { site in
+            guard let index = site.theme.typography.customFontSizes.firstIndex(where: { $0.id == id }) else { return }
+            site.theme.typography.customFontSizes[index].size = value
+        }
+    }
+
     func setThemeBaseSize(_ value: Double) {
-        mutate(actionName: "Edit Theme Typography") { $0.theme.typography.baseSize = value }
+        guard value.isFinite, value > 0 else { return }
+        mutate(actionName: "Edit Theme Base Size") { $0.theme.typography.baseSize = value }
+    }
+
+    func setThemeFontSizeLineHeight(id: String, value: ThemeLineHeight) {
+        mutate(actionName: "Edit Theme Line Height") { site in
+            guard let index = site.theme.typography.customFontSizes.firstIndex(where: { $0.id == id }) else { return }
+            site.theme.typography.customFontSizes[index].lineHeight = value
+        }
+    }
+
+    func setThemeFontSizeTitle(id: String, value: String) {
+        mutate(actionName: "Rename Theme Font Size") { site in
+            guard let index = site.theme.typography.customFontSizes.firstIndex(where: { $0.id == id }) else { return }
+            site.theme.typography.customFontSizes[index].title = value
+        }
+    }
+
+    @discardableResult
+    func addThemeFontSize() -> String {
+        var newID = ""
+        mutate(actionName: "Add Theme Font Size") { site in
+            let existingIDs = Set(site.theme.typography.fontSizes.map(\.id))
+            var suffix = 1
+            repeat {
+                newID = suffix == 1 ? "custom" : "custom-\(suffix)"
+                suffix += 1
+            } while existingIDs.contains(newID)
+            site.theme.typography.customFontSizes.insert(
+                .init(id: newID, title: "Custom", size: 1, lineHeight: .normal),
+                at: 0
+            )
+        }
+        return newID
+    }
+
+    func removeThemeFontSize(id: String) {
+        mutate(actionName: "Delete Theme Font Size") {
+            $0.theme.typography.customFontSizes.removeAll { $0.id == id }
+        }
+    }
+
+    func moveThemeFontSize(id: String, before targetID: String) {
+        guard id != targetID else { return }
+        mutate(actionName: "Reorder Theme Font Sizes") { site in
+            guard let source = site.theme.typography.customFontSizes.firstIndex(where: { $0.id == id }) else { return }
+            let item = site.theme.typography.customFontSizes.remove(at: source)
+            guard let destination = site.theme.typography.customFontSizes.firstIndex(where: { $0.id == targetID }) else {
+                site.theme.typography.customFontSizes.insert(item, at: source)
+                return
+            }
+            site.theme.typography.customFontSizes.insert(item, at: destination)
+        }
+    }
+
+    func moveThemeFontSizes(fromOffsets offsets: IndexSet, toOffset destination: Int) {
+        mutate(actionName: "Reorder Theme Font Sizes") { site in
+            var sizes = site.theme.typography.customFontSizes
+            let moving = offsets.sorted().map { sizes[$0] }
+            for index in offsets.sorted(by: >) {
+                sizes.remove(at: index)
+            }
+            let removedBeforeDestination = offsets.filter { $0 < destination }.count
+            let insertionIndex = max(0, min(destination - removedBeforeDestination, sizes.count))
+            sizes.insert(contentsOf: moving, at: insertionIndex)
+            site.theme.typography.customFontSizes = sizes
+        }
     }
 
     func applyThemePackage(_ package: LoadedThemePackage) {

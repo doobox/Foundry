@@ -18,7 +18,7 @@ nonisolated struct ComponentType: RawRepresentable, Codable, Hashable, Identifia
             "Creates a full-width page region for organising related content."
         case .columns:
             "Arranges child components in a responsive multi-column layout."
-        case .text:
+        case .paragraph:
             "Adds editable paragraph or body text to the page."
         case .heading:
             "Adds an editable heading with a selectable semantic level."
@@ -53,7 +53,7 @@ nonisolated struct ComponentType: RawRepresentable, Codable, Hashable, Identifia
     static let container = ComponentType(rawValue: "foundry.layout.container")
     static let section = ComponentType(rawValue: "foundry.layout.section")
     static let columns = ComponentType(rawValue: "foundry.layout.columns")
-    static let text = ComponentType(rawValue: "foundry.content.text")
+    static let paragraph = ComponentType(rawValue: "foundry.content.paragraph")
     static let heading = ComponentType(rawValue: "foundry.content.heading")
     static let button = ComponentType(rawValue: "foundry.content.button")
     static let image = ComponentType(rawValue: "foundry.media.image")
@@ -64,7 +64,6 @@ nonisolated struct ComponentType: RawRepresentable, Codable, Hashable, Identifia
 
     private static let legacyIdentifiers: [String: String] = [
         "container": container.rawValue,
-        "text": text.rawValue,
         "button": button.rawValue
     ]
 }

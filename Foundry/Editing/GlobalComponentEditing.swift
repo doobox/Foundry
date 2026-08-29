@@ -14,6 +14,29 @@ extension ProjectEditor {
     }
 
     @discardableResult
+    func saveGlobalComponents(componentIDs: [UUID]) -> [UUID] {
+        let sources = componentIDs.compactMap { id in
+            document.site.component(withID: id).map { (id, $0) }
+        }
+        guard !sources.isEmpty else { return [] }
+        let definitions = sources.map { source in
+            ReusableComponentDefinition(
+                name: source.1.name,
+                root: source.1.duplicatedForReusableDefinition()
+            )
+        }
+        mutate(actionName: definitions.count == 1 ? "Create Global Component" : "Create Global Components") { site in
+            site.globalComponents.append(contentsOf: definitions)
+            for (index, source) in sources.enumerated() {
+                site.updateComponent(id: source.0) {
+                    $0.reusableDefinitionID = definitions[index].id
+                }
+            }
+        }
+        return definitions.map(\.id)
+    }
+
+    @discardableResult
     func insertGlobalComponent(definitionID: UUID, on pageID: UUID, placement: ComponentPlacement) -> UUID? {
         guard let definition = document.site.globalComponents.first(where: { $0.id == definitionID }) else { return nil }
         let instance = definition.root.duplicatedAsReusableInstance(of: definitionID)

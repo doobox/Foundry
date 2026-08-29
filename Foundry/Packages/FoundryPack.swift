@@ -1,80 +1,64 @@
 import Foundation
 
-nonisolated struct FoundryPackManifest: Codable, Equatable, Sendable {
-    static let supportedAPIVersion = 1
-
-    let apiVersion: Int
-    let identifier: String
-    let version: String
-    let name: String
-    let description: String
-    let author: String?
-
-    enum CodingKeys: String, CodingKey {
-        case apiVersion
-        case identifier = "id"
-        case version
-        case name
-        case description
-        case author
-    }
+nonisolated enum FoundryPackType: String, Codable, Sendable {
+    case component
+    case theme
 }
 
-nonisolated struct FoundryPackageMetadata: Codable, Equatable, Sendable {
-    let apiVersion: Int
+nonisolated struct FoundryPackHeader: Codable, Sendable {
+    let type: FoundryPackType
     let identifier: String
-    let version: String
-    let minimumFoundryVersion: String?
-    let name: String
-    let description: String
-    let author: String?
-    let category: String
-    let tags: [String]
-    let icon: String
-    let assets: [String]
-    let helpURL: URL?
 
     enum CodingKeys: String, CodingKey {
-        case apiVersion
-        case identifier = "id"
-        case version
-        case minimumFoundryVersion
-        case name
-        case description
-        case author
-        case category
-        case tags
-        case icon
-        case assets
-        case helpURL
+        case type
+        case identifier = "CFBundleIdentifier"
     }
 }
 
 nonisolated struct FoundryPack: Sendable {
-    let manifest: FoundryPackManifest
+    let type: FoundryPackType
+    let identifier: String
     let rootURL: URL
-    let componentURLs: [URL]
-    let themeURLs: [URL]
+}
+
+nonisolated enum FoundryPackLoadingError: Error, LocalizedError {
+    case wrongExtension
+    case missingManifest
+    case invalidManifest(Error)
+
+    var errorDescription: String? {
+        switch self {
+        case .wrongExtension:
+            "Foundry extensions must use the .foundrypack extension."
+        case .missingManifest:
+            "The pack does not contain Contents/Info.plist."
+        case .invalidManifest(let error):
+            "The pack's Info.plist is invalid: \(error.localizedDescription)"
+        }
+    }
 }
 
 nonisolated enum FoundryPackLoader {
     static func load(from rootURL: URL) throws -> FoundryPack {
-        let manifestURL = rootURL.appending(path: "pack.json")
-        let manifest = try JSONDecoder().decode(
-            FoundryPackManifest.self,
-            from: Data(contentsOf: manifestURL)
-        )
-        guard manifest.apiVersion == FoundryPackManifest.supportedAPIVersion else {
-            throw CocoaError(.fileReadCorruptFile)
+        guard rootURL.pathExtension.lowercased() == "foundrypack" else {
+            throw FoundryPackLoadingError.wrongExtension
         }
-        let children = try FileManager.default.subpathsOfDirectory(atPath: rootURL.path)
-            .map { rootURL.appending(path: $0) }
-        return FoundryPack(
-            manifest: manifest,
-            rootURL: rootURL,
-            componentURLs: packageRoots(in: children, extension: "foundrycomponent"),
-            themeURLs: packageRoots(in: children, extension: "foundrytheme")
-        )
+        let manifestURL = rootURL.appending(path: "Contents/Info.plist")
+        guard FileManager.default.fileExists(atPath: manifestURL.path) else {
+            throw FoundryPackLoadingError.missingManifest
+        }
+        do {
+            let header = try PropertyListDecoder().decode(
+                FoundryPackHeader.self,
+                from: Data(contentsOf: manifestURL)
+            )
+            guard !header.identifier.isEmpty else {
+                throw CocoaError(.fileReadCorruptFile)
+            }
+            return FoundryPack(type: header.type, identifier: header.identifier, rootURL: rootURL)
+        } catch {
+            throw FoundryPackLoadingError.invalidManifest(error)
+        }
     }
 
     static func installedPacksURL(fileManager: FileManager = .default) throws -> URL {
@@ -91,12 +75,13 @@ nonisolated enum FoundryPackLoader {
         return url
     }
 
-    private static func packageRoots(in urls: [URL], extension pathExtension: String) -> [URL] {
-        let matches = urls.filter { $0.pathExtension == pathExtension }
-        return matches.filter { candidate in
-            !matches.contains { other in
-                other != candidate && candidate.path.hasPrefix(other.path + "/")
-            }
-        }.sorted { $0.path < $1.path }
+    static func packURLs(in rootURL: URL) -> [URL] {
+        guard let urls = try? FileManager.default.contentsOfDirectory(
+            at: rootURL,
+            includingPropertiesForKeys: [.isDirectoryKey],
+            options: [.skipsHiddenFiles]
+        ) else { return [] }
+        return urls.filter { $0.pathExtension.lowercased() == "foundrypack" }
+            .sorted { $0.lastPathComponent.localizedStandardCompare($1.lastPathComponent) == .orderedAscending }
     }
 }

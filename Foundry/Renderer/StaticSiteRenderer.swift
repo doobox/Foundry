@@ -120,9 +120,8 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
     private func render(_ node: ComponentNode, theme: Theme, assetPrefix: String, assets: [UUID: ProjectAssetContent]) -> String {
         let style = sharedStyles(for: node, theme: theme)
         switch node.type.definition.renderKind {
-        case .container, .section:
-            let className = node.type.definition.renderKind == .section ? "section" : "container"
-            return element("section", className, node, style, children(of: node, theme: theme, assetPrefix: assetPrefix, assets: assets))
+        case .section:
+            return element("section", "section", node, style, children(of: node, theme: theme, assetPrefix: assetPrefix, assets: assets))
         case .columns:
             let columns = clamped(node.numberProperty(.columnCount), to: 1...6)
             let gap = clamped(node.numberProperty(.gap), to: 0...120)
@@ -217,11 +216,10 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
         let theme = site.theme
         return """
         \(theme.remoteFontImports)
-        :root{--background:\(theme.colors.background);--surface:\(theme.colors.surface);--text:\(theme.colors.text);--accent:\(theme.colors.accent);--font-body:\(theme.typography.bodyFont.cssFamily);--font-heading:\(theme.typography.headingFont.cssFamily);--font-monospace:\(theme.typography.monospacedFont.cssFamily);\(theme.customFontCSSVariables)--space-s:\(theme.spacing.small)px;--space-m:\(theme.spacing.medium)px;--space-l:\(theme.spacing.large)px}
+        :root{font-size:\(theme.typography.baseSize)px;--background:\(theme.colors.background);--surface:\(theme.colors.surface);--text:\(theme.colors.text);--accent:\(theme.colors.accent);--font-body:\(theme.typography.bodyFont.cssFamily);--font-heading:\(theme.typography.headingFont.cssFamily);--font-monospace:\(theme.typography.monospacedFont.cssFamily);\(theme.customFontCSSVariables)\(theme.fontSizeCSSVariables)--space-s:\(theme.spacing.small)px;--space-m:\(theme.spacing.medium)px;--space-l:\(theme.spacing.large)px}
         *{box-sizing:border-box}
-        body{margin:0;padding:48px;background:var(--background);color:var(--text);font:\(theme.typography.baseSize)px var(--font-body)}
+        body{margin:0;padding:48px;background:var(--background);color:var(--text);font-family:var(--font-body);font-size:var(--font-size-base);line-height:var(--font-size-base-line-height)}
         h1,h2,h3,h4,h5,h6,.heading{font-family:var(--font-heading)}code,pre,kbd,samp{font-family:var(--font-monospace)}
-        .container{box-shadow:0 12px 40px rgba(0,0,0,.08)}
         .button{display:block;width:fit-content;text-decoration:none;font-weight:600}.columns{display:grid}.image{display:block;width:100%;height:auto}.spacer{min-height:8px}
         \(packageStyles(for: site))
         \(themeControlStyles(for: site))
@@ -255,6 +253,7 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
                             ) + ";"
                         }.joined()
                     }
+                    declarations += themeControlDeclarations(for: resolved, theme: site.theme)
                 default:
                     break
                 }
@@ -279,12 +278,24 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
 
     private func themeControlStyles(for site: Site) -> String {
         site.pages.flatMap { $0.components.flatMap(\.flattened) }.compactMap { node in
-            guard node.type.definition.properties.contains(where: { $0.control.isThemeFontFamily }) else {
-                return nil
-            }
-            let family = site.theme.fontCSSVariable(for: node.property(.themeFontFamily))
-            return ".\(componentClass(node)){font-family:\(family)}"
+            let declarations = themeControlDeclarations(for: node, theme: site.theme)
+            return declarations.isEmpty ? nil : ".\(componentClass(node)){\(declarations)}"
         }.joined(separator: "\n")
+    }
+
+    private func themeControlDeclarations(for node: ComponentNode, theme: Theme) -> String {
+        var declarations = ""
+        if node.type.definition.properties.contains(where: { $0.control.isThemeFontFamily }) {
+            declarations += "font-family:\(theme.fontCSSVariable(for: node.property(.themeFontFamily)));"
+        }
+        if node.type.definition.properties.contains(where: { $0.control.isThemeFontSize }) {
+            declarations += ThemeTypographyControlCSS.declarations(for: node, theme: theme)
+                .joined(separator: ";") + ";"
+        }
+        if node.type.definition.properties.contains(where: { $0.control.isThemeColor }) {
+            declarations += "color:\(theme.adjustedColor(role: node.property(.themeColor), shade: node.numberProperty(.themeColorShade)));"
+        }
+        return declarations
     }
 
     private func packageValue(_ value: ComponentProperty.Value) -> ComponentPackageValue {

@@ -62,14 +62,14 @@ struct CanvasBridgeTests {
             #expect(html.contains("data-foundry-id=\"\(id)\""))
         }
         #expect(html.contains("data-foundry-type=\"Container\""))
-        #expect(html.contains("data-foundry-type=\"Text\""))
+        #expect(html.contains("data-foundry-type=\"Paragraph\""))
         #expect(html.contains("data-foundry-type=\"Button\""))
     }
 
     @Test @MainActor
     func rendererMarksGlobalsNestedInsideNormalComponents() {
         let definitionID = UUID()
-        var global = ComponentNode.make(.text)
+        var global = ComponentNode.make(.paragraph)
         global.reusableDefinitionID = definitionID
         var container = ComponentNode.make(.container)
         container.children = [global]

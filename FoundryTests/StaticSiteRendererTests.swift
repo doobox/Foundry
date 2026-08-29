@@ -30,7 +30,7 @@ struct StaticSiteRendererTests {
     @Test
     func rendersHomeAndNestedPagePathsWithSharedStylesheet() throws {
         var site = Site.starter()
-        site.pages.append(Page(title: "About", slug: "about", components: [.make(.text)]))
+        site.pages.append(Page(title: "About", slug: "about", components: [.make(.paragraph)]))
 
         let bundle = StaticSiteRenderer().render(site: site)
 
@@ -99,8 +99,8 @@ struct StaticSiteRendererTests {
     @Test
     func escapesPageTitlesAndComponentContent() throws {
         let text = ComponentNode(
-            type: .text,
-            properties: [.init(key: .text, value: .string("<Hello & goodbye>"))]
+            type: .paragraph,
+            properties: [.init(key: .init(rawValue: "content1"), value: .string("<Hello & goodbye>"))]
         )
         let site = Site(name: "Test", pages: [Page(title: "A < B", slug: "index", components: [text])])
 

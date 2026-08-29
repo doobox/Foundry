@@ -9,6 +9,7 @@ nonisolated enum EditorWindowSize {
 
 @main
 struct FoundryApp: App {
+    @NSApplicationDelegateAdaptor(FoundryApplicationDelegate.self) private var applicationDelegate
     @State private var workspaceLibrary = WorkspacePresetLibrary()
 
     init() {

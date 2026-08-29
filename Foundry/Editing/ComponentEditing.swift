@@ -39,6 +39,23 @@ extension ProjectEditor {
     }
 
     @discardableResult
+    func duplicateComponents(ids: [UUID], on pageID: UUID) -> [UUID] {
+        guard !ids.isEmpty,
+              let page = document.site.pages.first(where: { $0.id == pageID }) else { return [] }
+        let pairs = ids.compactMap { id in
+            page.components.node(withID: id).map { (id, $0.duplicated()) }
+        }
+        guard !pairs.isEmpty else { return [] }
+        mutate(actionName: pairs.count == 1 ? "Duplicate Component" : "Duplicate Components") { site in
+            guard let index = site.pages.firstIndex(where: { $0.id == pageID }) else { return }
+            for (sourceID, duplicate) in pairs.reversed() {
+                site.pages[index].components.insert(duplicate, at: .after(sourceID))
+            }
+        }
+        return pairs.map { $0.1.id }
+    }
+
+    @discardableResult
     func pasteComponent(
         _ source: ComponentNode,
         on pageID: UUID,
@@ -53,6 +70,27 @@ extension ProjectEditor {
             inserted = site.pages[index].components.insert(duplicate, at: placement)
         }
         return inserted ? duplicate.id : nil
+    }
+
+    @discardableResult
+    func pasteComponents(
+        _ sources: [ComponentNode],
+        on pageID: UUID,
+        placement: ComponentPlacement
+    ) -> [UUID] {
+        guard !sources.isEmpty else { return [] }
+        let duplicates = sources.map { $0.duplicated() }
+        var insertedIDs: [UUID] = []
+        mutate(actionName: duplicates.count == 1 ? "Paste Component" : "Paste Components") { site in
+            guard let index = site.pages.firstIndex(where: { $0.id == pageID }) else { return }
+            var nextPlacement = placement
+            for duplicate in duplicates {
+                guard site.pages[index].components.insert(duplicate, at: nextPlacement) else { return }
+                insertedIDs.append(duplicate.id)
+                nextPlacement = .after(duplicate.id)
+            }
+        }
+        return insertedIDs
     }
 
     @discardableResult

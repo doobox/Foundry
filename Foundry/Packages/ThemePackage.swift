@@ -1,9 +1,7 @@
 import Foundation
 
 nonisolated struct ThemePackageManifest: Codable, Equatable, Sendable {
-    static let supportedAPIVersion = 1
-
-    let apiVersion: Int
+    let type: FoundryPackType
     let identifier: String
     let version: String
     let minimumFoundryVersion: String?
@@ -19,8 +17,8 @@ nonisolated struct ThemePackageManifest: Codable, Equatable, Sendable {
     let helpURL: URL?
 
     enum CodingKeys: String, CodingKey {
-        case apiVersion
-        case identifier = "id"
+        case type
+        case identifier = "CFBundleIdentifier"
         case version
         case minimumFoundryVersion
         case name
@@ -45,7 +43,9 @@ nonisolated struct LoadedThemePackage: Sendable {
     let manifest: ThemePackageManifest
     let rootURL: URL
 
-    var iconURL: URL { rootURL.appending(path: manifest.icon) }
+    var iconURL: URL {
+        rootURL.appending(path: "Contents/Resources").appending(path: manifest.icon)
+    }
     var lock: ThemePackageLock {
         .init(identifier: manifest.identifier, version: manifest.version)
     }
@@ -53,16 +53,18 @@ nonisolated struct LoadedThemePackage: Sendable {
 
 nonisolated enum ThemePackageLoader {
     static func load(from rootURL: URL) throws -> LoadedThemePackage {
-        let manifestURL = rootURL.appending(path: "theme.json")
-        let manifest = try JSONDecoder().decode(
+        let manifestURL = rootURL.appending(path: "Contents/Info.plist")
+        let manifest = try PropertyListDecoder().decode(
             ThemePackageManifest.self,
             from: Data(contentsOf: manifestURL)
         )
-        guard manifest.apiVersion == ThemePackageManifest.supportedAPIVersion,
+        guard manifest.type == .theme,
               !manifest.identifier.isEmpty,
               !manifest.version.isEmpty,
               !manifest.name.isEmpty,
-              FileManager.default.fileExists(atPath: rootURL.appending(path: manifest.icon).path) else {
+              FileManager.default.fileExists(
+                atPath: rootURL.appending(path: "Contents/Resources").appending(path: manifest.icon).path
+              ) else {
             throw CocoaError(.fileReadCorruptFile)
         }
         return LoadedThemePackage(manifest: manifest, rootURL: rootURL)

@@ -41,14 +41,31 @@ nonisolated struct ComponentCategory: RawRepresentable, Hashable, Sendable {
         self.rawValue = rawValue
     }
 
-    static let layout = ComponentCategory(rawValue: "Layout component")
-    static let content = ComponentCategory(rawValue: "Content component")
-    static let media = ComponentCategory(rawValue: "Media component")
-    static let unavailable = ComponentCategory(rawValue: "Unavailable component")
+    static let layout = ComponentCategory(rawValue: "Layout")
+    static let content = ComponentCategory(rawValue: "Content")
+    static let media = ComponentCategory(rawValue: "Media")
+    static let navigation = ComponentCategory(rawValue: "Navigation")
+    static let forms = ComponentCategory(rawValue: "Forms")
+    static let interactive = ComponentCategory(rawValue: "Interactive")
+    static let other = ComponentCategory(rawValue: "Other")
+    static let unavailable = other
+}
+
+nonisolated enum ComponentPackageGroup: String, CaseIterable, Sendable {
+    case layout = "Layout"
+    case content = "Content"
+    case media = "Media"
+    case navigation = "Navigation"
+    case forms = "Forms"
+    case interactive = "Interactive"
+    case other = "Other"
+
+    static func resolve(_ value: String) -> ComponentPackageGroup {
+        allCases.first { $0.rawValue.caseInsensitiveCompare(value) == .orderedSame } ?? .other
+    }
 }
 
 nonisolated enum ComponentRenderKind: Sendable {
-    case container
     case section
     case columns
     case text
@@ -68,6 +85,7 @@ nonisolated struct ComponentPropertyDefinition: Identifiable, Sendable {
     let control: ComponentPropertyControl
     let defaultValue: ComponentProperty.Value
     let isResponsive: Bool
+    let isInspectorVisible: Bool
 
     var id: ComponentProperty.Key { key }
 
@@ -77,7 +95,8 @@ nonisolated struct ComponentPropertyDefinition: Identifiable, Sendable {
         section: ComponentPropertySection,
         control: ComponentPropertyControl,
         defaultValue: ComponentProperty.Value,
-        isResponsive: Bool? = nil
+        isResponsive: Bool? = nil,
+        isInspectorVisible: Bool = true
     ) {
         self.key = key
         self.label = label
@@ -85,6 +104,7 @@ nonisolated struct ComponentPropertyDefinition: Identifiable, Sendable {
         self.control = control
         self.defaultValue = defaultValue
         self.isResponsive = isResponsive ?? Self.builtInResponsiveKeys.contains(key)
+        self.isInspectorVisible = isInspectorVisible
     }
 
     private static let builtInResponsiveKeys: Set<ComponentProperty.Key> = [
@@ -117,11 +137,21 @@ nonisolated enum ComponentPropertyControl: Sendable {
     case color
     case choice([ComponentPropertyChoice])
     case themeFontFamily
+    case themeFontSize
+    case themeColor
     case toggle
     case asset
 
     var isThemeFontFamily: Bool {
         if case .themeFontFamily = self { true } else { false }
+    }
+
+    var isThemeFontSize: Bool {
+        if case .themeFontSize = self { true } else { false }
+    }
+
+    var isThemeColor: Bool {
+        if case .themeColor = self { true } else { false }
     }
 }
 

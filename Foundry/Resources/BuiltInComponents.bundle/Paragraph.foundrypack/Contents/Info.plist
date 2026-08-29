@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>type</key>
+	<string>component</string>
+	<key>CFBundleIdentifier</key>
+	<string>foundry.content.paragraph</string>
+	<key>assets</key>
+	<array/>
+	<key>author</key>
+	<string>Foundry</string>
+	<key>customItems</key>
+	<array/>
+	<key>description</key>
+	<string>Adds a paragraph of body text to the page.</string>
+	<key>group</key>
+	<string>Content</string>
+	<key>slots</key>
+	<array/>
+	<key>tags</key>
+	<array>
+		<string>built-in</string>
+	</array>
+	<key>templates</key>
+	<dict>
+		<key>css</key>
+		<string>component.css</string>
+		<key>html</key>
+		<string>component.html</string>
+	</dict>
+	<key>themeControls</key>
+	<array>
+		<dict>
+			<key>default</key>
+				<string>body</string>
+			<key>group</key>
+			<string>Typography</string>
+			<key>responsive</key>
+			<true/>
+			<key>title</key>
+			<string>Typeface</string>
+			<key>type</key>
+				<string>fontFamily</string>
+			</dict>
+		<dict>
+				<key>default</key>
+				<string>base</string>
+				<key>group</key>
+				<string>Typography</string>
+				<key>responsive</key>
+				<false/>
+				<key>title</key>
+				<string>Font Size</string>
+				<key>type</key>
+				<string>fontSize</string>
+			</dict>
+			<dict>
+				<key>default</key>
+				<string>text</string>
+				<key>shade</key>
+				<integer>500</integer>
+				<key>group</key>
+				<string>Typography</string>
+				<key>responsive</key>
+				<true/>
+				<key>title</key>
+				<string>Colour</string>
+				<key>type</key>
+				<string>color</string>
+			</dict>
+		</array>
+	<key>title</key>
+	<string>Paragraph</string>
+	<key>version</key>
+	<string>1.0</string>
+</dict>
+</plist>

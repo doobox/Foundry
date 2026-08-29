@@ -3,7 +3,8 @@ import Synchronization
 
 nonisolated enum ComponentRegistry {
     static let builtInTypes: [ComponentType] = [
-        .text
+        .container,
+        .paragraph
     ]
 
     static func definition(for type: ComponentType) -> ComponentDefinition {
@@ -28,11 +29,6 @@ nonisolated enum ComponentRegistry {
     private static let packageDefinitions = Mutex<[ComponentType: ComponentDefinition]>([:])
 
     private static let builtInDefinitions: [ComponentType: ComponentDefinition] = [
-        .container: definition(
-            .container, "Container", "rectangle.3.group", .layout, children: true, render: .container,
-            properties: ComponentStyleProperties.appearance(background: "#FFFFFF", cornerRadius: 18) +
-                ComponentStyleProperties.layout(padding: 32, maxWidth: 760, alignment: "center")
-        ),
         .section: definition(
             .section, "Section", "rectangle.inset.filled", .layout, children: true, render: .section,
             properties: ComponentStyleProperties.appearance(background: "#FFFFFF", cornerRadius: 0) +
@@ -45,9 +41,9 @@ nonisolated enum ComponentRegistry {
                 .init(key: .gap, label: "Gap", section: .layout, control: .number(range: 0...120, step: 4, unit: "px"), defaultValue: .number(24))
             ] + ComponentStyleProperties.layout(padding: 0, maxWidth: 1200, alignment: "center")
         ),
-        .text: definition(
-            .text, "Text", "textformat", .content, inline: .text, render: .text,
-            properties: textProperties(label: "Text", defaultText: "New text", size: 38) +
+        .paragraph: definition(
+            .paragraph, "Paragraph", "textformat", .content, inline: .text, render: .text,
+            properties: textProperties(label: "Paragraph", defaultText: "New paragraph", size: 16) +
                 ComponentStyleProperties.border(cornerRadius: 0) +
                 ComponentStyleProperties.layout(padding: 0, maxWidth: 0, alignment: "leading", marginBottom: 32)
         ),

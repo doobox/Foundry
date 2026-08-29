@@ -12,7 +12,7 @@ struct ReusableComponentTests {
             ReusableComponentDefinition(
                 id: definitionID,
                 name: "Hero",
-                root: ComponentNode(type: .container, children: [ComponentNode.make(.text)])
+                root: ComponentNode(type: .container, children: [ComponentNode.make(.paragraph)])
             )
         ]
 

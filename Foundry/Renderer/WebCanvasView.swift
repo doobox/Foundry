@@ -6,6 +6,7 @@ struct WebCanvasView: NSViewRepresentable {
     let html: String
     let selectedComponentIDs: Set<UUID>
     let editorOptions: CanvasEditorOptions
+    let enablesWebInspector: Bool
     let handleMessage: (CanvasMessage) -> Void
 
     func makeCoordinator() -> Coordinator {
@@ -15,6 +16,9 @@ struct WebCanvasView: NSViewRepresentable {
     func makeNSView(context: Context) -> WKWebView {
         let configuration = WKWebViewConfiguration()
         configuration.defaultWebpagePreferences.allowsContentJavaScript = false
+        if enablesWebInspector {
+            configuration.preferences.setValue(true, forKey: "developerExtrasEnabled")
+        }
         let controller = configuration.userContentController
         controller.add(context.coordinator, contentWorld: .defaultClient, name: Coordinator.handlerName)
         controller.addUserScript(.init(
@@ -25,6 +29,7 @@ struct WebCanvasView: NSViewRepresentable {
         ))
 
         let webView = WKWebView(frame: .zero, configuration: configuration)
+        webView.isInspectable = enablesWebInspector
         webView.navigationDelegate = context.coordinator
         webView.setValue(false, forKey: "drawsBackground")
         webView.setContentHuggingPriority(.defaultLow, for: .horizontal)
@@ -65,6 +70,7 @@ struct WebCanvasView: NSViewRepresentable {
           let placement = null;
           let selectedComponentIDs = [];
           let activeDragSources = [];
+          let activeInlineEdit = null;
           let globalMenuTarget = null;
           let globalMenuRelinks = false;
           const globalMenu = document.createElement('div');
@@ -95,6 +101,7 @@ struct WebCanvasView: NSViewRepresentable {
           });
 
           document.addEventListener('contextmenu', event => {
+            if (event.altKey) return;
             const element = event.target.closest(selector);
             if (!element?.dataset.foundryGlobal) return;
             event.preventDefault();
@@ -362,6 +369,9 @@ struct WebCanvasView: NSViewRepresentable {
             const element = editableElement ?? event.target.closest(selector);
             const editableProperty = element?.dataset.foundryInlineProperty;
             if (!element || !editableProperty) return;
+            if (activeInlineEdit && activeInlineEdit.element !== element) {
+              activeInlineEdit.finish(true);
+            }
             event.preventDefault();
             event.stopPropagation();
 
@@ -382,6 +392,7 @@ struct WebCanvasView: NSViewRepresentable {
             const finish = commit => {
               if (finished) return;
               finished = true;
+              if (activeInlineEdit?.element === element) activeInlineEdit = null;
               element.contentEditable = 'false';
               element.draggable = true;
               element.classList.remove('foundry-editing');
@@ -401,7 +412,7 @@ struct WebCanvasView: NSViewRepresentable {
               }
             };
 
-            element.addEventListener('blur', () => finish(true), { once: true });
+            activeInlineEdit = { element, finish };
             element.addEventListener('keydown', keyEvent => {
               if (keyEvent.key === 'Escape') {
                 keyEvent.preventDefault();
@@ -417,6 +428,9 @@ struct WebCanvasView: NSViewRepresentable {
 
           document.addEventListener('click', event => {
             const element = event.target.closest(selector);
+            if (activeInlineEdit && !activeInlineEdit.element.contains(event.target)) {
+              activeInlineEdit.finish(true);
+            }
             if (element?.isContentEditable) return;
             if (!element) return;
             event.preventDefault();
