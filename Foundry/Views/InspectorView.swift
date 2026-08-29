@@ -461,69 +461,68 @@ private struct ComponentInspectorGroup: View {
 
     var body: some View {
         Section {
-            VStack(spacing: 0) {
-                ComponentInspectorGroupHeader(
-                    title: group.rawValue,
-                    isExpanded: $isExpanded
-                )
-
-                if isExpanded {
-                    VStack(spacing: 0) {
-                        ForEach(properties) { definition in
-                            ComponentPropertyEditor(
-                                definition: definition,
-                                component: component,
-                                theme: theme,
-                                assets: assets,
-                                editor: editor,
-                                editsSharedDefinition: editsSharedDefinition,
-                                breakpoint: breakpoint
-                            )
-                            .padding(.vertical, 8)
-                        }
+            DisclosureGroup(isExpanded: $isExpanded) {
+                VStack(spacing: 0) {
+                    ForEach(properties) { definition in
+                        ComponentPropertyEditor(
+                            definition: definition,
+                            component: component,
+                            theme: theme,
+                            assets: assets,
+                            editor: editor,
+                            editsSharedDefinition: editsSharedDefinition,
+                            breakpoint: breakpoint
+                        )
+                        .padding(.vertical, 8)
                     }
-                    .padding(.top, 4)
                 }
+            } label: {
+                Text(group.rawValue)
             }
+            .disclosureGroupStyle(ComponentInspectorDisclosureStyle())
         }
     }
 }
 
-private struct ComponentInspectorGroupHeader: View {
-    let title: String
-    @Binding var isExpanded: Bool
+private struct ComponentInspectorDisclosureStyle: DisclosureGroupStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        VStack(spacing: 0) {
+            Button {
+                withAnimation(.easeInOut(duration: 0.15)) {
+                    configuration.isExpanded.toggle()
+                }
+            } label: {
+                HStack(spacing: 8) {
+                    configuration.label
+                        .font(.headline)
+                        .bold()
+                        .foregroundStyle(.primary)
 
-    var body: some View {
-        Button {
-            withAnimation(.easeInOut(duration: 0.15)) {
-                isExpanded.toggle()
+                    Spacer(minLength: 8)
+
+                    Image(systemName: "chevron.down")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                        .rotationEffect(.degrees(configuration.isExpanded ? 0 : -90))
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 8)
+                .background(
+                    Color.primary.opacity(0.05),
+                    in: RoundedRectangle(cornerRadius: 6)
+                )
+                .contentShape(Rectangle())
             }
-        } label: {
-            HStack(spacing: 8) {
-                Text(title)
-                    .font(.headline)
-                    .bold()
-                    .foregroundStyle(.primary)
+            .buttonStyle(.plain)
+            .accessibilityValue(configuration.isExpanded ? "Expanded" : "Collapsed")
+            .accessibilityHint(configuration.isExpanded ? "Collapses this group" : "Expands this group")
 
-                Spacer(minLength: 8)
-
-                Image(systemName: "chevron.down")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.secondary)
-                    .rotationEffect(.degrees(isExpanded ? 0 : -90))
+            if configuration.isExpanded {
+                configuration.content
+                    .padding(.top, 4)
+                    .transition(.opacity)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, 10)
-            .padding(.vertical, 8)
-            .background(
-                Color.primary.opacity(0.05),
-                in: RoundedRectangle(cornerRadius: 6)
-            )
-            .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
-        .accessibilityLabel(title)
-        .accessibilityValue(isExpanded ? "Expanded" : "Collapsed")
-        .accessibilityHint(isExpanded ? "Collapses this group" : "Expands this group")
     }
 }
