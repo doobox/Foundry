@@ -272,6 +272,7 @@ private struct PageInspector: View {
                 )
             )
             LabeledContent("Path", value: exportPath)
+            LabeledContent("Export File", value: exportFilePath)
             Text("Slugs use lowercase letters, numbers, and hyphens. Duplicate slugs receive a numeric suffix.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
@@ -311,6 +312,11 @@ private struct PageInspector: View {
             currentID = folder.parentID
         }
         return "/" + slugs.joined(separator: "/") + "/"
+    }
+
+    private var exportFilePath: String {
+        let fileExtension = StaticSiteRenderer.requiresPhp(page) ? "php" : "html"
+        return exportPath + "index.\(fileExtension)"
     }
 
     private func metadataField(

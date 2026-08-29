@@ -9,7 +9,7 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
         var files = site.pages.map { page in
             let isHome = page.slug == "index"
             let directory = isHome ? "" : joinedPath(folderPath(for: page.folderID, in: site), page.slug)
-            let pageExtension = requiresPhp(page) ? "php" : "html"
+            let pageExtension = Self.requiresPhp(page) ? "php" : "html"
             let rootPrefix = directory.isEmpty
                 ? ""
                 : String(repeating: "../", count: directory.split(separator: "/").count)
@@ -37,7 +37,7 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
         return SiteExportBundle(files: files.sorted { $0.path < $1.path })
     }
 
-    private func requiresPhp(_ page: Page) -> Bool {
+    static func requiresPhp(_ page: Page) -> Bool {
         page.components
             .flatMap(\.flattened)
             .contains { ComponentRegistry.definition(for: $0.type).package?.manifest.requiresPhp == true }

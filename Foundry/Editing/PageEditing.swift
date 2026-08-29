@@ -48,9 +48,10 @@ extension ProjectEditor {
 
     @discardableResult
     func addPage() -> UUID {
+        let title = "Page \(document.site.pages.count + 1)"
         let page = Page(
-            title: "Page \(document.site.pages.count + 1)",
-            slug: uniqueSlug(for: "page"),
+            title: title,
+            slug: uniqueSlug(for: title),
             order: childItems(of: nil).count
         )
         mutate(actionName: "Add Page") { $0.pages.append(page) }

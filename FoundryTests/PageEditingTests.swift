@@ -13,8 +13,22 @@ struct PageEditingTests {
         let page = document.site.pages.first(where: { $0.id == pageID })
 
         #expect(page != nil)
-        #expect(page?.slug == "page")
+        #expect(page?.title == "Page 2")
+        #expect(page?.slug == "page-2")
         #expect(document.site.pages.count == 2)
+    }
+
+    @Test
+    func derivesEachNewPageSlugFromItsGeneratedTitle() {
+        let document = FoundryDocument()
+        let editor = ProjectEditor(document: document, undoManager: nil)
+
+        _ = editor.addPage()
+        let pageID = editor.addPage()
+        let page = document.site.pages.first(where: { $0.id == pageID })
+
+        #expect(page?.title == "Page 3")
+        #expect(page?.slug == "page-3")
     }
 
     @Test
