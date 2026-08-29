@@ -1,0 +1,151 @@
+#!/bin/sh
+set -eu
+
+php_version=8.5.9
+php_sha256=d735459c2cbaeb0673d416c33d372d9ff261d562f6b29da48f3e6aeaeca083af
+minimum_macos=14.0
+requested_architectures=${FOUNDRY_PHP_ARCHITECTURES:-"arm64 x86_64"}
+bison_version=3.8.2
+bison_sha256=9bba0214ccf7f1079c5d59210045227bcf619519840ebfa80cd3849cff5a5bf2
+
+repository_root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+download_root="$repository_root/.build/php-runtime"
+work_root="${TMPDIR:-/tmp}/FoundryPHPRuntime-$php_version"
+download_path="$download_root/php-$php_version.tar.gz"
+source_archive_url="https://www.php.net/distributions/php-$php_version.tar.gz"
+bison_download_path="$download_root/bison-$bison_version.tar.xz"
+bison_archive_url="https://ftp.gnu.org/gnu/bison/bison-$bison_version.tar.xz"
+artifact_root="$repository_root/RuntimeArtifacts/PHP"
+
+require_command() {
+    if ! command -v "$1" >/dev/null 2>&1; then
+        echo "Required command not found: $1" >&2
+        exit 1
+    fi
+}
+
+for command_name in awk curl shasum tar make xcrun lipo file; do
+    require_command "$command_name"
+done
+
+bootstrap_bison() {
+    bison_source_root="$work_root/bison-source"
+    bison_build_root="$work_root/bison-build"
+    bison_install_root="$work_root/bison-install"
+    if [ ! -f "$bison_download_path" ]; then
+        curl --fail --location --proto '=https' --tlsv1.2 \
+            --output "$bison_download_path" "$bison_archive_url"
+    fi
+    actual_bison_sha256=$(shasum -a 256 "$bison_download_path" | awk '{print $1}')
+    if [ "$actual_bison_sha256" != "$bison_sha256" ]; then
+        echo "Bison source checksum mismatch." >&2
+        exit 1
+    fi
+    mkdir -p "$bison_source_root" "$bison_build_root"
+    tar -xJf "$bison_download_path" -C "$bison_source_root" --strip-components=1
+    cd "$bison_build_root"
+    "$bison_source_root/configure" --prefix="$bison_install_root" --disable-dependency-tracking
+    make -j"$(sysctl -n hw.logicalcpu)"
+    make install
+    bison_path="$bison_install_root/bin/bison"
+}
+
+mkdir -p "$download_root"
+rm -rf "$work_root"
+mkdir -p "$work_root"
+
+if command -v brew >/dev/null 2>&1 && [ -x "$(brew --prefix bison 2>/dev/null)/bin/bison" ]; then
+    bison_path="$(brew --prefix bison)/bin/bison"
+else
+    bison_path=$(command -v bison || true)
+fi
+bison_major=$(${bison_path:-/usr/bin/false} --version 2>/dev/null | awk 'NR == 1 { split($4, version, "."); print version[1] }')
+if [ -z "$bison_major" ] || [ "$bison_major" -lt 3 ]; then
+    echo "Building the pinned Bison $bison_version prerequisite locally."
+    bootstrap_bison
+fi
+
+if [ ! -f "$download_path" ]; then
+    curl --fail --location --proto '=https' --tlsv1.2 \
+        --output "$download_path" "$source_archive_url"
+fi
+
+actual_sha256=$(shasum -a 256 "$download_path" | awk '{print $1}')
+if [ "$actual_sha256" != "$php_sha256" ]; then
+    echo "PHP source checksum mismatch." >&2
+    echo "Expected: $php_sha256" >&2
+    echo "Actual:   $actual_sha256" >&2
+    exit 1
+fi
+
+sdk_path=$(xcrun --sdk macosx --show-sdk-path)
+
+build_architecture() {
+    architecture=$1
+    source_root="$work_root/source-$architecture"
+    build_root="$work_root/build-$architecture"
+
+    rm -rf "$source_root" "$build_root"
+    mkdir -p "$source_root" "$build_root"
+    tar -xzf "$download_path" -C "$source_root" --strip-components=1
+
+    cd "$build_root"
+    YACC="$bison_path -y" \
+    CFLAGS="-arch $architecture -isysroot $sdk_path -mmacosx-version-min=$minimum_macos" \
+    CPPFLAGS="-arch $architecture -isysroot $sdk_path -mmacosx-version-min=$minimum_macos" \
+    LDFLAGS="-arch $architecture -isysroot $sdk_path -mmacosx-version-min=$minimum_macos" \
+        "$source_root/configure" \
+            --disable-all \
+            --disable-phpdbg \
+            --enable-cgi \
+            --enable-ctype \
+            --enable-filter \
+            --enable-session \
+            --enable-tokenizer
+    make -j"$(sysctl -n hw.logicalcpu)"
+}
+
+case "$requested_architectures" in
+    "arm64")
+        build_architecture arm64
+        ;;
+    "x86_64")
+        build_architecture x86_64
+        ;;
+    "arm64 x86_64"|"x86_64 arm64")
+        build_architecture arm64
+        if ! arch -x86_64 /usr/bin/true >/dev/null 2>&1; then
+            echo "Rosetta 2 is required to build and validate the universal runtime." >&2
+            echo "For an arm64 development artifact, use FOUNDRY_PHP_ARCHITECTURES=arm64." >&2
+            exit 1
+        fi
+        build_architecture x86_64
+        ;;
+    *)
+        echo "FOUNDRY_PHP_ARCHITECTURES must be 'arm64', 'x86_64', or 'arm64 x86_64'." >&2
+        exit 1
+        ;;
+esac
+
+rm -rf "$artifact_root"
+mkdir -p "$artifact_root"
+if [ "$requested_architectures" = "arm64 x86_64" ] || [ "$requested_architectures" = "x86_64 arm64" ]; then
+    lipo -create \
+        "$work_root/build-arm64/sapi/cgi/php-cgi" \
+        "$work_root/build-x86_64/sapi/cgi/php-cgi" \
+        -output "$artifact_root/php-cgi"
+else
+    cp "$work_root/build-$requested_architectures/sapi/cgi/php-cgi" "$artifact_root/php-cgi"
+fi
+chmod 755 "$artifact_root/php-cgi"
+cp "$work_root/source-arm64/LICENSE" "$artifact_root/PHP-LICENSE.txt"
+
+architectures=$(lipo -archs "$artifact_root/php-cgi")
+if [ "$architectures" != "$requested_architectures" ] &&
+   { [ "$requested_architectures" != "arm64 x86_64" ] || [ "$architectures" != "x86_64 arm64" ]; }; then
+    echo "Unexpected runtime architectures: $architectures" >&2
+    exit 1
+fi
+
+"$artifact_root/php-cgi" -n -v
+echo "Runtime staged at $artifact_root"
