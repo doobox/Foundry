@@ -39,6 +39,10 @@ struct DocumentCodingTests {
         let encoded = try FoundryDocument.encoder.encode(Site.starter())
         var object = try #require(JSONSerialization.jsonObject(with: encoded) as? [String: Any])
         object.removeValue(forKey: "language")
+        object.removeValue(forKey: "titleSuffix")
+        object.removeValue(forKey: "defaultDescription")
+        object.removeValue(forKey: "favicon")
+        object.removeValue(forKey: "defaultSocialImage")
         var pages = try #require(object["pages"] as? [[String: Any]])
         pages[0].removeValue(forKey: "metadata")
         object["pages"] = pages
@@ -47,6 +51,10 @@ struct DocumentCodingTests {
         let decoded = try FoundryDocument.decoder.decode(Site.self, from: data)
 
         #expect(decoded.language == "en")
+        #expect(decoded.titleSuffix.isEmpty)
+        #expect(decoded.defaultDescription.isEmpty)
+        #expect(decoded.favicon.isEmpty)
+        #expect(decoded.defaultSocialImage.isEmpty)
         #expect(decoded.pages.first?.metadata == PageMetadata())
     }
 
@@ -54,6 +62,10 @@ struct DocumentCodingTests {
     func siteMetadataRoundTripsThroughProjectJSON() throws {
         var original = Site.starter()
         original.language = "en-GB"
+        original.titleSuffix = " — Foundry"
+        original.defaultDescription = "The default site description"
+        original.favicon = "foundry-asset:site-icon"
+        original.defaultSocialImage = "foundry-asset:social-image"
         original.pages[0].metadata = PageMetadata(
             browserTitle: "Foundry",
             description: "Build a site",

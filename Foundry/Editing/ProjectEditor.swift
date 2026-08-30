@@ -27,6 +27,22 @@ struct ProjectEditor {
         mutate(actionName: "Edit Site URL") { $0.publicURL = normalizedURL }
     }
 
+    func setSiteTitleSuffix(_ titleSuffix: String) {
+        mutate(actionName: "Edit Site Title Suffix") { $0.titleSuffix = titleSuffix }
+    }
+
+    func setSiteDefaultDescription(_ description: String) {
+        mutate(actionName: "Edit Site Description") { $0.defaultDescription = description }
+    }
+
+    func setSiteFavicon(_ favicon: String) {
+        mutate(actionName: "Set Site Icon") { $0.favicon = favicon }
+    }
+
+    func setSiteDefaultSocialImage(_ image: String) {
+        mutate(actionName: "Set Default Social Image") { $0.defaultSocialImage = image }
+    }
+
     func renameComponent(id: UUID, name: String) {
         mutate(actionName: "Rename Component") { site in
             site.updateComponent(id: id) { $0.name = name }

@@ -152,6 +152,23 @@ struct StaticSiteRendererTests {
     }
 
     @Test
+    func siteIdentityProvidesPageMetadataFallbacks() throws {
+        var site = Site.starter()
+        site.titleSuffix = " — Example"
+        site.defaultDescription = "Default & description"
+        site.favicon = "https://example.com/favicon.png"
+        site.defaultSocialImage = "https://example.com/social.png"
+
+        let html = try #require(StaticSiteRenderer().render(site: site).file(at: "index.html")).contents
+
+        #expect(html.contains("<title>Home — Example</title>"))
+        #expect(html.contains("name=\"description\" content=\"Default &amp; description\""))
+        #expect(html.contains("property=\"og:description\" content=\"Default &amp; description\""))
+        #expect(html.contains("property=\"og:image\" content=\"https://example.com/social.png\""))
+        #expect(html.contains("rel=\"icon\" href=\"https://example.com/favicon.png\""))
+    }
+
+    @Test
     func outputIsDeterministic() {
         let site = Site.starter()
         #expect(StaticSiteRenderer().render(site: site) == StaticSiteRenderer().render(site: site))

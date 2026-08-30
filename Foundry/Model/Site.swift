@@ -1,13 +1,17 @@
 import Foundation
 
 nonisolated struct Site: Codable, Equatable, Identifiable, Sendable {
-    static let currentSchemaVersion = 5
+    static let currentSchemaVersion = 6
 
     let id: UUID
     var schemaVersion: Int
     var name: String
     var language: String
     var publicURL: String
+    var titleSuffix: String
+    var defaultDescription: String
+    var favicon: String
+    var defaultSocialImage: String
     var pages: [Page]
     var pageFolders: [PageFolder]
     var theme: Theme
@@ -25,6 +29,10 @@ nonisolated struct Site: Codable, Equatable, Identifiable, Sendable {
         name: String,
         language: String = "en",
         publicURL: String = "",
+        titleSuffix: String = "",
+        defaultDescription: String = "",
+        favicon: String = "",
+        defaultSocialImage: String = "",
         pages: [Page],
         pageFolders: [PageFolder] = [],
         theme: Theme = .standard,
@@ -39,6 +47,10 @@ nonisolated struct Site: Codable, Equatable, Identifiable, Sendable {
         self.name = name
         self.language = language
         self.publicURL = publicURL
+        self.titleSuffix = titleSuffix
+        self.defaultDescription = defaultDescription
+        self.favicon = favicon
+        self.defaultSocialImage = defaultSocialImage
         self.pages = pages
         self.pageFolders = pageFolders
         self.theme = theme
@@ -82,7 +94,7 @@ nonisolated struct Site: Codable, Equatable, Identifiable, Sendable {
     }
 
     private enum CodingKeys: String, CodingKey {
-        case id, schemaVersion, name, language, publicURL, pages, pageFolders, theme, reusableComponents, globalComponents, assetLibrary, componentPackages, themePackage
+        case id, schemaVersion, name, language, publicURL, titleSuffix, defaultDescription, favicon, defaultSocialImage, pages, pageFolders, theme, reusableComponents, globalComponents, assetLibrary, componentPackages, themePackage
     }
 
     init(from decoder: Decoder) throws {
@@ -92,6 +104,10 @@ nonisolated struct Site: Codable, Equatable, Identifiable, Sendable {
         name = try container.decode(String.self, forKey: .name)
         language = try container.decodeIfPresent(String.self, forKey: .language) ?? "en"
         publicURL = try container.decodeIfPresent(String.self, forKey: .publicURL) ?? ""
+        titleSuffix = try container.decodeIfPresent(String.self, forKey: .titleSuffix) ?? ""
+        defaultDescription = try container.decodeIfPresent(String.self, forKey: .defaultDescription) ?? ""
+        favicon = try container.decodeIfPresent(String.self, forKey: .favicon) ?? ""
+        defaultSocialImage = try container.decodeIfPresent(String.self, forKey: .defaultSocialImage) ?? ""
         pages = try container.decode([Page].self, forKey: .pages)
         pageFolders = try container.decodeIfPresent([PageFolder].self, forKey: .pageFolders) ?? []
         theme = try container.decode(Theme.self, forKey: .theme)

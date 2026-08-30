@@ -142,6 +142,11 @@ struct ContentView: View {
                 siteName: document.site.name,
                 language: document.site.language,
                 publicURL: document.site.publicURL,
+                titleSuffix: document.site.titleSuffix,
+                defaultDescription: document.site.defaultDescription,
+                favicon: document.site.favicon,
+                defaultSocialImage: document.site.defaultSocialImage,
+                assets: document.site.assets,
                 editor: editor
             )
         }

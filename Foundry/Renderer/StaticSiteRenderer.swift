@@ -76,8 +76,9 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
 
     private func render(page: Page, language: String, theme: Theme, stylesheetPath: String, assetPrefix: String, assets: [UUID: ProjectAssetContent], site: Site) -> String {
         let body = page.components.map { render($0, theme: theme, assetPrefix: assetPrefix, assets: assets, site: site) }.joined(separator: "\n")
-        let browserTitle = page.metadata.browserTitle.isEmpty ? page.title : page.metadata.browserTitle
-        let metadata = metadataHTML(for: page, browserTitle: browserTitle, assetPrefix: assetPrefix, assets: assets)
+        let pageTitle = page.metadata.browserTitle.isEmpty ? page.title : page.metadata.browserTitle
+        let browserTitle = pageTitle + site.titleSuffix
+        let metadata = metadataHTML(for: page, browserTitle: browserTitle, assetPrefix: assetPrefix, assets: assets, site: site)
         let headStart = placedHTML(for: page, placement: .headStart)
         let headEnd = placedHTML(for: page, placement: .headEnd)
         let bodyStart = placedHTML(for: page, placement: .bodyStart)
@@ -180,26 +181,35 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
         for page: Page,
         browserTitle: String,
         assetPrefix: String,
-        assets: [UUID: ProjectAssetContent]
+        assets: [UUID: ProjectAssetContent],
+        site: Site
     ) -> String {
         var tags: [String] = []
-        if !page.metadata.description.isEmpty {
-            tags.append("<meta name=\"description\" content=\"\(escapeAttribute(page.metadata.description))\">")
+        let description = page.metadata.description.isEmpty ? site.defaultDescription : page.metadata.description
+        if !description.isEmpty {
+            tags.append("<meta name=\"description\" content=\"\(escapeAttribute(description))\">")
         }
 
         let socialTitle = page.metadata.socialTitle.isEmpty ? browserTitle : page.metadata.socialTitle
         tags.append("<meta property=\"og:title\" content=\"\(escapeAttribute(socialTitle))\">")
 
         let socialDescription = page.metadata.socialDescription.isEmpty
-            ? page.metadata.description
+            ? description
             : page.metadata.socialDescription
         if !socialDescription.isEmpty {
             tags.append("<meta property=\"og:description\" content=\"\(escapeAttribute(socialDescription))\">")
         }
-        if !page.metadata.socialImage.isEmpty {
-            let source = exportSource(page.metadata.socialImage, assetPrefix: assetPrefix, assets: assets)
+        let socialImage = page.metadata.socialImage.isEmpty ? site.defaultSocialImage : page.metadata.socialImage
+        if !socialImage.isEmpty {
+            let source = exportSource(socialImage, assetPrefix: assetPrefix, assets: assets)
             if !source.isEmpty {
                 tags.append("<meta property=\"og:image\" content=\"\(escapeAttribute(source))\">")
+            }
+        }
+        if !site.favicon.isEmpty {
+            let source = exportSource(site.favicon, assetPrefix: assetPrefix, assets: assets)
+            if !source.isEmpty {
+                tags.append("<link rel=\"icon\" href=\"\(escapeAttribute(source))\">")
             }
         }
         return tags.map { "  " + $0 }.joined(separator: "\n")
