@@ -40,7 +40,7 @@ nonisolated struct PublishingProgress: Sendable, Equatable {
     }
 }
 
-private final class CurlProgressContext: @unchecked Sendable {
+nonisolated private final class CurlProgressContext: @unchecked Sendable {
     private let lock = NSLock()
     private var cancelled = false
     let baseBytes: Int64
@@ -84,7 +84,7 @@ private final class CurlProgressContext: @unchecked Sendable {
     }
 }
 
-private let foundryCurlProgress: FoundryCurlProgressCallback = { uploaded, _, pointer in
+nonisolated private let foundryCurlProgress: FoundryCurlProgressCallback = { uploaded, _, pointer in
     guard let pointer else { return 0 }
     return Unmanaged<CurlProgressContext>.fromOpaque(pointer).takeUnretainedValue()
         .update(uploadedBytes: uploaded)
