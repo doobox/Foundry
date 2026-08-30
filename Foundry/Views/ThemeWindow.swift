@@ -169,31 +169,65 @@ private struct ThemeSettingsDetail: View {
         Group {
             if section == .fontFamily {
                 ThemeFontFamilyEditor(theme: theme, assets: assets, session: session)
+            } else if section == .fontSize {
+                fontSizeSettings
             } else {
-                List {
-            switch section {
-            case .screens:
-                pendingSettings("Screen-specific theme overrides will live here.")
-            case .page:
-                ColorPicker(
-                    "Background",
-                    selection: colorBinding(for: .backgroundColor),
-                    supportsOpacity: false
-                )
-            case .colors:
-                Section("Theme Colors") {
-                    ForEach(DesignToken.colorTokens) { token in
-                        ColorPicker(
-                            token.displayName,
-                            selection: colorBinding(for: token),
-                            supportsOpacity: false
-                        )
+                Form {
+                    switch section {
+                    case .screens:
+                        pendingSettings("Screen-specific theme overrides will live here.")
+                    case .page:
+                        Section("Canvas") {
+                            ColorPicker(
+                                "Background",
+                                selection: colorBinding(for: .backgroundColor),
+                                supportsOpacity: false
+                            )
+                        }
+                    case .colors:
+                        Section("Theme Colors") {
+                            ForEach(DesignToken.colorTokens) { token in
+                                ColorPicker(
+                                    token.displayName,
+                                    selection: colorBinding(for: token),
+                                    supportsOpacity: false
+                                )
+                            }
+                        }
+                    case .spacing:
+                        Section("Spacing Scale") {
+                            ForEach(DesignToken.spacingTokens) { token in
+                                Stepper(value: spacingBinding(for: token), in: 0...160, step: 1) {
+                                    LabeledContent(
+                                        token.displayName,
+                                        value: "\((theme.number(for: token) ?? 0).formatted()) px"
+                                    )
+                                }
+                            }
+                        }
+                    case .shadows:
+                        pendingSettings("Reusable shadow styles will be configured here.")
+                    case .borderWidth:
+                        pendingSettings("The theme border-width scale will be configured here.")
+                    case .borderRadius:
+                        pendingSettings("The theme corner-radius scale will be configured here.")
+                    case .typography:
+                        Section("Base Typography") {
+                            TextField("Body Font", text: bodyFontBinding)
+                        }
+                    case .themes, .fontFamily, .fontSize:
+                        EmptyView()
                     }
                 }
-            case .fontFamily:
-                EmptyView()
-            case .fontSize:
-                VStack(alignment: .leading, spacing: 14) {
+                .formStyle(.grouped)
+            }
+        }
+        .navigationTitle(section.title)
+    }
+
+    private var fontSizeSettings: some View {
+        List {
+            VStack(alignment: .leading, spacing: 14) {
                     Text("Base Font")
                         .font(.headline)
                         .foregroundStyle(.secondary)
@@ -224,52 +258,25 @@ private struct ThemeSettingsDetail: View {
                 .listRowBackground(Color.clear)
                 .listRowSeparator(.hidden)
                 .listRowInsets(EdgeInsets(top: 10, leading: 0, bottom: 12, trailing: 0))
-                Section {
-                    ForEach(theme.typography.customFontSizes) { token in
-                        fontSizeEditor(token)
+            Section {
+                ForEach(theme.typography.customFontSizes) { token in
+                    fontSizeEditor(token)
+                }
+                .onMove(perform: editor.moveThemeFontSizes)
+            } header: {
+                HStack {
+                    Text("Custom Sizes")
+                    Spacer()
+                    Button("Add Size", systemImage: "plus") {
+                        editor.addThemeFontSize()
                     }
-                    .onMove(perform: editor.moveThemeFontSizes)
-                } header: {
-                    HStack {
-                        Text("Custom Sizes")
-                        Spacer()
-                        Button("Add Size", systemImage: "plus") {
-                            editor.addThemeFontSize()
-                        }
-                        .labelStyle(.iconOnly)
-                        .buttonStyle(.borderless)
-                        .help("Add Custom Font Size")
-                    }
+                    .labelStyle(.iconOnly)
+                    .buttonStyle(.borderless)
+                    .help("Add Custom Font Size")
                 }
-            case .spacing:
-                Section("Spacing Scale") {
-                    ForEach(DesignToken.spacingTokens) { token in
-                        Stepper(value: spacingBinding(for: token), in: 0...160, step: 1) {
-                            LabeledContent(
-                                token.displayName,
-                                value: "\((theme.number(for: token) ?? 0).formatted()) px"
-                            )
-                        }
-                    }
-                }
-            case .shadows:
-                pendingSettings("Reusable shadow styles will be configured here.")
-            case .borderWidth:
-                pendingSettings("The theme border-width scale will be configured here.")
-            case .borderRadius:
-                pendingSettings("The theme corner-radius scale will be configured here.")
-            case .typography:
-                Section("Base Typography") {
-                    TextField("Body Font", text: bodyFontBinding)
-                }
-            case .themes:
-                EmptyView()
-                }
-            }
-            .listStyle(.inset)
             }
         }
-        .navigationTitle(section.title)
+        .listStyle(.inset)
     }
 
     @ViewBuilder
@@ -498,6 +505,9 @@ private struct ThemeFontFamilyEditor: View {
         .onChange(of: selection) {
             session.discardFontPreview()
         }
+        .onDisappear {
+            session.discardFontPreview()
+        }
     }
 
     private var themeFontSidebar: some View {
@@ -572,6 +582,8 @@ private struct ThemeFontDefinitionEditor: View {
     @State private var isLoadingGoogleFonts = false
     @State private var googleFontsError: String?
     @State private var googleFontsReloadID = 0
+    @State private var selectedGoogleFamily: String?
+    @FocusState private var isSearchFocused: Bool
     @AppStorage("themeEditor.googleBrowserRatio") private var googleBrowserRatio = 0.46
 
     private var editor: ProjectEditor { session.editor }
@@ -620,6 +632,13 @@ private struct ThemeFontDefinitionEditor: View {
         }
         .task(id: googleFontsReloadID) {
             await loadGoogleFonts()
+        }
+        .onAppear {
+            selectedGoogleFamily = definition.family
+        }
+        .onChange(of: selectedGoogleFamily) { _, family in
+            guard let family, family != definition.family else { return }
+            session.previewGoogleFont(family, for: reference)
         }
     }
 
@@ -677,6 +696,10 @@ private struct ThemeFontDefinitionEditor: View {
                     Text("Search")
                         .font(.headline)
                     TextField("Search", text: $search)
+                        .focused($isSearchFocused)
+                        .onSubmit {
+                            selectedGoogleFamily = filteredGoogleFonts.first?.family
+                        }
                 }
                 GridRow(alignment: .firstTextBaseline) {
                     Text("Category")
@@ -724,27 +747,25 @@ private struct ThemeFontDefinitionEditor: View {
     }
 
     private var googleFontList: some View {
-        List(filteredGoogleFonts) { font in
-            Button {
-                session.previewGoogleFont(font.family, for: reference)
-            } label: {
-                HStack {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(font.family)
-                            .font(.title3.weight(.semibold))
-                        Text("\(font.styleCount) style\(font.styleCount == 1 ? "" : "s")")
-                            .foregroundStyle(.secondary)
-                    }
-                    Spacer()
-                    if definition.family == font.family {
-                        Image(systemName: "checkmark")
-                            .foregroundStyle(.tint)
-                    }
+        List(filteredGoogleFonts, selection: $selectedGoogleFamily) { font in
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(font.family)
+                        .font(.title3.weight(.semibold))
+                    Text("\(font.styleCount) style\(font.styleCount == 1 ? "" : "s")")
+                        .foregroundStyle(.secondary)
                 }
-                .contentShape(Rectangle())
-                .padding(.vertical, 6)
+                Spacer()
+                if definition.family == font.family {
+                    Image(systemName: "checkmark")
+                        .foregroundStyle(.tint)
+                        .accessibilityLabel("Current preview")
+                }
             }
-            .buttonStyle(.plain)
+            .contentShape(Rectangle())
+            .padding(.vertical, 6)
+            .tag(font.family)
+            .accessibilityElement(children: .combine)
         }
         .listStyle(.inset)
     }
@@ -820,7 +841,8 @@ private struct ThemeFontDefinitionEditor: View {
                 case .system: editor.setThemeFontSource(.system, reference: reference)
                 case .bundled: editor.setThemeFontSource(.bundled(files: []), reference: reference)
                 case .remote:
-                    editor.setThemeGoogleFont(definition.family, reference: reference)
+                    let initialFamily = GoogleFontsService.fallback.first?.family ?? "ABeeZee"
+                    editor.setThemeGoogleFont(initialFamily, reference: reference)
                 }
             }
         )
