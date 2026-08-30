@@ -603,6 +603,7 @@ private struct ThemeFontDefinitionEditor: View {
     @State private var googleFontsError: String?
     @State private var googleFontsReloadID = 0
     @State private var selectedGoogleFamily: String?
+    @State private var isFontDropTargeted = false
     @FocusState private var isSearchFocused: Bool
     @AppStorage("themeEditor.googleBrowserRatio") private var googleBrowserRatio = 0.46
 
@@ -851,24 +852,16 @@ private struct ThemeFontDefinitionEditor: View {
             }
         }
         .contentShape(Rectangle())
-        .dropDestination(for: String.self) { values, _ in
-            let droppedAssets = values.compactMap(Self.assetID(from:))
-                .compactMap { id in assets.first(where: { $0.id == id && $0.isFontResource }) }
-            guard !droppedAssets.isEmpty else { return false }
-            editor.setThemeFontResources(
-                Array(Set(files + droppedAssets.map(\.reference))),
-                reference: reference
-            )
-            if files.isEmpty, let first = droppedAssets.first {
-                editor.setThemeFontFamily(
-                    (first.filename as NSString).deletingPathExtension,
-                    reference: reference
-                )
-            }
-            return true
+        .onDrop(of: [.fileURL, .utf8PlainText], isTargeted: $isFontDropTargeted) { providers in
+            acceptFontProviders(providers)
         }
-        .onDrop(of: [.fileURL], isTargeted: nil) { providers in
-            acceptFinderFontProviders(providers)
+        .overlay {
+            if isFontDropTargeted {
+                RoundedRectangle(cornerRadius: 10)
+                    .stroke(.tint, lineWidth: 3)
+                    .padding(6)
+                    .allowsHitTesting(false)
+            }
         }
     }
 
@@ -882,10 +875,10 @@ private struct ThemeFontDefinitionEditor: View {
         }
     }
 
-    private func importFontFiles(_ urls: [URL], existingFiles: [String]) -> Bool {
+    private func importFontData(_ data: Data, filename: String) {
         let fontExtensions = Set(["otf", "ttf", "woff", "woff2"])
-        let candidates = urls.filter { fontExtensions.contains($0.pathExtension.lowercased()) }
-        guard !candidates.isEmpty else { return false }
+        let pathExtension = (filename as NSString).pathExtension.lowercased()
+        guard fontExtensions.contains(pathExtension) else { return }
 
         let undoManager = editor.undoManager
         undoManager?.beginUndoGrouping()
@@ -894,48 +887,55 @@ private struct ThemeFontDefinitionEditor: View {
             undoManager?.setActionName("Import Font Resources")
         }
 
-        var importedReferences: [String] = []
-        var firstFilename: String?
-        for url in candidates {
-            let didAccess = url.startAccessingSecurityScopedResource()
-            defer { if didAccess { url.stopAccessingSecurityScopedResource() } }
-            guard let data = try? Data(contentsOf: url) else { continue }
-
-            let type = UTType(filenameExtension: url.pathExtension)
-            let id = session.document.importAsset(
-                data: data,
-                filename: url.lastPathComponent,
-                mediaType: type?.preferredMIMEType ?? "application/octet-stream",
-                undoManager: undoManager
-            )
-            importedReferences.append("foundry-asset:\(id.uuidString)")
-            if firstFilename == nil { firstFilename = url.lastPathComponent }
-        }
-
-        guard !importedReferences.isEmpty else { return false }
-        editor.setThemeFontResources(existingFiles + importedReferences, reference: reference)
-        if existingFiles.isEmpty, let firstFilename {
+        let type = UTType(filenameExtension: pathExtension)
+        let id = session.document.importAsset(
+            data: data,
+            filename: filename,
+            mediaType: type?.preferredMIMEType ?? "application/octet-stream",
+            undoManager: undoManager
+        )
+        let existingFiles = currentBundledFiles
+        editor.setThemeFontResources(existingFiles + ["foundry-asset:\(id.uuidString)"], reference: reference)
+        if existingFiles.isEmpty {
             editor.setThemeFontFamily(
-                (firstFilename as NSString).deletingPathExtension,
+                (filename as NSString).deletingPathExtension,
                 reference: reference
             )
         }
-        return true
     }
 
-    private func acceptFinderFontProviders(_ providers: [NSItemProvider]) -> Bool {
-        let fileProviders = providers.filter { $0.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier) }
-        guard !fileProviders.isEmpty else { return false }
-
-        for provider in fileProviders {
-            _ = provider.loadObject(ofClass: URL.self) { url, _ in
-                guard let url else { return }
+    private func acceptFontProviders(_ providers: [NSItemProvider]) -> Bool {
+        var accepted = false
+        for provider in providers {
+            if provider.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier) {
+                accepted = true
+                let suggestedName = provider.suggestedName
+                _ = provider.loadFileRepresentation(forTypeIdentifier: UTType.fileURL.identifier) { url, _ in
+                    guard let url, let data = try? Data(contentsOf: url) else { return }
+                    let filename = Self.preferredFilename(suggestedName, representationURL: url)
+                    Task { @MainActor in
+                        importFontData(data, filename: filename)
+                    }
+                }
+            } else if provider.canLoadObject(ofClass: String.self) {
+                accepted = true
+                _ = provider.loadObject(ofClass: String.self) { value, _ in
+                    guard let value, let id = Self.assetID(from: value) else { return }
                 Task { @MainActor in
-                    _ = importFontFiles([url], existingFiles: currentBundledFiles)
+                        guard let asset = assets.first(where: { $0.id == id && $0.isFontResource }) else { return }
+                        addFontResource(asset, to: currentBundledFiles)
+                    }
                 }
             }
         }
-        return true
+        return accepted
+    }
+
+    nonisolated private static func preferredFilename(_ suggestedName: String?, representationURL: URL) -> String {
+        guard let suggestedName, !suggestedName.isEmpty else { return representationURL.lastPathComponent }
+        if !(suggestedName as NSString).pathExtension.isEmpty { return suggestedName }
+        let pathExtension = representationURL.pathExtension
+        return pathExtension.isEmpty ? suggestedName : "\(suggestedName).\(pathExtension)"
     }
 
     private var currentBundledFiles: [String] {
