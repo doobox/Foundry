@@ -328,6 +328,18 @@ nonisolated enum ComponentPackageValidator {
         switch property.control.type {
         case .divider, .info:
             break
+        case .math:
+            let operations = Set(["+", "-", "*", "/", "%", "min", "max"])
+            if property.control.argument1 == nil || property.control.argument2 == nil {
+                diagnostics.append(.init(severity: .error, location: location, message: "A math control requires argument1 and argument2."))
+            }
+            if !operations.contains(property.control.operation ?? "") {
+                diagnostics.append(.init(severity: .error, location: location, message: "A math operation must be +, -, *, /, %, min, or max."))
+            }
+        case .imageTransform:
+            if property.control.input?.isEmpty != false {
+                diagnostics.append(.init(severity: .error, location: location, message: "An imageTransform control requires the ID of an image control in input."))
+            }
         case .number, .slider:
             guard case .number(let value) = defaultValue else {
                 diagnostics.append(.init(severity: .error, location: location, message: "A number control requires a numeric default value."))

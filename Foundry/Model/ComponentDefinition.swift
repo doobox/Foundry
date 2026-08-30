@@ -138,7 +138,9 @@ nonisolated enum ComponentPropertyControl: Sendable {
     case slider(range: ClosedRange<Double>, step: Double, tickMarks: Int, restrictsToTickMarks: Bool)
     case date
     case info
-    case button
+    case button(systemImage: String?)
+    case details(help: String?)
+    case derived
     case color
     case packageColor(
         themeValues: Bool,

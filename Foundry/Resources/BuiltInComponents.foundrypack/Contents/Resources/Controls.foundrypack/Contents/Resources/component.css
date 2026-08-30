@@ -4,3 +4,4 @@
 .controls-test__palette i:nth-child(2) { background: var(--p2); }
 .controls-test__palette i:nth-child(3) { background: var(--p3); }
 .controls-test__palette i:nth-child(4) { background: var(--p4); }
+.controls-test__transformed { display: block; max-width: 320px; margin-block: 16px; }

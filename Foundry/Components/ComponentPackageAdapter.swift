@@ -64,10 +64,13 @@ nonisolated enum ComponentPackageAdapter {
             key: .init(rawValue: property.id),
             label: property.title,
             section: .init(rawValue: property.group),
-            control: control(property.control),
+            control: property.control.type == .details
+                ? .details(help: property.toolTip)
+                : control(property.control),
             defaultValue: value(property.defaultValue, control: property.control.type),
             isResponsive: property.responsive,
-            isInspectorVisible: property.control.type != .info || !property.title.isEmpty
+            isInspectorVisible: ![.math, .imageTransform].contains(property.control.type) &&
+                (property.control.type != .info || !property.title.isEmpty)
         )]
     }
 
@@ -168,9 +171,10 @@ nonisolated enum ComponentPackageAdapter {
                 restrictsToTickMarks: control.restrictsToTickMarks ?? false
             )
         case .date: .date
-        case .details: .toggle
+        case .details: .details(help: nil)
         case .info: .info
-        case .button: .button
+        case .button: .button(systemImage: control.systemImage)
+        case .imageTransform, .math: .derived
         }
     }
 

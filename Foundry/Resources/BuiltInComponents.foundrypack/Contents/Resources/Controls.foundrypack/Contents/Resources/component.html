@@ -2,11 +2,12 @@
     <h3>{{ property.singleText }}</h3>
     <p>{{ property.longText }}</p>
     <a href="{{ property.destination }}">Link · {{ property.choice }}</a>
-    <p>Enabled: {{ property.enabled }} · Details: {{ property.details }} · Button: {{ property.button }}</p>
-    <p>Slider: {{ property.slider }} · Date: {{ property.date }} · Font: {{ property.typeface }} · Size: {{ property.textSize }}</p>
+    <p>Enabled: {{ property.enabled }} · Details: {{ property.details }} · Button output: {{ property.button }}</p>
+    <p>Slider: {{ property.slider }} · Math (number × 2): {{ property.calculated }} · Date: {{ property.date }} · Font: {{ property.typeface }} · Size: {{ property.textSize }}</p>
     <p>Texts: {{ property.labels[0] }}, {{ property.labels[1] }}, {{ property.labels[2] }}</p>
     <p>Flags: {{ property.flags[0] }}, {{ property.flags[1] }}, {{ property.flags[2] }}, {{ property.flags[3] }}</p>
     <p>Modes: {{ property.modes[0] }}, {{ property.modes[1] }}</p>
     <img src="{{ property.picture }}" alt="Selected test image">
+    <img class="controls-test__transformed" src="{{ property.transformedPicture }}" alt="Transformed test image">
     <div class="controls-test__palette"><i></i><i></i><i></i><i></i></div>
 </section>

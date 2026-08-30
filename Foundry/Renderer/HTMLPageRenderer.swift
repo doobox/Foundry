@@ -390,7 +390,7 @@ struct HTMLPageRenderer: PageRendering {
     }
 
     private func packageProperties(_ node: ComponentNode, theme: Theme, assets: [UUID: ProjectAssetContent]) -> [String: ComponentPackageValue] {
-        Dictionary(uniqueKeysWithValues: node.type.definition.properties.map { definition in
+        let values: [String: ComponentPackageValue] = Dictionary(uniqueKeysWithValues: node.type.definition.properties.map { definition in
             let value = node.propertyValue(definition.key)
             if case .asset = definition.control,
                case .url(let source) = value {
@@ -432,6 +432,10 @@ struct HTMLPageRenderer: PageRendering {
             }
             return (definition.key.rawValue, packageValue(value))
         })
+        return ComponentPackageDerivedValueResolver.resolve(
+            values,
+            properties: node.type.definition.package?.manifest.properties ?? []
+        )
     }
 
     private func flattened(_ node: ComponentNode) -> [ComponentNode] {

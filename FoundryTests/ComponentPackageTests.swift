@@ -41,6 +41,38 @@ struct ComponentPackageTests {
     }
 
     @Test
+    func virtualControlsAndButtonOutputsResolveFromManifestValues() throws {
+        let plist = """
+        <?xml version="1.0" encoding="UTF-8"?>
+        <plist version="1.0"><dict>
+        <key>type</key><string>component</string><key>CFBundleIdentifier</key><string>com.example.derived</string>
+        <key>title</key><string>Derived</string><key>description</key><string>Derived controls</string>
+        <key>group</key><string>Other</string><key>assets</key><array/><key>slots</key><array/>
+        <key>customItems</key><array>
+        <dict><key>id</key><string>amount</string><key>title</key><string>Amount</string><key>group</key><string>Test</string><key>control</key><dict><key>type</key><string>number</string></dict><key>default</key><real>21</real><key>responsive</key><false/><key>inlineEditable</key><false/></dict>
+        <dict><key>id</key><string>action</string><key>title</key><string>Action</string><key>group</key><string>Test</string><key>control</key><dict><key>type</key><string>button</string><key>trueValue</key><string>active</string><key>falseValue</key><string>ready</string></dict><key>default</key><false/><key>responsive</key><false/><key>inlineEditable</key><false/></dict>
+        <dict><key>id</key><string>source</string><key>title</key><string>Image</string><key>group</key><string>Test</string><key>control</key><dict><key>type</key><string>image</string></dict><key>default</key><string></string><key>responsive</key><false/><key>inlineEditable</key><false/></dict>
+        <dict><key>id</key><string>doubled</string><key>group</key><string>Test</string><key>control</key><dict><key>type</key><string>math</string><key>argument1</key><string>amount</string><key>argument2</key><real>2</real><key>operation</key><string>*</string><key>round</key><false/></dict></dict>
+        <dict><key>id</key><string>thumbnail</string><key>group</key><string>Test</string><key>control</key><dict><key>type</key><string>imageTransform</string><key>input</key><string>source</string><key>maxWidth</key><real>120</real><key>maxHeight</key><real>80</real><key>rotation</key><real>5</real></dict></dict>
+        </array><key>templates</key><dict><key>html</key><string>component.html</string></dict>
+        </dict></plist>
+        """
+        let manifest = try PropertyListDecoder().decode(ComponentPackageManifest.self, from: Data(plist.utf8))
+        let resolved = ComponentPackageDerivedValueResolver.resolve(
+            ["amount": .number(21), "action": .boolean(true), "source": .string("https://example.com/image.png")],
+            properties: manifest.properties
+        )
+        #expect(resolved["doubled"] == .number(42))
+        #expect(resolved["action"] == .string("active"))
+        guard case .string(let transformed) = resolved["thumbnail"] else {
+            Issue.record("Expected an image transform URL")
+            return
+        }
+        #expect(transformed.hasPrefix("data:image/svg+xml,"))
+        #expect(transformed.contains("rotate%285"))
+    }
+
+    @Test
     func requiresPhpDefaultsToFalseAndForcesPhpPageExportWhenEnabled() throws {
         let defaultManifest = try PropertyListDecoder().decode(
             ComponentPackageManifest.self,

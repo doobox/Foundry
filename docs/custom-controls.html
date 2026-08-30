@@ -23,7 +23,32 @@
         &lt;key&gt;type&lt;/key&gt;&lt;string&gt;divider&lt;/string&gt;
     &lt;/dict&gt;
 &lt;/dict&gt;</code></pre><p>The <code>id</code> must still be unique because it identifies the item and preserves its declared position. Do not add <code>title</code>, <code>default</code>, <code>responsive</code> or <code>inlineEditable</code>; those keys describe value-producing controls and do not apply to a divider.</p>
-<h2>Control types</h2><dl><dt>text</dt><dd>Single-line String.</dd><dt>textArea</dt><dd>Multi-line String.</dd><dt>url</dt><dd>A URL String.</dd><dt>number</dt><dd>Number with optional <code>minimum</code>, <code>maximum</code>, <code>step</code> and <code>unit</code>.</dd><dt>slider</dt><dd>Number slider using <code>minimum</code>, <code>maximum</code> and <code>step</code>. Optional <code>tickMarks</code> shows an exact number of ticks and <code>restrictsToTickMarks</code> constrains selection to them.</dd><dt>date</dt><dd>Date value stored as an ISO-8601 String.</dd><dt><a href="colour.html">color</a></dt><dd>Custom and theme colours, with optional colour math, opacity and alpha.</dd><dt>select</dt><dd>A choice from <code>options</code>, each containing <code>value</code> and <code>title</code>.</dd><dt>toggle</dt><dd>A Boolean switch.</dd><dt>details</dt><dd>A Boolean disclosure-style control.</dd><dt>button</dt><dd>A momentary action represented by a Boolean value.</dd><dt>image</dt><dd>An asset selected from the project.</dd><dt><a href="text-alignment.html">textAlignment</a></dt><dd>Smart segmented control producing logical CSS alignment values.</dd><dt><a href="font-family.html">fontFamily</a></dt><dd>Theme-aware or custom font family.</dd><dt><a href="font-size.html">fontSize</a></dt><dd>Theme-aware or custom font size.</dd><dt>info</dt><dd>Presentation-only explanatory text with no template value.</dd><dt><a href="#divider-control">divider</a></dt><dd>A deliberate visual separator with no template value.</dd></dl>
+<h2>Control types</h2><dl><dt>text</dt><dd>Single-line String.</dd><dt>textArea</dt><dd>Multi-line String.</dd><dt>url</dt><dd>A URL String.</dd><dt>number</dt><dd>Number with optional <code>minimum</code>, <code>maximum</code>, <code>step</code> and <code>unit</code>.</dd><dt>slider</dt><dd>Number slider using <code>minimum</code>, <code>maximum</code> and <code>step</code>. Optional <code>tickMarks</code> shows an exact number of ticks and <code>restrictsToTickMarks</code> constrains selection to them.</dd><dt>date</dt><dd>Date value stored as an ISO-8601 String.</dd><dt><a href="colour.html">color</a></dt><dd>Custom and theme colours, with optional colour math, opacity and alpha.</dd><dt>select</dt><dd>A choice from <code>options</code>, each containing <code>value</code> and <code>title</code>.</dd><dt>toggle</dt><dd>A Boolean switch.</dd><dt>details</dt><dd>A compact, titleless Boolean details button. Use <code>toolTip</code> to explain its purpose.</dd><dt>button</dt><dd>A persistent push button with optional <code>systemImage</code>, <code>trueValue</code> and <code>falseValue</code> output values.</dd><dt>image</dt><dd>An asset selected from the project.</dd><dt>imageTransform</dt><dd>A virtual control that derives a transformed image URL from an <code>image</code> control.</dd><dt>math</dt><dd>A virtual numeric control calculated from two constants or control references.</dd><dt><a href="text-alignment.html">textAlignment</a></dt><dd>Smart segmented control producing logical CSS alignment values.</dd><dt><a href="font-family.html">fontFamily</a></dt><dd>Theme-aware or custom font family.</dd><dt><a href="font-size.html">fontSize</a></dt><dd>Theme-aware or custom font size.</dd><dt>info</dt><dd>Presentation-only explanatory text with no template value.</dd><dt><a href="#divider-control">divider</a></dt><dd>A deliberate visual separator with no template value.</dd></dl>
+<h2 id="virtual-controls">Virtual controls</h2><p>Virtual controls produce template values without adding an inspector row. A <code>math</code> control accepts <code>argument1</code>, <code>argument2</code>, an <code>operation</code> of <code>+</code>, <code>-</code>, <code>*</code>, <code>/</code>, <code>%</code>, <code>min</code>, or <code>max</code>, and optional Boolean <code>round</code>. An argument can be a numeric constant or the ID of another numeric control.</p><pre><code>&lt;dict&gt;
+    &lt;key&gt;id&lt;/key&gt;&lt;string&gt;doubleWidth&lt;/string&gt;
+    &lt;key&gt;group&lt;/key&gt;&lt;string&gt;Layout&lt;/string&gt;
+    &lt;key&gt;control&lt;/key&gt;
+    &lt;dict&gt;
+        &lt;key&gt;type&lt;/key&gt;&lt;string&gt;math&lt;/string&gt;
+        &lt;key&gt;argument1&lt;/key&gt;&lt;string&gt;width&lt;/string&gt;
+        &lt;key&gt;argument2&lt;/key&gt;&lt;real&gt;2&lt;/real&gt;
+        &lt;key&gt;operation&lt;/key&gt;&lt;string&gt;*&lt;/string&gt;
+        &lt;key&gt;round&lt;/key&gt;&lt;false/&gt;
+    &lt;/dict&gt;
+&lt;/dict&gt;</code></pre><p>An <code>imageTransform</code> names its source image control with <code>input</code>. It supports <code>scaleMode</code> (0 fit, 1 fill, 2 stretch, 3 centre), <code>scale</code>, <code>maxWidth</code>, <code>maxHeight</code>, <code>rotation</code>, <code>borderWidth</code>, <code>borderColor</code>, <code>shadowColor</code>, <code>shadowOpacity</code>, <code>shadowBlur</code>, <code>shadowOffsetX</code>, and <code>shadowOffsetY</code>. Its output is a URL suitable for an image <code>src</code>.</p><pre><code>&lt;dict&gt;
+    &lt;key&gt;id&lt;/key&gt;&lt;string&gt;thumbnail&lt;/string&gt;
+    &lt;key&gt;group&lt;/key&gt;&lt;string&gt;Media&lt;/string&gt;
+    &lt;key&gt;control&lt;/key&gt;
+    &lt;dict&gt;
+        &lt;key&gt;type&lt;/key&gt;&lt;string&gt;imageTransform&lt;/string&gt;
+        &lt;key&gt;input&lt;/key&gt;&lt;string&gt;picture&lt;/string&gt;
+        &lt;key&gt;scaleMode&lt;/key&gt;&lt;integer&gt;1&lt;/integer&gt;
+        &lt;key&gt;maxWidth&lt;/key&gt;&lt;real&gt;320&lt;/real&gt;
+        &lt;key&gt;maxHeight&lt;/key&gt;&lt;real&gt;180&lt;/real&gt;
+        &lt;key&gt;rotation&lt;/key&gt;&lt;real&gt;-3&lt;/real&gt;
+        &lt;key&gt;shadowBlur&lt;/key&gt;&lt;real&gt;6&lt;/real&gt;
+    &lt;/dict&gt;
+&lt;/dict&gt;</code></pre>
 <h2 id="control-arrays">Control arrays</h2><p>Add <code>count</code> to a control dictionary to display two, three or four controls on one inspector row. The property’s <code>default</code> must be an array containing exactly the same number of values. Every member uses the declared control type and options.</p><pre><code>&lt;dict&gt;
     &lt;key&gt;id&lt;/key&gt;&lt;string&gt;palette&lt;/string&gt;
     &lt;key&gt;title&lt;/key&gt;&lt;string&gt;Palette&lt;/string&gt;

@@ -441,10 +441,23 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
         assetPrefix: String,
         assets: [UUID: ProjectAssetContent]
     ) -> [String: ComponentPackageValue] {
-        Dictionary(uniqueKeysWithValues: node.type.definition.properties.map { definition in
+        let transformedImageInputs = Set(
+            node.type.definition.package?.manifest.properties.compactMap { property in
+                property.control.type == .imageTransform ? property.control.input : nil
+            } ?? []
+        )
+        let values: [String: ComponentPackageValue] = Dictionary(uniqueKeysWithValues: node.type.definition.properties.map { definition in
             let value = node.propertyValue(definition.key)
             if case .asset = definition.control,
                case .url(let source) = value {
+                if transformedImageInputs.contains(definition.key.rawValue),
+                   let id = source.foundryAssetID,
+                   let content = assets[id] {
+                    return (
+                        definition.key.rawValue,
+                        .string("data:\(content.asset.mediaType);base64,\(content.data.base64EncodedString())")
+                    )
+                }
                 return (
                     definition.key.rawValue,
                     .string(exportSource(source, assetPrefix: assetPrefix, assets: assets))
@@ -486,6 +499,10 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
             }
             return (definition.key.rawValue, packageValue(value))
         })
+        return ComponentPackageDerivedValueResolver.resolve(
+            values,
+            properties: node.type.definition.package?.manifest.properties ?? []
+        )
     }
 
     private func safeCSSValue(_ value: ComponentProperty.Value) -> String {

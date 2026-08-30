@@ -131,7 +131,7 @@ nonisolated struct ComponentPackageProperty: Codable, Equatable, Identifiable, S
         subtitles = try container.decodeIfPresent([String].self, forKey: .subtitles) ?? []
         toolTip = try container.decodeIfPresent(String.self, forKey: .toolTip)
 
-        if control.type == .divider || control.type == .info {
+        if control.type == .divider || control.type == .info || control.type == .math || control.type == .imageTransform {
             title = try container.decodeIfPresent(String.self, forKey: .title) ?? ""
             defaultValue = try container.decodeIfPresent(ComponentPackageValue.self, forKey: .defaultValue) ?? .string("")
             responsive = try container.decodeIfPresent(Bool.self, forKey: .responsive) ?? false
@@ -164,6 +164,8 @@ nonisolated struct ComponentPackageControl: Codable, Equatable, Sendable {
         case details
         case info
         case button
+        case imageTransform
+        case math
     }
 
     let type: Kind
@@ -179,6 +181,26 @@ nonisolated struct ComponentPackageControl: Codable, Equatable, Sendable {
     let count: Int?
     let tickMarks: Int?
     let restrictsToTickMarks: Bool?
+    let trueValue: ComponentPackageValue?
+    let falseValue: ComponentPackageValue?
+    let systemImage: String?
+    let input: String?
+    let scaleMode: Int?
+    let scale: Double?
+    let maxWidth: Double?
+    let maxHeight: Double?
+    let rotation: Double?
+    let borderWidth: Double?
+    let borderColor: String?
+    let shadowColor: String?
+    let shadowOpacity: Double?
+    let shadowBlur: Double?
+    let shadowOffsetX: Double?
+    let shadowOffsetY: Double?
+    let argument1: ComponentPackageValue?
+    let argument2: ComponentPackageValue?
+    let operation: String?
+    let round: Bool?
 }
 
 nonisolated struct ComponentPackageOption: Codable, Equatable, Identifiable, Sendable {

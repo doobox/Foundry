@@ -109,12 +109,34 @@ struct ComponentPropertyEditor: View {
             InspectorRow(title: "", alignment: .top) {
                 Text(definition.label).font(.caption).foregroundStyle(.secondary)
             }
-        case .button:
+        case .button(let systemImage):
             InspectorRow(title: definition.label, alignment: .center, indicator: responsiveIndicator) {
-                Toggle(definition.label, isOn: booleanBinding)
-                    .labelsHidden()
-                    .toggleStyle(.button)
+                Button {
+                    booleanBinding.wrappedValue.toggle()
+                } label: {
+                    if let systemImage {
+                        Label(definition.label, systemImage: systemImage)
+                    } else {
+                        Text(definition.label)
+                    }
+                }
+                .buttonStyle(.bordered)
+                .accessibilityValue(booleanBinding.wrappedValue ? "On" : "Off")
             }
+        case .details(let help):
+            InspectorRow(title: "", alignment: .center, indicator: responsiveIndicator) {
+                Button {
+                    booleanBinding.wrappedValue.toggle()
+                } label: {
+                    Image(systemName: "ellipsis.circle")
+                }
+                .buttonStyle(.borderless)
+                .help(help ?? definition.label)
+                .accessibilityLabel(definition.label.isEmpty ? "Show details" : definition.label)
+                .accessibilityValue(booleanBinding.wrappedValue ? "Shown" : "Hidden")
+            }
+        case .derived:
+            EmptyView()
         case .color:
             Group {
                 InspectorRow(title: "Source") {
@@ -470,8 +492,16 @@ private struct InspectorControlArrayItem: View {
             InspectorSlider(value: numberBinding, range: range, step: step, tickMarkCount: tickMarks, restrictsToTickMarks: restrictsToTickMarks, accessibilityLabel: subtitle ?? "Slider", help: help)
         case .date:
             DatePicker("", selection: dateBinding, displayedComponents: [.date]).labelsHidden()
-        case .button:
-            Toggle(subtitle ?? "", isOn: booleanBinding).labelsHidden().toggleStyle(.button)
+        case .button(let systemImage):
+            Button {
+                booleanBinding.wrappedValue.toggle()
+            } label: {
+                if let systemImage { Image(systemName: systemImage) } else { Text(subtitle ?? "Button") }
+            }
+            .buttonStyle(.bordered)
+        case .details:
+            Button { booleanBinding.wrappedValue.toggle() } label: { Image(systemName: "ellipsis.circle") }
+                .buttonStyle(.borderless)
         case .toggle:
             Toggle("", isOn: booleanBinding).labelsHidden()
         case .choice(let choices):
