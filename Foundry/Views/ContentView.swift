@@ -153,7 +153,11 @@ struct ContentView: View {
                 generatesSitemap: document.site.generatesSitemap,
                 generatesRobotsTXT: document.site.generatesRobotsTXT,
                 allowsSearchIndexing: document.site.allowsSearchIndexing,
-                editor: editor
+                editor: editor,
+                openPageMetadata: { pageID in
+                    showsProjectSettings = false
+                    inspectablePageSelection.wrappedValue = pageID
+                }
             )
         }
         .alert("Site Export Failed", isPresented: exportErrorBinding) {

@@ -26,6 +26,7 @@ struct ProjectSettingsView: View {
     let generatesRobotsTXT: Bool
     let allowsSearchIndexing: Bool
     let editor: ProjectEditor
+    let openPageMetadata: (UUID) -> Void
 
     @Environment(\.dismiss) private var dismiss
     @State private var selection: ProjectSettingsSection? = .general
@@ -60,8 +61,10 @@ struct ProjectSettingsView: View {
                         defaultDescription: defaultDescription,
                         favicon: favicon,
                         defaultSocialImage: defaultSocialImage,
+                        pages: pages,
                         assets: assets,
-                        editor: editor
+                        editor: editor,
+                        openPageMetadata: openPageMetadata
                     )
                 case .publishing:
                     PublishingProjectSettingsView(
@@ -332,8 +335,12 @@ private struct SiteIdentityProjectSettingsView: View {
     let defaultDescription: String
     let favicon: String
     let defaultSocialImage: String
+    let pages: [Page]
     let assets: [ProjectAsset]
     let editor: ProjectEditor
+    let openPageMetadata: (UUID) -> Void
+
+    @State private var selectedPreviewPageID: UUID?
 
     var body: some View {
         Form {
@@ -382,17 +389,48 @@ private struct SiteIdentityProjectSettingsView: View {
             }
 
             Section("Social Preview") {
-                SocialMetadataPreview(
-                    title: "Page Title" + titleSuffix,
-                    description: defaultDescription,
-                    siteName: siteName,
-                    publicURL: publicURL,
-                    image: image(for: defaultSocialImage)
-                )
+                Picker("Preview Page", selection: $selectedPreviewPageID) {
+                    ForEach(pages) { page in
+                        Text(page.title).tag(Optional(page.id))
+                    }
+                }
+                if let previewPage {
+                    metadataSourceRow("Title", source: titleSource)
+                    metadataSourceRow("Description", source: descriptionSource)
+                    metadataSourceRow("Image", source: imageSource)
+                    if effectiveDescription.isEmpty || effectiveImageReference.isEmpty {
+                        Label(missingMetadataMessage, systemImage: "exclamationmark.triangle")
+                            .font(.caption)
+                            .foregroundStyle(.orange)
+                    }
+                    SocialMetadataPreview(
+                        title: effectiveTitle,
+                        description: effectiveDescription,
+                        siteName: siteName,
+                        publicURL: publicURL,
+                        image: image(for: effectiveImageReference)
+                    )
+                    HStack {
+                        Text("Title \(effectiveTitle.count)/60 · Description \(effectiveDescription.count)/160")
+                            .font(.caption)
+                            .foregroundStyle(characterCountColor)
+                        Spacer()
+                        Button("Open Page Metadata") {
+                            openPageMetadata(previewPage.id)
+                        }
+                    }
+                } else {
+                    ContentUnavailableView("No Pages", systemImage: "doc")
+                }
             }
         }
         .formStyle(.grouped)
         .navigationTitle("Site Identity")
+        .onAppear {
+            if selectedPreviewPageID == nil {
+                selectedPreviewPageID = pages.first?.id
+            }
+        }
     }
 
     private var imageAssets: [ProjectAsset] {
@@ -405,6 +443,68 @@ private struct SiteIdentityProjectSettingsView: View {
         guard let id = reference.foundryAssetID,
               let data = editor.document.assetContents[id]?.data else { return nil }
         return NSImage(data: data)
+    }
+
+    private var previewPage: Page? {
+        guard let selectedPreviewPageID else { return pages.first }
+        return pages.first(where: { $0.id == selectedPreviewPageID }) ?? pages.first
+    }
+
+    private var effectiveTitle: String {
+        guard let page = previewPage else { return "" }
+        if !page.metadata.socialTitle.isEmpty { return page.metadata.socialTitle }
+        let pageTitle = page.metadata.browserTitle.isEmpty ? page.title : page.metadata.browserTitle
+        return pageTitle + titleSuffix
+    }
+
+    private var effectiveDescription: String {
+        guard let page = previewPage else { return defaultDescription }
+        if !page.metadata.socialDescription.isEmpty { return page.metadata.socialDescription }
+        return page.metadata.description.isEmpty ? defaultDescription : page.metadata.description
+    }
+
+    private var effectiveImageReference: String {
+        guard let page = previewPage else { return defaultSocialImage }
+        return page.metadata.socialImage.isEmpty ? defaultSocialImage : page.metadata.socialImage
+    }
+
+    private var titleSource: String {
+        guard let page = previewPage else { return "Site default" }
+        if !page.metadata.socialTitle.isEmpty || !page.metadata.browserTitle.isEmpty { return "Page override" }
+        return "Page title + site suffix"
+    }
+
+    private var descriptionSource: String {
+        guard let page = previewPage else { return "Site default" }
+        return page.metadata.socialDescription.isEmpty && page.metadata.description.isEmpty
+            ? "Site default"
+            : "Page override"
+    }
+
+    private var imageSource: String {
+        guard let page = previewPage else { return "Site default" }
+        return page.metadata.socialImage.isEmpty ? "Site default" : "Page override"
+    }
+
+    private var missingMetadataMessage: String {
+        switch (effectiveDescription.isEmpty, effectiveImageReference.isEmpty) {
+        case (true, true): "Add a description and social image for a complete sharing card."
+        case (true, false): "Add a description for a complete sharing card."
+        case (false, true): "Add a social image for a complete sharing card."
+        case (false, false): ""
+        }
+    }
+
+    private var characterCountColor: Color {
+        effectiveTitle.count > 60 || effectiveDescription.count > 160 ? .orange : .secondary
+    }
+
+    private func metadataSourceRow(_ title: String, source: String) -> some View {
+        LabeledContent(title) {
+            Text(source)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
     }
 
     private func importImage(
