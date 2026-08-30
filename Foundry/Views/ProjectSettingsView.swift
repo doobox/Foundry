@@ -222,9 +222,8 @@ private struct PublishingProjectSettingsView: View {
     @State private var localDestination: URL?
     @State private var credential: String
     @State private var statusMessage: String?
-    @State private var isWorking = false
-    @State private var publishingProgress: PublishingProgress?
-    @State private var publishingTask: Task<Void, Never>?
+    @State private var isTestingConnection = false
+    @State private var connectionTask: Task<Void, Never>?
 
     init(
         site: Site,
@@ -406,7 +405,7 @@ private struct PublishingProjectSettingsView: View {
                 HStack {
                     if site.publishingDestination != .local {
                         Button("Test Connection", action: testConnection)
-                            .disabled(!canPublish || isWorking)
+                            .disabled(!canPublish || isTestingConnection)
                     }
                     if site.publishingDestination == .local, localDestination != nil {
                         Button("Reveal Folder") {
@@ -414,31 +413,14 @@ private struct PublishingProjectSettingsView: View {
                         }
                     }
                     Spacer()
-                    Button("Publish Now", action: publish)
-                        .buttonStyle(.borderedProminent)
-                        .disabled(!canPublish || isWorking)
                 }
-                if let publishingProgress, isWorking {
-                    ProgressView(value: publishingProgress.fractionCompleted) {
-                        Text("Uploading \(publishingProgress.fileIndex) of \(publishingProgress.fileCount): \(publishingProgress.file)")
-                            .lineLimit(1)
-                    }
-                    HStack {
-                        Text(ByteCountFormatter.string(
-                            fromByteCount: publishingProgress.uploadedBytes,
-                            countStyle: .file
-                        ))
-                        Spacer()
-                        Button("Cancel") { publishingTask?.cancel() }
-                    }
-                    .font(.caption)
-                } else if isWorking {
+                if isTestingConnection {
                     HStack {
                         ProgressView()
                             .controlSize(.small)
                         Text("Testing connection…")
                         Spacer()
-                        Button("Cancel") { publishingTask?.cancel() }
+                        Button("Cancel") { connectionTask?.cancel() }
                     }
                     .font(.caption)
                 }
@@ -534,43 +516,20 @@ private struct PublishingProjectSettingsView: View {
         PublishingDestinationStore.setURL(url, for: site.id)
     }
 
-    private func publish() {
-        runPublishingTask(successMessage: "Published \(exportBundle.files.count) files successfully.") {
-            try await SitePublisher().publish(
-                bundle: exportBundle,
-                site: site,
-                localDirectory: localDestination,
-                credential: credential
-            ) { progress in
-                Task { @MainActor in publishingProgress = progress }
-            }
-        }
-    }
-
     private func testConnection() {
-        runPublishingTask(successMessage: "Connection succeeded.") {
-            try await SitePublisher().testConnection(site: site, credential: credential)
-        }
-    }
-
-    private func runPublishingTask(
-        successMessage: String,
-        operation: @escaping @MainActor @Sendable () async throws -> Void
-    ) {
-        isWorking = true
+        isTestingConnection = true
         statusMessage = nil
-        publishingProgress = nil
-        publishingTask = Task {
+        connectionTask = Task {
             do {
-                try await operation()
-                statusMessage = successMessage
+                try await SitePublisher().testConnection(site: site, credential: credential)
+                statusMessage = "Connection succeeded."
             } catch is CancellationError {
-                statusMessage = "Publishing cancelled."
+                statusMessage = "Connection test cancelled."
             } catch {
                 statusMessage = error.localizedDescription
             }
-            isWorking = false
-            publishingTask = nil
+            isTestingConnection = false
+            connectionTask = nil
         }
     }
 

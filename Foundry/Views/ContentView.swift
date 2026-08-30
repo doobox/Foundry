@@ -21,6 +21,9 @@ struct ContentView: View {
     @State private var themeWindowID = UUID()
     @State private var exportErrorMessage: String?
     @State private var showsProjectSettings = false
+    @State private var showsPublishingProgress = false
+    @State private var publishingState: PublishingModalState = .preparing
+    @State private var publishingTask: Task<Void, Never>?
     @State private var previewSessionApplicationIdentifier: String?
     @State private var isPreviewSessionOpen = false
     @State private var previewRefreshTask: Task<Void, Never>?
@@ -54,7 +57,7 @@ struct ContentView: View {
                 openWindow(id: "theme-editor", value: themeWindowID)
             },
             previewSite: previewSite,
-            exportSite: exportSite
+            publishSite: publishSite
         ) { panel in
             workspacePanel(panel)
         }
@@ -136,6 +139,7 @@ struct ContentView: View {
         }
         .onDisappear {
             previewRefreshTask?.cancel()
+            publishingTask?.cancel()
         }
         .sheet(isPresented: $showsProjectSettings) {
             ProjectSettingsView(
@@ -166,6 +170,15 @@ struct ContentView: View {
                     inspectablePageSelection.wrappedValue = pageID
                 }
             )
+        }
+        .sheet(isPresented: $showsPublishingProgress) {
+            PublishingProgressView(
+                siteName: document.site.name,
+                state: publishingState,
+                cancel: { publishingTask?.cancel() },
+                dismiss: { showsPublishingProgress = false }
+            )
+            .interactiveDismissDisabled(publishingState.isActive)
         }
         .alert("Site Export Failed", isPresented: exportErrorBinding) {
             Button("OK", role: .cancel) { exportErrorMessage = nil }
@@ -900,28 +913,53 @@ struct ContentView: View {
             }
     }
 
-    private func exportSite() {
-        let panel = NSOpenPanel()
-        panel.title = "Export Static Site"
-        panel.message = "Choose the folder that will contain the generated HTML and CSS files."
-        panel.prompt = "Export"
-        panel.canChooseFiles = false
-        panel.canChooseDirectories = true
-        panel.canCreateDirectories = true
-        panel.allowsMultipleSelection = false
-        panel.directoryURL = PublishingDestinationStore.url(for: document.site.id)
-        guard panel.runModal() == .OK, let directory = panel.url else { return }
+    private func publishSite() {
+        let site = document.site
+        let assets = document.assetContents
+        var localDirectory = PublishingDestinationStore.url(for: site.id)
+        if site.publishingDestination == .local, localDirectory == nil {
+            let panel = NSOpenPanel()
+            panel.title = "Choose Publishing Folder"
+            panel.message = "Choose the folder that will contain the published website."
+            panel.prompt = "Choose"
+            panel.canChooseFiles = false
+            panel.canChooseDirectories = true
+            panel.canCreateDirectories = true
+            panel.allowsMultipleSelection = false
+            guard panel.runModal() == .OK, let directory = panel.url else { return }
+            PublishingDestinationStore.setURL(directory, for: site.id)
+            localDirectory = directory
+        }
 
-        do {
-            PublishingDestinationStore.setURL(directory, for: document.site.id)
-            try SiteExportWriter().write(
-                StaticSiteRenderer().render(site: document.site, assets: document.assetContents),
-                to: directory,
-                cleaningObsoleteFiles: document.site.cleansObsoleteExportFiles
-            )
-            NSWorkspace.shared.activateFileViewerSelecting([directory.appending(path: "index.html")])
-        } catch {
-            exportErrorMessage = error.localizedDescription
+        let credential = PublishingCredentialStore.credential(site: site)
+        publishingState = .preparing
+        showsPublishingProgress = true
+        publishingTask?.cancel()
+        publishingTask = Task {
+            await Task.yield()
+            do {
+                let bundle = await Task.detached {
+                    StaticSiteRenderer().render(site: site, assets: assets)
+                }.value
+                try Task.checkCancellation()
+                publishingState = .publishing(nil)
+                try await SitePublisher().publish(
+                    bundle: bundle,
+                    site: site,
+                    localDirectory: localDirectory,
+                    credential: credential
+                ) { progress in
+                    Task { @MainActor in
+                        publishingState = .publishing(progress)
+                    }
+                }
+                publishingState = .completed(fileCount: bundle.files.count)
+            } catch is CancellationError {
+                publishingState = .cancelled
+            } catch {
+                publishingState = .failed(error.localizedDescription)
+            }
+            publishingTask = nil
         }
     }
 
@@ -1043,6 +1081,126 @@ struct ContentView: View {
 
     private func assetUsageCount(_ id: UUID, in node: ComponentNode) -> Int {
         (node.property(.source).foundryAssetID == id ? 1 : 0) + node.children.reduce(0) { $0 + assetUsageCount(id, in: $1) }
+    }
+}
+
+private enum PublishingModalState {
+    case preparing
+    case publishing(PublishingProgress?)
+    case completed(fileCount: Int)
+    case failed(String)
+    case cancelled
+
+    var isActive: Bool {
+        switch self {
+        case .preparing, .publishing: true
+        case .completed, .failed, .cancelled: false
+        }
+    }
+}
+
+private struct PublishingProgressView: View {
+    let siteName: String
+    let state: PublishingModalState
+    let cancel: () -> Void
+    let dismiss: () -> Void
+
+    var body: some View {
+        VStack(spacing: 20) {
+            Image(systemName: statusSymbol)
+                .font(.system(size: 36))
+                .foregroundStyle(statusColor)
+                .accessibilityHidden(true)
+
+            Text(title)
+                .font(.title2.weight(.semibold))
+
+            statusContent
+                .frame(maxWidth: .infinity)
+
+            Divider()
+
+            HStack {
+                Spacer()
+                if state.isActive {
+                    Button("Cancel", role: .cancel, action: cancel)
+                } else {
+                    Button("Done", action: dismiss)
+                        .keyboardShortcut(.defaultAction)
+                }
+            }
+        }
+        .padding(24)
+        .frame(width: 440)
+        .frame(minHeight: 240)
+    }
+
+    @ViewBuilder
+    private var statusContent: some View {
+        switch state {
+        case .preparing:
+            ProgressView()
+                .controlSize(.small)
+            Text("Preparing the site for publishing…")
+                .foregroundStyle(.secondary)
+        case .publishing(let progress):
+            if let progress {
+                ProgressView(value: progress.fractionCompleted)
+                Text("Uploading \(progress.fileIndex) of \(progress.fileCount): \(progress.file)")
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                Text("\(formattedBytes(progress.uploadedBytes)) of \(formattedBytes(progress.totalBytes))")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            } else {
+                ProgressView()
+                    .controlSize(.small)
+                Text("Starting upload…")
+                    .foregroundStyle(.secondary)
+            }
+        case .completed(let fileCount):
+            Text("Published \(fileCount) files successfully.")
+                .foregroundStyle(.secondary)
+        case .failed(let message):
+            Text(message)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .textSelection(.enabled)
+        case .cancelled:
+            Text("Publishing was cancelled.")
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private var title: String {
+        switch state {
+        case .preparing: "Preparing \(siteName)"
+        case .publishing: "Publishing \(siteName)"
+        case .completed: "Publishing Complete"
+        case .failed: "Publishing Failed"
+        case .cancelled: "Publishing Cancelled"
+        }
+    }
+
+    private var statusSymbol: String {
+        switch state {
+        case .preparing, .publishing: "icloud.and.arrow.up"
+        case .completed: "checkmark.circle.fill"
+        case .failed: "exclamationmark.triangle.fill"
+        case .cancelled: "xmark.circle"
+        }
+    }
+
+    private var statusColor: Color {
+        switch state {
+        case .completed: .green
+        case .failed: .orange
+        default: .secondary
+        }
+    }
+
+    private func formattedBytes(_ bytes: Int64) -> String {
+        ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file)
     }
 }
 

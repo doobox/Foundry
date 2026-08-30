@@ -9,7 +9,7 @@ struct DockingWorkspaceView<PanelContent: View>: View {
     let openProjectSettings: () -> Void
     let openThemeEditor: () -> Void
     let previewSite: () -> Void
-    let exportSite: () -> Void
+    let publishSite: () -> Void
     @ViewBuilder let panelContent: (WorkspacePanel) -> PanelContent
     @Environment(WorkspacePresetLibrary.self) private var workspaceLibrary
     @Environment(\.openWindow) private var openWindow
@@ -115,13 +115,13 @@ struct DockingWorkspaceView<PanelContent: View>: View {
                                 ToolbarSpacer(.fixed)
                                 ToolbarItem {
                                     Button {
-                                        exportSite()
+                                        publishSite()
                                     } label: {
                                         Label("Publish", systemImage: "cloud")
                                             .labelStyle(.titleAndIcon)
                                             .padding(.horizontal, 5)
                                     }
-                                    .help("Export static HTML and CSS")
+                                    .help("Publish site")
                                 }
                                 ToolbarSpacer(.fixed)
                                 ToolbarItem {
