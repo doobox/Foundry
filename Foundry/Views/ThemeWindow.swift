@@ -472,19 +472,18 @@ private struct ThemeFontFamilyEditor: View {
     let assets: [ProjectAsset]
     let session: ThemeEditorSession
     @State private var selection: ThemeFontReference = .role(.body)
+    @AppStorage("themeEditor.fontAssignmentRatio") private var assignmentRatio = 0.28
 
     private var editor: ProjectEditor { session.editor }
 
     var body: some View {
-        HSplitView {
+        ProportionalSplitView(
+            leadingRatio: $assignmentRatio,
+            minimumLeadingWidth: 180,
+            minimumTrailingWidth: 520
+        ) {
             themeFontSidebar
-                .frame(
-                    minWidth: 160,
-                    idealWidth: 240,
-                    maxWidth: 320,
-                    maxHeight: .infinity
-                )
-
+        } trailing: {
             ThemeFontDefinitionEditor(
                 title: selectionTitle,
                 definition: definition(for: selection),
@@ -493,7 +492,6 @@ private struct ThemeFontFamilyEditor: View {
                 name: customNameBinding,
                 session: session
             )
-            .frame(minWidth: 300, maxWidth: .infinity, maxHeight: .infinity)
         }
         .onChange(of: selection) {
             session.discardFontPreview()
@@ -569,6 +567,7 @@ private struct ThemeFontDefinitionEditor: View {
     @State private var googleFonts = GoogleFontCatalog.fallback
     @State private var search = ""
     @State private var category = GoogleFontCategory.all
+    @AppStorage("themeEditor.googleBrowserRatio") private var googleBrowserRatio = 0.46
 
     private var editor: ProjectEditor { session.editor }
 
@@ -634,10 +633,13 @@ private struct ThemeFontDefinitionEditor: View {
     }
 
     private var googleFontEditor: some View {
-        HSplitView {
+        ProportionalSplitView(
+            leadingRatio: $googleBrowserRatio,
+            minimumLeadingWidth: 260,
+            minimumTrailingWidth: 300
+        ) {
             googleFontBrowserColumn
-                .frame(minWidth: 190, idealWidth: 300, maxWidth: .infinity)
-
+        } trailing: {
             VStack(spacing: 0) {
                 GoogleFontSpecimenView(
                     family: definition.family,
@@ -662,7 +664,6 @@ private struct ThemeFontDefinitionEditor: View {
                 }
                 .padding(16)
             }
-            .frame(minWidth: 210, idealWidth: 340, maxWidth: .infinity)
         }
     }
 
