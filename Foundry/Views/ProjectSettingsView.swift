@@ -1,4 +1,6 @@
+import AppKit
 import SwiftUI
+import UniformTypeIdentifiers
 
 private enum ProjectSettingsSection: String, Identifiable {
     case general
@@ -52,6 +54,8 @@ struct ProjectSettingsView: View {
                     )
                 case .identity:
                     SiteIdentityProjectSettingsView(
+                        siteName: siteName,
+                        publicURL: publicURL,
                         titleSuffix: titleSuffix,
                         defaultDescription: defaultDescription,
                         favicon: favicon,
@@ -254,6 +258,8 @@ private struct GeneralProjectSettingsView: View {
 }
 
 private struct SiteIdentityProjectSettingsView: View {
+    let siteName: String
+    let publicURL: String
     let titleSuffix: String
     let defaultDescription: String
     let favicon: String
@@ -272,13 +278,16 @@ private struct SiteIdentityProjectSettingsView: View {
                 Text("Appended to page titles in the browser and used by social sharing when a page has no custom social title.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                imagePicker(
-                    "Site Icon",
-                    selection: Binding(get: { favicon }, set: editor.setSiteFavicon)
+                SiteIdentityImageField(
+                    title: "Site Icon",
+                    guidance: "Square PNG, SVG or ICO files work best. A 512 × 512 source gives browsers room to scale.",
+                    selection: Binding(get: { favicon }, set: editor.setSiteFavicon),
+                    assets: imageAssets,
+                    assetContents: editor.document.assetContents,
+                    importImage: { data, filename, mediaType in
+                        importImage(data, filename: filename, mediaType: mediaType, setter: editor.setSiteFavicon)
+                    }
                 )
-                Text("Used as the favicon in exported pages. Add image files to Project Resources before selecting one.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
             }
 
             Section("Defaults") {
@@ -292,13 +301,26 @@ private struct SiteIdentityProjectSettingsView: View {
                 Text("Used for search and social metadata when a page does not provide its own description.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                imagePicker(
-                    "Social Image",
-                    selection: Binding(get: { defaultSocialImage }, set: editor.setSiteDefaultSocialImage)
+                SiteIdentityImageField(
+                    title: "Social Image",
+                    guidance: "Use a landscape image. 1200 × 630 pixels is the usual social-sharing size.",
+                    selection: Binding(get: { defaultSocialImage }, set: editor.setSiteDefaultSocialImage),
+                    assets: imageAssets,
+                    assetContents: editor.document.assetContents,
+                    importImage: { data, filename, mediaType in
+                        importImage(data, filename: filename, mediaType: mediaType, setter: editor.setSiteDefaultSocialImage)
+                    }
                 )
-                Text("Used for social sharing when a page does not provide its own image.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+            }
+
+            Section("Social Preview") {
+                SocialMetadataPreview(
+                    title: "Page Title" + titleSuffix,
+                    description: defaultDescription,
+                    siteName: siteName,
+                    publicURL: publicURL,
+                    image: image(for: defaultSocialImage)
+                )
             }
         }
         .formStyle(.grouped)
@@ -311,12 +333,166 @@ private struct SiteIdentityProjectSettingsView: View {
             .sorted { $0.filename.localizedStandardCompare($1.filename) == .orderedAscending }
     }
 
-    private func imagePicker(_ title: String, selection: Binding<String>) -> some View {
-        Picker(title, selection: selection) {
-            Text("None").tag("")
-            ForEach(imageAssets) { asset in
-                Text(asset.filename).tag(asset.reference)
+    private func image(for reference: String) -> NSImage? {
+        guard let id = reference.foundryAssetID,
+              let data = editor.document.assetContents[id]?.data else { return nil }
+        return NSImage(data: data)
+    }
+
+    private func importImage(
+        _ data: Data,
+        filename: String,
+        mediaType: String,
+        setter: (String) -> Void
+    ) {
+        let undoManager = editor.undoManager
+        undoManager?.beginUndoGrouping()
+        let id = editor.document.importAsset(
+            data: data,
+            filename: filename,
+            mediaType: mediaType,
+            undoManager: undoManager
+        )
+        setter("foundry-asset:\(id.uuidString)")
+        undoManager?.endUndoGrouping()
+        undoManager?.setActionName("Import Site Image")
+    }
+}
+
+private struct SiteIdentityImageField: View {
+    let title: String
+    let guidance: String
+    @Binding var selection: String
+    let assets: [ProjectAsset]
+    let assetContents: [UUID: ProjectAssetContent]
+    let importImage: (Data, String, String) -> Void
+
+    @State private var isDropTargeted = false
+
+    var body: some View {
+        LabeledContent(title) {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(spacing: 10) {
+                    imagePreview
+                    Picker("", selection: $selection) {
+                        Text("None").tag("")
+                        ForEach(assets) { asset in
+                            Text(asset.filename).tag(asset.reference)
+                        }
+                    }
+                    .labelsHidden()
+                    .frame(maxWidth: .infinity)
+                }
+                Text(guidance + " Drag an image here to import it.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            .padding(8)
+            .background(.quaternary.opacity(isDropTargeted ? 1 : 0), in: RoundedRectangle(cornerRadius: 8))
+            .overlay {
+                RoundedRectangle(cornerRadius: 8)
+                    .stroke(isDropTargeted ? Color.accentColor : .clear, lineWidth: 2)
+                    .allowsHitTesting(false)
+            }
+            .contentShape(Rectangle())
+            .onDrop(of: [.fileURL], isTargeted: $isDropTargeted, perform: acceptImageProviders)
+        }
+    }
+
+    @ViewBuilder
+    private var imagePreview: some View {
+        if let image = selectedImage {
+            Image(nsImage: image)
+                .resizable()
+                .scaledToFit()
+                .frame(width: 64, height: 48)
+                .background(.quaternary, in: RoundedRectangle(cornerRadius: 6))
+        } else {
+            Image(systemName: "photo")
+                .font(.title2)
+                .foregroundStyle(.secondary)
+                .frame(width: 64, height: 48)
+                .background(.quaternary, in: RoundedRectangle(cornerRadius: 6))
+        }
+    }
+
+    private var selectedImage: NSImage? {
+        guard let id = selection.foundryAssetID,
+              let data = assetContents[id]?.data else { return nil }
+        return NSImage(data: data)
+    }
+
+    private func acceptImageProviders(_ providers: [NSItemProvider]) -> Bool {
+        guard let provider = providers.first(where: {
+            $0.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier)
+        }) else { return false }
+        _ = provider.loadObject(ofClass: URL.self) { url, _ in
+            guard let url,
+                  let values = try? url.resourceValues(forKeys: [.isRegularFileKey, .contentTypeKey]),
+                  values.isRegularFile == true,
+                  let type = values.contentType ?? UTType(filenameExtension: url.pathExtension),
+                  type.conforms(to: .image),
+                  let data = try? Data(contentsOf: url) else { return }
+            let filename = provider.suggestedName.flatMap { suggestedName in
+                (suggestedName as NSString).pathExtension.isEmpty
+                    ? suggestedName + "." + url.pathExtension
+                    : suggestedName
+            } ?? url.lastPathComponent
+            Task { @MainActor in
+                importImage(data, filename, type.preferredMIMEType ?? "application/octet-stream")
             }
         }
+        return true
+    }
+}
+
+private struct SocialMetadataPreview: View {
+    let title: String
+    let description: String
+    let siteName: String
+    let publicURL: String
+    let image: NSImage?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            if let image {
+                Image(nsImage: image)
+                    .resizable()
+                    .scaledToFill()
+                    .frame(maxWidth: .infinity, minHeight: 110, maxHeight: 150)
+                    .clipped()
+            } else {
+                ZStack {
+                    Color.secondary.opacity(0.08)
+                    Image(systemName: "photo")
+                        .font(.largeTitle)
+                        .foregroundStyle(.tertiary)
+                }
+                .frame(height: 110)
+            }
+            VStack(alignment: .leading, spacing: 4) {
+                Text(previewHost)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Text(title.isEmpty ? "Page Title" : title)
+                    .font(.headline)
+                    .lineLimit(2)
+                Text(description.isEmpty ? "Your default site description will appear here." : description)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+            }
+            .padding(12)
+        }
+        .background(.background, in: RoundedRectangle(cornerRadius: 10))
+        .overlay {
+            RoundedRectangle(cornerRadius: 10)
+                .stroke(.separator)
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 10))
+    }
+
+    private var previewHost: String {
+        URL(string: publicURL)?.host ?? (siteName.isEmpty ? "Your Website" : siteName)
     }
 }
