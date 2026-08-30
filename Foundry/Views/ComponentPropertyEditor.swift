@@ -10,33 +10,38 @@ struct ComponentPropertyEditor: View {
     let editsSharedDefinition: Bool
     let breakpoint: ResponsiveBreakpoint
 
-    var body: some View {
-        HStack(alignment: .top, spacing: 8) {
-            InspectorResponsiveIndicator(
-                isVisible: breakpoint != .mobile && definition.isResponsive,
-                isOverridden: component.hasResponsiveOverride(definition.key, at: breakpoint),
-                breakpointName: breakpoint.displayName,
-                toggle: toggleResponsiveOverride
-            )
-            .frame(width: 8)
-            .padding(.top, 7)
+    init(
+        definition: ComponentPropertyDefinition,
+        component: ComponentNode,
+        theme: Theme,
+        assets: [ProjectAsset],
+        editor: ProjectEditor,
+        editsSharedDefinition: Bool,
+        breakpoint: ResponsiveBreakpoint
+    ) {
+        self.definition = definition
+        self.component = component
+        self.theme = theme
+        self.assets = assets
+        self.editor = editor
+        self.editsSharedDefinition = editsSharedDefinition
+        self.breakpoint = breakpoint
+    }
 
-            editorControl
-        }
-        .controlSize(.small)
-        .font(.callout)
+    @ViewBuilder
+    var body: some View {
+        editorControl
     }
 
     @ViewBuilder
     private var editorControl: some View {
         switch definition.control {
         case .singleLineText:
-            InspectorControlRow(definition.label) {
-                TextField("", text: stringBinding(as: .string))
-                    .labelsHidden()
+            InspectorRow(title: definition.label, indicator: responsiveIndicator) {
+                InspectorTextField(text: stringBinding(as: .string), accessibilityLabel: definition.label, help: definition.label)
             }
         case .multilineText:
-            InspectorControlRow(definition.label, alignment: .top) {
+            InspectorRow(title: definition.label, alignment: .top, indicator: responsiveIndicator) {
                 TextEditor(text: stringBinding(as: .string))
                     .frame(minHeight: 72)
                     .padding(4)
@@ -47,10 +52,9 @@ struct ComponentPropertyEditor: View {
                     }
             }
         case .url:
-            InspectorControlRow(definition.label, alignment: .top) {
+            InspectorRow(title: definition.label, alignment: .top, indicator: responsiveIndicator) {
                 VStack(alignment: .leading, spacing: 4) {
-                    TextField("", text: stringBinding(as: .url))
-                        .labelsHidden()
+                    InspectorTextField(text: stringBinding(as: .url), accessibilityLabel: definition.label, help: definition.label)
                     if !isValidDestination(displayComponent.property(definition.key)) {
                         Text("Enter #, a relative path, or a complete URL.")
                             .font(.caption)
@@ -59,26 +63,28 @@ struct ComponentPropertyEditor: View {
                 }
             }
         case .number(let range, let step, let unit):
-            VStack(alignment: .leading, spacing: 8) {
-                InspectorControlRow(definition.label) {
-                    Stepper(value: numberBinding, in: range, step: step) {
+            Group {
+                InspectorRow(title: definition.label, indicator: responsiveIndicator) {
+                    HStack {
                         Text("\(displayComponent.numberProperty(definition.key, theme: theme).formatted()) \(unit)")
                             .monospacedDigit()
+                        Spacer(minLength: 0)
+                        InspectorStepper(value: numberBinding, range: range, increment: step, accessibilityLabel: definition.label)
                     }
                 }
                 if supportsSpacingTokens {
-                    InspectorControlRow("Source") {
+                    InspectorRow(title: "Source") {
                         tokenPicker(tokens: DesignToken.spacingTokens, customLabel: "Custom value")
                     }
                 }
             }
         case .color:
-            VStack(alignment: .leading, spacing: 6) {
-                InspectorControlRow("Source") {
+            Group {
+                InspectorRow(title: "Source") {
                     tokenPicker(tokens: DesignToken.colorTokens, customLabel: "Custom colour")
                 }
                 if selectedToken == nil {
-                    InspectorControlRow(definition.label) {
+                    InspectorRow(title: definition.label, alignment: .center, indicator: responsiveIndicator) {
                         InspectorColorWell(color: colorBinding)
                     }
                 }
@@ -94,64 +100,43 @@ struct ComponentPropertyEditor: View {
                 opacity: opacityKey.map(numberBinding(for:))
             )
         case .choice(let choices):
-            InspectorControlRow(definition.label) {
-                Picker("", selection: stringBinding(as: .choice)) {
-                    ForEach(choices) { choice in
-                        Text(choice.label).tag(choice.value)
-                    }
-                }
-                .labelsHidden()
+            InspectorRow(title: definition.label, indicator: responsiveIndicator) {
+                InspectorPopup(selection: stringBinding(as: .choice), options: choices.map { .init(title: $0.label, value: $0.value) }, accessibilityLabel: definition.label, help: definition.label)
             }
         case .themeFontFamily:
-            InspectorControlRow(definition.label) {
-                Picker("", selection: stringBinding(as: .choice)) {
-                    ForEach(theme.fontFamilyChoices) { choice in
-                        Text(choice.label).tag(choice.value)
-                    }
-                }
-                .labelsHidden()
+            InspectorRow(title: definition.label, indicator: responsiveIndicator) {
+                InspectorPopup(selection: stringBinding(as: .choice), options: theme.fontFamilyChoices.map { .init(title: $0.label, value: $0.value) }, accessibilityLabel: definition.label, help: definition.label)
             }
         case .themeFontSize:
-            InspectorControlRow(definition.label) {
-                Picker("", selection: stringBinding(as: .choice)) {
-                    ForEach(theme.fontSizeChoices) { choice in
-                        Text(choice.label).tag(choice.value)
-                    }
-                }
-                .labelsHidden()
+            InspectorRow(title: definition.label, indicator: responsiveIndicator) {
+                InspectorPopup(selection: stringBinding(as: .choice), options: theme.fontSizeChoices.map { .init(title: $0.label, value: $0.value) }, accessibilityLabel: definition.label, help: definition.label)
             }
         case .packageFontFamily(let themeValues, let customValueKey):
-            PackageThemeValueEditor(
+            PackageThemeValueGridEditor(
                 label: definition.label,
                 choices: themeValues ? theme.fontFamilyChoices : [],
                 source: stringBinding(as: .choice),
-                customValue: stringBinding(for: customValueKey)
+                customValue: stringBinding(for: customValueKey),
+                indicator: responsiveIndicator
             )
         case .packageFontSize(let themeValues, let customValueKey):
-            PackageThemeValueEditor(
+            PackageThemeValueGridEditor(
                 label: definition.label,
                 choices: themeValues ? theme.fontSizeChoices : [],
                 source: stringBinding(as: .choice),
-                customValue: stringBinding(for: customValueKey)
+                customValue: stringBinding(for: customValueKey),
+                indicator: responsiveIndicator
             )
         case .textAlignment:
-            InspectorControlRow(definition.label) {
-                Picker("", selection: stringBinding(as: .choice)) {
-                    Label("Start", systemImage: "text.alignleft").labelStyle(.iconOnly).tag("start")
-                    Label("Centre", systemImage: "text.aligncenter").labelStyle(.iconOnly).tag("center")
-                    Label("End", systemImage: "text.alignright").labelStyle(.iconOnly).tag("end")
-                    Label("Justify", systemImage: "text.justify").labelStyle(.iconOnly).tag("justify")
-                }
-                .labelsHidden()
-                .pickerStyle(.segmented)
-                .help(definition.label)
+            InspectorRow(title: definition.label, indicator: responsiveIndicator) {
+                InspectorSegmentedControl(selection: stringBinding(as: .choice), segments: alignmentSegments)
             }
         case .divider:
             Divider()
                 .padding(.vertical, 6)
                 .accessibilityHidden(true)
         case .toggle:
-            InspectorControlRow(definition.label) {
+            InspectorRow(title: definition.label, indicator: responsiveIndicator) {
                 Toggle("", isOn: booleanBinding)
                     .labelsHidden()
             }
@@ -161,7 +146,7 @@ struct ComponentPropertyEditor: View {
     }
 
     private var assetPicker: some View {
-        InspectorControlRow(definition.label, alignment: .top) {
+        InspectorRow(title: definition.label, alignment: .top, indicator: responsiveIndicator) {
             VStack(alignment: .leading, spacing: 6) {
                 Picker("", selection: assetBinding) {
                     Text("No managed image").tag(nil as UUID?)
@@ -239,6 +224,15 @@ struct ComponentPropertyEditor: View {
         )
     }
 
+    private var responsiveIndicator: InspectorRowIndicator {
+        InspectorRowIndicator(
+            isVisible: breakpoint != .mobile && definition.isResponsive,
+            isOverridden: component.hasResponsiveOverride(definition.key, at: breakpoint),
+            breakpointName: breakpoint.displayName,
+            toggle: toggleResponsiveOverride
+        )
+    }
+
 
     private var selectedToken: DesignToken? {
         displayComponent.propertyValue(definition.key).tokenValue
@@ -246,6 +240,15 @@ struct ComponentPropertyEditor: View {
 
     private var supportsSpacingTokens: Bool {
         [.padding, .marginTop, .marginBottom].contains(definition.key)
+    }
+
+    private var alignmentSegments: [InspectorSegment<String>] {
+        [
+            InspectorSegment(value: "start", systemImage: "text.alignleft", accessibilityLabel: "Start", help: "Align text to the start"),
+            InspectorSegment(value: "center", systemImage: "text.aligncenter", accessibilityLabel: "Centre", help: "Centre text"),
+            InspectorSegment(value: "end", systemImage: "text.alignright", accessibilityLabel: "End", help: "Align text to the end"),
+            InspectorSegment(value: "justify", systemImage: "text.justify", accessibilityLabel: "Justify", help: "Justify text")
+        ]
     }
 
     private func tokenPicker(tokens: [DesignToken], customLabel: String) -> some View {
@@ -346,6 +349,42 @@ struct ComponentPropertyEditor: View {
     }
 }
 
+private struct PackageThemeValueGridEditor: View {
+    let label: String
+    let choices: [ComponentPropertyChoice]
+    @Binding var source: String
+    @Binding var customValue: String
+    let indicator: InspectorRowIndicator
+
+    var body: some View {
+        if !choices.isEmpty {
+            InspectorRow(title: label, indicator: indicator) {
+                InspectorPopup(
+                    selection: $source,
+                    options: popupOptions,
+                    accessibilityLabel: label,
+                    help: label
+                )
+            }
+        }
+
+        if source == "custom" || choices.isEmpty {
+            InspectorRow(
+                title: choices.isEmpty ? label : "Custom value",
+                indicator: choices.isEmpty ? indicator : nil
+            ) {
+                InspectorTextField(text: $customValue, accessibilityLabel: choices.isEmpty ? label : "Custom value")
+            }
+        }
+    }
+
+    private var popupOptions: [InspectorPopupOption<String>] {
+        [InspectorPopupOption(title: "Custom", value: "custom")] + choices.map {
+            InspectorPopupOption(title: $0.label, value: $0.value)
+        }
+    }
+}
+
 private struct PackageColorControlEditor: View {
     let label: String
     let choices: [ComponentPropertyChoice]
@@ -356,43 +395,36 @@ private struct PackageColorControlEditor: View {
     let opacity: Binding<Double>?
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        Group {
             if !choices.isEmpty {
-                InspectorControlRow(label) {
-                    Picker("", selection: $source) {
-                        colorChoiceLabel("Custom", color: customColor)
-                            .tag("custom")
-                        ForEach(choices) { choice in
-                            colorChoiceLabel(choice.label, color: previewColor(for: choice.value))
-                                .tag(choice.value)
-                        }
-                    }
-                    .labelsHidden()
+                InspectorRow(title: label) {
+                    InspectorPopup(
+                        selection: $source,
+                        options: [InspectorPopupOption(title: "Custom", value: "custom")] + choices.map { .init(title: $0.label, value: $0.value) },
+                        accessibilityLabel: label,
+                        help: label
+                    )
                 }
             }
             if source == "custom" || choices.isEmpty {
-                InspectorControlRow(choices.isEmpty ? label : "Custom colour") {
+                InspectorRow(title: choices.isEmpty ? label : "Custom colour", alignment: .center) {
                     InspectorColorWell(color: $customColor)
                 }
             }
             if let adjustment {
-                InspectorControlRow("Lighter or darker", alignment: .top) {
-                    InspectorSlider(
-                        value: adjustment,
-                        range: -100...100,
-                        step: 1,
-                        formattedValue: adjustment.wrappedValue.formatted() + "%"
-                    )
+                InspectorRow(title: "Lighter or darker", alignment: .center) {
+                    HStack {
+                        InspectorSlider(value: adjustment, range: -100...100, step: 1, accessibilityLabel: "Lighter or darker", help: "Adjust the selected colour")
+                        Text(adjustment.wrappedValue.formatted() + "%").monospacedDigit().frame(minWidth: 42, alignment: .trailing)
+                    }
                 }
             }
             if let opacity {
-                InspectorControlRow("Opacity", alignment: .top) {
-                    InspectorSlider(
-                        value: opacity,
-                        range: 0...1,
-                        step: 0.01,
-                        formattedValue: opacity.wrappedValue.formatted(.percent.precision(.fractionLength(0)))
-                    )
+                InspectorRow(title: "Opacity", alignment: .center) {
+                    HStack {
+                        InspectorSlider(value: opacity, range: 0...1, step: 0.1, tickMarkCount: 11, restrictsToTickMarks: true, accessibilityLabel: "Opacity", help: "Set opacity from zero to one hundred percent")
+                        Text(opacity.wrappedValue.formatted(.percent.precision(.fractionLength(0)))).monospacedDigit().frame(minWidth: 42, alignment: .trailing)
+                    }
                 }
             }
         }
@@ -427,34 +459,5 @@ private struct PackageColorControlEditor: View {
     private func previewColor(for value: String) -> Color {
         guard let role = ThemeColorRole(rawValue: value) else { return .clear }
         return Color(hex: theme.color(for: role)) ?? .clear
-    }
-}
-
-private struct PackageThemeValueEditor: View {
-    let label: String
-    let choices: [ComponentPropertyChoice]
-    @Binding var source: String
-    @Binding var customValue: String
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            if !choices.isEmpty {
-                InspectorControlRow(label) {
-                    Picker("", selection: $source) {
-                        Text("Custom").tag("custom")
-                        ForEach(choices) { choice in
-                            Text(choice.label).tag(choice.value)
-                        }
-                    }
-                    .labelsHidden()
-                }
-            }
-            if source == "custom" || choices.isEmpty {
-                InspectorControlRow(choices.isEmpty ? label : "Custom value") {
-                    TextField("", text: $customValue)
-                        .labelsHidden()
-                }
-            }
-        }
     }
 }

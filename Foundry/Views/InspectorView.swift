@@ -471,24 +471,27 @@ private struct ComponentInspectorGroup: View {
 
     var body: some View {
         DisclosureGroup(isExpanded: $isExpanded) {
-            VStack(spacing: 0) {
+            InspectorGrid {
                 ForEach(properties) { definition in
-                    ComponentPropertyEditor(
-                        definition: definition,
-                        component: component,
-                        theme: theme,
-                        assets: assets,
-                        editor: editor,
-                        editsSharedDefinition: editsSharedDefinition,
-                        breakpoint: breakpoint
-                    )
-                    .padding(.vertical, 8)
+                    propertyEditor(for: definition)
                 }
             }
         } label: {
             Text(group.rawValue)
         }
         .disclosureGroupStyle(ComponentInspectorDisclosureStyle())
+    }
+
+    private func propertyEditor(for definition: ComponentPropertyDefinition) -> some View {
+        ComponentPropertyEditor(
+            definition: definition,
+            component: component,
+            theme: theme,
+            assets: assets,
+            editor: editor,
+            editsSharedDefinition: editsSharedDefinition,
+            breakpoint: breakpoint
+        )
     }
 }
 
@@ -548,8 +551,6 @@ private struct ComponentInspectorDisclosureStyle: DisclosureGroupStyle {
 
             if configuration.isExpanded {
                 configuration.content
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 10)
                     .transition(.opacity)
             }
         }
