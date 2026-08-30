@@ -50,7 +50,8 @@ struct ThemeWindowSceneContent: View {
 private struct ThemeWindowContent: View {
     let session: ThemeEditorSession
     @ObservedObject private var document: FoundryDocument
-    @State private var selection: ThemeWindowSection = .themes
+    @AppStorage("themeEditor.selectedSection") private var selectedSectionRawValue = ThemeWindowSection.themes.rawValue
+    @AppStorage("themeEditor.sidebarVisible") private var isSidebarVisible = true
 
     init(session: ThemeEditorSession) {
         self.session = session
@@ -58,8 +59,8 @@ private struct ThemeWindowContent: View {
     }
 
     var body: some View {
-        NavigationSplitView {
-            List(selection: $selection) {
+        NavigationSplitView(columnVisibility: columnVisibility) {
+            List(selection: selection) {
                 Section("Project") {
                     ThemeSidebarRow(section: .themes)
                     ThemeSidebarRow(section: .screens)
@@ -72,18 +73,36 @@ private struct ThemeWindowContent: View {
             }
             .navigationSplitViewColumnWidth(min: 180, ideal: 210, max: 260)
         } detail: {
-            switch selection {
+            switch selectedSection {
             case .themes:
                 ThemePackageBrowser(document: document, undoManager: session.editor.undoManager)
             default:
                 ThemeSettingsDetail(
-                    section: selection,
+                    section: selectedSection,
                     theme: document.site.theme,
                     assets: document.site.assets,
                     session: session
                 )
             }
         }
+    }
+
+    private var selectedSection: ThemeWindowSection {
+        ThemeWindowSection(rawValue: selectedSectionRawValue) ?? .themes
+    }
+
+    private var selection: Binding<ThemeWindowSection> {
+        Binding(
+            get: { selectedSection },
+            set: { selectedSectionRawValue = $0.rawValue }
+        )
+    }
+
+    private var columnVisibility: Binding<NavigationSplitViewVisibility> {
+        Binding(
+            get: { isSidebarVisible ? .all : .detailOnly },
+            set: { isSidebarVisible = $0 != .detailOnly }
+        )
     }
 }
 
