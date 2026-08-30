@@ -256,4 +256,31 @@ struct StaticSiteRendererTests {
         #expect(FileManager.default.fileExists(atPath: directory.appending(path: "index.html").path))
         #expect(FileManager.default.fileExists(atPath: directory.appending(path: "assets/site.css").path))
     }
+
+    @Test
+    func writerCleanupOnlyRemovesFilesOwnedByPreviousExport() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appending(path: "FoundryExportCleanupTests-\(UUID().uuidString)", directoryHint: .isDirectory)
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        let writer = SiteExportWriter()
+        try writer.write(
+            SiteExportBundle(files: [
+                SiteExportFile(path: "index.html", contents: "old"),
+                SiteExportFile(path: "obsolete.html", contents: "obsolete")
+            ]),
+            to: directory
+        )
+        try Data("customer file".utf8).write(to: directory.appending(path: "keep.txt"))
+
+        try writer.write(
+            SiteExportBundle(files: [SiteExportFile(path: "index.html", contents: "new")]),
+            to: directory,
+            cleaningObsoleteFiles: true
+        )
+
+        #expect(!FileManager.default.fileExists(atPath: directory.appending(path: "obsolete.html").path))
+        #expect(FileManager.default.fileExists(atPath: directory.appending(path: "keep.txt").path))
+        #expect(try String(contentsOf: directory.appending(path: "index.html"), encoding: .utf8) == "new")
+    }
 }

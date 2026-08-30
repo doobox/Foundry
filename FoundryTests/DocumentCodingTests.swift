@@ -93,6 +93,12 @@ struct DocumentCodingTests {
         original.bodyStartCode = "<div>body start</div>"
         original.bodyEndCode = "<div>body end</div>"
         original.analyticsCode = "<script>analytics()</script>"
+        original.cleansObsoleteExportFiles = true
+        original.publishingDestination = .amazonS3
+        original.publishingUsername = "ACCESSKEY"
+        original.publishingRemotePath = "production"
+        original.publishingS3Bucket = "example-site"
+        original.publishingS3Region = "eu-west-2"
         original.pages[0].metadata = PageMetadata(
             browserTitle: "Foundry",
             description: "Build a site",

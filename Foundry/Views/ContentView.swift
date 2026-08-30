@@ -139,6 +139,8 @@ struct ContentView: View {
         }
         .sheet(isPresented: $showsProjectSettings) {
             ProjectSettingsView(
+                site: document.site,
+                assetContents: document.assetContents,
                 siteName: document.site.name,
                 language: document.site.language,
                 publicURL: document.site.publicURL,
@@ -907,10 +909,16 @@ struct ContentView: View {
         panel.canChooseDirectories = true
         panel.canCreateDirectories = true
         panel.allowsMultipleSelection = false
+        panel.directoryURL = PublishingDestinationStore.url(for: document.site.id)
         guard panel.runModal() == .OK, let directory = panel.url else { return }
 
         do {
-            try SiteExportWriter().write(StaticSiteRenderer().render(site: document.site, assets: document.assetContents), to: directory)
+            PublishingDestinationStore.setURL(directory, for: document.site.id)
+            try SiteExportWriter().write(
+                StaticSiteRenderer().render(site: document.site, assets: document.assetContents),
+                to: directory,
+                cleaningObsoleteFiles: document.site.cleansObsoleteExportFiles
+            )
             NSWorkspace.shared.activateFileViewerSelecting([directory.appending(path: "index.html")])
         } catch {
             exportErrorMessage = error.localizedDescription

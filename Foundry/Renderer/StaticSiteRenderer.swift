@@ -658,7 +658,7 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
     }
 }
 
-nonisolated private extension ComponentNode {
+nonisolated extension ComponentNode {
     var flattened: [ComponentNode] {
         [self] + children.flatMap(\.flattened)
     }

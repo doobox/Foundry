@@ -1,7 +1,38 @@
 import Foundation
 
+nonisolated enum PublishingDestinationKind: String, Codable, CaseIterable, Sendable {
+    case local
+    case sftp
+    case ftp
+    case amazonS3
+    case ftps
+
+    var title: String {
+        switch self {
+        case .local: "Local Folder"
+        case .sftp: "SFTP"
+        case .ftp: "FTP (Legacy)"
+        case .ftps: "FTPS (Legacy)"
+        case .amazonS3: "Amazon S3"
+        }
+    }
+
+    var defaultPort: Int {
+        switch self {
+        case .local: 0
+        case .sftp: 22
+        case .ftp, .ftps: 21
+        case .amazonS3: 443
+        }
+    }
+
+    var usesTLS: Bool {
+        self == .ftps || self == .amazonS3
+    }
+}
+
 nonisolated struct Site: Codable, Equatable, Identifiable, Sendable {
-    static let currentSchemaVersion = 8
+    static let currentSchemaVersion = 9
 
     let id: UUID
     var schemaVersion: Int
@@ -21,6 +52,14 @@ nonisolated struct Site: Codable, Equatable, Identifiable, Sendable {
     var bodyStartCode: String
     var bodyEndCode: String
     var analyticsCode: String
+    var cleansObsoleteExportFiles: Bool
+    var publishingDestination: PublishingDestinationKind
+    var publishingHost: String
+    var publishingPort: Int
+    var publishingUsername: String
+    var publishingRemotePath: String
+    var publishingS3Bucket: String
+    var publishingS3Region: String
     var pages: [Page]
     var pageFolders: [PageFolder]
     var theme: Theme
@@ -51,6 +90,14 @@ nonisolated struct Site: Codable, Equatable, Identifiable, Sendable {
         bodyStartCode: String = "",
         bodyEndCode: String = "",
         analyticsCode: String = "",
+        cleansObsoleteExportFiles: Bool = false,
+        publishingDestination: PublishingDestinationKind = .local,
+        publishingHost: String = "",
+        publishingPort: Int = 0,
+        publishingUsername: String = "",
+        publishingRemotePath: String = "/",
+        publishingS3Bucket: String = "",
+        publishingS3Region: String = "us-east-1",
         pages: [Page],
         pageFolders: [PageFolder] = [],
         theme: Theme = .standard,
@@ -78,6 +125,14 @@ nonisolated struct Site: Codable, Equatable, Identifiable, Sendable {
         self.bodyStartCode = bodyStartCode
         self.bodyEndCode = bodyEndCode
         self.analyticsCode = analyticsCode
+        self.cleansObsoleteExportFiles = cleansObsoleteExportFiles
+        self.publishingDestination = publishingDestination
+        self.publishingHost = publishingHost
+        self.publishingPort = publishingPort
+        self.publishingUsername = publishingUsername
+        self.publishingRemotePath = publishingRemotePath
+        self.publishingS3Bucket = publishingS3Bucket
+        self.publishingS3Region = publishingS3Region
         self.pages = pages
         self.pageFolders = pageFolders
         self.theme = theme
@@ -121,7 +176,7 @@ nonisolated struct Site: Codable, Equatable, Identifiable, Sendable {
     }
 
     private enum CodingKeys: String, CodingKey {
-        case id, schemaVersion, name, language, publicURL, titleSuffix, defaultDescription, favicon, defaultSocialImage, generatesCanonicalURLs, generatesSitemap, generatesRobotsTXT, allowsSearchIndexing, customCodeEnabled, headCode, bodyStartCode, bodyEndCode, analyticsCode, pages, pageFolders, theme, reusableComponents, globalComponents, assetLibrary, componentPackages, themePackage
+        case id, schemaVersion, name, language, publicURL, titleSuffix, defaultDescription, favicon, defaultSocialImage, generatesCanonicalURLs, generatesSitemap, generatesRobotsTXT, allowsSearchIndexing, customCodeEnabled, headCode, bodyStartCode, bodyEndCode, analyticsCode, cleansObsoleteExportFiles, publishingDestination, publishingHost, publishingPort, publishingUsername, publishingRemotePath, publishingS3Bucket, publishingS3Region, pages, pageFolders, theme, reusableComponents, globalComponents, assetLibrary, componentPackages, themePackage
     }
 
     init(from decoder: Decoder) throws {
@@ -144,6 +199,14 @@ nonisolated struct Site: Codable, Equatable, Identifiable, Sendable {
         bodyStartCode = try container.decodeIfPresent(String.self, forKey: .bodyStartCode) ?? ""
         bodyEndCode = try container.decodeIfPresent(String.self, forKey: .bodyEndCode) ?? ""
         analyticsCode = try container.decodeIfPresent(String.self, forKey: .analyticsCode) ?? ""
+        cleansObsoleteExportFiles = try container.decodeIfPresent(Bool.self, forKey: .cleansObsoleteExportFiles) ?? false
+        publishingDestination = try container.decodeIfPresent(PublishingDestinationKind.self, forKey: .publishingDestination) ?? .local
+        publishingHost = try container.decodeIfPresent(String.self, forKey: .publishingHost) ?? ""
+        publishingPort = try container.decodeIfPresent(Int.self, forKey: .publishingPort) ?? 0
+        publishingUsername = try container.decodeIfPresent(String.self, forKey: .publishingUsername) ?? ""
+        publishingRemotePath = try container.decodeIfPresent(String.self, forKey: .publishingRemotePath) ?? "/"
+        publishingS3Bucket = try container.decodeIfPresent(String.self, forKey: .publishingS3Bucket) ?? ""
+        publishingS3Region = try container.decodeIfPresent(String.self, forKey: .publishingS3Region) ?? "us-east-1"
         pages = try container.decode([Page].self, forKey: .pages)
         pageFolders = try container.decodeIfPresent([PageFolder].self, forKey: .pageFolders) ?? []
         theme = try container.decode(Theme.self, forKey: .theme)

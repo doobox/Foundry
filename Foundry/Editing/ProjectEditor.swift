@@ -79,6 +79,44 @@ struct ProjectEditor {
         mutate(actionName: "Edit Analytics Code") { $0.analyticsCode = code }
     }
 
+    func setPublishingDestination(_ destination: PublishingDestinationKind) {
+        mutate(actionName: "Change Publishing Destination") {
+            let previousDefaultPort = $0.publishingDestination.defaultPort
+            $0.publishingDestination = destination
+            if $0.publishingPort == 0 || $0.publishingPort == previousDefaultPort {
+                $0.publishingPort = destination.defaultPort
+            }
+        }
+    }
+
+    func setPublishingHost(_ host: String) {
+        mutate(actionName: "Edit Publishing Host") { $0.publishingHost = host }
+    }
+
+    func setPublishingPort(_ port: Int) {
+        mutate(actionName: "Edit Publishing Port") { $0.publishingPort = max(0, min(port, 65_535)) }
+    }
+
+    func setPublishingUsername(_ username: String) {
+        mutate(actionName: "Edit Publishing Username") { $0.publishingUsername = username }
+    }
+
+    func setPublishingRemotePath(_ path: String) {
+        mutate(actionName: "Edit Publishing Path") { $0.publishingRemotePath = path }
+    }
+
+    func setPublishingS3Bucket(_ bucket: String) {
+        mutate(actionName: "Edit S3 Bucket") { $0.publishingS3Bucket = bucket }
+    }
+
+    func setPublishingS3Region(_ region: String) {
+        mutate(actionName: "Edit S3 Region") { $0.publishingS3Region = region }
+    }
+
+    func setCleansObsoleteExportFiles(_ isEnabled: Bool) {
+        mutate(actionName: "Change Export Cleanup") { $0.cleansObsoleteExportFiles = isEnabled }
+    }
+
     func renameComponent(id: UUID, name: String) {
         mutate(actionName: "Rename Component") { site in
             site.updateComponent(id: id) { $0.name = name }
