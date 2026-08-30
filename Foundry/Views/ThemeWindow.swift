@@ -912,8 +912,6 @@ private struct ThemeFontDefinitionEditor: View {
                 accepted = true
                 _ = provider.loadObject(ofClass: URL.self) { url, _ in
                     guard let url else { return }
-                    let didAccess = url.startAccessingSecurityScopedResource()
-                    defer { if didAccess { url.stopAccessingSecurityScopedResource() } }
                     guard let data = try? Data(contentsOf: url) else { return }
                     let filename = Self.preferredFilename(provider.suggestedName, sourceURL: url)
                     Task { @MainActor in
