@@ -200,7 +200,11 @@ nonisolated struct SitePublisher: Sendable {
         try await withTaskCancellationHandler {
             try await Task.detached {
                 try data.withUnsafeBytes { bytes in
-                    let url = remoteURL(site: site, relativePath: relativePath, testOnly: testOnly) as NSString
+                    let url = PublishingRemoteURLBuilder.url(
+                        site: site,
+                        relativePath: relativePath,
+                        testOnly: testOnly
+                    ) as NSString
                     let username = site.publishingUsername as NSString
                     let password = credential as NSString
                     let caPath = certificatePath as NSString?
@@ -242,35 +246,6 @@ nonisolated struct SitePublisher: Sendable {
         }
     }
 
-    private func remoteURL(site: Site, relativePath: String, testOnly: Bool) -> String {
-        if site.publishingDestination == .amazonS3 {
-            let prefix = normalizedPath(site.publishingRemotePath, leadingSlash: false)
-            let key = [prefix, relativePath].filter { !$0.isEmpty }.joined(separator: "/")
-            let encodedKey = encodedPath(key)
-            return "https://\(site.publishingS3Bucket).s3.\(site.publishingS3Region).amazonaws.com/\(encodedKey)"
-        }
-
-        let scheme = site.publishingDestination == .sftp ? "sftp" : "ftp"
-        let port = site.publishingPort == 0 ? site.publishingDestination.defaultPort : site.publishingPort
-        let root = normalizedPath(site.publishingRemotePath, leadingSlash: true)
-        let joined = [root, relativePath].filter { !$0.isEmpty }.joined(separator: "/")
-        let path = encodedPath(joined)
-        let suffix = testOnly && !path.hasSuffix("/") ? "/" : ""
-        return "\(scheme)://\(site.publishingHost):\(port)/\(path)\(suffix)"
-    }
-
-    private func normalizedPath(_ path: String, leadingSlash: Bool) -> String {
-        var result = path.trimmingCharacters(in: .whitespacesAndNewlines)
-            .trimmingCharacters(in: CharacterSet(charactersIn: "/"))
-        if leadingSlash && !result.isEmpty { result = "/" + result }
-        return result
-    }
-
-    private func encodedPath(_ path: String) -> String {
-        let allowed = CharacterSet.urlPathAllowed.subtracting(CharacterSet(charactersIn: "?#"))
-        return path.addingPercentEncoding(withAllowedCharacters: allowed) ?? path
-    }
-
     private var certificatePath: String? {
         Bundle.main.url(forResource: "cacert", withExtension: "pem")?.path
     }
@@ -278,6 +253,49 @@ nonisolated struct SitePublisher: Sendable {
     private var knownHostsPath: String? {
         let url = FileManager.default.homeDirectoryForCurrentUser.appending(path: ".ssh/known_hosts")
         return FileManager.default.fileExists(atPath: url.path) ? url.path : nil
+    }
+}
+
+nonisolated enum PublishingRemoteURLBuilder {
+    static func url(site: Site, relativePath: String, testOnly: Bool) -> String {
+        if site.publishingDestination == .amazonS3 {
+            let prefix = trimmedPath(site.publishingRemotePath)
+            let key = [prefix, relativePath].filter { !$0.isEmpty }.joined(separator: "/")
+            return "https://\(site.publishingS3Bucket).s3.\(site.publishingS3Region).amazonaws.com/\(encodedPath(key))"
+        }
+
+        let isAbsolute = site.publishingRemotePath
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .hasPrefix("/")
+        let root = trimmedPath(site.publishingRemotePath)
+        let joined = [root, relativePath].filter { !$0.isEmpty }.joined(separator: "/")
+        let encoded = encodedPath(joined)
+        let base = "\(site.publishingDestination == .sftp ? "sftp" : "ftp")://\(site.publishingHost):\(effectivePort(site))"
+        let path: String
+        switch site.publishingDestination {
+        case .sftp:
+            path = isAbsolute ? "/\(encoded)" : "/~/\(encoded)"
+        case .ftp, .ftps:
+            path = isAbsolute ? "//\(encoded)" : "/\(encoded)"
+        case .local, .amazonS3:
+            path = "/\(encoded)"
+        }
+        let suffix = testOnly && !path.hasSuffix("/") ? "/" : ""
+        return base + path + suffix
+    }
+
+    private static func effectivePort(_ site: Site) -> Int {
+        site.publishingPort == 0 ? site.publishingDestination.defaultPort : site.publishingPort
+    }
+
+    private static func trimmedPath(_ path: String) -> String {
+        path.trimmingCharacters(in: .whitespacesAndNewlines)
+            .trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+    }
+
+    private static func encodedPath(_ path: String) -> String {
+        let allowed = CharacterSet.urlPathAllowed.subtracting(CharacterSet(charactersIn: "?#"))
+        return path.addingPercentEncoding(withAllowedCharacters: allowed) ?? path
     }
 }
 
