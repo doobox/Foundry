@@ -192,6 +192,19 @@ private struct GeneralProjectSettingsView: View {
     let publicURL: String
     let editor: ProjectEditor
 
+    @State private var selectedLanguageCode: String
+    @State private var customLanguage: String
+
+    init(siteName: String, language: String, publicURL: String, editor: ProjectEditor) {
+        self.siteName = siteName
+        self.language = language
+        self.publicURL = publicURL
+        self.editor = editor
+        let isCommonLanguage = Self.commonLanguages.contains { $0.code == language }
+        _selectedLanguageCode = State(initialValue: isCommonLanguage ? language : Self.customLanguageCode)
+        _customLanguage = State(initialValue: isCommonLanguage ? "" : language)
+    }
+
     var body: some View {
         Form {
             Section("General") {
@@ -202,18 +215,34 @@ private struct GeneralProjectSettingsView: View {
                         set: editor.setSiteName
                     )
                 )
-                TextField(
-                    "Language",
-                    text: Binding(
-                        get: { language },
-                        set: editor.setSiteLanguage
-                    ),
-                    prompt: Text("en")
-                )
-                Text("Use a language code such as en, en-GB, or fr.")
+                Picker("Language", selection: languageSelection) {
+                    ForEach(Self.commonLanguages) { language in
+                        Text("\(language.name) — \(language.code)")
+                            .tag(language.code)
+                    }
+                    Divider()
+                    Text("Custom…").tag(Self.customLanguageCode)
+                }
+                if selectedLanguageCode == Self.customLanguageCode {
+                    TextField(
+                        "Language Tag",
+                        text: Binding(
+                            get: { customLanguage },
+                            set: { value in
+                                customLanguage = value
+                                editor.setSiteLanguage(value)
+                            }
+                        ),
+                        prompt: Text("e.g. cy or zh-Hant-TW")
+                            .foregroundStyle(.secondary)
+                    )
+                }
+                Text("Sets the language of exported pages for browsers, search engines and assistive technologies.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                if !language.isEmpty && !isValidLanguage {
+                if selectedLanguageCode == Self.customLanguageCode,
+                   !language.isEmpty,
+                   !isValidLanguage {
                     Text("Enter a valid language tag, such as en, en-GB, or zh-Hant.")
                         .font(.caption)
                         .foregroundStyle(.red)
@@ -245,15 +274,54 @@ private struct GeneralProjectSettingsView: View {
     }
 
     private var isValidLanguage: Bool {
-        let parts = language.split(separator: "-", omittingEmptySubsequences: false)
+        let value = language.trimmingCharacters(in: .whitespacesAndNewlines)
+        let parts = value.split(separator: "-", omittingEmptySubsequences: false)
         guard let languageCode = parts.first,
-              (2...3).contains(languageCode.count),
+              (2...8).contains(languageCode.count),
               languageCode.allSatisfy(\.isLetter) else { return false }
         return parts.dropFirst().allSatisfy { part in
             (1...8).contains(part.count) && part.allSatisfy { character in
                 character.isLetter || character.isNumber
             }
         }
+    }
+
+    private var languageSelection: Binding<String> {
+        Binding(
+            get: { selectedLanguageCode },
+            set: { code in
+                selectedLanguageCode = code
+                if code == Self.customLanguageCode {
+                    editor.setSiteLanguage(customLanguage)
+                } else {
+                    editor.setSiteLanguage(code)
+                }
+            }
+        )
+    }
+
+    private static let customLanguageCode = "__custom__"
+
+    private static let commonLanguages: [LanguageOption] = [
+        .init(code: "en", name: "English"),
+        .init(code: "en-GB", name: "English (United Kingdom)"),
+        .init(code: "en-US", name: "English (United States)"),
+        .init(code: "fr", name: "French"),
+        .init(code: "de", name: "German"),
+        .init(code: "es", name: "Spanish"),
+        .init(code: "it", name: "Italian"),
+        .init(code: "nl", name: "Dutch"),
+        .init(code: "pt", name: "Portuguese"),
+        .init(code: "ja", name: "Japanese"),
+        .init(code: "zh-Hans", name: "Chinese (Simplified)"),
+        .init(code: "zh-Hant", name: "Chinese (Traditional)")
+    ]
+
+    private struct LanguageOption: Identifiable {
+        let code: String
+        let name: String
+
+        var id: String { code }
     }
 }
 
