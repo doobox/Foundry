@@ -506,7 +506,7 @@ private struct InspectorCard<Content: View>: View {
             if let title {
                 Text(title)
                     .font(.headline)
-                    .bold()
+                    .foregroundStyle(.primary)
             }
             content
         }
@@ -527,7 +527,6 @@ private struct ComponentInspectorDisclosureStyle: DisclosureGroupStyle {
                 HStack(spacing: 8) {
                     configuration.label
                         .font(.headline)
-                        .bold()
                         .foregroundStyle(.primary)
 
                     Spacer(minLength: 8)

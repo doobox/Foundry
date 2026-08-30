@@ -11,21 +11,17 @@ struct ComponentPropertyEditor: View {
     let breakpoint: ResponsiveBreakpoint
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        HStack(alignment: .top, spacing: 8) {
+            InspectorResponsiveIndicator(
+                isVisible: breakpoint != .mobile && definition.isResponsive,
+                isOverridden: component.hasResponsiveOverride(definition.key, at: breakpoint),
+                breakpointName: breakpoint.displayName,
+                toggle: toggleResponsiveOverride
+            )
+            .frame(width: 8)
+            .padding(.top, 7)
+
             editorControl
-            if breakpoint != .mobile, definition.isResponsive {
-                HStack(spacing: 6) {
-                    Text(component.hasResponsiveOverride(definition.key, at: breakpoint) ? breakpoint.displayName : "Inherited")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                    Spacer()
-                    if component.hasResponsiveOverride(definition.key, at: breakpoint) {
-                        Button("Reset") { removeOverride() }
-                            .buttonStyle(.link)
-                            .font(.caption)
-                    }
-                }
-            }
         }
         .controlSize(.small)
         .font(.callout)
@@ -35,9 +31,12 @@ struct ComponentPropertyEditor: View {
     private var editorControl: some View {
         switch definition.control {
         case .singleLineText:
-            TextField(definition.label, text: stringBinding(as: .string))
+            InspectorControlRow(definition.label) {
+                TextField("", text: stringBinding(as: .string))
+                    .labelsHidden()
+            }
         case .multilineText:
-            LabeledContent(definition.label) {
+            InspectorControlRow(definition.label, alignment: .top) {
                 TextEditor(text: stringBinding(as: .string))
                     .frame(minHeight: 72)
                     .padding(4)
@@ -48,35 +47,40 @@ struct ComponentPropertyEditor: View {
                     }
             }
         case .url:
-            VStack(alignment: .leading, spacing: 4) {
-                TextField(definition.label, text: stringBinding(as: .url))
-                if !isValidDestination(displayComponent.property(definition.key)) {
-                    Text("Enter #, a relative path, or a complete URL.")
-                        .font(.caption)
-                        .foregroundStyle(.red)
+            InspectorControlRow(definition.label, alignment: .top) {
+                VStack(alignment: .leading, spacing: 4) {
+                    TextField("", text: stringBinding(as: .url))
+                        .labelsHidden()
+                    if !isValidDestination(displayComponent.property(definition.key)) {
+                        Text("Enter #, a relative path, or a complete URL.")
+                            .font(.caption)
+                            .foregroundStyle(.red)
+                    }
                 }
             }
         case .number(let range, let step, let unit):
-            VStack(alignment: .leading, spacing: 6) {
-                Stepper(value: numberBinding, in: range, step: step) {
-                    LabeledContent(
-                        definition.label,
-                        value: "\(displayComponent.numberProperty(definition.key, theme: theme).formatted()) \(unit)"
-                    )
+            VStack(alignment: .leading, spacing: 8) {
+                InspectorControlRow(definition.label) {
+                    Stepper(value: numberBinding, in: range, step: step) {
+                        Text("\(displayComponent.numberProperty(definition.key, theme: theme).formatted()) \(unit)")
+                            .monospacedDigit()
+                    }
                 }
                 if supportsSpacingTokens {
-                    tokenPicker(tokens: DesignToken.spacingTokens, customLabel: "Custom value")
+                    InspectorControlRow("Source") {
+                        tokenPicker(tokens: DesignToken.spacingTokens, customLabel: "Custom value")
+                    }
                 }
             }
         case .color:
             VStack(alignment: .leading, spacing: 6) {
-                tokenPicker(tokens: DesignToken.colorTokens, customLabel: "Custom color")
+                InspectorControlRow("Source") {
+                    tokenPicker(tokens: DesignToken.colorTokens, customLabel: "Custom colour")
+                }
                 if selectedToken == nil {
-                    ColorPicker(
-                        definition.label,
-                        selection: colorBinding,
-                        supportsOpacity: false
-                    )
+                    InspectorControlRow(definition.label) {
+                        InspectorColorWell(color: colorBinding)
+                    }
                 }
             }
         case .packageColor(let themeValues, let customColorKey, let colorMathKey, let opacityKey):
@@ -90,22 +94,31 @@ struct ComponentPropertyEditor: View {
                 opacity: opacityKey.map(numberBinding(for:))
             )
         case .choice(let choices):
-            Picker(definition.label, selection: stringBinding(as: .choice)) {
-                ForEach(choices) { choice in
-                    Text(choice.label).tag(choice.value)
+            InspectorControlRow(definition.label) {
+                Picker("", selection: stringBinding(as: .choice)) {
+                    ForEach(choices) { choice in
+                        Text(choice.label).tag(choice.value)
+                    }
                 }
+                .labelsHidden()
             }
         case .themeFontFamily:
-            Picker(definition.label, selection: stringBinding(as: .choice)) {
-                ForEach(theme.fontFamilyChoices) { choice in
-                    Text(choice.label).tag(choice.value)
+            InspectorControlRow(definition.label) {
+                Picker("", selection: stringBinding(as: .choice)) {
+                    ForEach(theme.fontFamilyChoices) { choice in
+                        Text(choice.label).tag(choice.value)
+                    }
                 }
+                .labelsHidden()
             }
         case .themeFontSize:
-            Picker(definition.label, selection: stringBinding(as: .choice)) {
-                ForEach(theme.fontSizeChoices) { choice in
-                    Text(choice.label).tag(choice.value)
+            InspectorControlRow(definition.label) {
+                Picker("", selection: stringBinding(as: .choice)) {
+                    ForEach(theme.fontSizeChoices) { choice in
+                        Text(choice.label).tag(choice.value)
+                    }
                 }
+                .labelsHidden()
             }
         case .packageFontFamily(let themeValues, let customValueKey):
             PackageThemeValueEditor(
@@ -122,35 +135,45 @@ struct ComponentPropertyEditor: View {
                 customValue: stringBinding(for: customValueKey)
             )
         case .textAlignment:
-            Picker(definition.label, selection: stringBinding(as: .choice)) {
-                Label("Start", systemImage: "text.alignleft").labelStyle(.iconOnly).tag("start")
-                Label("Centre", systemImage: "text.aligncenter").labelStyle(.iconOnly).tag("center")
-                Label("End", systemImage: "text.alignright").labelStyle(.iconOnly).tag("end")
-                Label("Justify", systemImage: "text.justify").labelStyle(.iconOnly).tag("justify")
+            InspectorControlRow(definition.label) {
+                Picker("", selection: stringBinding(as: .choice)) {
+                    Label("Start", systemImage: "text.alignleft").labelStyle(.iconOnly).tag("start")
+                    Label("Centre", systemImage: "text.aligncenter").labelStyle(.iconOnly).tag("center")
+                    Label("End", systemImage: "text.alignright").labelStyle(.iconOnly).tag("end")
+                    Label("Justify", systemImage: "text.justify").labelStyle(.iconOnly).tag("justify")
+                }
+                .labelsHidden()
+                .pickerStyle(.segmented)
+                .help(definition.label)
             }
-            .pickerStyle(.segmented)
-            .help(definition.label)
         case .divider:
             Divider()
-                .padding(.vertical, 4)
+                .padding(.vertical, 6)
                 .accessibilityHidden(true)
         case .toggle:
-            Toggle(definition.label, isOn: booleanBinding)
+            InspectorControlRow(definition.label) {
+                Toggle("", isOn: booleanBinding)
+                    .labelsHidden()
+            }
         case .asset:
             assetPicker
         }
     }
 
     private var assetPicker: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Picker(definition.label, selection: assetBinding) {
-                Text("No managed image").tag(nil as UUID?)
-                ForEach(assets) { asset in Text(asset.filename).tag(asset.id as UUID?) }
-            }
-            if let id = component.property(definition.key).foundryAssetID,
-               !assets.contains(where: { $0.id == id }) {
-                Label("The selected image is missing.", systemImage: "exclamationmark.triangle")
-                    .font(.caption).foregroundStyle(.orange)
+        InspectorControlRow(definition.label, alignment: .top) {
+            VStack(alignment: .leading, spacing: 6) {
+                Picker("", selection: assetBinding) {
+                    Text("No managed image").tag(nil as UUID?)
+                    ForEach(assets) { asset in Text(asset.filename).tag(asset.id as UUID?) }
+                }
+                .labelsHidden()
+                if let id = component.property(definition.key).foundryAssetID,
+                   !assets.contains(where: { $0.id == id }) {
+                    Label("The selected image is missing.", systemImage: "exclamationmark.triangle")
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                }
             }
         }
     }
@@ -226,12 +249,13 @@ struct ComponentPropertyEditor: View {
     }
 
     private func tokenPicker(tokens: [DesignToken], customLabel: String) -> some View {
-        Picker("Source", selection: tokenBinding(allowedTokens: tokens)) {
+        Picker("", selection: tokenBinding(allowedTokens: tokens)) {
             Text(customLabel).tag(nil as DesignToken?)
             ForEach(tokens) { token in
                 Text(token.displayName).tag(token as DesignToken?)
             }
         }
+        .labelsHidden()
     }
 
     private func tokenBinding(allowedTokens: [DesignToken]) -> Binding<DesignToken?> {
@@ -287,6 +311,14 @@ struct ComponentPropertyEditor: View {
         }
     }
 
+    private func toggleResponsiveOverride() {
+        if component.hasResponsiveOverride(definition.key, at: breakpoint) {
+            removeOverride()
+        } else {
+            setProperty(displayComponent.propertyValue(definition.key))
+        }
+    }
+
     private var displayComponent: ComponentNode {
         component.resolved(at: effectiveBreakpoint)
     }
@@ -326,7 +358,7 @@ private struct PackageColorControlEditor: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             if !choices.isEmpty {
-                LabeledContent(label) {
+                InspectorControlRow(label) {
                     Picker("", selection: $source) {
                         colorChoiceLabel("Custom", color: customColor)
                             .tag("custom")
@@ -339,30 +371,28 @@ private struct PackageColorControlEditor: View {
                 }
             }
             if source == "custom" || choices.isEmpty {
-                LabeledContent(choices.isEmpty ? label : "Custom colour") {
-                    ColorPicker("", selection: $customColor, supportsOpacity: false)
-                        .labelsHidden()
-                        .controlSize(.mini)
+                InspectorControlRow(choices.isEmpty ? label : "Custom colour") {
+                    InspectorColorWell(color: $customColor)
                 }
             }
             if let adjustment {
-                LabeledContent("Lighter or darker") {
-                    VStack(alignment: .trailing, spacing: 4) {
-                        Text(adjustment.wrappedValue.formatted() + "%")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                        Slider(value: adjustment, in: -100...100, step: 1)
-                    }
+                InspectorControlRow("Lighter or darker", alignment: .top) {
+                    InspectorSlider(
+                        value: adjustment,
+                        range: -100...100,
+                        step: 1,
+                        formattedValue: adjustment.wrappedValue.formatted() + "%"
+                    )
                 }
             }
             if let opacity {
-                LabeledContent("Opacity") {
-                    VStack(alignment: .trailing, spacing: 4) {
-                        Text(opacity.wrappedValue.formatted(.percent.precision(.fractionLength(0))))
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                        Slider(value: opacity, in: 0...1, step: 0.01)
-                    }
+                InspectorControlRow("Opacity", alignment: .top) {
+                    InspectorSlider(
+                        value: opacity,
+                        range: 0...1,
+                        step: 0.01,
+                        formattedValue: opacity.wrappedValue.formatted(.percent.precision(.fractionLength(0)))
+                    )
                 }
             }
         }
@@ -409,7 +439,7 @@ private struct PackageThemeValueEditor: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             if !choices.isEmpty {
-                LabeledContent(label) {
+                InspectorControlRow(label) {
                     Picker("", selection: $source) {
                         Text("Custom").tag("custom")
                         ForEach(choices) { choice in
@@ -420,7 +450,7 @@ private struct PackageThemeValueEditor: View {
                 }
             }
             if source == "custom" || choices.isEmpty {
-                LabeledContent(choices.isEmpty ? label : "Custom value") {
+                InspectorControlRow(choices.isEmpty ? label : "Custom value") {
                     TextField("", text: $customValue)
                         .labelsHidden()
                 }
