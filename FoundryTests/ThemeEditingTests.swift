@@ -117,6 +117,36 @@ struct ThemeEditingTests {
     }
 
     @Test
+    func duplicateRemoteFontSourcesProduceOneStylesheetImport() throws {
+        var theme = Theme.standard
+        let url = try #require(ThemeFontDefinition.googleStylesheetURL(for: "Inter"))
+        theme.typography.bodyFont.source = .remote(stylesheetURL: url)
+        theme.typography.headingFont.source = .remote(stylesheetURL: url)
+
+        let css = theme.fontSourceCSS(assets: [:], destination: .export)
+
+        #expect(css.components(separatedBy: url.absoluteString).count - 1 == 1)
+    }
+
+    @Test
+    func googleFontMetadataDecodesIntoSortedFamilies() throws {
+        let data = Data("""
+        )]}'{
+          "familyMetadataList": [
+            {"family":"Zulu","category":"SERIF","fonts":{"400":{}}},
+            {"family":"Alpha Sans","category":"SANS_SERIF","fonts":{"400":{},"700":{}}}
+          ]
+        }
+        """.utf8)
+
+        let families = try GoogleFontsService.decodeFamilies(from: data)
+
+        #expect(families.map(\.family) == ["Alpha Sans", "Zulu"])
+        #expect(families[0].category == "Sans Serif")
+        #expect(families[0].styleCount == 2)
+    }
+
+    @Test
     func themeWindowRegistryPreservesTheLiveDocumentAndUndoManager() throws {
         let id = UUID()
         let document = FoundryDocument()

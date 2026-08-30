@@ -260,7 +260,7 @@ nonisolated extension Theme {
         assets: [UUID: ProjectAssetContent],
         destination: ThemeFontCSSDestination
     ) -> String {
-        typography.allFonts.flatMap { definition -> [String] in
+        let rules = typography.allFonts.flatMap { definition -> [String] in
             switch definition.source {
             case .system:
                 return []
@@ -282,7 +282,9 @@ nonisolated extension Theme {
                 }
             }
         }
-        .joined(separator: "\n")
+        var emitted = Set<String>()
+        return rules.filter { emitted.insert($0).inserted }
+            .joined(separator: "\n")
     }
 
     var customFontCSSVariables: String {
