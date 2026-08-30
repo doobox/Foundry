@@ -100,7 +100,7 @@ nonisolated enum ComponentPackageLoader {
                     guard file.closure else { return source }
                     let parameter = scope == .instance ? "component" : "page"
                     let argument = scope == .instance
-                        ? "document.getElementById(\"{{ id }}\")"
+                        ? "document.querySelector('[data-foundry-id=\"{{ instance.uuid }}\"]')"
                         : "document"
                     return """
                     (function (\(parameter)) {

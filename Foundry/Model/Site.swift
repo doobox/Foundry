@@ -7,6 +7,7 @@ nonisolated struct Site: Codable, Equatable, Identifiable, Sendable {
     var schemaVersion: Int
     var name: String
     var language: String
+    var publicURL: String
     var pages: [Page]
     var pageFolders: [PageFolder]
     var theme: Theme
@@ -23,6 +24,7 @@ nonisolated struct Site: Codable, Equatable, Identifiable, Sendable {
         schemaVersion: Int = currentSchemaVersion,
         name: String,
         language: String = "en",
+        publicURL: String = "",
         pages: [Page],
         pageFolders: [PageFolder] = [],
         theme: Theme = .standard,
@@ -36,6 +38,7 @@ nonisolated struct Site: Codable, Equatable, Identifiable, Sendable {
         self.schemaVersion = schemaVersion
         self.name = name
         self.language = language
+        self.publicURL = publicURL
         self.pages = pages
         self.pageFolders = pageFolders
         self.theme = theme
@@ -79,7 +82,7 @@ nonisolated struct Site: Codable, Equatable, Identifiable, Sendable {
     }
 
     private enum CodingKeys: String, CodingKey {
-        case id, schemaVersion, name, language, pages, pageFolders, theme, reusableComponents, globalComponents, assetLibrary, componentPackages, themePackage
+        case id, schemaVersion, name, language, publicURL, pages, pageFolders, theme, reusableComponents, globalComponents, assetLibrary, componentPackages, themePackage
     }
 
     init(from decoder: Decoder) throws {
@@ -88,6 +91,7 @@ nonisolated struct Site: Codable, Equatable, Identifiable, Sendable {
         schemaVersion = try container.decode(Int.self, forKey: .schemaVersion)
         name = try container.decode(String.self, forKey: .name)
         language = try container.decodeIfPresent(String.self, forKey: .language) ?? "en"
+        publicURL = try container.decodeIfPresent(String.self, forKey: .publicURL) ?? ""
         pages = try container.decode([Page].self, forKey: .pages)
         pageFolders = try container.decodeIfPresent([PageFolder].self, forKey: .pageFolders) ?? []
         theme = try container.decode(Theme.self, forKey: .theme)

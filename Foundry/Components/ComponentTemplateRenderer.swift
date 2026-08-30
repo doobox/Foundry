@@ -154,6 +154,9 @@ nonisolated enum ComponentTemplateRenderer {
         if key == "id" || key == "instance.id" {
             return "foundry-" + context.instanceID.uuidString.lowercased()
         }
+        if key == "instance.uuid" {
+            return context.instanceID.uuidString
+        }
         if key == "package.id" { return escape(context.packageIdentifier) }
         if key == "component.class" {
             return context.componentClass.isEmpty ? "" : " " + escapeAttribute(context.componentClass)
@@ -180,6 +183,9 @@ nonisolated enum ComponentTemplateRenderer {
             value = stored
         } else {
             return ""
+        }
+        if reference.hasSuffix(".attributes"), case .string(let attributes) = value {
+            return attributes
         }
         switch value {
         case .string(let value): return escape(value)

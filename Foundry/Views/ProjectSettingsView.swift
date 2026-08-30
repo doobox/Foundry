@@ -9,6 +9,7 @@ private enum ProjectSettingsSection: String, Identifiable {
 struct ProjectSettingsView: View {
     let siteName: String
     let language: String
+    let publicURL: String
     let editor: ProjectEditor
 
     @Environment(\.dismiss) private var dismiss
@@ -27,6 +28,7 @@ struct ProjectSettingsView: View {
                 GeneralProjectSettingsView(
                     siteName: siteName,
                     language: language,
+                    publicURL: publicURL,
                     editor: editor
                 )
                 Divider()
@@ -47,6 +49,7 @@ struct ProjectSettingsView: View {
 private struct GeneralProjectSettingsView: View {
     let siteName: String
     let language: String
+    let publicURL: String
     let editor: ProjectEditor
 
     var body: some View {
@@ -70,9 +73,28 @@ private struct GeneralProjectSettingsView: View {
                 Text("Use a language code such as en, en-GB, or fr.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                TextField(
+                    "Site URL",
+                    text: Binding(get: { publicURL }, set: editor.setSitePublicURL),
+                    prompt: Text("https://example.com")
+                )
+                Text("Used to create absolute links to pages and resources. Include https:// and omit a trailing slash.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                if !publicURL.isEmpty && !isValidPublicURL {
+                    Text("Enter a complete HTTP or HTTPS URL, such as https://example.com.")
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                }
             }
         }
         .formStyle(.grouped)
         .navigationTitle("General")
+    }
+
+    private var isValidPublicURL: Bool {
+        guard let url = URL(string: publicURL),
+              let scheme = url.scheme?.lowercased() else { return false }
+        return (scheme == "http" || scheme == "https") && url.host != nil
     }
 }

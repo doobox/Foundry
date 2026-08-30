@@ -1,95 +1,14 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Custom controls · Foundry Developer</title><link rel="stylesheet" href="styles.css"><script src="app.js" defer></script></head><body><div class="shell"><nav data-doc-nav></nav><main><div class="breadcrumbs"><a href="index.html">Foundry Developer</a><span>›</span>Build components</div><p class="eyebrow">Inspector API</p><h1>Request the values you need</h1><p class="lede">Each dictionary in <code>customItems</code> adds a control to Foundry’s inspector. Its <code>id</code> becomes available to every declared template as <code>{{ control.id }}</code>.</p>
-<h2>Property shape</h2><dl><dt>id</dt><dd>Required stable developer-facing identifier.</dd><dt>title</dt><dd>Required label shown to the site author.</dd><dt>group</dt><dd>Required inspector group. Items with the same name appear together in one disclosure group.</dd><dt>control</dt><dd>Required dictionary describing the editor.</dd><dt>default</dt><dd>Required String, Number, Boolean, or an array of those values matching the control.</dd><dt>responsive</dt><dd>Required Boolean. Enables breakpoint overrides.</dd><dt>inlineEditable</dt><dd>Required Boolean. Enables direct canvas editing where supported.</dd><dt>toolTip</dt><dd>Optional help shown for the control.</dd><dt>subtitles</dt><dd>Optional String array providing a caption beneath each member of a control array.</dd></dl>
-<h2 id="text-control">Text control</h2><p>A <code>text</code> control creates a standard single-line text field in the inspector. The declaration below adds a field labelled <strong>Heading</strong> to the <strong>Content</strong> group.</p><pre><code>&lt;key&gt;customItems&lt;/key&gt;
-&lt;array&gt;
-    &lt;dict&gt;
-        &lt;key&gt;id&lt;/key&gt;&lt;string&gt;heading&lt;/string&gt;
-        &lt;key&gt;title&lt;/key&gt;&lt;string&gt;Heading&lt;/string&gt;
-        &lt;key&gt;group&lt;/key&gt;&lt;string&gt;Content&lt;/string&gt;
-        &lt;key&gt;control&lt;/key&gt;
-        &lt;dict&gt;
-            &lt;key&gt;type&lt;/key&gt;&lt;string&gt;text&lt;/string&gt;
-        &lt;/dict&gt;
-        &lt;key&gt;default&lt;/key&gt;&lt;string&gt;PHP is alive&lt;/string&gt;
-        &lt;key&gt;responsive&lt;/key&gt;&lt;false/&gt;
-        &lt;key&gt;inlineEditable&lt;/key&gt;&lt;false/&gt;
-    &lt;/dict&gt;
-&lt;/array&gt;</code></pre><p>Use its value in any declared template with <code>{{ control.heading }}</code>. With <code>responsive</code> set to <code>false</code>, the value is shared by every breakpoint. With <code>inlineEditable</code> set to <code>false</code>, it is edited only in the inspector; setting it to <code>true</code> also permits direct canvas editing where the rendered text can be associated with this property.</p><div class="note"><strong>This is different from <code>%text%</code>.</strong> The <code>%text%</code> template macro creates a dedicated inline-editable text area automatically. Use a declared <code>text</code> control when you want a named inspector value such as a heading, label or short message.</div>
-<h2 id="divider-control">Divider control</h2><p>A <code>divider</code> deliberately separates controls inside a disclosure group. It is presentation-only: it has no editable value and cannot be referenced by a template.</p><pre><code>&lt;dict&gt;
-    &lt;key&gt;id&lt;/key&gt;&lt;string&gt;contentDivider&lt;/string&gt;
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Custom controls · Foundry Developer</title><link rel="stylesheet" href="styles.css"><script src="app.js" defer></script></head><body><div class="shell"><nav data-doc-nav></nav><main><div class="breadcrumbs"><a href="index.html">Foundry Developer</a><span>›</span>Build components</div><p class="eyebrow">Inspector API</p><h1>Custom controls</h1><p class="lede">Declare inspector controls in <code>customItems</code>, then consume their values from HTML, CSS, JavaScript and PHP templates. Choose a control below for its complete declaration, options, value type and template example.</p>
+<h2>Declare a property</h2><p>Every value-producing item has a stable <code>id</code>, author-facing <code>title</code>, inspector <code>group</code>, a <code>control</code> dictionary, a matching <code>default</code>, and explicit responsive and inline-editing behaviour.</p><pre><code>&lt;dict&gt;
+    &lt;key&gt;id&lt;/key&gt;&lt;string&gt;heading&lt;/string&gt;
+    &lt;key&gt;title&lt;/key&gt;&lt;string&gt;Heading&lt;/string&gt;
     &lt;key&gt;group&lt;/key&gt;&lt;string&gt;Content&lt;/string&gt;
     &lt;key&gt;control&lt;/key&gt;
-    &lt;dict&gt;
-        &lt;key&gt;type&lt;/key&gt;&lt;string&gt;divider&lt;/string&gt;
-    &lt;/dict&gt;
-&lt;/dict&gt;</code></pre><p>The <code>id</code> must still be unique because it identifies the item and preserves its declared position. Do not add <code>title</code>, <code>default</code>, <code>responsive</code> or <code>inlineEditable</code>; those keys describe value-producing controls and do not apply to a divider.</p>
-<h2>Control types</h2><dl><dt>text</dt><dd>Single-line String.</dd><dt>textArea</dt><dd>Multi-line String.</dd><dt>url</dt><dd>A URL String.</dd><dt>number</dt><dd>Number with optional <code>minimum</code>, <code>maximum</code>, <code>step</code> and <code>unit</code>.</dd><dt>slider</dt><dd>Number slider using <code>minimum</code>, <code>maximum</code> and <code>step</code>. Optional <code>tickMarks</code> shows an exact number of ticks and <code>restrictsToTickMarks</code> constrains selection to them.</dd><dt>date</dt><dd>Date value stored as an ISO-8601 String.</dd><dt><a href="colour.html">color</a></dt><dd>Custom and theme colours, with optional colour math, opacity and alpha.</dd><dt>select</dt><dd>A choice from <code>options</code>, each containing <code>value</code> and <code>title</code>.</dd><dt>toggle</dt><dd>A Boolean switch.</dd><dt>details</dt><dd>A compact, titleless Boolean details button. Use <code>toolTip</code> to explain its purpose.</dd><dt>button</dt><dd>A persistent push button with optional <code>systemImage</code>, <code>trueValue</code> and <code>falseValue</code> output values.</dd><dt>image</dt><dd>An asset selected from the project.</dd><dt>imageTransform</dt><dd>A virtual control that derives a transformed image URL from an <code>image</code> control.</dd><dt>math</dt><dd>A virtual numeric control calculated from two constants or control references.</dd><dt><a href="text-alignment.html">textAlignment</a></dt><dd>Smart segmented control producing logical CSS alignment values.</dd><dt><a href="font-family.html">fontFamily</a></dt><dd>Theme-aware or custom font family.</dd><dt><a href="font-size.html">fontSize</a></dt><dd>Theme-aware or custom font size.</dd><dt>info</dt><dd>Presentation-only explanatory text with no template value.</dd><dt><a href="#divider-control">divider</a></dt><dd>A deliberate visual separator with no template value.</dd></dl>
-<h2 id="virtual-controls">Virtual controls</h2><p>Virtual controls produce template values without adding an inspector row. A <code>math</code> control accepts <code>argument1</code>, <code>argument2</code>, an <code>operation</code> of <code>+</code>, <code>-</code>, <code>*</code>, <code>/</code>, <code>%</code>, <code>min</code>, or <code>max</code>, and optional Boolean <code>round</code>. An argument can be a numeric constant or the ID of another numeric control.</p><pre><code>&lt;dict&gt;
-    &lt;key&gt;id&lt;/key&gt;&lt;string&gt;doubleWidth&lt;/string&gt;
-    &lt;key&gt;group&lt;/key&gt;&lt;string&gt;Layout&lt;/string&gt;
-    &lt;key&gt;control&lt;/key&gt;
-    &lt;dict&gt;
-        &lt;key&gt;type&lt;/key&gt;&lt;string&gt;math&lt;/string&gt;
-        &lt;key&gt;argument1&lt;/key&gt;&lt;string&gt;width&lt;/string&gt;
-        &lt;key&gt;argument2&lt;/key&gt;&lt;real&gt;2&lt;/real&gt;
-        &lt;key&gt;operation&lt;/key&gt;&lt;string&gt;*&lt;/string&gt;
-        &lt;key&gt;round&lt;/key&gt;&lt;false/&gt;
-    &lt;/dict&gt;
-&lt;/dict&gt;</code></pre><p>An <code>imageTransform</code> names its source image control with <code>input</code>. It supports <code>scaleMode</code> (0 fit, 1 fill, 2 stretch, 3 centre), <code>scale</code>, <code>maxWidth</code>, <code>maxHeight</code>, <code>rotation</code>, <code>borderWidth</code>, <code>borderColor</code>, <code>shadowColor</code>, <code>shadowOpacity</code>, <code>shadowBlur</code>, <code>shadowOffsetX</code>, and <code>shadowOffsetY</code>. Its output is a URL suitable for an image <code>src</code>.</p><pre><code>&lt;dict&gt;
-    &lt;key&gt;id&lt;/key&gt;&lt;string&gt;thumbnail&lt;/string&gt;
-    &lt;key&gt;group&lt;/key&gt;&lt;string&gt;Media&lt;/string&gt;
-    &lt;key&gt;control&lt;/key&gt;
-    &lt;dict&gt;
-        &lt;key&gt;type&lt;/key&gt;&lt;string&gt;imageTransform&lt;/string&gt;
-        &lt;key&gt;input&lt;/key&gt;&lt;string&gt;picture&lt;/string&gt;
-        &lt;key&gt;scaleMode&lt;/key&gt;&lt;integer&gt;1&lt;/integer&gt;
-        &lt;key&gt;maxWidth&lt;/key&gt;&lt;real&gt;320&lt;/real&gt;
-        &lt;key&gt;maxHeight&lt;/key&gt;&lt;real&gt;180&lt;/real&gt;
-        &lt;key&gt;rotation&lt;/key&gt;&lt;real&gt;-3&lt;/real&gt;
-        &lt;key&gt;shadowBlur&lt;/key&gt;&lt;real&gt;6&lt;/real&gt;
-    &lt;/dict&gt;
-&lt;/dict&gt;</code></pre>
-<h2 id="control-arrays">Control arrays</h2><p>Add <code>count</code> to a control dictionary to display two, three or four controls on one inspector row. The property’s <code>default</code> must be an array containing exactly the same number of values. Every member uses the declared control type and options.</p><pre><code>&lt;dict&gt;
-    &lt;key&gt;id&lt;/key&gt;&lt;string&gt;palette&lt;/string&gt;
-    &lt;key&gt;title&lt;/key&gt;&lt;string&gt;Palette&lt;/string&gt;
-    &lt;key&gt;group&lt;/key&gt;&lt;string&gt;Appearance&lt;/string&gt;
-    &lt;key&gt;control&lt;/key&gt;
-    &lt;dict&gt;
-        &lt;key&gt;type&lt;/key&gt;&lt;string&gt;color&lt;/string&gt;
-        &lt;key&gt;count&lt;/key&gt;&lt;integer&gt;4&lt;/integer&gt;
-    &lt;/dict&gt;
-    &lt;key&gt;subtitles&lt;/key&gt;
-    &lt;array&gt;
-        &lt;string&gt;Primary&lt;/string&gt;&lt;string&gt;Secondary&lt;/string&gt;
-        &lt;string&gt;Accent&lt;/string&gt;&lt;string&gt;Surface&lt;/string&gt;
-    &lt;/array&gt;
-    &lt;key&gt;default&lt;/key&gt;
-    &lt;array&gt;
-        &lt;string&gt;#3366CC&lt;/string&gt;&lt;string&gt;#8A55D7&lt;/string&gt;
-        &lt;string&gt;#2DA44E&lt;/string&gt;&lt;string&gt;#F6F8FA&lt;/string&gt;
-    &lt;/array&gt;
-    &lt;key&gt;responsive&lt;/key&gt;&lt;true/&gt;
+    &lt;dict&gt;&lt;key&gt;type&lt;/key&gt;&lt;string&gt;text&lt;/string&gt;&lt;/dict&gt;
+    &lt;key&gt;default&lt;/key&gt;&lt;string&gt;Welcome&lt;/string&gt;
+    &lt;key&gt;responsive&lt;/key&gt;&lt;false/&gt;
     &lt;key&gt;inlineEditable&lt;/key&gt;&lt;false/&gt;
-&lt;/dict&gt;</code></pre><p>Read individual members by zero-based index: <code>{{ control.palette[0] }}</code> through <code>{{ control.palette[3] }}</code>. Array controls use the same bindings, persistence, responsive overrides and undo behaviour as singular controls.</p><div class="note"><strong>Counts are validated.</strong> <code>count</code> must be from 2 through 4, the default array must contain exactly that many values, and <code>subtitles</code> cannot contain more entries than the control array.</div>
-<h2>Example</h2><pre><code>&lt;key&gt;customItems&lt;/key&gt;
-&lt;array&gt;
-    &lt;dict&gt;
-        &lt;key&gt;id&lt;/key&gt;&lt;string&gt;alignment&lt;/string&gt;
-        &lt;key&gt;title&lt;/key&gt;&lt;string&gt;Alignment&lt;/string&gt;
-        &lt;key&gt;group&lt;/key&gt;&lt;string&gt;Layout&lt;/string&gt;
-        &lt;key&gt;control&lt;/key&gt;
-        &lt;dict&gt;
-            &lt;key&gt;type&lt;/key&gt;&lt;string&gt;select&lt;/string&gt;
-            &lt;key&gt;options&lt;/key&gt;
-            &lt;array&gt;
-                &lt;dict&gt;&lt;key&gt;value&lt;/key&gt;&lt;string&gt;left&lt;/string&gt;&lt;key&gt;title&lt;/key&gt;&lt;string&gt;Left&lt;/string&gt;&lt;/dict&gt;
-                &lt;dict&gt;&lt;key&gt;value&lt;/key&gt;&lt;string&gt;center&lt;/string&gt;&lt;key&gt;title&lt;/key&gt;&lt;string&gt;Centre&lt;/string&gt;&lt;/dict&gt;
-                &lt;dict&gt;&lt;key&gt;value&lt;/key&gt;&lt;string&gt;right&lt;/string&gt;&lt;key&gt;title&lt;/key&gt;&lt;string&gt;Right&lt;/string&gt;&lt;/dict&gt;
-            &lt;/array&gt;
-        &lt;/dict&gt;
-        &lt;key&gt;default&lt;/key&gt;&lt;string&gt;left&lt;/string&gt;
-        &lt;key&gt;responsive&lt;/key&gt;&lt;true/&gt;
-        &lt;key&gt;inlineEditable&lt;/key&gt;&lt;false/&gt;
-    &lt;/dict&gt;
-&lt;/array&gt;</code></pre><pre><code>#{{ id }} { text-align: {{ control.alignment }}; }</code></pre>
-<div class="note"><strong>CSS stays in CSS.</strong> Controls describe values; templates decide how those values affect the component.</div></main></div></body></html>
+&lt;/dict&gt;</code></pre><p>Read the value with <code>{{ control.heading }}</code> or <code>{{ property.heading }}</code>.</p>
+<h2>Control types</h2><div class="card-grid">
+<a class="card" href="text-control.html"><strong>text</strong><p>Single-line text.</p></a><a class="card" href="text-area-control.html"><strong>textArea</strong><p>Multi-line text.</p></a><a class="card" href="url-control.html"><strong>url</strong><p>A URL string.</p></a><a class="card" href="link-control.html"><strong>link</strong><p>A structured internal or external link.</p></a><a class="card" href="number-control.html"><strong>number</strong><p>Numeric input with bounds and units.</p></a><a class="card" href="slider-control.html"><strong>slider</strong><p>Numeric slider with optional ticks.</p></a><a class="card" href="date-control.html"><strong>date</strong><p>An ISO-8601 date.</p></a><a class="card" href="colour.html"><strong>color</strong><p>Custom and theme-aware colour.</p></a><a class="card" href="select-control.html"><strong>select</strong><p>A choice from declared options.</p></a><a class="card" href="toggle-control.html"><strong>toggle</strong><p>A Boolean switch.</p></a><a class="card" href="details-control.html"><strong>details</strong><p>A compact Boolean details button.</p></a><a class="card" href="button-control.html"><strong>button</strong><p>A persistent action button.</p></a><a class="card" href="image-control.html"><strong>image</strong><p>A project asset picker.</p></a><a class="card" href="image-transform-control.html"><strong>imageTransform</strong><p>A derived transformed image URL.</p></a><a class="card" href="math-control.html"><strong>math</strong><p>A derived numeric value.</p></a><a class="card" href="text-alignment.html"><strong>textAlignment</strong><p>Logical CSS alignment.</p></a><a class="card" href="font-family.html"><strong>fontFamily</strong><p>Theme-aware font family.</p></a><a class="card" href="font-size.html"><strong>fontSize</strong><p>Theme-aware font size.</p></a><a class="card" href="info-control.html"><strong>info</strong><p>Presentation-only help text.</p></a><a class="card" href="divider-control.html"><strong>divider</strong><p>A presentation-only separator.</p></a></div>
+<h2>Shared capabilities</h2><div class="page-links"><a class="card" href="control-arrays.html"><strong>Control arrays</strong><p>Place two to four controls in one inspector row, with optional subtitles.</p></a><a class="card" href="template-values.html"><strong>Template values</strong><p>Use property values and instance helpers in rendered files.</p></a><a class="card" href="theme-controls.html"><strong>Theme values</strong><p>Allow supported controls to follow the active project theme.</p></a></div></main></div></body></html>

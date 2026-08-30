@@ -134,6 +134,7 @@ nonisolated enum ComponentPropertyControl: Sendable {
     case singleLineText
     case multilineText
     case url
+    case link(absoluteURL: Bool)
     case number(range: ClosedRange<Double>, step: Double, unit: String)
     case slider(range: ClosedRange<Double>, step: Double, tickMarks: Int, restrictsToTickMarks: Bool)
     case date

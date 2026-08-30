@@ -9,6 +9,8 @@ struct InspectorView: View {
     let assetLibrary: [ProjectAssetNode]
     let assetContents: [UUID: ProjectAssetContent]
     let folders: [PageFolder]
+    let pages: [Page]
+    let publicURL: String
     let component: ComponentNode?
     let componentSelectionCount: Int
     let theme: Theme
@@ -30,6 +32,9 @@ struct InspectorView: View {
                     component: component,
                     theme: theme,
                     assets: assets,
+                    pages: pages,
+                    folders: folders,
+                    publicURL: publicURL,
                     editor: editor,
                     reusableDefinition: reusableDefinition,
                     isGlobalOverride: isGlobalOverride,
@@ -353,6 +358,9 @@ private struct ComponentInspector: View {
     let component: ComponentNode
     let theme: Theme
     let assets: [ProjectAsset]
+    let pages: [Page]
+    let folders: [PageFolder]
+    let publicURL: String
     let editor: ProjectEditor
     let reusableDefinition: ReusableComponentDefinition?
     let isGlobalOverride: Bool
@@ -392,6 +400,9 @@ private struct ComponentInspector: View {
                         component: component,
                         theme: theme,
                         assets: assets,
+                        pages: pages,
+                        folders: folders,
+                        publicURL: publicURL,
                         editor: editor,
                         editsSharedDefinition: reusableDefinition != nil && !isGlobalOverride,
                         breakpoint: breakpoint
@@ -464,6 +475,9 @@ private struct ComponentInspectorGroup: View {
     let component: ComponentNode
     let theme: Theme
     let assets: [ProjectAsset]
+    let pages: [Page]
+    let folders: [PageFolder]
+    let publicURL: String
     let editor: ProjectEditor
     let editsSharedDefinition: Bool
     let breakpoint: ResponsiveBreakpoint
@@ -488,6 +502,9 @@ private struct ComponentInspectorGroup: View {
             component: component,
             theme: theme,
             assets: assets,
+            pages: pages,
+            folders: folders,
+            publicURL: publicURL,
             editor: editor,
             editsSharedDefinition: editsSharedDefinition,
             breakpoint: breakpoint

@@ -1,0 +1,10 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Link control · Foundry Developer</title><link rel="stylesheet" href="styles.css"><script src="app.js" defer></script></head><body><div class="shell"><nav data-doc-nav></nav><main><div class="breadcrumbs"><a href="index.html">Foundry Developer</a><span>›</span>Build components</div><p class="eyebrow">Inspector API</p><h1>Link control</h1><p class="lede">The structured link editor supports URLs, plain text, project pages and project resources, with anchors, new-window behaviour and custom attributes.</p>
+<h2>Manifest</h2><pre><code>&lt;key&gt;control&lt;/key&gt;
+&lt;dict&gt;
+    &lt;key&gt;type&lt;/key&gt;&lt;string&gt;link&lt;/string&gt;
+    &lt;key&gt;absoluteURL&lt;/key&gt;&lt;true/&gt;
+&lt;/dict&gt;</code></pre><p>Page and resource destinations are stored by stable ID and resolve to their current exported path. When <code>absoluteURL</code> is enabled, internal destinations use the Site URL configured in Project Settings. Missing or invalid Site URLs safely fall back to relative paths.</p>
+<h2>Templates</h2><dl><dt><code>{{ control.destination }}</code></dt><dd>Resolved href, including any anchor.</dd><dt><code>{{ control.destination.target }}</code></dt><dd><code>_blank</code> when Open in New Window is enabled; otherwise empty.</dd><dt><code>{{ control.destination.attributes }}</code></dt><dd>Validated, HTML-escaped custom attributes ready to place in an element.</dd></dl><pre><code>&lt;a href="{{ control.destination }}"
+   target="{{ control.destination.target }}"
+   {{ control.destination.attributes }}&gt;Read more&lt;/a&gt;</code></pre>
+</main></div></body></html>

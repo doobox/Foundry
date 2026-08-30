@@ -33,7 +33,7 @@ struct ContentView: View {
     @AppStorage(AppPreferenceKey.previewApplication)
     private var previewApplicationIdentifier = PreviewApplicationSelection.systemDefault
 
-    private let renderer: any PageRendering = HTMLPageRenderer()
+    private var renderer: any PageRendering { HTMLPageRenderer(site: document.site) }
 
     var body: some View {
         let _ = componentCatalog.revision
@@ -130,6 +130,7 @@ struct ContentView: View {
             ProjectSettingsView(
                 siteName: document.site.name,
                 language: document.site.language,
+                publicURL: document.site.publicURL,
                 editor: editor
             )
         }
@@ -233,6 +234,8 @@ struct ContentView: View {
                 assetLibrary: document.site.assetLibrary,
                 assetContents: document.assetContents,
                 folders: document.site.pageFolders,
+                pages: document.site.pages,
+                publicURL: document.site.publicURL,
                 component: selectedComponent,
                 componentSelectionCount: selectedComponentIDs.count,
                 theme: document.site.theme,

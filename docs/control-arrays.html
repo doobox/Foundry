@@ -1,0 +1,23 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Control arrays · Foundry Developer</title><link rel="stylesheet" href="styles.css"><script src="app.js" defer></script></head><body><div class="shell"><nav data-doc-nav></nav><main><div class="breadcrumbs"><a href="index.html">Foundry Developer</a><span>›</span><a href="custom-controls.html">Custom controls</a></div><p class="eyebrow">Shared capability</p><h1>Control arrays</h1><p class="lede">Display two, three or four controls together in one inspector row while retaining normal bindings, persistence, responsive overrides and undo behaviour.</p><h2>Declaration</h2><p>Add <code>count</code> to the control dictionary. The default array must contain exactly the same number of values. Optional <code>subtitles</code> label the individual controls.</p><pre><code>&lt;dict&gt;
+    &lt;key&gt;id&lt;/key&gt;&lt;string&gt;palette&lt;/string&gt;
+    &lt;key&gt;title&lt;/key&gt;&lt;string&gt;Palette&lt;/string&gt;
+    &lt;key&gt;group&lt;/key&gt;&lt;string&gt;Appearance&lt;/string&gt;
+    &lt;key&gt;control&lt;/key&gt;
+    &lt;dict&gt;
+        &lt;key&gt;type&lt;/key&gt;&lt;string&gt;color&lt;/string&gt;
+        &lt;key&gt;count&lt;/key&gt;&lt;integer&gt;4&lt;/integer&gt;
+    &lt;/dict&gt;
+    &lt;key&gt;subtitles&lt;/key&gt;
+    &lt;array&gt;
+        &lt;string&gt;Primary&lt;/string&gt;&lt;string&gt;Secondary&lt;/string&gt;
+        &lt;string&gt;Accent&lt;/string&gt;&lt;string&gt;Surface&lt;/string&gt;
+    &lt;/array&gt;
+    &lt;key&gt;default&lt;/key&gt;
+    &lt;array&gt;
+        &lt;string&gt;#3366CC&lt;/string&gt;&lt;string&gt;#8A55D7&lt;/string&gt;
+        &lt;string&gt;#2DA44E&lt;/string&gt;&lt;string&gt;#F6F8FA&lt;/string&gt;
+    &lt;/array&gt;
+    &lt;key&gt;responsive&lt;/key&gt;&lt;true/&gt;
+    &lt;key&gt;inlineEditable&lt;/key&gt;&lt;false/&gt;
+&lt;/dict&gt;</code></pre><h2>Template values</h2><p>Read members by zero-based index.</p><pre><code>color: {{ control.palette[0] }};
+background: {{ control.palette[3] }};</code></pre><div class="note"><strong>Counts are validated.</strong> <code>count</code> must be from 2 through 4, and subtitles cannot outnumber the controls.</div></main></div></body></html>

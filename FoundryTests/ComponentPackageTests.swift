@@ -4,6 +4,31 @@ import Testing
 
 struct ComponentPackageTests {
     @Test
+    func linkControlResolvesPagesResourcesAnchorsTargetsAndAttributes() {
+        let page = Page(title: "Profile", slug: "profile")
+        let asset = ProjectAsset(filename: "guide.pdf", mediaType: "application/pdf", byteCount: 10)
+        let link = ComponentLink(
+            destination: .page(page.id),
+            anchor: "bio",
+            opensInNewWindow: true,
+            attributes: [.init(name: "title", value: "Read & learn")]
+        )
+        let resolved = ComponentLinkResolver.resolve(
+            link, pages: [page], folders: [], assets: [asset],
+            publicURL: "https://example.com/", absoluteURL: true
+        )
+        #expect(resolved.href == "https://example.com/profile/#bio")
+        #expect(resolved.target == "_blank")
+        #expect(resolved.attributes == "title=\"Read &amp; learn\" rel=\"noopener noreferrer\"")
+
+        let resource = ComponentLinkResolver.resolve(
+            .init(destination: .resource(asset.id)), pages: [page], folders: [], assets: [asset],
+            publicURL: "", absoluteURL: true
+        )
+        #expect(resource.href == "/\(asset.exportPath)")
+    }
+
+    @Test
     func controlArraysDecodePersistAndRenderIndexedValues() throws {
         let plist = """
         <?xml version="1.0" encoding="UTF-8"?>
@@ -200,6 +225,7 @@ struct ComponentPackageTests {
             slots: [:]
         )
         let template = """
+        /* {{ instance.uuid }} */
         #{{ id }} {
           padding: {{ control.padding }}px;
           color: {{ control.accent }};
@@ -211,6 +237,7 @@ struct ComponentPackageTests {
         let rendered = ComponentTemplateRenderer.render(template, context: context)
 
         #expect(rendered.contains("#foundry-aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"))
+        #expect(rendered.contains("/* AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE */"))
         #expect(rendered.contains("padding: 24px"))
         #expect(rendered.contains("color: #336699"))
         #expect(rendered.contains("border-color: #5C85AD"))
@@ -381,8 +408,8 @@ struct ComponentPackageTests {
 
         #expect(package.instanceJavaScript.hasPrefix("(function (component) {"))
         #expect(package.instanceJavaScript.contains("\"use strict\";"))
-        #expect(package.instanceJavaScript.contains("{{ id }}"))
-        #expect(package.instanceJavaScript.contains("document.getElementById(\"{{ id }}\")"))
+        #expect(package.instanceJavaScript.contains("{{ instance.uuid }}"))
+        #expect(package.instanceJavaScript.contains("document.querySelector('[data-foundry-id=\"{{ instance.uuid }}\"]')"))
         #expect(package.pageJavaScript.contains("page"))
         #expect(!package.pageJavaScript.contains("(function ()"))
         #expect(package.siteJavaScript.contains("site"))

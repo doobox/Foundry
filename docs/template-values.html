@@ -27,7 +27,7 @@
     &lt;key&gt;scope&lt;/key&gt;&lt;string&gt;instance&lt;/string&gt;
     &lt;key&gt;closure&lt;/key&gt;&lt;true/&gt;
 &lt;/dict&gt;</code></pre>
-<h3>The component helper</h3><p>An instance-scoped closure receives <code>component</code>, the native HTML element carrying that instance’s <code>{{ id }}</code>. The developer can query and update descendants without finding the instance manually.</p><pre><code>&lt;div id="{{ id }}" {{ component.attributes }}&gt;
+<h3>The component helper</h3><p>An instance-scoped closure receives <code>component</code>, the native HTML element carrying that instance’s <code>data-foundry-id</code> from <code>{{ component.attributes }}</code>. The developer can place <code>{{ id }}</code> wherever their markup and styling require; Foundry does not use it to locate the component.</p><pre><code>&lt;div id="{{ id }}" {{ component.attributes }}&gt;
     &lt;button class="show-button"&gt;Show message&lt;/button&gt;
     &lt;p class="message" hidden&gt;Hello from Foundry&lt;/p&gt;
 &lt;/div&gt;</code></pre><pre><code>const button = component.querySelector(".show-button");

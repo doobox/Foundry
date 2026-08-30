@@ -1,0 +1,80 @@
+import Foundation
+
+nonisolated enum ComponentLinkResolver {
+    struct Result: Equatable, Sendable {
+        let href: String
+        let target: String
+        let attributes: String
+    }
+
+    static func resolve(
+        _ link: ComponentLink,
+        pages: [Page],
+        folders: [PageFolder],
+        assets: [ProjectAsset],
+        publicURL: String,
+        absoluteURL: Bool
+    ) -> Result {
+        let path: String
+        switch link.destination {
+        case .none: path = ""
+        case .url(let value), .plainText(let value): path = value
+        case .page(let id):
+            path = pages.first(where: { $0.id == id }).map { pagePath($0, folders: folders) } ?? ""
+        case .resource(let id):
+            path = assets.first(where: { $0.id == id }).map { "/" + $0.exportPath } ?? ""
+        }
+        var href = path
+        if absoluteURL, path.hasPrefix("/"), let base = normalizedPublicURL(publicURL) {
+            href = base + path
+        }
+        let anchor = link.anchor.trimmingCharacters(in: CharacterSet(charactersIn: "# "))
+        if !anchor.isEmpty { href += "#" + anchor }
+        var custom = link.attributes.compactMap { attribute -> String? in
+            let name = attribute.name.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard name.matches(#"^[A-Za-z_:][A-Za-z0-9_.:-]*$"#) else { return nil }
+            return "\(name)=\"\(escapeAttribute(attribute.value))\""
+        }
+        if link.opensInNewWindow,
+           !link.attributes.contains(where: { $0.name.caseInsensitiveCompare("rel") == .orderedSame }) {
+            custom.append("rel=\"noopener noreferrer\"")
+        }
+        return Result(
+            href: href,
+            target: link.opensInNewWindow ? "_blank" : "",
+            attributes: custom.joined(separator: " ")
+        )
+    }
+
+    private static func pagePath(_ page: Page, folders: [PageFolder]) -> String {
+        guard page.slug != "index" else { return "/" }
+        var segments = [page.slug]
+        var folderID = page.folderID
+        var visited = Set<UUID>()
+        while let id = folderID, visited.insert(id).inserted,
+              let folder = folders.first(where: { $0.id == id }) {
+            segments.insert(folder.slug, at: 0)
+            folderID = folder.parentID
+        }
+        return "/" + segments.joined(separator: "/") + "/"
+    }
+
+    private static func normalizedPublicURL(_ value: String) -> String? {
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let url = URL(string: trimmed), ["http", "https"].contains(url.scheme?.lowercased()) else { return nil }
+        return trimmed.hasSuffix("/") ? String(trimmed.dropLast()) : trimmed
+    }
+
+    private static func escapeAttribute(_ value: String) -> String {
+        value.replacingOccurrences(of: "&", with: "&amp;")
+            .replacingOccurrences(of: "\"", with: "&quot;")
+            .replacingOccurrences(of: "<", with: "&lt;")
+            .replacingOccurrences(of: ">", with: "&gt;")
+    }
+}
+
+private nonisolated extension String {
+    func matches(_ pattern: String) -> Bool {
+        range(of: pattern, options: .regularExpression) != nil
+    }
+}

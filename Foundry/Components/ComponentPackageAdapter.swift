@@ -157,6 +157,7 @@ nonisolated enum ComponentPackageAdapter {
         case .select:
             .choice((control.options ?? []).map { .init(value: $0.value, label: $0.title) })
         case .url: .url
+        case .link: .link(absoluteURL: control.absoluteURL ?? false)
         case .image: .asset
         case .toggle: .toggle
         case .fontFamily: .themeFontFamily
@@ -188,6 +189,7 @@ nonisolated enum ComponentPackageAdapter {
         case .string(let value):
             switch control {
             case .url, .image: .url(value)
+            case .link: .link(.init(destination: value.isEmpty ? .none : .url(value)))
             case .color: .color(value)
             case .select, .fontFamily, .fontSize, .textAlignment: .choice(value)
             case .date: .string(value)

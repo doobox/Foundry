@@ -2,10 +2,15 @@ import AppKit
 import SwiftUI
 
 struct ComponentPropertyEditor: View {
+    @State private var showsLinkEditor = false
+    @State private var linkDraft = ComponentLink()
     let definition: ComponentPropertyDefinition
     let component: ComponentNode
     let theme: Theme
     let assets: [ProjectAsset]
+    let pages: [Page]
+    let folders: [PageFolder]
+    let publicURL: String
     let editor: ProjectEditor
     let editsSharedDefinition: Bool
     let breakpoint: ResponsiveBreakpoint
@@ -15,6 +20,9 @@ struct ComponentPropertyEditor: View {
         component: ComponentNode,
         theme: Theme,
         assets: [ProjectAsset],
+        pages: [Page],
+        folders: [PageFolder],
+        publicURL: String,
         editor: ProjectEditor,
         editsSharedDefinition: Bool,
         breakpoint: ResponsiveBreakpoint
@@ -23,6 +31,9 @@ struct ComponentPropertyEditor: View {
         self.component = component
         self.theme = theme
         self.assets = assets
+        self.pages = pages
+        self.folders = folders
+        self.publicURL = publicURL
         self.editor = editor
         self.editsSharedDefinition = editsSharedDefinition
         self.breakpoint = breakpoint
@@ -71,6 +82,39 @@ struct ComponentPropertyEditor: View {
                             .font(.caption)
                             .foregroundStyle(.red)
                     }
+                }
+            }
+        case .link(let absoluteURL):
+            InspectorRow(title: definition.label, alignment: .center, indicator: responsiveIndicator) {
+                HStack(spacing: 8) {
+                    Button(linkSummary) {
+                        linkDraft = currentLink
+                        showsLinkEditor = true
+                    }
+                    if currentLink.destination != .none {
+                        Button {
+                            setProperty(.link(.init()))
+                        } label: {
+                            Image(systemName: "xmark.circle")
+                        }
+                        .buttonStyle(.borderless)
+                        .help("Clear link")
+                    }
+                }
+                .sheet(isPresented: $showsLinkEditor) {
+                    ComponentLinkEditor(
+                        link: $linkDraft,
+                        pages: pages,
+                        folders: folders,
+                        assets: assets,
+                        publicURL: publicURL,
+                        absoluteURL: absoluteURL,
+                        cancel: { showsLinkEditor = false },
+                        apply: {
+                            setProperty(.link(linkDraft))
+                            showsLinkEditor = false
+                        }
+                    )
                 }
             }
         case .number(let range, let step, let unit):
@@ -283,6 +327,20 @@ struct ComponentPropertyEditor: View {
         )
     }
 
+    private var currentLink: ComponentLink {
+        guard case .link(let link) = displayComponent.propertyValue(definition.key) else { return .init() }
+        return link
+    }
+
+    private var linkSummary: String {
+        switch currentLink.destination {
+        case .none: "Choose Link…"
+        case .url(let value), .plainText(let value): value.isEmpty ? "Choose Link…" : value
+        case .page(let id): pages.first(where: { $0.id == id })?.title ?? "Missing Page"
+        case .resource(let id): assets.first(where: { $0.id == id })?.filename ?? "Missing Resource"
+        }
+    }
+
     private var dateBinding: Binding<Date> {
         Binding(
             get: { ISO8601DateFormatter().date(from: displayComponent.property(definition.key)) ?? .now },
@@ -428,6 +486,141 @@ struct ComponentPropertyEditor: View {
             }
         }
     }
+}
+
+private struct ComponentLinkEditor: View {
+    @Binding var link: ComponentLink
+    let pages: [Page]
+    let folders: [PageFolder]
+    let assets: [ProjectAsset]
+    let publicURL: String
+    let absoluteURL: Bool
+    let cancel: () -> Void
+    let apply: () -> Void
+
+    var body: some View {
+        VStack(spacing: 16) {
+            Form {
+                Picker("Type", selection: kindBinding) {
+                    Text("URL").tag(LinkKind.url)
+                    Text("Plain Text").tag(LinkKind.plainText)
+                    Text("Page").tag(LinkKind.page)
+                    Text("Resource").tag(LinkKind.resource)
+                }
+                destinationEditor
+                TextField("Anchor", text: $link.anchor, prompt: Text("Optional anchor"))
+                Toggle("Open in New Window", isOn: $link.opensInNewWindow)
+                if absoluteURL && publicURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && isInternalLink {
+                    Label("Set the Site URL in Project Settings to produce an absolute URL.", systemImage: "exclamationmark.triangle")
+                        .foregroundStyle(.orange)
+                }
+                Section("Custom Attributes") {
+                    ForEach($link.attributes) { $attribute in
+                        HStack {
+                            TextField("Name", text: $attribute.name)
+                            TextField("Value", text: $attribute.value)
+                            Button(role: .destructive) {
+                                link.attributes.removeAll { $0.id == attribute.id }
+                            } label: { Image(systemName: "minus.circle") }
+                                .buttonStyle(.borderless)
+                        }
+                    }
+                    Button("Add Attribute", systemImage: "plus") {
+                        link.attributes.append(.init())
+                    }
+                }
+            }
+            .formStyle(.grouped)
+            HStack {
+                Spacer()
+                Button("Cancel", action: cancel)
+                Button("Set Link", action: apply)
+                    .keyboardShortcut(.defaultAction)
+                    .disabled(!isValid)
+            }
+        }
+        .padding()
+        .frame(width: 680, height: 500)
+    }
+
+    @ViewBuilder
+    private var destinationEditor: some View {
+        switch link.destination {
+        case .url(let value):
+            TextField("URL", text: destinationTextBinding(value, kind: .url), prompt: Text("https://example.com"))
+        case .plainText(let value):
+            TextField("Text", text: destinationTextBinding(value, kind: .plainText))
+        case .page(let id):
+            Picker("Page", selection: destinationIDBinding(id, kind: .page)) {
+                Text("Choose a page").tag(nil as UUID?)
+                ForEach(pages) { page in Text(page.title).tag(page.id as UUID?) }
+            }
+        case .resource(let id):
+            Picker("Resource", selection: destinationIDBinding(id, kind: .resource)) {
+                Text("Choose a resource").tag(nil as UUID?)
+                ForEach(assets) { asset in Text(asset.filename).tag(asset.id as UUID?) }
+            }
+        case .none:
+            EmptyView()
+        }
+    }
+
+    private var kindBinding: Binding<LinkKind> {
+        Binding(get: {
+            switch link.destination {
+            case .url: .url
+            case .plainText: .plainText
+            case .page: .page
+            case .resource: .resource
+            case .none: .url
+            }
+        }, set: { kind in
+            switch kind {
+            case .url: link.destination = .url("")
+            case .plainText: link.destination = .plainText("")
+            case .page: link.destination = .page(pages.first?.id ?? UUID())
+            case .resource: link.destination = .resource(assets.first?.id ?? UUID())
+            }
+        })
+    }
+
+    private func destinationTextBinding(_ value: String, kind: LinkKind) -> Binding<String> {
+        Binding(get: {
+            switch link.destination {
+            case .url(let value), .plainText(let value): value
+            default: value
+            }
+        }, set: { link.destination = kind == .url ? .url($0) : .plainText($0) })
+    }
+
+    private func destinationIDBinding(_ value: UUID, kind: LinkKind) -> Binding<UUID?> {
+        Binding(get: {
+            switch link.destination {
+            case .page(let id), .resource(let id): id
+            default: value
+            }
+        }, set: { id in
+            guard let id else { link.destination = .none; return }
+            link.destination = kind == .page ? .page(id) : .resource(id)
+        })
+    }
+
+    private var isInternalLink: Bool {
+        if case .page = link.destination { return true }
+        if case .resource = link.destination { return true }
+        return false
+    }
+
+    private var isValid: Bool {
+        switch link.destination {
+        case .none: false
+        case .url(let value), .plainText(let value): !value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        case .page(let id): pages.contains { $0.id == id }
+        case .resource(let id): assets.contains { $0.id == id }
+        }
+    }
+
+    private enum LinkKind: Hashable { case url, plainText, page, resource }
 }
 
 private struct InspectorControlArray: View {

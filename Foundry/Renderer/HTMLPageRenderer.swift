@@ -2,6 +2,9 @@ import Foundation
 
 @MainActor
 struct HTMLPageRenderer: PageRendering {
+    let site: Site?
+
+    init(site: Site? = nil) { self.site = site }
     func render(page: Page, theme: Theme) -> String {
         render(page: page, language: "en", theme: theme, assets: [:], breakpoint: .desktop)
     }
@@ -390,7 +393,7 @@ struct HTMLPageRenderer: PageRendering {
     }
 
     private func packageProperties(_ node: ComponentNode, theme: Theme, assets: [UUID: ProjectAssetContent]) -> [String: ComponentPackageValue] {
-        let values: [String: ComponentPackageValue] = Dictionary(uniqueKeysWithValues: node.type.definition.properties.map { definition in
+        var values: [String: ComponentPackageValue] = Dictionary(uniqueKeysWithValues: node.type.definition.properties.map { definition in
             let value = node.propertyValue(definition.key)
             if case .asset = definition.control,
                case .url(let source) = value {
@@ -432,6 +435,19 @@ struct HTMLPageRenderer: PageRendering {
             }
             return (definition.key.rawValue, packageValue(value))
         })
+        if let site {
+            for definition in node.type.definition.properties {
+                guard case .link(let absoluteURL) = definition.control,
+                      case .link(let link) = node.propertyValue(definition.key) else { continue }
+                let resolved = ComponentLinkResolver.resolve(
+                    link, pages: site.pages, folders: site.pageFolders, assets: site.assets,
+                    publicURL: site.publicURL, absoluteURL: absoluteURL
+                )
+                values[definition.key.rawValue] = .string(resolved.href)
+                values[definition.key.rawValue + ".target"] = .string(resolved.target)
+                values[definition.key.rawValue + ".attributes"] = .string(resolved.attributes)
+            }
+        }
         return ComponentPackageDerivedValueResolver.resolve(
             values,
             properties: node.type.definition.package?.manifest.properties ?? []
@@ -449,6 +465,7 @@ struct HTMLPageRenderer: PageRendering {
         case .string(let value), .url(let value), .color(let value), .choice(let value): .string(value)
         case .token(let value): .string(value.rawValue)
         case .array(let values): .array(values.map(packageValue))
+        case .link: .string("")
         }
     }
 

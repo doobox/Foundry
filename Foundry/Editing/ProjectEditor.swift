@@ -13,6 +13,10 @@ struct ProjectEditor {
         mutate(actionName: "Edit Site Language") { $0.language = language }
     }
 
+    func setSitePublicURL(_ publicURL: String) {
+        mutate(actionName: "Edit Site URL") { $0.publicURL = publicURL }
+    }
+
     func renameComponent(id: UUID, name: String) {
         mutate(actionName: "Rename Component") { site in
             site.updateComponent(id: id) { $0.name = name }

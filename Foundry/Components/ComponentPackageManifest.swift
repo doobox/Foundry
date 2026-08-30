@@ -153,6 +153,7 @@ nonisolated struct ComponentPackageControl: Codable, Equatable, Sendable {
         case color
         case select
         case url
+        case link
         case image
         case toggle
         case fontFamily
@@ -201,6 +202,7 @@ nonisolated struct ComponentPackageControl: Codable, Equatable, Sendable {
     let argument2: ComponentPackageValue?
     let operation: String?
     let round: Bool?
+    let absoluteURL: Bool?
 }
 
 nonisolated struct ComponentPackageOption: Codable, Equatable, Identifiable, Sendable {

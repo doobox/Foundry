@@ -143,16 +143,6 @@ nonisolated enum ComponentPackageValidator {
                 ))
             }
         }
-        if manifest.render.files.contains(where: {
-            $0.scope == .instance && $0.closure && $0.path.lowercased().hasSuffix(".js")
-        }), let html = try? String(contentsOf: rootURL.appending(path: manifest.render.html), encoding: .utf8),
-           !html.matches(#"\{\{\s*(?:id|instance\.id)\s*\}\}"#) {
-            diagnostics.append(.init(
-                severity: .error,
-                location: manifest.render.html,
-                message: "Instance JavaScript closures require {{ id }} on the component element so Foundry can supply the component helper."
-            ))
-        }
         return diagnostics
     }
 

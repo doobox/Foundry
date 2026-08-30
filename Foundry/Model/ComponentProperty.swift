@@ -63,6 +63,7 @@ nonisolated struct ComponentProperty: Codable, Equatable, Identifiable, Sendable
         case boolean(Bool)
         case token(DesignToken)
         case array([Value])
+        case link(ComponentLink)
 
         var stringValue: String {
             switch self {
@@ -76,6 +77,8 @@ nonisolated struct ComponentProperty: Codable, Equatable, Identifiable, Sendable
                 token.rawValue
             case .array(let values):
                 values.map(\.stringValue).joined(separator: ", ")
+            case .link:
+                ""
             }
         }
 
