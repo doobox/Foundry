@@ -7,21 +7,16 @@ nonisolated final class FoundryDevelopmentPackWatcher: @unchecked Sendable {
     private let onChange: @Sendable () -> Void
     private var sources: [DispatchSourceFileSystemObject] = []
     private var pendingChange: DispatchWorkItem?
-    private let hasSecurityScope: Bool
 
     init(rootURL: URL, onChange: @escaping @Sendable () -> Void) {
         self.rootURL = rootURL.standardizedFileURL
         self.onChange = onChange
-        hasSecurityScope = rootURL.startAccessingSecurityScopedResource()
         queue.async { [weak self] in self?.rebuildSources() }
     }
 
     deinit {
         pendingChange?.cancel()
         sources.forEach { $0.cancel() }
-        if hasSecurityScope {
-            rootURL.stopAccessingSecurityScopedResource()
-        }
     }
 
     private func rebuildSources() {

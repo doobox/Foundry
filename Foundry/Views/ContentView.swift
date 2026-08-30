@@ -928,9 +928,6 @@ struct ContentView: View {
     }
 
     private func importPageTreeURL(_ url: URL, placement: PageTreePlacement) {
-        let didAccess = url.startAccessingSecurityScopedResource()
-        defer { if didAccess { url.stopAccessingSecurityScopedResource() } }
-
         guard let values = try? url.resourceValues(forKeys: [.isDirectoryKey, .isRegularFileKey, .contentTypeKey]) else {
             return
         }
@@ -961,9 +958,6 @@ struct ContentView: View {
     }
 
     private func importAssetURL(_ url: URL, placement: AssetPlacement) {
-        let didAccess = url.startAccessingSecurityScopedResource()
-        defer { if didAccess { url.stopAccessingSecurityScopedResource() } }
-
         guard let values = try? url.resourceValues(forKeys: [.isDirectoryKey, .isRegularFileKey, .contentTypeKey]) else {
             return
         }
