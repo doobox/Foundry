@@ -851,6 +851,7 @@ private struct ThemeFontDefinitionEditor: View {
                 .listStyle(.inset)
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .contentShape(Rectangle())
         .onDrop(of: [.fileURL, .utf8PlainText], isTargeted: $isFontDropTargeted) { providers in
             acceptFontProviders(providers)
@@ -909,10 +910,12 @@ private struct ThemeFontDefinitionEditor: View {
         for provider in providers {
             if provider.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier) {
                 accepted = true
-                let suggestedName = provider.suggestedName
-                _ = provider.loadFileRepresentation(forTypeIdentifier: UTType.fileURL.identifier) { url, _ in
-                    guard let url, let data = try? Data(contentsOf: url) else { return }
-                    let filename = Self.preferredFilename(suggestedName, representationURL: url)
+                _ = provider.loadObject(ofClass: URL.self) { url, _ in
+                    guard let url else { return }
+                    let didAccess = url.startAccessingSecurityScopedResource()
+                    defer { if didAccess { url.stopAccessingSecurityScopedResource() } }
+                    guard let data = try? Data(contentsOf: url) else { return }
+                    let filename = Self.preferredFilename(provider.suggestedName, sourceURL: url)
                     Task { @MainActor in
                         importFontData(data, filename: filename)
                     }
@@ -931,10 +934,10 @@ private struct ThemeFontDefinitionEditor: View {
         return accepted
     }
 
-    nonisolated private static func preferredFilename(_ suggestedName: String?, representationURL: URL) -> String {
-        guard let suggestedName, !suggestedName.isEmpty else { return representationURL.lastPathComponent }
+    nonisolated private static func preferredFilename(_ suggestedName: String?, sourceURL: URL) -> String {
+        guard let suggestedName, !suggestedName.isEmpty else { return sourceURL.lastPathComponent }
         if !(suggestedName as NSString).pathExtension.isEmpty { return suggestedName }
-        let pathExtension = representationURL.pathExtension
+        let pathExtension = sourceURL.pathExtension
         return pathExtension.isEmpty ? suggestedName : "\(suggestedName).\(pathExtension)"
     }
 
