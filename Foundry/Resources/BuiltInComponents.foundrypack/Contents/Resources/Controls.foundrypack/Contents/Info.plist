@@ -32,8 +32,7 @@
                 <string>singleText</string>
                 <key>title</key>
                 <string>Text</string>
-                <key>group</key>
-                <string>Text</string>
+
                 <key>control</key>
                 <dict>
                     <key>type</key>
@@ -382,6 +381,25 @@
                 </dict>
                 <key>default</key>
                 <string>base</string>
+                <key>responsive</key>
+                <true />
+            </dict>
+            <dict>
+                <key>id</key>
+                <string>lineHeight</string>
+                <key>title</key>
+                <string>Line Height</string>
+                <key>group</key>
+                <string>Typography</string>
+                <key>control</key>
+                <dict>
+                    <key>type</key>
+                    <string>lineHeight</string>
+                    <key>fontSize</key>
+                    <string>textSize</string>
+                </dict>
+                <key>default</key>
+                <string>theme</string>
                 <key>responsive</key>
                 <true />
             </dict>

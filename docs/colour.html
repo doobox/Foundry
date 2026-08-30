@@ -8,9 +8,9 @@
 &lt;key&gt;default&lt;/key&gt;&lt;string&gt;custom&lt;/string&gt;</code></pre>
 
 <h2>Control options</h2>
-<section class="reference-entry"><h3>themeValues</h3><div class="api-meta"><span class="pill">Boolean</span><span class="pill">Default: false</span></div><p>Includes the active theme’s known colour roles alongside the custom colour choice. This is the same opt-in used by other controls that can consume theme values.</p></section>
-<section class="reference-entry"><h3>colorMath</h3><div class="api-meta"><span class="pill">Boolean</span><span class="pill">Default: false</span></div><p>Adds the lighter/darker adjustment control. The adjustment is applied to either a selected theme colour or a custom colour.</p></section>
-<section class="reference-entry"><h3>opacity</h3><div class="api-meta"><span class="pill">Boolean</span><span class="pill">Default: false</span></div><p>Adds an opacity control. The resolved template value includes the selected opacity, so the developer continues to consume one colour value.</p></section>
+<section class="reference-entry"><h3>themeValues</h3><div class="api-meta"><span class="pill">Boolean</span><span class="pill">Optional</span><span class="pill">Default: false</span></div><p>Includes the active theme’s known colour roles alongside the custom colour choice. This is the same opt-in used by other controls that can consume theme values.</p></section>
+<section class="reference-entry"><h3>colorMath</h3><div class="api-meta"><span class="pill">Boolean</span><span class="pill">Optional</span><span class="pill">Default: false</span></div><p>Adds the lighter/darker adjustment control. The adjustment is applied to either a selected theme colour or a custom colour.</p></section>
+<section class="reference-entry"><h3>opacity</h3><div class="api-meta"><span class="pill">Boolean</span><span class="pill">Optional</span><span class="pill">Default: false</span></div><p>Adds an opacity control. The resolved template value includes the selected opacity, so the developer continues to consume one colour value.</p></section>
 
 <h2>Defaults</h2><p>The property’s <code>default</code> selects the initial source. Use <code>custom</code>, or one of the known theme roles: <code>background</code>, <code>surface</code>, <code>text</code>, or <code>accent</code>. A theme role can only be the default while <code>themeValues</code> is enabled.</p>
 <p><code>customColor</code> supplies the initial literal colour used by the custom choice and defaults to <code>#000000</code>.</p>

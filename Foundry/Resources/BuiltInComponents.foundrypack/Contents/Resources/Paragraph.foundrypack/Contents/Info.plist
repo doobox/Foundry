@@ -52,6 +52,42 @@
 			</dict>
 			<dict>
 				<key>id</key>
+				<string>lineHeight</string>
+				<key>title</key>
+				<string>Line Height</string>
+				<key>group</key>
+				<string>Typography</string>
+				<key>control</key>
+				<dict>
+					<key>type</key>
+					<string>lineHeight</string>
+					<key>fontSize</key>
+					<string>textSize</string>
+				</dict>
+				<key>default</key>
+				<string>theme</string>
+				<key>responsive</key>
+				<true />
+			</dict>
+			<dict>
+				<key>id</key>
+				<string>textAlignment</string>
+				<key>title</key>
+				<string>Alignment</string>
+				<key>group</key>
+				<string>Typography</string>
+				<key>control</key>
+				<dict>
+					<key>type</key>
+					<string>textAlignment</string>
+				</dict>
+				<key>default</key>
+				<string>start</string>
+				<key>responsive</key>
+				<true />
+			</dict>
+			<dict>
+				<key>id</key>
 				<string>textColor</string>
 				<key>title</key>
 				<string>Colour</string>

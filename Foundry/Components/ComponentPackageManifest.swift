@@ -121,7 +121,7 @@ nonisolated struct ComponentPackageProperty: Codable, Equatable, Identifiable, S
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         id = try container.decode(String.self, forKey: .id)
-        group = try container.decode(String.self, forKey: .group)
+        group = try container.decodeIfPresent(String.self, forKey: .group) ?? "Settings"
         control = try container.decode(ComponentPackageControl.self, forKey: .control)
         subtitles = try container.decodeIfPresent([String].self, forKey: .subtitles) ?? []
         toolTip = try container.decodeIfPresent(String.self, forKey: .toolTip)
@@ -150,6 +150,7 @@ nonisolated struct ComponentPackageControl: Codable, Equatable, Sendable {
         case toggle
         case fontFamily
         case fontSize
+        case lineHeight
         case textAlignment
         case divider
         case slider
@@ -178,6 +179,7 @@ nonisolated struct ComponentPackageControl: Codable, Equatable, Sendable {
     let falseValue: ComponentPackageValue?
     let systemImage: String?
     let input: String?
+    let fontSize: String?
     let scaleMode: Int?
     let scale: Double?
     let maxWidth: Double?

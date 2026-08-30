@@ -49,7 +49,7 @@ struct HTMLPageRenderer: PageRendering {
               --space-m: \(theme.spacing.medium)px;
               --space-l: \(theme.spacing.large)px;
             }
-            * { box-sizing: border-box; }
+            *, *::before, *::after { box-sizing: border-box; }
             [data-foundry-id] {
               --editor-chrome: var(--editor-component);
               position: relative; cursor: default;
@@ -124,7 +124,7 @@ struct HTMLPageRenderer: PageRendering {
               background: color-mix(in srgb, var(--surface) 72%, transparent);
               font: 600 13px system-ui; text-align: center;
             }
-            .foundry-empty-page { min-height: calc(100vh - 96px); }
+            .foundry-empty-page { min-height: 100vh; }
             .foundry-contentless-drop-zone { min-height: 32px; padding: 6px 12px; }
             .columns > .foundry-empty-drop-zone { grid-column: 1 / -1; }
             .foundry-editing {
@@ -135,8 +135,9 @@ struct HTMLPageRenderer: PageRendering {
               border-color: color-mix(in srgb, var(--editor-chrome) 42%, transparent);
             }
             [data-foundry-global].foundry-editing { outline-color: var(--editor-chrome) !important; }
+            html, body { min-height: 100%; }
             body {
-              margin: 0; padding: 48px; background: var(--background);
+              margin: 0; background: var(--background);
               color: var(--text); font-family: var(--font-body);
               font-size: var(--font-size-base); line-height: var(--font-size-base-line-height);
             }
@@ -445,6 +446,17 @@ struct HTMLPageRenderer: PageRendering {
                 let resolved = !themeValues || source == "custom"
                     ? node.property(customValueKey) : theme.fontSizeCSSVariable(for: source)
                 return (definition.key.rawValue, .string(resolved))
+            }
+            if case .lineHeight(let fontSizeKey) = definition.control {
+                return (
+                    definition.key.rawValue,
+                    .string(ComponentPackageLineHeightResolver.resolve(
+                        node.property(definition.key),
+                        fontSizeKey: fontSizeKey,
+                        node: node,
+                        theme: theme
+                    ))
+                )
             }
             if case .number = definition.control {
                 return (definition.key.rawValue, .number(node.numberProperty(definition.key, theme: theme)))

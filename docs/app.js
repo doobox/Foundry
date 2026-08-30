@@ -25,6 +25,7 @@ const controlLinks = [
     ["Text alignment", "text-alignment.html"],
     ["Font family", "font-family.html"],
     ["Font size", "font-size.html"],
+    ["Line height", "line-height.html"],
     ["Info", "info-control.html"],
     ["Divider", "divider-control.html"],
     ["Control arrays", "control-arrays.html"]
@@ -78,7 +79,8 @@ const referenceTypeByPage = {
     "link-control.html": "link",
     "text-alignment.html": "textAlignment",
     "font-family.html": "fontFamily",
-    "font-size.html": "fontSize"
+    "font-size.html": "fontSize",
+    "line-height.html": "lineHeight"
 };
 const referenceType = referenceTypeByPage[window.location.pathname.split("/").pop()];
 if (referenceType) {

@@ -520,21 +520,24 @@ struct ComponentPackageTests {
         let package = try ComponentPackageLoader.load(from: packageURL)
         let property = try #require(ComponentPackageAdapter.definition(from: package).properties.first { $0.key.rawValue == "alignment" })
 
-        if case .textAlignment = property.control {} else { Issue.record("Expected the smart text-alignment control") }
+        if case .textAlignment = property.control {} else { Issue.record("Expected the specialised text-alignment control") }
         #expect(property.defaultValue == .choice("start"))
         #expect(property.isResponsive)
     }
 
     @Test
-    func customItemsRequireTheGroupKey() throws {
+    func customItemsDefaultToTheSettingsGroup() throws {
         let manifestText = validManifest.replacingOccurrences(
             of: "<key>group</key><string>Content</string>",
-            with: "<key>section</key><string>Content</string>"
+            with: ""
         )
 
-        #expect(throws: DecodingError.self) {
-            try PropertyListDecoder().decode(ComponentPackageManifest.self, from: Data(manifestText.utf8))
-        }
+        let manifest = try PropertyListDecoder().decode(
+            ComponentPackageManifest.self,
+            from: Data(manifestText.utf8)
+        )
+
+        #expect(manifest.properties.first?.group == "Settings")
     }
 
     @Test
@@ -714,6 +717,8 @@ struct ComponentPackageTests {
         let custom = try #require(properties.first(where: { $0.key.rawValue == "textColorCustom" }))
         let colorMath = try #require(properties.first(where: { $0.key.rawValue == "textColorColorMath" }))
         let opacity = try #require(properties.first(where: { $0.key.rawValue == "textColorOpacity" }))
+        let alignment = try #require(properties.first(where: { $0.key.rawValue == "textAlignment" }))
+        let lineHeight = try #require(properties.first(where: { $0.key.rawValue == "lineHeight" }))
 
         #expect(color.defaultValue == .choice(ThemeColorRole.text.rawValue))
         if case .packageColor(let themeValues, _, let mathKey, let opacityKey) = color.control {
@@ -726,6 +731,38 @@ struct ComponentPackageTests {
         #expect(custom.defaultValue == .color("#000000"))
         #expect(colorMath.defaultValue == .number(0))
         #expect(opacity.defaultValue == .number(1))
+        #expect(alignment.defaultValue == .choice("start"))
+        #expect(alignment.isResponsive)
+        if case .textAlignment = alignment.control {} else {
+            Issue.record("Paragraph should use the specialised text-alignment control")
+        }
+        #expect(lineHeight.defaultValue == .choice("theme"))
+        #expect(lineHeight.isResponsive)
+        if case .lineHeight(let fontSizeKey) = lineHeight.control {
+            #expect(fontSizeKey?.rawValue == "textSize")
+        } else {
+            Issue.record("Paragraph should use the theme-aware line-height control")
+        }
+        #expect(
+            ComponentType.paragraph.definition.package?.css.contains(
+                "text-align: {{ control.textAlignment }}"
+            ) == true
+        )
+        #expect(
+            ComponentType.paragraph.definition.package?.css.contains(
+                "line-height: {{ control.lineHeight }}"
+            ) == true
+        )
+
+        var paragraph = ComponentNode.make(.paragraph)
+        var site = Site(name: "Line height", pages: [Page(title: "Home", slug: "index", components: [paragraph])])
+        let themedHTML = HTMLPageRenderer(site: site).render(page: site.pages[0], theme: site.theme)
+        #expect(themedHTML.contains("line-height: var(--font-size-base-line-height)"))
+
+        paragraph.setProperty(.init(rawValue: "lineHeight"), value: .choice("loose"))
+        site.pages[0].components = [paragraph]
+        let overriddenHTML = HTMLPageRenderer(site: site).render(page: site.pages[0], theme: site.theme)
+        #expect(overriddenHTML.contains("line-height: 2"))
     }
 
     @Test

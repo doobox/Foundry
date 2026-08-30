@@ -1,7 +1,7 @@
 const commonValueKeys = [
     ["id", "String", "Required", "Stable identifier; starts with a letter and contains letters, numbers, underscores or hyphens."],
     ["title", "String", "Required", "Label displayed in the inspector."],
-    ["group", "String", "Required", "Disclosure-section title."],
+    ["group", "String", "Default: Settings", "Optional disclosure-section title. Omit it to place the control in Settings."],
     ["control", "Dictionary", "Required", "Nested control configuration. Its accepted keys are listed under Control dictionary."],
     ["default", "Matching value", "Required", "Initial stored value; its plist type must match the control."],
     ["responsive", "Boolean", "Required", "Enables breakpoint-specific overrides."],
@@ -11,7 +11,7 @@ const commonValueKeys = [
 
 const commonPresentationKeys = [
     ["id", "String", "Required", "Stable unique item identifier."],
-    ["group", "String", "Required", "Disclosure-section title."],
+    ["group", "String", "Default: Settings", "Optional disclosure-section title. Omit it to place the control in Settings."],
     ["control", "Dictionary", "Required", "Nested control configuration. Its accepted keys are listed under Control dictionary."],
     ["title", "String", "Default: empty", "Optional for derived controls and divider; supplies the displayed copy for info."],
     ["default", "Value", "Default: empty String", "Ignored by presentation-only and recalculated derived controls."],
@@ -40,6 +40,7 @@ const controls = {
     textAlignment: { title: "Text alignment", summary: "A segmented control producing logical CSS alignment values.", returnType: "String", output: "start, center, end or justify", defaultRule: "Required String matching one supported value", defaultValue: "start", usage: "text-align: {{ control.alignment }};", validation: ["default must be start, center, end or justify."] },
     fontFamily: { title: "Font family", summary: "A custom or theme-aware font-family choice.", returnType: "String", output: "Resolved CSS font-family String", defaultRule: "Required String: custom, or a known theme font role when themeValues is true", defaultValue: "custom", options: [["themeValues", "Boolean", "Default: false", "Offers known theme font roles in addition to Custom."]], usage: "font-family: {{ control.typeface }};", validation: ["default must be custom unless themeValues is enabled and it matches a known theme font role."], note: "The hidden custom value starts as system-ui when Custom is selected." },
     fontSize: { title: "Font size", summary: "A custom or theme-aware CSS font-size choice.", returnType: "String", output: "Resolved CSS size String", defaultRule: "Required String: custom, or a known theme size ID when themeValues is true", defaultValue: "custom", options: [["themeValues", "Boolean", "Default: false", "Offers known theme type-scale sizes in addition to Custom."]], usage: "font-size: {{ control.textSize }};", validation: ["default must be custom unless themeValues is enabled and it matches a known theme size ID."], note: "The hidden custom value starts as 1rem when Custom is selected." },
+    lineHeight: { title: "Line height", summary: "A theme-aware line-height choice that emits an explicit component-level CSS value.", returnType: "String", output: "CSS line-height number or theme CSS variable", defaultRule: "Required String matching theme, none, tight, snug, normal, relaxed or loose", defaultValue: "theme", options: [["fontSize", "String", "Default: omitted", "ID of the fontSize control whose theme line height should be used. Without it, Theme uses the base theme size."]], extra: "<key>fontSize</key><string>textSize</string>", usage: "line-height: {{ control.lineHeight }};", validation: ["default must be theme, none, tight, snug, normal, relaxed or loose.", "fontSize, when supplied, must identify a declared fontSize control."], note: "Even Theme resolves into an explicit CSS value, so the component declaration overrides inherited body line height." },
     info: { title: "Info", summary: "Presentation-only explanatory text in an inspector group.", returnType: "None", output: "No template value", defaultRule: "default may be omitted; omitted value is an ignored empty String", virtual: true, usage: "No template value", validation: ["No value validation is performed."], note: "Use title for the explanatory copy. An empty title causes the row to be hidden." },
     divider: { title: "Divider", summary: "A presentation-only visual separator between inspector controls.", returnType: "None", output: "No template value", defaultRule: "default may be omitted; omitted value is an ignored empty String", virtual: true, usage: "No template value", validation: ["No value validation is performed."], note: "Only id, group and control are needed. It has no author-editable state." }
 };
@@ -47,7 +48,7 @@ const controls = {
 const escapeHTML = value => String(value).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
 const type = document.body.dataset.control;
 const control = controls[type];
-const propertyID = ({ text: "heading", textArea: "body", link: "destination", number: "spacing", slider: "opacity", date: "published", color: "textColor", select: "alignment", toggle: "featured", details: "advanced", button: "state", image: "picture", imageTransform: "thumbnail", math: "doubleWidth", textAlignment: "alignment", fontFamily: "typeface", fontSize: "textSize", info: "guidance", divider: "separator" })[type];
+const propertyID = ({ text: "heading", textArea: "body", link: "destination", number: "spacing", slider: "opacity", date: "published", color: "textColor", select: "alignment", toggle: "featured", details: "advanced", button: "state", image: "picture", imageTransform: "thumbnail", math: "doubleWidth", textAlignment: "alignment", fontFamily: "typeface", fontSize: "textSize", lineHeight: "lineHeight", info: "guidance", divider: "separator" })[type];
 
 const slug = value => value.toLowerCase().replaceAll(/[^a-z0-9]+/g, "-").replaceAll(/^-|-$/g, "");
 
@@ -62,6 +63,7 @@ const relatedControls = {
     imageTransform: [["Image", "image-control.html"], ["Math", "math-control.html"]],
     fontFamily: [["Font size", "font-size.html"], ["Theme values", "theme-controls.html"]],
     fontSize: [["Font family", "font-family.html"], ["Theme values", "theme-controls.html"]],
+    lineHeight: [["Font size", "font-size.html"], ["Theme values", "theme-controls.html"]],
     textAlignment: [["Select", "select-control.html"], ["Theme values", "theme-controls.html"]]
 };
 
@@ -100,7 +102,10 @@ function declaration() {
 
 function keyReference(item) {
     const [key, kind, requirement, meaning] = item;
-    return `<section class="key-reference" id="${slug(key)}"><h3><code>${key}</code></h3><div class="key-meta"><span>${kind}</span><strong>${requirement}</strong></div><p>${meaning}</p></section>`;
+    const requirementTags = requirement.startsWith("Default:")
+        ? `<strong>Optional</strong><span>${requirement}</span>`
+        : `<strong>${requirement}</strong>`;
+    return `<section class="key-reference" id="${slug(key)}"><h3><code>${key}</code></h3><div class="key-meta"><span>${kind}</span>${requirementTags}</div><p>${meaning}</p></section>`;
 }
 
 function renderPage(page) {

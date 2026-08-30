@@ -31,6 +31,15 @@ nonisolated enum ComponentPackageValidator {
         for property in manifest.properties {
             validate(property.id, expression: propertyExpression, location: "Info.plist:customItems.\(property.id)", message: "Property IDs must start with a letter and contain only letters, numbers, underscores, or hyphens.", into: &diagnostics)
             validate(property, into: &diagnostics)
+            if property.control.type == .lineHeight,
+               let fontSizeID = property.control.fontSize,
+               !manifest.properties.contains(where: { $0.id == fontSizeID && $0.control.type == .fontSize }) {
+                diagnostics.append(.init(
+                    severity: .error,
+                    location: "Info.plist:customItems.\(property.id)",
+                    message: "lineHeight fontSize must reference a declared fontSize control."
+                ))
+            }
         }
         for slot in manifest.slots {
             validate(slot.id, expression: propertyExpression, location: "Info.plist:slots.\(slot.id)", message: "Slot IDs must start with a letter and contain only letters, numbers, underscores, or hyphens.", into: &diagnostics)
@@ -376,6 +385,16 @@ nonisolated enum ComponentPackageValidator {
             } else {
                 diagnostics.append(.init(severity: .error, location: location, message: "A fontSize control requires a string default value."))
             }
+        case .lineHeight:
+            if case .string(let value) = defaultValue,
+               value == "theme" || ThemeLineHeight(rawValue: value) != nil {
+                break
+            }
+            diagnostics.append(.init(
+                severity: .error,
+                location: location,
+                message: "A lineHeight default must be theme, none, tight, snug, normal, relaxed, or loose."
+            ))
         case .textAlignment:
             if case .string(let value) = defaultValue,
                ["start", "center", "end", "justify"].contains(value) {

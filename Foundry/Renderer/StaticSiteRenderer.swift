@@ -322,8 +322,9 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
         return """
         \(theme.remoteFontImports)
         :root{font-size:\(theme.typography.baseSize)px;--background:\(theme.colors.background);--surface:\(theme.colors.surface);--text:\(theme.colors.text);--accent:\(theme.colors.accent);--font-body:\(theme.typography.bodyFont.cssFamily);--font-heading:\(theme.typography.headingFont.cssFamily);--font-monospace:\(theme.typography.monospacedFont.cssFamily);\(theme.customFontCSSVariables)\(theme.fontSizeCSSVariables)--space-s:\(theme.spacing.small)px;--space-m:\(theme.spacing.medium)px;--space-l:\(theme.spacing.large)px}
-        *{box-sizing:border-box}
-        body{margin:0;padding:48px;background:var(--background);color:var(--text);font-family:var(--font-body);font-size:var(--font-size-base);line-height:var(--font-size-base-line-height)}
+        *,*::before,*::after{box-sizing:border-box}
+        html,body{min-height:100%}
+        body{margin:0;background:var(--background);color:var(--text);font-family:var(--font-body);font-size:var(--font-size-base);line-height:var(--font-size-base-line-height)}
         h1,h2,h3,h4,h5,h6,.heading{font-family:var(--font-heading)}code,pre,kbd,samp{font-family:var(--font-monospace)}
         .button{display:block;width:fit-content;text-decoration:none;font-weight:600}.columns{display:grid}.image{display:block;width:100%;height:auto}.spacer{min-height:8px}
         \(packageStyles(for: site, assets: assets))
@@ -514,6 +515,17 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
                 let resolved = !themeValues || source == "custom"
                     ? node.property(customValueKey) : theme.fontSizeCSSVariable(for: source)
                 return (definition.key.rawValue, .string(resolved))
+            }
+            if case .lineHeight(let fontSizeKey) = definition.control {
+                return (
+                    definition.key.rawValue,
+                    .string(ComponentPackageLineHeightResolver.resolve(
+                        node.property(definition.key),
+                        fontSizeKey: fontSizeKey,
+                        node: node,
+                        theme: theme
+                    ))
+                )
             }
             if case .number = definition.control {
                 return (definition.key.rawValue, .number(node.numberProperty(definition.key, theme: theme)))

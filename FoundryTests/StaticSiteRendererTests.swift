@@ -3,6 +3,25 @@ import Testing
 @testable import Foundry
 
 struct StaticSiteRendererTests {
+    @Test @MainActor
+    func pageShellIsNeutralAndAllowsEdgeToEdgeComponents() throws {
+        let site = Site.starter()
+        let exportedCSS = try #require(
+            StaticSiteRenderer().render(site: site).file(at: "assets/site.css")?.contents
+        )
+        let canvasHTML = HTMLPageRenderer(site: site).render(
+            page: try #require(site.pages.first),
+            theme: site.theme
+        )
+
+        #expect(exportedCSS.contains("html,body{min-height:100%}"))
+        #expect(exportedCSS.contains("body{margin:0;background:"))
+        #expect(exportedCSS.contains("*,*::before,*::after{box-sizing:border-box}"))
+        #expect(!exportedCSS.contains("padding:48px"))
+        #expect(canvasHTML.contains("html, body { min-height: 100%; }"))
+        #expect(!canvasHTML.contains("padding: 48px"))
+    }
+
     @Test
     func responsiveOverridesExportAsMediaQueriesWithoutCanvasMetadata() throws {
         var site = Site.starter()

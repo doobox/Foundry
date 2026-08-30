@@ -157,6 +157,8 @@ nonisolated enum ComponentPackageAdapter {
         case .toggle: .toggle
         case .fontFamily: .themeFontFamily
         case .fontSize: .themeFontSize
+        case .lineHeight:
+            .lineHeight(fontSizeKey: control.fontSize.map(ComponentProperty.Key.init(rawValue:)))
         case .textAlignment: .textAlignment
         case .divider: .divider
         case .slider:
@@ -186,7 +188,7 @@ nonisolated enum ComponentPackageAdapter {
             case .image: .url(value)
             case .link: .link(.init(destination: value.isEmpty ? .none : .url(value)))
             case .color: .color(value)
-            case .select, .fontFamily, .fontSize, .textAlignment: .choice(value)
+            case .select, .fontFamily, .fontSize, .lineHeight, .textAlignment: .choice(value)
             case .date: .string(value)
             default: .string(value)
             }

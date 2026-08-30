@@ -219,6 +219,15 @@ struct ComponentPropertyEditor: View {
                 customValue: stringBinding(for: customValueKey),
                 indicator: responsiveIndicator
             )
+        case .lineHeight:
+            InspectorRow(title: definition.label, indicator: responsiveIndicator) {
+                InspectorPopup(
+                    selection: stringBinding(as: .choice),
+                    options: lineHeightControlChoices.map { .init(title: $0.label, value: $0.value) },
+                    accessibilityLabel: definition.label,
+                    help: definition.label
+                )
+            }
         case .textAlignment:
             InspectorRow(title: definition.label, indicator: responsiveIndicator) {
                 InspectorSegmentedControl(selection: stringBinding(as: .choice), segments: alignmentSegments)
@@ -682,6 +691,8 @@ private struct InspectorControlArrayItem: View {
             Toggle("", isOn: booleanBinding).labelsHidden()
         case .choice(let choices):
             InspectorPopup(selection: stringBinding, options: choices.map { .init(title: $0.label, value: $0.value) }, accessibilityLabel: subtitle ?? "Choice", help: help)
+        case .lineHeight:
+            InspectorPopup(selection: stringBinding, options: lineHeightControlChoices.map { .init(title: $0.label, value: $0.value) }, accessibilityLabel: subtitle ?? "Line height", help: help)
         case .asset:
             InspectorPopup(selection: assetBinding, options: [InspectorPopupOption(title: "None", value: nil)] + assets.map { .init(title: $0.filename, value: $0.id as UUID?) }, accessibilityLabel: subtitle ?? "Image", help: help)
         default:
@@ -726,6 +737,16 @@ private struct InspectorControlArrayItem: View {
         )
     }
 }
+
+private let lineHeightControlChoices = [
+    ComponentPropertyChoice(value: "theme", label: "Theme"),
+    ComponentPropertyChoice(value: "none", label: "None"),
+    ComponentPropertyChoice(value: "tight", label: "Tight"),
+    ComponentPropertyChoice(value: "snug", label: "Snug"),
+    ComponentPropertyChoice(value: "normal", label: "Normal"),
+    ComponentPropertyChoice(value: "relaxed", label: "Relaxed"),
+    ComponentPropertyChoice(value: "loose", label: "Loose")
+]
 
 private struct PackageThemeValueGridEditor: View {
     let label: String
