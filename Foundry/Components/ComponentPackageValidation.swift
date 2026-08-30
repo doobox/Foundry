@@ -28,13 +28,6 @@ nonisolated enum ComponentPackageValidator {
 
         validateUnique(manifest.properties.map(\.id), kind: "property", into: &diagnostics)
         validateUnique(manifest.slots.map(\.id), kind: "slot", into: &diagnostics)
-        if manifest.properties.filter(\.inlineEditable).count > 1 {
-            diagnostics.append(.init(
-                severity: .error,
-                location: "Info.plist:customItems",
-                message: "Only one property can be inline editable."
-            ))
-        }
         for property in manifest.properties {
             validate(property.id, expression: propertyExpression, location: "Info.plist:customItems.\(property.id)", message: "Property IDs must start with a letter and contain only letters, numbers, underscores, or hyphens.", into: &diagnostics)
             validate(property, into: &diagnostics)

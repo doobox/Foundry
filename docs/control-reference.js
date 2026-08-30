@@ -5,8 +5,6 @@ const commonValueKeys = [
     ["control", "Dictionary", "Required", "Contains type and the options documented below."],
     ["default", "Matching value", "Required", "Initial stored value; its plist type must match the control."],
     ["responsive", "Boolean", "Required", "Enables breakpoint-specific overrides."],
-    ["inlineEditable", "Boolean", "Required", "Enables canvas editing where the rendered property can be associated with editable content."],
-    ["css", "String", "Default: omitted", "Reserved manifest field; currently decoded but has no rendering effect."],
     ["toolTip", "String", "Default: omitted", "Optional inspector help text."],
     ["subtitles", "String array", "Default: []", "Captions for members of a control array."]
 ];
@@ -17,8 +15,7 @@ const commonPresentationKeys = [
     ["control", "Dictionary", "Required", "Contains the control type and its options."],
     ["title", "String", "Default: empty", "Optional for derived controls and divider; supplies the displayed copy for info."],
     ["default", "Value", "Default: empty String", "Ignored by presentation-only and recalculated derived controls."],
-    ["responsive", "Boolean", "Default: false", "Derived and presentation-only controls default to non-responsive."],
-    ["inlineEditable", "Boolean", "Default: false", "Derived and presentation-only controls are not canvas-editable."]
+    ["responsive", "Boolean", "Default: false", "Derived and presentation-only controls default to non-responsive."]
 ];
 
 const commonControlKeys = [
@@ -60,14 +57,14 @@ function rows(items) {
 function contract() {
     const specificKeys = control.options || [];
     const controlKeys = [["type", "String", "Required: " + type, "Selects this control."], ...(control.virtual ? [] : commonControlKeys), ...specificKeys];
-    return `<section class="api-contract"><h2>API contract</h2><div class="api-facts"><div><span>Stored value</span><strong>${control.returnType}</strong></div><div><span>Template output</span><strong>${control.output}</strong></div><div><span>Property default</span><strong>${control.defaultRule}</strong></div><div><span>Inspector row</span><strong>${control.virtual ? (type === "info" || type === "divider" ? "Presentation only" : "No — derived value") : "Yes"}</strong></div></div><h3>Property keys</h3>${rows(control.virtual ? commonPresentationKeys : commonValueKeys)}<h3>Control dictionary keys</h3>${rows(controlKeys)}<h3>Validation and behaviour</h3><ul>${control.validation.map(rule => `<li>${rule}</li>`).join("")}<li>Property IDs must be unique, start with a letter, and contain only letters, numbers, underscores or hyphens.</li>${control.virtual ? "" : "<li>Only one property in a component manifest may set inlineEditable to true.</li>"}</ul></section>`;
+    return `<section class="api-contract"><h2>API contract</h2><div class="api-facts"><div><span>Stored value</span><strong>${control.returnType}</strong></div><div><span>Template output</span><strong>${control.output}</strong></div><div><span>Property default</span><strong>${control.defaultRule}</strong></div><div><span>Inspector row</span><strong>${control.virtual ? (type === "info" || type === "divider" ? "Presentation only" : "No — derived value") : "Yes"}</strong></div></div><h3>Property keys</h3>${rows(control.virtual ? commonPresentationKeys : commonValueKeys)}<h3>Control dictionary keys</h3>${rows(controlKeys)}<h3>Validation and behaviour</h3><ul>${control.validation.map(rule => `<li>${rule}</li>`).join("")}<li>Property IDs must be unique, start with a letter, and contain only letters, numbers, underscores or hyphens.</li></ul></section>`;
 }
 
 const page = document.querySelector("[data-control-page]");
 if (page && control) {
     const defaultMarkup = typeof control.defaultValue === "boolean" ? `<${control.defaultValue ? "true" : "false"}/>` : typeof control.defaultValue === "number" ? `<real>${control.defaultValue}</real>` : `<string>${escapeHTML(control.defaultValue ?? "")}</string>`;
     const valueKeys = control.virtual ? "" : `\n        &lt;key&gt;title&lt;/key&gt;&lt;string&gt;${control.title}&lt;/string&gt;`;
-    const defaults = control.virtual ? "" : `\n        &lt;key&gt;default&lt;/key&gt;${escapeHTML(defaultMarkup)}\n        &lt;key&gt;responsive&lt;/key&gt;&lt;false/&gt;\n        &lt;key&gt;inlineEditable&lt;/key&gt;&lt;false/&gt;`;
+    const defaults = control.virtual ? "" : `\n        &lt;key&gt;default&lt;/key&gt;${escapeHTML(defaultMarkup)}\n        &lt;key&gt;responsive&lt;/key&gt;&lt;false/&gt;\n`;
     const extra = control.extra ? `\n            ${escapeHTML(control.extra).replaceAll("\n", "\n            ")}` : "";
     page.innerHTML = `<div class="breadcrumbs"><a href="index.html">Foundry Developer</a><span>›</span><a href="custom-controls.html">Custom controls</a></div><p class="eyebrow">Control reference</p><h1>${control.title}</h1><p class="lede">${control.summary}</p>${contract()}<h2>Declaration</h2><pre><code>&lt;dict&gt;\n        &lt;key&gt;id&lt;/key&gt;&lt;string&gt;${propertyID}&lt;/string&gt;${valueKeys}\n        &lt;key&gt;group&lt;/key&gt;&lt;string&gt;${control.virtual ? "Derived values" : "Content"}&lt;/string&gt;\n        &lt;key&gt;control&lt;/key&gt;\n        &lt;dict&gt;\n            &lt;key&gt;type&lt;/key&gt;&lt;string&gt;${type}&lt;/string&gt;${extra}\n        &lt;/dict&gt;${defaults}\n    &lt;/dict&gt;</code></pre><h2>Template value</h2><pre><code>${escapeHTML(control.usage)}</code></pre>${control.note ? `<div class="note">${control.note}</div>` : ""}<p class="control-footer"><a href="custom-controls.html">← All custom controls</a></p>`;
 } else if (control) {

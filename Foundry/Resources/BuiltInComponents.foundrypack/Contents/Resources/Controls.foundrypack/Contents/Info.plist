@@ -43,8 +43,6 @@
                 <string>Hello</string>
                 <key>responsive</key>
                 <false />
-                <key>inlineEditable</key>
-                <false />
             </dict>
             <dict>
                 <key>id</key>
@@ -62,8 +60,6 @@
                 <string>Multiple lines of text.</string>
                 <key>responsive</key>
                 <false />
-                <key>inlineEditable</key>
-                <true />
             </dict>
             <dict>
                 <key>id</key>
@@ -80,8 +76,6 @@
                 <key>default</key>
                 <string>#controls</string>
                 <key>responsive</key>
-                <false />
-                <key>inlineEditable</key>
                 <false />
             </dict>
             <dict>
@@ -101,8 +95,6 @@
                 <key>default</key>
                 <string></string>
                 <key>responsive</key>
-                <false />
-                <key>inlineEditable</key>
                 <false />
             </dict>
             <dict>
@@ -129,8 +121,6 @@
                 <real>50</real>
                 <key>responsive</key>
                 <true />
-                <key>inlineEditable</key>
-                <false />
             </dict>
             <dict>
                 <key>id</key>
@@ -158,8 +148,6 @@
                 <real>50</real>
                 <key>responsive</key>
                 <true />
-                <key>inlineEditable</key>
-                <false />
             </dict>
             <dict>
                 <key>id</key>
@@ -176,8 +164,6 @@
                 <key>default</key>
                 <string>2026-08-30T00:00:00Z</string>
                 <key>responsive</key>
-                <false />
-                <key>inlineEditable</key>
                 <false />
             </dict>
             <dict>
@@ -198,8 +184,6 @@
                 <string>custom</string>
                 <key>responsive</key>
                 <true />
-                <key>inlineEditable</key>
-                <false />
             </dict>
             <dict>
                 <key>id</key>
@@ -232,8 +216,6 @@
                 <string>one</string>
                 <key>responsive</key>
                 <false />
-                <key>inlineEditable</key>
-                <false />
             </dict>
             <dict>
                 <key>id</key>
@@ -250,8 +232,6 @@
                 <key>default</key>
                 <true />
                 <key>responsive</key>
-                <false />
-                <key>inlineEditable</key>
                 <false />
             </dict>
             <dict>
@@ -271,8 +251,6 @@
                 <key>default</key>
                 <false />
                 <key>responsive</key>
-                <false />
-                <key>inlineEditable</key>
                 <false />
             </dict>
             <dict>
@@ -297,8 +275,6 @@
                 <false />
                 <key>responsive</key>
                 <false />
-                <key>inlineEditable</key>
-                <false />
             </dict>
             <dict>
                 <key>id</key>
@@ -315,8 +291,6 @@
                 <key>default</key>
                 <string></string>
                 <key>responsive</key>
-                <false />
-                <key>inlineEditable</key>
                 <false />
             </dict>
             <dict>
@@ -389,8 +363,6 @@
                 <string>start</string>
                 <key>responsive</key>
                 <true />
-                <key>inlineEditable</key>
-                <false />
             </dict>
             <dict>
                 <key>id</key>
@@ -410,8 +382,6 @@
                 <string>body</string>
                 <key>responsive</key>
                 <true />
-                <key>inlineEditable</key>
-                <false />
             </dict>
             <dict>
                 <key>id</key>
@@ -431,8 +401,6 @@
                 <string>base</string>
                 <key>responsive</key>
                 <true />
-                <key>inlineEditable</key>
-                <false />
             </dict>
             <dict>
                 <key>id</key>
@@ -466,8 +434,6 @@
                 </array>
                 <key>responsive</key>
                 <true />
-                <key>inlineEditable</key>
-                <false />
             </dict>
             <dict>
                 <key>id</key>
@@ -507,8 +473,6 @@
                 </array>
                 <key>responsive</key>
                 <true />
-                <key>inlineEditable</key>
-                <false />
             </dict>
             <dict>
                 <key>id</key>
@@ -537,8 +501,6 @@
                     <string>C</string>
                 </array>
                 <key>responsive</key>
-                <false />
-                <key>inlineEditable</key>
                 <false />
             </dict>
             <dict>
@@ -570,8 +532,6 @@
                     <false />
                 </array>
                 <key>responsive</key>
-                <false />
-                <key>inlineEditable</key>
                 <false />
             </dict>
             <dict>
@@ -614,8 +574,6 @@
                     <string>roomy</string>
                 </array>
                 <key>responsive</key>
-                <false />
-                <key>inlineEditable</key>
                 <false />
             </dict>
             <dict>

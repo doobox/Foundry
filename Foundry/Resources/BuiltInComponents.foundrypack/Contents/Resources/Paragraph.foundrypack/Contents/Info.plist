@@ -30,8 +30,6 @@
 				<string>body</string>
 				<key>responsive</key>
 				<true />
-				<key>inlineEditable</key>
-				<false />
 			</dict>
 			<dict>
 				<key>id</key>
@@ -50,8 +48,6 @@
 				<key>default</key>
 				<string>base</string>
 				<key>responsive</key>
-				<false />
-				<key>inlineEditable</key>
 				<false />
 			</dict>
 			<dict>
@@ -78,8 +74,6 @@
 				<string>text</string>
 				<key>responsive</key>
 				<true />
-				<key>inlineEditable</key>
-				<false />
 			</dict>
 		</array>
 		<key>description</key>

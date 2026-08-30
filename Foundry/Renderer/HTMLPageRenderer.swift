@@ -523,11 +523,10 @@ struct HTMLPageRenderer: PageRendering {
 
     private func attributes(for node: ComponentNode, globalDefinitionID: UUID?) -> String {
         let acceptsChildren = node.type.definition.allowsChildren ? "true" : "false"
-        let editableProperty = node.type.definition.inlineEditableProperty?.rawValue ?? ""
         let globalAttributes = globalDefinitionID.map {
             " data-foundry-global=\"\($0.uuidString)\" data-foundry-global-override=\"\(node.overridesGlobalDefinition == true)\""
         } ?? ""
-        return "data-foundry-id=\"\(node.id.uuidString)\" data-foundry-type=\"\(escapeAttribute(node.type.displayName))\" data-foundry-name=\"\(escapeAttribute(node.name))\" data-foundry-accepts-children=\"\(acceptsChildren)\" data-foundry-inline-property=\"\(editableProperty)\"\(globalAttributes)"
+        return "data-foundry-id=\"\(node.id.uuidString)\" data-foundry-type=\"\(escapeAttribute(node.type.displayName))\" data-foundry-name=\"\(escapeAttribute(node.name))\" data-foundry-accepts-children=\"\(acceptsChildren)\"\(globalAttributes)"
     }
 
     private func cssAlignment(_ value: String) -> String {

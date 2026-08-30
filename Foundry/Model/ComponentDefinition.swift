@@ -6,7 +6,6 @@ nonisolated struct ComponentDefinition: Sendable {
     let systemImage: String
     let category: ComponentCategory
     let allowsChildren: Bool
-    let inlineEditableProperty: ComponentProperty.Key?
     let renderKind: ComponentRenderKind
     let properties: [ComponentPropertyDefinition]
     let package: LoadedComponentPackage?
@@ -17,7 +16,6 @@ nonisolated struct ComponentDefinition: Sendable {
         systemImage: String,
         category: ComponentCategory,
         allowsChildren: Bool,
-        inlineEditableProperty: ComponentProperty.Key?,
         renderKind: ComponentRenderKind,
         properties: [ComponentPropertyDefinition],
         package: LoadedComponentPackage? = nil
@@ -27,7 +25,6 @@ nonisolated struct ComponentDefinition: Sendable {
         self.systemImage = systemImage
         self.category = category
         self.allowsChildren = allowsChildren
-        self.inlineEditableProperty = inlineEditableProperty
         self.renderKind = renderKind
         self.properties = properties
         self.package = package

@@ -42,13 +42,13 @@ nonisolated enum ComponentRegistry {
             ] + ComponentStyleProperties.layout(padding: 0, maxWidth: 1200, alignment: "center")
         ),
         .paragraph: definition(
-            .paragraph, "Paragraph", "textformat", .content, inline: .text, render: .text,
+            .paragraph, "Paragraph", "textformat", .content, render: .text,
             properties: textProperties(label: "Paragraph", defaultText: "New paragraph", size: 16) +
                 ComponentStyleProperties.border(cornerRadius: 0) +
                 ComponentStyleProperties.layout(padding: 0, maxWidth: 0, alignment: "leading", marginBottom: 32)
         ),
         .heading: definition(
-            .heading, "Heading", "textformat.size.larger", .content, inline: .text, render: .heading,
+            .heading, "Heading", "textformat.size.larger", .content, render: .heading,
             properties: [
                 .init(key: .text, label: "Heading", section: .content, control: .singleLineText, defaultValue: .string("New heading")),
                 .init(key: .headingLevel, label: "Level", section: .content, control: .choice((1...6).map { .init(value: "\($0)", label: "Heading \($0)") }), defaultValue: .choice("2"))
@@ -56,7 +56,7 @@ nonisolated enum ComponentRegistry {
                 ComponentStyleProperties.layout(padding: 0, maxWidth: 0, alignment: "leading", marginBottom: 24)
         ),
         .button: definition(
-            .button, "Button", "capsule", .content, inline: .text, render: .button,
+            .button, "Button", "capsule", .content, render: .button,
             properties: [
                 .init(key: .text, label: "Title", section: .content, control: .singleLineText, defaultValue: .string("Button")),
                 .init(key: .destination, label: "Destination", section: .link, control: .url, defaultValue: .url("#")),
@@ -95,7 +95,6 @@ nonisolated enum ComponentRegistry {
         _ icon: String,
         _ category: ComponentCategory,
         children: Bool = false,
-        inline: ComponentProperty.Key? = nil,
         render: ComponentRenderKind,
         properties: [ComponentPropertyDefinition]
     ) -> ComponentDefinition {
@@ -105,7 +104,6 @@ nonisolated enum ComponentRegistry {
             systemImage: icon,
             category: category,
             allowsChildren: children,
-            inlineEditableProperty: inline,
             renderKind: render,
             properties: properties
         )

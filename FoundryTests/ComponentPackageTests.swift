@@ -43,8 +43,7 @@ struct ComponentPackageTests {
         <key>toolTip</key><string>Four colours</string>
         <key>control</key><dict><key>type</key><string>color</string><key>count</key><integer>4</integer></dict>
         <key>default</key><array><string>#111111</string><string>#222222</string><string>#333333</string><string>#444444</string></array>
-        <key>responsive</key><true/><key>inlineEditable</key><false/>
-        </dict></array>
+        <key>responsive</key><true/>        </dict></array>
         <key>templates</key><dict><key>html</key><string>component.html</string></dict>
         </dict></plist>
         """
@@ -74,9 +73,9 @@ struct ComponentPackageTests {
         <key>title</key><string>Derived</string><key>description</key><string>Derived controls</string>
         <key>group</key><string>Other</string><key>assets</key><array/><key>slots</key><array/>
         <key>customItems</key><array>
-        <dict><key>id</key><string>amount</string><key>title</key><string>Amount</string><key>group</key><string>Test</string><key>control</key><dict><key>type</key><string>number</string></dict><key>default</key><real>21</real><key>responsive</key><false/><key>inlineEditable</key><false/></dict>
-        <dict><key>id</key><string>action</string><key>title</key><string>Action</string><key>group</key><string>Test</string><key>control</key><dict><key>type</key><string>button</string><key>trueValue</key><string>active</string><key>falseValue</key><string>ready</string></dict><key>default</key><false/><key>responsive</key><false/><key>inlineEditable</key><false/></dict>
-        <dict><key>id</key><string>source</string><key>title</key><string>Image</string><key>group</key><string>Test</string><key>control</key><dict><key>type</key><string>image</string></dict><key>default</key><string></string><key>responsive</key><false/><key>inlineEditable</key><false/></dict>
+        <dict><key>id</key><string>amount</string><key>title</key><string>Amount</string><key>group</key><string>Test</string><key>control</key><dict><key>type</key><string>number</string></dict><key>default</key><real>21</real><key>responsive</key><false/></dict>
+        <dict><key>id</key><string>action</string><key>title</key><string>Action</string><key>group</key><string>Test</string><key>control</key><dict><key>type</key><string>button</string><key>trueValue</key><string>active</string><key>falseValue</key><string>ready</string></dict><key>default</key><false/><key>responsive</key><false/></dict>
+        <dict><key>id</key><string>source</string><key>title</key><string>Image</string><key>group</key><string>Test</string><key>control</key><dict><key>type</key><string>image</string></dict><key>default</key><string></string><key>responsive</key><false/></dict>
         <dict><key>id</key><string>doubled</string><key>group</key><string>Test</string><key>control</key><dict><key>type</key><string>math</string><key>argument1</key><string>amount</string><key>argument2</key><real>2</real><key>operation</key><string>*</string><key>round</key><false/></dict></dict>
         <dict><key>id</key><string>thumbnail</string><key>group</key><string>Test</string><key>control</key><dict><key>type</key><string>imageTransform</string><key>input</key><string>source</string><key>maxWidth</key><real>120</real><key>maxHeight</key><real>80</real><key>rotation</key><real>5</real></dict></dict>
         </array><key>templates</key><dict><key>html</key><string>component.html</string></dict>
@@ -148,6 +147,13 @@ struct ComponentPackageTests {
             ],
             slots: [:]
         )
+        let editorContext = ComponentTemplateContext(
+            instanceID: UUID(),
+            packageIdentifier: "com.example.text",
+            properties: [:],
+            slots: [:],
+            componentAttributes: "data-foundry-id=\"test-component\""
+        )
 
         let primitives = ComponentTemplateRenderer.textPrimitives(in: template)
         #expect(primitives.map(\.key) == ["content1", "content2", "content3"])
@@ -160,6 +166,11 @@ struct ComponentPackageTests {
         #expect(edited.contains("Edited &amp; ready"))
         #expect(edited.contains("A shorter paragraph."))
         #expect(edited.contains("Updated note"))
+        let editorHTML = ComponentTemplateRenderer.render(template, context: editorContext)
+        #expect(editorHTML.components(separatedBy: "data-foundry-inline-property=").count - 1 == 3)
+        #expect(editorHTML.contains("data-foundry-inline-property=\"content1\""))
+        #expect(editorHTML.contains("data-foundry-inline-property=\"content2\""))
+        #expect(editorHTML.contains("data-foundry-inline-property=\"content3\""))
     }
 
     @Test
@@ -494,7 +505,6 @@ struct ComponentPackageTests {
             <key>control</key><dict><key>type</key><string>textAlignment</string></dict>
             <key>default</key><string>start</string>
             <key>responsive</key><true/>
-            <key>inlineEditable</key><false/>
         </dict>
         """
         let manifestText = validManifest.replacingOccurrences(
@@ -821,7 +831,6 @@ struct ComponentPackageTests {
                     <key>control</key><dict><key>type</key><string>text</string></dict>
                     <key>default</key><string>Hello</string>
                     <key>responsive</key><false/>
-                    <key>inlineEditable</key><true/>
                 </dict>
             </array>
             <key>templates</key>

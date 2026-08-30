@@ -17,16 +17,12 @@ nonisolated enum ComponentPackageAdapter {
                 isResponsive: false, isInspectorVisible: false
             )
         ] : []
-        let inlineEditableProperty = manifest.properties.first(where: \.inlineEditable).map {
-            ComponentProperty.Key(rawValue: $0.id)
-        } ?? implicitTextProperties.first?.key
         return ComponentDefinition(
             type: ComponentType(rawValue: manifest.identifier),
             displayName: manifest.name,
             systemImage: "shippingbox",
             category: ComponentCategory(rawValue: ComponentPackageGroup.resolve(manifest.category).rawValue),
             allowsChildren: !manifest.slots.isEmpty,
-            inlineEditableProperty: inlineEditableProperty,
             renderKind: .package,
             properties: manifest.properties.flatMap(propertyDefinitions) + implicitTextProperties + implicitImageProperties,
             package: package

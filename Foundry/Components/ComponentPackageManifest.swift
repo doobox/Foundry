@@ -104,8 +104,6 @@ nonisolated struct ComponentPackageProperty: Codable, Equatable, Identifiable, S
     let control: ComponentPackageControl
     let defaultValue: ComponentPackageValue
     let responsive: Bool
-    let inlineEditable: Bool
-    let css: String?
     let subtitles: [String]
     let toolTip: String?
 
@@ -116,8 +114,6 @@ nonisolated struct ComponentPackageProperty: Codable, Equatable, Identifiable, S
         case control
         case defaultValue = "default"
         case responsive
-        case inlineEditable
-        case css
         case subtitles
         case toolTip
     }
@@ -127,7 +123,6 @@ nonisolated struct ComponentPackageProperty: Codable, Equatable, Identifiable, S
         id = try container.decode(String.self, forKey: .id)
         group = try container.decode(String.self, forKey: .group)
         control = try container.decode(ComponentPackageControl.self, forKey: .control)
-        css = try container.decodeIfPresent(String.self, forKey: .css)
         subtitles = try container.decodeIfPresent([String].self, forKey: .subtitles) ?? []
         toolTip = try container.decodeIfPresent(String.self, forKey: .toolTip)
 
@@ -135,12 +130,10 @@ nonisolated struct ComponentPackageProperty: Codable, Equatable, Identifiable, S
             title = try container.decodeIfPresent(String.self, forKey: .title) ?? ""
             defaultValue = try container.decodeIfPresent(ComponentPackageValue.self, forKey: .defaultValue) ?? .string("")
             responsive = try container.decodeIfPresent(Bool.self, forKey: .responsive) ?? false
-            inlineEditable = try container.decodeIfPresent(Bool.self, forKey: .inlineEditable) ?? false
         } else {
             title = try container.decode(String.self, forKey: .title)
             defaultValue = try container.decode(ComponentPackageValue.self, forKey: .defaultValue)
             responsive = try container.decode(Bool.self, forKey: .responsive)
-            inlineEditable = try container.decode(Bool.self, forKey: .inlineEditable)
         }
     }
 }
