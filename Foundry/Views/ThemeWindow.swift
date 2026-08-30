@@ -30,17 +30,20 @@ struct ThemeWindowSceneContent: View {
     let presentationID: UUID?
 
     var body: some View {
-        if let presentationID,
-           let context = ThemeWindowRegistry.shared.context(for: presentationID) {
-            ThemeWindowContent(session: context.session)
-                .navigationTitle("\(context.session.document.site.name) – Theme")
-        } else {
-            ContentUnavailableView(
-                "Theme Unavailable",
-                systemImage: "paintpalette",
-                description: Text("Open the theme editor from a project window.")
-            )
+        Group {
+            if let presentationID,
+               let context = ThemeWindowRegistry.shared.context(for: presentationID) {
+                ThemeWindowContent(session: context.session)
+                    .navigationTitle("\(context.session.document.site.name) – Theme")
+            } else {
+                ContentUnavailableView(
+                    "Theme Unavailable",
+                    systemImage: "paintpalette",
+                    description: Text("Open the theme editor from a project window.")
+                )
+            }
         }
+        .background(WindowGeometryPersistence(key: "themeEditor.windowFrame"))
     }
 }
 
