@@ -1,41 +1,48 @@
-import AppKit
 import SwiftUI
+import WebKit
 
 @MainActor
-@Observable
-final class ThemeWindowCoordinator {
-    private weak var window: NSWindow?
-
-    private enum WindowMetrics {
-        static let width: CGFloat = 800
-        static let height: CGFloat = 575
+final class ThemeWindowRegistry {
+    struct Context {
+        let document: FoundryDocument
+        let undoManager: UndoManager?
     }
 
-    func show(document: FoundryDocument, undoManager: UndoManager?) {
-        if let window {
-            window.makeKeyAndOrderFront(nil)
-            return
+    static let shared = ThemeWindowRegistry()
+
+    private var contexts: [UUID: Context] = [:]
+
+    func register(id: UUID, document: FoundryDocument, undoManager: UndoManager?) {
+        contexts[id] = Context(document: document, undoManager: undoManager)
+    }
+
+    func context(for id: UUID) -> Context? {
+        contexts[id]
+    }
+
+    func remove(id: UUID) {
+        contexts.removeValue(forKey: id)
+    }
+}
+
+struct ThemeWindowSceneContent: View {
+    let presentationID: UUID?
+
+    var body: some View {
+        if let presentationID,
+           let context = ThemeWindowRegistry.shared.context(for: presentationID) {
+            ThemeWindowContent(
+                document: context.document,
+                undoManager: context.undoManager
+            )
+            .navigationTitle("\(context.document.site.name) – Theme")
+        } else {
+            ContentUnavailableView(
+                "Theme Unavailable",
+                systemImage: "paintpalette",
+                description: Text("Open the theme editor from a project window.")
+            )
         }
-        let content = ThemeWindowContent(document: document, undoManager: undoManager)
-        let window = NSWindow(
-            contentRect: NSRect(
-                x: 0,
-                y: 0,
-                width: WindowMetrics.width,
-                height: WindowMetrics.height
-            ),
-            styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
-            backing: .buffered,
-            defer: false
-        )
-        window.title = "\(document.site.name) – Theme"
-        window.minSize = NSSize(width: WindowMetrics.width, height: WindowMetrics.height)
-        window.titlebarAppearsTransparent = true
-        window.isReleasedWhenClosed = false
-        window.contentView = NSHostingView(rootView: content)
-        window.center()
-        window.makeKeyAndOrderFront(nil)
-        self.window = window
     }
 }
 
@@ -71,7 +78,6 @@ private struct ThemeWindowContent: View {
                 )
             }
         }
-        .frame(minWidth: 800, minHeight: 575)
     }
 }
 
@@ -464,7 +470,13 @@ private struct ThemeFontFamilyEditor: View {
     var body: some View {
         HSplitView {
             themeFontSidebar
-                .frame(minWidth: 190, idealWidth: 240, maxWidth: 320)
+                .frame(
+                    minWidth: 160,
+                    idealWidth: 240,
+                    maxWidth: 320,
+                    maxHeight: .infinity
+                )
+
             ThemeFontDefinitionEditor(
                 title: selectionTitle,
                 definition: definition(for: selection),
@@ -473,7 +485,7 @@ private struct ThemeFontFamilyEditor: View {
                 name: customNameBinding,
                 editor: editor
             )
-            .frame(minWidth: 360, maxWidth: .infinity, maxHeight: .infinity)
+            .frame(minWidth: 300, maxWidth: .infinity, maxHeight: .infinity)
         }
     }
 
@@ -513,8 +525,9 @@ private struct ThemeFontFamilyEditor: View {
                     }
                 }
             }
-            .listStyle(.sidebar)
+            .listStyle(.inset)
         }
+        .background(.background)
     }
 
     private var selectionTitle: String {
@@ -615,6 +628,19 @@ private struct ThemeFontDefinitionEditor: View {
     }
 
     private var googleFontEditor: some View {
+        HSplitView {
+            googleFontBrowserColumn
+                .frame(minWidth: 190, idealWidth: 300, maxWidth: .infinity)
+
+            GoogleFontSpecimenView(
+                family: definition.family,
+                stylesheetURL: googleStylesheetURL
+            )
+            .frame(minWidth: 210, idealWidth: 340, maxWidth: .infinity)
+        }
+    }
+
+    private var googleFontBrowserColumn: some View {
         VStack(spacing: 0) {
             Grid(alignment: .leading, horizontalSpacing: 14, verticalSpacing: 12) {
                 GridRow(alignment: .firstTextBaseline) {
@@ -637,30 +663,39 @@ private struct ThemeFontDefinitionEditor: View {
 
             Divider()
 
-            List(filteredGoogleFonts) { font in
-                Button {
-                    editor.setThemeGoogleFont(font.family, reference: reference)
-                } label: {
-                    HStack {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(font.family)
-                                .font(.title3.weight(.semibold))
-                            Text("\(font.styleCount) style\(font.styleCount == 1 ? "" : "s")")
-                                .foregroundStyle(.secondary)
-                        }
-                        Spacer()
-                        if definition.family == font.family {
-                            Image(systemName: "checkmark")
-                                .foregroundStyle(.tint)
-                        }
-                    }
-                    .contentShape(Rectangle())
-                    .padding(.vertical, 6)
-                }
-                .buttonStyle(.plain)
-            }
-            .listStyle(.inset)
+            googleFontList
         }
+    }
+
+    private var googleFontList: some View {
+        List(filteredGoogleFonts) { font in
+            Button {
+                editor.setThemeGoogleFont(font.family, reference: reference)
+            } label: {
+                HStack {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(font.family)
+                            .font(.title3.weight(.semibold))
+                        Text("\(font.styleCount) style\(font.styleCount == 1 ? "" : "s")")
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    if definition.family == font.family {
+                        Image(systemName: "checkmark")
+                            .foregroundStyle(.tint)
+                    }
+                }
+                .contentShape(Rectangle())
+                .padding(.vertical, 6)
+            }
+            .buttonStyle(.plain)
+        }
+        .listStyle(.inset)
+    }
+
+    private var googleStylesheetURL: URL? {
+        guard case .remote(let stylesheetURL) = definition.source else { return nil }
+        return stylesheetURL
     }
 
     private func fontResourcesEditor(files: [String]) -> some View {
@@ -742,11 +777,82 @@ private struct ThemeFontDefinitionEditor: View {
         }
     }
 
-    private static func assetID(from value: String) -> UUID? {
+    nonisolated private static func assetID(from value: String) -> UUID? {
         if let id = value.foundryAssetID { return id }
         let prefixes = ["foundry-asset-node:", "foundry-image-asset:"]
         guard let prefix = prefixes.first(where: value.hasPrefix) else { return nil }
         return UUID(uuidString: String(value.dropFirst(prefix.count)))
+    }
+}
+
+private struct GoogleFontSpecimenView: NSViewRepresentable {
+    let family: String
+    let stylesheetURL: URL?
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator()
+    }
+
+    func makeNSView(context: Context) -> WKWebView {
+        let configuration = WKWebViewConfiguration()
+        configuration.defaultWebpagePreferences.allowsContentJavaScript = false
+        let webView = WKWebView(frame: .zero, configuration: configuration)
+        webView.underPageBackgroundColor = .clear
+        webView.setAccessibilityLabel("\(family) font preview")
+        return webView
+    }
+
+    func updateNSView(_ webView: WKWebView, context: Context) {
+        let key = family + "|" + (stylesheetURL?.absoluteString ?? "")
+        guard context.coordinator.loadedKey != key else { return }
+        context.coordinator.loadedKey = key
+        webView.setAccessibilityLabel("\(family) font preview")
+        webView.loadHTMLString(html, baseURL: nil)
+    }
+
+    private var html: String {
+        let escapedFamily = family.htmlEscaped
+        let stylesheet = stylesheetURL.map {
+            "<link rel=\"stylesheet\" href=\"\($0.absoluteString.htmlEscaped)\">"
+        } ?? ""
+        return """
+        <!doctype html>
+        <html>
+        <head>
+            <meta charset="utf-8">
+            <meta name="color-scheme" content="light dark">
+            \(stylesheet)
+            <style>
+                * { box-sizing: border-box; }
+                html, body { margin: 0; min-height: 100%; background: transparent; }
+                body {
+                    color: CanvasText;
+                    font-family: '\(escapedFamily)', sans-serif;
+                    padding: 28px;
+                }
+                h1 { font-size: 32px; margin: 0 0 34px; }
+                .label { font: 13px system-ui; margin-bottom: 8px; }
+                .specimen {
+                    border: 1px solid color-mix(in srgb, CanvasText 18%, transparent);
+                    border-radius: 8px;
+                    font-size: 36px;
+                    line-height: 1.22;
+                    padding: 12px;
+                    overflow-wrap: anywhere;
+                }
+            </style>
+        </head>
+        <body>
+            <h1>\(escapedFamily)</h1>
+            <div class="label">Normal</div>
+            <div class="specimen">ABCDEFGHIJKLMNOPQRSTUVWXYZ<br>abcdefghijklmnopqrstuvwxyz<br>1234567890</div>
+        </body>
+        </html>
+        """
+    }
+
+    final class Coordinator {
+        var loadedKey: String?
     }
 }
 
@@ -755,6 +861,16 @@ private struct GoogleFontFamily: Identifiable, Sendable {
     let category: String
     let styleCount: Int
     var id: String { family }
+}
+
+private extension String {
+    var htmlEscaped: String {
+        replacingOccurrences(of: "&", with: "&amp;")
+            .replacingOccurrences(of: "\"", with: "&quot;")
+            .replacingOccurrences(of: "'", with: "&#39;")
+            .replacingOccurrences(of: "<", with: "&lt;")
+            .replacingOccurrences(of: ">", with: "&gt;")
+    }
 }
 
 private enum GoogleFontCategory: String, CaseIterable, Identifiable {

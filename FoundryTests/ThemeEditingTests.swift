@@ -115,4 +115,24 @@ struct ThemeEditingTests {
         #expect(canvasCSS.contains("data:font/woff2;base64,AQID"))
         #expect(exportCSS.contains("url('images/\(asset.storageFilename)')"))
     }
+
+    @Test
+    func themeWindowRegistryPreservesTheLiveDocumentAndUndoManager() throws {
+        let id = UUID()
+        let document = FoundryDocument()
+        let undoManager = UndoManager()
+
+        ThemeWindowRegistry.shared.register(
+            id: id,
+            document: document,
+            undoManager: undoManager
+        )
+        let context = try #require(ThemeWindowRegistry.shared.context(for: id))
+
+        #expect(context.document === document)
+        #expect(context.undoManager === undoManager)
+
+        ThemeWindowRegistry.shared.remove(id: id)
+        #expect(ThemeWindowRegistry.shared.context(for: id) == nil)
+    }
 }

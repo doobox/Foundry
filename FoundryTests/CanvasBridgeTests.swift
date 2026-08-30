@@ -102,8 +102,10 @@ struct CanvasBridgeTests {
         #expect(html.contains("foundry-show-outlines"))
         #expect(WebCanvasView.Coordinator.interactionScript.contains("foundrySetEditorOptions"))
         #expect(WebCanvasView.Coordinator.interactionScript.contains("scrollsToSelection"))
-        #expect(WebCanvasView.Coordinator.interactionScript.contains("attachShadow({ mode: 'closed' })"))
-        #expect(WebCanvasView.Coordinator.interactionScript.contains("pointer-events', 'none'"))
+        #expect(!WebCanvasView.Coordinator.interactionScript.contains("attachShadow"))
+        #expect(WebCanvasView.Coordinator.interactionScript.contains("data-foundry-editor-chrome"))
+        #expect(WebCanvasView.Coordinator.interactionScript.contains("'left', Math.max(0, rect.left)"))
+        #expect(WebCanvasView.Coordinator.interactionScript.contains("pointerEvents: 'none'"))
         #expect(!html.contains("data-foundry-name); position: absolute"))
     }
 

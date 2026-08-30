@@ -82,45 +82,33 @@ struct WebCanvasView: NSViewRepresentable {
           globalMenu.appendChild(globalMenuAction);
           document.body.appendChild(globalMenu);
 
-          const chromeHost = document.createElement('foundry-editor-chrome');
-          chromeHost.style.setProperty('position', 'fixed', 'important');
-          chromeHost.style.setProperty('inset', '0', 'important');
-          chromeHost.style.setProperty('display', 'block', 'important');
-          chromeHost.style.setProperty('pointer-events', 'none', 'important');
-          chromeHost.style.setProperty('z-index', '2147483647', 'important');
-          chromeHost.style.setProperty('overflow', 'visible', 'important');
-          chromeHost.style.setProperty('visibility', 'visible', 'important');
-          chromeHost.style.setProperty('opacity', '1', 'important');
-          chromeHost.style.setProperty('transform', 'none', 'important');
-          chromeHost.style.setProperty('clip', 'auto', 'important');
-          chromeHost.style.setProperty('clip-path', 'none', 'important');
-          const chromeRoot = chromeHost.attachShadow({ mode: 'closed' });
-          const chromeStyle = document.createElement('style');
-          chromeStyle.textContent = `
-            :host { all: initial; }
-            .title {
-              all: initial;
-              position: fixed;
-              display: none;
-              box-sizing: border-box;
-              max-width: calc(100vw - 16px);
-              min-width: 96px;
-              padding: 2px 16px;
-              border-radius: 999px;
-              overflow: hidden;
-              color: white;
-              background: #0A84FF;
-              font: 11px/16px system-ui, sans-serif;
-              text-align: center;
-              white-space: nowrap;
-              text-overflow: ellipsis;
-              pointer-events: none;
-            }
-          `;
           const chromeTitle = document.createElement('div');
-          chromeTitle.className = 'title';
-          chromeRoot.append(chromeStyle, chromeTitle);
-          document.documentElement.appendChild(chromeHost);
+          chromeTitle.setAttribute('data-foundry-editor-chrome', 'title');
+          const chromeTitleStyles = {
+            all: 'initial',
+            position: 'fixed',
+            display: 'none',
+            boxSizing: 'border-box',
+            padding: '3px 10px',
+            borderRadius: '0 0 5px 0',
+            overflow: 'hidden',
+            color: 'white',
+            background: '#0A84FF',
+            font: '11px/16px system-ui, sans-serif',
+            textAlign: 'center',
+            whiteSpace: 'nowrap',
+            textOverflow: 'ellipsis',
+            pointerEvents: 'none',
+            zIndex: '2147483647'
+          };
+          Object.entries(chromeTitleStyles).forEach(([property, value]) => {
+            chromeTitle.style.setProperty(
+              property.replace(/[A-Z]/g, match => '-' + match.toLowerCase()),
+              value,
+              'important'
+            );
+          });
+          document.documentElement.appendChild(chromeTitle);
           let hoveredComponent = null;
           let chromeFrame = null;
 
@@ -132,20 +120,24 @@ struct WebCanvasView: NSViewRepresentable {
           const updateChromeTitle = () => {
             chromeFrame = null;
             if (!hoveredComponent || !hoveredComponent.isConnected || !editorOptions.showsTitles || activeInlineEdit) {
-              chromeTitle.style.display = 'none';
+              chromeTitle.style.setProperty('display', 'none', 'important');
               return;
             }
             const rect = hoveredComponent.getBoundingClientRect();
             if (rect.width <= 0 || rect.height <= 0 || rect.bottom < 0 || rect.top > window.innerHeight) {
-              chromeTitle.style.display = 'none';
+              chromeTitle.style.setProperty('display', 'none', 'important');
               return;
             }
             chromeTitle.textContent = hoveredComponent.dataset.foundryName || '';
-            chromeTitle.style.background = componentChromeColor(hoveredComponent);
-            chromeTitle.style.left = Math.max(8, Math.min(rect.left + rect.width / 2, window.innerWidth - 8)) + 'px';
-            chromeTitle.style.top = Math.max(10, rect.top) + 'px';
-            chromeTitle.style.transform = 'translate(-50%, -50%)';
-            chromeTitle.style.display = 'block';
+            chromeTitle.style.setProperty('background', componentChromeColor(hoveredComponent), 'important');
+            chromeTitle.style.setProperty('left', Math.max(0, rect.left) + 'px', 'important');
+            chromeTitle.style.setProperty('top', Math.max(0, rect.top) + 'px', 'important');
+            chromeTitle.style.setProperty(
+              'max-width',
+              Math.max(0, Math.min(rect.width, window.innerWidth - Math.max(0, rect.left))) + 'px',
+              'important'
+            );
+            chromeTitle.style.setProperty('display', 'block', 'important');
           };
 
           const scheduleChromeTitleUpdate = () => {

@@ -5,6 +5,8 @@ import UniformTypeIdentifiers
 struct ContentView: View {
     @ObservedObject var document: FoundryDocument
     @Environment(\.undoManager) private var undoManager
+    @Environment(\.openWindow) private var openWindow
+    @Environment(\.dismissWindow) private var dismissWindow
     @State private var selectedPageID: UUID?
     @State private var inspectedPageID: UUID?
     @State private var selectedPageFolderID: UUID?
@@ -16,7 +18,7 @@ struct ContentView: View {
     @State private var editsSharedReusableDefinition = false
     @State private var workspaceLayout = WorkspaceLayout.restored()
     @State private var detachedPanelWindows = DetachedPanelWindowCoordinator()
-    @State private var themeWindow = ThemeWindowCoordinator()
+    @State private var themeWindowID = UUID()
     @State private var exportErrorMessage: String?
     @State private var showsProjectSettings = false
     @State private var previewSessionApplicationIdentifier: String?
@@ -44,7 +46,12 @@ struct ContentView: View {
             canvasViewportWidth: $canvasViewportWidth,
             openProjectSettings: { showsProjectSettings = true },
             openThemeEditor: {
-                themeWindow.show(document: document, undoManager: undoManager)
+                ThemeWindowRegistry.shared.register(
+                    id: themeWindowID,
+                    document: document,
+                    undoManager: undoManager
+                )
+                openWindow(id: "theme-editor", value: themeWindowID)
             },
             previewSite: previewSite,
             exportSite: exportSite
@@ -74,6 +81,10 @@ struct ContentView: View {
             appearance.apply()
             selectedPageID = selectedPageID ?? document.site.pages.first?.id
             inspectedPageID = inspectedPageID ?? selectedPageID
+        }
+        .onDisappear {
+            dismissWindow(id: "theme-editor", value: themeWindowID)
+            ThemeWindowRegistry.shared.remove(id: themeWindowID)
         }
         .onChange(of: appearance) { _, newValue in
             newValue.apply()

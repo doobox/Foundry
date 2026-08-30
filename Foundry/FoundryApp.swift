@@ -25,6 +25,22 @@ struct FoundryApp: App {
         .defaultSize(width: EditorWindowSize.idealWidth, height: EditorWindowSize.idealHeight)
         .windowToolbarStyle(.unified)
 
+        WindowGroup("Theme", id: "theme-editor", for: UUID.self) { $presentationID in
+            ThemeWindowSceneContent(presentationID: presentationID)
+                .frame(
+                    minWidth: 1_104,
+                    idealWidth: 1_104,
+                    maxWidth: .infinity,
+                    minHeight: 661,
+                    idealHeight: 661,
+                    maxHeight: .infinity
+                )
+        }
+        .defaultSize(width: 1_104, height: 661)
+        .windowResizability(.contentMinSize)
+        .windowToolbarStyle(.unified)
+        .restorationBehavior(.disabled)
+
         Window("Manage Workspaces", id: "workspace-manager") {
             WorkspaceManagerView()
                 .environment(workspaceLibrary)
