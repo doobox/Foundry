@@ -66,13 +66,25 @@ struct WindowGeometryPersistence: NSViewRepresentable {
                     ?? window.screen?.visibleFrame
                     ?? NSScreen.main?.visibleFrame else { return }
 
-            let minimumSize = window.contentMinSize
-            var restored = savedFrame
-            restored.size.width = min(max(restored.width, minimumSize.width), screenFrame.width)
-            restored.size.height = min(max(restored.height, minimumSize.height), screenFrame.height)
-            restored.origin.x = min(max(restored.minX, screenFrame.minX), screenFrame.maxX - restored.width)
-            restored.origin.y = min(max(restored.minY, screenFrame.minY), screenFrame.maxY - restored.height)
+            let restored = Self.restoredFrame(
+                savedFrame,
+                minimumSize: window.contentMinSize,
+                visibleFrame: screenFrame
+            )
             window.setFrame(restored, display: false)
+        }
+
+        static func restoredFrame(
+            _ savedFrame: NSRect,
+            minimumSize: NSSize,
+            visibleFrame: NSRect
+        ) -> NSRect {
+            var restored = savedFrame
+            restored.size.width = min(max(restored.width, minimumSize.width), visibleFrame.width)
+            restored.size.height = min(max(restored.height, minimumSize.height), visibleFrame.height)
+            restored.origin.x = min(max(restored.minX, visibleFrame.minX), visibleFrame.maxX - restored.width)
+            restored.origin.y = min(max(restored.minY, visibleFrame.minY), visibleFrame.maxY - restored.height)
+            return restored
         }
 
         private func saveFrame() {
