@@ -36,6 +36,7 @@ struct FoundryApp: App {
                     maxHeight: .infinity
                 )
         }
+        .commandsRemoved()
         .defaultSize(width: 1_104, height: 661)
         .windowResizability(.contentMinSize)
         .windowToolbarStyle(.unified)
