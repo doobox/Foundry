@@ -798,15 +798,38 @@ private struct ThemeFontDefinitionEditor: View {
         let selectedAssets = files.compactMap { reference in
             assets.first(where: { $0.id == reference.foundryAssetID })
         }
-        return VStack(spacing: 20) {
-            if selectedAssets.isEmpty {
-                VStack(spacing: 28) {
-                    Text("First, add fonts to your project resources")
-                    Text("Then drag and drop the resources here")
+        let availableAssets = assets.filter { asset in
+            asset.isFontResource && !files.contains(asset.reference)
+        }
+        return VStack(spacing: 0) {
+            HStack {
+                Text("Font Resources")
+                    .font(.headline)
+                Spacer()
+                Menu("Add Font Resource", systemImage: "plus") {
+                    ForEach(availableAssets) { asset in
+                        Button(asset.filename) {
+                            addFontResource(asset, to: files)
+                        }
+                    }
                 }
-                .font(.title3.weight(.semibold))
-                .foregroundStyle(.secondary)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .menuStyle(.borderlessButton)
+                .fixedSize()
+                .disabled(availableAssets.isEmpty)
+                .help(availableAssets.isEmpty
+                      ? "Add a font file to Project Resources first"
+                      : "Add a font from Project Resources")
+            }
+            .padding(16)
+
+            Divider()
+
+            if selectedAssets.isEmpty {
+                ContentUnavailableView(
+                    "No Font Resources",
+                    systemImage: "textformat",
+                    description: Text("Add a font from Project Resources, or drag a font resource here.")
+                )
             } else {
                 List(selectedAssets) { asset in
                     HStack {
@@ -842,6 +865,16 @@ private struct ThemeFontDefinitionEditor: View {
                 )
             }
             return true
+        }
+    }
+
+    private func addFontResource(_ asset: ProjectAsset, to files: [String]) {
+        editor.setThemeFontResources(files + [asset.reference], reference: reference)
+        if files.isEmpty {
+            editor.setThemeFontFamily(
+                (asset.filename as NSString).deletingPathExtension,
+                reference: reference
+            )
         }
     }
 
