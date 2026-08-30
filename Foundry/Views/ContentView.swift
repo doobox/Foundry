@@ -1187,10 +1187,27 @@ private struct PublishingProgressView: View {
         case .publishing(let progress):
             if let progress {
                 ProgressView(value: progress.fractionCompleted)
-                Text("Uploading \(progress.fileIndex) of \(progress.fileCount): \(progress.file)")
-                    .lineLimit(1)
-                    .truncationMode(.middle)
                 Text("\(formattedBytes(progress.uploadedBytes)) of \(formattedBytes(progress.totalBytes))")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                VStack(spacing: 8) {
+                    ForEach(progress.transfers) { transfer in
+                        VStack(alignment: .leading, spacing: 3) {
+                            HStack {
+                                Text(transfer.file)
+                                    .lineLimit(1)
+                                    .truncationMode(.middle)
+                                Spacer(minLength: 8)
+                                Text("\(Int(transfer.fractionCompleted * 100))%")
+                                    .monospacedDigit()
+                                    .foregroundStyle(.secondary)
+                            }
+                            ProgressView(value: transfer.fractionCompleted)
+                        }
+                    }
+                }
+                .font(.caption)
+                Text("\(progress.completedFileCount) of \(progress.fileCount) files complete")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             } else {

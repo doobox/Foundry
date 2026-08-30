@@ -29,12 +29,25 @@ nonisolated enum PublishingError: LocalizedError {
 }
 
 nonisolated struct PublishingProgress: Sendable, Equatable {
+    let fileCount: Int
+    let completedFileCount: Int
+    let uploadedBytes: Int64
+    let totalBytes: Int64
+    let transfers: [PublishingFileProgress]
+
+    var fractionCompleted: Double {
+        guard totalBytes > 0 else { return 0 }
+        return min(1, Double(uploadedBytes) / Double(totalBytes))
+    }
+}
+
+nonisolated struct PublishingFileProgress: Sendable, Equatable, Identifiable {
     let file: String
     let fileIndex: Int
-    let fileCount: Int
     let uploadedBytes: Int64
     let totalBytes: Int64
 
+    var id: String { file }
     var fractionCompleted: Double {
         guard totalBytes > 0 else { return 0 }
         return min(1, Double(uploadedBytes) / Double(totalBytes))
@@ -146,27 +159,12 @@ nonisolated struct PublishingManifestStore: Sendable {
 nonisolated private final class CurlProgressContext: @unchecked Sendable {
     private let lock = NSLock()
     private var cancelled = false
-    let baseBytes: Int64
-    let totalBytes: Int64
     let file: String
-    let fileIndex: Int
-    let fileCount: Int
-    let handler: @Sendable (PublishingProgress) -> Void
+    let tracker: PublishingProgressTracker?
 
-    init(
-        baseBytes: Int64,
-        totalBytes: Int64,
-        file: String,
-        fileIndex: Int,
-        fileCount: Int,
-        handler: @escaping @Sendable (PublishingProgress) -> Void
-    ) {
-        self.baseBytes = baseBytes
-        self.totalBytes = totalBytes
+    init(file: String, tracker: PublishingProgressTracker? = nil) {
         self.file = file
-        self.fileIndex = fileIndex
-        self.fileCount = fileCount
-        self.handler = handler
+        self.tracker = tracker
     }
 
     func cancel() {
@@ -176,14 +174,82 @@ nonisolated private final class CurlProgressContext: @unchecked Sendable {
     func update(uploadedBytes: Int64) -> Int32 {
         let isCancelled = lock.withLock { cancelled }
         if isCancelled { return 1 }
-        handler(PublishingProgress(
-            file: file,
-            fileIndex: fileIndex,
-            fileCount: fileCount,
-            uploadedBytes: baseBytes + uploadedBytes,
-            totalBytes: totalBytes
-        ))
+        tracker?.update(file: file, uploadedBytes: uploadedBytes)
         return 0
+    }
+}
+
+nonisolated private final class PublishingProgressTracker: @unchecked Sendable {
+    private struct ActiveTransfer {
+        let index: Int
+        let totalBytes: Int64
+        var uploadedBytes: Int64
+    }
+
+    private let lock = NSLock()
+    private let totalBytes: Int64
+    private let fileCount: Int
+    private let handler: @Sendable (PublishingProgress) -> Void
+    private var active: [String: ActiveTransfer] = [:]
+    private var completedBytes: Int64 = 0
+    private var completedFileCount = 0
+
+    init(files: [SiteExportFile], handler: @escaping @Sendable (PublishingProgress) -> Void) {
+        totalBytes = files.reduce(0) { $0 + Int64($1.data.count) }
+        fileCount = files.count
+        self.handler = handler
+    }
+
+    func start(file: SiteExportFile, index: Int) {
+        emit(lock.withLock {
+            active[file.path] = ActiveTransfer(
+                index: index,
+                totalBytes: Int64(file.data.count),
+                uploadedBytes: 0
+            )
+            return snapshot()
+        })
+    }
+
+    func update(file: String, uploadedBytes: Int64) {
+        let progress = lock.withLock { () -> PublishingProgress in
+            guard var transfer = active[file] else { return snapshot() }
+            transfer.uploadedBytes = min(transfer.totalBytes, max(0, uploadedBytes))
+            active[file] = transfer
+            return snapshot()
+        }
+        emit(progress)
+    }
+
+    func finish(file: SiteExportFile) {
+        emit(lock.withLock {
+            active.removeValue(forKey: file.path)
+            completedBytes += Int64(file.data.count)
+            completedFileCount += 1
+            return snapshot()
+        })
+    }
+
+    private func snapshot() -> PublishingProgress {
+        let transfers = active.map { file, transfer in
+            PublishingFileProgress(
+                file: file,
+                fileIndex: transfer.index,
+                uploadedBytes: transfer.uploadedBytes,
+                totalBytes: transfer.totalBytes
+            )
+        }.sorted { $0.fileIndex < $1.fileIndex }
+        return PublishingProgress(
+            fileCount: fileCount,
+            completedFileCount: completedFileCount,
+            uploadedBytes: completedBytes + transfers.reduce(0) { $0 + $1.uploadedBytes },
+            totalBytes: totalBytes,
+            transfers: transfers
+        )
+    }
+
+    private func emit(_ progress: PublishingProgress) {
+        handler(progress)
     }
 }
 
@@ -234,27 +300,13 @@ nonisolated struct SitePublisher: Sendable {
             previous: manifestStore.load(for: site, localDirectory: localDirectory),
             removesObsoleteFiles: site.cleansObsoleteExportFiles
         )
-        let totalBytes = plan.uploads.reduce(Int64(0)) { $0 + Int64($1.data.count) }
-        var completedBytes: Int64 = 0
-        for (offset, file) in plan.uploads.enumerated() {
-            try Task.checkCancellation()
-            let context = CurlProgressContext(
-                baseBytes: completedBytes,
-                totalBytes: totalBytes,
-                file: file.path,
-                fileIndex: offset + 1,
-                fileCount: plan.uploads.count,
-                handler: progress
-            )
-            try await perform(
-                site: site,
-                relativePath: file.path,
-                credential: credential,
-                operation: .upload(file.data),
-                context: context
-            )
-            completedBytes += Int64(file.data.count)
-        }
+        let tracker = PublishingProgressTracker(files: plan.uploads, handler: progress)
+        try await uploadConcurrently(
+            plan.uploads,
+            site: site,
+            credential: credential,
+            tracker: tracker
+        )
         for path in plan.removals {
             try Task.checkCancellation()
             try await perform(
@@ -262,14 +314,7 @@ nonisolated struct SitePublisher: Sendable {
                 relativePath: path,
                 credential: credential,
                 operation: .delete,
-                context: CurlProgressContext(
-                    baseBytes: totalBytes,
-                    totalBytes: totalBytes,
-                    file: path,
-                    fileIndex: plan.uploads.count,
-                    fileCount: plan.uploads.count,
-                    handler: progress
-                )
+                context: CurlProgressContext(file: path)
             )
         }
         try manifestStore.save(plan.nextManifest, for: site, localDirectory: localDirectory)
@@ -283,14 +328,7 @@ nonisolated struct SitePublisher: Sendable {
     func testConnection(site: Site, credential: String) async throws {
         guard site.publishingDestination != .local else { return }
         try validate(site: site, credential: credential)
-        let context = CurlProgressContext(
-            baseBytes: 0,
-            totalBytes: 0,
-            file: "",
-            fileIndex: 0,
-            fileCount: 0,
-            handler: { _ in }
-        )
+        let context = CurlProgressContext(file: "")
         try await perform(
             site: site,
             relativePath: "",
@@ -298,6 +336,52 @@ nonisolated struct SitePublisher: Sendable {
             operation: .test,
             context: context
         )
+    }
+
+    private func uploadConcurrently(
+        _ files: [SiteExportFile],
+        site: Site,
+        credential: String,
+        tracker: PublishingProgressTracker
+    ) async throws {
+        let maximumConcurrentUploads = 4
+        try await withThrowingTaskGroup(of: Void.self) { group in
+            var nextIndex = 0
+            let initialCount = min(maximumConcurrentUploads, files.count)
+            for _ in 0..<initialCount {
+                addUpload(files[nextIndex], index: nextIndex, to: &group, site: site, credential: credential, tracker: tracker)
+                nextIndex += 1
+            }
+            while try await group.next() != nil {
+                if nextIndex < files.count {
+                    addUpload(files[nextIndex], index: nextIndex, to: &group, site: site, credential: credential, tracker: tracker)
+                    nextIndex += 1
+                }
+            }
+        }
+    }
+
+    private func addUpload(
+        _ file: SiteExportFile,
+        index: Int,
+        to group: inout ThrowingTaskGroup<Void, any Error>,
+        site: Site,
+        credential: String,
+        tracker: PublishingProgressTracker
+    ) {
+        group.addTask {
+            try Task.checkCancellation()
+            tracker.start(file: file, index: index + 1)
+            let context = CurlProgressContext(file: file.path, tracker: tracker)
+            try await perform(
+                site: site,
+                relativePath: file.path,
+                credential: credential,
+                operation: .upload(file.data),
+                context: context
+            )
+            tracker.finish(file: file)
+        }
     }
 
     private func validate(site: Site, credential: String) throws {
