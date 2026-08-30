@@ -943,7 +943,7 @@ struct ContentView: View {
                 }.value
                 try Task.checkCancellation()
                 publishingState = .publishing(nil)
-                try await SitePublisher().publish(
+                let result = try await SitePublisher().publish(
                     bundle: bundle,
                     site: site,
                     localDirectory: localDirectory,
@@ -953,7 +953,7 @@ struct ContentView: View {
                         publishingState = .publishing(progress)
                     }
                 }
-                publishingState = .completed(fileCount: bundle.files.count)
+                publishingState = .completed(result)
             } catch is CancellationError {
                 publishingState = .cancelled
             } catch {
@@ -1087,7 +1087,7 @@ struct ContentView: View {
 private enum PublishingModalState {
     case preparing
     case publishing(PublishingProgress?)
-    case completed(fileCount: Int)
+    case completed(PublishingResult)
     case failed(String)
     case cancelled
 
@@ -1158,8 +1158,8 @@ private struct PublishingProgressView: View {
                 Text("Starting upload…")
                     .foregroundStyle(.secondary)
             }
-        case .completed(let fileCount):
-            Text("Published \(fileCount) files successfully.")
+        case .completed(let result):
+            Text(completionMessage(result))
                 .foregroundStyle(.secondary)
         case .failed(let message):
             Text(message)
@@ -1170,6 +1170,13 @@ private struct PublishingProgressView: View {
             Text("Publishing was cancelled.")
                 .foregroundStyle(.secondary)
         }
+    }
+
+    private func completionMessage(_ result: PublishingResult) -> String {
+        var parts = ["Uploaded \(result.uploadedFileCount)"]
+        if result.unchangedFileCount > 0 { parts.append("skipped \(result.unchangedFileCount) unchanged") }
+        if result.removedFileCount > 0 { parts.append("removed \(result.removedFileCount) obsolete") }
+        return parts.joined(separator: ", ") + "."
     }
 
     private var title: String {

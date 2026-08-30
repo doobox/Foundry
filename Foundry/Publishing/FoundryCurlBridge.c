@@ -122,7 +122,16 @@ int32_t FoundryCurlPerform(
     curl_easy_setopt(curl, CURLOPT_XFERINFOFUNCTION, FoundryCurlProgress);
     curl_easy_setopt(curl, CURLOPT_XFERINFODATA, &context);
 
-    if (request->testOnly != 0) {
+    struct curl_slist *commands = NULL;
+    if (request->deleteOnly != 0) {
+        if (request->awsSignature != NULL) {
+            curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, "DELETE");
+        } else if (request->deleteCommand != NULL) {
+            commands = curl_slist_append(commands, request->deleteCommand);
+            curl_easy_setopt(curl, CURLOPT_QUOTE, commands);
+            curl_easy_setopt(curl, CURLOPT_NOBODY, 1L);
+        }
+    } else if (request->testOnly != 0) {
         if (request->awsSignature != NULL) {
             curl_easy_setopt(curl, CURLOPT_NOBODY, 1L);
         } else {
@@ -142,6 +151,7 @@ int32_t FoundryCurlPerform(
         const char *message = curlError[0] == '\0' ? curl_easy_strerror(result) : curlError;
         FoundryCurlCopyError(errorMessage, errorMessageLength, message);
     }
+    curl_slist_free_all(commands);
     curl_easy_cleanup(curl);
     return (int32_t)result;
 }

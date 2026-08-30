@@ -1,4 +1,5 @@
 import Foundation
+import CryptoKit
 import Security
 
 nonisolated enum PublishingError: LocalizedError {
@@ -37,6 +38,81 @@ nonisolated struct PublishingProgress: Sendable, Equatable {
     var fractionCompleted: Double {
         guard totalBytes > 0 else { return 0 }
         return min(1, Double(uploadedBytes) / Double(totalBytes))
+    }
+}
+
+nonisolated struct PublishingResult: Sendable, Equatable {
+    let uploadedFileCount: Int
+    let unchangedFileCount: Int
+    let removedFileCount: Int
+}
+
+nonisolated struct PublishingManifest: Codable, Sendable, Equatable {
+    var files: [String: String]
+}
+
+nonisolated struct PublishingPlan: Sendable, Equatable {
+    let uploads: [SiteExportFile]
+    let removals: [String]
+    let unchangedFileCount: Int
+    let nextManifest: PublishingManifest
+
+    static func make(
+        bundle: SiteExportBundle,
+        previous: PublishingManifest?,
+        removesObsoleteFiles: Bool
+    ) -> PublishingPlan {
+        let current = Dictionary(uniqueKeysWithValues: bundle.files.map { ($0.path, hash($0.data)) })
+        let previousFiles = previous?.files ?? [:]
+        let uploads = bundle.files.filter { previousFiles[$0.path] != current[$0.path] }
+        let obsolete = previousFiles.keys.filter { current[$0] == nil }.sorted()
+        let retained = removesObsoleteFiles ? current : previousFiles.merging(current) { _, new in new }
+        return PublishingPlan(
+            uploads: uploads,
+            removals: removesObsoleteFiles ? obsolete : [],
+            unchangedFileCount: bundle.files.count - uploads.count,
+            nextManifest: PublishingManifest(files: retained)
+        )
+    }
+
+    private static func hash(_ data: Data) -> String {
+        SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
+    }
+}
+
+nonisolated struct PublishingManifestStore: Sendable {
+    let directory: URL
+
+    init(directory: URL? = nil) {
+        self.directory = directory ?? FileManager.default.urls(
+            for: .applicationSupportDirectory,
+            in: .userDomainMask
+        )[0].appending(path: "Foundry/Publishing Manifests", directoryHint: .isDirectory)
+    }
+
+    func load(for site: Site) -> PublishingManifest? {
+        try? JSONDecoder().decode(PublishingManifest.self, from: Data(contentsOf: url(for: site)))
+    }
+
+    func save(_ manifest: PublishingManifest, for site: Site) throws {
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let data = try JSONEncoder().encode(manifest)
+        try data.write(to: url(for: site), options: .atomic)
+    }
+
+    private func url(for site: Site) -> URL {
+        let identity = [
+            site.id.uuidString,
+            site.publishingDestination.rawValue,
+            site.publishingHost,
+            String(site.publishingPort),
+            site.publishingUsername,
+            site.publishingRemotePath,
+            site.publishingS3Bucket,
+            site.publishingS3Region
+        ].joined(separator: "\u{1f}")
+        let key = SHA256.hash(data: Data(identity.utf8)).map { String(format: "%02x", $0) }.joined()
+        return directory.appending(path: "\(key).json")
     }
 }
 
@@ -101,7 +177,7 @@ nonisolated struct SitePublisher: Sendable {
         localDirectory: URL?,
         credential: String,
         progress: @escaping @Sendable (PublishingProgress) -> Void
-    ) async throws {
+    ) async throws -> PublishingResult {
         if site.publishingDestination == .local {
             guard let localDirectory else { throw PublishingError.missingLocalDestination }
             try await Task.detached {
@@ -111,32 +187,64 @@ nonisolated struct SitePublisher: Sendable {
                     cleaningObsoleteFiles: site.cleansObsoleteExportFiles
                 )
             }.value
-            return
+            return PublishingResult(
+                uploadedFileCount: bundle.files.count,
+                unchangedFileCount: 0,
+                removedFileCount: 0
+            )
         }
 
         try validate(site: site, credential: credential)
-        let totalBytes = bundle.files.reduce(Int64(0)) { $0 + Int64($1.data.count) }
+        let manifestStore = PublishingManifestStore()
+        let plan = PublishingPlan.make(
+            bundle: bundle,
+            previous: manifestStore.load(for: site),
+            removesObsoleteFiles: site.cleansObsoleteExportFiles
+        )
+        let totalBytes = plan.uploads.reduce(Int64(0)) { $0 + Int64($1.data.count) }
         var completedBytes: Int64 = 0
-        for (offset, file) in bundle.files.enumerated() {
+        for (offset, file) in plan.uploads.enumerated() {
             try Task.checkCancellation()
             let context = CurlProgressContext(
                 baseBytes: completedBytes,
                 totalBytes: totalBytes,
                 file: file.path,
                 fileIndex: offset + 1,
-                fileCount: bundle.files.count,
+                fileCount: plan.uploads.count,
                 handler: progress
             )
             try await perform(
                 site: site,
                 relativePath: file.path,
-                data: file.data,
                 credential: credential,
-                testOnly: false,
+                operation: .upload(file.data),
                 context: context
             )
             completedBytes += Int64(file.data.count)
         }
+        for path in plan.removals {
+            try Task.checkCancellation()
+            try await perform(
+                site: site,
+                relativePath: path,
+                credential: credential,
+                operation: .delete,
+                context: CurlProgressContext(
+                    baseBytes: totalBytes,
+                    totalBytes: totalBytes,
+                    file: path,
+                    fileIndex: plan.uploads.count,
+                    fileCount: plan.uploads.count,
+                    handler: progress
+                )
+            )
+        }
+        try manifestStore.save(plan.nextManifest, for: site)
+        return PublishingResult(
+            uploadedFileCount: plan.uploads.count,
+            unchangedFileCount: plan.unchangedFileCount,
+            removedFileCount: plan.removals.count
+        )
     }
 
     func testConnection(site: Site, credential: String) async throws {
@@ -153,9 +261,8 @@ nonisolated struct SitePublisher: Sendable {
         try await perform(
             site: site,
             relativePath: "",
-            data: Data(),
             credential: credential,
-            testOnly: true,
+            operation: .test,
             context: context
         )
     }
@@ -189,21 +296,42 @@ nonisolated struct SitePublisher: Sendable {
         }
     }
 
+    private enum Operation {
+        case upload(Data)
+        case delete
+        case test
+
+        var isDelete: Bool {
+            if case .delete = self { true } else { false }
+        }
+
+        var isTest: Bool {
+            if case .test = self { true } else { false }
+        }
+    }
+
     private func perform(
         site: Site,
         relativePath: String,
-        data: Data,
         credential: String,
-        testOnly: Bool,
+        operation: Operation,
         context: CurlProgressContext
     ) async throws {
+        let data: Data
+        switch operation {
+        case .upload(let contents): data = contents
+        case .delete, .test: data = Data()
+        }
         try await withTaskCancellationHandler {
             try await Task.detached {
                 try data.withUnsafeBytes { bytes in
+                    let requestPath = operation.isDelete && site.publishingDestination != .amazonS3
+                        ? ""
+                        : relativePath
                     let url = PublishingRemoteURLBuilder.url(
                         site: site,
-                        relativePath: relativePath,
-                        testOnly: testOnly
+                        relativePath: requestPath,
+                        testOnly: operation.isTest || operation.isDelete
                     ) as NSString
                     let username = site.publishingUsername as NSString
                     let password = credential as NSString
@@ -211,6 +339,9 @@ nonisolated struct SitePublisher: Sendable {
                     let knownHosts = knownHostsPath as NSString?
                     let awsSignature = site.publishingDestination == .amazonS3
                         ? "aws:amz:\(site.publishingS3Region):s3" as NSString
+                        : nil
+                    let deleteCommand = operation.isDelete
+                        ? PublishingRemoteURLBuilder.deleteCommand(site: site, relativePath: relativePath)
                         : nil
                     var request = FoundryCurlRequest(
                         url: url.utf8String,
@@ -221,7 +352,9 @@ nonisolated struct SitePublisher: Sendable {
                         awsSignature: awsSignature?.utf8String,
                         data: bytes.bindMemory(to: UInt8.self).baseAddress,
                         dataLength: bytes.count,
-                        testOnly: testOnly ? 1 : 0,
+                        testOnly: operation.isTest ? 1 : 0,
+                        deleteOnly: operation.isDelete ? 1 : 0,
+                        deleteCommand: deleteCommand?.utf8String,
                         createRemoteDirectories: 1,
                         requireExplicitFTPSTLS: site.publishingDestination == .ftps ? 1 : 0
                     )
@@ -282,6 +415,19 @@ nonisolated enum PublishingRemoteURLBuilder {
         }
         let suffix = testOnly && !path.hasSuffix("/") ? "/" : ""
         return base + path + suffix
+    }
+
+    static func deleteCommand(site: Site, relativePath: String) -> NSString {
+        let root = trimmedPath(site.publishingRemotePath)
+        let path = [root, relativePath].filter { !$0.isEmpty }.joined(separator: "/")
+        switch site.publishingDestination {
+        case .sftp:
+            return "rm \(site.publishingRemotePath.hasPrefix("/") ? "/" : "")\(path)" as NSString
+        case .ftp, .ftps:
+            return "DELE \(site.publishingRemotePath.hasPrefix("/") ? "/" : "")\(path)" as NSString
+        case .local, .amazonS3:
+            return "" as NSString
+        }
     }
 
     private static func effectivePort(_ site: Site) -> Int {
