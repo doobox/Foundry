@@ -59,6 +59,26 @@ struct ProjectEditor {
         mutate(actionName: "Change Search Indexing") { $0.allowsSearchIndexing = isEnabled }
     }
 
+    func setCustomCodeEnabled(_ isEnabled: Bool) {
+        mutate(actionName: "Change Custom Code") { $0.customCodeEnabled = isEnabled }
+    }
+
+    func setSiteHeadCode(_ code: String) {
+        mutate(actionName: "Edit Head Code") { $0.headCode = code }
+    }
+
+    func setSiteBodyStartCode(_ code: String) {
+        mutate(actionName: "Edit Body Start Code") { $0.bodyStartCode = code }
+    }
+
+    func setSiteBodyEndCode(_ code: String) {
+        mutate(actionName: "Edit Body End Code") { $0.bodyEndCode = code }
+    }
+
+    func setSiteAnalyticsCode(_ code: String) {
+        mutate(actionName: "Edit Analytics Code") { $0.analyticsCode = code }
+    }
+
     func renameComponent(id: UUID, name: String) {
         mutate(actionName: "Rename Component") { site in
             site.updateComponent(id: id) { $0.name = name }

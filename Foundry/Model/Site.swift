@@ -1,7 +1,7 @@
 import Foundation
 
 nonisolated struct Site: Codable, Equatable, Identifiable, Sendable {
-    static let currentSchemaVersion = 7
+    static let currentSchemaVersion = 8
 
     let id: UUID
     var schemaVersion: Int
@@ -16,6 +16,11 @@ nonisolated struct Site: Codable, Equatable, Identifiable, Sendable {
     var generatesSitemap: Bool
     var generatesRobotsTXT: Bool
     var allowsSearchIndexing: Bool
+    var customCodeEnabled: Bool
+    var headCode: String
+    var bodyStartCode: String
+    var bodyEndCode: String
+    var analyticsCode: String
     var pages: [Page]
     var pageFolders: [PageFolder]
     var theme: Theme
@@ -41,6 +46,11 @@ nonisolated struct Site: Codable, Equatable, Identifiable, Sendable {
         generatesSitemap: Bool = true,
         generatesRobotsTXT: Bool = true,
         allowsSearchIndexing: Bool = true,
+        customCodeEnabled: Bool = true,
+        headCode: String = "",
+        bodyStartCode: String = "",
+        bodyEndCode: String = "",
+        analyticsCode: String = "",
         pages: [Page],
         pageFolders: [PageFolder] = [],
         theme: Theme = .standard,
@@ -63,6 +73,11 @@ nonisolated struct Site: Codable, Equatable, Identifiable, Sendable {
         self.generatesSitemap = generatesSitemap
         self.generatesRobotsTXT = generatesRobotsTXT
         self.allowsSearchIndexing = allowsSearchIndexing
+        self.customCodeEnabled = customCodeEnabled
+        self.headCode = headCode
+        self.bodyStartCode = bodyStartCode
+        self.bodyEndCode = bodyEndCode
+        self.analyticsCode = analyticsCode
         self.pages = pages
         self.pageFolders = pageFolders
         self.theme = theme
@@ -106,7 +121,7 @@ nonisolated struct Site: Codable, Equatable, Identifiable, Sendable {
     }
 
     private enum CodingKeys: String, CodingKey {
-        case id, schemaVersion, name, language, publicURL, titleSuffix, defaultDescription, favicon, defaultSocialImage, generatesCanonicalURLs, generatesSitemap, generatesRobotsTXT, allowsSearchIndexing, pages, pageFolders, theme, reusableComponents, globalComponents, assetLibrary, componentPackages, themePackage
+        case id, schemaVersion, name, language, publicURL, titleSuffix, defaultDescription, favicon, defaultSocialImage, generatesCanonicalURLs, generatesSitemap, generatesRobotsTXT, allowsSearchIndexing, customCodeEnabled, headCode, bodyStartCode, bodyEndCode, analyticsCode, pages, pageFolders, theme, reusableComponents, globalComponents, assetLibrary, componentPackages, themePackage
     }
 
     init(from decoder: Decoder) throws {
@@ -124,6 +139,11 @@ nonisolated struct Site: Codable, Equatable, Identifiable, Sendable {
         generatesSitemap = try container.decodeIfPresent(Bool.self, forKey: .generatesSitemap) ?? true
         generatesRobotsTXT = try container.decodeIfPresent(Bool.self, forKey: .generatesRobotsTXT) ?? true
         allowsSearchIndexing = try container.decodeIfPresent(Bool.self, forKey: .allowsSearchIndexing) ?? true
+        customCodeEnabled = try container.decodeIfPresent(Bool.self, forKey: .customCodeEnabled) ?? true
+        headCode = try container.decodeIfPresent(String.self, forKey: .headCode) ?? ""
+        bodyStartCode = try container.decodeIfPresent(String.self, forKey: .bodyStartCode) ?? ""
+        bodyEndCode = try container.decodeIfPresent(String.self, forKey: .bodyEndCode) ?? ""
+        analyticsCode = try container.decodeIfPresent(String.self, forKey: .analyticsCode) ?? ""
         pages = try container.decode([Page].self, forKey: .pages)
         pageFolders = try container.decodeIfPresent([PageFolder].self, forKey: .pageFolders) ?? []
         theme = try container.decode(Theme.self, forKey: .theme)

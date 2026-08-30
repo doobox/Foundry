@@ -47,6 +47,11 @@ struct DocumentCodingTests {
         object.removeValue(forKey: "generatesSitemap")
         object.removeValue(forKey: "generatesRobotsTXT")
         object.removeValue(forKey: "allowsSearchIndexing")
+        object.removeValue(forKey: "customCodeEnabled")
+        object.removeValue(forKey: "headCode")
+        object.removeValue(forKey: "bodyStartCode")
+        object.removeValue(forKey: "bodyEndCode")
+        object.removeValue(forKey: "analyticsCode")
         var pages = try #require(object["pages"] as? [[String: Any]])
         pages[0].removeValue(forKey: "metadata")
         object["pages"] = pages
@@ -63,6 +68,11 @@ struct DocumentCodingTests {
         #expect(decoded.generatesSitemap)
         #expect(decoded.generatesRobotsTXT)
         #expect(decoded.allowsSearchIndexing)
+        #expect(decoded.customCodeEnabled)
+        #expect(decoded.headCode.isEmpty)
+        #expect(decoded.bodyStartCode.isEmpty)
+        #expect(decoded.bodyEndCode.isEmpty)
+        #expect(decoded.analyticsCode.isEmpty)
         #expect(decoded.pages.first?.metadata == PageMetadata())
     }
 
@@ -78,6 +88,11 @@ struct DocumentCodingTests {
         original.generatesSitemap = false
         original.generatesRobotsTXT = false
         original.allowsSearchIndexing = false
+        original.customCodeEnabled = false
+        original.headCode = "<meta name=\"custom\" content=\"head\">"
+        original.bodyStartCode = "<div>body start</div>"
+        original.bodyEndCode = "<div>body end</div>"
+        original.analyticsCode = "<script>analytics()</script>"
         original.pages[0].metadata = PageMetadata(
             browserTitle: "Foundry",
             description: "Build a site",

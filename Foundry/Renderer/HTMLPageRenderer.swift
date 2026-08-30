@@ -21,12 +21,17 @@ struct HTMLPageRenderer: PageRendering {
         let bodyStart = placedHTML(for: page, placement: .bodyStart)
         let bodyEnd = placedHTML(for: page, placement: .bodyEnd)
         let scripts = packageScripts(for: page, theme: theme, assets: assets, breakpoint: breakpoint)
+        let customHeadCode = site?.customCodeEnabled == true ? site?.headCode ?? "" : ""
+        let customBodyStartCode = site?.customCodeEnabled == true ? site?.bodyStartCode ?? "" : ""
+        let customBodyEndCode = site?.customCodeEnabled == true ? site?.bodyEndCode ?? "" : ""
+        let analyticsCode = site?.customCodeEnabled == true ? site?.analyticsCode ?? "" : ""
         let documentLanguage = language.trimmingCharacters(in: .whitespacesAndNewlines)
         return """
         <!doctype html>
         <html lang="\(escapeAttribute(documentLanguage.isEmpty ? "en" : documentLanguage))">
         <head>
         \(headStart)
+        \(customHeadCode)
           <meta charset="utf-8">
           <meta name="viewport" content="width=device-width, initial-scale=1">
           <title>\(escape(browserTitle))</title>
@@ -154,9 +159,10 @@ struct HTMLPageRenderer: PageRendering {
             \(packageStyles(for: page, theme: theme, assets: assets, breakpoint: breakpoint))
             \(themeControlStyles(for: page, theme: theme, breakpoint: breakpoint))
           </style>
+        \(analyticsCode)
         \(headEnd)
         </head>
-        <body>\(bodyStart)\(body)\(bodyEnd)\(scripts)</body>
+        <body>\(customBodyStartCode)\(bodyStart)\(body)\(bodyEnd)\(scripts)\(customBodyEndCode)</body>
         </html>
         """
     }

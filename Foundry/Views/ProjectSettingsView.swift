@@ -6,6 +6,7 @@ private enum ProjectSettingsSection: String, Identifiable {
     case general
     case identity
     case publishing
+    case code
 
     var id: String { rawValue }
 }
@@ -25,6 +26,11 @@ struct ProjectSettingsView: View {
     let generatesSitemap: Bool
     let generatesRobotsTXT: Bool
     let allowsSearchIndexing: Bool
+    let customCodeEnabled: Bool
+    let headCode: String
+    let bodyStartCode: String
+    let bodyEndCode: String
+    let analyticsCode: String
     let editor: ProjectEditor
     let openPageMetadata: (UUID) -> Void
 
@@ -40,6 +46,8 @@ struct ProjectSettingsView: View {
                     .tag(ProjectSettingsSection.identity)
                 Label("Publishing", systemImage: "arrow.up.circle")
                     .tag(ProjectSettingsSection.publishing)
+                Label("Code & Analytics", systemImage: "chevron.left.forwardslash.chevron.right")
+                    .tag(ProjectSettingsSection.code)
             }
             .navigationTitle("Project Settings")
             .navigationSplitViewColumnWidth(min: 180, ideal: 210, max: 240)
@@ -77,6 +85,15 @@ struct ProjectSettingsView: View {
                         allowsSearchIndexing: allowsSearchIndexing,
                         editor: editor
                     )
+                case .code:
+                    CodeAndAnalyticsProjectSettingsView(
+                        isEnabled: customCodeEnabled,
+                        headCode: headCode,
+                        bodyStartCode: bodyStartCode,
+                        bodyEndCode: bodyEndCode,
+                        analyticsCode: analyticsCode,
+                        editor: editor
+                    )
                 }
                 Divider()
                 HStack {
@@ -90,6 +107,99 @@ struct ProjectSettingsView: View {
             }
         }
         .frame(minWidth: 680, idealWidth: 760, minHeight: 420, idealHeight: 480)
+    }
+}
+
+private struct CodeAndAnalyticsProjectSettingsView: View {
+    let isEnabled: Bool
+    let headCode: String
+    let bodyStartCode: String
+    let bodyEndCode: String
+    let analyticsCode: String
+    let editor: ProjectEditor
+
+    var body: some View {
+        Form {
+            Section("Custom Code") {
+                Toggle(
+                    "Enable custom code",
+                    isOn: Binding(get: { isEnabled }, set: editor.setCustomCodeEnabled)
+                )
+                Text("Saved snippets are retained when disabled. Enabled code executes in canvas previews and exported pages.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Section("Document Head") {
+                codeEditor("Head Code", code: headCode, setter: editor.setSiteHeadCode)
+                Text("Inserted inside <head> on every page. Use this for verification tags, preload links and site-wide styles.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                validationMessage(for: headCode)
+            }
+
+            Section("Document Body") {
+                codeEditor("After <body>", code: bodyStartCode, setter: editor.setSiteBodyStartCode)
+                Text("Inserted immediately after the opening <body> tag.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                validationMessage(for: bodyStartCode)
+
+                codeEditor("Before </body>", code: bodyEndCode, setter: editor.setSiteBodyEndCode)
+                Text("Inserted at the end of every page after Foundry’s component scripts.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                validationMessage(for: bodyEndCode)
+            }
+
+            Section("Analytics") {
+                codeEditor("Analytics Code", code: analyticsCode, setter: editor.setSiteAnalyticsCode)
+                Text("Inserted near the end of <head>. Paste a complete analytics or tag-manager snippet supplied by your provider.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                validationMessage(for: analyticsCode)
+            }
+        }
+        .formStyle(.grouped)
+        .navigationTitle("Code & Analytics")
+    }
+
+    private func codeEditor(_ title: String, code: String, setter: @escaping (String) -> Void) -> some View {
+        LabeledContent(title) {
+            TextEditor(text: Binding(get: { code }, set: setter))
+                .font(.system(.body, design: .monospaced))
+                .frame(minHeight: 90)
+                .padding(4)
+                .background(.quaternary, in: RoundedRectangle(cornerRadius: 6))
+                .disabled(!isEnabled)
+        }
+    }
+
+    @ViewBuilder
+    private func validationMessage(for code: String) -> some View {
+        if let warning = markupWarning(for: code) {
+            Label(warning, systemImage: "exclamationmark.triangle")
+                .font(.caption)
+                .foregroundStyle(.orange)
+        }
+    }
+
+    private func markupWarning(for code: String) -> String? {
+        let lowercased = code.lowercased()
+        if ["<html", "<head", "<body"].contains(where: lowercased.contains) {
+            return "Paste only the contents for this location, without html, head or body wrapper tags."
+        }
+        if occurrenceCount(of: "<script", in: lowercased) != occurrenceCount(of: "</script>", in: lowercased) {
+            return "This snippet appears to contain an unclosed script element."
+        }
+        if occurrenceCount(of: "<style", in: lowercased) != occurrenceCount(of: "</style>", in: lowercased) {
+            return "This snippet appears to contain an unclosed style element."
+        }
+        return nil
+    }
+
+    private func occurrenceCount(of needle: String, in value: String) -> Int {
+        value.components(separatedBy: needle).count - 1
     }
 }
 

@@ -91,21 +91,27 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
         let bodyEnd = placedHTML(for: page, placement: .bodyEnd)
         let scripts = packageScripts(for: page, theme: theme, assetPrefix: assetPrefix, assets: assets, site: site)
         let php = packagePHP(for: page, theme: theme, assetPrefix: assetPrefix, assets: assets, site: site)
+        let customHeadCode = site.customCodeEnabled ? site.headCode : ""
+        let customBodyStartCode = site.customCodeEnabled ? site.bodyStartCode : ""
+        let customBodyEndCode = site.customCodeEnabled ? site.bodyEndCode : ""
+        let analyticsCode = site.customCodeEnabled ? site.analyticsCode : ""
         let documentLanguage = language.trimmingCharacters(in: .whitespacesAndNewlines)
         let document = """
         <!doctype html>
         <html lang="\(escapeAttribute(documentLanguage.isEmpty ? "en" : documentLanguage))">
         <head>
         \(headStart)
+        \(customHeadCode)
           <meta charset="utf-8">
           <meta name="viewport" content="width=device-width, initial-scale=1">
           <title>\(escape(browserTitle))</title>
         \(metadata)
           <link rel="stylesheet" href="\(stylesheetPath)">
+        \(analyticsCode)
         \(headEnd)
         </head>
         <body>
-        \(bodyStart)\(body)\(bodyEnd)\(scripts)
+        \(customBodyStartCode)\(bodyStart)\(body)\(bodyEnd)\(scripts)\(customBodyEndCode)
         </body>
         </html>
         """

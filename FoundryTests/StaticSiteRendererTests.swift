@@ -203,6 +203,43 @@ struct StaticSiteRendererTests {
     }
 
     @Test
+    func enabledSiteCodeIsPlacedAtEachConfiguredDocumentLocation() throws {
+        var site = Site.starter()
+        site.headCode = "<meta name=\"site-head\" content=\"enabled\">"
+        site.bodyStartCode = "<div id=\"body-start\"></div>"
+        site.bodyEndCode = "<div id=\"body-end\"></div>"
+        site.analyticsCode = "<script id=\"analytics\"></script>"
+
+        let html = try #require(StaticSiteRenderer().render(site: site).file(at: "index.html")?.contents)
+
+        #expect(html.contains(site.headCode))
+        #expect(html.contains(site.bodyStartCode))
+        #expect(html.contains(site.bodyEndCode))
+        #expect(html.contains(site.analyticsCode))
+        let bodyOpen = try #require(html.range(of: "<body>"))
+        let bodyStart = try #require(html.range(of: site.bodyStartCode))
+        let analytics = try #require(html.range(of: site.analyticsCode))
+        let headClose = try #require(html.range(of: "</head>"))
+        let bodyEnd = try #require(html.range(of: site.bodyEndCode))
+        let bodyClose = try #require(html.range(of: "</body>"))
+        #expect(bodyOpen.lowerBound < bodyStart.lowerBound)
+        #expect(analytics.lowerBound < headClose.lowerBound)
+        #expect(bodyEnd.lowerBound < bodyClose.lowerBound)
+    }
+
+    @Test
+    func disabledSiteCodeIsRetainedButNotRendered() throws {
+        var site = Site.starter()
+        site.customCodeEnabled = false
+        site.headCode = "<meta name=\"disabled-site-code\">"
+
+        let html = try #require(StaticSiteRenderer().render(site: site).file(at: "index.html")?.contents)
+
+        #expect(!html.contains(site.headCode))
+        #expect(site.headCode == "<meta name=\"disabled-site-code\">")
+    }
+
+    @Test
     func outputIsDeterministic() {
         let site = Site.starter()
         #expect(StaticSiteRenderer().render(site: site) == StaticSiteRenderer().render(site: site))

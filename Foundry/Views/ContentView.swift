@@ -153,6 +153,11 @@ struct ContentView: View {
                 generatesSitemap: document.site.generatesSitemap,
                 generatesRobotsTXT: document.site.generatesRobotsTXT,
                 allowsSearchIndexing: document.site.allowsSearchIndexing,
+                customCodeEnabled: document.site.customCodeEnabled,
+                headCode: document.site.headCode,
+                bodyStartCode: document.site.bodyStartCode,
+                bodyEndCode: document.site.bodyEndCode,
+                analyticsCode: document.site.analyticsCode,
                 editor: editor,
                 openPageMetadata: { pageID in
                     showsProjectSettings = false
