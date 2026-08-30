@@ -145,8 +145,9 @@ nonisolated struct ComponentNode: Codable, Equatable, Identifiable, Sendable {
     }
 
     mutating func setProperty(_ key: ComponentProperty.Key, value: String) {
-        let propertyValue: ComponentProperty.Value =
-            key == .destination ? .url(value) : .string(value)
+        let propertyValue: ComponentProperty.Value = key == .destination
+            ? .link(.init(destination: value.isEmpty ? .none : .url(value)))
+            : .string(value)
         setProperty(key, value: propertyValue)
     }
 }

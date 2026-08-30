@@ -59,7 +59,7 @@ nonisolated enum ComponentRegistry {
             .button, "Button", "capsule", .content, render: .button,
             properties: [
                 .init(key: .text, label: "Title", section: .content, control: .singleLineText, defaultValue: .string("Button")),
-                .init(key: .destination, label: "Destination", section: .link, control: .url, defaultValue: .url("#")),
+                .init(key: .destination, label: "Destination", section: .link, control: .link(absoluteURL: false), defaultValue: .link(.init(destination: .url("#")))),
                 .init(key: .textColor, label: "Text color", section: .typography, control: .color, defaultValue: .color("#FFFFFF")),
                 .init(key: .fontSize, label: "Font size", section: .typography, control: .number(range: 10...72, step: 1, unit: "px"), defaultValue: .number(17)),
                 .init(key: .accessibilityLabel, label: "Accessibility label", section: .accessibility, control: .singleLineText, defaultValue: .string(""))

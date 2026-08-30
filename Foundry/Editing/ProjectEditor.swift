@@ -34,8 +34,9 @@ struct ProjectEditor {
     }
 
     func setProperty(id: UUID, key: ComponentProperty.Key, value: String) {
-        let propertyValue: ComponentProperty.Value =
-            key == .destination ? .url(value) : .string(value)
+        let propertyValue: ComponentProperty.Value = key == .destination
+            ? .link(.init(destination: value.isEmpty ? .none : .url(value)))
+            : .string(value)
         setProperty(id: id, key: key, value: propertyValue)
     }
 

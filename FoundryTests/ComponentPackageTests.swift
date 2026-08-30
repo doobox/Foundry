@@ -496,7 +496,7 @@ struct ComponentPackageTests {
     }
 
     @Test
-    func textAlignmentSmartControlProvidesValidatedLogicalValues() throws {
+    func textAlignmentSpecializedControlProvidesValidatedLogicalValues() throws {
         let item = """
         <dict>
             <key>id</key><string>alignment</string>

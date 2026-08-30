@@ -222,7 +222,10 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
         case .button:
             let label = escapeAttribute(node.property(.accessibilityLabel))
             let aria = label.isEmpty ? "" : " aria-label=\"\(label)\""
-            return "<a class=\"button \(componentClass(node))\" style=\"\(style + textStyles(node, theme: theme))\" href=\"\(escapeAttribute(node.property(.destination)))\"\(aria)>\(escape(node.property(.text)))</a>"
+            let link = resolvedLink(for: node, site: site)
+            let target = link.target.isEmpty ? "" : " target=\"\(escapeAttribute(link.target))\""
+            let customAttributes = link.attributes.isEmpty ? "" : " \(link.attributes)"
+            return "<a class=\"button \(componentClass(node))\" style=\"\(style + textStyles(node, theme: theme))\" href=\"\(escapeAttribute(link.href))\"\(target)\(aria)\(customAttributes)>\(escape(node.property(.text)))</a>"
         case .image:
             let source = exportSource(node.property(.source), assetPrefix: assetPrefix, assets: assets)
             return "<img class=\"image \(componentClass(node))\" style=\"\(style)\" src=\"\(escapeAttribute(source))\" alt=\"\(escapeAttribute(node.property(.altText)))\">"
@@ -258,6 +261,20 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
         case .unavailable:
             return missingPackageHTML(node, theme: theme, assetPrefix: assetPrefix, assets: assets, site: site)
         }
+    }
+
+    private func resolvedLink(for node: ComponentNode, site: Site) -> ComponentLinkResolver.Result {
+        guard case .link(let link) = node.propertyValue(.destination) else {
+            return .init(href: "", target: "", attributes: "")
+        }
+        return ComponentLinkResolver.resolve(
+            link,
+            pages: site.pages,
+            folders: site.pageFolders,
+            assets: site.assets,
+            publicURL: site.publicURL,
+            absoluteURL: false
+        )
     }
 
     private func children(of node: ComponentNode, theme: Theme, assetPrefix: String, assets: [UUID: ProjectAssetContent], site: Site) -> String {

@@ -125,7 +125,7 @@ nonisolated struct Site: Codable, Equatable, Identifiable, Sendable {
                     name: "Call to action",
                     properties: [
                         .init(key: .text, value: .string("Get started")),
-                        .init(key: .destination, value: .url("#get-started"))
+                        .init(key: .destination, value: .link(.init(destination: .url("#get-started"))))
                     ]
                 )
             ]

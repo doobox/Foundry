@@ -1,7 +1,6 @@
 <section class="controls-test" {{ component.attributes }} style="--accent: {{ property.accent }}; --amount: {{ property.amount }}%; --p1: {{ property.palette[0] }}; --p2: {{ property.palette[1] }}; --p3: {{ property.palette[2] }}; --p4: {{ property.palette[3] }}; padding: {{ property.insets[0] }}px {{ property.insets[1] }}px {{ property.insets[2] }}px {{ property.insets[3] }}px; text-align: {{ property.alignment }};">
     <h3>{{ property.singleText }}</h3>
     <p>{{ property.longText }}</p>
-    <a href="{{ property.destination }}">Link · {{ property.choice }}</a>
     <a href="{{ property.smartLink }}" target="{{ property.smartLink.target }}" {{ property.smartLink.attributes }}>Structured link control</a>
     <p>Enabled: {{ property.enabled }} · Details: {{ property.details }} · Button output: {{ property.button }}</p>
     <p>Slider: {{ property.slider }} · Math (number × 2): {{ property.calculated }} · Date: {{ property.date }} · Font: {{ property.typeface }} · Size: {{ property.textSize }}</p>

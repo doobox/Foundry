@@ -145,7 +145,6 @@ nonisolated struct ComponentPackageControl: Codable, Equatable, Sendable {
         case number
         case color
         case select
-        case url
         case link
         case image
         case toggle

@@ -63,23 +63,6 @@
             </dict>
             <dict>
                 <key>id</key>
-                <string>destination</string>
-                <key>title</key>
-                <string>Link</string>
-                <key>group</key>
-                <string>Text</string>
-                <key>control</key>
-                <dict>
-                    <key>type</key>
-                    <string>url</string>
-                </dict>
-                <key>default</key>
-                <string>#controls</string>
-                <key>responsive</key>
-                <false />
-            </dict>
-            <dict>
-                <key>id</key>
                 <string>smartLink</string>
                 <key>title</key>
                 <string>Link Control</string>

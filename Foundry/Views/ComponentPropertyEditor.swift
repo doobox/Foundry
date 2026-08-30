@@ -73,17 +73,6 @@ struct ComponentPropertyEditor: View {
                             .stroke(Color.secondary.opacity(0.25), lineWidth: 1)
                     }
             }
-        case .url:
-            InspectorRow(title: definition.label, alignment: .top, indicator: responsiveIndicator) {
-                VStack(alignment: .leading, spacing: 4) {
-                    InspectorTextField(text: stringBinding(as: .url), accessibilityLabel: definition.label, help: definition.label)
-                    if !isValidDestination(displayComponent.property(definition.key)) {
-                        Text("Enter #, a relative path, or a complete URL.")
-                            .font(.caption)
-                            .foregroundStyle(.red)
-                    }
-                }
-            }
         case .link(let absoluteURL):
             InspectorRow(title: definition.label, alignment: .center, indicator: responsiveIndicator) {
                 HStack(spacing: 8) {
@@ -469,19 +458,13 @@ struct ComponentPropertyEditor: View {
         definition.isResponsive ? breakpoint : .mobile
     }
 
-    private func isValidDestination(_ value: String) -> Bool {
-        value == "#" || value.hasPrefix("/") || URL(string: value)?.scheme != nil
-    }
-
     private enum StringValueKind {
         case string
-        case url
         case choice
 
         func value(_ string: String) -> ComponentProperty.Value {
             switch self {
             case .string: .string(string)
-            case .url: .url(string)
             case .choice: .choice(string)
             }
         }
@@ -674,7 +657,7 @@ private struct InspectorControlArrayItem: View {
         switch element {
         case .color:
             InspectorColorWell(color: colorBinding)
-        case .singleLineText, .url:
+        case .singleLineText:
             InspectorTextField(text: stringBinding, accessibilityLabel: subtitle ?? "Text value", help: help)
         case .number(let range, let step, let unit):
             HStack(spacing: 2) {

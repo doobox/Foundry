@@ -10,7 +10,6 @@ const controlLinks = [
     ["Overview", "custom-controls.html"],
     ["Text", "text-control.html"],
     ["Text area", "text-area-control.html"],
-    ["URL", "url-control.html"],
     ["Link", "link-control.html"],
     ["Number", "number-control.html"],
     ["Slider", "slider-control.html"],

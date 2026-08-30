@@ -276,16 +276,18 @@ struct HTMLPageRenderer: PageRendering {
             return "<h\(safeLevel) class=\"heading\" \(attributes(for: node, globalDefinitionID: globalDefinitionID)) style=\"\(style)\">\(escape(node.property(.text)))</h\(safeLevel)>"
         case .button:
             let title = escape(node.property(.text))
-            let destination = escapeAttribute(node.property(.destination))
+            let link = resolvedLink(for: node)
             let label = escapeAttribute(node.property(.accessibilityLabel))
             let ariaLabel = label.isEmpty ? "" : " aria-label=\"\(label)\""
+            let target = link.target.isEmpty ? "" : " target=\"\(escapeAttribute(link.target))\""
+            let customAttributes = link.attributes.isEmpty ? "" : " \(link.attributes)"
             let color = safeHex(node.colorProperty(.textColor, theme: theme), fallback: "#FFFFFF")
             let size = clamped(node.numberProperty(.fontSize), to: 10...72)
             let style = (sharedStyles(for: node, theme: theme) + [
                 "color: \(color)",
                 "font-size: \(size)px"
             ]).joined(separator: "; ")
-            return "<a class=\"button\" \(attributes(for: node, globalDefinitionID: globalDefinitionID)) style=\"\(style)\" href=\"\(destination)\"\(ariaLabel)>\(title)</a>"
+            return "<a class=\"button\" \(attributes(for: node, globalDefinitionID: globalDefinitionID)) style=\"\(style)\" href=\"\(escapeAttribute(link.href))\"\(target)\(ariaLabel)\(customAttributes)>\(title)</a>"
         case .image:
             let source = escapeAttribute(canvasSource(node.property(.source), assets: assets))
             let altText = escapeAttribute(node.property(.altText))
@@ -332,6 +334,20 @@ struct HTMLPageRenderer: PageRendering {
         case .unavailable:
             return unavailableComponent(node, theme: theme, assets: assets, globalDefinitionID: globalDefinitionID, breakpoint: breakpoint)
         }
+    }
+
+    private func resolvedLink(for node: ComponentNode) -> ComponentLinkResolver.Result {
+        guard case .link(let link) = node.propertyValue(.destination) else {
+            return .init(href: "", target: "", attributes: "")
+        }
+        return ComponentLinkResolver.resolve(
+            link,
+            pages: site?.pages ?? [],
+            folders: site?.pageFolders ?? [],
+            assets: site?.assets ?? [],
+            publicURL: site?.publicURL ?? "",
+            absoluteURL: false
+        )
     }
 
     private func packageStyles(
