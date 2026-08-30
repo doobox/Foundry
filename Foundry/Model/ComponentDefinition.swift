@@ -148,7 +148,6 @@ nonisolated enum ComponentPropertyControl: Sendable {
     case choice([ComponentPropertyChoice])
     case themeFontFamily
     case themeFontSize
-    case packageFontFamily(themeValues: Bool, customValueKey: ComponentProperty.Key)
     case packageFontSize(themeValues: Bool, customValueKey: ComponentProperty.Key)
     case lineHeight(fontSizeKey: ComponentProperty.Key?)
     case textAlignment

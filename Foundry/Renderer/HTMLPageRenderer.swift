@@ -435,12 +435,6 @@ struct HTMLPageRenderer: PageRendering {
             if case .themeFontSize = definition.control {
                 return (definition.key.rawValue, .string(theme.fontSizeCSSVariable(for: node.property(definition.key))))
             }
-            if case .packageFontFamily(let themeValues, let customValueKey) = definition.control {
-                let source = node.property(definition.key)
-                let resolved = !themeValues || source == "custom"
-                    ? node.property(customValueKey) : theme.fontCSSVariable(for: source)
-                return (definition.key.rawValue, .string(resolved))
-            }
             if case .packageFontSize(let themeValues, let customValueKey) = definition.control {
                 let source = node.property(definition.key)
                 let resolved = !themeValues || source == "custom"

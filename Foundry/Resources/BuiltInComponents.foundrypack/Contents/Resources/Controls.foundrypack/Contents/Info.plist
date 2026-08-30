@@ -357,8 +357,6 @@
                 <dict>
                     <key>type</key>
                     <string>fontFamily</string>
-                    <key>themeValues</key>
-                    <true />
                 </dict>
                 <key>default</key>
                 <string>body</string>

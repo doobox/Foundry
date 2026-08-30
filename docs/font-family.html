@@ -1,4 +1,4 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Font family · Foundry Developer</title><link rel="stylesheet" href="styles.css"><script src="app.js" defer></script></head><body><div class="shell"><nav data-doc-nav></nav><main><div class="breadcrumbs"><a href="index.html">Foundry Developer</a><span>›</span><a href="custom-controls.html">Custom controls</a></div><p class="eyebrow">Theme-aware custom control</p><h1>Font family</h1><p class="lede">A <code>fontFamily</code> custom item lets the author choose a family. Enable <code>themeValues</code> to include portable theme roles and theme-defined fonts alongside custom choices.</p>
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Font family · Foundry Developer</title><link rel="stylesheet" href="styles.css"><script src="app.js" defer></script></head><body><div class="shell"><nav data-doc-nav></nav><main><div class="breadcrumbs"><a href="index.html">Foundry Developer</a><span>›</span><a href="custom-controls.html">Custom controls</a></div><p class="eyebrow">Theme-aware custom control</p><h1>Font family</h1><p class="lede">A <code>fontFamily</code> custom item lets the author choose from the project theme’s font roles and theme-defined fonts. Authors add or configure fonts in the Theme Editor, not in a component inspector.</p>
 <h2>Example</h2><pre><code>&lt;key&gt;customItems&lt;/key&gt;
 &lt;array&gt;
     &lt;dict&gt;
@@ -8,10 +8,9 @@
         &lt;key&gt;control&lt;/key&gt;
         &lt;dict&gt;
             &lt;key&gt;type&lt;/key&gt;&lt;string&gt;fontFamily&lt;/string&gt;
-            &lt;key&gt;themeValues&lt;/key&gt;&lt;true/&gt;
         &lt;/dict&gt;
         &lt;key&gt;default&lt;/key&gt;&lt;string&gt;body&lt;/string&gt;
         &lt;key&gt;responsive&lt;/key&gt;&lt;true/&gt;
     &lt;/dict&gt;
 &lt;/array&gt;</code></pre><pre><code>#{{ id }} { font-family: {{ control.typeface }}; }</code></pre>
-<h2>Theme choices</h2><dl><dt>body</dt><dd>The active theme’s body family.</dd><dt>heading</dt><dd>The active theme’s heading family.</dd><dt>monospaced</dt><dd>The active theme’s monospaced family.</dd><dt>Theme-defined fonts</dt><dd>Any additional font made available by the project theme.</dd></dl><p>The stored semantic selection stays live when the theme changes; the template receives the resolved CSS value.</p></main></div></body></html>
+<h2>Theme choices</h2><dl><dt>body</dt><dd>The active theme’s body family. This is the recommended default.</dd><dt>heading</dt><dd>The active theme’s heading family.</dd><dt>monospaced</dt><dd>The active theme’s monospaced family.</dd><dt>Theme-defined fonts</dt><dd>Any additional font added in the project’s Theme Editor.</dd></dl><p>The manifest default must be <code>body</code>, <code>heading</code> or <code>monospaced</code>. The stored semantic selection stays live when the theme changes; the template receives the resolved CSS value. There is no component-level Custom option or companion custom-value property.</p></main></div></body></html>

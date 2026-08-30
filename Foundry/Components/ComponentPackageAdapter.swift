@@ -54,8 +54,17 @@ nonisolated enum ComponentPackageAdapter {
             )]
         }
         if property.control.type == .color { return colorProperties(for: property) }
-        if property.control.type == .fontFamily { return fontProperties(for: property, isFamily: true) }
-        if property.control.type == .fontSize { return fontProperties(for: property, isFamily: false) }
+        if property.control.type == .fontFamily {
+            return [ComponentPropertyDefinition(
+                key: .init(rawValue: property.id),
+                label: property.title,
+                section: .init(rawValue: property.group),
+                control: .themeFontFamily,
+                defaultValue: value(property.defaultValue, control: .select),
+                isResponsive: property.responsive
+            )]
+        }
+        if property.control.type == .fontSize { return fontSizeProperties(for: property) }
         return [ComponentPropertyDefinition(
             key: .init(rawValue: property.id),
             label: property.title,
@@ -70,26 +79,24 @@ nonisolated enum ComponentPackageAdapter {
         )]
     }
 
-    private static func fontProperties(
-        for property: ComponentPackageProperty,
-        isFamily: Bool
-    ) -> [ComponentPropertyDefinition] {
+    private static func fontSizeProperties(for property: ComponentPackageProperty) -> [ComponentPropertyDefinition] {
         let key = ComponentProperty.Key(rawValue: property.id)
         let customKey = ComponentProperty.Key(rawValue: property.id + "Custom")
         let section = ComponentPropertySection(rawValue: property.group)
         return [
             .init(
                 key: key, label: property.title, section: section,
-                control: isFamily
-                    ? .packageFontFamily(themeValues: property.control.themeValues ?? false, customValueKey: customKey)
-                    : .packageFontSize(themeValues: property.control.themeValues ?? false, customValueKey: customKey),
+                control: .packageFontSize(
+                    themeValues: property.control.themeValues ?? false,
+                    customValueKey: customKey
+                ),
                 defaultValue: value(property.defaultValue, control: .select),
                 isResponsive: property.responsive
             ),
             .init(
                 key: customKey, label: "Custom value", section: section,
                 control: .singleLineText,
-                defaultValue: .string(isFamily ? "system-ui" : "1rem"),
+                defaultValue: .string("1rem"),
                 isResponsive: property.responsive, isInspectorVisible: false
             )
         ]

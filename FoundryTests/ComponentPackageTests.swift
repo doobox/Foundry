@@ -526,6 +526,51 @@ struct ComponentPackageTests {
     }
 
     @Test
+    func fontFamilyUsesThemeFontsWithoutGeneratingACustomValueProperty() throws {
+        let item = """
+        <dict>
+            <key>id</key><string>typeface</string>
+            <key>title</key><string>Typeface</string>
+            <key>group</key><string>Typography</string>
+            <key>control</key><dict><key>type</key><string>fontFamily</string></dict>
+            <key>default</key><string>body</string>
+            <key>responsive</key><true/>
+        </dict>
+        """
+        let manifestText = validManifest.replacingOccurrences(
+            of: "<key>customItems</key>",
+            with: "<key>customItems</key>\n            <array>\n                \(item)\n            </array>\n            <key>unusedItems</key>"
+        )
+        let packageURL = try makePackage(
+            manifest: manifestText,
+            template: "<section {{ component.attributes }} style=\"font-family: {{ control.typeface }}\">{% slot id=\"content\" %}</section>"
+        )
+        defer { try? FileManager.default.removeItem(at: packageURL) }
+
+        let package = try ComponentPackageLoader.load(from: packageURL)
+        let definition = ComponentPackageAdapter.definition(from: package)
+        let property = try #require(definition.properties.first { $0.key.rawValue == "typeface" })
+
+        if case .themeFontFamily = property.control {} else { Issue.record("Expected the theme font-family control") }
+        #expect(property.defaultValue == .choice("body"))
+        #expect(!definition.properties.contains { $0.key.rawValue == "typefaceCustom" })
+
+        let invalidText = manifestText.replacingOccurrences(
+            of: "<key>default</key><string>body</string>",
+            with: "<key>default</key><string>custom</string>"
+        )
+        let invalidManifest = try PropertyListDecoder().decode(
+            ComponentPackageManifest.self,
+            from: Data(invalidText.utf8)
+        )
+        let diagnostics = ComponentPackageValidator.validate(
+            invalidManifest,
+            rootURL: packageURL.appending(path: "Contents/Resources", directoryHint: .isDirectory)
+        )
+        #expect(diagnostics.contains { $0.message == "A fontFamily default must be a known theme font role." })
+    }
+
+    @Test
     func customItemsDefaultToTheSettingsGroup() throws {
         let manifestText = validManifest.replacingOccurrences(
             of: "<key>group</key><string>Content</string>",

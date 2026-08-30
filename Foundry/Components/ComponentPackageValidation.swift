@@ -370,8 +370,8 @@ nonisolated enum ComponentPackageValidator {
         case .fontFamily:
             if case .string(let value) = defaultValue {
                 let roles = Set(ThemeFontRole.allCases.map(\.rawValue))
-                if value != "custom" && (!property.control.themeValues.orFalse || !roles.contains(value)) {
-                    diagnostics.append(.init(severity: .error, location: location, message: "A fontFamily default must be custom, or a known theme role when themeValues is enabled."))
+                if !roles.contains(value) {
+                    diagnostics.append(.init(severity: .error, location: location, message: "A fontFamily default must be a known theme font role."))
                 }
             } else {
                 diagnostics.append(.init(severity: .error, location: location, message: "A fontFamily control requires a string default value."))

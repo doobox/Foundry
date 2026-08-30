@@ -203,14 +203,6 @@ struct ComponentPropertyEditor: View {
             InspectorRow(title: definition.label, indicator: responsiveIndicator) {
                 InspectorPopup(selection: stringBinding(as: .choice), options: theme.fontSizeChoices.map { .init(title: $0.label, value: $0.value) }, accessibilityLabel: definition.label, help: definition.label)
             }
-        case .packageFontFamily(let themeValues, let customValueKey):
-            PackageThemeValueGridEditor(
-                label: definition.label,
-                choices: themeValues ? theme.fontFamilyChoices : [],
-                source: stringBinding(as: .choice),
-                customValue: stringBinding(for: customValueKey),
-                indicator: responsiveIndicator
-            )
         case .packageFontSize(let themeValues, let customValueKey):
             PackageThemeValueGridEditor(
                 label: definition.label,
