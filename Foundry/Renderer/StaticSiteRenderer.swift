@@ -8,13 +8,12 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
     func render(site: Site, assets: [UUID: ProjectAssetContent]) -> SiteExportBundle {
         var files = site.pages.map { page in
             let isHome = page.slug == "index"
-            let directory = isHome ? "" : joinedPath(folderPath(for: page.folderID, in: site), page.slug)
-            let pageExtension = Self.requiresPhp(page) ? "php" : "html"
+            let directory = isHome ? "" : joinedPath(Self.folderPath(for: page.folderID, in: site), page.slug)
             let rootPrefix = directory.isEmpty
                 ? ""
                 : String(repeating: "../", count: directory.split(separator: "/").count)
             return SiteExportFile(
-                path: isHome ? "index.\(pageExtension)" : joinedPath(directory, "index.\(pageExtension)"),
+                path: Self.outputPath(for: page, in: site),
                 contents: render(
                     page: page,
                     language: site.language,
@@ -32,7 +31,7 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
         })
         files.append(contentsOf: site.assets.compactMap { asset in
             guard let content = assets[asset.id],
-                  let exportPath = customExportPath(for: asset, in: site) else { return nil }
+                  let exportPath = Self.customExportPath(for: asset, in: site) else { return nil }
             return SiteExportFile(path: exportPath, data: content.data)
         })
         if site.generatesSitemap, let baseURL = validPublicURL(site.publicURL) {
@@ -50,7 +49,13 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
             .contains { ComponentRegistry.definition(for: $0.type).package?.manifest.requiresPhp == true }
     }
 
-    private func customExportPath(for asset: ProjectAsset, in site: Site) -> String? {
+    static func outputPath(for page: Page, in site: Site) -> String {
+        let pageExtension = requiresPhp(page) ? "php" : "html"
+        guard page.slug != "index" else { return "index.\(pageExtension)" }
+        return joinedPath(folderPath(for: page.folderID, in: site), page.slug, "index.\(pageExtension)")
+    }
+
+    static func customExportPath(for asset: ProjectAsset, in site: Site) -> String? {
         let filename = (asset.filename as NSString).lastPathComponent
         let safeFilename = filename.isEmpty ? asset.storageFilename : filename
         switch asset.exportDirectory {
@@ -63,7 +68,7 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
         }
     }
 
-    private func folderPath(for folderID: UUID?, in site: Site) -> String {
+    private static func folderPath(for folderID: UUID?, in site: Site) -> String {
         var currentID = folderID
         var slugs: [String] = []
         var visited = Set<UUID>()
@@ -74,6 +79,10 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
             currentID = folder.parentID
         }
         return slugs.joined(separator: "/")
+    }
+
+    private static func joinedPath(_ components: String...) -> String {
+        components.filter { !$0.isEmpty }.joined(separator: "/")
     }
 
     private func joinedPath(_ prefix: String, _ suffix: String) -> String {
@@ -247,7 +256,7 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
 
     private func absoluteURL(for page: Page, in site: Site, baseURL: String) -> String {
         guard page.slug != "index" else { return baseURL + "/" }
-        let folder = folderPath(for: page.folderID, in: site)
+        let folder = Self.folderPath(for: page.folderID, in: site)
         let path = joinedPath(folder, page.slug)
         return baseURL + "/" + path + "/"
     }

@@ -24,6 +24,8 @@ struct ContentView: View {
     @State private var showsPublishingProgress = false
     @State private var publishingState: PublishingModalState = .preparing
     @State private var publishingTask: Task<Void, Never>?
+    @State private var publishingChangeTask: Task<Void, Never>?
+    @State private var publishingChangesByTreeItem: [UUID: PublishingChange] = [:]
     @State private var previewSessionApplicationIdentifier: String?
     @State private var isPreviewSessionOpen = false
     @State private var previewRefreshTask: Task<Void, Never>?
@@ -84,6 +86,7 @@ struct ContentView: View {
             appearance.apply()
             selectedPageID = selectedPageID ?? document.site.pages.first?.id
             inspectedPageID = inspectedPageID ?? selectedPageID
+            schedulePublishingChangeRefresh(immediately: true)
         }
         .onDisappear {
             dismissWindow(id: "theme-editor", value: themeWindowID)
@@ -136,10 +139,15 @@ struct ContentView: View {
         }
         .onChange(of: document.site) {
             schedulePreviewRefresh()
+            schedulePublishingChangeRefresh()
+        }
+        .onChange(of: componentCatalog.revision) {
+            schedulePublishingChangeRefresh()
         }
         .onDisappear {
             previewRefreshTask?.cancel()
             publishingTask?.cancel()
+            publishingChangeTask?.cancel()
         }
         .sheet(isPresented: $showsProjectSettings) {
             ProjectSettingsView(
@@ -195,6 +203,7 @@ struct ContentView: View {
                 pages: document.site.pages,
                 folders: document.site.pageFolders,
                 assets: document.site.assets,
+                publishingChanges: publishingChangesByTreeItem,
                 selectedPageID: inspectablePageSelection,
                 selectedFolderID: inspectablePageFolderSelection,
                 selectedAssetID: inspectablePageAssetSelection,
@@ -296,6 +305,37 @@ struct ContentView: View {
                 renameAssetFolder: { document.renameAssetFolder(id: $0, name: $1, undoManager: undoManager) },
                 editsSharedDefinition: $editsSharedReusableDefinition
             )
+        }
+    }
+
+    private func schedulePublishingChangeRefresh(immediately: Bool = false) {
+        publishingChangeTask?.cancel()
+        let site = document.site
+        let assets = document.assetContents
+        let localDirectory = site.publishingDestination == .local
+            ? PublishingDestinationStore.url(for: site.id)
+            : nil
+        publishingChangeTask = Task {
+            if !immediately {
+                try? await Task.sleep(for: .milliseconds(150))
+            }
+            guard !Task.isCancelled else { return }
+            let result = await Task.detached {
+                let bundle = StaticSiteRenderer().render(site: site, assets: assets)
+                let previous = PublishingManifestStore().load(for: site, localDirectory: localDirectory)
+                let changesByPath = PublishingPlan.changes(bundle: bundle, previous: previous)
+                var changes: [UUID: PublishingChange] = [:]
+                for page in site.pages {
+                    changes[page.id] = changesByPath[StaticSiteRenderer.outputPath(for: page, in: site)]
+                }
+                for asset in site.assets {
+                    guard let path = StaticSiteRenderer.customExportPath(for: asset, in: site) else { continue }
+                    changes[asset.id] = changesByPath[path]
+                }
+                return changes
+            }.value
+            guard !Task.isCancelled else { return }
+            publishingChangesByTreeItem = result
         }
     }
 
@@ -954,6 +994,7 @@ struct ContentView: View {
                     }
                 }
                 publishingState = .completed(result)
+                schedulePublishingChangeRefresh(immediately: true)
             } catch is CancellationError {
                 publishingState = .cancelled
             } catch {

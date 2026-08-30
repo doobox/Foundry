@@ -5,6 +5,7 @@ struct PagesPanel: View {
     let pages: [Page]
     let folders: [PageFolder]
     let assets: [ProjectAsset]
+    let publishingChanges: [UUID: PublishingChange]
     @Binding var selectedPageID: UUID?
     @Binding var selectedFolderID: UUID?
     @Binding var selectedAssetID: UUID?
@@ -24,6 +25,7 @@ struct PagesPanel: View {
                 pages: pages,
                 folders: folders,
                 assets: assets,
+                publishingChanges: publishingChanges,
                 selectedPageID: $selectedPageID,
                 selectedFolderID: $selectedFolderID,
                 selectedAssetID: $selectedAssetID,

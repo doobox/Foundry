@@ -88,4 +88,46 @@ struct PublishingTests {
 
         #expect(store.load(for: site) == manifest)
     }
+
+    @Test
+    func publishingChangesDistinguishNewModifiedAndUnchangedFiles() {
+        let original = SiteExportBundle(files: [
+            .init(path: "unchanged.html", contents: "same"),
+            .init(path: "modified.html", contents: "old")
+        ])
+        let manifest = PublishingPlan.make(
+            bundle: original,
+            previous: nil,
+            removesObsoleteFiles: true
+        ).nextManifest
+        let current = SiteExportBundle(files: [
+            .init(path: "unchanged.html", contents: "same"),
+            .init(path: "modified.html", contents: "new"),
+            .init(path: "new.html", contents: "new")
+        ])
+
+        let changes = PublishingPlan.changes(bundle: current, previous: manifest)
+
+        #expect(changes["unchanged.html"] == nil)
+        #expect(changes["modified.html"] == .modified)
+        #expect(changes["new.html"] == .new)
+    }
+
+    @Test
+    func localPublishingDestinationsKeepSeparateManifests() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appending(path: UUID().uuidString, directoryHint: .isDirectory)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let store = PublishingManifestStore(directory: directory)
+        var site = Site.starter()
+        site.publishingDestination = .local
+        let firstDestination = URL(filePath: "/tmp/first")
+        let secondDestination = URL(filePath: "/tmp/second")
+        let manifest = PublishingManifest(files: ["index.html": "hash"])
+
+        try store.save(manifest, for: site, localDirectory: firstDestination)
+
+        #expect(store.load(for: site, localDirectory: firstDestination) == manifest)
+        #expect(store.load(for: site, localDirectory: secondDestination) == nil)
+    }
 }

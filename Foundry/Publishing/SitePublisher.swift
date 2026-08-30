@@ -51,6 +51,18 @@ nonisolated struct PublishingManifest: Codable, Sendable, Equatable {
     var files: [String: String]
 }
 
+nonisolated enum PublishingChange: String, Sendable, Equatable {
+    case new
+    case modified
+
+    var title: String {
+        switch self {
+        case .new: "New"
+        case .modified: "Modified"
+        }
+    }
+}
+
 nonisolated struct PublishingPlan: Sendable, Equatable {
     let uploads: [SiteExportFile]
     let removals: [String]
@@ -75,8 +87,19 @@ nonisolated struct PublishingPlan: Sendable, Equatable {
         )
     }
 
-    private static func hash(_ data: Data) -> String {
+    static func hash(_ data: Data) -> String {
         SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
+    }
+
+    static func changes(
+        bundle: SiteExportBundle,
+        previous: PublishingManifest?
+    ) -> [String: PublishingChange] {
+        Dictionary(uniqueKeysWithValues: bundle.files.compactMap { file in
+            let currentHash = hash(file.data)
+            guard previous?.files[file.path] != currentHash else { return nil }
+            return (file.path, previous?.files[file.path] == nil ? .new : .modified)
+        })
     }
 }
 
@@ -90,17 +113,20 @@ nonisolated struct PublishingManifestStore: Sendable {
         )[0].appending(path: "Foundry/Publishing Manifests", directoryHint: .isDirectory)
     }
 
-    func load(for site: Site) -> PublishingManifest? {
-        try? JSONDecoder().decode(PublishingManifest.self, from: Data(contentsOf: url(for: site)))
+    func load(for site: Site, localDirectory: URL? = nil) -> PublishingManifest? {
+        try? JSONDecoder().decode(
+            PublishingManifest.self,
+            from: Data(contentsOf: url(for: site, localDirectory: localDirectory))
+        )
     }
 
-    func save(_ manifest: PublishingManifest, for site: Site) throws {
+    func save(_ manifest: PublishingManifest, for site: Site, localDirectory: URL? = nil) throws {
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         let data = try JSONEncoder().encode(manifest)
-        try data.write(to: url(for: site), options: .atomic)
+        try data.write(to: url(for: site, localDirectory: localDirectory), options: .atomic)
     }
 
-    private func url(for site: Site) -> URL {
+    private func url(for site: Site, localDirectory: URL?) -> URL {
         let identity = [
             site.id.uuidString,
             site.publishingDestination.rawValue,
@@ -109,7 +135,8 @@ nonisolated struct PublishingManifestStore: Sendable {
             site.publishingUsername,
             site.publishingRemotePath,
             site.publishingS3Bucket,
-            site.publishingS3Region
+            site.publishingS3Region,
+            localDirectory?.standardizedFileURL.path ?? ""
         ].joined(separator: "\u{1f}")
         let key = SHA256.hash(data: Data(identity.utf8)).map { String(format: "%02x", $0) }.joined()
         return directory.appending(path: "\(key).json")
@@ -187,6 +214,12 @@ nonisolated struct SitePublisher: Sendable {
                     cleaningObsoleteFiles: site.cleansObsoleteExportFiles
                 )
             }.value
+            let manifest = PublishingPlan.make(
+                bundle: bundle,
+                previous: nil,
+                removesObsoleteFiles: true
+            ).nextManifest
+            try PublishingManifestStore().save(manifest, for: site, localDirectory: localDirectory)
             return PublishingResult(
                 uploadedFileCount: bundle.files.count,
                 unchangedFileCount: 0,
@@ -198,7 +231,7 @@ nonisolated struct SitePublisher: Sendable {
         let manifestStore = PublishingManifestStore()
         let plan = PublishingPlan.make(
             bundle: bundle,
-            previous: manifestStore.load(for: site),
+            previous: manifestStore.load(for: site, localDirectory: localDirectory),
             removesObsoleteFiles: site.cleansObsoleteExportFiles
         )
         let totalBytes = plan.uploads.reduce(Int64(0)) { $0 + Int64($1.data.count) }
@@ -239,7 +272,7 @@ nonisolated struct SitePublisher: Sendable {
                 )
             )
         }
-        try manifestStore.save(plan.nextManifest, for: site)
+        try manifestStore.save(plan.nextManifest, for: site, localDirectory: localDirectory)
         return PublishingResult(
             uploadedFileCount: plan.uploads.count,
             unchangedFileCount: plan.unchangedFileCount,

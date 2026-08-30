@@ -5,6 +5,7 @@ struct PagesOutlineView: NSViewRepresentable {
     let pages: [Page]
     let folders: [PageFolder]
     let assets: [ProjectAsset]
+    let publishingChanges: [UUID: PublishingChange]
     @Binding var selectedPageID: UUID?
     @Binding var selectedFolderID: UUID?
     @Binding var selectedAssetID: UUID?
@@ -80,10 +81,10 @@ struct PagesOutlineView: NSViewRepresentable {
             selectedFolderID: UUID?,
             selectedAssetID: UUID?
         ) {
-            let signature = pages.map { "p:\($0.id):\($0.folderID?.uuidString ?? "root"):\($0.order):\($0.title)" }
+            let signature = pages.map { "p:\($0.id):\($0.folderID?.uuidString ?? "root"):\($0.order):\($0.title):\(parent.publishingChanges[$0.id]?.rawValue ?? "published")" }
                 + folders.map { "f:\($0.id):\($0.parentID?.uuidString ?? "root"):\($0.order):\($0.name)" }
                 + assets.compactMap { asset in
-                    asset.exportDirectory.map { "a:\(asset.id):\($0):\(asset.exportOrder):\(asset.filename)" }
+                    asset.exportDirectory.map { "a:\(asset.id):\($0):\(asset.exportOrder):\(asset.filename):\(parent.publishingChanges[asset.id]?.rawValue ?? "published")" }
                 }
             if signature != displayedSignature {
                 let expandedIDs = expandedFolderIDs()
@@ -118,13 +119,17 @@ struct PagesOutlineView: NSViewRepresentable {
         func outlineView(_ outlineView: NSOutlineView, viewFor tableColumn: NSTableColumn?, item: Any) -> NSView? {
             guard let item = item as? PageOutlineItem else { return nil }
             let identifier = NSUserInterfaceItemIdentifier.pageCell
-            let cell = outlineView.makeView(withIdentifier: identifier, owner: nil) as? NSTableCellView
+            let cell = outlineView.makeView(withIdentifier: identifier, owner: nil) as? PageOutlineCell
                 ?? makeCell(identifier: identifier)
             cell.textField?.stringValue = item.title
             cell.imageView?.image = NSImage(
                 systemSymbolName: item.systemImage,
                 accessibilityDescription: item.title
             )
+            cell.statusField.stringValue = item.publishingChange?.title ?? ""
+            cell.statusField.textColor = item.publishingChange == .new ? .systemBlue : .systemOrange
+            cell.statusField.isHidden = item.publishingChange == nil
+            cell.toolTip = item.publishingChange.map { "\($0.title) since the last successful publish" }
             return cell
         }
 
@@ -209,18 +214,25 @@ struct PagesOutlineView: NSViewRepresentable {
 
             func children(parentID: UUID?) -> [PageOutlineItem] {
                 let pageItems = (pagesByParent[parentID] ?? []).map {
-                    PageOutlineItem(kind: .page($0.id), title: $0.title, order: $0.order)
+                    PageOutlineItem(
+                        kind: .page($0.id),
+                        title: $0.title,
+                        order: $0.order,
+                        publishingChange: parent.publishingChanges[$0.id]
+                    )
                 }
                 let folderItems = (foldersByParent[parentID] ?? []).compactMap { folder -> PageOutlineItem? in
                     guard visitedFolders.insert(folder.id).inserted else { return nil }
                     let item = PageOutlineItem(kind: .folder(folder.id), title: folder.name, order: folder.order)
                     item.children = children(parentID: folder.id)
+                    item.publishingChange = Self.aggregateChange(in: item.children)
                     return item
                 }
                 let assetItems = (assetsByParent[parentID] ?? []).map {
                     PageOutlineItem(
                         kind: .asset($0.1.id), title: $0.1.filename, order: $0.1.exportOrder,
-                        isImageAsset: $0.1.mediaType.hasPrefix("image/")
+                        isImageAsset: $0.1.mediaType.hasPrefix("image/"),
+                        publishingChange: parent.publishingChanges[$0.1.id]
                     )
                 }
                 return (pageItems + folderItems + assetItems).sorted(by: PageOutlineItem.sort)
@@ -281,17 +293,22 @@ struct PagesOutlineView: NSViewRepresentable {
             (item as? PageOutlineItem)?.children ?? roots
         }
 
-        private func makeCell(identifier: NSUserInterfaceItemIdentifier) -> NSTableCellView {
-            let cell = NSTableCellView()
+        private func makeCell(identifier: NSUserInterfaceItemIdentifier) -> PageOutlineCell {
+            let cell = PageOutlineCell()
             cell.identifier = identifier
             let imageView = NSImageView()
             imageView.symbolConfiguration = .init(pointSize: 14, weight: .regular)
             let textField = NSTextField(labelWithString: "")
+            let statusField = cell.statusField
+            statusField.font = .systemFont(ofSize: NSFont.smallSystemFontSize, weight: .medium)
+            statusField.alignment = .right
             textField.lineBreakMode = .byTruncatingTail
             imageView.translatesAutoresizingMaskIntoConstraints = false
             textField.translatesAutoresizingMaskIntoConstraints = false
+            statusField.translatesAutoresizingMaskIntoConstraints = false
             cell.addSubview(imageView)
             cell.addSubview(textField)
+            cell.addSubview(statusField)
             cell.imageView = imageView
             cell.textField = textField
             NSLayoutConstraint.activate([
@@ -300,10 +317,18 @@ struct PagesOutlineView: NSViewRepresentable {
                 imageView.widthAnchor.constraint(equalToConstant: 18),
                 imageView.heightAnchor.constraint(equalToConstant: 18),
                 textField.leadingAnchor.constraint(equalTo: imageView.trailingAnchor, constant: 5),
-                textField.trailingAnchor.constraint(equalTo: cell.trailingAnchor, constant: -4),
-                textField.centerYAnchor.constraint(equalTo: cell.centerYAnchor)
+                textField.trailingAnchor.constraint(lessThanOrEqualTo: statusField.leadingAnchor, constant: -6),
+                textField.centerYAnchor.constraint(equalTo: cell.centerYAnchor),
+                statusField.trailingAnchor.constraint(equalTo: cell.trailingAnchor, constant: -4),
+                statusField.centerYAnchor.constraint(equalTo: cell.centerYAnchor)
             ])
             return cell
+        }
+
+        private static func aggregateChange(in items: [PageOutlineItem]) -> PublishingChange? {
+            if items.contains(where: { $0.publishingChange == .new }) { return .new }
+            if items.contains(where: { $0.publishingChange == .modified }) { return .modified }
+            return nil
         }
 
         private func expandedFolderIDs() -> Set<UUID> {
@@ -359,6 +384,7 @@ private final class PageOutlineItem: NSObject {
     let title: String
     let order: Int
     let isImageAsset: Bool
+    var publishingChange: PublishingChange?
     var children: [PageOutlineItem] = []
     var id: UUID { kind.id }
     var isFolder: Bool {
@@ -380,16 +406,27 @@ private final class PageOutlineItem: NSObject {
         }
     }
 
-    init(kind: PageTreeItem, title: String, order: Int, isImageAsset: Bool = false) {
+    init(
+        kind: PageTreeItem,
+        title: String,
+        order: Int,
+        isImageAsset: Bool = false,
+        publishingChange: PublishingChange? = nil
+    ) {
         self.kind = kind
         self.title = title
         self.order = order
         self.isImageAsset = isImageAsset
+        self.publishingChange = publishingChange
     }
 
     static func sort(_ lhs: PageOutlineItem, _ rhs: PageOutlineItem) -> Bool {
         lhs.order == rhs.order ? lhs.id.uuidString < rhs.id.uuidString : lhs.order < rhs.order
     }
+}
+
+private final class PageOutlineCell: NSTableCellView {
+    let statusField = NSTextField(labelWithString: "")
 }
 
 private extension NSPasteboard.PasteboardType {
