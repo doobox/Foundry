@@ -867,8 +867,8 @@ private struct ThemeFontDefinitionEditor: View {
             }
             return true
         }
-        .dropDestination(for: URL.self) { urls, _ in
-            return importFontFiles(urls, existingFiles: files)
+        .onDrop(of: [.fileURL], isTargeted: nil) { providers in
+            acceptFinderFontProviders(providers)
         }
     }
 
@@ -921,6 +921,26 @@ private struct ThemeFontDefinitionEditor: View {
             )
         }
         return true
+    }
+
+    private func acceptFinderFontProviders(_ providers: [NSItemProvider]) -> Bool {
+        let fileProviders = providers.filter { $0.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier) }
+        guard !fileProviders.isEmpty else { return false }
+
+        for provider in fileProviders {
+            _ = provider.loadObject(ofClass: URL.self) { url, _ in
+                guard let url else { return }
+                Task { @MainActor in
+                    _ = importFontFiles([url], existingFiles: currentBundledFiles)
+                }
+            }
+        }
+        return true
+    }
+
+    private var currentBundledFiles: [String] {
+        guard case .bundled(let files) = session.font(for: reference).source else { return [] }
+        return files
     }
 
     private var fontNamesBinding: Binding<String> {
