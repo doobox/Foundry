@@ -1,7 +1,7 @@
 import Foundation
 
 nonisolated struct Site: Codable, Equatable, Identifiable, Sendable {
-    static let currentSchemaVersion = 6
+    static let currentSchemaVersion = 7
 
     let id: UUID
     var schemaVersion: Int
@@ -12,6 +12,10 @@ nonisolated struct Site: Codable, Equatable, Identifiable, Sendable {
     var defaultDescription: String
     var favicon: String
     var defaultSocialImage: String
+    var generatesCanonicalURLs: Bool
+    var generatesSitemap: Bool
+    var generatesRobotsTXT: Bool
+    var allowsSearchIndexing: Bool
     var pages: [Page]
     var pageFolders: [PageFolder]
     var theme: Theme
@@ -33,6 +37,10 @@ nonisolated struct Site: Codable, Equatable, Identifiable, Sendable {
         defaultDescription: String = "",
         favicon: String = "",
         defaultSocialImage: String = "",
+        generatesCanonicalURLs: Bool = true,
+        generatesSitemap: Bool = true,
+        generatesRobotsTXT: Bool = true,
+        allowsSearchIndexing: Bool = true,
         pages: [Page],
         pageFolders: [PageFolder] = [],
         theme: Theme = .standard,
@@ -51,6 +59,10 @@ nonisolated struct Site: Codable, Equatable, Identifiable, Sendable {
         self.defaultDescription = defaultDescription
         self.favicon = favicon
         self.defaultSocialImage = defaultSocialImage
+        self.generatesCanonicalURLs = generatesCanonicalURLs
+        self.generatesSitemap = generatesSitemap
+        self.generatesRobotsTXT = generatesRobotsTXT
+        self.allowsSearchIndexing = allowsSearchIndexing
         self.pages = pages
         self.pageFolders = pageFolders
         self.theme = theme
@@ -94,7 +106,7 @@ nonisolated struct Site: Codable, Equatable, Identifiable, Sendable {
     }
 
     private enum CodingKeys: String, CodingKey {
-        case id, schemaVersion, name, language, publicURL, titleSuffix, defaultDescription, favicon, defaultSocialImage, pages, pageFolders, theme, reusableComponents, globalComponents, assetLibrary, componentPackages, themePackage
+        case id, schemaVersion, name, language, publicURL, titleSuffix, defaultDescription, favicon, defaultSocialImage, generatesCanonicalURLs, generatesSitemap, generatesRobotsTXT, allowsSearchIndexing, pages, pageFolders, theme, reusableComponents, globalComponents, assetLibrary, componentPackages, themePackage
     }
 
     init(from decoder: Decoder) throws {
@@ -108,6 +120,10 @@ nonisolated struct Site: Codable, Equatable, Identifiable, Sendable {
         defaultDescription = try container.decodeIfPresent(String.self, forKey: .defaultDescription) ?? ""
         favicon = try container.decodeIfPresent(String.self, forKey: .favicon) ?? ""
         defaultSocialImage = try container.decodeIfPresent(String.self, forKey: .defaultSocialImage) ?? ""
+        generatesCanonicalURLs = try container.decodeIfPresent(Bool.self, forKey: .generatesCanonicalURLs) ?? true
+        generatesSitemap = try container.decodeIfPresent(Bool.self, forKey: .generatesSitemap) ?? true
+        generatesRobotsTXT = try container.decodeIfPresent(Bool.self, forKey: .generatesRobotsTXT) ?? true
+        allowsSearchIndexing = try container.decodeIfPresent(Bool.self, forKey: .allowsSearchIndexing) ?? true
         pages = try container.decode([Page].self, forKey: .pages)
         pageFolders = try container.decodeIfPresent([PageFolder].self, forKey: .pageFolders) ?? []
         theme = try container.decode(Theme.self, forKey: .theme)

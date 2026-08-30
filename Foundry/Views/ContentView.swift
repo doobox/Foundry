@@ -147,6 +147,12 @@ struct ContentView: View {
                 favicon: document.site.favicon,
                 defaultSocialImage: document.site.defaultSocialImage,
                 assets: document.site.assets,
+                pages: document.site.pages,
+                pageFolders: document.site.pageFolders,
+                generatesCanonicalURLs: document.site.generatesCanonicalURLs,
+                generatesSitemap: document.site.generatesSitemap,
+                generatesRobotsTXT: document.site.generatesRobotsTXT,
+                allowsSearchIndexing: document.site.allowsSearchIndexing,
                 editor: editor
             )
         }

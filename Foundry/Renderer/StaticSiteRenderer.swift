@@ -35,6 +35,12 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
                   let exportPath = customExportPath(for: asset, in: site) else { return nil }
             return SiteExportFile(path: exportPath, data: content.data)
         })
+        if site.generatesSitemap, let baseURL = validPublicURL(site.publicURL) {
+            files.append(.init(path: "sitemap.xml", contents: sitemap(for: site, baseURL: baseURL)))
+        }
+        if site.generatesRobotsTXT {
+            files.append(.init(path: "robots.txt", contents: robotsTXT(for: site)))
+        }
         return SiteExportBundle(files: files.sorted { $0.path < $1.path })
     }
 
@@ -193,6 +199,16 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
         let socialTitle = page.metadata.socialTitle.isEmpty ? browserTitle : page.metadata.socialTitle
         tags.append("<meta property=\"og:title\" content=\"\(escapeAttribute(socialTitle))\">")
 
+        if !site.allowsSearchIndexing {
+            tags.append("<meta name=\"robots\" content=\"noindex, nofollow\">")
+        }
+
+        if site.generatesCanonicalURLs,
+           let baseURL = validPublicURL(site.publicURL) {
+            let canonicalURL = absoluteURL(for: page, in: site, baseURL: baseURL)
+            tags.append("<link rel=\"canonical\" href=\"\(escapeAttribute(canonicalURL))\">")
+        }
+
         let socialDescription = page.metadata.socialDescription.isEmpty
             ? description
             : page.metadata.socialDescription
@@ -213,6 +229,41 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
             }
         }
         return tags.map { "  " + $0 }.joined(separator: "\n")
+    }
+
+    private func validPublicURL(_ value: String) -> String? {
+        guard let url = URL(string: value),
+              let scheme = url.scheme?.lowercased(),
+              (scheme == "http" || scheme == "https"),
+              url.host != nil else { return nil }
+        return value.hasSuffix("/") ? String(value.dropLast()) : value
+    }
+
+    private func absoluteURL(for page: Page, in site: Site, baseURL: String) -> String {
+        guard page.slug != "index" else { return baseURL + "/" }
+        let folder = folderPath(for: page.folderID, in: site)
+        let path = joinedPath(folder, page.slug)
+        return baseURL + "/" + path + "/"
+    }
+
+    private func sitemap(for site: Site, baseURL: String) -> String {
+        let entries = site.pages.map { page in
+            "  <url><loc>\(escape(absoluteURL(for: page, in: site, baseURL: baseURL)))</loc></url>"
+        }.joined(separator: "\n")
+        return """
+        <?xml version="1.0" encoding="UTF-8"?>
+        <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+        \(entries)
+        </urlset>
+        """
+    }
+
+    private func robotsTXT(for site: Site) -> String {
+        var lines = ["User-agent: *", site.allowsSearchIndexing ? "Allow: /" : "Disallow: /"]
+        if site.generatesSitemap, let baseURL = validPublicURL(site.publicURL) {
+            lines.append("Sitemap: \(baseURL)/sitemap.xml")
+        }
+        return lines.joined(separator: "\n") + "\n"
     }
 
     private func render(_ node: ComponentNode, theme: Theme, assetPrefix: String, assets: [UUID: ProjectAssetContent], site: Site) -> String {

@@ -3,6 +3,7 @@ import SwiftUI
 private enum ProjectSettingsSection: String, Identifiable {
     case general
     case identity
+    case publishing
 
     var id: String { rawValue }
 }
@@ -16,6 +17,12 @@ struct ProjectSettingsView: View {
     let favicon: String
     let defaultSocialImage: String
     let assets: [ProjectAsset]
+    let pages: [Page]
+    let pageFolders: [PageFolder]
+    let generatesCanonicalURLs: Bool
+    let generatesSitemap: Bool
+    let generatesRobotsTXT: Bool
+    let allowsSearchIndexing: Bool
     let editor: ProjectEditor
 
     @Environment(\.dismiss) private var dismiss
@@ -28,6 +35,8 @@ struct ProjectSettingsView: View {
                     .tag(ProjectSettingsSection.general)
                 Label("Site Identity", systemImage: "globe")
                     .tag(ProjectSettingsSection.identity)
+                Label("Publishing", systemImage: "arrow.up.circle")
+                    .tag(ProjectSettingsSection.publishing)
             }
             .navigationTitle("Project Settings")
             .navigationSplitViewColumnWidth(min: 180, ideal: 210, max: 240)
@@ -50,6 +59,17 @@ struct ProjectSettingsView: View {
                         assets: assets,
                         editor: editor
                     )
+                case .publishing:
+                    PublishingProjectSettingsView(
+                        publicURL: publicURL,
+                        pages: pages,
+                        pageFolders: pageFolders,
+                        generatesCanonicalURLs: generatesCanonicalURLs,
+                        generatesSitemap: generatesSitemap,
+                        generatesRobotsTXT: generatesRobotsTXT,
+                        allowsSearchIndexing: allowsSearchIndexing,
+                        editor: editor
+                    )
                 }
                 Divider()
                 HStack {
@@ -63,6 +83,102 @@ struct ProjectSettingsView: View {
             }
         }
         .frame(minWidth: 680, idealWidth: 760, minHeight: 420, idealHeight: 480)
+    }
+}
+
+private struct PublishingProjectSettingsView: View {
+    let publicURL: String
+    let pages: [Page]
+    let pageFolders: [PageFolder]
+    let generatesCanonicalURLs: Bool
+    let generatesSitemap: Bool
+    let generatesRobotsTXT: Bool
+    let allowsSearchIndexing: Bool
+    let editor: ProjectEditor
+
+    var body: some View {
+        Form {
+            Section("Search Engines") {
+                Toggle(
+                    "Allow search engines to index this site",
+                    isOn: Binding(get: { allowsSearchIndexing }, set: editor.setAllowsSearchIndexing)
+                )
+                Text(allowsSearchIndexing
+                     ? "Exported pages may be indexed by search engines."
+                     : "Exported pages include a noindex directive and robots.txt blocks crawling.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Toggle(
+                    "Generate canonical URLs",
+                    isOn: Binding(get: { generatesCanonicalURLs }, set: editor.setGeneratesCanonicalURLs)
+                )
+                Toggle(
+                    "Generate sitemap.xml",
+                    isOn: Binding(get: { generatesSitemap }, set: editor.setGeneratesSitemap)
+                )
+                Toggle(
+                    "Generate robots.txt",
+                    isOn: Binding(get: { generatesRobotsTXT }, set: editor.setGeneratesRobotsTXT)
+                )
+                if needsPublicURL && validBaseURL == nil {
+                    Label("Set a valid Site URL in General to generate canonical URLs and a sitemap.", systemImage: "exclamationmark.triangle")
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                }
+            }
+
+            Section("Published URLs") {
+                Text("Foundry publishes pages as clean directory URLs. The home page is index.html; other pages are written as path/index.html.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                ForEach(Array(pages.prefix(4))) { page in
+                    LabeledContent(page.title) {
+                        Text(displayURL(for: page))
+                            .foregroundStyle(.secondary)
+                            .textSelection(.enabled)
+                    }
+                }
+                if pages.count > 4 {
+                    Text("And \(pages.count - 4) more pages…")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+        .formStyle(.grouped)
+        .navigationTitle("Publishing")
+    }
+
+    private var needsPublicURL: Bool {
+        generatesCanonicalURLs || generatesSitemap
+    }
+
+    private var validBaseURL: String? {
+        guard let url = URL(string: publicURL),
+              let scheme = url.scheme?.lowercased(),
+              (scheme == "http" || scheme == "https"),
+              url.host != nil else { return nil }
+        return publicURL.hasSuffix("/") ? String(publicURL.dropLast()) : publicURL
+    }
+
+    private func displayURL(for page: Page) -> String {
+        let relativePath = relativeURL(for: page)
+        return validBaseURL.map { $0 + relativePath } ?? relativePath
+    }
+
+    private func relativeURL(for page: Page) -> String {
+        guard page.slug != "index" else { return "/" }
+        var currentID = page.folderID
+        var slugs: [String] = []
+        var visited = Set<UUID>()
+        while let id = currentID,
+              visited.insert(id).inserted,
+              let folder = pageFolders.first(where: { $0.id == id }) {
+            slugs.insert(folder.slug, at: 0)
+            currentID = folder.parentID
+        }
+        slugs.append(page.slug)
+        return "/" + slugs.joined(separator: "/") + "/"
     }
 }
 

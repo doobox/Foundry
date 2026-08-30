@@ -43,6 +43,10 @@ struct DocumentCodingTests {
         object.removeValue(forKey: "defaultDescription")
         object.removeValue(forKey: "favicon")
         object.removeValue(forKey: "defaultSocialImage")
+        object.removeValue(forKey: "generatesCanonicalURLs")
+        object.removeValue(forKey: "generatesSitemap")
+        object.removeValue(forKey: "generatesRobotsTXT")
+        object.removeValue(forKey: "allowsSearchIndexing")
         var pages = try #require(object["pages"] as? [[String: Any]])
         pages[0].removeValue(forKey: "metadata")
         object["pages"] = pages
@@ -55,6 +59,10 @@ struct DocumentCodingTests {
         #expect(decoded.defaultDescription.isEmpty)
         #expect(decoded.favicon.isEmpty)
         #expect(decoded.defaultSocialImage.isEmpty)
+        #expect(decoded.generatesCanonicalURLs)
+        #expect(decoded.generatesSitemap)
+        #expect(decoded.generatesRobotsTXT)
+        #expect(decoded.allowsSearchIndexing)
         #expect(decoded.pages.first?.metadata == PageMetadata())
     }
 
@@ -66,6 +74,10 @@ struct DocumentCodingTests {
         original.defaultDescription = "The default site description"
         original.favicon = "foundry-asset:site-icon"
         original.defaultSocialImage = "foundry-asset:social-image"
+        original.generatesCanonicalURLs = false
+        original.generatesSitemap = false
+        original.generatesRobotsTXT = false
+        original.allowsSearchIndexing = false
         original.pages[0].metadata = PageMetadata(
             browserTitle: "Foundry",
             description: "Build a site",

@@ -229,6 +229,17 @@ struct HTMLPageRenderer: PageRendering {
         let socialTitle = page.metadata.socialTitle.isEmpty ? browserTitle : page.metadata.socialTitle
         tags.append("<meta property=\"og:title\" content=\"\(escapeAttribute(socialTitle))\">")
 
+        if site?.allowsSearchIndexing == false {
+            tags.append("<meta name=\"robots\" content=\"noindex, nofollow\">")
+        }
+
+        if let site,
+           site.generatesCanonicalURLs,
+           let baseURL = validPublicURL(site.publicURL) {
+            let canonicalURL = absoluteURL(for: page, in: site, baseURL: baseURL)
+            tags.append("<link rel=\"canonical\" href=\"\(escapeAttribute(canonicalURL))\">")
+        }
+
         let socialDescription = page.metadata.socialDescription.isEmpty
             ? description
             : page.metadata.socialDescription
@@ -251,6 +262,29 @@ struct HTMLPageRenderer: PageRendering {
             }
         }
         return tags.map { "  " + $0 }.joined(separator: "\n")
+    }
+
+    private func validPublicURL(_ value: String) -> String? {
+        guard let url = URL(string: value),
+              let scheme = url.scheme?.lowercased(),
+              (scheme == "http" || scheme == "https"),
+              url.host != nil else { return nil }
+        return value.hasSuffix("/") ? String(value.dropLast()) : value
+    }
+
+    private func absoluteURL(for page: Page, in site: Site, baseURL: String) -> String {
+        guard page.slug != "index" else { return baseURL + "/" }
+        var currentID = page.folderID
+        var slugs: [String] = []
+        var visited = Set<UUID>()
+        while let id = currentID,
+              visited.insert(id).inserted,
+              let folder = site.pageFolders.first(where: { $0.id == id }) {
+            slugs.insert(folder.slug, at: 0)
+            currentID = folder.parentID
+        }
+        slugs.append(page.slug)
+        return baseURL + "/" + slugs.joined(separator: "/") + "/"
     }
 
     private func render(_ sourceNode: ComponentNode, theme: Theme, assets: [UUID: ProjectAssetContent], globalDefinitionID: UUID?, breakpoint: ResponsiveBreakpoint) -> String {

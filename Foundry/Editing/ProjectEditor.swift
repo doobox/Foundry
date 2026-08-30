@@ -43,6 +43,22 @@ struct ProjectEditor {
         mutate(actionName: "Set Default Social Image") { $0.defaultSocialImage = image }
     }
 
+    func setGeneratesCanonicalURLs(_ isEnabled: Bool) {
+        mutate(actionName: "Change Canonical URL Generation") { $0.generatesCanonicalURLs = isEnabled }
+    }
+
+    func setGeneratesSitemap(_ isEnabled: Bool) {
+        mutate(actionName: "Change Sitemap Generation") { $0.generatesSitemap = isEnabled }
+    }
+
+    func setGeneratesRobotsTXT(_ isEnabled: Bool) {
+        mutate(actionName: "Change Robots File Generation") { $0.generatesRobotsTXT = isEnabled }
+    }
+
+    func setAllowsSearchIndexing(_ isEnabled: Bool) {
+        mutate(actionName: "Change Search Indexing") { $0.allowsSearchIndexing = isEnabled }
+    }
+
     func renameComponent(id: UUID, name: String) {
         mutate(actionName: "Rename Component") { site in
             site.updateComponent(id: id) { $0.name = name }

@@ -53,7 +53,7 @@ struct StaticSiteRendererTests {
 
         let bundle = StaticSiteRenderer().render(site: site)
 
-        #expect(bundle.files.map(\.path) == ["about/index.html", "assets/site.css", "index.html"])
+        #expect(bundle.files.map(\.path) == ["about/index.html", "assets/site.css", "index.html", "robots.txt"])
         #expect(try #require(bundle.file(at: "index.html")).contents.contains("href=\"assets/site.css\""))
         #expect(try #require(bundle.file(at: "about/index.html")).contents.contains("href=\"../assets/site.css\""))
     }
@@ -166,6 +166,40 @@ struct StaticSiteRendererTests {
         #expect(html.contains("property=\"og:description\" content=\"Default &amp; description\""))
         #expect(html.contains("property=\"og:image\" content=\"https://example.com/social.png\""))
         #expect(html.contains("rel=\"icon\" href=\"https://example.com/favicon.png\""))
+    }
+
+    @Test
+    func publishingSettingsGenerateCanonicalSitemapAndRobotsFiles() throws {
+        var site = Site.starter()
+        site.publicURL = "https://example.com"
+        site.pages.append(Page(title: "About", slug: "about"))
+
+        let bundle = StaticSiteRenderer().render(site: site)
+        let home = try #require(bundle.file(at: "index.html")?.contents)
+        let about = try #require(bundle.file(at: "about/index.html")?.contents)
+        let sitemap = try #require(bundle.file(at: "sitemap.xml")?.contents)
+        let robots = try #require(bundle.file(at: "robots.txt")?.contents)
+
+        #expect(home.contains("rel=\"canonical\" href=\"https://example.com/\""))
+        #expect(about.contains("rel=\"canonical\" href=\"https://example.com/about/\""))
+        #expect(sitemap.contains("<loc>https://example.com/</loc>"))
+        #expect(sitemap.contains("<loc>https://example.com/about/</loc>"))
+        #expect(robots.contains("Allow: /"))
+        #expect(robots.contains("Sitemap: https://example.com/sitemap.xml"))
+    }
+
+    @Test
+    func disabledIndexingEmitsNoindexAndBlocksRobots() throws {
+        var site = Site.starter()
+        site.allowsSearchIndexing = false
+
+        let bundle = StaticSiteRenderer().render(site: site)
+        let html = try #require(bundle.file(at: "index.html")?.contents)
+        let robots = try #require(bundle.file(at: "robots.txt")?.contents)
+
+        #expect(html.contains("name=\"robots\" content=\"noindex, nofollow\""))
+        #expect(robots.contains("Disallow: /"))
+        #expect(bundle.file(at: "sitemap.xml") == nil)
     }
 
     @Test
