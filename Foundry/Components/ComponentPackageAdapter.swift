@@ -34,6 +34,29 @@ nonisolated enum ComponentPackageAdapter {
     }
 
     private static func propertyDefinitions(_ property: ComponentPackageProperty) -> [ComponentPropertyDefinition] {
+        if let requestedCount = property.control.count, requestedCount > 1 {
+            let count = min(max(requestedCount, 2), 4)
+            let defaults: [ComponentPackageValue]
+            if case .array(let values) = property.defaultValue {
+                defaults = Array(values.prefix(count))
+            } else {
+                defaults = Array(repeating: property.defaultValue, count: count)
+            }
+            let paddedDefaults = defaults + Array(repeating: defaults.last ?? .string(""), count: max(0, count - defaults.count))
+            return [ComponentPropertyDefinition(
+                key: .init(rawValue: property.id),
+                label: property.title,
+                section: .init(rawValue: property.group),
+                control: .array(
+                    element: control(property.control),
+                    count: count,
+                    subtitles: Array(property.subtitles.prefix(count)),
+                    help: property.toolTip
+                ),
+                defaultValue: .array(paddedDefaults.prefix(count).map { value($0, control: property.control.type) }),
+                isResponsive: property.responsive
+            )]
+        }
         if property.control.type == .color { return colorProperties(for: property) }
         if property.control.type == .fontFamily { return fontProperties(for: property, isFamily: true) }
         if property.control.type == .fontSize { return fontProperties(for: property, isFamily: false) }
@@ -43,7 +66,8 @@ nonisolated enum ComponentPackageAdapter {
             section: .init(rawValue: property.group),
             control: control(property.control),
             defaultValue: value(property.defaultValue, control: property.control.type),
-            isResponsive: property.responsive
+            isResponsive: property.responsive,
+            isInspectorVisible: property.control.type != .info || !property.title.isEmpty
         )]
     }
 
@@ -136,6 +160,17 @@ nonisolated enum ComponentPackageAdapter {
         case .fontSize: .themeFontSize
         case .textAlignment: .textAlignment
         case .divider: .divider
+        case .slider:
+            .slider(
+                range: (control.minimum ?? 0)...(control.maximum ?? 100),
+                step: control.step ?? 1,
+                tickMarks: control.tickMarks ?? 0,
+                restrictsToTickMarks: control.restrictsToTickMarks ?? false
+            )
+        case .date: .date
+        case .details: .toggle
+        case .info: .info
+        case .button: .button
         }
     }
 
@@ -151,8 +186,11 @@ nonisolated enum ComponentPackageAdapter {
             case .url, .image: .url(value)
             case .color: .color(value)
             case .select, .fontFamily, .fontSize, .textAlignment: .choice(value)
+            case .date: .string(value)
             default: .string(value)
             }
+        case .array(let values):
+            .array(values.map { self.value($0, control: control) })
         }
     }
 }

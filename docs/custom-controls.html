@@ -1,5 +1,5 @@
 <!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Custom controls · Foundry Developer</title><link rel="stylesheet" href="styles.css"><script src="app.js" defer></script></head><body><div class="shell"><nav data-doc-nav></nav><main><div class="breadcrumbs"><a href="index.html">Foundry Developer</a><span>›</span>Build components</div><p class="eyebrow">Inspector API</p><h1>Request the values you need</h1><p class="lede">Each dictionary in <code>customItems</code> adds a control to Foundry’s inspector. Its <code>id</code> becomes available to every declared template as <code>{{ control.id }}</code>.</p>
-<h2>Property shape</h2><dl><dt>id</dt><dd>Required stable developer-facing identifier.</dd><dt>title</dt><dd>Required label shown to the site author.</dd><dt>group</dt><dd>Required inspector group. Items with the same name appear together in one disclosure group.</dd><dt>control</dt><dd>Required dictionary describing the editor.</dd><dt>default</dt><dd>Required String, Number or Boolean matching the control.</dd><dt>responsive</dt><dd>Required Boolean. Enables breakpoint overrides.</dd><dt>inlineEditable</dt><dd>Required Boolean. Enables direct canvas editing where supported.</dd></dl>
+<h2>Property shape</h2><dl><dt>id</dt><dd>Required stable developer-facing identifier.</dd><dt>title</dt><dd>Required label shown to the site author.</dd><dt>group</dt><dd>Required inspector group. Items with the same name appear together in one disclosure group.</dd><dt>control</dt><dd>Required dictionary describing the editor.</dd><dt>default</dt><dd>Required String, Number, Boolean, or an array of those values matching the control.</dd><dt>responsive</dt><dd>Required Boolean. Enables breakpoint overrides.</dd><dt>inlineEditable</dt><dd>Required Boolean. Enables direct canvas editing where supported.</dd><dt>toolTip</dt><dd>Optional help shown for the control.</dd><dt>subtitles</dt><dd>Optional String array providing a caption beneath each member of a control array.</dd></dl>
 <h2 id="text-control">Text control</h2><p>A <code>text</code> control creates a standard single-line text field in the inspector. The declaration below adds a field labelled <strong>Heading</strong> to the <strong>Content</strong> group.</p><pre><code>&lt;key&gt;customItems&lt;/key&gt;
 &lt;array&gt;
     &lt;dict&gt;
@@ -23,7 +23,29 @@
         &lt;key&gt;type&lt;/key&gt;&lt;string&gt;divider&lt;/string&gt;
     &lt;/dict&gt;
 &lt;/dict&gt;</code></pre><p>The <code>id</code> must still be unique because it identifies the item and preserves its declared position. Do not add <code>title</code>, <code>default</code>, <code>responsive</code> or <code>inlineEditable</code>; those keys describe value-producing controls and do not apply to a divider.</p>
-<h2>Control types</h2><dl><dt>text</dt><dd>Single-line String.</dd><dt>textArea</dt><dd>Multi-line String.</dd><dt>number</dt><dd>Number with optional <code>minimum</code>, <code>maximum</code>, <code>step</code> and <code>unit</code>.</dd><dt><a href="colour.html">color</a></dt><dd>Custom and theme colours, with optional colour math and opacity.</dd><dt><a href="text-alignment.html">textAlignment</a></dt><dd>Smart segmented control producing logical CSS alignment values.</dd><dt>select</dt><dd>A choice from <code>options</code>, each containing <code>value</code> and <code>title</code>.</dd><dt>url</dt><dd>A URL String.</dd><dt>image</dt><dd>An asset selected from the project.</dd><dt>toggle</dt><dd>A Boolean switch.</dd><dt><a href="#divider-control">divider</a></dt><dd>A deliberate visual separator with no template value.</dd></dl>
+<h2>Control types</h2><dl><dt>text</dt><dd>Single-line String.</dd><dt>textArea</dt><dd>Multi-line String.</dd><dt>url</dt><dd>A URL String.</dd><dt>number</dt><dd>Number with optional <code>minimum</code>, <code>maximum</code>, <code>step</code> and <code>unit</code>.</dd><dt>slider</dt><dd>Number slider using <code>minimum</code>, <code>maximum</code> and <code>step</code>. Optional <code>tickMarks</code> shows an exact number of ticks and <code>restrictsToTickMarks</code> constrains selection to them.</dd><dt>date</dt><dd>Date value stored as an ISO-8601 String.</dd><dt><a href="colour.html">color</a></dt><dd>Custom and theme colours, with optional colour math, opacity and alpha.</dd><dt>select</dt><dd>A choice from <code>options</code>, each containing <code>value</code> and <code>title</code>.</dd><dt>toggle</dt><dd>A Boolean switch.</dd><dt>details</dt><dd>A Boolean disclosure-style control.</dd><dt>button</dt><dd>A momentary action represented by a Boolean value.</dd><dt>image</dt><dd>An asset selected from the project.</dd><dt><a href="text-alignment.html">textAlignment</a></dt><dd>Smart segmented control producing logical CSS alignment values.</dd><dt><a href="font-family.html">fontFamily</a></dt><dd>Theme-aware or custom font family.</dd><dt><a href="font-size.html">fontSize</a></dt><dd>Theme-aware or custom font size.</dd><dt>info</dt><dd>Presentation-only explanatory text with no template value.</dd><dt><a href="#divider-control">divider</a></dt><dd>A deliberate visual separator with no template value.</dd></dl>
+<h2 id="control-arrays">Control arrays</h2><p>Add <code>count</code> to a control dictionary to display two, three or four controls on one inspector row. The property’s <code>default</code> must be an array containing exactly the same number of values. Every member uses the declared control type and options.</p><pre><code>&lt;dict&gt;
+    &lt;key&gt;id&lt;/key&gt;&lt;string&gt;palette&lt;/string&gt;
+    &lt;key&gt;title&lt;/key&gt;&lt;string&gt;Palette&lt;/string&gt;
+    &lt;key&gt;group&lt;/key&gt;&lt;string&gt;Appearance&lt;/string&gt;
+    &lt;key&gt;control&lt;/key&gt;
+    &lt;dict&gt;
+        &lt;key&gt;type&lt;/key&gt;&lt;string&gt;color&lt;/string&gt;
+        &lt;key&gt;count&lt;/key&gt;&lt;integer&gt;4&lt;/integer&gt;
+    &lt;/dict&gt;
+    &lt;key&gt;subtitles&lt;/key&gt;
+    &lt;array&gt;
+        &lt;string&gt;Primary&lt;/string&gt;&lt;string&gt;Secondary&lt;/string&gt;
+        &lt;string&gt;Accent&lt;/string&gt;&lt;string&gt;Surface&lt;/string&gt;
+    &lt;/array&gt;
+    &lt;key&gt;default&lt;/key&gt;
+    &lt;array&gt;
+        &lt;string&gt;#3366CC&lt;/string&gt;&lt;string&gt;#8A55D7&lt;/string&gt;
+        &lt;string&gt;#2DA44E&lt;/string&gt;&lt;string&gt;#F6F8FA&lt;/string&gt;
+    &lt;/array&gt;
+    &lt;key&gt;responsive&lt;/key&gt;&lt;true/&gt;
+    &lt;key&gt;inlineEditable&lt;/key&gt;&lt;false/&gt;
+&lt;/dict&gt;</code></pre><p>Read individual members by zero-based index: <code>{{ control.palette[0] }}</code> through <code>{{ control.palette[3] }}</code>. Array controls use the same bindings, persistence, responsive overrides and undo behaviour as singular controls.</p><div class="note"><strong>Counts are validated.</strong> <code>count</code> must be from 2 through 4, the default array must contain exactly that many values, and <code>subtitles</code> cannot contain more entries than the control array.</div>
 <h2>Example</h2><pre><code>&lt;key&gt;customItems&lt;/key&gt;
 &lt;array&gt;
     &lt;dict&gt;

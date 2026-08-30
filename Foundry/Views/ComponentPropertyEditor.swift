@@ -36,6 +36,17 @@ struct ComponentPropertyEditor: View {
     @ViewBuilder
     private var editorControl: some View {
         switch definition.control {
+        case .array(let element, let count, let subtitles, let help):
+            InspectorRow(title: definition.label, alignment: .top, indicator: responsiveIndicator) {
+                InspectorControlArray(
+                    count: count,
+                    subtitles: subtitles,
+                    help: help,
+                    values: (0..<count).map(arrayElementBinding),
+                    element: element,
+                    assets: assets
+                )
+            }
         case .singleLineText:
             InspectorRow(title: definition.label, indicator: responsiveIndicator) {
                 InspectorTextField(text: stringBinding(as: .string), accessibilityLabel: definition.label, help: definition.label)
@@ -77,6 +88,32 @@ struct ComponentPropertyEditor: View {
                         tokenPicker(tokens: DesignToken.spacingTokens, customLabel: "Custom value")
                     }
                 }
+            }
+        case .slider(let range, let step, let tickMarks, let restrictsToTickMarks):
+            InspectorRow(title: definition.label, alignment: .center, indicator: responsiveIndicator) {
+                HStack {
+                    InspectorSlider(
+                        value: numberBinding, range: range, step: step,
+                        tickMarkCount: tickMarks, restrictsToTickMarks: restrictsToTickMarks,
+                        accessibilityLabel: definition.label, help: definition.label
+                    )
+                    Text(numberBinding.wrappedValue.formatted()).monospacedDigit().frame(minWidth: 36, alignment: .trailing)
+                }
+            }
+        case .date:
+            InspectorRow(title: definition.label, alignment: .center, indicator: responsiveIndicator) {
+                DatePicker("", selection: dateBinding, displayedComponents: [.date])
+                    .labelsHidden()
+            }
+        case .info:
+            InspectorRow(title: "", alignment: .top) {
+                Text(definition.label).font(.caption).foregroundStyle(.secondary)
+            }
+        case .button:
+            InspectorRow(title: definition.label, alignment: .center, indicator: responsiveIndicator) {
+                Toggle(definition.label, isOn: booleanBinding)
+                    .labelsHidden()
+                    .toggleStyle(.button)
             }
         case .color:
             Group {
@@ -224,6 +261,28 @@ struct ComponentPropertyEditor: View {
         )
     }
 
+    private var dateBinding: Binding<Date> {
+        Binding(
+            get: { ISO8601DateFormatter().date(from: displayComponent.property(definition.key)) ?? .now },
+            set: { setProperty(.string(ISO8601DateFormatter().string(from: $0))) }
+        )
+    }
+
+    private func arrayElementBinding(_ index: Int) -> Binding<ComponentProperty.Value> {
+        Binding(
+            get: {
+                let values = displayComponent.propertyValue(definition.key).arrayValue ?? []
+                return values.indices.contains(index) ? values[index] : .string("")
+            },
+            set: { newValue in
+                var values = displayComponent.propertyValue(definition.key).arrayValue ?? []
+                while values.count <= index { values.append(.string("")) }
+                values[index] = newValue
+                setProperty(.array(values))
+            }
+        )
+    }
+
     private var responsiveIndicator: InspectorRowIndicator {
         InspectorRowIndicator(
             isVisible: breakpoint != .mobile && definition.isResponsive,
@@ -346,6 +405,119 @@ struct ComponentPropertyEditor: View {
             case .choice: .choice(string)
             }
         }
+    }
+}
+
+private struct InspectorControlArray: View {
+    let count: Int
+    let subtitles: [String]
+    let help: String?
+    let values: [Binding<ComponentProperty.Value>]
+    let element: ComponentPropertyControl
+    let assets: [ProjectAsset]
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 8) {
+            ForEach(0..<count, id: \.self) { index in
+                InspectorControlArrayItem(
+                    subtitle: subtitles.indices.contains(index) ? subtitles[index] : nil,
+                    help: help,
+                    value: values[index],
+                    element: element,
+                    assets: assets
+                )
+                .frame(maxWidth: .infinity)
+            }
+        }
+    }
+}
+
+private struct InspectorControlArrayItem: View {
+    let subtitle: String?
+    let help: String?
+    @Binding var value: ComponentProperty.Value
+    let element: ComponentPropertyControl
+    let assets: [ProjectAsset]
+
+    var body: some View {
+        VStack(spacing: 4) {
+            control
+            if let subtitle, !subtitle.isEmpty {
+                Text(subtitle)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    .help(subtitle)
+            }
+        }
+        .help(help ?? subtitle ?? "")
+    }
+
+    @ViewBuilder
+    private var control: some View {
+        switch element {
+        case .color:
+            InspectorColorWell(color: colorBinding)
+        case .singleLineText, .url:
+            InspectorTextField(text: stringBinding, accessibilityLabel: subtitle ?? "Text value", help: help)
+        case .number(let range, let step, let unit):
+            HStack(spacing: 2) {
+                Text(numberBinding.wrappedValue.formatted() + unit).monospacedDigit().lineLimit(1)
+                InspectorStepper(value: numberBinding, range: range, increment: step, accessibilityLabel: subtitle ?? "Number value")
+            }
+        case .slider(let range, let step, let tickMarks, let restrictsToTickMarks):
+            InspectorSlider(value: numberBinding, range: range, step: step, tickMarkCount: tickMarks, restrictsToTickMarks: restrictsToTickMarks, accessibilityLabel: subtitle ?? "Slider", help: help)
+        case .date:
+            DatePicker("", selection: dateBinding, displayedComponents: [.date]).labelsHidden()
+        case .button:
+            Toggle(subtitle ?? "", isOn: booleanBinding).labelsHidden().toggleStyle(.button)
+        case .toggle:
+            Toggle("", isOn: booleanBinding).labelsHidden()
+        case .choice(let choices):
+            InspectorPopup(selection: stringBinding, options: choices.map { .init(title: $0.label, value: $0.value) }, accessibilityLabel: subtitle ?? "Choice", help: help)
+        case .asset:
+            InspectorPopup(selection: assetBinding, options: [InspectorPopupOption(title: "None", value: nil)] + assets.map { .init(title: $0.filename, value: $0.id as UUID?) }, accessibilityLabel: subtitle ?? "Image", help: help)
+        default:
+            Text("Unsupported")
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private var stringBinding: Binding<String> {
+        Binding(get: { value.stringValue }, set: { value = .string($0) })
+    }
+
+    private var numberBinding: Binding<Double> {
+        Binding(get: { value.numberValue ?? 0 }, set: { value = .number($0) })
+    }
+
+    private var booleanBinding: Binding<Bool> {
+        Binding(get: { value.booleanValue ?? false }, set: { value = .boolean($0) })
+    }
+
+    private var colorBinding: Binding<Color> {
+        Binding(
+            get: { Color(hex: value.stringValue) ?? .black },
+            set: { value = .color($0.hexString ?? "#000000") }
+        )
+    }
+
+    private var dateBinding: Binding<Date> {
+        Binding(
+            get: { ISO8601DateFormatter().date(from: value.stringValue) ?? .now },
+            set: { value = .string(ISO8601DateFormatter().string(from: $0)) }
+        )
+    }
+
+    private var assetBinding: Binding<UUID?> {
+        Binding(
+            get: { value.stringValue.foundryAssetID },
+            set: { id in
+                let reference = id.flatMap { selectedID in assets.first(where: { $0.id == selectedID })?.reference } ?? ""
+                value = .url(reference)
+            }
+        )
     }
 }
 

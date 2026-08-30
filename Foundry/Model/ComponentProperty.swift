@@ -62,6 +62,7 @@ nonisolated struct ComponentProperty: Codable, Equatable, Identifiable, Sendable
         case choice(String)
         case boolean(Bool)
         case token(DesignToken)
+        case array([Value])
 
         var stringValue: String {
             switch self {
@@ -73,6 +74,8 @@ nonisolated struct ComponentProperty: Codable, Equatable, Identifiable, Sendable
                 value ? "true" : "false"
             case .token(let token):
                 token.rawValue
+            case .array(let values):
+                values.map(\.stringValue).joined(separator: ", ")
             }
         }
 
@@ -88,6 +91,11 @@ nonisolated struct ComponentProperty: Codable, Equatable, Identifiable, Sendable
 
         var booleanValue: Bool? {
             guard case .boolean(let value) = self else { return nil }
+            return value
+        }
+
+        var arrayValue: [Value]? {
+            guard case .array(let value) = self else { return nil }
             return value
         }
     }

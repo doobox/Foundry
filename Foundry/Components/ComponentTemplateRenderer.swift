@@ -168,12 +168,33 @@ nonisolated enum ComponentTemplateRenderer {
             return context.slots[String(key.dropFirst("slot.".count))] ?? ""
         }
         let prefix = key.hasPrefix("control.") ? "control." : "property."
-        guard key.hasPrefix(prefix),
-              let value = context.properties[String(key.dropFirst(prefix.count))] else { return "" }
+        guard key.hasPrefix(prefix) else { return "" }
+        let reference = String(key.dropFirst(prefix.count))
+        let value: ComponentPackageValue
+        if let bracket = reference.lastIndex(of: "["), reference.hasSuffix("]"),
+           let index = Int(reference[reference.index(after: bracket)..<reference.index(before: reference.endIndex)]),
+           let stored = context.properties[String(reference[..<bracket])],
+           case .array(let values) = stored, values.indices.contains(index) {
+            value = values[index]
+        } else if let stored = context.properties[reference] {
+            value = stored
+        } else {
+            return ""
+        }
         switch value {
         case .string(let value): return escape(value)
         case .number(let value): return value.formatted(.number.locale(Locale(identifier: "en_US_POSIX")))
         case .boolean(let value): return value ? "true" : "false"
+        case .array(let values): return values.map(packageValueString).joined(separator: ", ")
+        }
+    }
+
+    private static func packageValueString(_ value: ComponentPackageValue) -> String {
+        switch value {
+        case .string(let value): escape(value)
+        case .number(let value): value.formatted(.number.locale(Locale(identifier: "en_US_POSIX")))
+        case .boolean(let value): value ? "true" : "false"
+        case .array(let values): values.map(packageValueString).joined(separator: ", ")
         }
     }
 
@@ -264,6 +285,7 @@ nonisolated enum ComponentTemplateRenderer {
         case .boolean(let value): value
         case .number(let value): value != 0
         case .string(let value): !value.isEmpty
+        case .array(let values): !values.isEmpty
         case nil: false
         }
     }
@@ -273,6 +295,7 @@ nonisolated enum ComponentTemplateRenderer {
         case .string(let value): value
         case .number(let value): value.formatted(.number.locale(Locale(identifier: "en_US_POSIX")))
         case .boolean(let value): value ? "true" : "false"
+        case .array(let values): values.map(packageValueString).joined(separator: ", ")
         case nil: nil
         }
     }

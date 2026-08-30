@@ -106,6 +106,8 @@ nonisolated struct ComponentPackageProperty: Codable, Equatable, Identifiable, S
     let responsive: Bool
     let inlineEditable: Bool
     let css: String?
+    let subtitles: [String]
+    let toolTip: String?
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -116,6 +118,8 @@ nonisolated struct ComponentPackageProperty: Codable, Equatable, Identifiable, S
         case responsive
         case inlineEditable
         case css
+        case subtitles
+        case toolTip
     }
 
     init(from decoder: Decoder) throws {
@@ -124,8 +128,10 @@ nonisolated struct ComponentPackageProperty: Codable, Equatable, Identifiable, S
         group = try container.decode(String.self, forKey: .group)
         control = try container.decode(ComponentPackageControl.self, forKey: .control)
         css = try container.decodeIfPresent(String.self, forKey: .css)
+        subtitles = try container.decodeIfPresent([String].self, forKey: .subtitles) ?? []
+        toolTip = try container.decodeIfPresent(String.self, forKey: .toolTip)
 
-        if control.type == .divider {
+        if control.type == .divider || control.type == .info {
             title = try container.decodeIfPresent(String.self, forKey: .title) ?? ""
             defaultValue = try container.decodeIfPresent(ComponentPackageValue.self, forKey: .defaultValue) ?? .string("")
             responsive = try container.decodeIfPresent(Bool.self, forKey: .responsive) ?? false
@@ -153,6 +159,11 @@ nonisolated struct ComponentPackageControl: Codable, Equatable, Sendable {
         case fontSize
         case textAlignment
         case divider
+        case slider
+        case date
+        case details
+        case info
+        case button
     }
 
     let type: Kind
@@ -165,6 +176,9 @@ nonisolated struct ComponentPackageControl: Codable, Equatable, Sendable {
     let colorMath: Bool?
     let opacity: Bool?
     let customColor: String?
+    let count: Int?
+    let tickMarks: Int?
+    let restrictsToTickMarks: Bool?
 }
 
 nonisolated struct ComponentPackageOption: Codable, Equatable, Identifiable, Sendable {
@@ -178,6 +192,7 @@ nonisolated enum ComponentPackageValue: Codable, Equatable, Sendable {
     case string(String)
     case number(Double)
     case boolean(Bool)
+    case array([ComponentPackageValue])
 
     init(from decoder: Decoder) throws {
         let container = try decoder.singleValueContainer()
@@ -185,6 +200,8 @@ nonisolated enum ComponentPackageValue: Codable, Equatable, Sendable {
             self = .boolean(value)
         } else if let value = try? container.decode(Double.self) {
             self = .number(value)
+        } else if let value = try? container.decode([ComponentPackageValue].self) {
+            self = .array(value)
         } else {
             self = .string(try container.decode(String.self))
         }
@@ -196,6 +213,7 @@ nonisolated enum ComponentPackageValue: Codable, Equatable, Sendable {
         case .string(let value): try container.encode(value)
         case .number(let value): try container.encode(value)
         case .boolean(let value): try container.encode(value)
+        case .array(let value): try container.encode(value)
         }
     }
 }

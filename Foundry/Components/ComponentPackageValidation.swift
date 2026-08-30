@@ -298,11 +298,38 @@ nonisolated enum ComponentPackageValidator {
 
     private static func validate(_ property: ComponentPackageProperty, into diagnostics: inout [ComponentPackageDiagnostic]) {
         let location = "Info.plist:customItems.\(property.id)"
+        if let count = property.control.count {
+            guard (2...4).contains(count) else {
+                diagnostics.append(.init(severity: .error, location: location, message: "Control arrays must contain between two and four controls."))
+                return
+            }
+            guard case .array(let values) = property.defaultValue, values.count == count else {
+                diagnostics.append(.init(severity: .error, location: location, message: "A control array requires exactly \(count) default values."))
+                return
+            }
+            if property.subtitles.count > count {
+                diagnostics.append(.init(severity: .error, location: location, message: "A control array cannot have more subtitles than controls."))
+            }
+            for (index, value) in values.enumerated() {
+                validate(value, for: property, location: "\(location).default[\(index)]", allowsLiteralColor: true, into: &diagnostics)
+            }
+            return
+        }
+        validate(property.defaultValue, for: property, location: location, allowsLiteralColor: false, into: &diagnostics)
+    }
+
+    private static func validate(
+        _ defaultValue: ComponentPackageValue,
+        for property: ComponentPackageProperty,
+        location: String,
+        allowsLiteralColor: Bool,
+        into diagnostics: inout [ComponentPackageDiagnostic]
+    ) {
         switch property.control.type {
-        case .divider:
+        case .divider, .info:
             break
-        case .number:
-            guard case .number(let value) = property.defaultValue else {
+        case .number, .slider:
+            guard case .number(let value) = defaultValue else {
                 diagnostics.append(.init(severity: .error, location: location, message: "A number control requires a numeric default value."))
                 return
             }
@@ -312,23 +339,24 @@ nonisolated enum ComponentPackageValidator {
             if let maximum = property.control.maximum, value > maximum {
                 diagnostics.append(.init(severity: .error, location: location, message: "The default value is above the control maximum."))
             }
-        case .toggle:
-            if case .boolean = property.defaultValue {} else {
+        case .toggle, .details, .button:
+            if case .boolean = defaultValue {} else {
                 diagnostics.append(.init(severity: .error, location: location, message: "A toggle control requires a Boolean default value."))
             }
         case .select:
-            guard case .string(let value) = property.defaultValue,
+            guard case .string(let value) = defaultValue,
                   property.control.options?.contains(where: { $0.value == value }) == true else {
                 diagnostics.append(.init(severity: .error, location: location, message: "A select default must match one of its options."))
                 return
             }
         case .color:
-            guard case .string(let value) = property.defaultValue else {
+            guard case .string(let value) = defaultValue else {
                 diagnostics.append(.init(severity: .error, location: location, message: "A color control requires a string default value."))
                 return
             }
             let themeDefaults = Set(ThemeColorRole.allCases.map(\.rawValue))
-            if value != "custom" && (!property.control.themeValues.orFalse || !themeDefaults.contains(value)) {
+            let isLiteralColor = allowsLiteralColor && value.matches(#"^#[0-9A-Fa-f]{6}([0-9A-Fa-f]{2})?$"#)
+            if !isLiteralColor && value != "custom" && (!property.control.themeValues.orFalse || !themeDefaults.contains(value)) {
                 diagnostics.append(.init(severity: .error, location: location, message: "A color default must be custom, or a known theme role when themeValues is enabled."))
             }
             if let customColor = property.control.customColor,
@@ -336,7 +364,7 @@ nonisolated enum ComponentPackageValidator {
                 diagnostics.append(.init(severity: .error, location: location, message: "customColor must be a six-digit hexadecimal colour."))
             }
         case .fontFamily:
-            if case .string(let value) = property.defaultValue {
+            if case .string(let value) = defaultValue {
                 let roles = Set(ThemeFontRole.allCases.map(\.rawValue))
                 if value != "custom" && (!property.control.themeValues.orFalse || !roles.contains(value)) {
                     diagnostics.append(.init(severity: .error, location: location, message: "A fontFamily default must be custom, or a known theme role when themeValues is enabled."))
@@ -345,7 +373,7 @@ nonisolated enum ComponentPackageValidator {
                 diagnostics.append(.init(severity: .error, location: location, message: "A fontFamily control requires a string default value."))
             }
         case .fontSize:
-            if case .string(let value) = property.defaultValue {
+            if case .string(let value) = defaultValue {
                 let sizes = Set(Theme.standard.typography.fontSizes.map(\.id))
                 if value != "custom" && (!property.control.themeValues.orFalse || !sizes.contains(value)) {
                     diagnostics.append(.init(severity: .error, location: location, message: "A fontSize default must be custom, or a known theme size when themeValues is enabled."))
@@ -354,7 +382,7 @@ nonisolated enum ComponentPackageValidator {
                 diagnostics.append(.init(severity: .error, location: location, message: "A fontSize control requires a string default value."))
             }
         case .textAlignment:
-            if case .string(let value) = property.defaultValue,
+            if case .string(let value) = defaultValue,
                ["start", "center", "end", "justify"].contains(value) {
                 break
             }
@@ -364,7 +392,7 @@ nonisolated enum ComponentPackageValidator {
                 message: "A textAlignment default must be start, center, end, or justify."
             ))
         default:
-            if case .string = property.defaultValue {} else {
+            if case .string = defaultValue {} else {
                 diagnostics.append(.init(severity: .error, location: location, message: "This control requires a string default value."))
             }
         }

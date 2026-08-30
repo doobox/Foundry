@@ -4,6 +4,43 @@ import Testing
 
 struct ComponentPackageTests {
     @Test
+    func controlArraysDecodePersistAndRenderIndexedValues() throws {
+        let plist = """
+        <?xml version="1.0" encoding="UTF-8"?>
+        <plist version="1.0"><dict>
+        <key>type</key><string>component</string><key>CFBundleIdentifier</key><string>com.example.arrays</string>
+        <key>title</key><string>Arrays</string><key>description</key><string>Array controls</string>
+        <key>author</key><string>Foundry</string><key>version</key><string>1</string><key>group</key><string>Other</string>
+        <key>tags</key><array/><key>assets</key><array/><key>slots</key><array/>
+        <key>customItems</key><array><dict>
+        <key>id</key><string>palette</string><key>title</key><string>Palette</string><key>group</key><string>Appearance</string>
+        <key>subtitles</key><array><string>One</string><string>Two</string><string>Three</string><string>Four</string></array>
+        <key>toolTip</key><string>Four colours</string>
+        <key>control</key><dict><key>type</key><string>color</string><key>count</key><integer>4</integer></dict>
+        <key>default</key><array><string>#111111</string><string>#222222</string><string>#333333</string><string>#444444</string></array>
+        <key>responsive</key><true/><key>inlineEditable</key><false/>
+        </dict></array>
+        <key>templates</key><dict><key>html</key><string>component.html</string></dict>
+        </dict></plist>
+        """
+        let manifest = try PropertyListDecoder().decode(ComponentPackageManifest.self, from: Data(plist.utf8))
+        let property = try #require(manifest.properties.first)
+        #expect(property.control.count == 4)
+        #expect(property.subtitles == ["One", "Two", "Three", "Four"])
+        #expect(property.toolTip == "Four colours")
+
+        let value = ComponentPackageValue.array([.string("red"), .string("green"), .string("blue")])
+        let data = try JSONEncoder().encode(value)
+        #expect(try JSONDecoder().decode(ComponentPackageValue.self, from: data) == value)
+
+        let context = ComponentTemplateContext(
+            instanceID: UUID(), packageIdentifier: "com.example.arrays",
+            properties: ["palette": value], slots: [:]
+        )
+        #expect(ComponentTemplateRenderer.render("{{ property.palette[1] }}", context: context) == "green")
+    }
+
+    @Test
     func requiresPhpDefaultsToFalseAndForcesPhpPageExportWhenEnabled() throws {
         let defaultManifest = try PropertyListDecoder().decode(
             ComponentPackageManifest.self,
@@ -582,7 +619,8 @@ struct ComponentPackageTests {
     }
 
     @Test @MainActor
-    func builtInsAreLoadedAsPublicComponentPackages() {
+    func builtInsAreLoadedAsPublicComponentPackages() throws {
+        let catalog = ComponentPackageCatalog.shared
         let builtIns = ComponentRegistry.builtInTypes.map(\.definition)
 
         #expect(builtIns.allSatisfy { $0.renderKind == .package })
@@ -590,6 +628,13 @@ struct ComponentPackageTests {
         #expect(Set(builtIns.compactMap { $0.package?.manifest.identifier }).count == builtIns.count)
         #expect(ComponentType.image.definition.package?.manifest.identifier == ComponentType.image.rawValue)
         #expect(ComponentType.image.definition.properties.contains { $0.key == .source && !$0.isInspectorVisible })
+        let containerURL = try #require(Bundle.main.url(forResource: "BuiltInComponents", withExtension: "foundrypack"))
+        let controlsURL = containerURL.appending(path: "Contents/Resources/Controls.foundrypack", directoryHint: .isDirectory)
+        let loadedControls = try ComponentPackageLoader.load(from: controlsURL)
+        #expect(loadedControls.manifest.properties.contains { $0.control.count == 4 })
+        let controls = catalog.packages["foundry.testing.controls"]
+        #expect(controls?.manifest.name == "Controls")
+        #expect(controls?.manifest.properties.contains { $0.control.count == 4 } == true)
     }
 
     @Test @MainActor

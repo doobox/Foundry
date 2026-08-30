@@ -1,0 +1,6 @@
+.controls-test { border: 2px solid var(--accent); border-radius: 10px; background: color-mix(in srgb, var(--accent) var(--amount), transparent); }
+.controls-test__palette { display: grid; grid-template-columns: repeat(4, 1fr); height: 28px; overflow: hidden; border-radius: 6px; }
+.controls-test__palette i:nth-child(1) { background: var(--p1); }
+.controls-test__palette i:nth-child(2) { background: var(--p2); }
+.controls-test__palette i:nth-child(3) { background: var(--p3); }
+.controls-test__palette i:nth-child(4) { background: var(--p4); }

@@ -1,0 +1,12 @@
+<section class="controls-test" {{ component.attributes }} style="--accent: {{ property.accent }}; --amount: {{ property.amount }}%; --p1: {{ property.palette[0] }}; --p2: {{ property.palette[1] }}; --p3: {{ property.palette[2] }}; --p4: {{ property.palette[3] }}; padding: {{ property.insets[0] }}px {{ property.insets[1] }}px {{ property.insets[2] }}px {{ property.insets[3] }}px; text-align: {{ property.alignment }};">
+    <h3>{{ property.singleText }}</h3>
+    <p>{{ property.longText }}</p>
+    <a href="{{ property.destination }}">Link · {{ property.choice }}</a>
+    <p>Enabled: {{ property.enabled }} · Details: {{ property.details }} · Button: {{ property.button }}</p>
+    <p>Slider: {{ property.slider }} · Date: {{ property.date }} · Font: {{ property.typeface }} · Size: {{ property.textSize }}</p>
+    <p>Texts: {{ property.labels[0] }}, {{ property.labels[1] }}, {{ property.labels[2] }}</p>
+    <p>Flags: {{ property.flags[0] }}, {{ property.flags[1] }}, {{ property.flags[2] }}, {{ property.flags[3] }}</p>
+    <p>Modes: {{ property.modes[0] }}, {{ property.modes[1] }}</p>
+    <img src="{{ property.picture }}" alt="Selected test image">
+    <div class="controls-test__palette"><i></i><i></i><i></i><i></i></div>
+</section>

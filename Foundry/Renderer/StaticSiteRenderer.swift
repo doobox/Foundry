@@ -431,6 +431,7 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
         case .boolean(let value): .boolean(value)
         case .string(let value), .url(let value), .color(let value), .choice(let value): .string(value)
         case .token(let value): .string(value.rawValue)
+        case .array(let values): .array(values.map(packageValue))
         }
     }
 
@@ -498,6 +499,8 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
             raw = value
         case .token(let value):
             raw = value.rawValue
+        case .array(let values):
+            raw = values.map(\.stringValue).joined(separator: " ")
         }
         return raw.filter { !";{}<>".contains($0) }
     }

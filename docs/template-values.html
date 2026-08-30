@@ -53,7 +53,11 @@ button.addEventListener("click", () =&gt; {
 
 #{{ id }} .media {
     opacity: {{ control.imageOpacity }};
-}</code></pre></section>
+}</code></pre></section><section class="reference-entry"><h3>{{ control.&lt;id&gt;[&lt;index&gt;] }}</h3><p>Resolves one member of a control array using a zero-based index. The equivalent <code>property</code> spelling is also accepted.</p><pre><code>#{{ id }} {
+    --primary: {{ control.palette[0] }};
+    --secondary: {{ property.palette[1] }};
+    padding: {{ control.insets[0] }}px {{ control.insets[1] }}px;
+}</code></pre><p>The index must refer to an item declared by the control’s <code>count</code>. See <a href="custom-controls.html#control-arrays">Control arrays</a>.</p></section>
 <h2>Component hooks</h2><dl class="syntax-list"><dt><code>{{ component.attributes }}</code></dt><dd>Required editor metadata. Place it on the element that represents the component.</dd><dt><code>{{ component.class }}</code></dt><dd>Foundry’s generated class fragment when a template needs to append it to its own class attribute.</dd></dl>
 <div class="note"><strong>No hidden selector rules.</strong> Foundry does not assume that a control belongs on the top-level element. Use the same control more than once or target any descendant your component requires.</div>
 <h2>Supported template files</h2><dl><dt>HTML</dt><dd>Primary instance markup and additional page-scoped head/body markup.</dd><dt>CSS</dt><dd>Component styles used by the canvas and export.</dd><dt>JavaScript</dt><dd>Client-side component behaviour with scope-appropriate values substituted.</dd><dt>Sass and SCSS <span class="pill">Proposed</span></dt><dd>Developer-authored stylesheet source with macros substituted and compiled to CSS.</dd><dt>PHP</dt><dd>Publish-only server-side source with scope-appropriate macros substituted and placed before the exported page doctype.</dd><dt>Editor CSS</dt><dd>Canvas-only CSS excluded from production export.</dd></dl>

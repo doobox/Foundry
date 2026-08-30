@@ -444,6 +444,7 @@ struct HTMLPageRenderer: PageRendering {
         case .boolean(let value): .boolean(value)
         case .string(let value), .url(let value), .color(let value), .choice(let value): .string(value)
         case .token(let value): .string(value.rawValue)
+        case .array(let values): .array(values.map(packageValue))
         }
     }
 
