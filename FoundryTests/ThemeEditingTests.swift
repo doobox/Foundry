@@ -100,6 +100,43 @@ struct ThemeEditingTests {
     }
 
     @Test
+    func switchingBackFromGoogleRestoresTheLastFontNames() throws {
+        var site = Site.starter()
+        site.theme.typography.bodyFont.family = "Libre Franklin"
+        site.theme.typography.bodyFont.fallbacks = []
+        site.theme.typography.bodyFont.source = .remote(stylesheetURL: try #require(
+            ThemeFontDefinition.googleStylesheetURL(for: "Libre Franklin")
+        ))
+        site.theme.typography.bodyFont.systemFontNames = ["Avenir Next", "system-ui", "sans-serif"]
+        let document = FoundryDocument(site: site)
+        let undoManager = UndoManager()
+        let editor = ProjectEditor(document: document, undoManager: undoManager)
+
+        editor.restoreThemeFontNames(reference: .role(.body))
+
+        let restored = document.site.theme.typography.bodyFont
+        #expect(restored.family == "Avenir Next")
+        #expect(restored.fallbacks == ["system-ui", "sans-serif"])
+        #expect(restored.source == .system)
+
+        undoManager.undo()
+        #expect(document.site.theme.typography.bodyFont.family == "Libre Franklin")
+    }
+
+    @Test
+    func fontNameMemoryRoundTripsWithTheProject() throws {
+        let document = FoundryDocument()
+        let editor = ProjectEditor(document: document, undoManager: UndoManager())
+        editor.setThemeFontNames("Charter, serif", reference: .role(.heading))
+        editor.setThemeGoogleFont("ABeeZee", reference: .role(.heading))
+
+        let data = try FoundryDocument.encoder.encode(document.site)
+        let decoded = try FoundryDocument.decoder.decode(Site.self, from: data)
+
+        #expect(decoded.theme.typography.headingFont.systemFontNames == ["Charter", "serif"])
+    }
+
+    @Test
     func bundledFontResourcesRenderForCanvasAndExport() {
         let asset = ProjectAsset(filename: "Foundry Sans.woff2", mediaType: "font/woff2", byteCount: 3)
         let content = ProjectAssetContent(asset: asset, data: Data([1, 2, 3]))

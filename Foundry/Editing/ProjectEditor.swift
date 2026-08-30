@@ -127,7 +127,22 @@ struct ProjectEditor {
     }
 
     func setThemeFontSource(_ source: ThemeFontSource, reference: ThemeFontReference) {
-        updateThemeFont(reference: reference, actionName: "Edit Theme Font Source") { $0.source = source }
+        updateThemeFont(reference: reference, actionName: "Edit Theme Font Source") {
+            if case .system = $0.source {
+                $0.systemFontNames = [$0.family] + $0.fallbacks
+            }
+            $0.source = source
+        }
+    }
+
+    func restoreThemeFontNames(reference: ThemeFontReference) {
+        updateThemeFont(reference: reference, actionName: "Use Font Names") { definition in
+            let names = definition.systemFontNames ?? defaultSystemFontNames(for: reference)
+            definition.family = names.first ?? "system-ui"
+            definition.fallbacks = Array(names.dropFirst())
+            definition.source = .system
+            definition.systemFontNames = names
+        }
     }
 
     func setThemeFontFamily(_ value: String, reference: ThemeFontReference) {
@@ -145,6 +160,7 @@ struct ProjectEditor {
             $0.family = family
             $0.fallbacks = Array(names.dropFirst())
             $0.source = .system
+            $0.systemFontNames = names
         }
     }
 
@@ -153,7 +169,11 @@ struct ProjectEditor {
         guard !normalizedFamily.isEmpty,
               let url = ThemeFontDefinition.googleStylesheetURL(for: normalizedFamily) else { return }
         updateThemeFont(reference: reference, actionName: "Choose Google Font") {
+            if case .system = $0.source {
+                $0.systemFontNames = [$0.family] + $0.fallbacks
+            }
             $0.family = normalizedFamily
+            $0.fallbacks = []
             $0.source = .remote(stylesheetURL: url)
         }
     }
@@ -211,6 +231,16 @@ struct ProjectEditor {
                 update(&site.theme.typography.customFonts[index].font)
             }
         }
+    }
+
+    private func defaultSystemFontNames(for reference: ThemeFontReference) -> [String] {
+        let definition = switch reference {
+        case .role(.body): Theme.standard.typography.bodyFont
+        case .role(.heading): Theme.standard.typography.headingFont
+        case .role(.monospaced): Theme.standard.typography.monospacedFont
+        case .custom: ThemeFontDefinition.system(family: "system-ui", weights: [400, 700])
+        }
+        return [definition.family] + definition.fallbacks
     }
 
     func setThemeFontSize(id: String, value: Double) {

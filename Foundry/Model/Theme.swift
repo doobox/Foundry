@@ -125,6 +125,8 @@ nonisolated struct ThemeFontDefinition: Codable, Equatable, Sendable {
     var source: ThemeFontSource
     var weights: [Int]
     var styles: [ThemeFontStyle]
+    /// The last Font Names configuration, retained while another source is active.
+    var systemFontNames: [String]? = nil
 
     static func system(family: String, weights: [Int]) -> ThemeFontDefinition {
         ThemeFontDefinition(
@@ -132,7 +134,8 @@ nonisolated struct ThemeFontDefinition: Codable, Equatable, Sendable {
             fallbacks: [],
             source: .system,
             weights: weights,
-            styles: [.normal]
+            styles: [.normal],
+            systemFontNames: [family]
         )
     }
 

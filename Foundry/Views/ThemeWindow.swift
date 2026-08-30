@@ -1,4 +1,5 @@
 import SwiftUI
+import UniformTypeIdentifiers
 
 @MainActor
 final class ThemeWindowRegistry {
@@ -690,7 +691,7 @@ private struct ThemeFontDefinitionEditor: View {
                 Divider()
 
                 HStack {
-                    Button("Revert") {
+                    Button("Cancel") {
                         session.discardFontPreview()
                     }
                     .disabled(!session.hasUncommittedFontPreview)
@@ -866,6 +867,9 @@ private struct ThemeFontDefinitionEditor: View {
             }
             return true
         }
+        .dropDestination(for: URL.self) { urls, _ in
+            return importFontFiles(urls, existingFiles: files)
+        }
     }
 
     private func addFontResource(_ asset: ProjectAsset, to files: [String]) {
@@ -876,6 +880,47 @@ private struct ThemeFontDefinitionEditor: View {
                 reference: reference
             )
         }
+    }
+
+    private func importFontFiles(_ urls: [URL], existingFiles: [String]) -> Bool {
+        let fontExtensions = Set(["otf", "ttf", "woff", "woff2"])
+        let candidates = urls.filter { fontExtensions.contains($0.pathExtension.lowercased()) }
+        guard !candidates.isEmpty else { return false }
+
+        let undoManager = editor.undoManager
+        undoManager?.beginUndoGrouping()
+        defer {
+            undoManager?.endUndoGrouping()
+            undoManager?.setActionName("Import Font Resources")
+        }
+
+        var importedReferences: [String] = []
+        var firstFilename: String?
+        for url in candidates {
+            let didAccess = url.startAccessingSecurityScopedResource()
+            defer { if didAccess { url.stopAccessingSecurityScopedResource() } }
+            guard let data = try? Data(contentsOf: url) else { continue }
+
+            let type = UTType(filenameExtension: url.pathExtension)
+            let id = session.document.importAsset(
+                data: data,
+                filename: url.lastPathComponent,
+                mediaType: type?.preferredMIMEType ?? "application/octet-stream",
+                undoManager: undoManager
+            )
+            importedReferences.append("foundry-asset:\(id.uuidString)")
+            if firstFilename == nil { firstFilename = url.lastPathComponent }
+        }
+
+        guard !importedReferences.isEmpty else { return false }
+        editor.setThemeFontResources(existingFiles + importedReferences, reference: reference)
+        if existingFiles.isEmpty, let firstFilename {
+            editor.setThemeFontFamily(
+                (firstFilename as NSString).deletingPathExtension,
+                reference: reference
+            )
+        }
+        return true
     }
 
     private var fontNamesBinding: Binding<String> {
@@ -890,7 +935,7 @@ private struct ThemeFontDefinitionEditor: View {
             get: { ThemeFontSourceKind(definition.source) },
             set: { kind in
                 switch kind {
-                case .system: editor.setThemeFontSource(.system, reference: reference)
+                case .system: editor.restoreThemeFontNames(reference: reference)
                 case .bundled: editor.setThemeFontSource(.bundled(files: []), reference: reference)
                 case .remote:
                     let initialFamily = GoogleFontsService.fallback.first?.family ?? "ABeeZee"
