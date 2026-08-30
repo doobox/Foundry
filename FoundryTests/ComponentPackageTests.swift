@@ -429,6 +429,36 @@ struct ComponentPackageTests {
     }
 
     @Test
+    func staticRendererConnectsInstanceJavaScriptToItsComponentElement() throws {
+        let identifier = "com.example.javascript\(UUID().uuidString.replacingOccurrences(of: "-", with: "").lowercased())"
+        let declaration = """
+        <key>files</key>
+        <array>
+            <dict><key>path</key><string>instance.js</string><key>scope</key><string>instance</string></dict>
+        </array>
+        """
+        let manifestText = validManifest
+            .replacingOccurrences(of: "com.example.card", with: identifier)
+            .replacingOccurrences(of: instanceCSSDeclaration, with: declaration)
+        let packageURL = try makePackage(
+            manifest: manifestText,
+            template: "<section class=\"test{{ component.class }}\" {{ component.attributes }}><button>Test</button>{% slot id=\"content\" %}</section>",
+            additionalFiles: ["instance.js": "component.querySelector('button');"]
+        )
+        defer { try? FileManager.default.removeItem(at: packageURL) }
+
+        let package = try ComponentPackageLoader.load(from: packageURL)
+        ComponentRegistry.register(package)
+        let node = ComponentNode(type: ComponentType(rawValue: identifier))
+        let site = Site(name: "JavaScript", pages: [Page(title: "Home", slug: "index", components: [node])])
+
+        let html = try #require(StaticSiteRenderer().render(site: site).file(at: "index.html")?.contents)
+
+        #expect(html.contains("data-foundry-id=\"\(node.id.uuidString)\""))
+        #expect(html.contains("document.querySelector('[data-foundry-id=\"\(node.id.uuidString)\"]')"))
+    }
+
+    @Test
     func loaderProcessesScopedPHPTemplatesIntoExportedPagePrelude() throws {
         let identifier = "com.example.phptemplates\(UUID().uuidString.replacingOccurrences(of: "-", with: "").lowercased())"
         let declaration = """

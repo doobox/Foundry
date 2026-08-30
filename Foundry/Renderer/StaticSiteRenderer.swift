@@ -317,14 +317,18 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
                     properties: packageProperties(node, theme: theme, assetPrefix: assetPrefix, assets: assets, site: site),
                     slots: slots,
                     componentClass: componentClass(node) + " " +
-                        ComponentTemplateRenderer.packageClass(for: package.manifest.identifier)
+                        ComponentTemplateRenderer.packageClass(for: package.manifest.identifier),
+                    componentAttributes: packageRuntimeAttributes(
+                        for: node,
+                        packageIdentifier: package.manifest.identifier
+                    )
                 )
             )
             if package.htmlTemplate.contains("{{ component.attributes }}") ||
                 package.htmlTemplate.contains("{{component.attributes}}") {
                 return rendered
             }
-            return "<div class=\"\(componentClass(node))\" data-foundry-package=\"\(escapeAttribute(package.manifest.identifier))\">\(rendered)</div>"
+            return "<div class=\"\(componentClass(node))\" \(packageRuntimeAttributes(for: node, packageIdentifier: package.manifest.identifier))>\(rendered)</div>"
         case .unavailable:
             return missingPackageHTML(node, theme: theme, assetPrefix: assetPrefix, assets: assets, site: site)
         }
@@ -453,6 +457,10 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
 
     private func componentClass(_ node: ComponentNode) -> String {
         "c-" + node.id.uuidString.lowercased()
+    }
+
+    private func packageRuntimeAttributes(for node: ComponentNode, packageIdentifier: String) -> String {
+        "data-foundry-id=\"\(node.id.uuidString)\" data-foundry-package=\"\(escapeAttribute(packageIdentifier))\""
     }
 
     private func packageStyles(
