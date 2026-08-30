@@ -5,6 +5,21 @@ import Testing
 @MainActor
 struct PageEditingTests {
     @Test
+    func completeSiteURLDropsItsTrailingSlashWithoutBreakingAnIncompleteScheme() {
+        let document = FoundryDocument()
+        let editor = ProjectEditor(document: document, undoManager: nil)
+
+        editor.setSitePublicURL("https://")
+        #expect(document.site.publicURL == "https://")
+
+        editor.setSitePublicURL("https://example.com/")
+        #expect(document.site.publicURL == "https://example.com")
+
+        editor.setSitePublicURL("https://example.com/subsite/")
+        #expect(document.site.publicURL == "https://example.com/subsite")
+    }
+
+    @Test
     func createsPageWithUniqueSlugAndStableIdentifier() {
         let document = FoundryDocument()
         let editor = ProjectEditor(document: document, undoManager: nil)

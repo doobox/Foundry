@@ -14,7 +14,17 @@ struct ProjectEditor {
     }
 
     func setSitePublicURL(_ publicURL: String) {
-        mutate(actionName: "Edit Site URL") { $0.publicURL = publicURL }
+        let normalizedURL: String
+        if publicURL.hasSuffix("/"),
+           let url = URL(string: publicURL),
+           let scheme = url.scheme?.lowercased(),
+           (scheme == "http" || scheme == "https"),
+           url.host != nil {
+            normalizedURL = String(publicURL.dropLast())
+        } else {
+            normalizedURL = publicURL
+        }
+        mutate(actionName: "Edit Site URL") { $0.publicURL = normalizedURL }
     }
 
     func renameComponent(id: UUID, name: String) {

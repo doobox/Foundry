@@ -77,6 +77,7 @@ private struct GeneralProjectSettingsView: View {
                     "Site URL",
                     text: Binding(get: { publicURL }, set: editor.setSitePublicURL),
                     prompt: Text("https://example.com")
+                        .foregroundStyle(.secondary)
                 )
                 Text("Used to create absolute links to pages and resources. Include https:// and omit a trailing slash.")
                     .font(.caption)
