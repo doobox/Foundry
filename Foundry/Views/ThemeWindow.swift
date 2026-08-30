@@ -6,6 +6,11 @@ import SwiftUI
 final class ThemeWindowCoordinator {
     private weak var window: NSWindow?
 
+    private enum WindowMetrics {
+        static let width: CGFloat = 800
+        static let height: CGFloat = 575
+    }
+
     func show(document: FoundryDocument, undoManager: UndoManager?) {
         if let window {
             window.makeKeyAndOrderFront(nil)
@@ -13,12 +18,18 @@ final class ThemeWindowCoordinator {
         }
         let content = ThemeWindowContent(document: document, undoManager: undoManager)
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 1_060, height: 680),
+            contentRect: NSRect(
+                x: 0,
+                y: 0,
+                width: WindowMetrics.width,
+                height: WindowMetrics.height
+            ),
             styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
             backing: .buffered,
             defer: false
         )
         window.title = "\(document.site.name) – Theme"
+        window.minSize = NSSize(width: WindowMetrics.width, height: WindowMetrics.height)
         window.titlebarAppearsTransparent = true
         window.isReleasedWhenClosed = false
         window.contentView = NSHostingView(rootView: content)
@@ -46,7 +57,7 @@ private struct ThemeWindowContent: View {
                     }
                 }
             }
-            .navigationSplitViewColumnWidth(min: 210, ideal: 240, max: 300)
+            .navigationSplitViewColumnWidth(min: 180, ideal: 210, max: 260)
         } detail: {
             switch selection {
             case .themes:
@@ -55,11 +66,12 @@ private struct ThemeWindowContent: View {
                 ThemeSettingsDetail(
                     section: selection,
                     theme: document.site.theme,
+                    assets: document.site.assets,
                     editor: ProjectEditor(document: document, undoManager: undoManager)
                 )
             }
         }
-        .frame(minWidth: 800, minHeight: 520)
+        .frame(minWidth: 800, minHeight: 575)
     }
 }
 
@@ -135,13 +147,14 @@ private struct ThemeSidebarRow: View {
 private struct ThemeSettingsDetail: View {
     let section: ThemeWindowSection
     let theme: Theme
+    let assets: [ProjectAsset]
     let editor: ProjectEditor
     @State private var expandedFontSizeID: String?
 
     var body: some View {
         Group {
             if section == .fontFamily {
-                ThemeFontFamilyEditor(theme: theme, editor: editor)
+                ThemeFontFamilyEditor(theme: theme, assets: assets, editor: editor)
             } else {
                 List {
             switch section {
@@ -444,26 +457,30 @@ private struct ThemeSettingsDetail: View {
 
 private struct ThemeFontFamilyEditor: View {
     let theme: Theme
+    let assets: [ProjectAsset]
     let editor: ProjectEditor
     @State private var selection: ThemeFontReference = .role(.body)
-    @State private var search = ""
-    @State private var category: ThemeFontCategory = .all
 
     var body: some View {
         HSplitView {
             themeFontSidebar
-                .frame(minWidth: 190, idealWidth: 220, maxWidth: 260)
-            fontLibrary
-                .frame(minWidth: 230, idealWidth: 280, maxWidth: 360)
-            fontInspector
-                .frame(minWidth: 360, maxWidth: .infinity)
+                .frame(minWidth: 190, idealWidth: 240, maxWidth: 320)
+            ThemeFontDefinitionEditor(
+                title: selectionTitle,
+                definition: definition(for: selection),
+                reference: selection,
+                assets: assets,
+                name: customNameBinding,
+                editor: editor
+            )
+            .frame(minWidth: 360, maxWidth: .infinity, maxHeight: .infinity)
         }
     }
 
     private var themeFontSidebar: some View {
         VStack(spacing: 0) {
             HStack {
-                Text("Theme Fonts")
+                Text("Custom Fonts")
                     .font(.headline)
                 Spacer()
                 Button {
@@ -479,23 +496,8 @@ private struct ThemeFontFamilyEditor: View {
             Divider()
 
             List(selection: $selection) {
-                Section("Roles") {
-                    ForEach(ThemeFontRole.allCases) { role in
-                        FontAssignmentRow(
-                            title: role.title,
-                            family: definition(for: .role(role)).family,
-                            systemImage: role.systemImage
-                        )
-                        .tag(ThemeFontReference.role(role))
-                    }
-                }
-                Section("Custom") {
-                    ForEach(theme.typography.customFonts) { font in
-                        FontAssignmentRow(
-                            title: font.name,
-                            family: font.font.family,
-                            systemImage: "textformat"
-                        )
+                ForEach(theme.typography.customFonts) { font in
+                    Text(font.name)
                         .tag(ThemeFontReference.custom(font.id))
                         .contextMenu {
                             Button("Delete", role: .destructive) {
@@ -503,103 +505,16 @@ private struct ThemeFontFamilyEditor: View {
                                 selection = .role(.body)
                             }
                         }
+                }
+                Section("Theme Fonts") {
+                    ForEach(ThemeFontRole.allCases) { role in
+                        Text(role.rawValue)
+                            .tag(ThemeFontReference.role(role))
                     }
                 }
             }
             .listStyle(.sidebar)
         }
-    }
-
-    private var fontLibrary: some View {
-        VStack(spacing: 0) {
-            VStack(spacing: 10) {
-                TextField("Search Fonts", text: $search)
-                    .textFieldStyle(.roundedBorder)
-                Picker("Category", selection: $category) {
-                    ForEach(ThemeFontCategory.allCases) { category in
-                        Text(category.title).tag(category)
-                    }
-                }
-            }
-            .padding(12)
-
-            Divider()
-
-            List(filteredFamilies, id: \.self) { family in
-                Button {
-                    assign(family)
-                } label: {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(family)
-                            .font(.custom(family, fixedSize: 19))
-                            .foregroundStyle(.primary)
-                        Text(fontDescription(family))
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.vertical, 4)
-                }
-                .buttonStyle(.plain)
-                .listRowBackground(
-                    definition(for: selection).family == family
-                        ? Color.accentColor.opacity(0.18)
-                        : Color.clear
-                )
-            }
-            .listStyle(.inset)
-        }
-    }
-
-    private var fontInspector: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 24) {
-                HStack {
-                    VStack(alignment: .leading, spacing: 5) {
-                        if case .custom(let id) = selection {
-                            TextField("Font Name", text: customNameBinding(for: id))
-                                .font(.title2.weight(.semibold))
-                                .textFieldStyle(.plain)
-                        } else {
-                            Text(selectionTitle)
-                                .font(.caption.weight(.semibold))
-                                .foregroundStyle(.secondary)
-                                .textCase(.uppercase)
-                        }
-                        Text(definition(for: selection).family)
-                            .font(.largeTitle.weight(.bold))
-                    }
-                    Spacer()
-                    if case .custom(let id) = selection {
-                        Button("Delete", role: .destructive) {
-                            editor.removeThemeCustomFont(id: id)
-                            selection = .role(.body)
-                        }
-                    }
-                }
-
-                Text("ABCDEFGHIJKLMNOPQRSTUVWXYZ\nabcdefghijklmnopqrstuvwxyz\n1234567890 &?!@#")
-                    .font(.custom(definition(for: selection).family, fixedSize: 38))
-                    .lineSpacing(10)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(22)
-                    .background(.background.secondary, in: RoundedRectangle(cornerRadius: 12))
-
-                ThemeFontDefinitionControls(
-                    definition: definition(for: selection),
-                    reference: selection,
-                    editor: editor
-                )
-            }
-            .padding(24)
-        }
-    }
-
-    private var filteredFamilies: [String] {
-        NSFontManager.shared.availableFontFamilies
-            .filter { search.isEmpty || $0.localizedCaseInsensitiveContains(search) }
-            .filter(category.includes)
-            .sorted { $0.localizedStandardCompare($1) == .orderedAscending }
     }
 
     private var selectionTitle: String {
@@ -618,145 +533,191 @@ private struct ThemeFontFamilyEditor: View {
         }
     }
 
-    private func assign(_ family: String) {
-        switch selection {
-        case .role(let role):
-            editor.setThemeFont(family, for: role)
-        case .custom(let id):
-            editor.setThemeCustomFontFamily(id: id, value: family)
-        }
-        editor.setThemeFontSource(.system, reference: selection)
-    }
-
-    private func customNameBinding(for id: UUID) -> Binding<String> {
-        Binding(
+    private var customNameBinding: Binding<String>? {
+        guard case .custom(let id) = selection else { return nil }
+        return Binding(
             get: { theme.typography.customFonts.first(where: { $0.id == id })?.name ?? "" },
             set: { editor.setThemeCustomFontName(id: id, value: $0) }
         )
     }
-
-    private func fontDescription(_ family: String) -> String {
-        guard let members = NSFontManager.shared.availableMembers(ofFontFamily: family) else {
-            return "System font"
-        }
-        return "\(members.count) style\(members.count == 1 ? "" : "s")"
-    }
 }
 
-private struct FontAssignmentRow: View {
+private struct ThemeFontDefinitionEditor: View {
     let title: String
-    let family: String
-    let systemImage: String
-
-    var body: some View {
-        Label {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title)
-                Text(family)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-            }
-        } icon: {
-            Image(systemName: systemImage)
-        }
-    }
-}
-
-private enum ThemeFontCategory: String, CaseIterable, Identifiable {
-    case all
-    case sansSerif
-    case serif
-    case monospaced
-
-    var id: String { rawValue }
-
-    var title: String {
-        switch self {
-        case .all: "All Fonts"
-        case .sansSerif: "Sans Serif"
-        case .serif: "Serif"
-        case .monospaced: "Monospaced"
-        }
-    }
-
-    func includes(_ family: String) -> Bool {
-        let font = NSFont(name: family, size: 14)
-        let isMonospaced = font?.isFixedPitch == true
-        let lowercaseName = family.lowercased()
-        let isSerif = ["serif", "times", "georgia", "baskerville", "didot", "palatino"]
-            .contains(where: lowercaseName.contains)
-        return switch self {
-        case .all: true
-        case .sansSerif: !isMonospaced && !isSerif
-        case .serif: isSerif
-        case .monospaced: isMonospaced
-        }
-    }
-}
-
-private struct ThemeFontDefinitionControls: View {
     let definition: ThemeFontDefinition
     let reference: ThemeFontReference
+    let assets: [ProjectAsset]
+    let name: Binding<String>?
     let editor: ProjectEditor
+    @State private var googleFonts = GoogleFontCatalog.fallback
+    @State private var search = ""
+    @State private var category = GoogleFontCategory.all
 
     var body: some View {
-        DisclosureGroup("Font Details") {
-            VStack(alignment: .leading, spacing: 12) {
-                TextField("Fallbacks (comma separated)", text: fallbacksBinding)
-
-                Picker("Source", selection: sourceKindBinding) {
-                    ForEach(ThemeFontSourceKind.allCases) { kind in
-                        Text(kind.title).tag(kind)
+        VStack(spacing: 0) {
+            Grid(alignment: .leading, horizontalSpacing: 14, verticalSpacing: 12) {
+                GridRow {
+                    Text("Name")
+                        .font(.headline)
+                    if let name {
+                        TextField("Name", text: name)
+                    } else {
+                        TextField("Name", text: .constant(title.lowercased()))
+                            .disabled(true)
                     }
                 }
-                .pickerStyle(.segmented)
-
-                if case .remote = definition.source {
-                    TextField("Stylesheet URL", text: remoteURLBinding)
-                } else if case .bundled(let files) = definition.source {
-                    LabeledContent("Bundled Files", value: files.isEmpty ? "None" : files.joined(separator: ", "))
-                }
-
-                Text("Weights")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.secondary)
-                Grid(horizontalSpacing: 14, verticalSpacing: 8) {
-                    ForEach(Array(Self.availableWeights.enumerated()), id: \.element) { index, weight in
-                        if index.isMultiple(of: 3) {
-                            GridRow {
-                                weightToggle(Self.availableWeights[index])
-                                weightToggle(Self.availableWeights[index + 1])
-                                weightToggle(Self.availableWeights[index + 2])
-                            }
+                GridRow {
+                    Text("Kind")
+                        .font(.headline)
+                    Picker("Kind", selection: sourceKindBinding) {
+                        ForEach(ThemeFontSourceKind.allCases) { kind in
+                            Text(kind.title).tag(kind)
                         }
                     }
-                }
-
-                HStack(spacing: 18) {
-                    ForEach(ThemeFontStyle.allCases) { style in
-                        Toggle(style.rawValue.capitalized, isOn: styleBinding(style))
-                            .toggleStyle(.checkbox)
-                    }
+                    .labelsHidden()
                 }
             }
-            .padding(.top, 8)
+            .controlSize(.large)
+            .frame(maxWidth: 560, alignment: .leading)
+            .padding(32)
+
+            Divider()
+
+            Group {
+                switch definition.source {
+                case .system:
+                    fontNamesEditor
+                case .remote:
+                    googleFontEditor
+                case .bundled(let files):
+                    fontResourcesEditor(files: files)
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .font(.caption)
+        .task {
+            if let loaded = try? await GoogleFontCatalog.load(), !loaded.isEmpty {
+                googleFonts = loaded
+            }
+        }
     }
 
-    private static let availableWeights = [100, 200, 300, 400, 500, 600, 700, 800, 900]
-
-    private func weightToggle(_ weight: Int) -> some View {
-        Toggle("\(weight)", isOn: weightBinding(weight))
-            .toggleStyle(.checkbox)
-            .frame(maxWidth: .infinity, alignment: .leading)
+    private var fontNamesEditor: some View {
+        Grid(alignment: .leading, horizontalSpacing: 14) {
+            GridRow(alignment: .firstTextBaseline) {
+                Text("Font Names")
+                    .font(.headline)
+                TextField("system-ui, sans-serif", text: fontNamesBinding)
+            }
+        }
+        .padding(32)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 
-    private var fallbacksBinding: Binding<String> {
+    private var googleFontEditor: some View {
+        VStack(spacing: 0) {
+            Grid(alignment: .leading, horizontalSpacing: 14, verticalSpacing: 12) {
+                GridRow(alignment: .firstTextBaseline) {
+                    Text("Search")
+                        .font(.headline)
+                    TextField("Search", text: $search)
+                }
+                GridRow(alignment: .firstTextBaseline) {
+                    Text("Category")
+                        .font(.headline)
+                    Picker("Category", selection: $category) {
+                        ForEach(GoogleFontCategory.allCases) { category in
+                            Text(category.title).tag(category)
+                        }
+                    }
+                    .labelsHidden()
+                }
+            }
+            .padding(32)
+
+            Divider()
+
+            List(filteredGoogleFonts) { font in
+                Button {
+                    editor.setThemeGoogleFont(font.family, reference: reference)
+                } label: {
+                    HStack {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(font.family)
+                                .font(.title3.weight(.semibold))
+                            Text("\(font.styleCount) style\(font.styleCount == 1 ? "" : "s")")
+                                .foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        if definition.family == font.family {
+                            Image(systemName: "checkmark")
+                                .foregroundStyle(.tint)
+                        }
+                    }
+                    .contentShape(Rectangle())
+                    .padding(.vertical, 6)
+                }
+                .buttonStyle(.plain)
+            }
+            .listStyle(.inset)
+        }
+    }
+
+    private func fontResourcesEditor(files: [String]) -> some View {
+        let selectedAssets = files.compactMap { reference in
+            assets.first(where: { $0.id == reference.foundryAssetID })
+        }
+        return VStack(spacing: 20) {
+            if selectedAssets.isEmpty {
+                VStack(spacing: 28) {
+                    Text("First, add fonts to your project resources")
+                    Text("Then drag and drop the resources here")
+                }
+                .font(.title3.weight(.semibold))
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                List(selectedAssets) { asset in
+                    HStack {
+                        Image(systemName: "textformat")
+                        Text(asset.filename)
+                        Spacer()
+                        Button("Remove", systemImage: "minus.circle") {
+                            editor.setThemeFontResources(
+                                files.filter { $0.foundryAssetID != asset.id },
+                                reference: reference
+                            )
+                        }
+                        .labelStyle(.iconOnly)
+                        .buttonStyle(.borderless)
+                    }
+                }
+                .listStyle(.inset)
+            }
+        }
+        .contentShape(Rectangle())
+        .dropDestination(for: String.self) { values, _ in
+            let droppedAssets = values.compactMap(Self.assetID(from:))
+                .compactMap { id in assets.first(where: { $0.id == id && $0.isFontResource }) }
+            guard !droppedAssets.isEmpty else { return false }
+            editor.setThemeFontResources(
+                Array(Set(files + droppedAssets.map(\.reference))),
+                reference: reference
+            )
+            if files.isEmpty, let first = droppedAssets.first {
+                editor.setThemeFontFamily(
+                    (first.filename as NSString).deletingPathExtension,
+                    reference: reference
+                )
+            }
+            return true
+        }
+    }
+
+    private var fontNamesBinding: Binding<String> {
         Binding(
-            get: { definition.fallbacks.joined(separator: ", ") },
-            set: { editor.setThemeFontFallbacks($0, reference: reference) }
+            get: { definition.cssFamily },
+            set: { editor.setThemeFontNames($0, reference: reference) }
         )
     }
 
@@ -768,55 +729,83 @@ private struct ThemeFontDefinitionControls: View {
                 case .system: editor.setThemeFontSource(.system, reference: reference)
                 case .bundled: editor.setThemeFontSource(.bundled(files: []), reference: reference)
                 case .remote:
-                    if let placeholderURL = URL(string: "https://example.com/fonts.css") {
-                        editor.setThemeFontSource(.remote(stylesheetURL: placeholderURL), reference: reference)
-                    }
+                    editor.setThemeGoogleFont(definition.family, reference: reference)
                 }
             }
         )
     }
 
-    private var remoteURLBinding: Binding<String> {
-        Binding(
-            get: {
-                guard case .remote(let url) = definition.source else { return "" }
-                return url.absoluteString
-            },
-            set: {
-                guard let url = URL(string: $0) else { return }
-                editor.setThemeFontSource(.remote(stylesheetURL: url), reference: reference)
-            }
-        )
+    private var filteredGoogleFonts: [GoogleFontFamily] {
+        googleFonts.filter { font in
+            (search.isEmpty || font.family.localizedCaseInsensitiveContains(search)) &&
+                category.includes(font.category)
+        }
     }
 
-    private func weightBinding(_ weight: Int) -> Binding<Bool> {
-        Binding(
-            get: { definition.weights.contains(weight) },
-            set: { isEnabled in
-                var weights = definition.weights
-                if isEnabled {
-                    weights.append(weight)
-                } else {
-                    weights.removeAll(where: { $0 == weight })
-                }
-                editor.setThemeFontWeights(weights, reference: reference)
-            }
-        )
+    private static func assetID(from value: String) -> UUID? {
+        if let id = value.foundryAssetID { return id }
+        let prefixes = ["foundry-asset-node:", "foundry-image-asset:"]
+        guard let prefix = prefixes.first(where: value.hasPrefix) else { return nil }
+        return UUID(uuidString: String(value.dropFirst(prefix.count)))
     }
+}
 
-    private func styleBinding(_ style: ThemeFontStyle) -> Binding<Bool> {
-        Binding(
-            get: { definition.styles.contains(style) },
-            set: { isEnabled in
-                var styles = definition.styles
-                if isEnabled {
-                    styles.append(style)
-                } else {
-                    styles.removeAll(where: { $0 == style })
-                }
-                editor.setThemeFontStyles(styles, reference: reference)
-            }
-        )
+private struct GoogleFontFamily: Identifiable, Sendable {
+    let family: String
+    let category: String
+    let styleCount: Int
+    var id: String { family }
+}
+
+private enum GoogleFontCategory: String, CaseIterable, Identifiable {
+    case all
+    case sansSerif = "Sans Serif"
+    case serif = "Serif"
+    case display = "Display"
+    case handwriting = "Handwriting"
+    case monospace = "Monospace"
+
+    var id: String { rawValue }
+    var title: String { self == .all ? "All fonts" : rawValue }
+
+    func includes(_ value: String) -> Bool {
+        self == .all || value.caseInsensitiveCompare(rawValue) == .orderedSame
+    }
+}
+
+private enum GoogleFontCatalog {
+    static let fallback = [
+        GoogleFontFamily(family: "ABeeZee", category: "Sans Serif", styleCount: 2),
+        GoogleFontFamily(family: "ADLaM Display", category: "Display", styleCount: 1),
+        GoogleFontFamily(family: "AR One Sans", category: "Sans Serif", styleCount: 4),
+        GoogleFontFamily(family: "Abel", category: "Sans Serif", styleCount: 1),
+        GoogleFontFamily(family: "Abhaya Libre", category: "Serif", styleCount: 5)
+    ]
+
+    static func load() async throws -> [GoogleFontFamily] {
+        let url = URL(string: "https://fonts.google.com/metadata/fonts")!
+        let (data, _) = try await URLSession.shared.data(from: url)
+        let prefix = Data(")]}'".utf8)
+        let jsonData = data.starts(with: prefix) ? data.dropFirst(prefix.count) : data[...]
+        guard let root = try JSONSerialization.jsonObject(with: Data(jsonData)) as? [String: Any],
+              let entries = root["familyMetadataList"] as? [[String: Any]] else { return [] }
+        return entries.compactMap { entry in
+            guard let family = entry["family"] as? String else { return nil }
+            let category = (entry["category"] as? String ?? "Sans Serif")
+                .replacingOccurrences(of: "_", with: " ")
+                .capitalized
+            let count = (entry["fonts"] as? [String: Any])?.count ?? 1
+            return GoogleFontFamily(family: family, category: category, styleCount: count)
+        }
+        .sorted { $0.family.localizedStandardCompare($1.family) == .orderedAscending }
+    }
+}
+
+private extension ProjectAsset {
+    var isFontResource: Bool {
+        let fontExtensions = Set(["otf", "ttf", "woff", "woff2"])
+        return fontExtensions.contains((filename as NSString).pathExtension.lowercased()) ||
+            mediaType.lowercased().contains("font")
     }
 }
 
@@ -826,7 +815,13 @@ private enum ThemeFontSourceKind: String, CaseIterable, Identifiable {
     case remote
 
     var id: String { rawValue }
-    var title: String { rawValue.capitalized }
+    var title: String {
+        switch self {
+        case .system: "Font Names"
+        case .remote: "Google Font"
+        case .bundled: "Font Resources"
+        }
+    }
 
     init(_ source: ThemeFontSource) {
         switch source {

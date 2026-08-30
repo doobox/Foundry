@@ -31,7 +31,7 @@ struct HTMLPageRenderer: PageRendering {
           <title>\(escape(browserTitle))</title>
         \(metadata)
           <style>
-            \(theme.remoteFontImports)
+            \(theme.fontSourceCSS(assets: assets, destination: .canvas))
             :root {
               font-size: \(theme.typography.baseSize)px;
               --background: \(theme.colors.background);

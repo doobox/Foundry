@@ -69,4 +69,50 @@ struct ThemeEditingTests {
         undoManager.redo()
         #expect(document.site.theme.colors.accent == "#112233")
     }
+
+    @Test
+    func fontNamesUpdateFamilyFallbacksAndSource() {
+        let document = FoundryDocument()
+        let editor = ProjectEditor(document: document, undoManager: UndoManager())
+
+        editor.setThemeFontNames("Inter, system-ui, sans-serif", reference: .role(.body))
+
+        let font = document.site.theme.typography.bodyFont
+        #expect(font.family == "Inter")
+        #expect(font.fallbacks == ["system-ui", "sans-serif"])
+        #expect(font.source == .system)
+    }
+
+    @Test
+    func googleFontSelectionCreatesAWorkingStylesheetSource() throws {
+        let document = FoundryDocument()
+        let editor = ProjectEditor(document: document, undoManager: UndoManager())
+
+        editor.setThemeGoogleFont("Libre Franklin", reference: .role(.heading))
+
+        let font = document.site.theme.typography.headingFont
+        #expect(font.family == "Libre Franklin")
+        guard case .remote(let source) = font.source else {
+            Issue.record("Expected a remote Google Fonts source")
+            return
+        }
+        #expect(source.absoluteString == "https://fonts.googleapis.com/css2?family=Libre+Franklin&display=swap")
+    }
+
+    @Test
+    func bundledFontResourcesRenderForCanvasAndExport() {
+        let asset = ProjectAsset(filename: "Foundry Sans.woff2", mediaType: "font/woff2", byteCount: 3)
+        let content = ProjectAssetContent(asset: asset, data: Data([1, 2, 3]))
+        let assets = [asset.id: content]
+        var theme = Theme.standard
+        theme.typography.bodyFont.family = "Foundry Sans"
+        theme.typography.bodyFont.source = .bundled(files: [asset.reference])
+
+        let canvasCSS = theme.fontSourceCSS(assets: assets, destination: .canvas)
+        let exportCSS = theme.fontSourceCSS(assets: assets, destination: .export)
+
+        #expect(canvasCSS.contains("@font-face"))
+        #expect(canvasCSS.contains("data:font/woff2;base64,AQID"))
+        #expect(exportCSS.contains("url('images/\(asset.storageFilename)')"))
+    }
 }

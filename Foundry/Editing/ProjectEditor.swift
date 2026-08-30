@@ -130,6 +130,43 @@ struct ProjectEditor {
         updateThemeFont(reference: reference, actionName: "Edit Theme Font Source") { $0.source = source }
     }
 
+    func setThemeFontFamily(_ value: String, reference: ThemeFontReference) {
+        updateThemeFont(reference: reference, actionName: "Edit Theme Font Family") {
+            $0.family = value
+        }
+    }
+
+    func setThemeFontNames(_ value: String, reference: ThemeFontReference) {
+        let names = value.split(separator: ",", omittingEmptySubsequences: true)
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        guard let family = names.first else { return }
+        updateThemeFont(reference: reference, actionName: "Edit Theme Font Names") {
+            $0.family = family
+            $0.fallbacks = Array(names.dropFirst())
+            $0.source = .system
+        }
+    }
+
+    func setThemeGoogleFont(_ family: String, reference: ThemeFontReference) {
+        let normalizedFamily = family.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalizedFamily.isEmpty,
+              let url = ThemeFontDefinition.googleStylesheetURL(for: normalizedFamily) else { return }
+        updateThemeFont(reference: reference, actionName: "Choose Google Font") {
+            $0.family = normalizedFamily
+            $0.source = .remote(stylesheetURL: url)
+        }
+    }
+
+    func setThemeFontResources(_ files: [String], reference: ThemeFontReference) {
+        let uniqueFiles = files.reduce(into: [String]()) { result, file in
+            if !result.contains(file) { result.append(file) }
+        }
+        updateThemeFont(reference: reference, actionName: "Edit Font Resources") {
+            $0.source = .bundled(files: uniqueFiles)
+        }
+    }
+
     func setThemeFontWeights(_ weights: [Int], reference: ThemeFontReference) {
         updateThemeFont(reference: reference, actionName: "Edit Theme Font Weights") {
             let normalized = Array(Set(weights)).sorted()

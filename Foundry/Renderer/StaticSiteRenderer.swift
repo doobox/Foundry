@@ -320,7 +320,7 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
     private func stylesheet(for site: Site, assets: [UUID: ProjectAssetContent]) -> String {
         let theme = site.theme
         return """
-        \(theme.remoteFontImports)
+        \(theme.fontSourceCSS(assets: assets, destination: .export))
         :root{font-size:\(theme.typography.baseSize)px;--background:\(theme.colors.background);--surface:\(theme.colors.surface);--text:\(theme.colors.text);--accent:\(theme.colors.accent);--font-body:\(theme.typography.bodyFont.cssFamily);--font-heading:\(theme.typography.headingFont.cssFamily);--font-monospace:\(theme.typography.monospacedFont.cssFamily);\(theme.customFontCSSVariables)\(theme.fontSizeCSSVariables)--space-s:\(theme.spacing.small)px;--space-m:\(theme.spacing.medium)px;--space-l:\(theme.spacing.large)px}
         *,*::before,*::after{box-sizing:border-box}
         html,body{min-height:100%}

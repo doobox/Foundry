@@ -139,6 +139,13 @@ nonisolated struct ThemeFontDefinition: Codable, Equatable, Sendable {
     var cssFamily: String {
         ([family] + fallbacks).joined(separator: ", ")
     }
+
+    static func googleStylesheetURL(for family: String) -> URL? {
+        let encodedFamily = family
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .replacingOccurrences(of: " ", with: "+")
+        return URL(string: "https://fonts.googleapis.com/css2?family=\(encodedFamily)&display=swap")
+    }
 }
 
 nonisolated enum ThemeFontSource: Codable, Equatable, Sendable {
@@ -249,11 +256,33 @@ nonisolated extension Theme {
         }
     }
 
-    var remoteFontImports: String {
-        typography.allFonts.compactMap { definition in
-            guard case .remote(let stylesheetURL) = definition.source else { return nil }
-            return "@import url('\(stylesheetURL.absoluteString)');"
-        }.joined(separator: "\n")
+    func fontSourceCSS(
+        assets: [UUID: ProjectAssetContent],
+        destination: ThemeFontCSSDestination
+    ) -> String {
+        typography.allFonts.flatMap { definition -> [String] in
+            switch definition.source {
+            case .system:
+                return []
+            case .remote(let stylesheetURL):
+                return ["@import url('\(stylesheetURL.absoluteString)');"]
+            case .bundled(let files):
+                return files.compactMap { reference in
+                    guard let id = reference.foundryAssetID,
+                          let content = assets[id] else { return nil }
+                    let source = switch destination {
+                    case .canvas:
+                        "data:\(content.asset.mediaType);base64,\(content.data.base64EncodedString())"
+                    case .export:
+                        "images/\(content.asset.storageFilename)"
+                    }
+                    let filename = content.asset.filename.lowercased()
+                    let style = filename.contains("italic") ? "italic" : "normal"
+                    return "@font-face{font-family:'\(definition.family.cssSingleQuoted)';src:url('\(source)');font-style:\(style);font-weight:100 900;font-display:swap;}"
+                }
+            }
+        }
+        .joined(separator: "\n")
     }
 
     var customFontCSSVariables: String {
@@ -279,6 +308,18 @@ nonisolated extension Theme {
         case .largeSpacing: spacing.large
         case .backgroundColor, .surfaceColor, .textColor, .accentColor: nil
         }
+    }
+}
+
+nonisolated enum ThemeFontCSSDestination: Sendable {
+    case canvas
+    case export
+}
+
+private nonisolated extension String {
+    var cssSingleQuoted: String {
+        replacingOccurrences(of: "\\", with: "\\\\")
+            .replacingOccurrences(of: "'", with: "\\'")
     }
 }
 
