@@ -129,10 +129,45 @@ struct ThemeEditingTests {
         )
         let context = try #require(ThemeWindowRegistry.shared.context(for: id))
 
-        #expect(context.document === document)
-        #expect(context.undoManager === undoManager)
+        #expect(context.session.document === document)
+        #expect(context.session.editor.undoManager === undoManager)
 
         ThemeWindowRegistry.shared.remove(id: id)
         #expect(ThemeWindowRegistry.shared.context(for: id) == nil)
+    }
+
+    @Test
+    func browsingGoogleFontsDoesNotMutateTheDocumentUntilCommitted() {
+        let document = FoundryDocument()
+        let undoManager = UndoManager()
+        let session = ThemeEditorSession(document: document, undoManager: undoManager)
+        let original = document.site.theme.typography.bodyFont
+
+        session.previewGoogleFont("Inter", for: .role(.body))
+        session.previewGoogleFont("Libre Franklin", for: .role(.body))
+
+        #expect(document.site.theme.typography.bodyFont == original)
+        #expect(session.font(for: .role(.body)).family == "Libre Franklin")
+        #expect(!undoManager.canUndo)
+
+        session.commitFontPreview()
+
+        #expect(document.site.theme.typography.bodyFont.family == "Libre Franklin")
+        #expect(undoManager.canUndo)
+        undoManager.undo()
+        #expect(document.site.theme.typography.bodyFont == original)
+    }
+
+    @Test
+    func discardingGoogleFontPreviewLeavesTheDocumentUntouched() {
+        let document = FoundryDocument()
+        let session = ThemeEditorSession(document: document, undoManager: UndoManager())
+        let original = document.site.theme.typography.headingFont
+
+        session.previewGoogleFont("Roboto", for: .role(.heading))
+        session.discardFontPreview()
+
+        #expect(session.font(for: .role(.heading)) == original)
+        #expect(document.site.theme.typography.headingFont == original)
     }
 }

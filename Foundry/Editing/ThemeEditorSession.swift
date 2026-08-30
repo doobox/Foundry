@@ -1,0 +1,72 @@
+import Foundation
+import Observation
+
+@MainActor
+@Observable
+final class ThemeEditorSession {
+    let document: FoundryDocument
+    let editor: ProjectEditor
+
+    private(set) var previewReference: ThemeFontReference?
+    private(set) var previewFont: ThemeFontDefinition?
+
+    init(document: FoundryDocument, undoManager: UndoManager?) {
+        self.document = document
+        editor = ProjectEditor(document: document, undoManager: undoManager)
+    }
+
+    var hasUncommittedFontPreview: Bool {
+        guard let previewReference, let previewFont else { return false }
+        return storedFont(for: previewReference) != previewFont
+    }
+
+    func font(for reference: ThemeFontReference) -> ThemeFontDefinition {
+        if previewReference == reference, let previewFont {
+            return previewFont
+        }
+        return storedFont(for: reference)
+    }
+
+    func previewGoogleFont(_ family: String, for reference: ThemeFontReference) {
+        let normalizedFamily = family.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalizedFamily.isEmpty,
+              let stylesheetURL = ThemeFontDefinition.googleStylesheetURL(for: normalizedFamily) else {
+            return
+        }
+        var font = storedFont(for: reference)
+        font.family = normalizedFamily
+        font.source = .remote(stylesheetURL: stylesheetURL)
+        previewReference = reference
+        previewFont = font
+    }
+
+    func commitFontPreview() {
+        guard let previewReference, let previewFont, hasUncommittedFontPreview else {
+            discardFontPreview()
+            return
+        }
+        editor.setThemeFontDefinition(
+            previewFont,
+            reference: previewReference,
+            actionName: "Choose Google Font"
+        )
+        discardFontPreview()
+    }
+
+    func discardFontPreview() {
+        previewReference = nil
+        previewFont = nil
+    }
+
+    private func storedFont(for reference: ThemeFontReference) -> ThemeFontDefinition {
+        let typography = document.site.theme.typography
+        return switch reference {
+        case .role(.body): typography.bodyFont
+        case .role(.heading): typography.headingFont
+        case .role(.monospaced): typography.monospacedFont
+        case .custom(let id):
+            typography.customFonts.first(where: { $0.id == id })?.font
+                ?? .system(family: "system-ui", weights: [400])
+        }
+    }
+}

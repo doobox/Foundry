@@ -4,8 +4,7 @@ import WebKit
 @MainActor
 final class ThemeWindowRegistry {
     struct Context {
-        let document: FoundryDocument
-        let undoManager: UndoManager?
+        let session: ThemeEditorSession
     }
 
     static let shared = ThemeWindowRegistry()
@@ -13,7 +12,10 @@ final class ThemeWindowRegistry {
     private var contexts: [UUID: Context] = [:]
 
     func register(id: UUID, document: FoundryDocument, undoManager: UndoManager?) {
-        contexts[id] = Context(document: document, undoManager: undoManager)
+        if contexts[id]?.session.document === document { return }
+        contexts[id] = Context(
+            session: ThemeEditorSession(document: document, undoManager: undoManager)
+        )
     }
 
     func context(for id: UUID) -> Context? {
@@ -31,11 +33,8 @@ struct ThemeWindowSceneContent: View {
     var body: some View {
         if let presentationID,
            let context = ThemeWindowRegistry.shared.context(for: presentationID) {
-            ThemeWindowContent(
-                document: context.document,
-                undoManager: context.undoManager
-            )
-            .navigationTitle("\(context.document.site.name) – Theme")
+            ThemeWindowContent(session: context.session)
+                .navigationTitle("\(context.session.document.site.name) – Theme")
         } else {
             ContentUnavailableView(
                 "Theme Unavailable",
@@ -47,9 +46,14 @@ struct ThemeWindowSceneContent: View {
 }
 
 private struct ThemeWindowContent: View {
-    @ObservedObject var document: FoundryDocument
-    let undoManager: UndoManager?
+    let session: ThemeEditorSession
+    @ObservedObject private var document: FoundryDocument
     @State private var selection: ThemeWindowSection = .themes
+
+    init(session: ThemeEditorSession) {
+        self.session = session
+        document = session.document
+    }
 
     var body: some View {
         NavigationSplitView {
@@ -68,13 +72,13 @@ private struct ThemeWindowContent: View {
         } detail: {
             switch selection {
             case .themes:
-                ThemePackageBrowser(document: document, undoManager: undoManager)
+                ThemePackageBrowser(document: document, undoManager: session.editor.undoManager)
             default:
                 ThemeSettingsDetail(
                     section: selection,
                     theme: document.site.theme,
                     assets: document.site.assets,
-                    editor: ProjectEditor(document: document, undoManager: undoManager)
+                    session: session
                 )
             }
         }
@@ -154,13 +158,15 @@ private struct ThemeSettingsDetail: View {
     let section: ThemeWindowSection
     let theme: Theme
     let assets: [ProjectAsset]
-    let editor: ProjectEditor
+    let session: ThemeEditorSession
     @State private var expandedFontSizeID: String?
+
+    private var editor: ProjectEditor { session.editor }
 
     var body: some View {
         Group {
             if section == .fontFamily {
-                ThemeFontFamilyEditor(theme: theme, assets: assets, editor: editor)
+                ThemeFontFamilyEditor(theme: theme, assets: assets, session: session)
             } else {
                 List {
             switch section {
@@ -464,8 +470,10 @@ private struct ThemeSettingsDetail: View {
 private struct ThemeFontFamilyEditor: View {
     let theme: Theme
     let assets: [ProjectAsset]
-    let editor: ProjectEditor
+    let session: ThemeEditorSession
     @State private var selection: ThemeFontReference = .role(.body)
+
+    private var editor: ProjectEditor { session.editor }
 
     var body: some View {
         HSplitView {
@@ -483,9 +491,12 @@ private struct ThemeFontFamilyEditor: View {
                 reference: selection,
                 assets: assets,
                 name: customNameBinding,
-                editor: editor
+                session: session
             )
             .frame(minWidth: 300, maxWidth: .infinity, maxHeight: .infinity)
+        }
+        .onChange(of: selection) {
+            session.discardFontPreview()
         }
     }
 
@@ -536,14 +547,7 @@ private struct ThemeFontFamilyEditor: View {
     }
 
     private func definition(for reference: ThemeFontReference) -> ThemeFontDefinition {
-        return switch reference {
-        case .role(.body): theme.typography.bodyFont
-        case .role(.heading): theme.typography.headingFont
-        case .role(.monospaced): theme.typography.monospacedFont
-        case .custom(let id):
-            theme.typography.customFonts.first(where: { $0.id == id })?.font
-                ?? .system(family: "system-ui", weights: [400])
-        }
+        session.font(for: reference)
     }
 
     private var customNameBinding: Binding<String>? {
@@ -561,10 +565,12 @@ private struct ThemeFontDefinitionEditor: View {
     let reference: ThemeFontReference
     let assets: [ProjectAsset]
     let name: Binding<String>?
-    let editor: ProjectEditor
+    let session: ThemeEditorSession
     @State private var googleFonts = GoogleFontCatalog.fallback
     @State private var search = ""
     @State private var category = GoogleFontCategory.all
+
+    private var editor: ProjectEditor { session.editor }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -632,10 +638,30 @@ private struct ThemeFontDefinitionEditor: View {
             googleFontBrowserColumn
                 .frame(minWidth: 190, idealWidth: 300, maxWidth: .infinity)
 
-            GoogleFontSpecimenView(
-                family: definition.family,
-                stylesheetURL: googleStylesheetURL
-            )
+            VStack(spacing: 0) {
+                GoogleFontSpecimenView(
+                    family: definition.family,
+                    stylesheetURL: googleStylesheetURL
+                )
+
+                Divider()
+
+                HStack {
+                    Button("Revert") {
+                        session.discardFontPreview()
+                    }
+                    .disabled(!session.hasUncommittedFontPreview)
+
+                    Spacer()
+
+                    Button("Use Font") {
+                        session.commitFontPreview()
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(!session.hasUncommittedFontPreview)
+                }
+                .padding(16)
+            }
             .frame(minWidth: 210, idealWidth: 340, maxWidth: .infinity)
         }
     }
@@ -670,7 +696,7 @@ private struct ThemeFontDefinitionEditor: View {
     private var googleFontList: some View {
         List(filteredGoogleFonts) { font in
             Button {
-                editor.setThemeGoogleFont(font.family, reference: reference)
+                session.previewGoogleFont(font.family, for: reference)
             } label: {
                 HStack {
                     VStack(alignment: .leading, spacing: 2) {

@@ -158,6 +158,16 @@ struct ProjectEditor {
         }
     }
 
+    func setThemeFontDefinition(
+        _ definition: ThemeFontDefinition,
+        reference: ThemeFontReference,
+        actionName: String
+    ) {
+        updateThemeFont(reference: reference, actionName: actionName) {
+            $0 = definition
+        }
+    }
+
     func setThemeFontResources(_ files: [String], reference: ThemeFontReference) {
         let uniqueFiles = files.reduce(into: [String]()) { result, file in
             if !result.contains(file) { result.append(file) }
