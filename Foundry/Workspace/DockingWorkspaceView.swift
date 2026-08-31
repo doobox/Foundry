@@ -272,7 +272,7 @@ nonisolated private struct PanelSizing {
         case .assets:
             self.init(minimum: 220, ideal: 280, maximum: 360)
         case .inspector:
-            self.init(minimum: 260, ideal: 310, maximum: 380)
+            self.init(minimum: 380, ideal: 380, maximum: 494)
         case .canvas:
             self.init(minimum: 240, ideal: 760, maximum: .infinity)
         }

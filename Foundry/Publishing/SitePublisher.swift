@@ -139,6 +139,12 @@ nonisolated struct PublishingManifestStore: Sendable {
         try data.write(to: url(for: site, localDirectory: localDirectory), options: .atomic)
     }
 
+    func remove(for site: Site, localDirectory: URL? = nil) throws {
+        let manifestURL = url(for: site, localDirectory: localDirectory)
+        guard FileManager.default.fileExists(atPath: manifestURL.path) else { return }
+        try FileManager.default.removeItem(at: manifestURL)
+    }
+
     private func url(for site: Site, localDirectory: URL?) -> URL {
         let identity = [
             site.id.uuidString,
@@ -269,6 +275,7 @@ nonisolated struct SitePublisher: Sendable {
         site: Site,
         localDirectory: URL?,
         credential: String,
+        forceAllFiles: Bool = false,
         progress: @escaping @Sendable (PublishingProgress) -> Void
     ) async throws -> PublishingResult {
         if site.publishingDestination == .local {
@@ -297,7 +304,7 @@ nonisolated struct SitePublisher: Sendable {
         let manifestStore = PublishingManifestStore()
         let plan = PublishingPlan.make(
             bundle: bundle,
-            previous: manifestStore.load(for: site, localDirectory: localDirectory),
+            previous: forceAllFiles ? nil : manifestStore.load(for: site, localDirectory: localDirectory),
             removesObsoleteFiles: site.cleansObsoleteExportFiles
         )
         let tracker = PublishingProgressTracker(files: plan.uploads, handler: progress)

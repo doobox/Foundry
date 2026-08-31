@@ -41,11 +41,12 @@ nonisolated enum ComponentPackageAdapter {
             let paddedDefaults = defaults + Array(repeating: defaults.last ?? .string(""), count: max(0, count - defaults.count))
             return [ComponentPropertyDefinition(
                 key: .init(rawValue: property.id),
-                label: property.title,
+                label: property.label,
                 section: .init(rawValue: property.group),
                 control: .array(
                     element: control(property.control),
                     count: count,
+                    labels: Array(property.labels.prefix(count)),
                     subtitles: Array(property.subtitles.prefix(count)),
                     help: property.toolTip
                 ),
@@ -57,7 +58,7 @@ nonisolated enum ComponentPackageAdapter {
         if property.control.type == .fontFamily {
             return [ComponentPropertyDefinition(
                 key: .init(rawValue: property.id),
-                label: property.title,
+                label: property.label,
                 section: .init(rawValue: property.group),
                 control: .themeFontFamily,
                 defaultValue: value(property.defaultValue, control: .select),
@@ -67,15 +68,15 @@ nonisolated enum ComponentPackageAdapter {
         if property.control.type == .fontSize { return fontSizeProperties(for: property) }
         return [ComponentPropertyDefinition(
             key: .init(rawValue: property.id),
-            label: property.title,
+            label: property.label,
             section: .init(rawValue: property.group),
             control: property.control.type == .details
                 ? .details(help: property.toolTip)
                 : control(property.control),
             defaultValue: value(property.defaultValue, control: property.control.type),
             isResponsive: property.responsive,
-            isInspectorVisible: ![.math, .imageTransform].contains(property.control.type) &&
-                (property.control.type != .info || !property.title.isEmpty)
+            isInspectorVisible: property.control.type != .math &&
+                (property.control.type != .info || !property.label.isEmpty)
         )]
     }
 
@@ -85,7 +86,7 @@ nonisolated enum ComponentPackageAdapter {
         let section = ComponentPropertySection(rawValue: property.group)
         return [
             .init(
-                key: key, label: property.title, section: section,
+                key: key, label: property.label, section: section,
                 control: .packageFontSize(
                     themeValues: property.control.themeValues ?? false,
                     customValueKey: customKey
@@ -112,7 +113,7 @@ nonisolated enum ComponentPackageAdapter {
             ? ComponentProperty.Key(rawValue: property.id + "Opacity") : nil
         var definitions = [
             ComponentPropertyDefinition(
-                key: key, label: property.title, section: section,
+                key: key, label: property.label, section: section,
                 control: .packageColor(
                     themeValues: property.control.themeValues ?? false,
                     customColorKey: customColorKey,
@@ -160,7 +161,6 @@ nonisolated enum ComponentPackageAdapter {
         case .select:
             .choice((control.options ?? []).map { .init(value: $0.value, label: $0.title) })
         case .link: .link(absoluteURL: control.absoluteURL ?? false)
-        case .image: .asset
         case .toggle: .toggle
         case .fontFamily: .themeFontFamily
         case .fontSize: .themeFontSize
@@ -171,15 +171,16 @@ nonisolated enum ComponentPackageAdapter {
         case .slider:
             .slider(
                 range: (control.minimum ?? 0)...(control.maximum ?? 100),
-                step: control.step ?? 1,
-                tickMarks: control.tickMarks ?? 0,
-                restrictsToTickMarks: control.restrictsToTickMarks ?? false
+                step: control.step ?? 0,
+                ticks: control.ticks ?? 0,
+                unit: control.unit ?? "",
+                showsValueField: control.showsValueField ?? true
             )
         case .date: .date
         case .details: .details(help: nil)
         case .info: .info
         case .button: .button(systemImage: control.systemImage)
-        case .imageTransform, .math: .derived
+        case .math: .derived
         }
     }
 
@@ -192,7 +193,6 @@ nonisolated enum ComponentPackageAdapter {
         case .boolean(let value): .boolean(value)
         case .string(let value):
             switch control {
-            case .image: .url(value)
             case .link: .link(.init(destination: value.isEmpty ? .none : .url(value)))
             case .color: .color(value)
             case .select, .fontFamily, .fontSize, .lineHeight, .textAlignment: .choice(value)

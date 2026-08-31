@@ -90,6 +90,20 @@ struct PublishingTests {
     }
 
     @Test
+    func publishingManifestCanBeRemovedToMarkEverythingChanged() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appending(path: UUID().uuidString, directoryHint: .isDirectory)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let store = PublishingManifestStore(directory: directory)
+        let site = Site.starter()
+
+        try store.save(PublishingManifest(files: ["index.html": "hash"]), for: site)
+        try store.remove(for: site)
+
+        #expect(store.load(for: site) == nil)
+    }
+
+    @Test
     func publishingChangesDistinguishNewModifiedAndUnchangedFiles() {
         let original = SiteExportBundle(files: [
             .init(path: "unchanged.html", contents: "same"),

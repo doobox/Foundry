@@ -1,4 +1,6 @@
 import Foundation
+import ImageIO
+import UniformTypeIdentifiers
 
 @MainActor
 struct HTMLPageRenderer: PageRendering {
@@ -51,9 +53,7 @@ struct HTMLPageRenderer: PageRendering {
               \(theme.fontSizeCSSVariables)
               --editor-component: #0A84FF;
               --editor-global: #34C759;
-              --space-s: \(theme.spacing.small)px;
-              --space-m: \(theme.spacing.medium)px;
-              --space-l: \(theme.spacing.large)px;
+              \(theme.spacingCSSVariables)
             }
             *, *::before, *::after { box-sizing: border-box; }
             [data-foundry-id] {
@@ -565,7 +565,26 @@ struct HTMLPageRenderer: PageRendering {
     private func canvasSource(_ source: String, assets: [UUID: ProjectAssetContent]) -> String {
         guard let id = source.foundryAssetID else { return source }
         guard let content = assets[id] else { return "" }
+        if content.asset.mediaType.caseInsensitiveCompare("image/gif") == .orderedSame,
+           let firstFrame = firstGIFFrame(from: content.data) {
+            return "data:image/png;base64,\(firstFrame.base64EncodedString())"
+        }
         return "data:\(content.asset.mediaType);base64,\(content.data.base64EncodedString())"
+    }
+
+    private func firstGIFFrame(from data: Data) -> Data? {
+        guard let source = CGImageSourceCreateWithData(data as CFData, nil),
+              let image = CGImageSourceCreateImageAtIndex(source, 0, nil) else { return nil }
+        let output = NSMutableData()
+        guard let destination = CGImageDestinationCreateWithData(
+            output,
+            UTType.png.identifier as CFString,
+            1,
+            nil
+        ) else { return nil }
+        CGImageDestinationAddImage(destination, image, nil)
+        guard CGImageDestinationFinalize(destination) else { return nil }
+        return output as Data
     }
 
     private func sharedStyles(for node: ComponentNode, theme: Theme) -> [String] {

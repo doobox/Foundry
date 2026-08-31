@@ -47,16 +47,14 @@ struct ComponentPropertyEditor: View {
     @ViewBuilder
     private var editorControl: some View {
         switch definition.control {
-        case .array(let element, let count, let subtitles, let help):
-            InspectorRow(title: definition.label, alignment: .top, indicator: responsiveIndicator) {
-                InspectorControlArray(
-                    count: count,
-                    subtitles: subtitles,
-                    help: help,
-                    values: (0..<count).map(arrayElementBinding),
-                    element: element,
-                    assets: assets
-                )
+        case .array(let element, let count, let labels, let subtitles, let help):
+            if case .slider = element {
+                controlArrayRow(element: element, count: count, labels: labels, subtitles: subtitles, help: help)
+                    .contextMenu {
+                        resetButton
+                    }
+            } else {
+                controlArrayRow(element: element, count: count, labels: labels, subtitles: subtitles, help: help)
             }
         case .singleLineText:
             InspectorRow(title: definition.label, indicator: responsiveIndicator) {
@@ -109,10 +107,17 @@ struct ComponentPropertyEditor: View {
         case .number(let range, let step, let unit):
             Group {
                 InspectorRow(title: definition.label, indicator: responsiveIndicator) {
-                    HStack {
-                        Text("\(displayComponent.numberProperty(definition.key, theme: theme).formatted()) \(unit)")
-                            .monospacedDigit()
-                        Spacer(minLength: 0)
+                    HStack(spacing: 6) {
+                        InspectorNumberField(
+                            value: numberBinding,
+                            range: range,
+                            accessibilityLabel: definition.label,
+                            help: definition.label
+                        )
+                        if !unit.isEmpty {
+                            Text(unit)
+                                .foregroundStyle(.secondary)
+                        }
                         InspectorStepper(value: numberBinding, range: range, increment: step, accessibilityLabel: definition.label)
                     }
                 }
@@ -122,16 +127,32 @@ struct ComponentPropertyEditor: View {
                     }
                 }
             }
-        case .slider(let range, let step, let tickMarks, let restrictsToTickMarks):
+        case .slider(let range, let step, let ticks, let unit, let showsValueField):
             InspectorRow(title: definition.label, alignment: .center, indicator: responsiveIndicator) {
-                HStack {
+                HStack(spacing: 8) {
                     InspectorSlider(
                         value: numberBinding, range: range, step: step,
-                        tickMarkCount: tickMarks, restrictsToTickMarks: restrictsToTickMarks,
+                        tickMarkCount: ticks,
                         accessibilityLabel: definition.label, help: definition.label
                     )
-                    Text(numberBinding.wrappedValue.formatted()).monospacedDigit().frame(minWidth: 36, alignment: .trailing)
+                    if showsValueField {
+                        InspectorNumberField(
+                            value: numberBinding,
+                            range: range,
+                            step: step,
+                            accessibilityLabel: "\(definition.label) value",
+                            help: definition.label
+                        )
+                        .frame(width: 64)
+                        if !unit.isEmpty {
+                            Text(unit)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
                 }
+            }
+            .contextMenu {
+                resetButton
             }
         case .date:
             InspectorRow(title: definition.label, alignment: .center, indicator: responsiveIndicator) {
@@ -351,6 +372,52 @@ struct ComponentPropertyEditor: View {
                 setProperty(.array(values))
             }
         )
+    }
+
+    @ViewBuilder
+    private func controlArrayRow(
+        element: ComponentPropertyControl,
+        count: Int,
+        labels: [String],
+        subtitles: [String],
+        help: String?
+    ) -> some View {
+        if case .slider = element {
+            ForEach(0..<count, id: \.self) { index in
+                InspectorRow(
+                    title: labels[index],
+                    indicator: index == 0 ? responsiveIndicator : nil
+                ) {
+                    InspectorControlArrayItem(
+                        title: labels[index],
+                        subtitle: subtitles.indices.contains(index) ? subtitles[index] : nil,
+                        help: help,
+                        value: arrayElementBinding(index),
+                        element: element,
+                        assets: assets
+                    )
+                }
+            }
+        } else {
+            InspectorRow(title: definition.label, alignment: .top, indicator: responsiveIndicator) {
+                InspectorControlArray(
+                    count: count,
+                    labels: labels,
+                    subtitles: subtitles,
+                    help: help,
+                    values: (0..<count).map(arrayElementBinding),
+                    element: element,
+                    assets: assets
+                )
+            }
+        }
+    }
+
+    private var resetButton: some View {
+        Button("Reset") {
+            setProperty(definition.defaultValue)
+        }
+        .disabled(displayComponent.propertyValue(definition.key) == definition.defaultValue)
     }
 
     private var responsiveIndicator: InspectorRowIndicator {
@@ -609,48 +676,85 @@ private struct ComponentLinkEditor: View {
 
 private struct InspectorControlArray: View {
     let count: Int
+    let labels: [String]
     let subtitles: [String]
     let help: String?
     let values: [Binding<ComponentProperty.Value>]
     let element: ComponentPropertyControl
     let assets: [ProjectAsset]
 
+    @ViewBuilder
     var body: some View {
-        HStack(alignment: .top, spacing: 8) {
-            ForEach(0..<count, id: \.self) { index in
-                InspectorControlArrayItem(
-                    subtitle: subtitles.indices.contains(index) ? subtitles[index] : nil,
-                    help: help,
-                    value: values[index],
-                    element: element,
-                    assets: assets
-                )
-                .frame(maxWidth: .infinity)
+        if case .slider = element {
+            VStack(spacing: 8) {
+                arrayItems
             }
+        } else {
+            HStack(alignment: .top, spacing: 8) {
+                arrayItems
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var arrayItems: some View {
+        ForEach(0..<count, id: \.self) { index in
+            InspectorControlArrayItem(
+                title: labels[index],
+                subtitle: subtitles.indices.contains(index) ? subtitles[index] : nil,
+                help: help,
+                value: values[index],
+                element: element,
+                assets: assets
+            )
+            .frame(maxWidth: .infinity)
         }
     }
 }
 
 private struct InspectorControlArrayItem: View {
+    let title: String
     let subtitle: String?
     let help: String?
     @Binding var value: ComponentProperty.Value
     let element: ComponentPropertyControl
     let assets: [ProjectAsset]
 
+    @ViewBuilder
     var body: some View {
-        VStack(spacing: 4) {
-            control
-            if let subtitle, !subtitle.isEmpty {
-                Text(subtitle)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+        if case .slider = element {
+            VStack(alignment: .leading, spacing: 3) {
+                control
+                if let subtitle, !subtitle.isEmpty {
+                    subtitleText(subtitle)
+                }
+            }
+            .controlSize(.small)
+            .help(help ?? subtitle ?? "")
+        } else {
+            VStack(spacing: 4) {
+                Text(title)
                     .lineLimit(1)
                     .truncationMode(.tail)
-                    .help(subtitle)
+                    .foregroundStyle(.secondary)
+                    .help(title)
+                control
+                if let subtitle, !subtitle.isEmpty {
+                    subtitleText(subtitle)
+                }
             }
+            .controlSize(.small)
+            .help(help ?? subtitle ?? "")
         }
-        .help(help ?? subtitle ?? "")
+    }
+
+    private func subtitleText(_ subtitle: String) -> some View {
+        Text(subtitle)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .lineLimit(1)
+            .truncationMode(.tail)
+            .help(subtitle)
     }
 
     @ViewBuilder
@@ -661,12 +765,37 @@ private struct InspectorControlArrayItem: View {
         case .singleLineText:
             InspectorTextField(text: stringBinding, accessibilityLabel: subtitle ?? "Text value", help: help)
         case .number(let range, let step, let unit):
-            HStack(spacing: 2) {
-                Text(numberBinding.wrappedValue.formatted() + unit).monospacedDigit().lineLimit(1)
+            HStack(spacing: 4) {
+                InspectorNumberField(
+                    value: numberBinding,
+                    range: range,
+                    accessibilityLabel: subtitle ?? "Number value",
+                    help: help
+                )
                 InspectorStepper(value: numberBinding, range: range, increment: step, accessibilityLabel: subtitle ?? "Number value")
+                if !unit.isEmpty {
+                    Text(unit)
+                        .foregroundStyle(.secondary)
+                }
             }
-        case .slider(let range, let step, let tickMarks, let restrictsToTickMarks):
-            InspectorSlider(value: numberBinding, range: range, step: step, tickMarkCount: tickMarks, restrictsToTickMarks: restrictsToTickMarks, accessibilityLabel: subtitle ?? "Slider", help: help)
+        case .slider(let range, let step, let ticks, let unit, let showsValueField):
+            HStack(spacing: 8) {
+                InspectorSlider(value: numberBinding, range: range, step: step, tickMarkCount: ticks, accessibilityLabel: subtitle ?? "Slider", help: help)
+                if showsValueField {
+                    InspectorNumberField(
+                        value: numberBinding,
+                        range: range,
+                        step: step,
+                        accessibilityLabel: "\(subtitle ?? "Slider") value",
+                        help: help
+                    )
+                    .frame(width: 64)
+                    if !unit.isEmpty {
+                        Text(unit)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
         case .date:
             DatePicker("", selection: dateBinding, displayedComponents: [.date]).labelsHidden()
         case .button(let systemImage):
@@ -813,7 +942,7 @@ private struct PackageColorControlEditor: View {
             if let opacity {
                 InspectorRow(title: "Opacity", alignment: .center) {
                     HStack {
-                        InspectorSlider(value: opacity, range: 0...1, step: 0.1, tickMarkCount: 11, restrictsToTickMarks: true, accessibilityLabel: "Opacity", help: "Set opacity from zero to one hundred percent")
+                        InspectorSlider(value: opacity, range: 0...1, step: 0.1, tickMarkCount: 11, accessibilityLabel: "Opacity", help: "Set opacity from zero to one hundred percent")
                         Text(opacity.wrappedValue.formatted(.percent.precision(.fractionLength(0)))).monospacedDigit().frame(minWidth: 42, alignment: .trailing)
                     }
                 }

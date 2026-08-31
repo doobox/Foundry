@@ -99,7 +99,8 @@ nonisolated struct ComponentPackageSlot: Codable, Equatable, Identifiable, Senda
 
 nonisolated struct ComponentPackageProperty: Codable, Equatable, Identifiable, Sendable {
     let id: String
-    let title: String
+    let label: String
+    let labels: [String]
     let group: String
     let control: ComponentPackageControl
     let defaultValue: ComponentPackageValue
@@ -109,9 +110,8 @@ nonisolated struct ComponentPackageProperty: Codable, Equatable, Identifiable, S
 
     enum CodingKeys: String, CodingKey {
         case id
-        case title
+        case labels
         case group
-        case control
         case defaultValue = "default"
         case responsive
         case subtitles
@@ -122,19 +122,50 @@ nonisolated struct ComponentPackageProperty: Codable, Equatable, Identifiable, S
         let container = try decoder.container(keyedBy: CodingKeys.self)
         id = try container.decode(String.self, forKey: .id)
         group = try container.decodeIfPresent(String.self, forKey: .group) ?? "Settings"
-        control = try container.decode(ComponentPackageControl.self, forKey: .control)
+        control = try ComponentPackageControl(from: decoder)
         subtitles = try container.decodeIfPresent([String].self, forKey: .subtitles) ?? []
         toolTip = try container.decodeIfPresent(String.self, forKey: .toolTip)
 
-        if control.type == .divider || control.type == .info || control.type == .math || control.type == .imageTransform {
-            title = try container.decodeIfPresent(String.self, forKey: .title) ?? ""
+        if control.count != nil {
+            labels = try container.decode([String].self, forKey: .labels)
+            label = ""
+        } else {
+            labels = []
+            label = try container.decodeIfPresent(String.self, forKey: .labels) ?? ""
+        }
+
+        if control.type == .divider || control.type == .info || control.type == .math {
             defaultValue = try container.decodeIfPresent(ComponentPackageValue.self, forKey: .defaultValue) ?? .string("")
             responsive = try container.decodeIfPresent(Bool.self, forKey: .responsive) ?? false
+        } else if control.type == .slider {
+            let lowerBound = control.minimum ?? 0
+            let upperBound = control.maximum ?? 100
+            let implicitDefault = min(max(0, lowerBound), upperBound)
+            defaultValue = try container.decodeIfPresent(ComponentPackageValue.self, forKey: .defaultValue)
+                ?? .number(implicitDefault)
+            responsive = try container.decode(Bool.self, forKey: .responsive)
         } else {
-            title = try container.decode(String.self, forKey: .title)
             defaultValue = try container.decode(ComponentPackageValue.self, forKey: .defaultValue)
             responsive = try container.decode(Bool.self, forKey: .responsive)
         }
+    }
+
+    func encode(to encoder: Encoder) throws {
+        try control.encode(to: encoder)
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        if control.count != nil {
+            try container.encode(labels, forKey: .labels)
+        } else if !label.isEmpty {
+            try container.encode(label, forKey: .labels)
+        }
+        try container.encode(group, forKey: .group)
+        try container.encode(defaultValue, forKey: .defaultValue)
+        try container.encode(responsive, forKey: .responsive)
+        if !subtitles.isEmpty {
+            try container.encode(subtitles, forKey: .subtitles)
+        }
+        try container.encodeIfPresent(toolTip, forKey: .toolTip)
     }
 }
 
@@ -146,7 +177,6 @@ nonisolated struct ComponentPackageControl: Codable, Equatable, Sendable {
         case color
         case select
         case link
-        case image
         case toggle
         case fontFamily
         case fontSize
@@ -158,7 +188,6 @@ nonisolated struct ComponentPackageControl: Codable, Equatable, Sendable {
         case details
         case info
         case button
-        case imageTransform
         case math
     }
 
@@ -173,25 +202,12 @@ nonisolated struct ComponentPackageControl: Codable, Equatable, Sendable {
     let opacity: Bool?
     let customColor: String?
     let count: Int?
-    let tickMarks: Int?
-    let restrictsToTickMarks: Bool?
+    let ticks: Int?
+    let showsValueField: Bool?
     let trueValue: ComponentPackageValue?
     let falseValue: ComponentPackageValue?
     let systemImage: String?
-    let input: String?
     let fontSize: String?
-    let scaleMode: Int?
-    let scale: Double?
-    let maxWidth: Double?
-    let maxHeight: Double?
-    let rotation: Double?
-    let borderWidth: Double?
-    let borderColor: String?
-    let shadowColor: String?
-    let shadowOpacity: Double?
-    let shadowBlur: Double?
-    let shadowOffsetX: Double?
-    let shadowOffsetY: Double?
     let argument1: ComponentPackageValue?
     let argument2: ComponentPackageValue?
     let operation: String?

@@ -191,6 +191,8 @@ private struct ThemeSettingsDetail: View {
                 ThemeFontFamilyEditor(theme: theme, assets: assets, session: session)
             } else if section == .fontSize {
                 fontSizeSettings
+            } else if section == .spacing {
+                ThemeSpacingSettings(spacing: theme.spacing, editor: editor)
             } else {
                 Form {
                     switch section {
@@ -215,16 +217,7 @@ private struct ThemeSettingsDetail: View {
                             }
                         }
                     case .spacing:
-                        Section("Spacing Scale") {
-                            ForEach(DesignToken.spacingTokens) { token in
-                                Stepper(value: spacingBinding(for: token), in: 0...160, step: 1) {
-                                    LabeledContent(
-                                        token.displayName,
-                                        value: "\((theme.number(for: token) ?? 0).formatted()) px"
-                                    )
-                                }
-                            }
-                        }
+                        EmptyView()
                     case .shadows:
                         pendingSettings("Reusable shadow styles will be configured here.")
                     case .borderWidth:
@@ -312,13 +305,6 @@ private struct ThemeSettingsDetail: View {
         Binding(
             get: { Color(hex: theme.color(for: token) ?? "#FFFFFF") ?? .white },
             set: { editor.setThemeColor(token, value: $0.hexString ?? "#FFFFFF") }
-        )
-    }
-
-    private func spacingBinding(for token: DesignToken) -> Binding<Double> {
-        Binding(
-            get: { theme.number(for: token) ?? 0 },
-            set: { editor.setThemeSpacing(token, value: $0) }
         )
     }
 
@@ -492,6 +478,150 @@ private struct ThemeSettingsDetail: View {
             Text(token.lineHeight.title)
                 .foregroundStyle(.secondary)
                 .frame(width: 228, alignment: .leading)
+        }
+    }
+}
+
+private struct ThemeSpacingSettings: View {
+    let spacing: SpacingTokens
+    let editor: ProjectEditor
+
+    var body: some View {
+        List {
+            Section {
+                ThemePredefinedSpacingRow(token: .extraSmallSpacing, value: spacing.extraSmall, editor: editor)
+                ThemePredefinedSpacingRow(token: .smallSpacing, value: spacing.small, editor: editor)
+                ThemePredefinedSpacingRow(token: .mediumSpacing, value: spacing.medium, editor: editor)
+                ThemePredefinedSpacingRow(token: .largeSpacing, value: spacing.large, editor: editor)
+                ThemePredefinedSpacingRow(token: .extraLargeSpacing, value: spacing.extraLarge, editor: editor)
+            } header: {
+                HStack {
+                    Text("Predefined Scale")
+                    Spacer()
+                    Button("Reset", systemImage: "arrow.counterclockwise") {
+                        editor.resetThemeSpacingScale()
+                    }
+                    .labelStyle(.iconOnly)
+                    .buttonStyle(.borderless)
+                    .disabled(spacing.usesStandardPredefinedScale)
+                    .help("Reset Predefined Spacing Scale")
+                }
+            }
+
+            Section {
+                ForEach(spacing.custom) { token in
+                    ThemeCustomSpacingRow(token: token, editor: editor)
+                }
+            } header: {
+                HStack {
+                    Text("Custom Spacings")
+                    Spacer()
+                    Button("Add Spacing", systemImage: "plus") {
+                        editor.addThemeSpacing()
+                    }
+                    .labelStyle(.iconOnly)
+                    .buttonStyle(.borderless)
+                    .help("Add Custom Spacing")
+                }
+            } footer: {
+                if spacing.custom.isEmpty {
+                    Text("Add project-specific spacing values to extend the predefined scale.")
+                }
+            }
+        }
+        .listStyle(.inset)
+    }
+}
+
+private struct ThemePredefinedSpacingRow: View {
+    let token: DesignToken
+    let value: Double
+    let editor: ProjectEditor
+
+    var body: some View {
+        ThemeSpacingValueRow(
+            name: token.displayName,
+            value: binding,
+            accessibilityLabel: "\(token.displayName) Spacing"
+        )
+    }
+
+    private var binding: Binding<Double> {
+        Binding(
+            get: { value },
+            set: { editor.setThemeSpacing(token, value: $0) }
+        )
+    }
+}
+
+private struct ThemeCustomSpacingRow: View {
+    let token: ThemeSpacing
+    let editor: ProjectEditor
+
+    var body: some View {
+        HStack(spacing: 12) {
+            TextField("Spacing Name", text: nameBinding)
+                .textFieldStyle(.roundedBorder)
+                .frame(width: 150)
+            ThemeSpacingValueRow(
+                name: nil,
+                value: valueBinding,
+                accessibilityLabel: token.name
+            )
+            Button("Delete Spacing", systemImage: "trash", role: .destructive) {
+                editor.removeThemeSpacing(id: token.id)
+            }
+            .labelStyle(.iconOnly)
+            .buttonStyle(.borderless)
+            .help("Delete Custom Spacing")
+        }
+    }
+
+    private var nameBinding: Binding<String> {
+        Binding(
+            get: { token.name },
+            set: { editor.setThemeSpacingName(id: token.id, value: $0) }
+        )
+    }
+
+    private var valueBinding: Binding<Double> {
+        Binding(
+            get: { token.value },
+            set: { editor.setThemeSpacingValue(id: token.id, value: $0) }
+        )
+    }
+}
+
+private struct ThemeSpacingValueRow: View {
+    let name: String?
+    @Binding var value: Double
+    let accessibilityLabel: String
+
+    var body: some View {
+        HStack(spacing: 12) {
+            if let name {
+                Text(name)
+                    .frame(width: 82, alignment: .leading)
+                    .lineLimit(1)
+            }
+            Slider(value: $value, in: 0...40, step: 0.5)
+                .frame(minWidth: 140)
+                .accessibilityLabel(accessibilityLabel)
+            TextField(
+                accessibilityLabel,
+                value: $value,
+                format: .number.precision(.fractionLength(0...2))
+            )
+            .labelsHidden()
+            .textFieldStyle(.roundedBorder)
+            .multilineTextAlignment(.trailing)
+            .frame(width: 72)
+            Text("×")
+                .foregroundStyle(.secondary)
+                .frame(width: 12, alignment: .leading)
+            Text("\(value * SpacingTokens.baseRem, format: .number.precision(.fractionLength(0...3))) rem · \(value * 4, format: .number.precision(.fractionLength(0...1))) px")
+                .foregroundStyle(.secondary)
+                .frame(width: 124, alignment: .leading)
         }
     }
 }

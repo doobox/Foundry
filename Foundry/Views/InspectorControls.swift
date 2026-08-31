@@ -9,6 +9,18 @@ enum InspectorMetrics {
     static let verticalSectionPadding: CGFloat = 12
 }
 
+private extension ControlSize {
+    var appKitControlSize: NSControl.ControlSize {
+        switch self {
+        case .mini: .mini
+        case .small: .small
+        case .regular: .regular
+        case .large, .extraLarge: .large
+        @unknown default: .small
+        }
+    }
+}
+
 struct InspectorGrid<Content: View>: View {
     private let content: Content
 
@@ -52,7 +64,7 @@ struct InspectorRow<Control: View>: View {
 
     var body: some View {
         GridRow(alignment: alignment) {
-            ZStack(alignment: .leading) {
+            HStack(spacing: 3) {
                 if let indicator {
                     InspectorResponsiveIndicator(
                         isVisible: indicator.isVisible,
@@ -60,6 +72,7 @@ struct InspectorRow<Control: View>: View {
                         breakpointName: indicator.breakpointName,
                         toggle: indicator.toggle
                     )
+                    .frame(width: 8)
                 }
 
                 Text(title)
@@ -100,6 +113,7 @@ struct InspectorPopup<Value: Hashable>: NSViewRepresentable {
     let accessibilityLabel: String
     let help: String?
     @Environment(\.isEnabled) private var isEnabled
+    @Environment(\.controlSize) private var controlSize
 
     init(
         selection: Binding<Value>,
@@ -119,7 +133,7 @@ struct InspectorPopup<Value: Hashable>: NSViewRepresentable {
 
     func makeNSView(context: Context) -> NSPopUpButton {
         let popup = NSPopUpButton(frame: .zero, pullsDown: false)
-        popup.controlSize = .small
+        popup.controlSize = controlSize.appKitControlSize
         popup.setContentHuggingPriority(.defaultLow, for: .horizontal)
         popup.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         popup.target = context.coordinator
@@ -130,6 +144,7 @@ struct InspectorPopup<Value: Hashable>: NSViewRepresentable {
     }
 
     func updateNSView(_ popup: NSPopUpButton, context: Context) {
+        popup.controlSize = controlSize.appKitControlSize
         context.coordinator.selection = $selection
         if context.coordinator.options != options {
             context.coordinator.options = options
@@ -195,6 +210,7 @@ struct InspectorTextField: NSViewRepresentable {
     let accessibilityLabel: String
     let help: String?
     @Environment(\.isEnabled) private var isEnabled
+    @Environment(\.controlSize) private var controlSize
 
     init(text: Binding<String>, accessibilityLabel: String, help: String? = nil) {
         _text = text
@@ -206,7 +222,7 @@ struct InspectorTextField: NSViewRepresentable {
 
     func makeNSView(context: Context) -> NSTextField {
         let field = NSTextField(string: text)
-        field.controlSize = .small
+        field.controlSize = controlSize.appKitControlSize
         field.delegate = context.coordinator
         field.setContentHuggingPriority(.defaultLow, for: .horizontal)
         field.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
@@ -214,6 +230,7 @@ struct InspectorTextField: NSViewRepresentable {
     }
 
     func updateNSView(_ field: NSTextField, context: Context) {
+        field.controlSize = controlSize.appKitControlSize
         context.coordinator.text = $text
         context.coordinator.isUpdating = true
         if field.stringValue != text { field.stringValue = text }
@@ -241,24 +258,151 @@ struct InspectorTextField: NSViewRepresentable {
     }
 }
 
+struct InspectorNumberField: NSViewRepresentable {
+    @Binding var value: Double
+    let range: ClosedRange<Double>
+    let step: Double
+    let accessibilityLabel: String
+    let help: String?
+    @Environment(\.isEnabled) private var isEnabled
+    @Environment(\.controlSize) private var controlSize
+
+    init(
+        value: Binding<Double>,
+        range: ClosedRange<Double>,
+        step: Double = 0,
+        accessibilityLabel: String,
+        help: String? = nil
+    ) {
+        _value = value
+        self.range = range
+        self.step = step
+        self.accessibilityLabel = accessibilityLabel
+        self.help = help
+    }
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(value: $value, range: range, step: step)
+    }
+
+    func makeNSView(context: Context) -> NSTextField {
+        let field = NSTextField()
+        field.controlSize = controlSize.appKitControlSize
+        field.alignment = .right
+        field.delegate = context.coordinator
+        field.formatter = context.coordinator.formatter
+        field.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        field.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        context.coordinator.display(value, in: field)
+        return field
+    }
+
+    func updateNSView(_ field: NSTextField, context: Context) {
+        field.controlSize = controlSize.appKitControlSize
+        context.coordinator.value = $value
+        context.coordinator.update(range: range, step: step)
+        if field.currentEditor() == nil, context.coordinator.displayedValue(in: field) != value {
+            context.coordinator.display(value, in: field)
+        }
+        field.isEnabled = isEnabled
+        field.toolTip = help
+        field.setAccessibilityLabel(accessibilityLabel)
+    }
+
+    static func dismantleNSView(_ field: NSTextField, coordinator: Coordinator) {
+        field.delegate = nil
+        field.formatter = nil
+    }
+
+    func sizeThatFits(_ proposal: ProposedViewSize, nsView: NSTextField, context: Context) -> CGSize? {
+        CGSize(width: proposal.width ?? nsView.intrinsicContentSize.width, height: nsView.intrinsicContentSize.height)
+    }
+
+    final class Coordinator: NSObject, NSTextFieldDelegate {
+        var value: Binding<Double>
+        let formatter: NumberFormatter
+        private var range: ClosedRange<Double>
+        private var step: Double
+
+        init(value: Binding<Double>, range: ClosedRange<Double>, step: Double) {
+            self.value = value
+            self.range = range
+            self.step = step
+            formatter = NumberFormatter()
+            super.init()
+            formatter.numberStyle = .decimal
+            formatter.usesGroupingSeparator = false
+            formatter.isLenient = false
+            formatter.minimumFractionDigits = 0
+            formatter.maximumFractionDigits = 12
+            update(range: range, step: step)
+        }
+
+        func update(range: ClosedRange<Double>, step: Double) {
+            self.range = range
+            self.step = step
+        }
+
+        func controlTextDidChange(_ notification: Notification) {
+            guard let field = notification.object as? NSTextField,
+                  let parsed = parsedValue(from: field),
+                  parsed != value.wrappedValue else { return }
+            value.wrappedValue = parsed
+        }
+
+        func controlTextDidEndEditing(_ notification: Notification) {
+            guard let field = notification.object as? NSTextField else { return }
+            guard let parsed = numericValue(from: field) else {
+                NSSound.beep()
+                display(value.wrappedValue, in: field)
+                return
+            }
+            let resolved = InspectorSliderValueResolver.resolve(parsed, range: range, step: step)
+            value.wrappedValue = resolved
+            display(resolved, in: field)
+        }
+
+        func displayedValue(in field: NSTextField) -> Double? {
+            formatter.number(from: field.stringValue)?.doubleValue
+        }
+
+        func display(_ value: Double, in field: NSTextField) {
+            field.stringValue = formatter.string(from: NSNumber(value: value)) ?? value.formatted()
+        }
+
+        private func parsedValue(from field: NSTextField) -> Double? {
+            guard let parsed = numericValue(from: field), range.contains(parsed) else { return nil }
+            return parsed
+        }
+
+        private func numericValue(from field: NSTextField) -> Double? {
+            guard let parsed = formatter.number(from: field.stringValue)?.doubleValue,
+                  parsed.isFinite else { return nil }
+            return parsed
+        }
+    }
+}
+
 struct InspectorStepper: NSViewRepresentable {
     @Binding var value: Double
     let range: ClosedRange<Double>
     let increment: Double
     let accessibilityLabel: String
     @Environment(\.isEnabled) private var isEnabled
+    @Environment(\.controlSize) private var controlSize
 
     func makeCoordinator() -> Coordinator { Coordinator(value: $value) }
 
     func makeNSView(context: Context) -> NSStepper {
         let stepper = NSStepper()
-        stepper.controlSize = .small
+        stepper.controlSize = controlSize.appKitControlSize
         stepper.target = context.coordinator
         stepper.action = #selector(Coordinator.valueChanged(_:))
         return stepper
     }
 
     func updateNSView(_ stepper: NSStepper, context: Context) {
+        stepper.controlSize = controlSize.appKitControlSize
         context.coordinator.value = $value
         context.coordinator.isUpdating = true
         stepper.minValue = range.lowerBound
@@ -291,18 +435,17 @@ struct InspectorSlider: NSViewRepresentable {
     let range: ClosedRange<Double>
     let step: Double
     let tickMarkCount: Int
-    let restrictsToTickMarks: Bool
     let isContinuous: Bool
     let accessibilityLabel: String
     let help: String?
     @Environment(\.isEnabled) private var isEnabled
+    @Environment(\.controlSize) private var controlSize
 
     init(
         value: Binding<Double>,
         range: ClosedRange<Double>,
         step: Double,
         tickMarkCount: Int = 0,
-        restrictsToTickMarks: Bool = false,
         isContinuous: Bool = true,
         accessibilityLabel: String,
         help: String? = nil
@@ -311,30 +454,34 @@ struct InspectorSlider: NSViewRepresentable {
         self.range = range
         self.step = step
         self.tickMarkCount = tickMarkCount
-        self.restrictsToTickMarks = restrictsToTickMarks
         self.isContinuous = isContinuous
         self.accessibilityLabel = accessibilityLabel
         self.help = help
     }
 
-    func makeCoordinator() -> Coordinator { Coordinator(value: $value) }
+    func makeCoordinator() -> Coordinator {
+        Coordinator(value: $value, range: range, step: step)
+    }
 
     func makeNSView(context: Context) -> NSSlider {
         let slider = NSSlider(value: value, minValue: range.lowerBound, maxValue: range.upperBound, target: context.coordinator, action: #selector(Coordinator.valueChanged(_:)))
-        slider.controlSize = .small
+        slider.controlSize = controlSize.appKitControlSize
         slider.setContentHuggingPriority(.defaultLow, for: .horizontal)
         slider.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         return slider
     }
 
     func updateNSView(_ slider: NSSlider, context: Context) {
+        slider.controlSize = controlSize.appKitControlSize
         context.coordinator.value = $value
+        context.coordinator.range = range
+        context.coordinator.step = step
         context.coordinator.isUpdating = true
         slider.minValue = range.lowerBound
         slider.maxValue = range.upperBound
-        slider.altIncrementValue = step
+        slider.altIncrementValue = step > 0 ? step : 0
         slider.numberOfTickMarks = tickMarkCount
-        slider.allowsTickMarkValuesOnly = restrictsToTickMarks
+        slider.allowsTickMarkValuesOnly = false
         slider.isContinuous = isContinuous
         slider.doubleValue = value
         slider.isEnabled = isEnabled
@@ -354,14 +501,46 @@ struct InspectorSlider: NSViewRepresentable {
 
     final class Coordinator: NSObject {
         var value: Binding<Double>
+        var range: ClosedRange<Double>
+        var step: Double
         var isUpdating = false
 
-        init(value: Binding<Double>) { self.value = value }
+        init(value: Binding<Double>, range: ClosedRange<Double>, step: Double) {
+            self.value = value
+            self.range = range
+            self.step = step
+        }
 
         @objc func valueChanged(_ sender: NSSlider) {
             guard !isUpdating else { return }
-            value.wrappedValue = sender.doubleValue
+            let resolvedValue = InspectorSliderValueResolver.resolve(
+                sender.doubleValue,
+                range: range,
+                step: step
+            )
+            sender.doubleValue = resolvedValue
+            value.wrappedValue = resolvedValue
         }
+    }
+}
+
+nonisolated enum InspectorSliderValueResolver {
+    static func resolve(
+        _ rawValue: Double,
+        range: ClosedRange<Double>,
+        step: Double
+    ) -> Double {
+        guard step > 0 else {
+            return min(max(rawValue, range.lowerBound), range.upperBound)
+        }
+
+        let offset = Decimal(rawValue - range.lowerBound)
+        let increment = Decimal(step)
+        var quotient = offset / increment
+        var rounded = Decimal()
+        NSDecimalRound(&rounded, &quotient, 0, .plain)
+        let snapped = range.lowerBound + NSDecimalNumber(decimal: rounded * increment).doubleValue
+        return min(max(snapped, range.lowerBound), range.upperBound)
     }
 }
 
@@ -391,12 +570,13 @@ struct InspectorSegmentedControl<Value: Hashable>: NSViewRepresentable {
     @Binding var selection: Value
     let segments: [InspectorSegment<Value>]
     @Environment(\.isEnabled) private var isEnabled
+    @Environment(\.controlSize) private var controlSize
 
     func makeCoordinator() -> Coordinator { Coordinator(selection: $selection, segments: segments) }
 
     func makeNSView(context: Context) -> NSSegmentedControl {
         let control = NSSegmentedControl()
-        control.controlSize = .small
+        control.controlSize = controlSize.appKitControlSize
         control.segmentStyle = .automatic
         control.trackingMode = .selectOne
         control.segmentDistribution = .fillEqually
@@ -408,6 +588,7 @@ struct InspectorSegmentedControl<Value: Hashable>: NSViewRepresentable {
     }
 
     func updateNSView(_ control: NSSegmentedControl, context: Context) {
+        control.controlSize = controlSize.appKitControlSize
         context.coordinator.selection = $selection
         context.coordinator.segments = segments
         context.coordinator.isUpdating = true
@@ -499,6 +680,7 @@ private struct AppKitColorWell: NSViewRepresentable {
     @Binding var color: Color
     let supportsAlpha: Bool
     @Environment(\.isEnabled) private var isEnabled
+    @Environment(\.controlSize) private var controlSize
 
     func makeCoordinator() -> Coordinator {
         Coordinator(color: $color)
@@ -506,7 +688,7 @@ private struct AppKitColorWell: NSViewRepresentable {
 
     func makeNSView(context: Context) -> NSColorWell {
         let colorWell = NSColorWell()
-        colorWell.controlSize = .small
+        colorWell.controlSize = controlSize.appKitControlSize
         colorWell.supportsAlpha = supportsAlpha
         colorWell.target = context.coordinator
         colorWell.action = #selector(Coordinator.colorChanged(_:))
@@ -514,6 +696,7 @@ private struct AppKitColorWell: NSViewRepresentable {
     }
 
     func updateNSView(_ colorWell: NSColorWell, context: Context) {
+        colorWell.controlSize = controlSize.appKitControlSize
         context.coordinator.color = $color
         context.coordinator.isUpdating = true
         colorWell.color = NSColor(color)

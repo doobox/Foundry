@@ -127,12 +127,12 @@ nonisolated struct ComponentPropertySection: RawRepresentable, Hashable, Sendabl
 }
 
 nonisolated enum ComponentPropertyControl: Sendable {
-    indirect case array(element: ComponentPropertyControl, count: Int, subtitles: [String], help: String?)
+    indirect case array(element: ComponentPropertyControl, count: Int, labels: [String], subtitles: [String], help: String?)
     case singleLineText
     case multilineText
     case link(absoluteURL: Bool)
     case number(range: ClosedRange<Double>, step: Double, unit: String)
-    case slider(range: ClosedRange<Double>, step: Double, tickMarks: Int, restrictsToTickMarks: Bool)
+    case slider(range: ClosedRange<Double>, step: Double, ticks: Int, unit: String, showsValueField: Bool)
     case date
     case info
     case button(systemImage: String?)

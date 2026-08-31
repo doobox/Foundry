@@ -94,6 +94,26 @@ struct CanvasBridgeTests {
     }
 
     @Test @MainActor
+    func canvasUsesAStillFirstFrameForManagedGIFs() throws {
+        let gifData = try #require(Data(base64Encoded: "R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw=="))
+        let asset = ProjectAsset(filename: "animation.gif", mediaType: "image/gif", byteCount: gifData.count)
+        var image = ComponentNode.make(.image)
+        image.setProperty(.source, value: .url(asset.reference))
+        let page = Page(title: "GIF", slug: "gif", components: [image])
+
+        let html = HTMLPageRenderer().render(
+            page: page,
+            language: "en",
+            theme: .standard,
+            assets: [asset.id: ProjectAssetContent(asset: asset, data: gifData)],
+            breakpoint: .desktop
+        )
+
+        #expect(html.contains("data:image/png;base64,"))
+        #expect(!html.contains("data:image/gif;base64,"))
+    }
+
+    @Test @MainActor
     func canvasRendererIncludesEditorOptionHooks() {
         let page = Site.starter().pages[0]
         let html = HTMLPageRenderer().render(page: page, theme: .standard)

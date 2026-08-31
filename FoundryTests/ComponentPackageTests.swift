@@ -38,10 +38,10 @@ struct ComponentPackageTests {
         <key>author</key><string>Foundry</string><key>version</key><string>1</string><key>group</key><string>Other</string>
         <key>tags</key><array/><key>assets</key><array/><key>slots</key><array/>
         <key>customItems</key><array><dict>
-        <key>id</key><string>palette</string><key>title</key><string>Palette</string><key>group</key><string>Appearance</string>
-        <key>subtitles</key><array><string>One</string><string>Two</string><string>Three</string><string>Four</string></array>
+        <key>id</key><string>palette</string><key>labels</key><array><string>One</string><string>Two</string><string>Three</string><string>Four</string></array><key>group</key><string>Appearance</string>
+        <key>subtitles</key><array><string>First</string><string>Second</string><string>Third</string><string>Fourth</string></array>
         <key>toolTip</key><string>Four colours</string>
-        <key>control</key><dict><key>type</key><string>color</string><key>count</key><integer>4</integer></dict>
+        <key>type</key><string>color</string><key>count</key><integer>4</integer>
         <key>default</key><array><string>#111111</string><string>#222222</string><string>#333333</string><string>#444444</string></array>
         <key>responsive</key><true/>        </dict></array>
         <key>templates</key><dict><key>html</key><string>component.html</string></dict>
@@ -50,7 +50,8 @@ struct ComponentPackageTests {
         let manifest = try PropertyListDecoder().decode(ComponentPackageManifest.self, from: Data(plist.utf8))
         let property = try #require(manifest.properties.first)
         #expect(property.control.count == 4)
-        #expect(property.subtitles == ["One", "Two", "Three", "Four"])
+        #expect(property.labels == ["One", "Two", "Three", "Four"])
+        #expect(property.subtitles == ["First", "Second", "Third", "Fourth"])
         #expect(property.toolTip == "Four colours")
 
         let value = ComponentPackageValue.array([.string("red"), .string("green"), .string("blue")])
@@ -73,27 +74,19 @@ struct ComponentPackageTests {
         <key>title</key><string>Derived</string><key>description</key><string>Derived controls</string>
         <key>group</key><string>Other</string><key>assets</key><array/><key>slots</key><array/>
         <key>customItems</key><array>
-        <dict><key>id</key><string>amount</string><key>title</key><string>Amount</string><key>group</key><string>Test</string><key>control</key><dict><key>type</key><string>number</string></dict><key>default</key><real>21</real><key>responsive</key><false/></dict>
-        <dict><key>id</key><string>action</string><key>title</key><string>Action</string><key>group</key><string>Test</string><key>control</key><dict><key>type</key><string>button</string><key>trueValue</key><string>active</string><key>falseValue</key><string>ready</string></dict><key>default</key><false/><key>responsive</key><false/></dict>
-        <dict><key>id</key><string>source</string><key>title</key><string>Image</string><key>group</key><string>Test</string><key>control</key><dict><key>type</key><string>image</string></dict><key>default</key><string></string><key>responsive</key><false/></dict>
-        <dict><key>id</key><string>doubled</string><key>group</key><string>Test</string><key>control</key><dict><key>type</key><string>math</string><key>argument1</key><string>amount</string><key>argument2</key><real>2</real><key>operation</key><string>*</string><key>round</key><false/></dict></dict>
-        <dict><key>id</key><string>thumbnail</string><key>group</key><string>Test</string><key>control</key><dict><key>type</key><string>imageTransform</string><key>input</key><string>source</string><key>maxWidth</key><real>120</real><key>maxHeight</key><real>80</real><key>rotation</key><real>5</real></dict></dict>
+        <dict><key>id</key><string>amount</string><key>labels</key><string>Amount</string><key>group</key><string>Test</string><key>type</key><string>number</string><key>default</key><real>21</real><key>responsive</key><false/></dict>
+        <dict><key>id</key><string>action</string><key>labels</key><string>Action</string><key>group</key><string>Test</string><key>type</key><string>button</string><key>trueValue</key><string>active</string><key>falseValue</key><string>ready</string><key>default</key><false/><key>responsive</key><false/></dict>
+        <dict><key>id</key><string>doubled</string><key>group</key><string>Test</string><key>type</key><string>math</string><key>argument1</key><string>amount</string><key>argument2</key><real>2</real><key>operation</key><string>*</string><key>round</key><false/></dict>
         </array><key>templates</key><dict><key>html</key><string>component.html</string></dict>
         </dict></plist>
         """
         let manifest = try PropertyListDecoder().decode(ComponentPackageManifest.self, from: Data(plist.utf8))
         let resolved = ComponentPackageDerivedValueResolver.resolve(
-            ["amount": .number(21), "action": .boolean(true), "source": .string("https://example.com/image.png")],
+            ["amount": .number(21), "action": .boolean(true)],
             properties: manifest.properties
         )
         #expect(resolved["doubled"] == .number(42))
         #expect(resolved["action"] == .string("active"))
-        guard case .string(let transformed) = resolved["thumbnail"] else {
-            Issue.record("Expected an image transform URL")
-            return
-        }
-        #expect(transformed.hasPrefix("data:image/svg+xml,"))
-        #expect(transformed.contains("rotate%285"))
     }
 
     @Test
@@ -530,9 +523,9 @@ struct ComponentPackageTests {
         let item = """
         <dict>
             <key>id</key><string>alignment</string>
-            <key>title</key><string>Alignment</string>
+            <key>labels</key><string>Alignment</string>
             <key>group</key><string>Typography</string>
-            <key>control</key><dict><key>type</key><string>textAlignment</string></dict>
+            <key>type</key><string>textAlignment</string>
             <key>default</key><string>start</string>
             <key>responsive</key><true/>
         </dict>
@@ -560,9 +553,9 @@ struct ComponentPackageTests {
         let item = """
         <dict>
             <key>id</key><string>typeface</string>
-            <key>title</key><string>Typeface</string>
+            <key>labels</key><string>Typeface</string>
             <key>group</key><string>Typography</string>
-            <key>control</key><dict><key>type</key><string>fontFamily</string></dict>
+            <key>type</key><string>fontFamily</string>
             <key>default</key><string>body</string>
             <key>responsive</key><true/>
         </dict>
@@ -616,12 +609,196 @@ struct ComponentPackageTests {
     }
 
     @Test
+    func numberControlUnitIsOptionalAndLimitedToThreeCharacters() throws {
+        let numberItem = """
+        <dict>
+            <key>id</key><string>spacing</string>
+            <key>labels</key><string>Spacing</string>
+            <key>type</key><string>number</string>
+            <key>default</key><real>12</real>
+            <key>responsive</key><false/>
+        </dict>
+        """
+        let manifestText = validManifest.replacingOccurrences(
+            of: "<key>customItems</key>",
+            with: "<key>customItems</key>\n            <array>\n                \(numberItem)\n            </array>\n            <key>unusedItems</key>"
+        )
+        let manifest = try PropertyListDecoder().decode(
+            ComponentPackageManifest.self,
+            from: Data(manifestText.utf8)
+        )
+        let property = try #require(manifest.properties.first)
+        #expect(property.control.unit == nil)
+
+        let invalidText = manifestText.replacingOccurrences(
+            of: "<key>type</key><string>number</string>",
+            with: "<key>type</key><string>number</string><key>unit</key><string>pixels</string>"
+        )
+        let invalidManifest = try PropertyListDecoder().decode(
+            ComponentPackageManifest.self,
+            from: Data(invalidText.utf8)
+        )
+        let diagnostics = ComponentPackageValidator.validate(
+            invalidManifest,
+            rootURL: FileManager.default.temporaryDirectory
+        )
+
+        #expect(diagnostics.contains { $0.message == "A control unit can contain at most three characters." })
+    }
+
+    @Test
+    func sliderUsesContinuousDefaultStepVisualTicksAndOptionalUnit() throws {
+        let sliderItem = """
+        <dict>
+            <key>id</key><string>opacity</string>
+            <key>labels</key><string>Opacity</string>
+            <key>type</key><string>slider</string>
+            <key>minimum</key><real>0</real>
+            <key>maximum</key><real>100</real>
+            <key>ticks</key><integer>11</integer>
+            <key>unit</key><string>%</string>
+            <key>default</key><real>50</real>
+            <key>responsive</key><false/>
+        </dict>
+        """
+        let manifestText = validManifest.replacingOccurrences(
+            of: "<key>customItems</key>",
+            with: "<key>customItems</key>\n            <array>\n                \(sliderItem)\n            </array>\n            <key>unusedItems</key>"
+        )
+        let packageURL = try makePackage(
+            manifest: manifestText,
+            template: "<output {{ component.attributes }}>{{ control.opacity }}{% slot id=\"content\" %}</output>"
+        )
+        defer { try? FileManager.default.removeItem(at: packageURL) }
+
+        let package = try ComponentPackageLoader.load(from: packageURL)
+        let property = try #require(ComponentPackageAdapter.definition(from: package).properties.first)
+        guard case .slider(let range, let step, let ticks, let unit, let showsValueField) = property.control else {
+            Issue.record("Expected a slider control")
+            return
+        }
+
+        #expect(range == 0...100)
+        #expect(step == 0)
+        #expect(ticks == 11)
+        #expect(unit == "%")
+        #expect(showsValueField)
+    }
+
+    @Test
+    func sliderOmittedDefaultUsesZeroOrNearestRangeBound() throws {
+        let cases: [(minimum: Double, maximum: Double, expected: Double)] = [
+            (-100, 100, 0),
+            (10, 100, 10),
+            (-100, -10, -10)
+        ]
+
+        for testCase in cases {
+            let item = """
+            <dict>
+                <key>id</key><string>slider</string>
+                <key>labels</key><string>Slider</string>
+                <key>type</key><string>slider</string>
+                <key>minimum</key><real>\(testCase.minimum)</real>
+                <key>maximum</key><real>\(testCase.maximum)</real>
+                <key>responsive</key><false/>
+            </dict>
+            """
+            let manifestText = validManifest.replacingOccurrences(
+                of: "<key>customItems</key>",
+                with: "<key>customItems</key>\n            <array>\n                \(item)\n            </array>\n            <key>unusedItems</key>"
+            )
+            let manifest = try PropertyListDecoder().decode(
+                ComponentPackageManifest.self,
+                from: Data(manifestText.utf8)
+            )
+
+            #expect(manifest.properties.first?.defaultValue == .number(testCase.expected))
+        }
+    }
+
+    @Test
+    func sliderCanHideItsValueField() throws {
+        let item = """
+        <dict>
+            <key>id</key><string>slider</string>
+            <key>labels</key><string>Slider</string>
+            <key>type</key><string>slider</string>
+            <key>showsValueField</key><false/>
+            <key>responsive</key><false/>
+        </dict>
+        """
+        let manifestText = validManifest.replacingOccurrences(
+            of: "<key>customItems</key>",
+            with: "<key>customItems</key>\n            <array>\n                \(item)\n            </array>\n            <key>unusedItems</key>"
+        )
+        let packageURL = try makePackage(
+            manifest: manifestText,
+            template: "<output {{ component.attributes }}>{{ control.slider }}{% slot id=\"content\" %}</output>"
+        )
+        defer { try? FileManager.default.removeItem(at: packageURL) }
+
+        let package = try ComponentPackageLoader.load(from: packageURL)
+        let property = try #require(ComponentPackageAdapter.definition(from: package).properties.first)
+        guard case .slider(_, _, _, _, let showsValueField) = property.control else {
+            Issue.record("Expected a slider control")
+            return
+        }
+
+        #expect(!showsValueField)
+    }
+
+    @Test
+    func sliderStepSnapsIndependentlyOfTicks() {
+        #expect(InspectorSliderValueResolver.resolve(48.020833, range: -100...100, step: 1) == 48)
+        #expect(InspectorSliderValueResolver.resolve(0.86, range: 0...1, step: 0.1) == 0.9)
+        #expect(InspectorSliderValueResolver.resolve(12.345, range: 0...100, step: 0) == 12.345)
+        #expect(InspectorSliderValueResolver.resolve(12, range: 10...20, step: 3) == 13)
+    }
+
+    @Test
+    func sliderRejectsInvalidTicksStepRangeAndUnit() throws {
+        let item = """
+        <dict>
+            <key>id</key><string>slider</string>
+            <key>labels</key><string>Slider</string>
+            <key>type</key><string>slider</string>
+            <key>minimum</key><real>10</real>
+            <key>maximum</key><real>10</real>
+            <key>step</key><real>-1</real>
+            <key>ticks</key><integer>1</integer>
+            <key>unit</key><string>pixels</string>
+            <key>default</key><real>10</real>
+            <key>responsive</key><false/>
+        </dict>
+        """
+        let manifestText = validManifest.replacingOccurrences(
+            of: "<key>customItems</key>",
+            with: "<key>customItems</key>\n            <array>\n                \(item)\n            </array>\n            <key>unusedItems</key>"
+        )
+        let manifest = try PropertyListDecoder().decode(
+            ComponentPackageManifest.self,
+            from: Data(manifestText.utf8)
+        )
+        let diagnostics = ComponentPackageValidator.validate(
+            manifest,
+            rootURL: FileManager.default.temporaryDirectory
+        )
+        let messages = Set(diagnostics.map(\.message))
+
+        #expect(messages.contains("The control maximum must be greater than its minimum."))
+        #expect(messages.contains("The control step cannot be negative."))
+        #expect(messages.contains("Slider ticks must be zero or at least two."))
+        #expect(messages.contains("A control unit can contain at most three characters."))
+    }
+
+    @Test
     func dividerCustomControlIsPresentationOnly() throws {
         let item = """
         <dict>
             <key>id</key><string>contentDivider</string>
             <key>group</key><string>Content</string>
-            <key>control</key><dict><key>type</key><string>divider</string></dict>
+            <key>type</key><string>divider</string>
         </dict>
         """
         let manifestText = validManifest.replacingOccurrences(
@@ -775,10 +952,19 @@ struct ComponentPackageTests {
         #expect(Set(builtIns.compactMap { $0.package?.manifest.identifier }).count == builtIns.count)
         #expect(ComponentType.image.definition.package?.manifest.identifier == ComponentType.image.rawValue)
         #expect(ComponentType.image.definition.properties.contains { $0.key == .source && !$0.isInspectorVisible })
+        #expect(ComponentType.image.definition.properties.contains {
+            $0.key.rawValue == "maxWidth" && $0.defaultValue == .number(1200) && $0.isResponsive
+        })
+        #expect(ComponentType.image.definition.properties.contains {
+            $0.key.rawValue == "alignment" && $0.defaultValue == .choice("center") && $0.isResponsive
+        })
         let containerURL = try #require(Bundle.main.url(forResource: "BuiltInComponents", withExtension: "foundrypack"))
         let controlsURL = containerURL.appending(path: "Contents/Resources/Controls.foundrypack", directoryHint: .isDirectory)
         let loadedControls = try ComponentPackageLoader.load(from: controlsURL)
         #expect(loadedControls.manifest.properties.contains { $0.control.count == 4 })
+        let rhythmSliders = try #require(loadedControls.manifest.properties.first { $0.id == "rhythmSliders" })
+        #expect(rhythmSliders.labels == ["Glow", "Bounce", "Energy", "Joy"])
+        #expect(rhythmSliders.subtitles.count == 4)
         let controls = catalog.packages["foundry.testing.controls"]
         #expect(controls?.manifest.name == "Controls")
         #expect(controls?.manifest.properties.contains { $0.control.count == 4 } == true)
@@ -938,9 +1124,9 @@ struct ComponentPackageTests {
             <array>
                 <dict>
                     <key>id</key><string>title</string>
-                    <key>title</key><string>Title</string>
+                    <key>labels</key><string>Title</string>
                     <key>group</key><string>Content</string>
-                    <key>control</key><dict><key>type</key><string>text</string></dict>
+                    <key>type</key><string>text</string>
                     <key>default</key><string>Hello</string>
                     <key>responsive</key><false/>
                 </dict>

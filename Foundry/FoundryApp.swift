@@ -22,6 +22,9 @@ struct FoundryApp: App {
             ContentView(document: file.document)
                 .environment(workspaceLibrary)
         }
+        .commands {
+            PublishingMenuCommands()
+        }
         .defaultSize(width: EditorWindowSize.idealWidth, height: EditorWindowSize.idealHeight)
         .windowToolbarStyle(.unified)
 

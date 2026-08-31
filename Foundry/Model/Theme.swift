@@ -12,7 +12,7 @@ nonisolated struct Theme: Codable, Equatable, Sendable {
             text: "#171719",
             accent: "#5B5BD6"
         ),
-        spacing: .init(small: 8, medium: 16, large: 32),
+        spacing: .standard,
         typography: .init(
             bodyFont: .system(family: "system-ui", weights: [400, 500, 600, 700]),
             headingFont: .system(family: "system-ui", weights: [500, 600, 700, 800]),
@@ -42,9 +42,80 @@ nonisolated enum ThemeColorRole: String, Codable, CaseIterable, Identifiable, Se
 }
 
 nonisolated struct SpacingTokens: Codable, Equatable, Sendable {
+    static let baseRem = 0.25
+    static let standard = SpacingTokens(
+        extraSmall: 1,
+        small: 2,
+        medium: 4,
+        large: 8,
+        extraLarge: 16
+    )
+
+    var extraSmall: Double
     var small: Double
     var medium: Double
     var large: Double
+    var extraLarge: Double
+    var custom: [ThemeSpacing]
+
+    init(
+        extraSmall: Double = 1,
+        small: Double,
+        medium: Double,
+        large: Double,
+        extraLarge: Double = 16,
+        custom: [ThemeSpacing] = []
+    ) {
+        self.extraSmall = extraSmall
+        self.small = small
+        self.medium = medium
+        self.large = large
+        self.extraLarge = extraLarge
+        self.custom = custom
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case extraSmall
+        case small
+        case medium
+        case large
+        case extraLarge
+        case custom
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        extraSmall = try container.decodeIfPresent(Double.self, forKey: .extraSmall) ?? 1
+        small = try container.decode(Double.self, forKey: .small)
+        medium = try container.decode(Double.self, forKey: .medium)
+        large = try container.decode(Double.self, forKey: .large)
+        extraLarge = try container.decodeIfPresent(Double.self, forKey: .extraLarge) ?? 16
+        custom = try container.decodeIfPresent([ThemeSpacing].self, forKey: .custom) ?? []
+    }
+
+    var usesStandardPredefinedScale: Bool {
+        extraSmall == Self.standard.extraSmall &&
+            small == Self.standard.small &&
+            medium == Self.standard.medium &&
+            large == Self.standard.large &&
+            extraLarge == Self.standard.extraLarge
+    }
+}
+
+nonisolated struct ThemeSpacing: Codable, Equatable, Identifiable, Sendable {
+    let id: UUID
+    var name: String
+    var value: Double
+
+    init(id: UUID = UUID(), name: String, value: Double) {
+        self.id = id
+        self.name = name
+        self.value = value
+    }
+
+    var cssVariable: String {
+        "--space-custom-\(id.uuidString.lowercased())"
+    }
 }
 
 nonisolated struct TypographyTokens: Codable, Equatable, Sendable {
@@ -242,6 +313,13 @@ nonisolated extension Theme {
         }.joined()
     }
 
+    var spacingCSSVariables: String {
+        let predefined = "--spacing:\(SpacingTokens.baseRem)rem;--space-xs:calc(var(--spacing) * \(spacing.extraSmall));--space-s:calc(var(--spacing) * \(spacing.small));--space-m:calc(var(--spacing) * \(spacing.medium));--space-l:calc(var(--spacing) * \(spacing.large));--space-xl:calc(var(--spacing) * \(spacing.extraLarge));"
+        return predefined + spacing.custom.map {
+            "\($0.cssVariable):calc(var(--spacing) * \($0.value));"
+        }.joined()
+    }
+
     func fontCSSVariable(for reference: String) -> String {
         switch reference {
         case ThemeFontRole.heading.rawValue:
@@ -302,15 +380,17 @@ nonisolated extension Theme {
         case .surfaceColor: colors.surface
         case .textColor: colors.text
         case .accentColor: colors.accent
-        case .smallSpacing, .mediumSpacing, .largeSpacing: nil
+        case .extraSmallSpacing, .smallSpacing, .mediumSpacing, .largeSpacing, .extraLargeSpacing: nil
         }
     }
 
     func number(for token: DesignToken) -> Double? {
         switch token {
+        case .extraSmallSpacing: spacing.extraSmall
         case .smallSpacing: spacing.small
         case .mediumSpacing: spacing.medium
         case .largeSpacing: spacing.large
+        case .extraLargeSpacing: spacing.extraLarge
         case .backgroundColor, .surfaceColor, .textColor, .accentColor: nil
         }
     }

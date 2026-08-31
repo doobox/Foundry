@@ -21,6 +21,8 @@ struct ContentView: View {
     @State private var themeWindowID = UUID()
     @State private var exportErrorMessage: String?
     @State private var showsProjectSettings = false
+    @State private var projectSettingsSection: ProjectSettingsSection? = .general
+    @State private var publishingCommandDispatcher = PublishingCommandDispatcher()
     @State private var showsPublishingProgress = false
     @State private var publishingState: PublishingModalState = .preparing
     @State private var publishingTask: Task<Void, Never>?
@@ -49,7 +51,10 @@ struct ContentView: View {
             canvasViewportPreset: $canvasViewportPreset,
             canvasEditorOptions: $canvasEditorOptions,
             canvasViewportWidth: $canvasViewportWidth,
-            openProjectSettings: { showsProjectSettings = true },
+            openProjectSettings: {
+                projectSettingsSection = .general
+                showsProjectSettings = true
+            },
             openThemeEditor: {
                 ThemeWindowRegistry.shared.register(
                     id: themeWindowID,
@@ -59,7 +64,7 @@ struct ContentView: View {
                 openWindow(id: "theme-editor", value: themeWindowID)
             },
             previewSite: previewSite,
-            publishSite: publishSite
+            publishSite: { publishSite() }
         ) { panel in
             workspacePanel(panel)
         }
@@ -137,6 +142,11 @@ struct ContentView: View {
             guard !selectedComponentIDs.isEmpty else { return }
             deleteComponent()
         }
+        .focusedSceneValue(\.publishingCommandDispatcher, publishingCommandDispatcher)
+        .onChange(of: publishingCommandDispatcher.request?.id) {
+            guard let command = publishingCommandDispatcher.request?.command else { return }
+            handlePublishingCommand(command)
+        }
         .onChange(of: document.site) {
             schedulePreviewRefresh()
             schedulePublishingChangeRefresh()
@@ -151,6 +161,7 @@ struct ContentView: View {
         }
         .sheet(isPresented: $showsProjectSettings) {
             ProjectSettingsView(
+                selection: $projectSettingsSection,
                 site: document.site,
                 assetContents: document.assetContents,
                 siteName: document.site.name,
@@ -953,7 +964,24 @@ struct ContentView: View {
             }
     }
 
-    private func publishSite() {
+    private func handlePublishingCommand(_ command: PublishingCommandDispatcher.Command) {
+        switch command {
+        case .settings:
+            projectSettingsSection = .publishing
+            showsProjectSettings = true
+        case .publishSite:
+            publishSite()
+        case .republishAllFiles:
+            publishSite(forceAllFiles: true)
+        case .markAllChanged:
+            markAllPublishingFilesChanged()
+        case .markAllUnchanged:
+            markAllPublishingFilesUnchanged()
+        }
+    }
+
+    private func publishSite(forceAllFiles: Bool = false) {
+        NSDocumentController.shared.currentDocument?.save(nil)
         let site = document.site
         let assets = document.assetContents
         var localDirectory = PublishingDestinationStore.url(for: site.id)
@@ -987,7 +1015,8 @@ struct ContentView: View {
                     bundle: bundle,
                     site: site,
                     localDirectory: localDirectory,
-                    credential: credential
+                    credential: credential,
+                    forceAllFiles: forceAllFiles
                 ) { progress in
                     Task { @MainActor in
                         publishingState = .publishing(progress)
@@ -1001,6 +1030,44 @@ struct ContentView: View {
                 publishingState = .failed(error.localizedDescription)
             }
             publishingTask = nil
+        }
+    }
+
+    private func markAllPublishingFilesChanged() {
+        let site = document.site
+        let localDirectory = site.publishingDestination == .local
+            ? PublishingDestinationStore.url(for: site.id)
+            : nil
+        do {
+            try PublishingManifestStore().remove(for: site, localDirectory: localDirectory)
+            schedulePublishingChangeRefresh(immediately: true)
+        } catch {
+            exportErrorMessage = error.localizedDescription
+        }
+    }
+
+    private func markAllPublishingFilesUnchanged() {
+        let site = document.site
+        let assets = document.assetContents
+        let localDirectory = site.publishingDestination == .local
+            ? PublishingDestinationStore.url(for: site.id)
+            : nil
+        publishingChangeTask?.cancel()
+        publishingChangeTask = Task {
+            do {
+                let manifest = await Task.detached {
+                    let bundle = StaticSiteRenderer().render(site: site, assets: assets)
+                    return PublishingPlan.make(
+                        bundle: bundle,
+                        previous: nil,
+                        removesObsoleteFiles: false
+                    ).nextManifest
+                }.value
+                try PublishingManifestStore().save(manifest, for: site, localDirectory: localDirectory)
+                schedulePublishingChangeRefresh(immediately: true)
+            } catch {
+                exportErrorMessage = error.localizedDescription
+            }
         }
     }
 

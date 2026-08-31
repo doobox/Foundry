@@ -19,8 +19,6 @@ const controlLinks = [
     ["Toggle", "toggle-control.html"],
     ["Details", "details-control.html"],
     ["Button", "button-control.html"],
-    ["Image", "image-control.html"],
-    ["Image transform", "image-transform-control.html"],
     ["Math", "math-control.html"],
     ["Text alignment", "text-alignment.html"],
     ["Font family", "font-family.html"],

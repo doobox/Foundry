@@ -166,19 +166,61 @@ struct ProjectEditor {
             case .surfaceColor: site.theme.colors.surface = value
             case .textColor: site.theme.colors.text = value
             case .accentColor: site.theme.colors.accent = value
-            case .smallSpacing, .mediumSpacing, .largeSpacing: break
+            case .extraSmallSpacing, .smallSpacing, .mediumSpacing, .largeSpacing, .extraLargeSpacing: break
             }
         }
     }
 
     func setThemeSpacing(_ token: DesignToken, value: Double) {
+        guard value.isFinite, value >= 0 else { return }
         mutate(actionName: "Edit Theme Spacing") { site in
             switch token {
+            case .extraSmallSpacing: site.theme.spacing.extraSmall = value
             case .smallSpacing: site.theme.spacing.small = value
             case .mediumSpacing: site.theme.spacing.medium = value
             case .largeSpacing: site.theme.spacing.large = value
+            case .extraLargeSpacing: site.theme.spacing.extraLarge = value
             case .backgroundColor, .surfaceColor, .textColor, .accentColor: break
             }
+        }
+    }
+
+    func resetThemeSpacingScale() {
+        mutate(actionName: "Reset Theme Spacing Scale") { site in
+            let standard = SpacingTokens.standard
+            site.theme.spacing.extraSmall = standard.extraSmall
+            site.theme.spacing.small = standard.small
+            site.theme.spacing.medium = standard.medium
+            site.theme.spacing.large = standard.large
+            site.theme.spacing.extraLarge = standard.extraLarge
+        }
+    }
+
+    @discardableResult
+    func addThemeSpacing() -> UUID {
+        let spacing = ThemeSpacing(name: "Custom Spacing", value: 5)
+        mutate(actionName: "Add Theme Spacing") { $0.theme.spacing.custom.append(spacing) }
+        return spacing.id
+    }
+
+    func setThemeSpacingName(id: UUID, value: String) {
+        mutate(actionName: "Rename Theme Spacing") { site in
+            guard let index = site.theme.spacing.custom.firstIndex(where: { $0.id == id }) else { return }
+            site.theme.spacing.custom[index].name = value
+        }
+    }
+
+    func setThemeSpacingValue(id: UUID, value: Double) {
+        guard value.isFinite, value >= 0 else { return }
+        mutate(actionName: "Edit Theme Spacing") { site in
+            guard let index = site.theme.spacing.custom.firstIndex(where: { $0.id == id }) else { return }
+            site.theme.spacing.custom[index].value = value
+        }
+    }
+
+    func removeThemeSpacing(id: UUID) {
+        mutate(actionName: "Delete Theme Spacing") {
+            $0.theme.spacing.custom.removeAll(where: { $0.id == id })
         }
     }
 

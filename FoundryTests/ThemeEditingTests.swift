@@ -71,6 +71,56 @@ struct ThemeEditingTests {
     }
 
     @Test
+    func customSpacingsCanBeAddedEditedPersistedAndRemoved() throws {
+        let document = FoundryDocument()
+        let undoManager = UndoManager()
+        let editor = ProjectEditor(document: document, undoManager: undoManager)
+
+        let id = editor.addThemeSpacing()
+        editor.setThemeSpacingName(id: id, value: "Hero Gap")
+        editor.setThemeSpacingValue(id: id, value: 18)
+
+        let spacing = try #require(document.site.theme.spacing.custom.first(where: { $0.id == id }))
+        #expect(spacing.name == "Hero Gap")
+        #expect(spacing.value == 18)
+        #expect(document.site.theme.spacingCSSVariables.contains("\(spacing.cssVariable):calc(var(--spacing) * 18.0)"))
+
+        let data = try FoundryDocument.encoder.encode(document.site)
+        let decoded = try FoundryDocument.decoder.decode(Site.self, from: data)
+        #expect(decoded.theme.spacing.custom == [spacing])
+
+        undoManager.removeAllActions()
+        editor.removeThemeSpacing(id: id)
+        #expect(document.site.theme.spacing.custom.isEmpty)
+        undoManager.undo()
+        #expect(document.site.theme.spacing.custom == [spacing])
+    }
+
+    @Test
+    func legacySpacingScaleGetsNewPredefinedDefaults() throws {
+        let data = Data(#"{"small":8,"medium":16,"large":32}"#.utf8)
+        let spacing = try JSONDecoder().decode(SpacingTokens.self, from: data)
+
+        #expect(spacing.extraSmall == 1)
+        #expect(spacing.extraLarge == 16)
+        #expect(spacing.custom.isEmpty)
+    }
+
+    @Test
+    func predefinedSpacingScaleCanResetWithoutRemovingCustomSpacings() {
+        let document = FoundryDocument()
+        let editor = ProjectEditor(document: document, undoManager: UndoManager())
+        let customID = editor.addThemeSpacing()
+        editor.setThemeSpacing(.extraSmallSpacing, value: 6)
+        editor.setThemeSpacing(.mediumSpacing, value: 23.5)
+
+        editor.resetThemeSpacingScale()
+
+        #expect(document.site.theme.spacing.usesStandardPredefinedScale)
+        #expect(document.site.theme.spacing.custom.map(\.id) == [customID])
+    }
+
+    @Test
     func fontNamesUpdateFamilyFallbacksAndSource() {
         let document = FoundryDocument()
         let editor = ProjectEditor(document: document, undoManager: UndoManager())

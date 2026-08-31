@@ -18,8 +18,11 @@ struct ThemePanel: View {
 
             Section("Spacing") {
                 ForEach(DesignToken.spacingTokens) { token in
-                    Stepper(value: spacingBinding(for: token), in: 0...160, step: 1) {
-                        LabeledContent(token.displayName, value: "\(spacingValue(for: token).formatted()) px")
+                    Stepper(value: spacingBinding(for: token), in: 0...40, step: 0.5) {
+                        LabeledContent(
+                            token.displayName,
+                            value: "\(spacingValue(for: token).formatted()) × · \((spacingValue(for: token) * SpacingTokens.baseRem).formatted()) rem"
+                        )
                     }
                 }
             }

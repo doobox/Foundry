@@ -299,6 +299,9 @@ nonisolated enum ComponentPackageValidator {
                 diagnostics.append(.init(severity: .error, location: location, message: "A control array requires exactly \(count) default values."))
                 return
             }
+            if property.labels.count != count || property.labels.contains(where: { $0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }) {
+                diagnostics.append(.init(severity: .error, location: location, message: "A control array requires a non-empty label for every control."))
+            }
             if property.subtitles.count > count {
                 diagnostics.append(.init(severity: .error, location: location, message: "A control array cannot have more subtitles than controls."))
             }
@@ -328,11 +331,40 @@ nonisolated enum ComponentPackageValidator {
             if !operations.contains(property.control.operation ?? "") {
                 diagnostics.append(.init(severity: .error, location: location, message: "A math operation must be +, -, *, /, %, min, or max."))
             }
-        case .imageTransform:
-            if property.control.input?.isEmpty != false {
-                diagnostics.append(.init(severity: .error, location: location, message: "An imageTransform control requires the ID of an image control in input."))
-            }
         case .number, .slider:
+            if let unit = property.control.unit,
+               unit.count > 3 {
+                diagnostics.append(.init(
+                    severity: .error,
+                    location: location,
+                    message: "A control unit can contain at most three characters."
+                ))
+            }
+            if let minimum = property.control.minimum,
+               let maximum = property.control.maximum,
+               maximum <= minimum {
+                diagnostics.append(.init(
+                    severity: .error,
+                    location: location,
+                    message: "The control maximum must be greater than its minimum."
+                ))
+            }
+            if let step = property.control.step, step < 0 {
+                diagnostics.append(.init(
+                    severity: .error,
+                    location: location,
+                    message: "The control step cannot be negative."
+                ))
+            }
+            if property.control.type == .slider,
+               let ticks = property.control.ticks,
+               ticks == 1 || ticks < 0 {
+                diagnostics.append(.init(
+                    severity: .error,
+                    location: location,
+                    message: "Slider ticks must be zero or at least two."
+                ))
+            }
             guard case .number(let value) = defaultValue else {
                 diagnostics.append(.init(severity: .error, location: location, message: "A number control requires a numeric default value."))
                 return

@@ -2,7 +2,7 @@ import AppKit
 import SwiftUI
 import UniformTypeIdentifiers
 
-private enum ProjectSettingsSection: String, Identifiable {
+enum ProjectSettingsSection: String, Identifiable {
     case general
     case identity
     case publishing
@@ -12,6 +12,7 @@ private enum ProjectSettingsSection: String, Identifiable {
 }
 
 struct ProjectSettingsView: View {
+    @Binding var selection: ProjectSettingsSection?
     let site: Site
     let assetContents: [UUID: ProjectAssetContent]
     let siteName: String
@@ -37,8 +38,6 @@ struct ProjectSettingsView: View {
     let openPageMetadata: (UUID) -> Void
 
     @Environment(\.dismiss) private var dismiss
-    @State private var selection: ProjectSettingsSection? = .general
-
     var body: some View {
         NavigationSplitView {
             List(selection: $selection) {

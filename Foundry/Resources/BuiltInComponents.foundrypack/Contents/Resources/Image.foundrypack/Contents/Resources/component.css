@@ -1,5 +1,10 @@
 #{{ id }} {
-    margin: 0;
+    margin-block: 0;
+    margin-inline: auto;
+    {% if property.alignment == "start" %}margin-inline: 0 auto;{% endif %}
+    {% if property.alignment == "end" %}margin-inline: auto 0;{% endif %}
+    width: 100%;
+    max-width: {{ control.maxWidth }}px;
 }
 
 #{{ id }} .foundry-image {
