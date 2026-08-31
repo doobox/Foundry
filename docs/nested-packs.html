@@ -8,7 +8,7 @@
             └── Contents/
                 └── Resources/
                     └── MenuItem.foundrypack/</code></pre>
-<h2>Functional outer packs</h2><p>The top-level pack does not have to be a collection. A <code>component</code> can render its own HTML and still contain more packs under <code>Contents/Resources</code>. A <code>theme</code> can do the same.</p>
+<h2>Functional outer packs</h2><p>The top-level pack does not have to be a collection. A <code>component</code> can render its own HTML and still contain more packs under <code>Contents/Resources</code>.</p>
 <h2>Installation behaviour</h2><p>Foundry installs the selected outer bundle once. It recursively discovers valid packs without moving, renaming or flattening any child. Relative resources therefore remain stable.</p>
 <h2>Collection Info.plist</h2><pre><code>&lt;?xml version="1.0" encoding="UTF-8"?&gt;
 &lt;plist version="1.0"&gt;

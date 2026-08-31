@@ -121,6 +121,56 @@ struct ThemeEditingTests {
     }
 
     @Test
+    func userThemeBundleRoundTripsThemeAndMetadata() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appending(path: "\(UUID().uuidString).foundrytheme", directoryHint: .isDirectory)
+        defer { try? FileManager.default.removeItem(at: root) }
+        var theme = Theme.standard
+        theme.colors.accent = "#123456"
+        let fontData = Data("font-data".utf8)
+        let fontAsset = ProjectAsset(
+            filename: "Studio.woff2",
+            mediaType: "font/woff2",
+            byteCount: fontData.count
+        )
+        theme.typography.bodyFont.source = .bundled(files: [fontAsset.reference])
+        let systemTheme = try #require(
+            ThemeBundleStore.builtInThemes().first(where: { $0.id == ThemeBundleStore.systemThemeID })
+        )
+        let preview = try ThemeBundleStore.preview(from: systemTheme.previewURL)
+
+        let saved = try ThemeBundleStore.write(
+            theme: theme,
+            name: "Studio",
+            preview: preview,
+            assetContents: [fontAsset.id: ProjectAssetContent(asset: fontAsset, data: fontData)],
+            to: root
+        )
+        let loaded = try ThemeBundleStore.load(from: root)
+
+        #expect(loaded.id == saved.id)
+        #expect(loaded.metadata.name == "Studio")
+        #expect(loaded.theme == theme)
+        #expect(loaded.resources == [ProjectAssetContent(asset: fontAsset, data: fontData)])
+        #expect(FileManager.default.fileExists(atPath: root.appending(path: "Contents/Info.plist").path))
+        #expect(FileManager.default.fileExists(atPath: root.appending(path: "Contents/Resources/theme.json").path))
+        #expect(FileManager.default.fileExists(atPath: loaded.previewURL.path))
+    }
+
+    @Test
+    func systemUIThemeLoadsFromTheBuiltInThemeBundle() throws {
+        let systemTheme = try #require(
+            ThemeBundleStore.builtInThemes().first(where: { $0.id == ThemeBundleStore.systemThemeID })
+        )
+
+        #expect(systemTheme.isBuiltIn)
+        #expect(systemTheme.metadata.name == "System UI")
+        #expect(systemTheme.theme == Theme.standard)
+        #expect(systemTheme.metadata.previewFilename == "preview.png")
+        #expect(ThemeBundleStore.systemTheme == Theme.standard)
+    }
+
+    @Test
     func fontNamesUpdateFamilyFallbacksAndSource() {
         let document = FoundryDocument()
         let editor = ProjectEditor(document: document, undoManager: UndoManager())

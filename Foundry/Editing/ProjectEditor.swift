@@ -377,9 +377,9 @@ struct ProjectEditor {
 
     private func defaultSystemFontNames(for reference: ThemeFontReference) -> [String] {
         let definition = switch reference {
-        case .role(.body): Theme.standard.typography.bodyFont
-        case .role(.heading): Theme.standard.typography.headingFont
-        case .role(.monospaced): Theme.standard.typography.monospacedFont
+        case .role(.body): ThemeBundleStore.systemTheme.typography.bodyFont
+        case .role(.heading): ThemeBundleStore.systemTheme.typography.headingFont
+        case .role(.monospaced): ThemeBundleStore.systemTheme.typography.monospacedFont
         case .custom: ThemeFontDefinition.system(family: "system-ui", weights: [400, 700])
         }
         return [definition.family] + definition.fallbacks
@@ -463,10 +463,9 @@ struct ProjectEditor {
         }
     }
 
-    func applyThemePackage(_ package: LoadedThemePackage) {
+    func applyTheme(_ theme: Theme) {
         mutate(actionName: "Apply Theme") { site in
-            site.theme = package.manifest.theme
-            site.themePackage = package.lock
+            site.theme = theme
         }
     }
 

@@ -14,7 +14,6 @@ struct FoundryApp: App {
 
     init() {
         _ = ComponentPackageCatalog.shared
-        _ = FoundryPackCatalog.shared
     }
 
     var body: some Scene {

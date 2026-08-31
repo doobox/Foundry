@@ -1036,7 +1036,7 @@ struct ComponentPackageTests {
 
         try writePackHeader(type: .collection, identifier: "com.example.collection", at: root)
         try writePackHeader(type: .component, identifier: "com.example.nested", at: nested)
-        try writePackHeader(type: .theme, identifier: "com.example.deep", at: deeplyNested)
+        try writePackHeader(type: .component, identifier: "com.example.deep", at: deeplyNested)
 
         let urls = FoundryPackLoader.packURLs(in: root, includingRoot: true)
 

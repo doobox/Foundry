@@ -332,6 +332,7 @@ private struct CanvasOptionsButton: View {
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .foregroundStyle(.secondary)
         .accessibilityLabel("Canvas Options")
         .help("Canvas Options")
         .popover(isPresented: $isPresented, arrowEdge: .top) {
@@ -368,7 +369,7 @@ private struct FixedCanvasColumn<Content: View>: View {
             HStack {
                 CanvasOptionsButton(options: $editorOptions)
                 Button(action: openThemeEditor) {
-                    Image(systemName: "paintpalette")
+                    Image(systemName: "theatermask.and.paintbrush")
                         .font(.system(size: 15, weight: .medium))
                         .frame(width: 22, height: 22)
                         .contentShape(Rectangle())

@@ -67,7 +67,6 @@ nonisolated struct Site: Codable, Equatable, Identifiable, Sendable {
     var globalComponents: [ReusableComponentDefinition]
     var assetLibrary: [ProjectAssetNode]
     var componentPackages: [ComponentPackageLock]
-    var themePackage: ThemePackageLock?
 
     var assets: [ProjectAsset] { assetLibrary.flatMap(\.allAssets) }
 
@@ -100,12 +99,11 @@ nonisolated struct Site: Codable, Equatable, Identifiable, Sendable {
         publishingS3Region: String = "us-east-1",
         pages: [Page],
         pageFolders: [PageFolder] = [],
-        theme: Theme = .standard,
+        theme: Theme = ThemeBundleStore.systemTheme,
         reusableComponents: [ReusableComponentDefinition] = [],
         globalComponents: [ReusableComponentDefinition] = [],
         assetLibrary: [ProjectAssetNode],
         componentPackages: [ComponentPackageLock] = [],
-        themePackage: ThemePackageLock? = nil
     ) {
         self.id = id
         self.schemaVersion = schemaVersion
@@ -140,7 +138,6 @@ nonisolated struct Site: Codable, Equatable, Identifiable, Sendable {
         self.globalComponents = globalComponents
         self.assetLibrary = assetLibrary
         self.componentPackages = componentPackages
-        self.themePackage = themePackage
     }
 
     init(
@@ -148,7 +145,7 @@ nonisolated struct Site: Codable, Equatable, Identifiable, Sendable {
         schemaVersion: Int = currentSchemaVersion,
         name: String,
         pages: [Page],
-        theme: Theme = .standard,
+        theme: Theme = ThemeBundleStore.systemTheme,
         reusableComponents: [ReusableComponentDefinition] = []
     ) {
         self.init(id: id, schemaVersion: schemaVersion, name: name, pages: pages, theme: theme, reusableComponents: reusableComponents, globalComponents: [], assetLibrary: [])
@@ -159,7 +156,7 @@ nonisolated struct Site: Codable, Equatable, Identifiable, Sendable {
         schemaVersion: Int = currentSchemaVersion,
         name: String,
         pages: [Page],
-        theme: Theme = .standard,
+        theme: Theme = ThemeBundleStore.systemTheme,
         reusableComponents: [ReusableComponentDefinition] = [],
         assets: [ProjectAsset]
     ) {
@@ -176,7 +173,7 @@ nonisolated struct Site: Codable, Equatable, Identifiable, Sendable {
     }
 
     private enum CodingKeys: String, CodingKey {
-        case id, schemaVersion, name, language, publicURL, titleSuffix, defaultDescription, favicon, defaultSocialImage, generatesCanonicalURLs, generatesSitemap, generatesRobotsTXT, allowsSearchIndexing, customCodeEnabled, headCode, bodyStartCode, bodyEndCode, analyticsCode, cleansObsoleteExportFiles, publishingDestination, publishingHost, publishingPort, publishingUsername, publishingRemotePath, publishingS3Bucket, publishingS3Region, pages, pageFolders, theme, reusableComponents, globalComponents, assetLibrary, componentPackages, themePackage
+        case id, schemaVersion, name, language, publicURL, titleSuffix, defaultDescription, favicon, defaultSocialImage, generatesCanonicalURLs, generatesSitemap, generatesRobotsTXT, allowsSearchIndexing, customCodeEnabled, headCode, bodyStartCode, bodyEndCode, analyticsCode, cleansObsoleteExportFiles, publishingDestination, publishingHost, publishingPort, publishingUsername, publishingRemotePath, publishingS3Bucket, publishingS3Region, pages, pageFolders, theme, reusableComponents, globalComponents, assetLibrary, componentPackages
     }
 
     init(from decoder: Decoder) throws {
@@ -220,7 +217,6 @@ nonisolated struct Site: Codable, Equatable, Identifiable, Sendable {
         ) ?? []
         assetLibrary = try container.decodeIfPresent([ProjectAssetNode].self, forKey: .assetLibrary) ?? []
         componentPackages = try container.decodeIfPresent([ComponentPackageLock].self, forKey: .componentPackages) ?? []
-        themePackage = try container.decodeIfPresent(ThemePackageLock.self, forKey: .themePackage)
     }
 
     static func starter() -> Site {

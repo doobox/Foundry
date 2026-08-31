@@ -11,8 +11,6 @@ enum FoundryPackInstaller {
             switch pack.type {
             case .component:
                 _ = try ComponentPackageLoader.load(from: url)
-            case .theme:
-                _ = try ThemePackageLoader.load(from: url)
             case .collection:
                 break
             }
@@ -29,28 +27,39 @@ enum FoundryPackInstaller {
         }
 
         ComponentPackageCatalog.shared.reloadInstalledPacks()
-        FoundryPackCatalog.shared.reload()
     }
 }
 
 @MainActor
 final class FoundryApplicationDelegate: NSObject, NSApplicationDelegate {
     func application(_ application: NSApplication, open urls: [URL]) {
-        for url in urls where FoundryPackLoader.isPackURL(url) {
+        for url in urls {
+            if ThemeBundleStore.isThemeURL(url) {
+                do {
+                    try ThemeLibrary.shared.install(from: url)
+                } catch {
+                    presentInstallError(error, title: "Foundry Theme Could Not Be Installed")
+                }
+                continue
+            }
+            guard FoundryPackLoader.isPackURL(url) else { continue }
             if url.pathExtension.lowercased() == "foundrydevpack" {
                 ComponentPackageCatalog.shared.openDevelopmentPack(at: url)
-                FoundryPackCatalog.shared.openDevelopmentPack(at: url)
                 continue
             }
             do {
                 try FoundryPackInstaller.install(from: url)
             } catch {
-                let alert = NSAlert()
-                alert.alertStyle = .critical
-                alert.messageText = "Foundry Pack Could Not Be Installed"
-                alert.informativeText = error.localizedDescription
-                alert.runModal()
+                presentInstallError(error, title: "Foundry Pack Could Not Be Installed")
             }
         }
+    }
+
+    private func presentInstallError(_ error: Error, title: String) {
+        let alert = NSAlert()
+        alert.alertStyle = .critical
+        alert.messageText = title
+        alert.informativeText = error.localizedDescription
+        alert.runModal()
     }
 }

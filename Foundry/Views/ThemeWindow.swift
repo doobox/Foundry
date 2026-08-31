@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 import UniformTypeIdentifiers
 
@@ -39,7 +40,7 @@ struct ThemeWindowSceneContent: View {
             } else {
                 ContentUnavailableView(
                     "Theme Unavailable",
-                    systemImage: "paintpalette",
+                    systemImage: "theatermask.and.paintbrush",
                     description: Text("Open the theme editor from a project window.")
                 )
             }
@@ -76,7 +77,7 @@ private struct ThemeWindowContent: View {
         } detail: {
             switch selectedSection {
             case .themes:
-                ThemePackageBrowser(document: document, undoManager: session.editor.undoManager)
+                ThemeLibraryBrowser(document: document, undoManager: session.editor.undoManager)
             default:
                 ThemeSettingsDetail(
                     section: selectedSection,
@@ -152,7 +153,7 @@ private enum ThemeWindowSection: String, CaseIterable, Identifiable, Hashable {
 
     var systemImage: String {
         switch self {
-        case .themes: "paintpalette"
+        case .themes: "theatermask.and.paintbrush"
         case .screens: "rectangle.on.rectangle"
         case .page: "doc"
         case .colors: "paintpalette"
@@ -1155,78 +1156,332 @@ private enum ThemeFontSourceKind: String, CaseIterable, Identifiable {
     }
 }
 
-private struct ThemePackageBrowser: View {
+private struct ThemeLibraryBrowser: View {
     @ObservedObject var document: FoundryDocument
     let undoManager: UndoManager?
+    @State private var library = ThemeLibrary.shared
+    @State private var isCreatingTheme = false
+    @State private var selectedThemeID: UUID?
+    @State private var themePendingUpdate: SavedTheme?
+    @State private var errorMessage: String?
     private let columns = [GridItem(.adaptive(minimum: 230, maximum: 320), spacing: 20)]
 
     var body: some View {
-        ScrollView {
-            LazyVGrid(columns: columns, spacing: 20) {
-                currentThemeCard
-                ForEach(packages, id: \.manifest.identifier) { package in
-                    Button {
-                        ProjectEditor(document: document, undoManager: undoManager)
-                            .applyThemePackage(package)
-                    } label: {
-                        ThemePackageCard(package: package)
+        VStack(spacing: 0) {
+            ThemeLibraryToolbar(
+                createTheme: { isCreatingTheme = true },
+                importTheme: importTheme
+            )
+            Divider()
+            ScrollView {
+                LazyVGrid(columns: columns, spacing: 20) {
+                    ForEach(library.themes) { savedTheme in
+                        ThemeLibraryItem(
+                            savedTheme: savedTheme,
+                            isSelected: selectedThemeID == savedTheme.id
+                        ) {
+                            applyTheme(savedTheme)
+                        } update: {
+                            themePendingUpdate = savedTheme
+                        } export: {
+                            exportTheme(savedTheme)
+                        } delete: {
+                            deleteTheme(savedTheme)
+                        }
                     }
-                    .buttonStyle(.plain)
                 }
+                .padding(24)
             }
-            .padding(24)
         }
         .navigationTitle("Themes")
-    }
-
-    private var packages: [LoadedThemePackage] {
-        FoundryPackCatalog.shared.themes.values.sorted {
-            $0.manifest.name.localizedStandardCompare($1.manifest.name) == .orderedAscending
+        .onAppear {
+            selectedThemeID = library.themes.first(where: { $0.theme == document.site.theme })?.id
+        }
+        .sheet(isPresented: $isCreatingTheme) {
+            ThemeCreationSheet { name, preview in
+                let savedTheme = try library.create(
+                    name: name,
+                    from: document.site.theme,
+                    preview: preview,
+                    assetContents: document.assetContents
+                )
+                selectedThemeID = savedTheme.id
+            }
+        }
+        .confirmationDialog(
+            "Update \(themePendingUpdate?.metadata.name ?? "Theme")?",
+            isPresented: updateConfirmationBinding,
+            titleVisibility: .visible
+        ) {
+            Button("Update Theme") {
+                updatePendingTheme()
+            }
+            Button("Cancel", role: .cancel) {
+                themePendingUpdate = nil
+            }
+        } message: {
+            Text("Replace this theme’s saved settings with the current project theme? Its title and preview image will be kept.")
+        }
+        .alert("Theme Error", isPresented: errorBinding) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(errorMessage ?? "The theme operation could not be completed.")
         }
     }
 
-    private var currentThemeCard: some View {
-        VStack(spacing: 10) {
-            RoundedRectangle(cornerRadius: 10)
-                .fill(Color(hex: document.site.theme.colors.background) ?? .white)
-                .overlay {
-                    Text(document.site.theme.typography.bodyFont.family)
-                        .font(.system(size: 34, weight: .semibold))
-                        .foregroundStyle(Color(hex: document.site.theme.colors.text) ?? .primary)
-                }
-                .overlay {
-                    RoundedRectangle(cornerRadius: 10)
-                        .stroke(.tint, lineWidth: 3)
-                }
-                .aspectRatio(1.6, contentMode: .fit)
-            Text("Current Theme")
-                .font(.headline)
+    private var errorBinding: Binding<Bool> {
+        Binding(
+            get: { errorMessage != nil },
+            set: { if !$0 { errorMessage = nil } }
+        )
+    }
+
+    private var updateConfirmationBinding: Binding<Bool> {
+        Binding(
+            get: { themePendingUpdate != nil },
+            set: { if !$0 { themePendingUpdate = nil } }
+        )
+    }
+
+    private func updatePendingTheme() {
+        guard let savedTheme = themePendingUpdate else { return }
+        defer { themePendingUpdate = nil }
+        do {
+            let updated = try library.update(
+                savedTheme,
+                from: document.site.theme,
+                assetContents: document.assetContents
+            )
+            selectedThemeID = updated.id
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    private func importTheme() {
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = [.foundryTheme]
+        panel.allowsMultipleSelection = false
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = true
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        do {
+            try library.install(from: url)
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    private func applyTheme(_ savedTheme: SavedTheme) {
+        var assetMapping: [UUID: UUID] = [:]
+        for content in savedTheme.resources {
+            let newID = document.importAsset(
+                data: content.data,
+                filename: content.asset.filename,
+                mediaType: content.asset.mediaType,
+                undoManager: undoManager
+            )
+            assetMapping[content.asset.id] = newID
+        }
+        let theme = savedTheme.theme.remappingBundledFontAssets(assetMapping)
+        ProjectEditor(document: document, undoManager: undoManager).applyTheme(theme)
+        selectedThemeID = savedTheme.id
+    }
+
+    private func exportTheme(_ savedTheme: SavedTheme) {
+        let panel = NSSavePanel()
+        panel.allowedContentTypes = [.foundryTheme]
+        panel.nameFieldStringValue = "\(savedTheme.metadata.name).foundrytheme"
+        guard panel.runModal() == .OK, let destination = panel.url else { return }
+        do {
+            if FileManager.default.fileExists(atPath: destination.path) {
+                try FileManager.default.removeItem(at: destination)
+            }
+            try FileManager.default.copyItem(at: savedTheme.bundleURL, to: destination)
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    private func deleteTheme(_ savedTheme: SavedTheme) {
+        do {
+            try library.remove(savedTheme)
+        } catch {
+            errorMessage = error.localizedDescription
         }
     }
 }
 
-private struct ThemePackageCard: View {
-    let package: LoadedThemePackage
+private struct ThemeLibraryToolbar: View {
+    let createTheme: () -> Void
+    let importTheme: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Group {
-                if let image = NSImage(contentsOf: package.iconURL) {
-                    Image(nsImage: image)
-                        .resizable()
-                        .scaledToFill()
-                } else {
-                    Color.secondary.opacity(0.12)
-                }
-            }
-            .aspectRatio(1.6, contentMode: .fit)
-            .clipShape(RoundedRectangle(cornerRadius: 10))
-            Text(package.manifest.name)
+        HStack {
+            Text("Theme Library")
                 .font(.headline)
-            Text(package.manifest.description)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .lineLimit(2)
+            Spacer()
+            Button("Import Theme", systemImage: "square.and.arrow.down", action: importTheme)
+            Button("Create New Theme", systemImage: "plus", action: createTheme)
+                .buttonStyle(.borderedProminent)
+        }
+        .padding(.horizontal, 24)
+        .padding(.vertical, 14)
+    }
+}
+
+private struct ThemeLibraryItem: View {
+    let savedTheme: SavedTheme
+    let isSelected: Bool
+    let apply: () -> Void
+    let update: () -> Void
+    let export: () -> Void
+    let delete: () -> Void
+
+    var body: some View {
+        Button(action: apply) {
+            VStack(alignment: .leading, spacing: 10) {
+                ThemeCardPreview(imageURL: savedTheme.previewURL, isSelected: isSelected)
+                Text(savedTheme.metadata.name)
+                    .font(.headline)
+            }
+        }
+        .buttonStyle(.plain)
+        .contextMenu {
+            if !savedTheme.isBuiltIn {
+                Button("Update Theme", systemImage: "arrow.triangle.2.circlepath", action: update)
+            }
+            Button("Export Theme", systemImage: "square.and.arrow.up", action: export)
+            if !savedTheme.isBuiltIn {
+                Divider()
+                Button("Delete Theme", systemImage: "trash", role: .destructive, action: delete)
+            }
         }
     }
+}
+
+private struct ThemeCardPreview: View {
+    let imageURL: URL
+    let isSelected: Bool
+
+    var body: some View {
+        Group {
+            if let image = NSImage(contentsOf: imageURL) {
+                Image(nsImage: image)
+                    .resizable()
+                    .scaledToFill()
+            } else {
+                Rectangle()
+                    .fill(.quaternary)
+                    .overlay { Image(systemName: "photo") }
+            }
+        }
+            .aspectRatio(1.6, contentMode: .fit)
+            .clipShape(.rect(cornerRadius: 10))
+            .overlay {
+                if isSelected {
+                    RoundedRectangle(cornerRadius: 10)
+                        .stroke(.tint, lineWidth: 3)
+                }
+            }
+    }
+}
+
+private struct ThemeCreationSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    let create: (String, ThemePreviewImage) throws -> Void
+    @State private var name = ""
+    @State private var preview: ThemePreviewImage?
+    @State private var previewImage: NSImage?
+    @State private var errorMessage: String?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 20) {
+            Text("Create New Theme")
+                .font(.title2.bold())
+
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Title")
+                    .font(.headline)
+                TextField("Theme title", text: $name)
+                    .controlSize(.large)
+            }
+
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Preview Image")
+                    .font(.headline)
+                Button(action: choosePreview) {
+                    Group {
+                        if let previewImage {
+                            Image(nsImage: previewImage)
+                                .resizable()
+                                .scaledToFill()
+                        } else {
+                            ContentUnavailableView(
+                                "Choose Preview Image",
+                                systemImage: "photo.badge.plus",
+                                description: Text("PNG, JPEG, or WebP · exactly 1600 × 1000 px")
+                            )
+                        }
+                    }
+                    .frame(maxWidth: .infinity)
+                    .aspectRatio(1.6, contentMode: .fit)
+                    .background(.quaternary.opacity(0.5))
+                    .clipShape(.rect(cornerRadius: 10))
+                }
+                .buttonStyle(.plain)
+            }
+
+            if let errorMessage {
+                Label(errorMessage, systemImage: "exclamationmark.triangle.fill")
+                    .font(.caption)
+                    .foregroundStyle(.red)
+            }
+
+            HStack {
+                Button("Cancel", role: .cancel) { dismiss() }
+                Spacer()
+                Button("Create Theme") { createTheme() }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(!canCreate)
+            }
+        }
+        .padding(24)
+        .frame(width: 560)
+    }
+
+    private var canCreate: Bool {
+        !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && preview != nil
+    }
+
+    private func choosePreview() {
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = [.png, .jpeg, .webP]
+        panel.allowsMultipleSelection = false
+        panel.canChooseDirectories = false
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        do {
+            preview = try ThemeBundleStore.preview(from: url)
+            previewImage = NSImage(contentsOf: url)
+            errorMessage = nil
+        } catch {
+            preview = nil
+            previewImage = nil
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    private func createTheme() {
+        guard let preview else { return }
+        do {
+            try create(name, preview)
+            dismiss()
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+}
+
+private extension UTType {
+    static let foundryTheme = UTType(importedAs: "com.foundry.theme", conformingTo: .bundle)
 }

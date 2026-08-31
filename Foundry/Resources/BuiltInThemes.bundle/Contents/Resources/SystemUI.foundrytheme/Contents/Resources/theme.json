@@ -1,0 +1,45 @@
+{
+  "colors" : {
+    "accent" : "#5B5BD6",
+    "background" : "#F7F7F8",
+    "surface" : "#FFFFFF",
+    "text" : "#171719"
+  },
+  "spacing" : {
+    "custom" : [],
+    "extraLarge" : 16,
+    "extraSmall" : 1,
+    "large" : 8,
+    "medium" : 4,
+    "small" : 2
+  },
+  "typography" : {
+    "baseSize" : 16,
+    "bodyFont" : {
+      "fallbacks" : [],
+      "family" : "system-ui",
+      "source" : { "system" : {} },
+      "styles" : [ "normal" ],
+      "systemFontNames" : [ "system-ui" ],
+      "weights" : [ 400, 500, 600, 700 ]
+    },
+    "customFontSizes" : [],
+    "customFonts" : [],
+    "headingFont" : {
+      "fallbacks" : [],
+      "family" : "system-ui",
+      "source" : { "system" : {} },
+      "styles" : [ "normal" ],
+      "systemFontNames" : [ "system-ui" ],
+      "weights" : [ 500, 600, 700, 800 ]
+    },
+    "monospacedFont" : {
+      "fallbacks" : [],
+      "family" : "ui-monospace",
+      "source" : { "system" : {} },
+      "styles" : [ "normal" ],
+      "systemFontNames" : [ "ui-monospace" ],
+      "weights" : [ 400, 500, 600, 700 ]
+    }
+  }
+}

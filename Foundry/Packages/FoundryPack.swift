@@ -2,7 +2,6 @@ import Foundation
 
 nonisolated enum FoundryPackType: String, Codable, Sendable {
     case component
-    case theme
     case collection
 }
 

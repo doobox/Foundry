@@ -27,10 +27,12 @@ final class ComponentPackageCatalog {
     }
 
     private func loadBundledComponents() {
-        guard let containerURL = Bundle.main.url(
+        let containerURL = Bundle.main.url(
             forResource: "BuiltInComponents",
-            withExtension: "foundrypack"
-        ) else { return }
+            withExtension: "foundrypack",
+            subdirectory: "BuiltInComponents"
+        ) ?? Bundle.main.url(forResource: "BuiltInComponents", withExtension: "foundrypack")
+        guard let containerURL else { return }
         for url in FoundryPackLoader.packURLs(in: containerURL, includingRoot: true) {
             guard let pack = try? FoundryPackLoader.load(from: url), pack.type == .component else { continue }
             reload(url)
@@ -102,7 +104,6 @@ final class ComponentPackageCatalog {
         for rootURL in roots {
             reloadDevelopmentPack(at: rootURL)
         }
-        FoundryPackCatalog.shared.reload()
     }
 
     private func reloadDevelopmentPack(at rootURL: URL) {
