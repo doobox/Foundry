@@ -8,46 +8,6 @@ nonisolated struct CanvasEditorOptions: Equatable, Sendable {
     var scrollsToSelection = true
 }
 
-nonisolated enum CanvasViewportPreset: String, CaseIterable, Identifiable, Sendable {
-    case mobile
-    case tabletPortrait
-    case tabletLandscape
-    case desktop
-
-    var id: String { rawValue }
-
-    var title: String {
-        switch self {
-        case .mobile: "Mobile"
-        case .tabletPortrait: "Tablet Portrait"
-        case .tabletLandscape: "Tablet Landscape"
-        case .desktop: "Desktop"
-        }
-    }
-
-    var systemImage: String {
-        switch self {
-        case .mobile: "iphone"
-        case .tabletPortrait: "ipad"
-        case .tabletLandscape: "ipad.landscape"
-        case .desktop: "desktopcomputer"
-        }
-    }
-
-    var viewportWidth: Double {
-        switch self {
-        case .mobile: 390
-        case .tabletPortrait: 768
-        case .tabletLandscape: 1024
-        case .desktop: 1440
-        }
-    }
-
-    var breakpoint: ResponsiveBreakpoint {
-        ResponsiveBreakpoint.forViewportWidth(viewportWidth)
-    }
-}
-
 struct CanvasView: View {
     let page: Page?
     let language: String
@@ -67,8 +27,9 @@ struct CanvasView: View {
     @State private var resizeStartWidth: Double?
     @State private var resizeStartScale: Double?
     @State private var visibleCanvasWidth = 0.0
-    private let resizeHandleWidth = 12.0
+    private let resizeEdgeHitTargetWidth = 12.0
     private let canvasHorizontalPadding = 24.0
+    private let minimumViewportWidth = 320.0
 
     var body: some View {
         GeometryReader { geometry in
@@ -76,19 +37,18 @@ struct CanvasView: View {
                 let availableWidth = visibleCanvasWidth > 0
                     ? min(geometry.size.width, visibleCanvasWidth)
                     : geometry.size.width
-                let scale = canvasScale(availableWidth: availableWidth)
+                let scale = resizeStartScale ?? canvasScale(availableWidth: availableWidth)
+                let maximumViewportWidth = max(
+                    minimumViewportWidth,
+                    (availableWidth - canvasHorizontalChromeWidth) / scale
+                )
                 let logicalHeight = max((geometry.size.height - 29) / scale, 600)
 
                 VStack(spacing: 0) {
                     ScrollView(.vertical) {
                         HStack(spacing: 0) {
                             Spacer(minLength: canvasHorizontalPadding)
-                            HStack(spacing: 0) {
-                                resizeHandle(
-                                    direction: -1,
-                                    scale: scale,
-                                    accessibilityIdentifier: "canvas-resize-left"
-                                )
+                            ZStack(alignment: .top) {
                                 ZStack(alignment: .top) {
                                     WebCanvasView(
                                         html: renderer.render(
@@ -96,7 +56,7 @@ struct CanvasView: View {
                                             language: language,
                                             theme: theme,
                                             assets: assets,
-                                            breakpoint: ResponsiveBreakpoint.forViewportWidth(viewportWidth)
+                                            breakpoint: ResponsiveBreakpoint.forViewportWidth(viewportWidth, screens: theme.screens)
                                         ),
                                         selectedComponentIDs: selectedComponentIDs,
                                         editorOptions: editorOptions,
@@ -105,7 +65,7 @@ struct CanvasView: View {
                                     )
                                     .id(enablesCanvasWebInspector)
                                     .frame(width: viewportWidth, height: logicalHeight)
-                                    .background(.white)
+                                    .background(Color(hex: theme.colors.background) ?? .white)
                                     .shadow(color: .black.opacity(0.12), radius: 12, y: 4)
                                     .scaleEffect(scale, anchor: .top)
                                 }
@@ -116,12 +76,23 @@ struct CanvasView: View {
                                 )
                                 .contentShape(Rectangle())
                                 .clipped()
-                                resizeHandle(
-                                    direction: 1,
-                                    scale: scale,
-                                    accessibilityIdentifier: "canvas-resize-right"
-                                )
+                                HStack(spacing: 0) {
+                                    resizeEdge(
+                                        direction: -1,
+                                        scale: scale,
+                                        maximumViewportWidth: maximumViewportWidth,
+                                        accessibilityIdentifier: "canvas-resize-left"
+                                    )
+                                    Spacer(minLength: 0)
+                                    resizeEdge(
+                                        direction: 1,
+                                        scale: scale,
+                                        maximumViewportWidth: maximumViewportWidth,
+                                        accessibilityIdentifier: "canvas-resize-right"
+                                    )
+                                }
                             }
+                            .frame(width: viewportWidth * scale, height: logicalHeight * scale)
                             Spacer(minLength: canvasHorizontalPadding)
                         }
                         .frame(width: geometry.size.width)
@@ -131,7 +102,7 @@ struct CanvasView: View {
                     CanvasStatusBar(
                         viewportWidth: viewportWidth,
                         scale: scale,
-                        breakpoint: ResponsiveBreakpoint.forViewportWidth(viewportWidth)
+                        breakpoint: ResponsiveBreakpoint.forViewportWidth(viewportWidth, screens: theme.screens)
                     )
                 }
             } else {
@@ -164,16 +135,17 @@ struct CanvasView: View {
     }
 
     private var canvasHorizontalChromeWidth: Double {
-        (canvasHorizontalPadding * 2) + (resizeHandleWidth * 2)
+        canvasHorizontalPadding * 2
     }
 
     private func canvasScale(availableWidth: Double) -> Double {
         min(1, max((availableWidth - canvasHorizontalChromeWidth) / viewportWidth, 0.1))
     }
 
-    private func resizeHandle(
+    private func resizeEdge(
         direction: Double,
         scale: Double,
+        maximumViewportWidth: Double,
         accessibilityIdentifier: String
     ) -> some View {
         CanvasResizeHandle(
@@ -184,8 +156,8 @@ struct CanvasView: View {
                 resizeStartScale = startingScale
                 let logicalTranslation = Double(translation) / startingScale
                 viewportWidth = min(
-                    max(startingWidth + (logicalTranslation * direction * 2), 320),
-                    CanvasViewportPreset.desktop.viewportWidth
+                    max(startingWidth + (logicalTranslation * direction * 2), minimumViewportWidth),
+                    maximumViewportWidth
                 )
             },
             onEnded: {
@@ -195,8 +167,8 @@ struct CanvasView: View {
             accessibilityIdentifier: accessibilityIdentifier,
             accessibilityValue: "viewport=\(Int(viewportWidth));scale=\(Int((scale * 100).rounded()))"
         )
-            .frame(width: resizeHandleWidth)
-            .frame(height: 44)
+            .frame(width: resizeEdgeHitTargetWidth)
+            .frame(maxHeight: .infinity)
             .zIndex(2)
     }
 }
@@ -290,7 +262,6 @@ private struct CanvasResizeHandle: NSViewRepresentable {
         view.onChanged = onChanged
         view.onEnded = onEnded
         configureAccessibility(for: view)
-        view.needsDisplay = true
     }
 
     private func configureAccessibility(for view: ResizeHandleView) {
@@ -335,16 +306,6 @@ private final class ResizeHandleView: NSView {
 
     override func resetCursorRects() {
         addCursorRect(bounds, cursor: .resizeLeftRight)
-    }
-
-    override func draw(_ dirtyRect: NSRect) {
-        super.draw(dirtyRect)
-        NSColor.systemBlue.withAlphaComponent(0.8).setFill()
-        NSBezierPath(
-            roundedRect: NSRect(x: (bounds.width - 4) / 2, y: 0, width: 4, height: bounds.height),
-            xRadius: 2,
-            yRadius: 2
-        ).fill()
     }
 
     override func mouseDown(with event: NSEvent) {

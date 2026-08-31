@@ -100,8 +100,8 @@ struct ComponentDefinitionTests {
         #expect(html.contains("border: 2px solid #ABCDEF"))
         #expect(html.contains("border-radius: 28px"))
         #expect(html.contains("max-width: 920px"))
-        #expect(html.contains("font-family: var(--font-heading)"))
-        #expect(html.contains("font-size: var(--font-size-xl)"))
+        #expect(html.contains("font-family: var(--foundry-font-heading)"))
+        #expect(html.contains("font-size: var(--foundry-font-size-xl)"))
         #expect(html.contains("aria-label=\"Open &quot;details&quot;\""))
         #expect(html.contains("[data-foundry-id]:hover:not(:has([data-foundry-id]:hover))"))
     }
@@ -120,12 +120,12 @@ struct ComponentDefinitionTests {
             theme: .standard
         )
 
-        #expect(html.contains("class=\"section\""))
-        #expect(html.contains("class=\"columns\""))
-        #expect(html.contains("<h2 class=\"heading\""))
-        #expect(html.contains("class=\"image\""))
-        #expect(html.contains("class=\"divider\""))
-        #expect(html.contains("class=\"spacer\""))
+        #expect(html.contains("class=\"foundry-section\""))
+        #expect(html.contains("class=\"foundry-columns\""))
+        #expect(html.contains("<h2 class=\"foundry-heading\""))
+        #expect(html.contains("class=\"foundry-image\""))
+        #expect(html.contains("class=\"foundry-divider\""))
+        #expect(html.contains("class=\"foundry-spacer\""))
     }
 
     @Test @MainActor

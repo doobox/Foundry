@@ -166,8 +166,41 @@ struct ProjectEditor {
             case .surfaceColor: site.theme.colors.surface = value
             case .textColor: site.theme.colors.text = value
             case .accentColor: site.theme.colors.accent = value
-            case .extraSmallSpacing, .smallSpacing, .mediumSpacing, .largeSpacing, .extraLargeSpacing: break
+            case .threeExtraSmallSpacing, .doubleExtraSmallSpacing, .extraSmallSpacing,
+                 .smallSpacing, .mediumSpacing, .largeSpacing, .extraLargeSpacing,
+                 .doubleExtraLargeSpacing, .threeExtraLargeSpacing: break
             }
+        }
+    }
+
+    func setThemeScreenEnabled(_ id: ThemeScreenID, value: Bool) {
+        mutate(actionName: "Enable Theme Screen") { site in
+            site.theme.screens.update(id) { $0.isEnabled = value }
+        }
+    }
+
+    func setThemeScreenMinimumWidth(_ id: ThemeScreenID, value: Double) {
+        guard value.isFinite else { return }
+        mutate(actionName: "Edit Theme Screen Width") { site in
+            site.theme.screens.update(id) { $0.minimumWidth = value }
+        }
+    }
+
+    func setThemeScreenContainerUnit(_ id: ThemeScreenID, value: ThemeContainerUnit) {
+        mutate(actionName: "Edit Theme Container Unit") { site in
+            site.theme.screens.update(id) { screen in
+                screen.container.unit = value
+                if value == .auto {
+                    screen.container.value = screen.minimumWidth
+                }
+            }
+        }
+    }
+
+    func setThemeScreenContainerWidth(_ id: ThemeScreenID, value: Double) {
+        guard value.isFinite else { return }
+        mutate(actionName: "Edit Theme Container Width") { site in
+            site.theme.screens.update(id) { $0.container.value = value }
         }
     }
 
@@ -175,11 +208,15 @@ struct ProjectEditor {
         guard value.isFinite, value >= 0 else { return }
         mutate(actionName: "Edit Theme Spacing") { site in
             switch token {
+            case .threeExtraSmallSpacing: site.theme.spacing.threeExtraSmall = value
+            case .doubleExtraSmallSpacing: site.theme.spacing.doubleExtraSmall = value
             case .extraSmallSpacing: site.theme.spacing.extraSmall = value
             case .smallSpacing: site.theme.spacing.small = value
             case .mediumSpacing: site.theme.spacing.medium = value
             case .largeSpacing: site.theme.spacing.large = value
             case .extraLargeSpacing: site.theme.spacing.extraLarge = value
+            case .doubleExtraLargeSpacing: site.theme.spacing.doubleExtraLarge = value
+            case .threeExtraLargeSpacing: site.theme.spacing.threeExtraLarge = value
             case .backgroundColor, .surfaceColor, .textColor, .accentColor: break
             }
         }
@@ -188,11 +225,15 @@ struct ProjectEditor {
     func resetThemeSpacingScale() {
         mutate(actionName: "Reset Theme Spacing Scale") { site in
             let standard = SpacingTokens.standard
+            site.theme.spacing.threeExtraSmall = standard.threeExtraSmall
+            site.theme.spacing.doubleExtraSmall = standard.doubleExtraSmall
             site.theme.spacing.extraSmall = standard.extraSmall
             site.theme.spacing.small = standard.small
             site.theme.spacing.medium = standard.medium
             site.theme.spacing.large = standard.large
             site.theme.spacing.extraLarge = standard.extraLarge
+            site.theme.spacing.doubleExtraLarge = standard.doubleExtraLarge
+            site.theme.spacing.threeExtraLarge = standard.threeExtraLarge
         }
     }
 

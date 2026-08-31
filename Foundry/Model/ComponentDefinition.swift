@@ -127,7 +127,7 @@ nonisolated struct ComponentPropertySection: RawRepresentable, Hashable, Sendabl
 }
 
 nonisolated enum ComponentPropertyControl: Sendable {
-    indirect case array(element: ComponentPropertyControl, count: Int, labels: [String], subtitles: [String], help: String?)
+    indirect case array(element: ComponentPropertyControl, count: Int, labels: [String], subtitles: [String], units: [String], help: String?)
     case singleLineText
     case multilineText
     case link(absoluteURL: Bool)

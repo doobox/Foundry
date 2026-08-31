@@ -7,11 +7,15 @@
   },
   "spacing" : {
     "custom" : [],
-    "extraLarge" : 16,
-    "extraSmall" : 1,
+    "doubleExtraLarge" : 16,
+    "doubleExtraSmall" : 2,
+    "extraLarge" : 12,
+    "extraSmall" : 3,
     "large" : 8,
-    "medium" : 4,
-    "small" : 2
+    "medium" : 6,
+    "small" : 4,
+    "threeExtraLarge" : 24,
+    "threeExtraSmall" : 1
   },
   "typography" : {
     "baseSize" : 16,

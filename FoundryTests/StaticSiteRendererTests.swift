@@ -17,8 +17,17 @@ struct StaticSiteRendererTests {
         #expect(exportedCSS.contains("html,body{min-height:100%}"))
         #expect(exportedCSS.contains("body{margin:0;background:"))
         #expect(exportedCSS.contains("*,*::before,*::after{box-sizing:border-box}"))
+        #expect(exportedCSS.contains("--foundry-color-background:"))
+        #expect(exportedCSS.contains("--foundry-spacing-base:"))
+        #expect(exportedCSS.contains(".foundry-container{"))
+        #expect(!exportedCSS.contains("--background:"))
+        #expect(!exportedCSS.contains("--theme-container-width:"))
         #expect(!exportedCSS.contains("padding:48px"))
         #expect(canvasHTML.contains("html, body { min-height: 100%; }"))
+        #expect(canvasHTML.contains("--foundry-color-background:"))
+        #expect(canvasHTML.contains("--foundry-editor-chrome"))
+        #expect(canvasHTML.contains("foundry-container"))
+        #expect(!canvasHTML.contains("--background:"))
         #expect(!canvasHTML.contains("padding: 48px"))
     }
 

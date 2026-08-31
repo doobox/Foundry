@@ -42,7 +42,7 @@ button.addEventListener("click", () =&gt; {
     const message = component.querySelector(".message");
     button.addEventListener("click", () =&gt; { message.hidden = false; });
 })(document.getElementById("foundry-a12b"));</code></pre><p>Page- and site-scoped closures receive <code>page</code>, which is the browser’s <code>document</code>. <code>closure</code> is optional and defaults to <code>true</code>. Set it to <code>false</code> only when the file intentionally creates globals; raw files receive no helper. Each template receives a separate closure.</p>
-<h2>Instance identity</h2><section class="reference-entry"><h3>{{ id }}</h3><p>Resolves to a stable, CSS-safe ID unique to the instance, such as <code>foundry-a12b…</code>.</p><pre><code>&lt;article id="{{ id }}" {{ component.attributes }}&gt;…&lt;/article&gt;
+<h2>Instance identity</h2><section class="reference-entry"><h3>{{ id }}</h3><p>Resolves to a stable, CSS-safe ID unique to the instance, such as <code>foundry-a12b…</code>. Whitespace inside braces is optional, so <code>{{id}}</code> is equivalent; the spaced form is recommended for readability.</p><pre><code>&lt;article id="{{ id }}" {{ component.attributes }}&gt;…&lt;/article&gt;
 
 #{{ id }} { border-radius: 12px; }
 #{{ id }} .title { font-weight: 700; }</code></pre></section>

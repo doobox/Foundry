@@ -47,14 +47,14 @@ struct ComponentPropertyEditor: View {
     @ViewBuilder
     private var editorControl: some View {
         switch definition.control {
-        case .array(let element, let count, let labels, let subtitles, let help):
+        case .array(let element, let count, let labels, let subtitles, let units, let help):
             if case .slider = element {
-                controlArrayRow(element: element, count: count, labels: labels, subtitles: subtitles, help: help)
+                controlArrayRow(element: element, count: count, labels: labels, subtitles: subtitles, units: units, help: help)
                     .contextMenu {
                         resetButton
                     }
             } else {
-                controlArrayRow(element: element, count: count, labels: labels, subtitles: subtitles, help: help)
+                controlArrayRow(element: element, count: count, labels: labels, subtitles: subtitles, units: units, help: help)
             }
         case .singleLineText:
             InspectorRow(title: definition.label, indicator: responsiveIndicator) {
@@ -114,10 +114,7 @@ struct ComponentPropertyEditor: View {
                             accessibilityLabel: definition.label,
                             help: definition.label
                         )
-                        if !unit.isEmpty {
-                            Text(unit)
-                                .foregroundStyle(.secondary)
-                        }
+                        InspectorUnitLabel(unit: unit)
                         InspectorStepper(value: numberBinding, range: range, increment: step, accessibilityLabel: definition.label)
                     }
                 }
@@ -144,10 +141,7 @@ struct ComponentPropertyEditor: View {
                             help: definition.label
                         )
                         .frame(width: 64)
-                        if !unit.isEmpty {
-                            Text(unit)
-                                .foregroundStyle(.secondary)
-                        }
+                        InspectorUnitLabel(unit: unit)
                     }
                 }
             }
@@ -380,6 +374,7 @@ struct ComponentPropertyEditor: View {
         count: Int,
         labels: [String],
         subtitles: [String],
+        units: [String],
         help: String?
     ) -> some View {
         if case .slider = element {
@@ -391,6 +386,7 @@ struct ComponentPropertyEditor: View {
                     InspectorControlArrayItem(
                         title: labels[index],
                         subtitle: subtitles.indices.contains(index) ? subtitles[index] : nil,
+                        unit: units.indices.contains(index) ? units[index] : "",
                         help: help,
                         value: arrayElementBinding(index),
                         element: element,
@@ -404,6 +400,7 @@ struct ComponentPropertyEditor: View {
                     count: count,
                     labels: labels,
                     subtitles: subtitles,
+                    units: units,
                     help: help,
                     values: (0..<count).map(arrayElementBinding),
                     element: element,
@@ -674,10 +671,58 @@ private struct ComponentLinkEditor: View {
     private enum LinkKind: Hashable { case url, plainText, page, resource }
 }
 
+private struct InspectorUnitLabel: View {
+    let unit: String
+
+    var body: some View {
+        CharacterWidthText(
+            value: unit,
+            characterCount: 3,
+            fontSize: NSFont.smallSystemFontSize
+        )
+            .foregroundStyle(.secondary)
+            .accessibilityHidden(unit.isEmpty)
+    }
+}
+
+private struct CharacterWidthText: View {
+    let value: String
+    let characterCount: Int
+    let fontSize: CGFloat
+
+    private var reservedWidth: CGFloat {
+        let font = NSFont.monospacedSystemFont(
+            ofSize: fontSize,
+            weight: .regular
+        )
+
+        let characterWidth = ("0" as NSString).size(
+            withAttributes: [.font: font]
+        ).width
+
+        return characterWidth * CGFloat(characterCount)
+    }
+
+    var body: some View {
+        Text(value)
+            .font(
+                .system(
+                    size: fontSize,
+                    design: .monospaced
+                )
+            )
+            .frame(
+                width: reservedWidth,
+                alignment: .leading
+            )
+    }
+}
+
 private struct InspectorControlArray: View {
     let count: Int
     let labels: [String]
     let subtitles: [String]
+    let units: [String]
     let help: String?
     let values: [Binding<ComponentProperty.Value>]
     let element: ComponentPropertyControl
@@ -702,6 +747,7 @@ private struct InspectorControlArray: View {
             InspectorControlArrayItem(
                 title: labels[index],
                 subtitle: subtitles.indices.contains(index) ? subtitles[index] : nil,
+                unit: units.indices.contains(index) ? units[index] : "",
                 help: help,
                 value: values[index],
                 element: element,
@@ -715,6 +761,7 @@ private struct InspectorControlArray: View {
 private struct InspectorControlArrayItem: View {
     let title: String
     let subtitle: String?
+    let unit: String
     let help: String?
     @Binding var value: ComponentProperty.Value
     let element: ComponentPropertyControl
@@ -722,13 +769,14 @@ private struct InspectorControlArrayItem: View {
 
     @ViewBuilder
     var body: some View {
-        if case .slider = element {
-            VStack(alignment: .leading, spacing: 3) {
-                control
-                if let subtitle, !subtitle.isEmpty {
-                    subtitleText(subtitle)
-                }
-            }
+        if case .slider(let range, let step, let ticks, let fallbackUnit, let showsValueField) = element {
+            sliderGrid(
+                range: range,
+                step: step,
+                ticks: ticks,
+                unit: unit.isEmpty ? fallbackUnit : unit,
+                showsValueField: showsValueField
+            )
             .controlSize(.small)
             .help(help ?? subtitle ?? "")
         } else {
@@ -745,6 +793,51 @@ private struct InspectorControlArrayItem: View {
             }
             .controlSize(.small)
             .help(help ?? subtitle ?? "")
+        }
+    }
+
+    private func sliderGrid(
+        range: ClosedRange<Double>,
+        step: Double,
+        ticks: Int,
+        unit: String,
+        showsValueField: Bool
+    ) -> some View {
+        Grid(alignment: .leading, horizontalSpacing: 8, verticalSpacing: 3) {
+            GridRow {
+                InspectorSlider(
+                    value: numberBinding,
+                    range: range,
+                    step: step,
+                    tickMarkCount: ticks,
+                    accessibilityLabel: subtitle ?? "Slider",
+                    help: help
+                )
+                .frame(maxWidth: .infinity)
+
+                if showsValueField {
+                    InspectorNumberField(
+                        value: numberBinding,
+                        range: range,
+                        step: step,
+                        accessibilityLabel: "\(subtitle ?? "Slider") value",
+                        help: help
+                    )
+                    .frame(width: 64)
+                    InspectorUnitLabel(unit: unit)
+                }
+            }
+
+            if let subtitle, !subtitle.isEmpty {
+                GridRow {
+                    subtitleText(subtitle)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    if showsValueField {
+                        Color.clear.frame(width: 64, height: 0)
+                        InspectorUnitLabel(unit: "").hidden()
+                    }
+                }
+            }
         }
     }
 
@@ -773,10 +866,7 @@ private struct InspectorControlArrayItem: View {
                     help: help
                 )
                 InspectorStepper(value: numberBinding, range: range, increment: step, accessibilityLabel: subtitle ?? "Number value")
-                if !unit.isEmpty {
-                    Text(unit)
-                        .foregroundStyle(.secondary)
-                }
+                InspectorUnitLabel(unit: self.unit.isEmpty ? unit : self.unit)
             }
         case .slider(let range, let step, let ticks, let unit, let showsValueField):
             HStack(spacing: 8) {
@@ -790,10 +880,7 @@ private struct InspectorControlArrayItem: View {
                         help: help
                     )
                     .frame(width: 64)
-                    if !unit.isEmpty {
-                        Text(unit)
-                            .foregroundStyle(.secondary)
-                    }
+                    InspectorUnitLabel(unit: self.unit.isEmpty ? unit : self.unit)
                 }
             }
         case .date:

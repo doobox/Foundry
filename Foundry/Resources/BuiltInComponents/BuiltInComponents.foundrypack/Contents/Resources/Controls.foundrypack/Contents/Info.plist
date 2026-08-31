@@ -71,7 +71,7 @@
 			<real>1.0</real>
 			<key>type</key>
 			<string>number</string>
-			<key>unit</key>
+			<key>units</key>
 			<string>%</string>
 		</dict>
 		<dict>
@@ -95,7 +95,7 @@
 			<integer>11</integer>
 			<key>type</key>
 			<string>slider</string>
-			<key>unit</key>
+			<key>units</key>
 			<string>%</string>
 		</dict>
 		<dict>
@@ -129,8 +129,13 @@
 			<real>1.0</real>
 			<key>type</key>
 			<string>slider</string>
-			<key>unit</key>
-			<string>rem</string>
+			<key>units</key>
+			<array>
+				<string>rem</string>
+				<string>rem</string>
+				<string>rem</string>
+				<string>rem</string>
+			</array>
 		</dict>
 		<dict>
 			<key>default</key>
@@ -170,8 +175,13 @@
 			<real>1.0</real>
 			<key>type</key>
 			<string>slider</string>
-			<key>unit</key>
-			<string>%</string>
+			<key>units</key>
+			<array>
+				<string>%</string>
+				<string>%</string>
+				<string>%</string>
+				<string>%</string>
+			</array>
 		</dict>
 		<dict>
 			<key>default</key>
@@ -417,8 +427,13 @@
 			<real>1.0</real>
 			<key>type</key>
 			<string>number</string>
-			<key>unit</key>
-			<string>px</string>
+			<key>units</key>
+			<array>
+				<string>px</string>
+				<string>px</string>
+				<string>px</string>
+				<string>px</string>
+			</array>
 		</dict>
 		<dict>
 			<key>default</key>

@@ -285,31 +285,31 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
         let style = sharedStyles(for: node, theme: theme)
         switch node.type.definition.renderKind {
         case .section:
-            return element("section", "section", node, style, children(of: node, theme: theme, assetPrefix: assetPrefix, assets: assets, site: site))
+            return element("section", "foundry-section", node, style, children(of: node, theme: theme, assetPrefix: assetPrefix, assets: assets, site: site))
         case .columns:
             let columns = clamped(node.numberProperty(.columnCount), to: 1...6)
             let gap = clamped(node.numberProperty(.gap), to: 0...120)
-            return element("section", "columns", node, style + "grid-template-columns:repeat(\(columns),minmax(0,1fr));gap:\(gap)px;", children(of: node, theme: theme, assetPrefix: assetPrefix, assets: assets, site: site))
+            return element("section", "foundry-columns", node, style + "grid-template-columns:repeat(\(columns),minmax(0,1fr));gap:\(gap)px;", children(of: node, theme: theme, assetPrefix: assetPrefix, assets: assets, site: site))
         case .text:
-            return element("div", "text", node, style + textStyles(node, theme: theme), escape(node.property(.text)))
+            return element("div", "foundry-text", node, style + textStyles(node, theme: theme), escape(node.property(.text)))
         case .heading:
             let level = min(max(Int(node.property(.headingLevel)) ?? 2, 1), 6)
-            return element("h\(level)", "heading", node, style + textStyles(node, theme: theme), escape(node.property(.text)))
+            return element("h\(level)", "foundry-heading", node, style + textStyles(node, theme: theme), escape(node.property(.text)))
         case .button:
             let label = escapeAttribute(node.property(.accessibilityLabel))
             let aria = label.isEmpty ? "" : " aria-label=\"\(label)\""
             let link = resolvedLink(for: node, site: site)
             let target = link.target.isEmpty ? "" : " target=\"\(escapeAttribute(link.target))\""
             let customAttributes = link.attributes.isEmpty ? "" : " \(link.attributes)"
-            return "<a class=\"button \(componentClass(node))\" style=\"\(style + textStyles(node, theme: theme))\" href=\"\(escapeAttribute(link.href))\"\(target)\(aria)\(customAttributes)>\(escape(node.property(.text)))</a>"
+            return "<a class=\"foundry-button \(componentClass(node))\" style=\"\(style + textStyles(node, theme: theme))\" href=\"\(escapeAttribute(link.href))\"\(target)\(aria)\(customAttributes)>\(escape(node.property(.text)))</a>"
         case .image:
             let source = exportSource(node.property(.source), assetPrefix: assetPrefix, assets: assets)
-            return "<img class=\"image \(componentClass(node))\" style=\"\(style)\" src=\"\(escapeAttribute(source))\" alt=\"\(escapeAttribute(node.property(.altText)))\">"
+            return "<img class=\"foundry-image \(componentClass(node))\" style=\"\(style)\" src=\"\(escapeAttribute(source))\" alt=\"\(escapeAttribute(node.property(.altText)))\">"
         case .divider:
             let color = safeHex(node.colorProperty(.borderColor, theme: theme), fallback: "#D9D9DE")
-            return "<hr class=\"divider \(componentClass(node))\" style=\"\(style)border:0;border-top:\(clamped(node.numberProperty(.borderWidth), to: 1...24))px solid \(color);\">"
+            return "<hr class=\"foundry-divider \(componentClass(node))\" style=\"\(style)border:0;border-top:\(clamped(node.numberProperty(.borderWidth), to: 1...24))px solid \(color);\">"
         case .spacer:
-            return "<div class=\"spacer \(componentClass(node))\" style=\"\(style)min-height:\(clamped(node.numberProperty(.height), to: 0...600))px;\"></div>"
+            return "<div class=\"foundry-spacer \(componentClass(node))\" style=\"\(style)min-height:\(clamped(node.numberProperty(.height), to: 0...600))px;\"></div>"
         case .package:
             guard let package = node.type.definition.package else {
                 return missingPackageHTML(node, theme: theme, assetPrefix: assetPrefix, assets: assets, site: site)
@@ -401,12 +401,13 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
         let theme = site.theme
         return """
         \(theme.fontSourceCSS(assets: assets, destination: .export))
-        :root{font-size:\(theme.typography.baseSize)px;--background:\(theme.colors.background);--surface:\(theme.colors.surface);--text:\(theme.colors.text);--accent:\(theme.colors.accent);--font-body:\(theme.typography.bodyFont.cssFamily);--font-heading:\(theme.typography.headingFont.cssFamily);--font-monospace:\(theme.typography.monospacedFont.cssFamily);\(theme.customFontCSSVariables)\(theme.fontSizeCSSVariables)\(theme.spacingCSSVariables)}
+        :root{font-size:\(theme.typography.baseSize)px;--foundry-color-background:\(theme.colors.background);--foundry-color-surface:\(theme.colors.surface);--foundry-color-text:\(theme.colors.text);--foundry-color-accent:\(theme.colors.accent);--foundry-font-body:\(theme.typography.bodyFont.cssFamily);--foundry-font-heading:\(theme.typography.headingFont.cssFamily);--foundry-font-monospace:\(theme.typography.monospacedFont.cssFamily);\(theme.customFontCSSVariables)\(theme.fontSizeCSSVariables)\(theme.spacingCSSVariables)}
+        \(theme.screens.containerCSS)
         *,*::before,*::after{box-sizing:border-box}
         html,body{min-height:100%}
-        body{margin:0;background:var(--background);color:var(--text);font-family:var(--font-body);font-size:var(--font-size-base);line-height:var(--font-size-base-line-height)}
-        h1,h2,h3,h4,h5,h6,.heading{font-family:var(--font-heading)}code,pre,kbd,samp{font-family:var(--font-monospace)}
-        .button{display:block;width:fit-content;text-decoration:none;font-weight:600}.columns{display:grid}.image{display:block;width:100%;height:auto}.spacer{min-height:8px}
+        body{margin:0;background:var(--foundry-color-background);color:var(--foundry-color-text);font-family:var(--foundry-font-body);font-size:var(--foundry-font-size-base);line-height:var(--foundry-font-size-base-line-height)}
+        h1,h2,h3,h4,h5,h6,.foundry-heading{font-family:var(--foundry-font-heading)}code,pre,kbd,samp{font-family:var(--foundry-font-monospace)}
+        .foundry-container{width:100%;max-width:var(--foundry-container-width)!important}.foundry-button{display:block;width:fit-content;text-decoration:none;font-weight:600}.foundry-columns{display:grid}.foundry-image{display:block;width:100%;height:auto}.foundry-spacer{min-height:8px}
         \(packageStyles(for: site, assets: assets))
         \(themeControlStyles(for: site))
         \(responsiveStyles(for: site, assets: assets))
@@ -419,7 +420,7 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
     ) -> String {
         let nodes = site.pages.flatMap { $0.components.flatMap(\.flattened) }
         return [ResponsiveBreakpoint.tabletPortrait, .tabletLandscape, .desktop].compactMap { breakpoint in
-            guard let minimumWidth = breakpoint.minimumWidth else { return nil }
+            guard let minimumWidth = breakpoint.minimumWidth(in: site.theme.screens) else { return nil }
             let rules = nodes.compactMap { node -> String? in
                 guard node.responsiveOverrides?.contains(where: { $0.breakpoint == breakpoint }) == true else { return nil }
                 let resolved = node.resolved(at: breakpoint)

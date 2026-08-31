@@ -332,12 +332,20 @@ nonisolated enum ComponentPackageValidator {
                 diagnostics.append(.init(severity: .error, location: location, message: "A math operation must be +, -, *, /, %, min, or max."))
             }
         case .number, .slider:
-            if let unit = property.control.unit,
-               unit.count > 3 {
+            if property.units.contains(where: { $0.count > 3 }) {
                 diagnostics.append(.init(
                     severity: .error,
                     location: location,
                     message: "A control unit can contain at most three characters."
+                ))
+            }
+            if let count = property.control.count,
+               !property.units.isEmpty,
+               property.units.count != count {
+                diagnostics.append(.init(
+                    severity: .error,
+                    location: location,
+                    message: "A multi control must provide one unit for each value."
                 ))
             }
             if let minimum = property.control.minimum,

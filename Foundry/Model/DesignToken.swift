@@ -5,11 +5,15 @@ nonisolated enum DesignToken: String, Codable, CaseIterable, Identifiable, Senda
     case surfaceColor
     case textColor
     case accentColor
+    case threeExtraSmallSpacing
+    case doubleExtraSmallSpacing
     case extraSmallSpacing
     case smallSpacing
     case mediumSpacing
     case largeSpacing
     case extraLargeSpacing
+    case doubleExtraLargeSpacing
+    case threeExtraLargeSpacing
 
     var id: String { rawValue }
 
@@ -19,16 +23,22 @@ nonisolated enum DesignToken: String, Codable, CaseIterable, Identifiable, Senda
         case .surfaceColor: "Surface"
         case .textColor: "Text"
         case .accentColor: "Accent"
-        case .extraSmallSpacing: "Extra Small"
-        case .smallSpacing: "Small"
-        case .mediumSpacing: "Medium"
-        case .largeSpacing: "Large"
-        case .extraLargeSpacing: "Extra Large"
+        case .threeExtraSmallSpacing: "3XS"
+        case .doubleExtraSmallSpacing: "2XS"
+        case .extraSmallSpacing: "XS"
+        case .smallSpacing: "SM"
+        case .mediumSpacing: "MD"
+        case .largeSpacing: "LG"
+        case .extraLargeSpacing: "XL"
+        case .doubleExtraLargeSpacing: "2XL"
+        case .threeExtraLargeSpacing: "3XL"
         }
     }
 
     static let colorTokens: [DesignToken] = [.backgroundColor, .surfaceColor, .textColor, .accentColor]
     static let spacingTokens: [DesignToken] = [
-        .extraSmallSpacing, .smallSpacing, .mediumSpacing, .largeSpacing, .extraLargeSpacing
+        .threeExtraSmallSpacing, .doubleExtraSmallSpacing, .extraSmallSpacing,
+        .smallSpacing, .mediumSpacing, .largeSpacing, .extraLargeSpacing,
+        .doubleExtraLargeSpacing, .threeExtraLargeSpacing
     ]
 }

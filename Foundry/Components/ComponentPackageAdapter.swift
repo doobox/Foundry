@@ -44,10 +44,11 @@ nonisolated enum ComponentPackageAdapter {
                 label: property.label,
                 section: .init(rawValue: property.group),
                 control: .array(
-                    element: control(property.control),
+                    element: control(property.control, unit: ""),
                     count: count,
                     labels: Array(property.labels.prefix(count)),
                     subtitles: Array(property.subtitles.prefix(count)),
+                    units: Array(property.units.prefix(count)),
                     help: property.toolTip
                 ),
                 defaultValue: .array(paddedDefaults.prefix(count).map { value($0, control: property.control.type) }),
@@ -72,7 +73,7 @@ nonisolated enum ComponentPackageAdapter {
             section: .init(rawValue: property.group),
             control: property.control.type == .details
                 ? .details(help: property.toolTip)
-                : control(property.control),
+                : control(property.control, unit: property.units.first ?? ""),
             defaultValue: value(property.defaultValue, control: property.control.type),
             isResponsive: property.responsive,
             isInspectorVisible: property.control.type != .math &&
@@ -148,14 +149,14 @@ nonisolated enum ComponentPackageAdapter {
         return definitions
     }
 
-    private static func control(_ control: ComponentPackageControl) -> ComponentPropertyControl {
+    private static func control(_ control: ComponentPackageControl, unit: String) -> ComponentPropertyControl {
         switch control.type {
         case .text: .singleLineText
         case .textArea: .multilineText
         case .number:
             .number(
                 range: (control.minimum ?? -10_000)...(control.maximum ?? 10_000),
-                step: control.step ?? 1, unit: control.unit ?? ""
+                step: control.step ?? 1, unit: unit
             )
         case .color: .color
         case .select:
@@ -173,7 +174,7 @@ nonisolated enum ComponentPackageAdapter {
                 range: (control.minimum ?? 0)...(control.maximum ?? 100),
                 step: control.step ?? 0,
                 ticks: control.ticks ?? 0,
-                unit: control.unit ?? "",
+                unit: unit,
                 showsValueField: control.showsValueField ?? true
             )
         case .date: .date

@@ -188,7 +188,9 @@ private struct ThemeSettingsDetail: View {
 
     var body: some View {
         Group {
-            if section == .fontFamily {
+            if section == .screens {
+                ThemeScreenSettings(screens: theme.screens, editor: editor)
+            } else if section == .fontFamily {
                 ThemeFontFamilyEditor(theme: theme, assets: assets, session: session)
             } else if section == .fontSize {
                 fontSizeSettings
@@ -198,7 +200,7 @@ private struct ThemeSettingsDetail: View {
                 Form {
                     switch section {
                     case .screens:
-                        pendingSettings("Screen-specific theme overrides will live here.")
+                        EmptyView()
                     case .page:
                         Section("Canvas") {
                             ColorPicker(
@@ -483,6 +485,139 @@ private struct ThemeSettingsDetail: View {
     }
 }
 
+private struct ThemeScreenSettings: View {
+    let screens: ScreenTokens
+    let editor: ProjectEditor
+
+    var body: some View {
+        List {
+            Section {
+                ForEach(ThemeScreenID.allCases) { id in
+                    ThemeScreenRow(screen: screens.screen(id), editor: editor)
+                }
+            } header: {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Responsive Breakpoints")
+                        .font(.headline)
+                    Text("Define when responsive layouts activate and how wide theme containers can grow.")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .textCase(nil)
+                }
+                .padding(.bottom, 8)
+            }
+        }
+        .listStyle(.inset)
+    }
+}
+
+private struct ThemeScreenRow: View {
+    let screen: ThemeScreen
+    let editor: ProjectEditor
+
+    var body: some View {
+        HStack(spacing: 16) {
+            Text(screen.id.shortTitle)
+                .font(.headline)
+                .frame(width: 58, alignment: .trailing)
+
+            Image(systemName: screen.id.systemImage)
+                .foregroundStyle(.secondary)
+                .frame(width: 24)
+
+            if screen.id == .mobile {
+                Text("Below \(ThemeScreenID.small.shortTitle)")
+                    .foregroundStyle(.secondary)
+                    .frame(width: 150, alignment: .leading)
+            } else {
+                HStack(spacing: 6) {
+                    TextField("Breakpoint", value: minimumWidthBinding, format: .number.precision(.fractionLength(0...2)))
+                        .labelsHidden()
+                        .multilineTextAlignment(.trailing)
+                        .frame(width: 90)
+                    Text("px")
+                        .foregroundStyle(.secondary)
+                }
+                .frame(width: 150, alignment: .leading)
+                .disabled(!screen.isEnabled)
+            }
+
+            Text("Container")
+                .font(.headline)
+
+            HStack(spacing: 6) {
+                TextField("Width", value: containerWidthBinding, format: .number.precision(.fractionLength(0...2)))
+                    .labelsHidden()
+                    .multilineTextAlignment(.trailing)
+                    .frame(width: 90)
+                    .disabled(screen.container.unit == .auto)
+
+                Text(containerSuffix)
+                    .foregroundStyle(.secondary)
+                    .frame(width: 28, alignment: .leading)
+
+                Picker("Container Unit", selection: containerUnitBinding) {
+                    ForEach(ThemeContainerUnit.allCases) { unit in
+                        Text(unit.title).tag(unit)
+                    }
+                }
+                .labelsHidden()
+                .pickerStyle(.menu)
+                .frame(width: 130)
+            }
+            .disabled(!screen.isEnabled)
+
+            Spacer()
+
+            if screen.id != .mobile {
+                Toggle("Enable \(screen.id.shortTitle)", isOn: enabledBinding)
+                    .labelsHidden()
+                    .toggleStyle(.switch)
+                    .controlSize(.small)
+            }
+        }
+        .controlSize(.large)
+        .padding(.vertical, 12)
+        .accessibilityElement(children: .contain)
+    }
+
+    private var enabledBinding: Binding<Bool> {
+        Binding(
+            get: { screen.isEnabled },
+            set: { editor.setThemeScreenEnabled(screen.id, value: $0) }
+        )
+    }
+
+    private var minimumWidthBinding: Binding<Double> {
+        Binding(
+            get: { screen.minimumWidth },
+            set: { editor.setThemeScreenMinimumWidth(screen.id, value: $0) }
+        )
+    }
+
+    private var containerWidthBinding: Binding<Double> {
+        Binding(
+            get: { screen.container.unit == .auto ? screen.minimumWidth : screen.container.value },
+            set: { editor.setThemeScreenContainerWidth(screen.id, value: $0) }
+        )
+    }
+
+    private var containerUnitBinding: Binding<ThemeContainerUnit> {
+        Binding(
+            get: { screen.container.unit },
+            set: { editor.setThemeScreenContainerUnit(screen.id, value: $0) }
+        )
+    }
+
+    private var containerSuffix: String {
+        switch screen.container.unit {
+        case .auto, .pixels: "px"
+        case .viewportWidth: "vw"
+        case .percent: "%"
+        }
+    }
+}
+
 private struct ThemeSpacingSettings: View {
     let spacing: SpacingTokens
     let editor: ProjectEditor
@@ -490,11 +625,15 @@ private struct ThemeSpacingSettings: View {
     var body: some View {
         List {
             Section {
+                ThemePredefinedSpacingRow(token: .threeExtraSmallSpacing, value: spacing.threeExtraSmall, editor: editor)
+                ThemePredefinedSpacingRow(token: .doubleExtraSmallSpacing, value: spacing.doubleExtraSmall, editor: editor)
                 ThemePredefinedSpacingRow(token: .extraSmallSpacing, value: spacing.extraSmall, editor: editor)
                 ThemePredefinedSpacingRow(token: .smallSpacing, value: spacing.small, editor: editor)
                 ThemePredefinedSpacingRow(token: .mediumSpacing, value: spacing.medium, editor: editor)
                 ThemePredefinedSpacingRow(token: .largeSpacing, value: spacing.large, editor: editor)
                 ThemePredefinedSpacingRow(token: .extraLargeSpacing, value: spacing.extraLarge, editor: editor)
+                ThemePredefinedSpacingRow(token: .doubleExtraLargeSpacing, value: spacing.doubleExtraLarge, editor: editor)
+                ThemePredefinedSpacingRow(token: .threeExtraLargeSpacing, value: spacing.threeExtraLarge, editor: editor)
             } header: {
                 HStack {
                     Text("Predefined Scale")

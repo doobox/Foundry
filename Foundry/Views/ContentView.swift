@@ -31,10 +31,9 @@ struct ContentView: View {
     @State private var previewSessionApplicationIdentifier: String?
     @State private var isPreviewSessionOpen = false
     @State private var previewRefreshTask: Task<Void, Never>?
-    @State private var canvasViewportPreset: CanvasViewportPreset = .mobile
     @State private var canvasEditorOptions = CanvasEditorOptions()
     @State private var componentCatalog = ComponentPackageCatalog.shared
-    @State private var canvasViewportWidth = CanvasViewportPreset.mobile.viewportWidth
+    @State private var canvasViewportWidth = 390.0
     @AppStorage(AppPreferenceKey.appearance)
     private var appearance: AppAppearance = .system
     @AppStorage(AppPreferenceKey.externalPreviewAutoReload)
@@ -48,9 +47,9 @@ struct ContentView: View {
         let _ = componentCatalog.revision
         DockingWorkspaceView(
             layout: $workspaceLayout,
-            canvasViewportPreset: $canvasViewportPreset,
             canvasEditorOptions: $canvasEditorOptions,
             canvasViewportWidth: $canvasViewportWidth,
+            canvasScreens: document.site.theme.screens,
             openProjectSettings: {
                 projectSettingsSection = .general
                 showsProjectSettings = true
@@ -458,7 +457,7 @@ struct ContentView: View {
     }
 
     private var activeCanvasBreakpoint: ResponsiveBreakpoint {
-        ResponsiveBreakpoint.forViewportWidth(canvasViewportWidth)
+        ResponsiveBreakpoint.forViewportWidth(canvasViewportWidth, screens: document.site.theme.screens)
     }
 
     private var selectedComponent: ComponentNode? {

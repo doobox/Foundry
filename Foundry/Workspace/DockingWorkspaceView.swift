@@ -3,9 +3,9 @@ import SwiftUI
 
 struct DockingWorkspaceView<PanelContent: View>: View {
     @Binding var layout: WorkspaceLayout
-    @Binding var canvasViewportPreset: CanvasViewportPreset
     @Binding var canvasEditorOptions: CanvasEditorOptions
     @Binding var canvasViewportWidth: Double
+    let canvasScreens: ScreenTokens
     let openProjectSettings: () -> Void
     let openThemeEditor: () -> Void
     let previewSite: () -> Void
@@ -51,9 +51,9 @@ struct DockingWorkspaceView<PanelContent: View>: View {
                     if column.panels == [.canvas] {
                         FixedCanvasColumn(
                             columnID: column.id,
-                            viewportPreset: $canvasViewportPreset,
                             editorOptions: $canvasEditorOptions,
                             viewportWidth: $canvasViewportWidth,
+                            screens: canvasScreens,
                             openThemeEditor: openThemeEditor,
                             dockBeside: dockBeside,
                             content: { panelContent(.canvas) }
@@ -355,9 +355,9 @@ private struct CanvasOptionsButton: View {
 
 private struct FixedCanvasColumn<Content: View>: View {
     let columnID: UUID
-    @Binding var viewportPreset: CanvasViewportPreset
     @Binding var editorOptions: CanvasEditorOptions
     @Binding var viewportWidth: Double
+    let screens: ScreenTokens
     let openThemeEditor: () -> Void
     let dockBeside: (WorkspacePanel, UUID, Bool) -> Void
     @ViewBuilder let content: () -> Content
@@ -380,20 +380,19 @@ private struct FixedCanvasColumn<Content: View>: View {
                 .help("Open Theme Editor")
                 Spacer()
                 HStack(spacing: 12) {
-                    ForEach(CanvasViewportPreset.allCases) { preset in
+                    ForEach(screens.enabledScreens) { screen in
                         Button {
-                            viewportPreset = preset
-                            viewportWidth = preset.viewportWidth
+                            viewportWidth = screens.canvasWidth(for: screen)
                         } label: {
-                            Image(systemName: preset.systemImage)
+                            Image(systemName: screen.id.systemImage)
                                 .font(.system(size: 15, weight: .medium))
                                 .frame(width: 22, height: 22)
                                 .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
-                        .foregroundStyle(isSelected(preset) ? Color.accentColor : .secondary)
-                        .accessibilityLabel(preset.title)
-                        .help("\(preset.title) · \(Int(preset.viewportWidth)) px")
+                        .foregroundStyle(isSelected(screen) ? Color.accentColor : .secondary)
+                        .accessibilityLabel(screen.id.shortTitle)
+                        .help("\(screen.id.shortTitle) · \(Int(screens.canvasWidth(for: screen))) px")
                     }
                 }
             }
@@ -426,8 +425,8 @@ private struct FixedCanvasColumn<Content: View>: View {
         }
     }
 
-    private func isSelected(_ preset: CanvasViewportPreset) -> Bool {
-        abs(viewportWidth - preset.viewportWidth) < 0.5
+    private func isSelected(_ screen: ThemeScreen) -> Bool {
+        screens.activeScreen(for: viewportWidth).id == screen.id
     }
 
     private func dock(_ values: [WorkspacePanelDragPayload], before: Bool) -> Bool {

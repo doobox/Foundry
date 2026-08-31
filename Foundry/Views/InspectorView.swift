@@ -485,11 +485,21 @@ private struct ComponentInspectorGroup: View {
 
     var body: some View {
         DisclosureGroup(isExpanded: $isExpanded) {
-            InspectorGrid {
+            VStack(spacing: InspectorMetrics.controlSpacing) {
                 ForEach(properties) { definition in
-                    propertyEditor(for: definition)
+                    InspectorGrid(
+                        contentInsets: EdgeInsets(
+                            top: 0,
+                            leading: InspectorMetrics.horizontalSectionPadding,
+                            bottom: 0,
+                            trailing: InspectorMetrics.horizontalSectionPadding
+                        )
+                    ) {
+                        propertyEditor(for: definition)
+                    }
                 }
             }
+            .padding(.vertical, InspectorMetrics.verticalSectionPadding)
         } label: {
             Text(group.rawValue)
         }

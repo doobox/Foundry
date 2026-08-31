@@ -42,49 +42,51 @@ struct HTMLPageRenderer: PageRendering {
             \(theme.fontSourceCSS(assets: assets, destination: .canvas))
             :root {
               font-size: \(theme.typography.baseSize)px;
-              --background: \(theme.colors.background);
-              --surface: \(theme.colors.surface);
-              --text: \(theme.colors.text);
-              --accent: \(theme.colors.accent);
-              --font-body: \(theme.typography.bodyFont.cssFamily);
-              --font-heading: \(theme.typography.headingFont.cssFamily);
-              --font-monospace: \(theme.typography.monospacedFont.cssFamily);
+              --foundry-color-background: \(theme.colors.background);
+              --foundry-color-surface: \(theme.colors.surface);
+              --foundry-color-text: \(theme.colors.text);
+              --foundry-color-accent: \(theme.colors.accent);
+              --foundry-font-body: \(theme.typography.bodyFont.cssFamily);
+              --foundry-font-heading: \(theme.typography.headingFont.cssFamily);
+              --foundry-font-monospace: \(theme.typography.monospacedFont.cssFamily);
               \(theme.customFontCSSVariables)
               \(theme.fontSizeCSSVariables)
-              --editor-component: #0A84FF;
-              --editor-global: #34C759;
+              --foundry-editor-component: #0A84FF;
+              --foundry-editor-global: #34C759;
               \(theme.spacingCSSVariables)
             }
             *, *::before, *::after { box-sizing: border-box; }
+            \(theme.screens.containerCSS)
+            .foundry-container { width: 100%; max-width: var(--foundry-container-width) !important; }
             [data-foundry-id] {
-              --editor-chrome: var(--editor-component);
+              --foundry-editor-chrome: var(--foundry-editor-component);
               position: relative; cursor: default;
             }
-            [data-foundry-global] { --editor-chrome: var(--editor-global); }
+            [data-foundry-global] { --foundry-editor-chrome: var(--foundry-editor-global); }
             [data-foundry-global-override="true"],
             [data-foundry-global-override="true"] [data-foundry-global] {
-              --editor-chrome: var(--editor-component);
+              --foundry-editor-chrome: var(--foundry-editor-component);
             }
             [data-foundry-id]:hover:not(:has([data-foundry-id]:hover)) {
-              outline: 3px solid color-mix(in srgb, var(--editor-chrome) 55%, transparent); outline-offset: -3px;
+              outline: 3px solid color-mix(in srgb, var(--foundry-editor-chrome) 55%, transparent); outline-offset: -3px;
               border-radius: 2px !important;
             }
             [data-foundry-global]:hover:not(:has([data-foundry-id]:hover)) {
-              outline-color: var(--editor-chrome);
+              outline-color: var(--foundry-editor-chrome);
             }
             [data-foundry-global-override="true"]:hover:not(:has([data-foundry-id]:hover)),
             [data-foundry-global-override="true"] [data-foundry-global]:hover:not(:has([data-foundry-id]:hover)) {
-              outline-color: color-mix(in srgb, var(--editor-chrome) 55%, transparent);
+              outline-color: color-mix(in srgb, var(--foundry-editor-chrome) 55%, transparent);
             }
             html:not(.foundry-show-outlines) [data-foundry-id]:hover:not(:has([data-foundry-id]:hover)) {
               outline: none !important;
             }
             .foundry-multi-drag-image {
               position: fixed; left: -1000px; top: -1000px; z-index: 2000;
-              min-width: 132px; padding: 9px 13px; border: 2px solid var(--drag-color);
+              min-width: 132px; padding: 9px 13px; border: 2px solid var(--foundry-drag-color);
               border-radius: 8px; background: rgba(255,255,255,.96); color: #171719;
-              box-shadow: 4px 4px 0 color-mix(in srgb, var(--drag-color) 35%, white),
-                          8px 8px 0 color-mix(in srgb, var(--drag-color) 18%, white),
+              box-shadow: 4px 4px 0 color-mix(in srgb, var(--foundry-drag-color) 35%, white),
+                          8px 8px 0 color-mix(in srgb, var(--foundry-drag-color) 18%, white),
                           0 8px 24px rgba(0,0,0,.2);
               font: 600 12px system-ui; text-align: center;
             }
@@ -100,61 +102,61 @@ struct HTMLPageRenderer: PageRendering {
             }
             .foundry-global-menu button:hover { background: rgba(0,0,0,.08); }
             .foundry-selected {
-              outline: 3px solid var(--editor-chrome) !important; outline-offset: -3px;
+              outline: 3px solid var(--foundry-editor-chrome) !important; outline-offset: -3px;
               border-radius: 2px !important;
             }
             [contenteditable="true"]:focus:not(.foundry-selected) {
               outline: none !important;
             }
             .foundry-drag-source { opacity: 0.4 !important; }
-            [data-foundry-global].foundry-selected { outline-color: var(--editor-chrome) !important; }
+            [data-foundry-global].foundry-selected { outline-color: var(--foundry-editor-chrome) !important; }
             [data-foundry-global-override="true"].foundry-selected,
             [data-foundry-global-override="true"] [data-foundry-global].foundry-selected {
-              outline-color: var(--editor-chrome) !important;
+              outline-color: var(--foundry-editor-chrome) !important;
             }
-            .foundry-drop-before { box-shadow: inset 0 4px 0 var(--editor-chrome) !important; }
-            .foundry-drop-after { box-shadow: inset 0 -4px 0 var(--editor-chrome) !important; }
-            .foundry-drop-inside { outline: 4px dashed var(--editor-chrome) !important; outline-offset: -8px; }
-            .foundry-drop-end { border-color: var(--editor-chrome) !important; background: color-mix(in srgb, var(--editor-chrome) 12%, transparent) !important; }
-            [data-foundry-global].foundry-drop-before { box-shadow: inset 0 4px 0 var(--editor-chrome) !important; }
-            [data-foundry-global].foundry-drop-after { box-shadow: inset 0 -4px 0 var(--editor-chrome) !important; }
-            [data-foundry-global].foundry-drop-inside { outline-color: var(--editor-chrome) !important; }
+            .foundry-drop-before { box-shadow: inset 0 4px 0 var(--foundry-editor-chrome) !important; }
+            .foundry-drop-after { box-shadow: inset 0 -4px 0 var(--foundry-editor-chrome) !important; }
+            .foundry-drop-inside { outline: 4px dashed var(--foundry-editor-chrome) !important; outline-offset: -8px; }
+            .foundry-drop-end { border-color: var(--foundry-editor-chrome) !important; background: color-mix(in srgb, var(--foundry-editor-chrome) 12%, transparent) !important; }
+            [data-foundry-global].foundry-drop-before { box-shadow: inset 0 4px 0 var(--foundry-editor-chrome) !important; }
+            [data-foundry-global].foundry-drop-after { box-shadow: inset 0 -4px 0 var(--foundry-editor-chrome) !important; }
+            [data-foundry-global].foundry-drop-inside { outline-color: var(--foundry-editor-chrome) !important; }
             [data-foundry-global].foundry-drop-end {
-              border-color: var(--editor-chrome) !important;
-              background: color-mix(in srgb, var(--editor-chrome) 12%, transparent) !important;
+              border-color: var(--foundry-editor-chrome) !important;
+              background: color-mix(in srgb, var(--foundry-editor-chrome) 12%, transparent) !important;
             }
             .foundry-empty-drop-zone {
               display: grid; place-items: center; min-height: 64px; padding: 16px;
-              border: 2px dashed color-mix(in srgb, var(--editor-chrome) 42%, transparent);
-              border-radius: 10px; color: color-mix(in srgb, var(--text) 58%, transparent);
-              background: color-mix(in srgb, var(--surface) 72%, transparent);
+              border: 2px dashed color-mix(in srgb, var(--foundry-editor-chrome) 42%, transparent);
+              border-radius: 10px; color: color-mix(in srgb, var(--foundry-color-text) 58%, transparent);
+              background: color-mix(in srgb, var(--foundry-color-surface) 72%, transparent);
               font: 600 13px system-ui; text-align: center;
             }
             .foundry-empty-page { min-height: 100vh; }
             .foundry-contentless-drop-zone { min-height: 32px; padding: 6px 12px; }
-            .columns > .foundry-empty-drop-zone { grid-column: 1 / -1; }
+            .foundry-columns > .foundry-empty-drop-zone { grid-column: 1 / -1; }
             .foundry-editing {
-              cursor: text !important; outline: 3px solid var(--editor-chrome) !important;
+              cursor: text !important; outline: 3px solid var(--foundry-editor-chrome) !important;
               outline-offset: 4px; user-select: text; -webkit-user-select: text;
             }
             [data-foundry-global].foundry-empty-drop-zone {
-              border-color: color-mix(in srgb, var(--editor-chrome) 42%, transparent);
+              border-color: color-mix(in srgb, var(--foundry-editor-chrome) 42%, transparent);
             }
-            [data-foundry-global].foundry-editing { outline-color: var(--editor-chrome) !important; }
+            [data-foundry-global].foundry-editing { outline-color: var(--foundry-editor-chrome) !important; }
             html, body { min-height: 100%; }
             body {
-              margin: 0; background: var(--background);
-              color: var(--text); font-family: var(--font-body);
-              font-size: var(--font-size-base); line-height: var(--font-size-base-line-height);
+              margin: 0; background: var(--foundry-color-background);
+              color: var(--foundry-color-text); font-family: var(--foundry-font-body);
+              font-size: var(--foundry-font-size-base); line-height: var(--foundry-font-size-base-line-height);
             }
-            h1, h2, h3, h4, h5, h6, .heading { font-family: var(--font-heading); }
-            code, pre, kbd, samp { font-family: var(--font-monospace); }
-            .button {
+            h1, h2, h3, h4, h5, h6, .foundry-heading { font-family: var(--foundry-font-heading); }
+            code, pre, kbd, samp { font-family: var(--foundry-font-monospace); }
+            .foundry-button {
               display: block; width: fit-content; text-decoration: none; font-weight: 600;
             }
-            .columns { display: grid; }
-            .image { display: block; width: 100%; height: auto; }
-            .spacer { min-height: 8px; }
+            .foundry-columns { display: grid; }
+            .foundry-image { display: block; width: 100%; height: auto; }
+            .foundry-spacer { min-height: 8px; }
             .unavailable { padding: 16px; border: 2px dashed #C33; color: #922; background: #FFF5F5; }
             \(packageStyles(for: page, theme: theme, assets: assets, breakpoint: breakpoint))
             \(themeControlStyles(for: page, theme: theme, breakpoint: breakpoint))
@@ -300,7 +302,7 @@ struct HTMLPageRenderer: PageRendering {
         case .section:
             let style = sharedStyles(for: node, theme: theme).joined(separator: "; ")
             let children = renderedChildren(of: node, theme: theme, assets: assets, globalDefinitionID: globalDefinitionID, breakpoint: breakpoint)
-            return "<section class=\"section\" \(attributes(for: node, globalDefinitionID: globalDefinitionID)) style=\"\(style)\">\(children)</section>"
+            return "<section class=\"foundry-section\" \(attributes(for: node, globalDefinitionID: globalDefinitionID)) style=\"\(style)\">\(children)</section>"
         case .columns:
             let count = clamped(node.numberProperty(.columnCount), to: 1...6)
             let gap = clamped(node.numberProperty(.gap), to: 0...120)
@@ -309,7 +311,7 @@ struct HTMLPageRenderer: PageRendering {
                 "gap: \(gap)px"
             ]).joined(separator: "; ")
             let children = renderedChildren(of: node, theme: theme, assets: assets, globalDefinitionID: globalDefinitionID, breakpoint: breakpoint)
-            return "<section class=\"columns\" \(attributes(for: node, globalDefinitionID: globalDefinitionID)) style=\"\(style)\">\(children)</section>"
+            return "<section class=\"foundry-columns\" \(attributes(for: node, globalDefinitionID: globalDefinitionID)) style=\"\(style)\">\(children)</section>"
         case .text:
             let color = safeHex(node.colorProperty(.textColor, theme: theme), fallback: "#171719")
             let size = clamped(node.numberProperty(.fontSize), to: 10...120)
@@ -319,7 +321,7 @@ struct HTMLPageRenderer: PageRendering {
                 "font-size: \(size)px",
                 "text-align: \(alignment)"
             ]).joined(separator: "; ")
-            return "<div class=\"text\" \(attributes(for: node, globalDefinitionID: globalDefinitionID)) style=\"\(style)\">\(escape(node.property(.text)))</div>"
+            return "<div class=\"foundry-text\" \(attributes(for: node, globalDefinitionID: globalDefinitionID)) style=\"\(style)\">\(escape(node.property(.text)))</div>"
         case .heading:
             let color = safeHex(node.colorProperty(.textColor, theme: theme), fallback: "#171719")
             let size = clamped(node.numberProperty(.fontSize), to: 10...120)
@@ -328,7 +330,7 @@ struct HTMLPageRenderer: PageRendering {
             let style = (sharedStyles(for: node, theme: theme) + [
                 "color: \(color)", "font-size: \(size)px", "text-align: \(cssAlignment(node.property(.alignment)))"
             ]).joined(separator: "; ")
-            return "<h\(safeLevel) class=\"heading\" \(attributes(for: node, globalDefinitionID: globalDefinitionID)) style=\"\(style)\">\(escape(node.property(.text)))</h\(safeLevel)>"
+            return "<h\(safeLevel) class=\"foundry-heading\" \(attributes(for: node, globalDefinitionID: globalDefinitionID)) style=\"\(style)\">\(escape(node.property(.text)))</h\(safeLevel)>"
         case .button:
             let title = escape(node.property(.text))
             let link = resolvedLink(for: node)
@@ -342,23 +344,23 @@ struct HTMLPageRenderer: PageRendering {
                 "color: \(color)",
                 "font-size: \(size)px"
             ]).joined(separator: "; ")
-            return "<a class=\"button\" \(attributes(for: node, globalDefinitionID: globalDefinitionID)) style=\"\(style)\" href=\"\(escapeAttribute(link.href))\"\(target)\(ariaLabel)\(customAttributes)>\(title)</a>"
+            return "<a class=\"foundry-button\" \(attributes(for: node, globalDefinitionID: globalDefinitionID)) style=\"\(style)\" href=\"\(escapeAttribute(link.href))\"\(target)\(ariaLabel)\(customAttributes)>\(title)</a>"
         case .image:
             let source = escapeAttribute(canvasSource(node.property(.source), assets: assets))
             let altText = escapeAttribute(node.property(.altText))
             let style = sharedStyles(for: node, theme: theme).joined(separator: "; ")
             if source.isEmpty {
-                return "<div class=\"image foundry-empty-drop-zone\" \(attributes(for: node, globalDefinitionID: globalDefinitionID)) style=\"\(style)\">Drop an image here</div>"
+                return "<div class=\"foundry-image foundry-empty-drop-zone\" \(attributes(for: node, globalDefinitionID: globalDefinitionID)) style=\"\(style)\">Drop an image here</div>"
             }
-            return "<img class=\"image\" \(attributes(for: node, globalDefinitionID: globalDefinitionID)) style=\"\(style)\" src=\"\(source)\" alt=\"\(altText)\">"
+            return "<img class=\"foundry-image\" \(attributes(for: node, globalDefinitionID: globalDefinitionID)) style=\"\(style)\" src=\"\(source)\" alt=\"\(altText)\">"
         case .divider:
             let color = safeHex(node.colorProperty(.borderColor, theme: theme), fallback: "#D9D9DE")
             let width = clamped(node.numberProperty(.borderWidth), to: 1...24)
             let style = (sharedStyles(for: node, theme: theme) + ["border: 0", "border-top: \(width)px solid \(color)"]).joined(separator: "; ")
-            return "<hr class=\"divider\" \(attributes(for: node, globalDefinitionID: globalDefinitionID)) style=\"\(style)\">"
+            return "<hr class=\"foundry-divider\" \(attributes(for: node, globalDefinitionID: globalDefinitionID)) style=\"\(style)\">"
         case .spacer:
             let height = clamped(node.numberProperty(.height), to: 0...600)
-            return "<div class=\"spacer\" \(attributes(for: node, globalDefinitionID: globalDefinitionID)) style=\"min-height: \(height)px\"><div class=\"foundry-empty-drop-zone foundry-contentless-drop-zone\" data-foundry-adjacent-target=\"\(node.id.uuidString)\">Spacer · \(height)px — drop before or after</div></div>"
+            return "<div class=\"foundry-spacer\" \(attributes(for: node, globalDefinitionID: globalDefinitionID)) style=\"min-height: \(height)px\"><div class=\"foundry-empty-drop-zone foundry-contentless-drop-zone\" data-foundry-adjacent-target=\"\(node.id.uuidString)\">Spacer · \(height)px — drop before or after</div></div>"
         case .package:
             guard let package = node.type.definition.package else {
                 return unavailableComponent(node, theme: theme, assets: assets, globalDefinitionID: globalDefinitionID, breakpoint: breakpoint)

@@ -344,8 +344,8 @@ struct WebCanvasView: NSViewRepresentable {
                 dragImage.className = 'foundry-multi-drag-image';
                 dragImage.textContent = selectedComponentIDs.length + ' components';
                 dragImage.style.setProperty(
-                  '--drag-color',
-                  getComputedStyle(element).getPropertyValue('--editor-chrome').trim() || '#0A84FF'
+                  '--foundry-drag-color',
+                  getComputedStyle(element).getPropertyValue('--foundry-editor-chrome').trim() || '#0A84FF'
                 );
                 document.body.appendChild(dragImage);
                 event.dataTransfer.setDragImage(dragImage, 28, 20);
@@ -586,7 +586,7 @@ struct WebCanvasView: NSViewRepresentable {
             let accentColor = cssAccentColor
             Task {
                 _ = try? await webView.callAsyncJavaScript(
-                    "document.documentElement.style.setProperty('--editor-accent', accentColor); window.foundrySetEditorOptions?.(options); window.foundrySetSelection?.(componentIDs)",
+                    "document.documentElement.style.setProperty('--foundry-editor-accent', accentColor); window.foundrySetEditorOptions?.(options); window.foundrySetSelection?.(componentIDs)",
                     arguments: ["options": options, "componentIDs": componentIDs, "accentColor": accentColor],
                     in: nil,
                     contentWorld: .defaultClient

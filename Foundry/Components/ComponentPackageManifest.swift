@@ -106,6 +106,7 @@ nonisolated struct ComponentPackageProperty: Codable, Equatable, Identifiable, S
     let defaultValue: ComponentPackageValue
     let responsive: Bool
     let subtitles: [String]
+    let units: [String]
     let toolTip: String?
 
     enum CodingKeys: String, CodingKey {
@@ -115,6 +116,7 @@ nonisolated struct ComponentPackageProperty: Codable, Equatable, Identifiable, S
         case defaultValue = "default"
         case responsive
         case subtitles
+        case units
         case toolTip
     }
 
@@ -128,9 +130,11 @@ nonisolated struct ComponentPackageProperty: Codable, Equatable, Identifiable, S
 
         if control.count != nil {
             labels = try container.decode([String].self, forKey: .labels)
+            units = try container.decodeIfPresent([String].self, forKey: .units) ?? []
             label = ""
         } else {
             labels = []
+            units = [try container.decodeIfPresent(String.self, forKey: .units) ?? ""]
             label = try container.decodeIfPresent(String.self, forKey: .labels) ?? ""
         }
 
@@ -156,8 +160,14 @@ nonisolated struct ComponentPackageProperty: Codable, Equatable, Identifiable, S
         try container.encode(id, forKey: .id)
         if control.count != nil {
             try container.encode(labels, forKey: .labels)
+            if !units.isEmpty {
+                try container.encode(units, forKey: .units)
+            }
         } else if !label.isEmpty {
             try container.encode(label, forKey: .labels)
+            if let unit = units.first, !unit.isEmpty {
+                try container.encode(unit, forKey: .units)
+            }
         }
         try container.encode(group, forKey: .group)
         try container.encode(defaultValue, forKey: .defaultValue)
@@ -195,7 +205,6 @@ nonisolated struct ComponentPackageControl: Codable, Equatable, Sendable {
     let minimum: Double?
     let maximum: Double?
     let step: Double?
-    let unit: String?
     let options: [ComponentPackageOption]?
     let themeValues: Bool?
     let colorMath: Bool?

@@ -47,7 +47,7 @@
 			<integer>1</integer>
 			<key>type</key>
 			<string>number</string>
-			<key>unit</key>
+			<key>units</key>
 			<string>px</string>
 		</dict>
 		<dict>
@@ -85,7 +85,7 @@
 			<integer>1</integer>
 			<key>type</key>
 			<string>number</string>
-			<key>unit</key>
+			<key>units</key>
 			<string>px</string>
 		</dict>
 		<dict>
@@ -107,7 +107,7 @@
 			<integer>4</integer>
 			<key>type</key>
 			<string>number</string>
-			<key>unit</key>
+			<key>units</key>
 			<string>px</string>
 		</dict>
 		<dict>
@@ -129,7 +129,7 @@
 			<integer>20</integer>
 			<key>type</key>
 			<string>number</string>
-			<key>unit</key>
+			<key>units</key>
 			<string>px</string>
 		</dict>
 		<dict>

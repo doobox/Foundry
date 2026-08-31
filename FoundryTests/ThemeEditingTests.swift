@@ -83,7 +83,7 @@ struct ThemeEditingTests {
         let spacing = try #require(document.site.theme.spacing.custom.first(where: { $0.id == id }))
         #expect(spacing.name == "Hero Gap")
         #expect(spacing.value == 18)
-        #expect(document.site.theme.spacingCSSVariables.contains("\(spacing.cssVariable):calc(var(--spacing) * 18.0)"))
+        #expect(document.site.theme.spacingCSSVariables.contains("\(spacing.cssVariable):calc(var(--foundry-spacing-base) * 18.0)"))
 
         let data = try FoundryDocument.encoder.encode(document.site)
         let decoded = try FoundryDocument.decoder.decode(Site.self, from: data)
@@ -97,12 +97,19 @@ struct ThemeEditingTests {
     }
 
     @Test
-    func legacySpacingScaleGetsNewPredefinedDefaults() throws {
-        let data = Data(#"{"small":8,"medium":16,"large":32}"#.utf8)
+    func incompleteSpacingScaleGetsNewPredefinedDefaults() throws {
+        let data = Data(#"{"large":32}"#.utf8)
         let spacing = try JSONDecoder().decode(SpacingTokens.self, from: data)
 
-        #expect(spacing.extraSmall == 1)
-        #expect(spacing.extraLarge == 16)
+        #expect(spacing.threeExtraSmall == 1)
+        #expect(spacing.doubleExtraSmall == 2)
+        #expect(spacing.extraSmall == 3)
+        #expect(spacing.small == 4)
+        #expect(spacing.medium == 6)
+        #expect(spacing.large == 32)
+        #expect(spacing.extraLarge == 12)
+        #expect(spacing.doubleExtraLarge == 16)
+        #expect(spacing.threeExtraLarge == 24)
         #expect(spacing.custom.isEmpty)
     }
 
@@ -118,6 +125,54 @@ struct ThemeEditingTests {
 
         #expect(document.site.theme.spacing.usesStandardPredefinedScale)
         #expect(document.site.theme.spacing.custom.map(\.id) == [customID])
+    }
+
+    @Test
+    func themeScreensPersistContainerUnitsAndDriveResponsiveRanges() throws {
+        let document = FoundryDocument()
+        let editor = ProjectEditor(document: document, undoManager: UndoManager())
+
+        editor.setThemeScreenMinimumWidth(.medium, value: 820)
+        editor.setThemeScreenContainerUnit(.large, value: .viewportWidth)
+        editor.setThemeScreenContainerWidth(.large, value: 92)
+
+        #expect(ResponsiveBreakpoint.forViewportWidth(819, screens: document.site.theme.screens) == .mobile)
+        #expect(ResponsiveBreakpoint.forViewportWidth(820, screens: document.site.theme.screens) == .tabletPortrait)
+        #expect(document.site.theme.screens.containerCSS.contains("92vw"))
+
+        let data = try FoundryDocument.encoder.encode(document.site)
+        let decoded = try FoundryDocument.decoder.decode(Site.self, from: data)
+        #expect(decoded.theme.screens == document.site.theme.screens)
+    }
+
+    @Test
+    func screenContainerCSSSupportsAutoPixelsViewportAndPercent() {
+        var screens = ScreenTokens.standard
+        screens.update(.extraLarge) { $0.isEnabled = true }
+        screens.update(.small) { $0.container = .init(value: 700, unit: .pixels) }
+        screens.update(.medium) { $0.container = .init(value: 88, unit: .viewportWidth) }
+        screens.update(.large) { $0.container = .init(value: 94, unit: .percent) }
+
+        #expect(screens.containerCSS.contains("--foundry-container-width:none"))
+        #expect(screens.containerCSS.contains("700px"))
+        #expect(screens.containerCSS.contains("88vw"))
+        #expect(screens.containerCSS.contains("94%"))
+        #expect(screens.containerCSS.contains("1280px"))
+    }
+
+    @Test
+    func canvasScreenPresetsFollowEnabledThemeBreakpoints() {
+        var screens = ScreenTokens.standard
+        screens.update(.small) { $0.isEnabled = false }
+        screens.update(.medium) { $0.minimumWidth = 800 }
+
+        #expect(screens.enabledScreens.map(\.id).contains(.small) == false)
+        #expect(screens.canvasWidth(for: screens.screen(.medium)) == 800)
+        #expect(screens.activeScreen(for: 799).id == .mobile)
+        #expect(screens.activeScreen(for: 800).id == .medium)
+        #expect(screens.enabledScreens.map(\.id).contains(.extraLarge) == false)
+        #expect(screens.enabledScreens.map(\.id).contains(.doubleExtraLarge) == false)
+        #expect(screens.activeScreen(for: 1_600).id == .large)
     }
 
     @Test

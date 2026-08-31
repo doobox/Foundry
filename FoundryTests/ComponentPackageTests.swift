@@ -609,7 +609,7 @@ struct ComponentPackageTests {
     }
 
     @Test
-    func numberControlUnitIsOptionalAndLimitedToThreeCharacters() throws {
+    func numberControlUnitsAreOptionalAndLimitedToThreeCharacters() throws {
         let numberItem = """
         <dict>
             <key>id</key><string>spacing</string>
@@ -628,11 +628,11 @@ struct ComponentPackageTests {
             from: Data(manifestText.utf8)
         )
         let property = try #require(manifest.properties.first)
-        #expect(property.control.unit == nil)
+        #expect(property.units == [""])
 
         let invalidText = manifestText.replacingOccurrences(
             of: "<key>type</key><string>number</string>",
-            with: "<key>type</key><string>number</string><key>unit</key><string>pixels</string>"
+            with: "<key>type</key><string>number</string><key>units</key><string>pixels</string>"
         )
         let invalidManifest = try PropertyListDecoder().decode(
             ComponentPackageManifest.self,
@@ -647,7 +647,7 @@ struct ComponentPackageTests {
     }
 
     @Test
-    func sliderUsesContinuousDefaultStepVisualTicksAndOptionalUnit() throws {
+    func sliderUsesContinuousDefaultStepVisualTicksAndOptionalUnits() throws {
         let sliderItem = """
         <dict>
             <key>id</key><string>opacity</string>
@@ -656,7 +656,7 @@ struct ComponentPackageTests {
             <key>minimum</key><real>0</real>
             <key>maximum</key><real>100</real>
             <key>ticks</key><integer>11</integer>
-            <key>unit</key><string>%</string>
+            <key>units</key><string>%</string>
             <key>default</key><real>50</real>
             <key>responsive</key><false/>
         </dict>
@@ -683,6 +683,43 @@ struct ComponentPackageTests {
         #expect(ticks == 11)
         #expect(unit == "%")
         #expect(showsValueField)
+    }
+
+    @Test
+    func multiSliderSupportsOneDisplayUnitPerValue() throws {
+        let item = """
+        <dict>
+            <key>id</key><string>dimensions</string>
+            <key>labels</key>
+            <array><string>Width</string><string>Height</string><string>Opacity</string></array>
+            <key>type</key><string>slider</string>
+            <key>count</key><integer>3</integer>
+            <key>units</key>
+            <array><string>px</string><string>rem</string><string>%</string></array>
+            <key>default</key>
+            <array><real>20</real><real>4</real><real>80</real></array>
+            <key>responsive</key><false/>
+        </dict>
+        """
+        let manifestText = validManifest.replacingOccurrences(
+            of: "<key>customItems</key>",
+            with: "<key>customItems</key>\n            <array>\n                \(item)\n            </array>\n            <key>unusedItems</key>"
+        )
+        let packageURL = try makePackage(
+            manifest: manifestText,
+            template: "<output {{ component.attributes }}>{{ control.dimensions[0] }}{% slot id=\"content\" %}</output>"
+        )
+        defer { try? FileManager.default.removeItem(at: packageURL) }
+
+        let package = try ComponentPackageLoader.load(from: packageURL)
+        let property = try #require(ComponentPackageAdapter.definition(from: package).properties.first)
+        guard case .array(_, let count, _, _, let units, _) = property.control else {
+            Issue.record("Expected a multi control")
+            return
+        }
+
+        #expect(count == 3)
+        #expect(units == ["px", "rem", "%"])
     }
 
     @Test
@@ -767,7 +804,7 @@ struct ComponentPackageTests {
             <key>maximum</key><real>10</real>
             <key>step</key><real>-1</real>
             <key>ticks</key><integer>1</integer>
-            <key>unit</key><string>pixels</string>
+            <key>units</key><string>pixels</string>
             <key>default</key><real>10</real>
             <key>responsive</key><false/>
         </dict>
@@ -1018,7 +1055,7 @@ struct ComponentPackageTests {
         var paragraph = ComponentNode.make(.paragraph)
         var site = Site(name: "Line height", pages: [Page(title: "Home", slug: "index", components: [paragraph])])
         let themedHTML = HTMLPageRenderer(site: site).render(page: site.pages[0], theme: site.theme)
-        #expect(themedHTML.contains("line-height: var(--font-size-base-line-height)"))
+        #expect(themedHTML.contains("line-height: var(--foundry-font-size-base-line-height)"))
 
         paragraph.setProperty(.init(rawValue: "lineHeight"), value: .choice("loose"))
         site.pages[0].components = [paragraph]

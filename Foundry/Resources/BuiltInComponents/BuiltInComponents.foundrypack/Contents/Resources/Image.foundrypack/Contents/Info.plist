@@ -29,7 +29,7 @@
 			<real>10.0</real>
 			<key>type</key>
 			<string>number</string>
-			<key>unit</key>
+			<key>units</key>
 			<string>px</string>
 		</dict>
 		<dict>

@@ -5,6 +5,7 @@ enum InspectorMetrics {
     static let labelWidth: CGFloat = 90
     static let columnSpacing: CGFloat = 12
     static let rowSpacing: CGFloat = 10
+    static let controlSpacing: CGFloat = 20
     static let horizontalSectionPadding: CGFloat = 16
     static let verticalSectionPadding: CGFloat = 12
 }
@@ -23,8 +24,18 @@ private extension ControlSize {
 
 struct InspectorGrid<Content: View>: View {
     private let content: Content
+    private let contentInsets: EdgeInsets
 
-    init(@ViewBuilder content: () -> Content) {
+    init(
+        contentInsets: EdgeInsets = EdgeInsets(
+            top: InspectorMetrics.verticalSectionPadding,
+            leading: InspectorMetrics.horizontalSectionPadding,
+            bottom: InspectorMetrics.verticalSectionPadding,
+            trailing: InspectorMetrics.horizontalSectionPadding
+        ),
+        @ViewBuilder content: () -> Content
+    ) {
+        self.contentInsets = contentInsets
         self.content = content()
     }
 
@@ -37,8 +48,7 @@ struct InspectorGrid<Content: View>: View {
             content
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, InspectorMetrics.horizontalSectionPadding)
-        .padding(.vertical, InspectorMetrics.verticalSectionPadding)
+        .padding(contentInsets)
         .controlSize(.small)
         .font(.callout)
     }
