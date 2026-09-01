@@ -13,7 +13,7 @@ struct DockingWorkspaceView<PanelContent: View>: View {
     @ViewBuilder let panelContent: (WorkspacePanel) -> PanelContent
     @Environment(WorkspacePresetLibrary.self) private var workspaceLibrary
     @Environment(\.openWindow) private var openWindow
-    @State private var selectedWorkspaceID: UUID?
+    @SceneStorage("foundry.workspace.selectedPresetID") private var selectedWorkspaceIDValue = ""
     @State private var isNamingPreset = false
     @State private var presetName = ""
     @State private var showsInspector = true
@@ -145,6 +145,7 @@ struct DockingWorkspaceView<PanelContent: View>: View {
                         }
                     }
                 }
+                .id(splitColumnIDs)
             }
         }
         .frame(minWidth: requiredMinimumWidth)
@@ -155,6 +156,11 @@ struct DockingWorkspaceView<PanelContent: View>: View {
                 .disabled(presetName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
         } message: {
             Text("Save the current panels, tabs, windows, and column widths.")
+        }
+        .onChange(of: workspaceLibrary.presets.map(\.id), initial: true) { _, presetIDs in
+            if let selectedWorkspaceID, !presetIDs.contains(selectedWorkspaceID) {
+                setSelectedWorkspaceID(nil)
+            }
         }
         .background {
             WindowMinimumContentSize(
@@ -170,6 +176,12 @@ struct DockingWorkspaceView<PanelContent: View>: View {
             EditorWindowSize.minimumWidth,
             minimumWidth(for: layout.columns.filter { $0.role != .inspectorDock })
         )
+    }
+
+    private var splitColumnIDs: [UUID] {
+        layout.columns
+            .filter { $0.role != .sidebarDock }
+            .map(\.id)
     }
 
     private var requiredMinimumWidth: CGFloat {
@@ -242,31 +254,33 @@ struct DockingWorkspaceView<PanelContent: View>: View {
 
     private var workspacePresetsMenu: some View {
         Menu("Workspaces", systemImage: "rectangle.split.3x1") {
-            Button {
-                layout.reset()
-                showsInspector = true
-                selectedWorkspaceID = nil
-            } label: {
-                if selectedWorkspaceID == nil {
-                    Label("Default Workspace", systemImage: "checkmark")
-                } else {
-                    Text("Default Workspace")
-                }
-            }
+            Toggle(
+                "Default Workspace",
+                isOn: Binding(
+                    get: { selectedWorkspaceID == nil },
+                    set: { isSelected in
+                        guard isSelected else { return }
+                        layout.reset()
+                        showsInspector = true
+                        setSelectedWorkspaceID(nil)
+                    }
+                )
+            )
 
             if !workspaceLibrary.presets.isEmpty {
                 Divider()
                 ForEach(workspaceLibrary.presets) { preset in
-                    Button {
-                        layout = preset.layout
-                        selectedWorkspaceID = preset.id
-                    } label: {
-                        if selectedWorkspaceID == preset.id {
-                            Label(preset.name, systemImage: "checkmark")
-                        } else {
-                            Text(preset.name)
-                        }
-                    }
+                    Toggle(
+                        preset.name,
+                        isOn: Binding(
+                            get: { selectedWorkspaceID == preset.id },
+                            set: { isSelected in
+                                guard isSelected else { return }
+                                layout = preset.layout
+                                setSelectedWorkspaceID(preset.id)
+                            }
+                        )
+                    )
                 }
             }
 
@@ -308,7 +322,15 @@ struct DockingWorkspaceView<PanelContent: View>: View {
     private func savePreset() {
         let name = presetName.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !name.isEmpty else { return }
-        selectedWorkspaceID = workspaceLibrary.save(name: name, layout: layout)
+        setSelectedWorkspaceID(workspaceLibrary.save(name: name, layout: layout))
+    }
+
+    private var selectedWorkspaceID: UUID? {
+        UUID(uuidString: selectedWorkspaceIDValue)
+    }
+
+    private func setSelectedWorkspaceID(_ id: UUID?) {
+        selectedWorkspaceIDValue = id?.uuidString ?? ""
     }
 }
 
