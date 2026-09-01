@@ -21,12 +21,12 @@ struct DockingWorkspaceView<PanelContent: View>: View {
     var body: some View {
         NavigationSplitView {
             ForEach($layout.columns) { $column in
-                if column.id == sidebarColumnID {
-                    let panelSizing = sizing(for: column.panels)
+                if column.role == .sidebarDock {
+                    let panelSizing = sizing(for: column)
                     WorkspaceColumnView(
                         column: $column,
                         usesSidebarMaterial: true,
-                        canMoveSelectedTab: column.panels.count > 1,
+                        canMoveSelectedTab: column.panels.count > 1 || column.role.isPersistentDock,
                         movePanel: movePanel,
                         dockBeside: dockBeside,
                         moveToNewColumn: { panel in
@@ -49,52 +49,52 @@ struct DockingWorkspaceView<PanelContent: View>: View {
             HStack(spacing: 0) {
                 HSplitView {
                     ForEach($layout.columns) { $column in
-                    if column.panels == [.canvas] {
-                        FixedCanvasColumn(
-                            columnID: column.id,
-                            editorOptions: $canvasEditorOptions,
-                            viewportWidth: $canvasViewportWidth,
-                            screens: canvasScreens,
-                            openThemeEditor: openThemeEditor,
-                            dockBeside: dockBeside,
-                            content: { panelContent(.canvas) }
-                        )
-                        .frame(minWidth: 0, idealWidth: 760, maxWidth: .infinity)
-                        .layoutPriority(-1)
-                        .toolbar {
-                            ToolbarItem {
-                                workspacePresetsMenu
+                        if column.role == .canvas {
+                            FixedCanvasColumn(
+                                columnID: column.id,
+                                editorOptions: $canvasEditorOptions,
+                                viewportWidth: $canvasViewportWidth,
+                                screens: canvasScreens,
+                                openThemeEditor: openThemeEditor,
+                                dockBeside: dockBeside,
+                                content: { panelContent(.canvas) }
+                            )
+                            .frame(minWidth: 0, idealWidth: 760, maxWidth: .infinity)
+                            .layoutPriority(-1)
+                            .toolbar {
+                                ToolbarItem {
+                                    workspacePresetsMenu
+                                }
+                                ToolbarSpacer(.fixed)
+                                ToolbarItem {
+                                    Button("Preview Site", systemImage: "safari", action: previewSite)
+                                        .help("Generate and open a production preview")
+                                }
                             }
-                            ToolbarSpacer(.fixed)
-                            ToolbarItem {
-                                Button("Preview Site", systemImage: "safari", action: previewSite)
-                                    .help("Generate and open a production preview")
-                            }
+                        } else if column.role != .sidebarDock
+                                    && (column.role != .inspectorDock || showsInspector) {
+                            let panelSizing = sizing(for: column)
+                            WorkspaceColumnView(
+                                column: $column,
+                                usesSidebarMaterial: false,
+                                canMoveSelectedTab: column.panels.count > 1 || column.role.isPersistentDock,
+                                movePanel: movePanel,
+                                dockBeside: dockBeside,
+                                moveToNewColumn: { panel in
+                                    layout.moveToNewColumn(panel, after: column.id)
+                                },
+                                detachPanel: { panel in
+                                    layout.detach(panel)
+                                },
+                                panelContent: panelContent
+                            )
+                            .frame(
+                                minWidth: panelSizing.minimum,
+                                idealWidth: preferredWidth(for: column, sizing: panelSizing),
+                                maxWidth: panelSizing.maximum
+                            )
+                            .captureWidth($column.preferredWidth, constrainedBy: panelSizing)
                         }
-                    } else if column.id != sidebarColumnID
-                                && (column.id != inspectorColumnID || showsInspector) {
-                        let panelSizing = sizing(for: column.panels)
-                        WorkspaceColumnView(
-                            column: $column,
-                            usesSidebarMaterial: false,
-                            canMoveSelectedTab: column.panels.count > 1,
-                            movePanel: movePanel,
-                            dockBeside: dockBeside,
-                            moveToNewColumn: { panel in
-                                layout.moveToNewColumn(panel, after: column.id)
-                            },
-                            detachPanel: { panel in
-                                layout.detach(panel)
-                            },
-                            panelContent: panelContent
-                        )
-                        .frame(
-                            minWidth: panelSizing.minimum,
-                            idealWidth: preferredWidth(for: column, sizing: panelSizing),
-                            maxWidth: panelSizing.maximum
-                        )
-                        .captureWidth($column.preferredWidth, constrainedBy: panelSizing)
-                    }
                     }
                 }
             }
@@ -147,18 +147,17 @@ struct DockingWorkspaceView<PanelContent: View>: View {
     private var workspaceMinimumWidth: CGFloat {
         max(
             EditorWindowSize.minimumWidth,
-            minimumWidth(for: layout.columns.filter { $0.id != inspectorColumnID })
+            minimumWidth(for: layout.columns.filter { $0.role != .inspectorDock })
         )
     }
 
     private var requiredMinimumWidth: CGFloat {
         guard showsInspector,
-              let inspectorColumnID,
-              let inspectorColumn = layout.columns.first(where: { $0.id == inspectorColumnID }) else {
+              let inspectorColumn = layout.columns.first(where: { $0.role == .inspectorDock }) else {
             return workspaceMinimumWidth
         }
 
-        let inspectorSizing = sizing(for: inspectorColumn.panels)
+        let inspectorSizing = sizing(for: inspectorColumn)
         let inspectorWidth = preferredWidth(for: inspectorColumn, sizing: inspectorSizing)
         let inspectorDividerWidth: CGFloat = 10
         return workspaceMinimumWidth + inspectorDividerWidth + inspectorWidth
@@ -167,26 +166,14 @@ struct DockingWorkspaceView<PanelContent: View>: View {
     private func minimumWidth(for columns: [WorkspaceColumn]) -> CGFloat {
         let splitDividerWidth: CGFloat = 10
         let columnWidths = columns.reduce(CGFloat.zero) { width, column in
-            let panelSizing = sizing(for: column.panels)
-            let requiredColumnWidth = column.panels == [.canvas]
+            let panelSizing = sizing(for: column)
+            let requiredColumnWidth = column.role == .canvas
                 ? panelSizing.minimum
                 : preferredWidth(for: column, sizing: panelSizing)
             return width + requiredColumnWidth
         }
         let dividerWidths = CGFloat(max(columns.count - 1, 0)) * splitDividerWidth
         return columnWidths + dividerWidths
-    }
-
-    private var sidebarColumnID: UUID? {
-        guard let canvasIndex = layout.columns.firstIndex(where: { $0.panels == [.canvas] }),
-              canvasIndex > layout.columns.startIndex else { return nil }
-        return layout.columns.first?.id
-    }
-
-    private var inspectorColumnID: UUID? {
-        guard let canvasIndex = layout.columns.firstIndex(where: { $0.panels == [.canvas] }),
-              canvasIndex < layout.columns.index(before: layout.columns.endIndex) else { return nil }
-        return layout.columns.last?.id
     }
 
     private func movePanel(_ panel: WorkspacePanel, _ destinationID: UUID, _ target: WorkspacePanel?) {
@@ -197,8 +184,20 @@ struct DockingWorkspaceView<PanelContent: View>: View {
         layout.dockAsColumn(panel, beside: columnID, before: before)
     }
 
-    private func sizing(for panels: [WorkspacePanel]) -> PanelSizing {
-        panels.map(PanelSizing.init).reduce(.zero) { $0.combined(with: $1) }
+    private func sizing(for column: WorkspaceColumn) -> PanelSizing {
+        guard !column.panels.isEmpty else {
+            switch column.role {
+            case .sidebarDock:
+                return PanelSizing(panel: .pages)
+            case .inspectorDock:
+                return PanelSizing(panel: .inspector)
+            case .canvas:
+                return PanelSizing(panel: .canvas)
+            case .workspace:
+                return .zero
+            }
+        }
+        return column.panels.map(PanelSizing.init).reduce(.zero) { $0.combined(with: $1) }
     }
 
     private func preferredWidth(for column: WorkspaceColumn, sizing: PanelSizing) -> CGFloat {
@@ -568,17 +567,21 @@ private struct WorkspaceColumnView<PanelContent: View>: View {
         VStack(spacing: 0) {
             tabBar
             Divider()
-            HStack {
-                Text(column.selectedPanel.title)
-                    .font(.headline)
-                Spacer()
+            if column.panels.isEmpty {
+                emptyDockContent
+            } else {
+                HStack {
+                    Text(column.selectedPanel.title)
+                        .font(.headline)
+                    Spacer()
+                }
+                .padding(.horizontal, 12)
+                .frame(height: 38)
+                Divider()
+                panelContent(column.selectedPanel)
+                    .scrollContentBackground(.hidden)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
-            .padding(.horizontal, 12)
-            .frame(height: 38)
-            Divider()
-            panelContent(column.selectedPanel)
-                .scrollContentBackground(.hidden)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .background {
             if usesSidebarMaterial {
@@ -603,6 +606,21 @@ private struct WorkspaceColumnView<PanelContent: View>: View {
                 } isTargeted: {
                     trailingTargeted = $0
                 }
+        }
+    }
+
+    private var emptyDockContent: some View {
+        VStack(spacing: 10) {
+            Image(systemName: "square.and.arrow.down")
+                .font(.system(size: 28))
+            Text("Dock a panel here")
+                .font(.headline)
+        }
+        .foregroundStyle(.tertiary)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .contentShape(Rectangle())
+        .dropDestination(for: WorkspacePanelDragPayload.self) { values, _ in
+            accept(values, before: nil)
         }
     }
 

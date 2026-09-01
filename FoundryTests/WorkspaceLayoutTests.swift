@@ -9,6 +9,7 @@ struct WorkspaceLayoutTests {
 
         #expect(panels.count == WorkspacePanel.allCases.count)
         #expect(Set(panels) == Set(WorkspacePanel.allCases))
+        #expect(WorkspaceLayout.standard.columns.map(\.role) == [.sidebarDock, .canvas, .inspectorDock])
     }
 
     @Test
@@ -102,6 +103,74 @@ struct WorkspaceLayoutTests {
         let decoded = try JSONDecoder().decode(WorkspaceLayout.self, from: legacyData)
 
         #expect(decoded.columns.allSatisfy { $0.preferredWidth == nil })
+    }
+
+    @Test
+    func olderLayoutWithoutRolesMigratesPersistentDocks() throws {
+        let data = try JSONEncoder().encode(WorkspaceLayout.standard)
+        var object = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        var columns = try #require(object["columns"] as? [[String: Any]])
+        for index in columns.indices {
+            columns[index].removeValue(forKey: "role")
+        }
+        object["columns"] = columns
+        let legacyData = try JSONSerialization.data(withJSONObject: object)
+
+        let decoded = try JSONDecoder().decode(WorkspaceLayout.self, from: legacyData)
+
+        #expect(decoded.columns.map(\.role) == [.sidebarDock, .canvas, .inspectorDock])
+    }
+
+    @Test
+    func legacyLayoutWithPanelsLeftOfCanvasAddsEmptyInspectorDock() throws {
+        let legacyLayout = WorkspaceLayout(columns: [
+            WorkspaceColumn(panels: [.pages, .components, .assets]),
+            WorkspaceColumn(panels: [.structure]),
+            WorkspaceColumn(panels: [.inspector, .globalComponents, .reusableComponents]),
+            WorkspaceColumn(panels: [.canvas])
+        ])
+        let data = try JSONEncoder().encode(legacyLayout)
+        var object = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        var columns = try #require(object["columns"] as? [[String: Any]])
+        for index in columns.indices {
+            columns[index].removeValue(forKey: "role")
+        }
+        object["columns"] = columns
+        let legacyData = try JSONSerialization.data(withJSONObject: object)
+
+        let decoded = try JSONDecoder().decode(WorkspaceLayout.self, from: legacyData)
+
+        #expect(decoded.columns.first?.role == .sidebarDock)
+        #expect(decoded.columns.last?.role == .inspectorDock)
+        #expect(decoded.columns.last?.panels.isEmpty == true)
+        #expect(decoded.columns.dropLast().flatMap(\.panels).contains(.inspector))
+    }
+
+    @Test
+    func movingLastInspectorTabKeepsEmptyInspectorDock() {
+        var layout = WorkspaceLayout.standard
+        let sidebarID = layout.columns[0].id
+
+        layout.move(.inspector, to: sidebarID)
+
+        let inspectorDock = layout.columns.first(where: { $0.role == .inspectorDock })
+        #expect(inspectorDock != nil)
+        #expect(inspectorDock?.panels.isEmpty == true)
+        #expect(layout.columns.last?.role == .inspectorDock)
+    }
+
+    @Test
+    func movingEverySidebarTabKeepsEmptySidebarDock() {
+        var layout = WorkspaceLayout.standard
+        let inspectorID = layout.columns[2].id
+        let sidebarPanels = layout.columns[0].panels
+
+        for panel in sidebarPanels {
+            layout.move(panel, to: inspectorID)
+        }
+
+        #expect(layout.columns.first?.role == .sidebarDock)
+        #expect(layout.columns.first?.panels.isEmpty == true)
     }
 
     @Test

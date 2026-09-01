@@ -53,22 +53,64 @@ nonisolated enum WorkspacePanel: String, Codable, CaseIterable, Identifiable, Se
     }
 }
 
+nonisolated enum WorkspaceColumnRole: String, Codable, Sendable {
+    case sidebarDock
+    case workspace
+    case canvas
+    case inspectorDock
+
+    var isPersistentDock: Bool {
+        self == .sidebarDock || self == .inspectorDock
+    }
+
+    var emptySelection: WorkspacePanel {
+        switch self {
+        case .sidebarDock: .pages
+        case .inspectorDock: .inspector
+        case .canvas: .canvas
+        case .workspace: .pages
+        }
+    }
+}
+
 nonisolated struct WorkspaceColumn: Codable, Equatable, Identifiable, Sendable {
     let id: UUID
+    var role: WorkspaceColumnRole
     var panels: [WorkspacePanel]
     var selectedPanel: WorkspacePanel
     var preferredWidth: Double?
 
     init(
         id: UUID = UUID(),
+        role: WorkspaceColumnRole = .workspace,
         panels: [WorkspacePanel],
         selectedPanel: WorkspacePanel? = nil,
         preferredWidth: Double? = nil
     ) {
         self.id = id
+        self.role = role
         self.panels = panels
-        self.selectedPanel = selectedPanel ?? panels.first ?? .canvas
+        self.selectedPanel = selectedPanel ?? panels.first ?? role.emptySelection
         self.preferredWidth = preferredWidth
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id
+        case role
+        case panels
+        case selectedPanel
+        case preferredWidth
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(UUID.self, forKey: .id)
+        role = try container.decodeIfPresent(WorkspaceColumnRole.self, forKey: .role) ?? .workspace
+        panels = try container.decode([WorkspacePanel].self, forKey: .panels)
+        selectedPanel = try container.decodeIfPresent(WorkspacePanel.self, forKey: .selectedPanel)
+            ?? panels.first
+            ?? role.emptySelection
+        preferredWidth = try container.decodeIfPresent(Double.self, forKey: .preferredWidth)
     }
 }
 
@@ -98,17 +140,21 @@ nonisolated struct WorkspaceLayout: Codable, Equatable, Sendable {
     }
 
     static let standard = WorkspaceLayout(columns: [
-        WorkspaceColumn(panels: [.pages, .components, .reusableComponents, .globalComponents, .structure, .assets], selectedPanel: .pages),
-        WorkspaceColumn(panels: [.canvas]),
-        WorkspaceColumn(panels: [.inspector])
+        WorkspaceColumn(
+            role: .sidebarDock,
+            panels: [.pages, .components, .reusableComponents, .globalComponents, .structure, .assets],
+            selectedPanel: .pages
+        ),
+        WorkspaceColumn(role: .canvas, panels: [.canvas]),
+        WorkspaceColumn(role: .inspectorDock, panels: [.inspector])
     ])
 
     mutating func move(_ panel: WorkspacePanel, to destinationID: UUID, before target: WorkspacePanel? = nil) {
         guard panel != .canvas,
-              columns.first(where: { $0.id == destinationID })?.panels != [.canvas] else { return }
+              columns.first(where: { $0.id == destinationID })?.role != .canvas else { return }
         remove(panel)
         guard let destinationIndex = columns.firstIndex(where: { $0.id == destinationID }) else {
-            columns.append(WorkspaceColumn(panels: [panel]))
+            insertWorkspaceColumn(WorkspaceColumn(panels: [panel]), at: columns.endIndex)
             return
         }
         let insertionIndex = target.flatMap {
@@ -122,21 +168,26 @@ nonisolated struct WorkspaceLayout: Codable, Equatable, Sendable {
         guard panel != .canvas else { return }
         remove(panel)
         guard let index = columns.firstIndex(where: { $0.id == columnID }) else {
-            columns.append(WorkspaceColumn(panels: [panel]))
+            insertWorkspaceColumn(WorkspaceColumn(panels: [panel]), at: columns.endIndex)
             return
         }
-        columns.insert(WorkspaceColumn(panels: [panel]), at: index + (before ? 0 : 1))
+        insertWorkspaceColumn(
+            WorkspaceColumn(panels: [panel]),
+            at: index + (before ? 0 : 1)
+        )
     }
 
     mutating func moveToNewColumn(_ panel: WorkspacePanel, after sourceColumnID: UUID) {
         guard panel != .canvas else { return }
-        guard columns.first(where: { $0.id == sourceColumnID })?.panels.count ?? 0 > 1 else { return }
+        guard let source = columns.first(where: { $0.id == sourceColumnID }),
+              source.panels.count > 1 || source.role.isPersistentDock else { return }
         dockAsColumn(panel, beside: sourceColumnID, before: false)
     }
 
     mutating func detach(_ panel: WorkspacePanel, frame: WorkspaceWindowFrame = .initial) {
         guard panel != .canvas else { return }
-        guard columns.first(where: { $0.panels.contains(panel) })?.panels.count ?? 0 > 1 else { return }
+        guard let source = columns.first(where: { $0.panels.contains(panel) }),
+              source.panels.count > 1 || source.role.isPersistentDock else { return }
         remove(panel)
         detachedPanels.append(.init(panel: panel, frame: frame))
     }
@@ -150,12 +201,10 @@ nonisolated struct WorkspaceLayout: Codable, Equatable, Sendable {
         guard panel != .canvas else { return }
         guard detachedPanels.contains(where: { $0.panel == panel }) else { return }
         detachedPanels.removeAll(where: { $0.panel == panel })
-        if columns.isEmpty {
-            columns = [WorkspaceColumn(panels: [panel])]
-        } else {
-            columns[0].panels.append(panel)
-            columns[0].selectedPanel = panel
-        }
+        let destinationRole: WorkspaceColumnRole = panel == .inspector ? .inspectorDock : .sidebarDock
+        guard let index = columns.firstIndex(where: { $0.role == destinationRole }) else { return }
+        columns[index].panels.append(panel)
+        columns[index].selectedPanel = panel
     }
 
     mutating func activate(_ panel: WorkspacePanel) {
@@ -188,17 +237,26 @@ nonisolated struct WorkspaceLayout: Codable, Equatable, Sendable {
             columns[index].panels.removeAll(where: { $0 == panel })
             if columns[index].selectedPanel == panel, let replacement = columns[index].panels.first {
                 columns[index].selectedPanel = replacement
+            } else if columns[index].panels.isEmpty {
+                columns[index].selectedPanel = columns[index].role.emptySelection
             }
         }
-        columns.removeAll(where: { $0.panels.isEmpty })
+        columns.removeAll(where: { $0.panels.isEmpty && !$0.role.isPersistentDock })
     }
 
     mutating func addMissingUtilityPanels() {
+        normalizeColumnRoles()
         let existing = Set(columns.flatMap(\.panels) + detachedPanels.map(\.panel))
         let missing = WorkspacePanel.allCases.filter { !existing.contains($0) && $0 != .canvas }
         guard !missing.isEmpty else { return }
-        if let index = columns.firstIndex(where: { $0.panels != [.canvas] }) {
-            columns[index].panels.append(contentsOf: missing)
+
+        for panel in missing {
+            let destinationRole: WorkspaceColumnRole = panel == .inspector ? .inspectorDock : .sidebarDock
+            guard let index = columns.firstIndex(where: { $0.role == destinationRole }) else { continue }
+            columns[index].panels.append(panel)
+            if columns[index].panels.count == 1 {
+                columns[index].selectedPanel = panel
+            }
         }
     }
 
@@ -207,9 +265,16 @@ nonisolated struct WorkspaceLayout: Codable, Equatable, Sendable {
         return !columns.isEmpty &&
             Set(panels) == Set(WorkspacePanel.allCases) &&
             panels.count == WorkspacePanel.allCases.count &&
-            columns.contains(where: { $0.panels == [.canvas] }) &&
+            columns.filter { $0.role == .sidebarDock }.count == 1 &&
+            columns.filter { $0.role == .canvas }.count == 1 &&
+            columns.filter { $0.role == .inspectorDock }.count == 1 &&
+            columns.first?.role == .sidebarDock &&
+            columns.last?.role == .inspectorDock &&
+            columns.contains(where: { $0.role == .canvas && $0.panels == [.canvas] }) &&
             !detachedPanels.contains(where: { $0.panel == .canvas }) &&
-            columns.allSatisfy { $0.panels.contains($0.selectedPanel) }
+            columns.allSatisfy {
+                $0.panels.contains($0.selectedPanel) || ($0.panels.isEmpty && $0.role.isPersistentDock)
+            }
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -221,6 +286,47 @@ nonisolated struct WorkspaceLayout: Codable, Equatable, Sendable {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         columns = try container.decode([WorkspaceColumn].self, forKey: .columns)
         detachedPanels = try container.decodeIfPresent([DetachedWorkspacePanel].self, forKey: .detachedPanels) ?? []
+        normalizeColumnRoles()
+    }
+
+    private mutating func insertWorkspaceColumn(_ column: WorkspaceColumn, at proposedIndex: Int) {
+        let lowerBound = (columns.firstIndex(where: { $0.role == .sidebarDock }) ?? -1) + 1
+        let upperBound = columns.firstIndex(where: { $0.role == .inspectorDock }) ?? columns.endIndex
+        columns.insert(column, at: min(max(proposedIndex, lowerBound), upperBound))
+    }
+
+    private mutating func normalizeColumnRoles() {
+        if let canvasIndex = columns.firstIndex(where: { $0.panels == [.canvas] }) {
+            columns[canvasIndex].role = .canvas
+        } else if let canvasIndex = columns.firstIndex(where: { $0.role == .canvas }) {
+            columns[canvasIndex].panels = [.canvas]
+            columns[canvasIndex].selectedPanel = .canvas
+        }
+
+        if !columns.contains(where: { $0.role == .sidebarDock }) {
+            if let canvasIndex = columns.firstIndex(where: { $0.role == .canvas }), canvasIndex > 0 {
+                columns[0].role = .sidebarDock
+            } else {
+                columns.insert(WorkspaceColumn(role: .sidebarDock, panels: []), at: 0)
+            }
+        }
+
+        if !columns.contains(where: { $0.role == .inspectorDock }) {
+            if let canvasIndex = columns.firstIndex(where: { $0.role == .canvas }),
+               canvasIndex < columns.index(before: columns.endIndex) {
+                columns[columns.index(before: columns.endIndex)].role = .inspectorDock
+            } else {
+                columns.append(WorkspaceColumn(role: .inspectorDock, panels: []))
+            }
+        }
+
+        if let sidebarIndex = columns.firstIndex(where: { $0.role == .sidebarDock }), sidebarIndex != 0 {
+            columns.insert(columns.remove(at: sidebarIndex), at: 0)
+        }
+        if let inspectorIndex = columns.firstIndex(where: { $0.role == .inspectorDock }),
+           inspectorIndex != columns.index(before: columns.endIndex) {
+            columns.append(columns.remove(at: inspectorIndex))
+        }
     }
 
     private static let storageKey = "foundry.workspace.layout.v1"
