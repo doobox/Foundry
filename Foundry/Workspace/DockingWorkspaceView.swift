@@ -18,6 +18,7 @@ struct DockingWorkspaceView<PanelContent: View>: View {
     @State private var presetName = ""
     @State private var showsInspector = true
     @State private var inspectorIsTransitioning = false
+    @State private var workspacePresentationID = UUID()
 
     var body: some View {
         NavigationSplitView {
@@ -62,6 +63,7 @@ struct DockingWorkspaceView<PanelContent: View>: View {
                             )
                             .frame(minWidth: 0, idealWidth: 760, maxWidth: .infinity)
                             .layoutPriority(-1)
+                            .splitPaneHoldingPriority(.defaultLow)
                             .toolbar {
                                 ToolbarItem {
                                     workspacePresetsMenu
@@ -145,8 +147,9 @@ struct DockingWorkspaceView<PanelContent: View>: View {
                         }
                     }
                 }
-                .id(splitColumnIDs)
+                .id(splitColumnIDs + [workspacePresentationID])
             }
+            .splitPaneHoldingPriority(.defaultLow)
         }
         .frame(minWidth: requiredMinimumWidth)
         .alert("Save Workspace As", isPresented: $isNamingPreset) {
@@ -254,18 +257,12 @@ struct DockingWorkspaceView<PanelContent: View>: View {
 
     private var workspacePresetsMenu: some View {
         Menu("Workspaces", systemImage: "rectangle.split.3x1") {
-            Toggle(
-                "Default Workspace",
-                isOn: Binding(
-                    get: { selectedWorkspaceID == nil },
-                    set: { isSelected in
-                        guard isSelected else { return }
-                        layout.reset()
-                        showsInspector = true
-                        setSelectedWorkspaceID(nil)
-                    }
-                )
-            )
+            Button("Default Workspace") {
+                layout.reset()
+                showsInspector = true
+                setSelectedWorkspaceID(nil)
+                workspacePresentationID = UUID()
+            }
 
             if !workspaceLibrary.presets.isEmpty {
                 Divider()
@@ -278,6 +275,7 @@ struct DockingWorkspaceView<PanelContent: View>: View {
                                 guard isSelected else { return }
                                 layout = preset.layout
                                 setSelectedWorkspaceID(preset.id)
+                                workspacePresentationID = UUID()
                             }
                         )
                     )
@@ -585,14 +583,6 @@ private final class SplitViewItemProbeView: NSView {
     }
 }
 
-nonisolated private struct ColumnWidthPreferenceKey: PreferenceKey {
-    static let defaultValue: CGFloat = 0
-
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
-        value = max(value, nextValue())
-    }
-}
-
 private extension View {
     func captureWidth(
         _ preferredWidth: Binding<Double?>,
@@ -600,17 +590,243 @@ private extension View {
         isEnabled: Bool = true
     ) -> some View {
         background {
-            GeometryReader { proxy in
-                Color.clear.preference(key: ColumnWidthPreferenceKey.self, value: proxy.size.width)
+            SplitPaneBehaviorController(
+                holdingPriority: NSLayoutConstraint.Priority(rawValue: 251),
+                capturesDirectDividerResizes: isEnabled,
+                widthChanged: { width in
+                    let constrainedWidth = min(max(width, sizing.minimum), sizing.maximum)
+                    if abs((preferredWidth.wrappedValue ?? 0) - Double(constrainedWidth)) > 1 {
+                        preferredWidth.wrappedValue = Double(constrainedWidth)
+                    }
+                }
+            )
+            .frame(width: 0, height: 0)
+        }
+    }
+
+    func splitPaneHoldingPriority(_ priority: NSLayoutConstraint.Priority) -> some View {
+        background {
+            SplitPaneBehaviorController(
+                holdingPriority: priority,
+                capturesDirectDividerResizes: false,
+                widthChanged: { _ in }
+            )
+            .frame(width: 0, height: 0)
+        }
+    }
+}
+
+private struct SplitPaneBehaviorController: NSViewRepresentable {
+    let holdingPriority: NSLayoutConstraint.Priority
+    let capturesDirectDividerResizes: Bool
+    let widthChanged: @MainActor @Sendable (CGFloat) -> Void
+
+    func makeNSView(context: Context) -> SplitPaneBehaviorProbeView {
+        SplitPaneBehaviorProbeView()
+    }
+
+    func updateNSView(_ probeView: SplitPaneBehaviorProbeView, context: Context) {
+        probeView.update(
+            holdingPriority: holdingPriority,
+            capturesDirectDividerResizes: capturesDirectDividerResizes,
+            widthChanged: { width in
+                widthChanged(width)
+            }
+        )
+    }
+}
+
+private final class SplitPaneBehaviorProbeView: NSView {
+    private var holdingPriority: NSLayoutConstraint.Priority = .defaultLow
+    private var capturesDirectDividerResizes = false
+    private var widthChanged: @MainActor @Sendable (CGFloat) -> Void = { _ in }
+    private weak var configuredItem: NSSplitViewItem?
+    private weak var observedSplitView: NSSplitView?
+    private weak var observedPane: NSView?
+    private var observedPaneIndex = 0
+    private var resizeObserver: NSObjectProtocol?
+    private var mouseUpMonitor: Any?
+    private var updateGeneration = 0
+    private var pendingWidth: CGFloat?
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        if window == nil {
+            stopObserving()
+        } else {
+            scheduleUpdate()
+        }
+    }
+
+    override func viewDidMoveToSuperview() {
+        super.viewDidMoveToSuperview()
+        scheduleUpdate()
+    }
+
+    deinit {
+        if let resizeObserver {
+            NotificationCenter.default.removeObserver(resizeObserver)
+        }
+        if let mouseUpMonitor {
+            NSEvent.removeMonitor(mouseUpMonitor)
+        }
+    }
+
+    func update(
+        holdingPriority: NSLayoutConstraint.Priority,
+        capturesDirectDividerResizes: Bool,
+        widthChanged: @escaping @MainActor @Sendable (CGFloat) -> Void
+    ) {
+        self.holdingPriority = holdingPriority
+        self.capturesDirectDividerResizes = capturesDirectDividerResizes
+        self.widthChanged = widthChanged
+        scheduleUpdate()
+    }
+
+    private func scheduleUpdate() {
+        updateGeneration += 1
+        let generation = updateGeneration
+        DispatchQueue.main.async { [weak self] in
+            guard let self, generation == self.updateGeneration else { return }
+            self.configureEnclosingItem()
+        }
+    }
+
+    private func configureEnclosingItem() {
+        guard let (item, splitView, pane, paneIndex) = enclosingSplitViewItem() else { return }
+
+        if configuredItem !== item {
+            configuredItem = item
+        }
+        if item.holdingPriority != holdingPriority {
+            item.holdingPriority = holdingPriority
+        }
+
+        guard observedSplitView !== splitView
+                || observedPane !== pane
+                || observedPaneIndex != paneIndex else {
+            return
+        }
+        stopObserving()
+        observedSplitView = splitView
+        observedPane = pane
+        observedPaneIndex = paneIndex
+        resizeObserver = NotificationCenter.default.addObserver(
+            forName: NSSplitView.didResizeSubviewsNotification,
+            object: splitView,
+            queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated {
+                self?.captureDirectDividerResize()
             }
         }
-        .onPreferenceChange(ColumnWidthPreferenceKey.self) { width in
-            guard isEnabled, width > 0 else { return }
-            let constrainedWidth = min(max(width, sizing.minimum), sizing.maximum)
-            if abs((preferredWidth.wrappedValue ?? 0) - Double(constrainedWidth)) > 1 {
-                preferredWidth.wrappedValue = Double(constrainedWidth)
+    }
+
+    private func captureDirectDividerResize() {
+        guard capturesDirectDividerResizes,
+              let splitView = observedSplitView,
+              let pane = observedPane,
+              splitView.window?.inLiveResize != true,
+              NSEvent.pressedMouseButtons & 1 == 1,
+              isMouseDraggingAdjacentDivider(in: splitView),
+              pane.frame.width > 0 else {
+            return
+        }
+
+        pendingWidth = pane.frame.width
+        if mouseUpMonitor == nil {
+            mouseUpMonitor = NSEvent.addLocalMonitorForEvents(matching: .leftMouseUp) { [weak self] event in
+                MainActor.assumeIsolated {
+                    self?.commitPendingWidth()
+                }
+                return event
             }
         }
+    }
+
+    private func commitPendingWidth() {
+        guard let pendingWidth else {
+            removeMouseUpMonitor()
+            return
+        }
+        self.pendingWidth = nil
+        removeMouseUpMonitor()
+        widthChanged(pendingWidth)
+    }
+
+    private func removeMouseUpMonitor() {
+        if let mouseUpMonitor {
+            NSEvent.removeMonitor(mouseUpMonitor)
+            self.mouseUpMonitor = nil
+        }
+    }
+
+    private func isMouseDraggingAdjacentDivider(in splitView: NSSplitView) -> Bool {
+        guard let window = splitView.window else { return false }
+        let windowPoint = window.convertPoint(fromScreen: NSEvent.mouseLocation)
+        let point = splitView.convert(windowPoint, from: nil)
+        let dividerIndices = [observedPaneIndex - 1, observedPaneIndex]
+            .filter { splitView.subviews.indices.contains($0) && $0 < splitView.subviews.count - 1 }
+
+        return dividerIndices.contains { dividerIndex in
+            let precedingFrame = splitView.subviews[dividerIndex].frame
+            let hitSlop: CGFloat = 6
+            let dividerRect: NSRect
+            if splitView.isVertical {
+                dividerRect = NSRect(
+                    x: precedingFrame.maxX - hitSlop,
+                    y: splitView.bounds.minY,
+                    width: splitView.dividerThickness + hitSlop * 2,
+                    height: splitView.bounds.height
+                )
+            } else {
+                dividerRect = NSRect(
+                    x: splitView.bounds.minX,
+                    y: precedingFrame.maxY - hitSlop,
+                    width: splitView.bounds.width,
+                    height: splitView.dividerThickness + hitSlop * 2
+                )
+            }
+            return dividerRect.contains(point)
+        }
+    }
+
+    private func stopObserving() {
+        if let resizeObserver {
+            NotificationCenter.default.removeObserver(resizeObserver)
+        }
+        resizeObserver = nil
+        observedSplitView = nil
+        observedPane = nil
+        pendingWidth = nil
+        removeMouseUpMonitor()
+    }
+
+    private func enclosingSplitViewItem() -> (NSSplitViewItem, NSSplitView, NSView, Int)? {
+        var descendant: NSView = self
+        var ancestor = superview
+
+        while let current = ancestor {
+            if let splitView = current as? NSSplitView,
+               let pane = directChild(of: splitView, containing: descendant),
+               let paneIndex = splitView.subviews.firstIndex(of: pane),
+               let splitViewController = splitView.delegate as? NSSplitViewController,
+               splitViewController.splitViewItems.indices.contains(paneIndex) {
+                return (splitViewController.splitViewItems[paneIndex], splitView, pane, paneIndex)
+            }
+            descendant = current
+            ancestor = current.superview
+        }
+
+        return nil
+    }
+
+    private func directChild(of splitView: NSSplitView, containing descendant: NSView) -> NSView? {
+        var candidate: NSView? = descendant
+        while let current = candidate, current.superview !== splitView {
+            candidate = current.superview
+        }
+        return candidate
     }
 }
 
