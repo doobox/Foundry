@@ -458,7 +458,7 @@ private struct SplitViewItemCollapseController: NSViewRepresentable {
     let isCollapsed: Bool
     let minimumThickness: CGFloat
     let maximumThickness: CGFloat
-    let transitionCompleted: @MainActor () -> Void
+    let transitionCompleted: @MainActor @Sendable () -> Void
 
     func makeNSView(context: Context) -> SplitViewItemProbeView {
         SplitViewItemProbeView()
@@ -469,7 +469,7 @@ private struct SplitViewItemCollapseController: NSViewRepresentable {
             isCollapsed: isCollapsed,
             minimumThickness: minimumThickness,
             maximumThickness: maximumThickness,
-            transitionCompleted: transitionCompleted
+            transitionCompleted: { transitionCompleted() }
         )
     }
 }
@@ -479,7 +479,7 @@ private final class SplitViewItemProbeView: NSView {
     private var desiredCollapsed = false
     private var minimumThickness: CGFloat = 0
     private var maximumThickness: CGFloat = .greatestFiniteMagnitude
-    private var transitionCompleted: @MainActor () -> Void = {}
+    private var transitionCompleted: @MainActor @Sendable () -> Void = {}
     private weak var configuredItem: NSSplitViewItem?
     private var lastAppliedCollapsed: Bool?
     private var updateGeneration = 0
@@ -498,7 +498,7 @@ private final class SplitViewItemProbeView: NSView {
         isCollapsed: Bool,
         minimumThickness: CGFloat,
         maximumThickness: CGFloat,
-        transitionCompleted: @escaping @MainActor () -> Void
+        transitionCompleted: @escaping @MainActor @Sendable () -> Void
     ) {
         desiredCollapsed = isCollapsed
         self.minimumThickness = minimumThickness
@@ -545,13 +545,14 @@ private final class SplitViewItemProbeView: NSView {
             return
         }
 
+        let transitionCompleted = transitionCompleted
         NSAnimationContext.runAnimationGroup { context in
             context.duration = 0.2
             context.allowsImplicitAnimation = true
             splitViewItem.animator().isCollapsed = desiredCollapsed
-        } completionHandler: { [weak self] in
+        } completionHandler: {
             Task { @MainActor in
-                self?.transitionCompleted()
+                transitionCompleted()
             }
         }
     }
@@ -801,7 +802,7 @@ private struct WorkspaceColumnView<PanelContent: View>: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .contentShape(Rectangle())
         .dropDestination(for: WorkspacePanelDragPayload.self) { values, _ in
-            accept(values, before: nil)
+            _ = accept(values, before: nil)
         }
     }
 
