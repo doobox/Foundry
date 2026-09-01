@@ -17,6 +17,7 @@ struct DockingWorkspaceView<PanelContent: View>: View {
     @State private var isNamingPreset = false
     @State private var presetName = ""
     @State private var showsInspector = true
+    @State private var inspectorIsTransitioning = false
 
     var body: some View {
         NavigationSplitView {
@@ -74,7 +75,6 @@ struct DockingWorkspaceView<PanelContent: View>: View {
                         } else if column.role != .sidebarDock {
                             let panelSizing = sizing(for: column)
                             let isInspectorColumn = column.role == .inspectorDock
-                            let isColumnVisible = !isInspectorColumn || showsInspector
                             WorkspaceColumnView(
                                 column: $column,
                                 usesSidebarMaterial: false,
@@ -90,16 +90,29 @@ struct DockingWorkspaceView<PanelContent: View>: View {
                                 panelContent: panelContent
                             )
                             .frame(
-                                minWidth: isColumnVisible ? panelSizing.minimum : 0,
-                                idealWidth: isColumnVisible
-                                    ? preferredWidth(for: column, sizing: panelSizing)
-                                    : 0,
-                                maxWidth: isColumnVisible ? panelSizing.maximum : 0
+                                minWidth: panelSizing.minimum,
+                                idealWidth: preferredWidth(for: column, sizing: panelSizing),
+                                maxWidth: panelSizing.maximum
                             )
-                            .opacity(isColumnVisible ? 1 : 0)
-                            .allowsHitTesting(isColumnVisible)
-                            .captureWidth($column.preferredWidth, constrainedBy: panelSizing)
-                            .animation(.easeInOut(duration: 0.2), value: showsInspector)
+                            .captureWidth(
+                                $column.preferredWidth,
+                                constrainedBy: panelSizing,
+                                isEnabled: !isInspectorColumn
+                                    || (showsInspector && !inspectorIsTransitioning)
+                            )
+                            .background {
+                                if isInspectorColumn {
+                                    SplitViewItemCollapseController(
+                                        isCollapsed: !showsInspector,
+                                        minimumThickness: panelSizing.minimum,
+                                        maximumThickness: panelSizing.maximum,
+                                        transitionCompleted: {
+                                            inspectorIsTransitioning = false
+                                        }
+                                    )
+                                    .frame(width: 0, height: 0)
+                                }
+                            }
                             .toolbar {
                                 if isInspectorColumn {
                                     ToolbarSpacer(.flexible)
@@ -218,9 +231,8 @@ struct DockingWorkspaceView<PanelContent: View>: View {
 
     private var inspectorToggleButton: some View {
         Button {
-            withAnimation(.easeInOut(duration: 0.2)) {
-                showsInspector.toggle()
-            }
+            inspectorIsTransitioning = true
+            showsInspector.toggle()
         } label: {
             Label("Toggle Inspector", systemImage: "sidebar.trailing")
                 .labelStyle(.iconOnly)
@@ -420,6 +432,136 @@ nonisolated private struct PanelSizing {
     }
 }
 
+private struct SplitViewItemCollapseController: NSViewRepresentable {
+    let isCollapsed: Bool
+    let minimumThickness: CGFloat
+    let maximumThickness: CGFloat
+    let transitionCompleted: @MainActor () -> Void
+
+    func makeNSView(context: Context) -> SplitViewItemProbeView {
+        SplitViewItemProbeView()
+    }
+
+    func updateNSView(_ probeView: SplitViewItemProbeView, context: Context) {
+        probeView.update(
+            isCollapsed: isCollapsed,
+            minimumThickness: minimumThickness,
+            maximumThickness: maximumThickness,
+            transitionCompleted: transitionCompleted
+        )
+    }
+}
+
+@MainActor
+private final class SplitViewItemProbeView: NSView {
+    private var desiredCollapsed = false
+    private var minimumThickness: CGFloat = 0
+    private var maximumThickness: CGFloat = .greatestFiniteMagnitude
+    private var transitionCompleted: @MainActor () -> Void = {}
+    private weak var configuredItem: NSSplitViewItem?
+    private var lastAppliedCollapsed: Bool?
+    private var updateGeneration = 0
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        scheduleUpdate()
+    }
+
+    override func viewDidMoveToSuperview() {
+        super.viewDidMoveToSuperview()
+        scheduleUpdate()
+    }
+
+    func update(
+        isCollapsed: Bool,
+        minimumThickness: CGFloat,
+        maximumThickness: CGFloat,
+        transitionCompleted: @escaping @MainActor () -> Void
+    ) {
+        desiredCollapsed = isCollapsed
+        self.minimumThickness = minimumThickness
+        self.maximumThickness = maximumThickness
+        self.transitionCompleted = transitionCompleted
+        scheduleUpdate()
+    }
+
+    private func scheduleUpdate() {
+        updateGeneration += 1
+        let generation = updateGeneration
+        DispatchQueue.main.async { [weak self] in
+            guard let self, generation == self.updateGeneration else { return }
+            self.applyUpdate()
+        }
+    }
+
+    private func applyUpdate() {
+        guard let (splitViewItem, splitView) = enclosingSplitViewItem() else {
+            return
+        }
+
+        if configuredItem !== splitViewItem {
+            configuredItem = splitViewItem
+            lastAppliedCollapsed = nil
+        }
+
+        splitViewItem.canCollapse = true
+        splitViewItem.canCollapseFromWindowResize = false
+        splitViewItem.minimumThickness = minimumThickness
+        splitViewItem.maximumThickness = maximumThickness.isFinite
+            ? maximumThickness
+            : NSSplitViewItem.unspecifiedDimension
+        splitViewItem.collapseBehavior = .preferResizingSiblingsWithFixedSplitView
+
+        guard lastAppliedCollapsed != desiredCollapsed else { return }
+
+        let shouldAnimate = lastAppliedCollapsed != nil && splitView.window?.isVisible == true
+        lastAppliedCollapsed = desiredCollapsed
+
+        guard shouldAnimate else {
+            splitViewItem.isCollapsed = desiredCollapsed
+            transitionCompleted()
+            return
+        }
+
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = 0.2
+            context.allowsImplicitAnimation = true
+            splitViewItem.animator().isCollapsed = desiredCollapsed
+        } completionHandler: { [weak self] in
+            Task { @MainActor in
+                self?.transitionCompleted()
+            }
+        }
+    }
+
+    private func enclosingSplitViewItem() -> (NSSplitViewItem, NSSplitView)? {
+        var descendant: NSView = self
+        var ancestor = superview
+
+        while let current = ancestor {
+            if let splitView = current as? NSSplitView,
+               let pane = directChild(of: splitView, containing: descendant),
+               let paneIndex = splitView.subviews.firstIndex(of: pane),
+               let splitViewController = splitView.delegate as? NSSplitViewController,
+               splitViewController.splitViewItems.indices.contains(paneIndex) {
+                return (splitViewController.splitViewItems[paneIndex], splitView)
+            }
+            descendant = current
+            ancestor = current.superview
+        }
+
+        return nil
+    }
+
+    private func directChild(of splitView: NSSplitView, containing descendant: NSView) -> NSView? {
+        var candidate: NSView? = descendant
+        while let current = candidate, current.superview !== splitView {
+            candidate = current.superview
+        }
+        return candidate
+    }
+}
+
 nonisolated private struct ColumnWidthPreferenceKey: PreferenceKey {
     static let defaultValue: CGFloat = 0
 
@@ -429,14 +571,18 @@ nonisolated private struct ColumnWidthPreferenceKey: PreferenceKey {
 }
 
 private extension View {
-    func captureWidth(_ preferredWidth: Binding<Double?>, constrainedBy sizing: PanelSizing) -> some View {
+    func captureWidth(
+        _ preferredWidth: Binding<Double?>,
+        constrainedBy sizing: PanelSizing,
+        isEnabled: Bool = true
+    ) -> some View {
         background {
             GeometryReader { proxy in
                 Color.clear.preference(key: ColumnWidthPreferenceKey.self, value: proxy.size.width)
             }
         }
         .onPreferenceChange(ColumnWidthPreferenceKey.self) { width in
-            guard width > 0 else { return }
+            guard isEnabled, width > 0 else { return }
             let constrainedWidth = min(max(width, sizing.minimum), sizing.maximum)
             if abs((preferredWidth.wrappedValue ?? 0) - Double(constrainedWidth)) > 1 {
                 preferredWidth.wrappedValue = Double(constrainedWidth)
