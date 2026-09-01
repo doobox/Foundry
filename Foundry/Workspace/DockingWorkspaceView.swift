@@ -46,8 +46,9 @@ struct DockingWorkspaceView<PanelContent: View>: View {
                 }
             }
         } detail: {
-            HSplitView {
-                ForEach($layout.columns) { $column in
+            HStack(spacing: 0) {
+                HSplitView {
+                    ForEach($layout.columns) { $column in
                     if column.panels == [.canvas] {
                         FixedCanvasColumn(
                             columnID: column.id,
@@ -70,7 +71,8 @@ struct DockingWorkspaceView<PanelContent: View>: View {
                                     .help("Generate and open a production preview")
                             }
                         }
-                    } else if column.id != sidebarColumnID && column.id != inspectorColumnID {
+                    } else if column.id != sidebarColumnID
+                                && (column.id != inspectorColumnID || showsInspector) {
                         let panelSizing = sizing(for: column.panels)
                         WorkspaceColumnView(
                             column: $column,
@@ -93,62 +95,36 @@ struct DockingWorkspaceView<PanelContent: View>: View {
                         )
                         .captureWidth($column.preferredWidth, constrainedBy: panelSizing)
                     }
-                }
-            }
-        }
-        .inspector(isPresented: $showsInspector) {
-                if let inspectorColumnID,
-                   let inspectorIndex = layout.columns.firstIndex(where: { $0.id == inspectorColumnID }) {
-                    let column = layout.columns[inspectorIndex]
-                    let panelSizing = sizing(for: column.panels)
-                    WorkspaceColumnView(
-                        column: $layout.columns[inspectorIndex],
-                        usesSidebarMaterial: false,
-                        canMoveSelectedTab: column.panels.count > 1,
-                        movePanel: movePanel,
-                        dockBeside: dockBeside,
-                        moveToNewColumn: { panel in
-                            layout.moveToNewColumn(panel, after: column.id)
-                        },
-                        detachPanel: { panel in
-                            layout.detach(panel)
-                        },
-                        panelContent: panelContent
-                    )
-                    .inspectorColumnWidth(
-                        min: panelSizing.minimum,
-                        ideal: preferredWidth(for: column, sizing: panelSizing),
-                        max: panelSizing.maximum
-                    )
-                    .captureWidth($layout.columns[inspectorIndex].preferredWidth, constrainedBy: panelSizing)
-                    .toolbar {
-                        ToolbarSpacer(.flexible)
-                        ToolbarItem {
-                            Button {
-                                openProjectSettings()
-                            } label: {
-                                Label("Project Settings", systemImage: "gearshape")
-                                    .labelStyle(.iconOnly)
-                            }
-                            .help("Open project settings")
-                        }
-                        ToolbarSpacer(.fixed)
-                        ToolbarItem {
-                            Button {
-                                publishSite()
-                            } label: {
-                                Label("Publish", systemImage: "cloud")
-                                    .labelStyle(.titleAndIcon)
-                                    .padding(.horizontal, 5)
-                            }
-                            .help("Publish site")
-                        }
-                        ToolbarSpacer(.fixed)
-                        ToolbarItem {
-                            inspectorToggleButton
-                        }
                     }
                 }
+            }
+            .toolbar {
+                ToolbarSpacer(.flexible)
+                ToolbarItem {
+                    Button {
+                        openProjectSettings()
+                    } label: {
+                        Label("Project Settings", systemImage: "gearshape")
+                            .labelStyle(.iconOnly)
+                    }
+                    .help("Open project settings")
+                }
+                ToolbarSpacer(.fixed)
+                ToolbarItem {
+                    Button {
+                        publishSite()
+                    } label: {
+                        Label("Publish", systemImage: "cloud")
+                            .labelStyle(.titleAndIcon)
+                            .padding(.horizontal, 5)
+                    }
+                    .help("Publish site")
+                }
+                ToolbarSpacer(.fixed)
+                ToolbarItem {
+                    inspectorToggleButton
+                }
+            }
         }
         .frame(minWidth: requiredMinimumWidth)
         .alert("Save Workspace As", isPresented: $isNamingPreset) {
@@ -168,20 +144,37 @@ struct DockingWorkspaceView<PanelContent: View>: View {
         }
     }
 
+    private var workspaceMinimumWidth: CGFloat {
+        max(
+            EditorWindowSize.minimumWidth,
+            minimumWidth(for: layout.columns.filter { $0.id != inspectorColumnID })
+        )
+    }
+
     private var requiredMinimumWidth: CGFloat {
-        let splitDividerWidth: CGFloat = 10
-        let visibleColumns = layout.columns.filter { column in
-            column.id != inspectorColumnID || showsInspector
+        guard showsInspector,
+              let inspectorColumnID,
+              let inspectorColumn = layout.columns.first(where: { $0.id == inspectorColumnID }) else {
+            return workspaceMinimumWidth
         }
-        let columnWidths = visibleColumns.reduce(CGFloat.zero) { width, column in
+
+        let inspectorSizing = sizing(for: inspectorColumn.panels)
+        let inspectorWidth = preferredWidth(for: inspectorColumn, sizing: inspectorSizing)
+        let inspectorDividerWidth: CGFloat = 10
+        return workspaceMinimumWidth + inspectorDividerWidth + inspectorWidth
+    }
+
+    private func minimumWidth(for columns: [WorkspaceColumn]) -> CGFloat {
+        let splitDividerWidth: CGFloat = 10
+        let columnWidths = columns.reduce(CGFloat.zero) { width, column in
             let panelSizing = sizing(for: column.panels)
             let requiredColumnWidth = column.panels == [.canvas]
                 ? panelSizing.minimum
                 : preferredWidth(for: column, sizing: panelSizing)
             return width + requiredColumnWidth
         }
-        let dividerWidths = CGFloat(max(visibleColumns.count - 1, 0)) * splitDividerWidth
-        return max(EditorWindowSize.minimumWidth, columnWidths + dividerWidths)
+        let dividerWidths = CGFloat(max(columns.count - 1, 0)) * splitDividerWidth
+        return columnWidths + dividerWidths
     }
 
     private var sidebarColumnID: UUID? {
