@@ -315,6 +315,19 @@ private struct AppKitWorkspaceSplitView: NSViewControllerRepresentable {
         AppKitWorkspaceSplitViewController()
     }
 
+    func sizeThatFits(
+        _ proposal: ProposedViewSize,
+        nsViewController: AppKitWorkspaceSplitViewController,
+        context: Context
+    ) -> CGSize? {
+        let currentSize = nsViewController.view.bounds.size
+        let width = proposal.width ?? currentSize.width
+        let height = proposal.height ?? currentSize.height
+
+        guard width > 0, height > 0 else { return nil }
+        return CGSize(width: width, height: height)
+    }
+
     func updateNSViewController(
         _ splitViewController: AppKitWorkspaceSplitViewController,
         context: Context
@@ -378,6 +391,8 @@ private final class AppKitWorkspaceSplitViewController: NSSplitViewController {
 
     override func viewDidLoad() {
         super.viewDidLoad()
+        view.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        view.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         splitView.isVertical = true
         splitView.dividerStyle = .thin
         splitResizeObserver = NotificationCenter.default.addObserver(
