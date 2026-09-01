@@ -48,107 +48,18 @@ struct DockingWorkspaceView<PanelContent: View>: View {
                 }
             }
         } detail: {
-            HStack(spacing: 0) {
-                HSplitView {
-                    ForEach($layout.columns) { $column in
-                        if column.role == .canvas {
-                            FixedCanvasColumn(
-                                columnID: column.id,
-                                editorOptions: $canvasEditorOptions,
-                                viewportWidth: $canvasViewportWidth,
-                                screens: canvasScreens,
-                                openThemeEditor: openThemeEditor,
-                                dockBeside: dockBeside,
-                                content: { panelContent(.canvas) }
-                            )
-                            .frame(minWidth: 0, idealWidth: 760, maxWidth: .infinity)
-                            .layoutPriority(-1)
-                            .splitPaneHoldingPriority(.defaultLow)
-                            .toolbar {
-                                ToolbarItem {
-                                    workspacePresetsMenu
-                                }
-                                ToolbarSpacer(.fixed)
-                                ToolbarItem {
-                                    Button("Preview Site", systemImage: "safari", action: previewSite)
-                                        .help("Generate and open a production preview")
-                                }
-                            }
-                        } else if column.role != .sidebarDock {
-                            let panelSizing = sizing(for: column)
-                            let isInspectorColumn = column.role == .inspectorDock
-                            WorkspaceColumnView(
-                                column: $column,
-                                usesSidebarMaterial: false,
-                                canMoveSelectedTab: column.panels.count > 1 || column.role.isPersistentDock,
-                                movePanel: movePanel,
-                                dockBeside: dockBeside,
-                                moveToNewColumn: { panel in
-                                    layout.moveToNewColumn(panel, after: column.id)
-                                },
-                                detachPanel: { panel in
-                                    layout.detach(panel)
-                                },
-                                panelContent: panelContent
-                            )
-                            .frame(
-                                minWidth: panelSizing.minimum,
-                                idealWidth: preferredWidth(for: column, sizing: panelSizing),
-                                maxWidth: panelSizing.maximum
-                            )
-                            .captureWidth(
-                                $column.preferredWidth,
-                                constrainedBy: panelSizing,
-                                isEnabled: !isInspectorColumn
-                                    || (showsInspector && !inspectorIsTransitioning)
-                            )
-                            .background {
-                                if isInspectorColumn {
-                                    SplitViewItemCollapseController(
-                                        isCollapsed: !showsInspector,
-                                        minimumThickness: panelSizing.minimum,
-                                        maximumThickness: panelSizing.maximum,
-                                        transitionCompleted: {
-                                            inspectorIsTransitioning = false
-                                        }
-                                    )
-                                    .frame(width: 0, height: 0)
-                                }
-                            }
-                            .toolbar {
-                                if isInspectorColumn {
-                                    ToolbarSpacer(.flexible)
-                                    ToolbarItem {
-                                        Button {
-                                            openProjectSettings()
-                                        } label: {
-                                            Label("Project Settings", systemImage: "gearshape")
-                                                .labelStyle(.iconOnly)
-                                        }
-                                        .help("Open project settings")
-                                    }
-                                    ToolbarSpacer(.fixed)
-                                    ToolbarItem {
-                                        Button {
-                                            publishSite()
-                                        } label: {
-                                            Label("Publish", systemImage: "cloud")
-                                                .labelStyle(.titleAndIcon)
-                                                .padding(.horizontal, 5)
-                                        }
-                                        .help("Publish site")
-                                    }
-                                    ToolbarSpacer(.fixed)
-                                    ToolbarItem {
-                                        inspectorToggleButton
-                                    }
-                                }
-                            }
-                        }
-                    }
+            AppKitWorkspaceSplitView(
+                layout: $layout,
+                showsInspector: showsInspector,
+                inspectorTransitionCompleted: {
+                    inspectorIsTransitioning = false
+                },
+                columnContent: { columnBinding in
+                    innerColumnView(columnBinding)
                 }
-                .id(splitColumnIDs + [workspacePresentationID])
-            }
+            )
+            .id(workspacePresentationID)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
             .splitPaneHoldingPriority(.defaultLow)
         }
         .frame(minWidth: requiredMinimumWidth)
@@ -181,10 +92,78 @@ struct DockingWorkspaceView<PanelContent: View>: View {
         )
     }
 
-    private var splitColumnIDs: [UUID] {
-        layout.columns
-            .filter { $0.role != .sidebarDock }
-            .map(\.id)
+    private func innerColumnView(_ columnBinding: Binding<WorkspaceColumn>) -> AnyView {
+        let column = columnBinding.wrappedValue
+
+        if column.role == .canvas {
+            return AnyView(
+                FixedCanvasColumn(
+                    columnID: column.id,
+                    editorOptions: $canvasEditorOptions,
+                    viewportWidth: $canvasViewportWidth,
+                    screens: canvasScreens,
+                    openThemeEditor: openThemeEditor,
+                    dockBeside: dockBeside,
+                    content: { panelContent(.canvas) }
+                )
+                .toolbar {
+                    ToolbarItem {
+                        workspacePresetsMenu
+                    }
+                    ToolbarSpacer(.fixed)
+                    ToolbarItem {
+                        Button("Preview Site", systemImage: "safari", action: previewSite)
+                            .help("Generate and open a production preview")
+                    }
+                }
+            )
+        }
+
+        return AnyView(
+            WorkspaceColumnView(
+                column: columnBinding,
+                usesSidebarMaterial: false,
+                canMoveSelectedTab: column.panels.count > 1 || column.role.isPersistentDock,
+                movePanel: movePanel,
+                dockBeside: dockBeside,
+                moveToNewColumn: { panel in
+                    layout.moveToNewColumn(panel, after: column.id)
+                },
+                detachPanel: { panel in
+                    layout.detach(panel)
+                },
+                panelContent: panelContent
+            )
+            .toolbar {
+                if column.role == .inspectorDock {
+                    ToolbarSpacer(.flexible)
+                    ToolbarItem {
+                        Button {
+                            openProjectSettings()
+                        } label: {
+                            Label("Project Settings", systemImage: "gearshape")
+                                .labelStyle(.iconOnly)
+                        }
+                        .help("Open project settings")
+                    }
+                    ToolbarSpacer(.fixed)
+                    ToolbarItem {
+                        Button {
+                            publishSite()
+                        } label: {
+                            Label("Publish", systemImage: "cloud")
+                                .labelStyle(.titleAndIcon)
+                                .padding(.horizontal, 5)
+                        }
+                        .help("Publish site")
+                    }
+                    ToolbarSpacer(.fixed)
+                    ToolbarItem {
+                        inspectorToggleButton
+                    }
+                }
+            }
+        )
     }
 
     private var requiredMinimumWidth: CGFloat {
@@ -197,19 +176,13 @@ struct DockingWorkspaceView<PanelContent: View>: View {
             return workspaceMinimumWidth + inspectorDividerWidth
         }
 
-        let inspectorSizing = sizing(for: inspectorColumn)
-        let inspectorWidth = preferredWidth(for: inspectorColumn, sizing: inspectorSizing)
-        return workspaceMinimumWidth + inspectorDividerWidth + inspectorWidth
+        return workspaceMinimumWidth + inspectorDividerWidth + sizing(for: inspectorColumn).minimum
     }
 
     private func minimumWidth(for columns: [WorkspaceColumn]) -> CGFloat {
         let splitDividerWidth: CGFloat = 10
         let columnWidths = columns.reduce(CGFloat.zero) { width, column in
-            let panelSizing = sizing(for: column)
-            let requiredColumnWidth = column.role == .canvas
-                ? panelSizing.minimum
-                : preferredWidth(for: column, sizing: panelSizing)
-            return width + requiredColumnWidth
+            width + sizing(for: column).minimum
         }
         let dividerWidths = CGFloat(max(columns.count - 1, 0)) * splitDividerWidth
         return columnWidths + dividerWidths
@@ -329,6 +302,379 @@ struct DockingWorkspaceView<PanelContent: View>: View {
 
     private func setSelectedWorkspaceID(_ id: UUID?) {
         selectedWorkspaceIDValue = id?.uuidString ?? ""
+    }
+}
+
+private struct AppKitWorkspaceSplitView: NSViewControllerRepresentable {
+    @Binding var layout: WorkspaceLayout
+    let showsInspector: Bool
+    let inspectorTransitionCompleted: @MainActor () -> Void
+    let columnContent: @MainActor (Binding<WorkspaceColumn>) -> AnyView
+
+    func makeNSViewController(context: Context) -> AppKitWorkspaceSplitViewController {
+        AppKitWorkspaceSplitViewController()
+    }
+
+    func updateNSViewController(
+        _ splitViewController: AppKitWorkspaceSplitViewController,
+        context: Context
+    ) {
+        let layoutBinding = $layout
+        let contentBuilder = columnContent
+        let transitionCompleted = inspectorTransitionCompleted
+        let columns = layout.columns.filter { $0.role != .sidebarDock }
+
+        splitViewController.update(
+            columns: columns,
+            showsInspector: showsInspector,
+            content: { columnID in
+                let fallback = columns.first(where: { $0.id == columnID })
+                    ?? WorkspaceColumn(role: .workspace, panels: [])
+                let columnBinding = Binding<WorkspaceColumn>(
+                    get: {
+                        layoutBinding.wrappedValue.columns.first(where: { $0.id == columnID })
+                            ?? fallback
+                    },
+                    set: { updatedColumn in
+                        guard let index = layoutBinding.wrappedValue.columns.firstIndex(
+                            where: { $0.id == columnID }
+                        ) else { return }
+                        layoutBinding.wrappedValue.columns[index] = updatedColumn
+                    }
+                )
+                return contentBuilder(columnBinding)
+            },
+            preferredWidthChanged: { columnID, width in
+                guard let index = layoutBinding.wrappedValue.columns.firstIndex(
+                    where: { $0.id == columnID }
+                ) else { return }
+                layoutBinding.wrappedValue.columns[index].preferredWidth = Double(width)
+            },
+            inspectorTransitionCompleted: transitionCompleted
+        )
+    }
+}
+
+@MainActor
+private final class AppKitWorkspaceSplitViewController: NSSplitViewController {
+    private struct Entry {
+        let id: UUID
+        var role: WorkspaceColumnRole
+        let hostingController: NSHostingController<AnyView>
+        let splitViewItem: NSSplitViewItem
+        var sizing: PanelSizing
+        var preferredWidth: CGFloat
+    }
+
+    private var entries: [Entry] = []
+    private var preferredWidthChanged: (UUID, CGFloat) -> Void = { _, _ in }
+    private var inspectorTransitionCompleted: () -> Void = {}
+    private var lastShowsInspector: Bool?
+    private var splitResizeObserver: NSObjectProtocol?
+    private var mouseUpMonitor: Any?
+    private var activeDividerIndex: Int?
+    private var widthApplicationGeneration = 0
+    private var isApplyingInitialWidths = false
+
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        splitView.isVertical = true
+        splitView.dividerStyle = .thin
+        splitResizeObserver = NotificationCenter.default.addObserver(
+            forName: NSSplitView.didResizeSubviewsNotification,
+            object: splitView,
+            queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated {
+                self?.splitViewDidResize()
+            }
+        }
+    }
+
+    deinit {
+        if let splitResizeObserver {
+            NotificationCenter.default.removeObserver(splitResizeObserver)
+        }
+        if let mouseUpMonitor {
+            NSEvent.removeMonitor(mouseUpMonitor)
+        }
+    }
+
+    func update(
+        columns: [WorkspaceColumn],
+        showsInspector: Bool,
+        content: (UUID) -> AnyView,
+        preferredWidthChanged: @escaping (UUID, CGFloat) -> Void,
+        inspectorTransitionCompleted: @escaping () -> Void
+    ) {
+        loadViewIfNeeded()
+        self.preferredWidthChanged = preferredWidthChanged
+        self.inspectorTransitionCompleted = inspectorTransitionCompleted
+
+        let needsRebuild = entries.map(\.id) != columns.map(\.id)
+        if needsRebuild {
+            rebuild(columns: columns, showsInspector: showsInspector, content: content)
+            return
+        }
+
+        for index in entries.indices {
+            let column = columns[index]
+            entries[index].role = column.role
+            entries[index].sizing = sizing(for: column)
+            entries[index].preferredWidth = preferredWidth(for: column, sizing: entries[index].sizing)
+            entries[index].hostingController.rootView = hostedRootView(content(column.id))
+            configureSplitViewItem(at: index)
+        }
+
+        updateInspectorVisibility(showsInspector, animated: true)
+    }
+
+    private func rebuild(
+        columns: [WorkspaceColumn],
+        showsInspector: Bool,
+        content: (UUID) -> AnyView
+    ) {
+        widthApplicationGeneration += 1
+        activeDividerIndex = nil
+        removeMouseUpMonitor()
+
+        for item in splitViewItems.reversed() {
+            removeSplitViewItem(item)
+        }
+        entries.removeAll(keepingCapacity: true)
+
+        for column in columns {
+            let hostingController = NSHostingController(rootView: hostedRootView(content(column.id)))
+            hostingController.sizingOptions = []
+            let item = column.role == .inspectorDock
+                ? NSSplitViewItem(inspectorWithViewController: hostingController)
+                : NSSplitViewItem(viewController: hostingController)
+            let panelSizing = sizing(for: column)
+            entries.append(
+                Entry(
+                    id: column.id,
+                    role: column.role,
+                    hostingController: hostingController,
+                    splitViewItem: item,
+                    sizing: panelSizing,
+                    preferredWidth: preferredWidth(for: column, sizing: panelSizing)
+                )
+            )
+            configureSplitViewItem(at: entries.index(before: entries.endIndex))
+            if column.role == .inspectorDock {
+                item.isCollapsed = !showsInspector
+            }
+            addSplitViewItem(item)
+        }
+
+        lastShowsInspector = showsInspector
+        scheduleInitialWidths()
+    }
+
+    private func configureSplitViewItem(at index: Int) {
+        let entry = entries[index]
+        let item = entry.splitViewItem
+        item.minimumThickness = entry.sizing.minimum
+        item.maximumThickness = entry.sizing.maximum.isFinite
+            ? entry.sizing.maximum
+            : NSSplitViewItem.unspecifiedDimension
+        item.holdingPriority = entry.role == .canvas
+            ? .defaultLow
+            : NSLayoutConstraint.Priority(rawValue: 489)
+        item.automaticMaximumThickness = NSSplitViewItem.unspecifiedDimension
+
+        if entry.role == .inspectorDock {
+            item.canCollapse = true
+            item.canCollapseFromWindowResize = false
+            item.collapseBehavior = .preferResizingSiblingsWithFixedSplitView
+        }
+    }
+
+    private func updateInspectorVisibility(_ showsInspector: Bool, animated: Bool) {
+        guard let inspector = entries.first(where: { $0.role == .inspectorDock }) else {
+            lastShowsInspector = showsInspector
+            return
+        }
+        guard lastShowsInspector != showsInspector else { return }
+        let shouldAnimate = animated && lastShowsInspector != nil && view.window?.isVisible == true
+        lastShowsInspector = showsInspector
+
+        guard shouldAnimate else {
+            inspector.splitViewItem.isCollapsed = !showsInspector
+            inspectorTransitionCompleted()
+            return
+        }
+
+        let transitionCompleted = inspectorTransitionCompleted
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = 0.2
+            inspector.splitViewItem.animator().isCollapsed = !showsInspector
+        } completionHandler: {
+            Task { @MainActor in
+                transitionCompleted()
+            }
+        }
+    }
+
+    private func scheduleInitialWidths() {
+        widthApplicationGeneration += 1
+        let generation = widthApplicationGeneration
+        DispatchQueue.main.async { [weak self] in
+            guard let self, generation == self.widthApplicationGeneration else { return }
+            self.applyInitialWidths()
+        }
+    }
+
+    private func applyInitialWidths() {
+        guard entries.count == splitView.subviews.count,
+              let canvasIndex = entries.firstIndex(where: { $0.role == .canvas }) else {
+            return
+        }
+        splitView.layoutSubtreeIfNeeded()
+
+        let totalPaneWidth = splitView.subviews.reduce(CGFloat.zero) { $0 + $1.frame.width }
+        let dividerSpace = max(splitView.bounds.width - totalPaneWidth, 0)
+        let availableWidth = max(splitView.bounds.width - dividerSpace, 0)
+        guard availableWidth > 0 else { return }
+
+        var targets = Array(repeating: CGFloat.zero, count: entries.count)
+        var resizablePanelIndices: [Int] = []
+        var panelIdealTotal: CGFloat = 0
+        var panelMinimumTotal: CGFloat = 0
+
+        for index in entries.indices where index != canvasIndex {
+            let entry = entries[index]
+            guard !entry.splitViewItem.isCollapsed else { continue }
+            targets[index] = entry.preferredWidth
+            resizablePanelIndices.append(index)
+            panelIdealTotal += entry.preferredWidth
+            panelMinimumTotal += entry.sizing.minimum
+        }
+
+        let canvasMinimum = entries[canvasIndex].sizing.minimum
+        let panelSpace = max(availableWidth - canvasMinimum, 0)
+        if panelIdealTotal > panelSpace {
+            let capacity = panelIdealTotal - panelMinimumTotal
+            let shortage = panelIdealTotal - panelSpace
+            let fraction = capacity > 0 ? min(shortage / capacity, 1) : 1
+            for index in resizablePanelIndices {
+                let entry = entries[index]
+                targets[index] -= (entry.preferredWidth - entry.sizing.minimum) * fraction
+            }
+        }
+
+        let allocatedPanels = resizablePanelIndices.reduce(CGFloat.zero) { $0 + targets[$1] }
+        targets[canvasIndex] = max(availableWidth - allocatedPanels, canvasMinimum)
+
+        isApplyingInitialWidths = true
+        defer { isApplyingInitialWidths = false }
+
+        let dividerThickness = entries.count > 1
+            ? dividerSpace / CGFloat(entries.count - 1)
+            : 0
+        var position = splitView.bounds.minX
+        for dividerIndex in 0..<max(entries.count - 1, 0) {
+            position += targets[dividerIndex]
+            splitView.setPosition(position, ofDividerAt: dividerIndex)
+            position += dividerThickness
+        }
+    }
+
+    private func splitViewDidResize() {
+        guard !isApplyingInitialWidths,
+              splitView.window?.inLiveResize != true,
+              NSEvent.pressedMouseButtons & 1 == 1 else {
+            return
+        }
+        if activeDividerIndex == nil {
+            activeDividerIndex = dividerUnderMouse()
+        }
+        guard activeDividerIndex != nil else { return }
+        installMouseUpMonitorIfNeeded()
+    }
+
+    private func dividerUnderMouse() -> Int? {
+        guard let window = splitView.window else { return nil }
+        let windowPoint = window.convertPoint(fromScreen: NSEvent.mouseLocation)
+        let point = splitView.convert(windowPoint, from: nil)
+        let hitSlop: CGFloat = 6
+
+        for dividerIndex in 0..<max(splitView.subviews.count - 1, 0) {
+            let precedingFrame = splitView.subviews[dividerIndex].frame
+            let dividerRect = NSRect(
+                x: precedingFrame.maxX - hitSlop,
+                y: splitView.bounds.minY,
+                width: splitView.dividerThickness + hitSlop * 2,
+                height: splitView.bounds.height
+            )
+            if dividerRect.contains(point) {
+                return dividerIndex
+            }
+        }
+        return nil
+    }
+
+    private func installMouseUpMonitorIfNeeded() {
+        guard mouseUpMonitor == nil else { return }
+        mouseUpMonitor = NSEvent.addLocalMonitorForEvents(matching: .leftMouseUp) { [weak self] event in
+            MainActor.assumeIsolated {
+                self?.finishDividerDrag()
+            }
+            return event
+        }
+    }
+
+    private func finishDividerDrag() {
+        defer {
+            activeDividerIndex = nil
+            removeMouseUpMonitor()
+        }
+        guard let dividerIndex = activeDividerIndex else { return }
+
+        for index in [dividerIndex, dividerIndex + 1] where entries.indices.contains(index) {
+            guard entries[index].role != .canvas,
+                  !entries[index].splitViewItem.isCollapsed else {
+                continue
+            }
+            let width = min(
+                max(splitView.subviews[index].frame.width, entries[index].sizing.minimum),
+                entries[index].sizing.maximum
+            )
+            entries[index].preferredWidth = width
+            preferredWidthChanged(entries[index].id, width)
+        }
+    }
+
+    private func removeMouseUpMonitor() {
+        if let mouseUpMonitor {
+            NSEvent.removeMonitor(mouseUpMonitor)
+            self.mouseUpMonitor = nil
+        }
+    }
+
+    private func sizing(for column: WorkspaceColumn) -> PanelSizing {
+        guard !column.panels.isEmpty else {
+            switch column.role {
+            case .sidebarDock:
+                return PanelSizing(panel: .pages)
+            case .inspectorDock:
+                return PanelSizing(panel: .inspector)
+            case .canvas:
+                return PanelSizing(panel: .canvas)
+            case .workspace:
+                return .zero
+            }
+        }
+        return column.panels.map(PanelSizing.init).reduce(.zero) { $0.combined(with: $1) }
+    }
+
+    private func preferredWidth(for column: WorkspaceColumn, sizing: PanelSizing) -> CGFloat {
+        guard let preferredWidth = column.preferredWidth else { return sizing.ideal }
+        return min(max(CGFloat(preferredWidth), sizing.minimum), sizing.maximum)
+    }
+
+    private func hostedRootView(_ content: AnyView) -> AnyView {
+        AnyView(content.frame(maxWidth: .infinity, maxHeight: .infinity))
     }
 }
 
@@ -591,7 +937,7 @@ private extension View {
     ) -> some View {
         background {
             SplitPaneBehaviorController(
-                holdingPriority: NSLayoutConstraint.Priority(rawValue: 251),
+                holdingPriority: NSLayoutConstraint.Priority(rawValue: 489),
                 capturesDirectDividerResizes: isEnabled,
                 widthChanged: { width in
                     let constrainedWidth = min(max(width, sizing.minimum), sizing.maximum)
