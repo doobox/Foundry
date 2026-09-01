@@ -25,6 +25,7 @@ struct FoundryApp: App {
             PublishingMenuCommands()
         }
         .defaultSize(width: EditorWindowSize.idealWidth, height: EditorWindowSize.idealHeight)
+        .windowResizability(.contentMinSize)
         .windowToolbarStyle(.unified)
 
         WindowGroup("Theme", id: "theme-editor", for: UUID.self) { $presentationID in

@@ -69,16 +69,8 @@ struct DockingWorkspaceView<PanelContent: View>: View {
                                 Button("Preview Site", systemImage: "safari", action: previewSite)
                                     .help("Generate and open a production preview")
                             }
-//                        
-//                            if !showsInspector {
-//                                ToolbarSpacer(.fixed)
-//                                ToolbarItem {
-//                                    inspectorToggleButton
-//                                }
-//                            }
                         }
-                    } else if column.id != sidebarColumnID
-                                && (column.id != inspectorColumnID || showsInspector) {
+                    } else if column.id != sidebarColumnID && column.id != inspectorColumnID {
                         let panelSizing = sizing(for: column.panels)
                         WorkspaceColumnView(
                             column: $column,
@@ -100,39 +92,65 @@ struct DockingWorkspaceView<PanelContent: View>: View {
                             maxWidth: panelSizing.maximum
                         )
                         .captureWidth($column.preferredWidth, constrainedBy: panelSizing)
-                        .toolbar {
-                            if column.id == inspectorColumnID {
-                                ToolbarSpacer(.flexible)
-                                ToolbarItem {
-                                    Button {
-                                        openProjectSettings()
-                                    } label: {
-                                        Label("Project Settings", systemImage: "gearshape")
-                                            .labelStyle(.iconOnly)
-                                    }
-                                    .help("Open project settings")
-                                }
-                                ToolbarSpacer(.fixed)
-                                ToolbarItem {
-                                    Button {
-                                        publishSite()
-                                    } label: {
-                                        Label("Publish", systemImage: "cloud")
-                                            .labelStyle(.titleAndIcon)
-                                            .padding(.horizontal, 5)
-                                    }
-                                    .help("Publish site")
-                                }
-                                ToolbarSpacer(.fixed)
-                                ToolbarItem {
-                                    inspectorToggleButton
-                                }
-                            }
-                        }
                     }
                 }
             }
         }
+        .inspector(isPresented: $showsInspector) {
+                if let inspectorColumnID,
+                   let inspectorIndex = layout.columns.firstIndex(where: { $0.id == inspectorColumnID }) {
+                    let column = layout.columns[inspectorIndex]
+                    let panelSizing = sizing(for: column.panels)
+                    WorkspaceColumnView(
+                        column: $layout.columns[inspectorIndex],
+                        usesSidebarMaterial: false,
+                        canMoveSelectedTab: column.panels.count > 1,
+                        movePanel: movePanel,
+                        dockBeside: dockBeside,
+                        moveToNewColumn: { panel in
+                            layout.moveToNewColumn(panel, after: column.id)
+                        },
+                        detachPanel: { panel in
+                            layout.detach(panel)
+                        },
+                        panelContent: panelContent
+                    )
+                    .inspectorColumnWidth(
+                        min: panelSizing.minimum,
+                        ideal: preferredWidth(for: column, sizing: panelSizing),
+                        max: panelSizing.maximum
+                    )
+                    .captureWidth($layout.columns[inspectorIndex].preferredWidth, constrainedBy: panelSizing)
+                    .toolbar {
+                        ToolbarSpacer(.flexible)
+                        ToolbarItem {
+                            Button {
+                                openProjectSettings()
+                            } label: {
+                                Label("Project Settings", systemImage: "gearshape")
+                                    .labelStyle(.iconOnly)
+                            }
+                            .help("Open project settings")
+                        }
+                        ToolbarSpacer(.fixed)
+                        ToolbarItem {
+                            Button {
+                                publishSite()
+                            } label: {
+                                Label("Publish", systemImage: "cloud")
+                                    .labelStyle(.titleAndIcon)
+                                    .padding(.horizontal, 5)
+                            }
+                            .help("Publish site")
+                        }
+                        ToolbarSpacer(.fixed)
+                        ToolbarItem {
+                            inspectorToggleButton
+                        }
+                    }
+                }
+        }
+        .frame(minWidth: requiredMinimumWidth)
         .alert("Save Workspace As", isPresented: $isNamingPreset) {
             TextField("Preset name", text: $presetName)
             Button("Cancel", role: .cancel) {}
@@ -141,6 +159,29 @@ struct DockingWorkspaceView<PanelContent: View>: View {
         } message: {
             Text("Save the current panels, tabs, windows, and column widths.")
         }
+        .background {
+            WindowMinimumContentSize(
+                width: requiredMinimumWidth,
+                height: EditorWindowSize.minimumHeight
+            )
+            .frame(width: 0, height: 0)
+        }
+    }
+
+    private var requiredMinimumWidth: CGFloat {
+        let splitDividerWidth: CGFloat = 10
+        let visibleColumns = layout.columns.filter { column in
+            column.id != inspectorColumnID || showsInspector
+        }
+        let columnWidths = visibleColumns.reduce(CGFloat.zero) { width, column in
+            let panelSizing = sizing(for: column.panels)
+            let requiredColumnWidth = column.panels == [.canvas]
+                ? panelSizing.minimum
+                : preferredWidth(for: column, sizing: panelSizing)
+            return width + requiredColumnWidth
+        }
+        let dividerWidths = CGFloat(max(visibleColumns.count - 1, 0)) * splitDividerWidth
+        return max(EditorWindowSize.minimumWidth, columnWidths + dividerWidths)
     }
 
     private var sidebarColumnID: UUID? {
@@ -251,6 +292,87 @@ struct DockingWorkspaceView<PanelContent: View>: View {
         let name = presetName.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !name.isEmpty else { return }
         selectedWorkspaceID = workspaceLibrary.save(name: name, layout: layout)
+    }
+}
+
+private struct WindowMinimumContentSize: NSViewRepresentable {
+    let width: CGFloat
+    let height: CGFloat
+
+    func makeNSView(context: Context) -> WindowMinimumSizeReaderView {
+        let view = WindowMinimumSizeReaderView()
+        view.minimumContentSize = NSSize(width: width, height: height)
+        return view
+    }
+
+    func updateNSView(_ nsView: WindowMinimumSizeReaderView, context: Context) {
+        nsView.minimumContentSize = NSSize(width: width, height: height)
+    }
+}
+
+private final class WindowMinimumSizeReaderView: NSView {
+    private weak var observedWindow: NSWindow?
+    private var windowObservers: [NSObjectProtocol] = []
+
+    var minimumContentSize = NSSize.zero {
+        didSet {
+            applyMinimumContentSize()
+        }
+    }
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        observeWindow()
+        applyMinimumContentSize()
+    }
+
+    deinit {
+        stopObservingWindow()
+    }
+
+    private func observeWindow() {
+        guard observedWindow !== window else { return }
+        stopObservingWindow()
+        observedWindow = window
+        guard let window else { return }
+
+        let center = NotificationCenter.default
+        windowObservers = [
+            NSWindow.willStartLiveResizeNotification,
+            NSWindow.didResizeNotification
+        ].map { notification in
+            center.addObserver(forName: notification, object: window, queue: .main) { [weak self] _ in
+                self?.applyMinimumContentSize()
+            }
+        }
+    }
+
+    private func stopObservingWindow() {
+        windowObservers.forEach(NotificationCenter.default.removeObserver)
+        windowObservers.removeAll()
+        observedWindow = nil
+    }
+
+    private func applyMinimumContentSize() {
+        guard let window else { return }
+
+        window.contentMinSize = minimumContentSize
+        let currentSize = window.contentLayoutRect.size
+        guard currentSize.width < minimumContentSize.width || currentSize.height < minimumContentSize.height else {
+            return
+        }
+
+        let targetContentSize = NSSize(
+            width: max(currentSize.width, minimumContentSize.width),
+            height: max(currentSize.height, minimumContentSize.height)
+        )
+        let currentFrame = window.frame
+        var targetFrame = window.frameRect(
+            forContentRect: NSRect(origin: .zero, size: targetContentSize)
+        )
+        targetFrame.origin.x = max(currentFrame.minX, window.screen?.visibleFrame.minX ?? currentFrame.minX)
+        targetFrame.origin.y = currentFrame.maxY - targetFrame.height
+        window.setFrame(targetFrame, display: true)
     }
 }
 
