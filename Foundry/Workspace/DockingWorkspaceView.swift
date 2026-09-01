@@ -61,69 +61,37 @@ struct DockingWorkspaceView<PanelContent: View>: View {
                             )
                             .frame(minWidth: 0, idealWidth: 760, maxWidth: .infinity)
                             .layoutPriority(-1)
-                            .toolbar {
-                                ToolbarItem {
-                                    workspacePresetsMenu
-                                }
-                                ToolbarSpacer(.fixed)
-                                ToolbarItem {
-                                    Button("Preview Site", systemImage: "safari", action: previewSite)
-                                        .help("Generate and open a production preview")
+                        } else if column.role != .sidebarDock {
+                            let panelSizing = sizing(for: column)
+                            Group {
+                                if column.role != .inspectorDock || showsInspector {
+                                    WorkspaceColumnView(
+                                        column: $column,
+                                        usesSidebarMaterial: false,
+                                        canMoveSelectedTab: column.panels.count > 1 || column.role.isPersistentDock,
+                                        movePanel: movePanel,
+                                        dockBeside: dockBeside,
+                                        moveToNewColumn: { panel in
+                                            layout.moveToNewColumn(panel, after: column.id)
+                                        },
+                                        detachPanel: { panel in
+                                            layout.detach(panel)
+                                        },
+                                        panelContent: panelContent
+                                    )
+                                    .frame(
+                                        minWidth: panelSizing.minimum,
+                                        idealWidth: preferredWidth(for: column, sizing: panelSizing),
+                                        maxWidth: panelSizing.maximum
+                                    )
+                                    .captureWidth($column.preferredWidth, constrainedBy: panelSizing)
                                 }
                             }
-                        } else if column.role != .sidebarDock
-                                    && (column.role != .inspectorDock || showsInspector) {
-                            let panelSizing = sizing(for: column)
-                            WorkspaceColumnView(
-                                column: $column,
-                                usesSidebarMaterial: false,
-                                canMoveSelectedTab: column.panels.count > 1 || column.role.isPersistentDock,
-                                movePanel: movePanel,
-                                dockBeside: dockBeside,
-                                moveToNewColumn: { panel in
-                                    layout.moveToNewColumn(panel, after: column.id)
-                                },
-                                detachPanel: { panel in
-                                    layout.detach(panel)
-                                },
-                                panelContent: panelContent
-                            )
-                            .frame(
-                                minWidth: panelSizing.minimum,
-                                idealWidth: preferredWidth(for: column, sizing: panelSizing),
-                                maxWidth: panelSizing.maximum
-                            )
-                            .captureWidth($column.preferredWidth, constrainedBy: panelSizing)
                         }
                     }
                 }
-            }
-            .toolbar {
-                ToolbarSpacer(.flexible)
-                ToolbarItem {
-                    Button {
-                        openProjectSettings()
-                    } label: {
-                        Label("Project Settings", systemImage: "gearshape")
-                            .labelStyle(.iconOnly)
-                    }
-                    .help("Open project settings")
-                }
-                ToolbarSpacer(.fixed)
-                ToolbarItem {
-                    Button {
-                        publishSite()
-                    } label: {
-                        Label("Publish", systemImage: "cloud")
-                            .labelStyle(.titleAndIcon)
-                            .padding(.horizontal, 5)
-                    }
-                    .help("Publish site")
-                }
-                ToolbarSpacer(.fixed)
-                ToolbarItem {
-                    inspectorToggleButton
-                }
+                workspaceToolbarHost
+                inspectorToolbarHost
             }
         }
         .frame(minWidth: requiredMinimumWidth)
@@ -213,6 +181,53 @@ struct DockingWorkspaceView<PanelContent: View>: View {
                 .labelStyle(.iconOnly)
         }
         .help(showsInspector ? "Hide Inspector" : "Show Inspector")
+    }
+
+    private var workspaceToolbarHost: some View {
+        Color.clear
+            .frame(width: 0, height: 0)
+            .toolbar {
+                ToolbarItem {
+                    workspacePresetsMenu
+                }
+                ToolbarSpacer(.fixed)
+                ToolbarItem {
+                    Button("Preview Site", systemImage: "safari", action: previewSite)
+                        .help("Generate and open a production preview")
+                }
+            }
+    }
+
+    private var inspectorToolbarHost: some View {
+        Color.clear
+            .frame(width: 0, height: 0)
+            .toolbar {
+                ToolbarSpacer(.flexible)
+                ToolbarItem {
+                    Button {
+                        openProjectSettings()
+                    } label: {
+                        Label("Project Settings", systemImage: "gearshape")
+                            .labelStyle(.iconOnly)
+                    }
+                    .help("Open project settings")
+                }
+                ToolbarSpacer(.fixed)
+                ToolbarItem {
+                    Button {
+                        publishSite()
+                    } label: {
+                        Label("Publish", systemImage: "cloud")
+                            .labelStyle(.titleAndIcon)
+                            .padding(.horizontal, 5)
+                    }
+                    .help("Publish site")
+                }
+                ToolbarSpacer(.fixed)
+                ToolbarItem {
+                    inspectorToggleButton
+                }
+            }
     }
 
     private var workspacePresetsMenu: some View {
