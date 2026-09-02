@@ -995,7 +995,11 @@ struct ComponentPackageTests {
         #expect(ComponentType.image.definition.properties.contains {
             $0.key.rawValue == "alignment" && $0.defaultValue == .choice("center") && $0.isResponsive
         })
-        let containerURL = try #require(Bundle.main.url(forResource: "BuiltInComponents", withExtension: "foundrypack"))
+        let bundleURL = try #require(Bundle.main.url(forResource: "BuiltInComponents", withExtension: "bundle"))
+        let componentBundle = try #require(Bundle(url: bundleURL))
+        let containerURL = try #require(
+            componentBundle.url(forResource: "BuiltInComponents", withExtension: "foundrypack")
+        )
         let controlsURL = containerURL.appending(path: "Contents/Resources/Controls.foundrypack", directoryHint: .isDirectory)
         let loadedControls = try ComponentPackageLoader.load(from: controlsURL)
         #expect(loadedControls.manifest.properties.contains { $0.control.count == 4 })

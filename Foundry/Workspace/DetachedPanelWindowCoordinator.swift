@@ -3,6 +3,11 @@ import SwiftUI
 
 @MainActor
 final class DetachedPanelWindowCoordinator: NSObject, NSWindowDelegate {
+    private enum Metrics {
+        static let minimumSize = NSSize(width: 240, height: 260)
+        static let maximumWidth: CGFloat = 600
+    }
+
     private struct WindowRecord {
         let window: NSPanel
         let hostingController: NSHostingController<DetachedPanelRoot>
@@ -18,21 +23,7 @@ final class DetachedPanelWindowCoordinator: NSObject, NSWindowDelegate {
 
     func attach(to window: NSWindow?) {
         guard ownerWindow !== window else { return }
-
-        if let oldOwner = ownerWindow {
-            for record in windows.values where record.window.parent === oldOwner {
-                oldOwner.removeChildWindow(record.window)
-            }
-        }
-
         ownerWindow = window
-
-        if let window {
-            for record in windows.values where record.window.parent == nil {
-                window.addChildWindow(record.window, ordered: .above)
-            }
-        }
-
         reconcileWindows()
     }
 
@@ -55,9 +46,6 @@ final class DetachedPanelWindowCoordinator: NSObject, NSWindowDelegate {
 
         for (panel, record) in records {
             closingProgrammatically.insert(panel)
-            if let parent = record.window.parent {
-                parent.removeChildWindow(record.window)
-            }
             record.window.delegate = nil
             record.window.close()
         }
@@ -111,7 +99,11 @@ final class DetachedPanelWindowCoordinator: NSObject, NSWindowDelegate {
         window.hidesOnDeactivate = false
         window.animationBehavior = .utilityWindow
         window.collectionBehavior.insert(.fullScreenAuxiliary)
-        window.minSize = NSSize(width: 240, height: 260)
+        window.minSize = Metrics.minimumSize
+        var maximumSize = window.maxSize
+        maximumSize.width = Metrics.maximumWidth
+        window.maxSize = maximumSize
+        window.standardWindowButton(.zoomButton)?.isEnabled = false
         window.contentViewController = hostingController
         window.delegate = self
 
@@ -120,9 +112,6 @@ final class DetachedPanelWindowCoordinator: NSObject, NSWindowDelegate {
             hostingController: hostingController
         )
 
-        if let ownerWindow {
-            ownerWindow.addChildWindow(window, ordered: .above)
-        }
         window.makeKeyAndOrderFront(nil)
 
         let resolvedWorkspaceFrame = WorkspaceWindowFrame(frame)
@@ -136,9 +125,6 @@ final class DetachedPanelWindowCoordinator: NSObject, NSWindowDelegate {
     private func closeWindow(for panel: WorkspacePanel) {
         guard let record = windows[panel] else { return }
         closingProgrammatically.insert(panel)
-        if let parent = record.window.parent {
-            parent.removeChildWindow(record.window)
-        }
         record.window.close()
     }
 
@@ -147,7 +133,6 @@ final class DetachedPanelWindowCoordinator: NSObject, NSWindowDelegate {
         cascadeIndex: Int
     ) -> NSRect {
         let requested = NSRect(detached.frame)
-        let visibleFrame = bestVisibleFrame(for: requested)
 
         if detached.frame == .initial, let ownerWindow {
             let offset = CGFloat(cascadeIndex) * 24
@@ -157,21 +142,21 @@ final class DetachedPanelWindowCoordinator: NSObject, NSWindowDelegate {
                 width: requested.width,
                 height: requested.height
             )
-            return clamped(centered, to: visibleFrame)
+            return clamped(centered, to: ownerWindow.screen?.visibleFrame ?? bestVisibleFrame(for: centered))
         }
 
-        return clamped(requested, to: visibleFrame)
+        return clamped(requested, to: bestVisibleFrame(for: requested))
     }
 
     private func bestVisibleFrame(for requested: NSRect) -> NSRect {
-        if let ownerScreen = ownerWindow?.screen {
-            return ownerScreen.visibleFrame
-        }
-
         if let intersecting = NSScreen.screens.max(by: {
             $0.visibleFrame.intersection(requested).area < $1.visibleFrame.intersection(requested).area
         }), intersecting.visibleFrame.intersects(requested) {
             return intersecting.visibleFrame
+        }
+
+        if let ownerScreen = ownerWindow?.screen {
+            return ownerScreen.visibleFrame
         }
 
         return NSScreen.main?.visibleFrame ?? requested
@@ -179,8 +164,11 @@ final class DetachedPanelWindowCoordinator: NSObject, NSWindowDelegate {
 
     private func clamped(_ frame: NSRect, to visibleFrame: NSRect) -> NSRect {
         var result = frame
-        result.size.width = min(max(result.width, 240), visibleFrame.width)
-        result.size.height = min(max(result.height, 260), visibleFrame.height)
+        result.size.width = min(
+            max(result.width, Metrics.minimumSize.width),
+            min(Metrics.maximumWidth, visibleFrame.width)
+        )
+        result.size.height = min(max(result.height, Metrics.minimumSize.height), visibleFrame.height)
         result.origin.x = min(max(result.minX, visibleFrame.minX), visibleFrame.maxX - result.width)
         result.origin.y = min(max(result.minY, visibleFrame.minY), visibleFrame.maxY - result.height)
         return result
@@ -200,9 +188,6 @@ final class DetachedPanelWindowCoordinator: NSObject, NSWindowDelegate {
             return
         }
 
-        if let parent = window.parent {
-            parent.removeChildWindow(window)
-        }
         windows.removeValue(forKey: panel)
         if closingProgrammatically.remove(panel) == nil {
             closePanel?(panel)
