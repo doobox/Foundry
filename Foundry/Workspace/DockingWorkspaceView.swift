@@ -1956,6 +1956,10 @@ private struct WorkspaceColumnView<PanelContent: View>: View {
     @ViewBuilder let panelContent: (WorkspacePanel) -> PanelContent
     @State private var leadingTargeted = false
     @State private var trailingTargeted = false
+    @State private var consolidationTargeted = false
+    @State private var targetedTab: WorkspacePanel?
+    @State private var appendTabTargeted = false
+    @State private var emptyDockTargeted = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -1977,6 +1981,12 @@ private struct WorkspaceColumnView<PanelContent: View>: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
+        .contentShape(Rectangle())
+        .dropDestination(for: WorkspacePanelDragPayload.self) { values, _ in
+            accept(values, before: nil)
+        } isTargeted: {
+            consolidationTargeted = $0
+        }
         .background {
             Group {
                 if usesSidebarMaterial {
@@ -1986,6 +1996,17 @@ private struct WorkspaceColumnView<PanelContent: View>: View {
                 }
             }
             .ignoresSafeArea()
+        }
+        .overlay {
+            if consolidationTargeted,
+               !leadingTargeted,
+               !trailingTargeted,
+               targetedTab == nil,
+               !appendTabTargeted,
+               !column.panels.isEmpty {
+                ConsolidationDockTarget()
+                    .allowsHitTesting(false)
+            }
         }
         .overlay(alignment: .leading) {
             SideDockTarget(title: "Dock Left", isTargeted: leadingTargeted)
@@ -2016,7 +2037,17 @@ private struct WorkspaceColumnView<PanelContent: View>: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .contentShape(Rectangle())
         .dropDestination(for: WorkspacePanelDragPayload.self) { values, _ in
-            _ = accept(values, before: nil)
+            accept(values, before: nil)
+        } isTargeted: {
+            emptyDockTargeted = $0
+        }
+        .overlay {
+            if emptyDockTargeted {
+                RoundedRectangle(cornerRadius: 10)
+                    .stroke(Color.accentColor, lineWidth: 2)
+                    .padding(8)
+                    .allowsHitTesting(false)
+            }
         }
     }
 
@@ -2028,6 +2059,7 @@ private struct WorkspaceColumnView<PanelContent: View>: View {
                         WorkspaceTab(
                             panel: panel,
                             isSelected: panel == column.selectedPanel,
+                            isDropTargeted: targetedTab == panel,
                             canMove: canMoveSelectedTab,
                             select: {
                                 column.selectedPanel = panel
@@ -2036,8 +2068,20 @@ private struct WorkspaceColumnView<PanelContent: View>: View {
                             detach: { detachPanel(panel) }
                         )
                         .dropDestination(for: WorkspacePanelDragPayload.self) { values, _ in
-                            _ = accept(values, before: panel)
+                            accept(values, before: panel)
+                        } isTargeted: { isTargeted in
+                            if isTargeted {
+                                targetedTab = panel
+                            } else if targetedTab == panel {
+                                targetedTab = nil
+                            }
                         }
+                    }
+                    if appendTabTargeted, targetedTab == nil {
+                        Capsule()
+                            .fill(Color.accentColor)
+                            .frame(width: 3, height: 24)
+                            .accessibilityHidden(true)
                     }
                 }
                 .padding(.horizontal, 6)
@@ -2048,7 +2092,9 @@ private struct WorkspaceColumnView<PanelContent: View>: View {
         .frame(height: 36)
         .background(.bar)
         .dropDestination(for: WorkspacePanelDragPayload.self) { values, _ in
-            _ = accept(values, before: nil)
+            accept(values, before: nil)
+        } isTargeted: {
+            appendTabTargeted = $0
         }
     }
 
@@ -2062,6 +2108,22 @@ private struct WorkspaceColumnView<PanelContent: View>: View {
         guard let panel = values.first?.panel else { return false }
         dockBeside(panel, column.id, before)
         return true
+    }
+}
+
+private struct ConsolidationDockTarget: View {
+    var body: some View {
+        ZStack {
+            Color.accentColor.opacity(0.10)
+            RoundedRectangle(cornerRadius: 10)
+                .stroke(Color.accentColor, lineWidth: 2)
+                .padding(8)
+            Label("Add as Tab", systemImage: "rectangle.stack")
+                .font(.callout.weight(.semibold))
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .background(.regularMaterial, in: Capsule())
+        }
     }
 }
 
@@ -2087,6 +2149,7 @@ private struct SideDockTarget: View {
 private struct WorkspaceTab: View {
     let panel: WorkspacePanel
     let isSelected: Bool
+    let isDropTargeted: Bool
     let canMove: Bool
     let select: () -> Void
     let moveToNewColumn: () -> Void
@@ -2101,6 +2164,19 @@ private struct WorkspaceTab: View {
         }
         .buttonStyle(.plain)
         .foregroundStyle(isSelected ? Color.accentColor : .secondary)
+        .background {
+            RoundedRectangle(cornerRadius: 6)
+                .fill(Color.accentColor.opacity(isDropTargeted ? 0.16 : 0))
+        }
+        .overlay(alignment: .leading) {
+            if isDropTargeted {
+                Capsule()
+                    .fill(Color.accentColor)
+                    .frame(width: 3, height: 24)
+                    .offset(x: -2)
+                    .accessibilityHidden(true)
+            }
+        }
         .accessibilityLabel(panel.title)
         .accessibilityAddTraits(isSelected ? .isSelected : [])
         .help(panel.title)
