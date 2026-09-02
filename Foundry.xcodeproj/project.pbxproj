@@ -6,6 +6,10 @@
 	objectVersion = 110;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		E357BE503040F2B7001258F5 /* BuiltInComponents.foundrypack in Resources */ = {isa = PBXBuildFile; fileRef = E357BE513040F2B7001258F5 /* BuiltInComponents.foundrypack */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		E357BE053040F1AD001258F5 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -28,6 +32,7 @@
 		E357BE043040F1AD001258F5 /* FoundryTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = FoundryTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		E357BE0E3040F1AD001258F5 /* FoundryUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = FoundryUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		E357BE4C3040F2B7001258F5 /* ARCHITECTURE.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = ARCHITECTURE.md; sourceTree = "<group>"; };
+		E357BE513040F2B7001258F5 /* BuiltInComponents.foundrypack */ = {isa = PBXFileReference; explicitFileType = folder; path = Foundry/Resources/BuiltInComponents/BuiltInComponents.foundrypack; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -35,6 +40,7 @@
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Info.plist,
+				Resources/BuiltInComponents/BuiltInComponents.foundrypack,
 			);
 			target = E357BDF33040F1AB001258F5 /* Foundry */;
 		};
@@ -84,6 +90,7 @@
 			isa = PBXGroup;
 			children = (
 				E357BDF63040F1AB001258F5 /* Foundry */,
+				E357BE513040F2B7001258F5 /* BuiltInComponents.foundrypack */,
 				E357BE073040F1AD001258F5 /* FoundryTests */,
 				E357BE113040F1AD001258F5 /* FoundryUITests */,
 				E357BDF53040F1AB001258F5 /* Products */,
@@ -220,6 +227,7 @@
 		E357BDF23040F1AB001258F5 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			files = (
+				E357BE503040F2B7001258F5 /* BuiltInComponents.foundrypack in Resources */,
 			);
 		};
 		E357BE023040F1AD001258F5 /* Resources */ = {
