@@ -4,6 +4,30 @@ import Testing
 
 struct StaticSiteRendererTests {
     @Test @MainActor
+    func deletingAComponentRemovesItsHTMLCSSAndJavaScriptArtifacts() throws {
+        _ = ComponentPackageCatalog.shared
+        var html = ComponentNode.make(.init(rawValue: "foundry.content.html"))
+        html.setProperty(.init(rawValue: "html1"), value: "<div>unique-deleted-html</div>")
+        html.setProperty(.init(rawValue: "html1CSS"), value: ".unique-deleted-css { color: red; }")
+        html.setProperty(.init(rawValue: "html1JavaScript"), value: "window.uniqueDeletedJavaScript = true;")
+        let page = Page(title: "Home", slug: "index", components: [html])
+        let document = FoundryDocument(site: Site(name: "Deletion", pages: [page]))
+        let pageAssetName = page.id.uuidString.lowercased()
+
+        let before = StaticSiteRenderer().render(site: document.site)
+        #expect(try #require(before.file(at: "index.html")).contents.contains("unique-deleted-html"))
+        #expect(try #require(before.file(at: "assets/pages/\(pageAssetName).css")).contents.contains("unique-deleted-css"))
+        #expect(try #require(before.file(at: "assets/pages/\(pageAssetName).js")).contents.contains("uniqueDeletedJavaScript"))
+
+        ProjectEditor(document: document, undoManager: nil).removeComponent(id: html.id)
+
+        let after = StaticSiteRenderer().render(site: document.site)
+        #expect(!(try #require(after.file(at: "index.html"))).contents.contains("unique-deleted-html"))
+        #expect(!(try #require(after.file(at: "assets/pages/\(pageAssetName).css"))).contents.contains("unique-deleted-css"))
+        #expect(!(try #require(after.file(at: "assets/pages/\(pageAssetName).js"))).contents.contains("uniqueDeletedJavaScript"))
+    }
+
+    @Test @MainActor
     func pageShellIsNeutralAndAllowsEdgeToEdgeComponents() throws {
         let site = Site.starter()
         let exportedCSS = try #require(
@@ -62,7 +86,13 @@ struct StaticSiteRendererTests {
 
         let bundle = StaticSiteRenderer().render(site: site)
 
-        #expect(bundle.files.map(\.path) == ["about/index.html", "assets/site.css", "index.html", "robots.txt"])
+        #expect(bundle.file(at: "assets/site.css") != nil)
+        #expect(bundle.file(at: "assets/site.js") != nil)
+        for page in site.pages {
+            let pageAssetName = page.id.uuidString.lowercased()
+            #expect(bundle.file(at: "assets/pages/\(pageAssetName).css") != nil)
+            #expect(bundle.file(at: "assets/pages/\(pageAssetName).js") != nil)
+        }
         #expect(try #require(bundle.file(at: "index.html")).contents.contains("href=\"assets/site.css\""))
         #expect(try #require(bundle.file(at: "about/index.html")).contents.contains("href=\"../assets/site.css\""))
     }

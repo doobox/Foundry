@@ -6,26 +6,35 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
     }
 
     func render(site: Site, assets: [UUID: ProjectAssetContent]) -> SiteExportBundle {
-        var files = site.pages.map { page in
+        var files = site.pages.flatMap { page -> [SiteExportFile] in
             let isHome = page.slug == "index"
             let directory = isHome ? "" : joinedPath(Self.folderPath(for: page.folderID, in: site), page.slug)
             let rootPrefix = directory.isEmpty
                 ? ""
                 : String(repeating: "../", count: directory.split(separator: "/").count)
-            return SiteExportFile(
+            let pageAssetName = page.id.uuidString.lowercased()
+            return [SiteExportFile(
                 path: Self.outputPath(for: page, in: site),
                 contents: render(
                     page: page,
                     language: site.language,
                     theme: site.theme,
-                    stylesheetPath: rootPrefix + "assets/site.css",
+                    stylesheetPaths: [rootPrefix + "assets/site.css", rootPrefix + "assets/pages/\(pageAssetName).css"],
+                    scriptPaths: [rootPrefix + "assets/site.js", rootPrefix + "assets/pages/\(pageAssetName).js"],
                     assetPrefix: rootPrefix + "assets/images",
                     assets: assets,
                     site: site
                 )
-            )
+            ), SiteExportFile(
+                path: "assets/pages/\(pageAssetName).css",
+                contents: pageStyles(for: page, site: site, assets: assets)
+            ), SiteExportFile(
+                path: "assets/pages/\(pageAssetName).js",
+                contents: pageScripts(for: page, theme: site.theme, assetPrefix: rootPrefix + "assets/images", assets: assets, site: site)
+            )]
         }
         files.append(.init(path: "assets/site.css", contents: stylesheet(for: site, assets: assets)))
+        files.append(.init(path: "assets/site.js", contents: siteScripts(for: site)))
         files.append(contentsOf: site.assets.compactMap { asset in
             assets[asset.id].map { SiteExportFile(path: asset.exportPath, data: $0.data) }
         })
@@ -44,9 +53,9 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
     }
 
     static func requiresPhp(_ page: Page) -> Bool {
-        page.components
-            .flatMap(\.flattened)
-            .contains { ComponentRegistry.definition(for: $0.type).package?.manifest.requiresPhp == true }
+        ComponentArtifactPlan(page: page).nodes.contains {
+            ComponentRegistry.definition(for: $0.type).package?.manifest.requiresPhp == true
+        }
     }
 
     static func outputPath(for page: Page, in site: Site) -> String {
@@ -89,7 +98,7 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
         prefix.isEmpty ? suffix : prefix + "/" + suffix
     }
 
-    private func render(page: Page, language: String, theme: Theme, stylesheetPath: String, assetPrefix: String, assets: [UUID: ProjectAssetContent], site: Site) -> String {
+    private func render(page: Page, language: String, theme: Theme, stylesheetPaths: [String], scriptPaths: [String], assetPrefix: String, assets: [UUID: ProjectAssetContent], site: Site) -> String {
         let body = page.components.map { render($0, theme: theme, assetPrefix: assetPrefix, assets: assets, site: site) }.joined(separator: "\n")
         let pageTitle = page.metadata.browserTitle.isEmpty ? page.title : page.metadata.browserTitle
         let browserTitle = pageTitle + site.titleSuffix
@@ -98,7 +107,7 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
         let headEnd = placedHTML(for: page, placement: .headEnd)
         let bodyStart = placedHTML(for: page, placement: .bodyStart)
         let bodyEnd = placedHTML(for: page, placement: .bodyEnd)
-        let scripts = packageScripts(for: page, theme: theme, assetPrefix: assetPrefix, assets: assets, site: site)
+        let scripts = scriptPaths.map { "<script src=\"\($0)\"></script>" }.joined(separator: "\n")
         let php = packagePHP(for: page, theme: theme, assetPrefix: assetPrefix, assets: assets, site: site)
         let customHeadCode = site.customCodeEnabled ? site.headCode : ""
         let customBodyStartCode = site.customCodeEnabled ? site.bodyStartCode : ""
@@ -115,7 +124,7 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
           <meta name="viewport" content="width=device-width, initial-scale=1">
           <title>\(escape(browserTitle))</title>
         \(metadata)
-          <link rel="stylesheet" href="\(stylesheetPath)">
+        \(stylesheetPaths.map { "  <link rel=\"stylesheet\" href=\"\($0)\">" }.joined(separator: "\n"))
         \(analyticsCode)
         \(headEnd)
         </head>
@@ -130,9 +139,11 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
     private func packagePHP(for page: Page, theme: Theme, assetPrefix: String, assets: [UUID: ProjectAssetContent], site: Site) -> String {
         let nodes = page.components.flatMap(\.flattened)
         let instancePHP = nodes.compactMap { node -> String? in
-            guard let package = node.type.definition.package, !package.instancePHP.isEmpty else { return nil }
+            guard let package = node.type.definition.package else { return nil }
+            let source = package.instancePHP
+            guard !source.isEmpty else { return nil }
             return ComponentTemplateRenderer.render(
-                package.instancePHP,
+                source,
                 context: .init(
                     instanceID: node.id,
                     packageIdentifier: package.manifest.identifier,
@@ -160,12 +171,15 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
         return (instancePHP + sharedPHP).joined(separator: "\n")
     }
 
-    private func packageScripts(for page: Page, theme: Theme, assetPrefix: String, assets: [UUID: ProjectAssetContent], site: Site) -> String {
+    private func pageScripts(for page: Page, theme: Theme, assetPrefix: String, assets: [UUID: ProjectAssetContent], site: Site) -> String {
         let nodes = page.components.flatMap(\.flattened)
         let instanceScripts = nodes.compactMap { node -> String? in
-            guard let package = node.type.definition.package, !package.instanceJavaScript.isEmpty else { return nil }
+            guard let package = node.type.definition.package else { return nil }
+            let source = [package.instanceJavaScript, ComponentArtifactPlan.htmlArtifact(for: node, suffix: "JavaScript")]
+                .filter { !$0.isEmpty }.joined(separator: "\n")
+            guard !source.isEmpty else { return nil }
             return ComponentTemplateRenderer.render(
-                package.instanceJavaScript,
+                source,
                 context: .init(instanceID: node.id, packageIdentifier: package.manifest.identifier, properties: packageProperties(node, theme: theme, assetPrefix: assetPrefix, assets: assets, site: site), slots: [:])
             )
         }
@@ -173,12 +187,26 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
         let sharedScripts = nodes.compactMap { node -> String? in
             guard let package = node.type.definition.package,
                   seenPackages.insert(package.manifest.identifier).inserted else { return nil }
-            let source = [package.pageJavaScript, package.siteJavaScript].filter { !$0.isEmpty }.joined(separator: "\n")
+            let source = package.pageJavaScript
             guard !source.isEmpty else { return nil }
             return ComponentTemplateRenderer.render(source, context: .init(instanceID: UUID(uuid: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)), packageIdentifier: package.manifest.identifier, properties: [:], slots: [:]))
         }
         let source = (instanceScripts + sharedScripts).joined(separator: "\n")
-        return source.isEmpty ? "" : "<script>\n\(source)\n</script>"
+        return source
+    }
+
+    private func siteScripts(for site: Site) -> String {
+        ComponentArtifactPlan.sitePackages(in: site).compactMap { package -> String? in
+            guard !package.siteJavaScript.isEmpty else { return nil }
+            return ComponentTemplateRenderer.render(
+                package.siteJavaScript,
+                context: .init(
+                    instanceID: UUID(uuid: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)),
+                    packageIdentifier: package.manifest.identifier,
+                    properties: [:], slots: [:]
+                )
+            )
+        }.joined(separator: "\n")
     }
 
     private func placedHTML(for page: Page, placement: ComponentPackageTemplateFile.Placement) -> String {
@@ -408,7 +436,7 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
         body{margin:0;background:var(--foundry-color-background);color:var(--foundry-color-text);font-family:var(--foundry-font-body);font-size:var(--foundry-font-size-base);line-height:var(--foundry-font-size-base-line-height)}
         h1,h2,h3,h4,h5,h6,.foundry-heading{font-family:var(--foundry-font-heading)}code,pre,kbd,samp{font-family:var(--foundry-font-monospace)}
         .foundry-container{width:100%;max-width:var(--foundry-container-width)!important}.foundry-button{display:block;width:fit-content;text-decoration:none;font-weight:600}.foundry-columns{display:grid}.foundry-image{display:block;width:100%;height:auto}.foundry-spacer{min-height:8px}
-        \(packageStyles(for: site, assets: assets))
+        \(sitePackageStyles(for: site))
         \(themeControlStyles(for: site))
         \(responsiveStyles(for: site, assets: assets))
         """
@@ -473,15 +501,12 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
         "data-foundry-id=\"\(node.id.uuidString)\" data-foundry-package=\"\(escapeAttribute(packageIdentifier))\""
     }
 
-    private func packageStyles(
-        for site: Site,
-        assets: [UUID: ProjectAssetContent]
-    ) -> String {
-        let nodes = site.pages.flatMap { $0.components.flatMap(\.flattened) }
+    private func pageStyles(for page: Page, site: Site, assets: [UUID: ProjectAssetContent]) -> String {
+        let nodes = ComponentArtifactPlan(page: page).nodes
         let instanceStyles = nodes.compactMap { node in
             guard let package = node.type.definition.package else { return nil }
             let css = ComponentTemplateRenderer.render(
-                package.css,
+                [package.css, ComponentArtifactPlan.htmlArtifact(for: node, suffix: "CSS")].filter { !$0.isEmpty }.joined(separator: "\n"),
                 context: .init(
                     instanceID: node.id,
                     packageIdentifier: package.manifest.identifier,
@@ -492,13 +517,10 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
             )
             return ComponentTemplateRenderer.scopedCSS(css, packageIdentifier: package.manifest.identifier)
         }.joined(separator: "\n")
-        var seenPackages: Set<String> = []
-        let pageStyles = nodes.compactMap { node -> String? in
-            guard let package = node.type.definition.package,
-                  (!package.pageCSS.isEmpty || !package.siteCSS.isEmpty),
-                  seenPackages.insert(package.manifest.identifier).inserted else { return nil }
+        let pagePackageStyles = ComponentArtifactPlan(page: page).packages.compactMap { package -> String? in
+            guard !package.pageCSS.isEmpty else { return nil }
             return ComponentTemplateRenderer.render(
-                [package.pageCSS, package.siteCSS].filter { !$0.isEmpty }.joined(separator: "\n"),
+                package.pageCSS,
                 context: .init(
                     instanceID: UUID(uuid: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)),
                     packageIdentifier: package.manifest.identifier,
@@ -507,7 +529,21 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
                 )
             )
         }.joined(separator: "\n")
-        return [instanceStyles, pageStyles].filter { !$0.isEmpty }.joined(separator: "\n")
+        return [instanceStyles, pagePackageStyles].filter { !$0.isEmpty }.joined(separator: "\n")
+    }
+
+    private func sitePackageStyles(for site: Site) -> String {
+        ComponentArtifactPlan.sitePackages(in: site).compactMap { package -> String? in
+            guard !package.siteCSS.isEmpty else { return nil }
+            return ComponentTemplateRenderer.render(
+                package.siteCSS,
+                context: .init(
+                    instanceID: UUID(uuid: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)),
+                    packageIdentifier: package.manifest.identifier,
+                    properties: [:], slots: [:]
+                )
+            )
+        }.joined(separator: "\n")
     }
 
     private func themeControlStyles(for site: Site) -> String {

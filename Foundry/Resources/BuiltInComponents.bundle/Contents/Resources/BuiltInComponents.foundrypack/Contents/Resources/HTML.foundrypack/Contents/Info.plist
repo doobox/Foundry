@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleIdentifier</key>
+    <string>foundry.content.html</string>
+    <key>type</key>
+    <string>component</string>
+    <key>title</key>
+    <string>HTML</string>
+    <key>description</key>
+    <string>Adds editable custom HTML to the page.</string>
+    <key>author</key>
+    <string>Foundry</string>
+    <key>version</key>
+    <string>1.0</string>
+    <key>group</key>
+    <string>Content</string>
+    <key>tags</key>
+    <array><string>built-in</string></array>
+    <key>customItems</key>
+    <array/>
+    <key>slots</key>
+    <array/>
+    <key>assets</key>
+    <array/>
+    <key>templates</key>
+    <dict>
+        <key>html</key>
+        <string>component.html</string>
+    </dict>
+</dict>
+</plist>

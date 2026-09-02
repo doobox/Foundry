@@ -52,6 +52,24 @@ struct CanvasBridgeTests {
         #expect(message?.assetFilename == "hero.png")
     }
 
+    @Test
+    func decodesCanvasComponentDeletionAndRejectsEmptyDeletion() {
+        let ids = [UUID(), UUID()]
+        let message = CanvasMessage.decode([
+            "version": CanvasMessage.currentVersion,
+            "event": "deleteComponents",
+            "componentIDs": ids.map(\.uuidString)
+        ])
+
+        #expect(message?.event == .deleteComponents)
+        #expect(message?.componentIDs == ids)
+        #expect(CanvasMessage.decode([
+            "version": CanvasMessage.currentVersion,
+            "event": "deleteComponents",
+            "componentIDs": []
+        ]) == nil)
+    }
+
     @Test @MainActor
     func rendererEmitsStableIdentityForEveryComponent() {
         let page = Site.starter().pages[0]

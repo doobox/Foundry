@@ -20,6 +20,24 @@ struct CanvasInlineEditingMessageTests {
     }
 
     @Test
+    func decodesHTMLModalEditRequest() {
+        let id = UUID()
+        let source = "<button>Click me</button>\n<style>button { color: red; }</style>"
+        let message = CanvasMessage.decode([
+            "version": 1,
+            "event": "editHTMLComponent",
+            "componentID": id.uuidString,
+            "propertyKey": "html1",
+            "propertyValue": source
+        ])
+
+        #expect(message?.event == .editHTMLComponent)
+        #expect(message?.componentID == id)
+        #expect(message?.propertyKey?.rawValue == "html1")
+        #expect(message?.propertyValue == source)
+    }
+
+    @Test
     func rejectsIncompleteEditMessage() {
         #expect(CanvasMessage.decode([
             "version": 1,

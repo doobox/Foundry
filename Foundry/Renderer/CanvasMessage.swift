@@ -58,12 +58,14 @@ nonisolated struct CanvasMessage: Codable, Equatable, Sendable {
 
     nonisolated enum Event: String, Codable, Sendable {
         case selectComponent
+        case deleteComponents
         case insertComponent
         case insertReusableComponent
         case insertGlobalComponent
         case setGlobalLink
         case moveComponent
         case editComponent
+        case editHTMLComponent
         case importImageAsset
         case insertImageComponent
     }
@@ -120,6 +122,10 @@ nonisolated struct CanvasMessage: Codable, Equatable, Sendable {
         case .selectComponent:
             componentID != nil && componentType == nil && reusableDefinitionID == nil && globalDefinitionID == nil && placement == nil &&
                 propertyKey == nil && propertyValue == nil && hasNoAssetPayload
+        case .deleteComponents:
+            componentID == nil && componentIDs?.isEmpty == false && extendsSelection == nil && componentType == nil &&
+                reusableDefinitionID == nil && globalDefinitionID == nil && isGlobalLinked == nil && placement == nil &&
+                propertyKey == nil && propertyValue == nil && hasNoAssetPayload
         case .insertComponent:
             componentID == nil && componentType != nil && reusableDefinitionID == nil && globalDefinitionID == nil && placement?.componentPlacement != nil &&
                 propertyKey == nil && propertyValue == nil && hasNoAssetPayload
@@ -135,7 +141,7 @@ nonisolated struct CanvasMessage: Codable, Equatable, Sendable {
         case .moveComponent:
             (componentID != nil || componentIDs?.isEmpty == false) && componentType == nil && reusableDefinitionID == nil && globalDefinitionID == nil && placement?.componentPlacement != nil &&
                 propertyKey == nil && propertyValue == nil && hasNoAssetPayload
-        case .editComponent:
+        case .editComponent, .editHTMLComponent:
             componentID != nil && componentType == nil && reusableDefinitionID == nil && globalDefinitionID == nil && placement == nil &&
                 propertyKey != nil && propertyValue != nil && hasNoAssetPayload
         case .importImageAsset:

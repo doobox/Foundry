@@ -321,6 +321,20 @@ struct WebCanvasView: NSViewRepresentable {
             }
           };
 
+          document.addEventListener('keydown', event => {
+            if (event.key !== 'Backspace' && event.key !== 'Delete') return;
+            if (activeInlineEdit || selectedComponentIDs.length === 0) return;
+            const target = event.target;
+            if (target?.isContentEditable || target?.closest?.('input, textarea, select, [contenteditable="true"]')) return;
+            event.preventDefault();
+            event.stopPropagation();
+            window.webkit.messageHandlers.foundryCanvas.postMessage({
+              version: 1,
+              event: 'deleteComponents',
+              componentIDs: selectedComponentIDs
+            });
+          }, true);
+
           document.querySelectorAll(selector).forEach(element => {
             element.draggable = true;
             element.addEventListener('dragstart', event => {
@@ -468,6 +482,24 @@ struct WebCanvasView: NSViewRepresentable {
             event.preventDefault();
             event.stopPropagation();
 
+            const editsHTML = element.hasAttribute('data-foundry-inline-html');
+            const decodeSource = encoded => new TextDecoder().decode(
+              Uint8Array.from(atob(encoded), character => character.charCodeAt(0))
+            );
+            if (editsHTML) {
+              const source = element.dataset.foundryInlineSource
+                ? decodeSource(element.dataset.foundryInlineSource)
+                : element.innerHTML;
+              window.webkit.messageHandlers.foundryCanvas.postMessage({
+                version: 1,
+                event: 'editHTMLComponent',
+                componentID: (componentElement ?? element).dataset.foundryId,
+                propertyKey: editableProperty,
+                propertyValue: source
+              });
+              return;
+            }
+
             const original = element.innerText;
             const commitsOnReturn = (componentElement ?? element).dataset.foundryType !== 'Text';
             let finished = false;
@@ -524,6 +556,7 @@ struct WebCanvasView: NSViewRepresentable {
             if (activeInlineEdit && !activeInlineEdit.element.contains(event.target)) {
               activeInlineEdit.finish(true);
             }
+            if (activeInlineEdit?.element.contains(event.target)) return;
             if (element?.isContentEditable) return;
             if (!element) return;
             event.preventDefault();

@@ -2,6 +2,14 @@ import AppKit
 import SwiftUI
 import UniformTypeIdentifiers
 
+private struct HTMLSourceEditRequest: Identifiable {
+    let id = UUID()
+    let pageID: UUID
+    let componentID: UUID
+    let propertyKey: ComponentProperty.Key
+    let source: HTMLComponentSource
+}
+
 struct ContentView: View {
     @ObservedObject var document: FoundryDocument
     @Environment(\.undoManager) private var undoManager
@@ -34,6 +42,7 @@ struct ContentView: View {
     @State private var canvasEditorOptions = CanvasEditorOptions()
     @State private var componentCatalog = ComponentPackageCatalog.shared
     @State private var canvasViewportWidth = 390.0
+    @State private var htmlSourceEditRequest: HTMLSourceEditRequest?
     @AppStorage(AppPreferenceKey.appearance)
     private var appearance: AppAppearance = .system
     @AppStorage(AppPreferenceKey.externalPreviewAutoReload)
@@ -197,6 +206,16 @@ struct ContentView: View {
                 dismiss: { showsPublishingProgress = false }
             )
             .interactiveDismissDisabled(publishingState.isActive)
+        }
+        .sheet(item: $htmlSourceEditRequest) { request in
+            HTMLSourceEditorView(
+                source: request.source,
+                cancel: { htmlSourceEditRequest = nil },
+                save: { source in
+                    saveHTMLSource(source, request: request)
+                    htmlSourceEditRequest = nil
+                }
+            )
         }
         .alert("Site Export Failed", isPresented: exportErrorBinding) {
             Button("OK", role: .cancel) { exportErrorMessage = nil }
@@ -468,14 +487,17 @@ struct ContentView: View {
     }
 
     private var topLevelSelectedComponentIDs: [UUID] {
+        topLevelComponentIDs(from: selectedComponentIDs)
+    }
+
+    private func topLevelComponentIDs(from requestedIDs: Set<UUID>) -> [UUID] {
         guard let selectedPage else { return [] }
-        let selectedIDs = selectedComponentIDs
         func flattenedIDs(_ nodes: [ComponentNode]) -> [UUID] {
             nodes.flatMap { [$0.id] + flattenedIDs($0.children) }
         }
         return flattenedIDs(selectedPage.components).filter { id in
-            guard selectedIDs.contains(id) else { return false }
-            return Set(selectedPage.components.ancestorIDs(of: id)).isDisjoint(with: selectedIDs)
+            guard requestedIDs.contains(id) else { return false }
+            return Set(selectedPage.components.ancestorIDs(of: id)).isDisjoint(with: requestedIDs)
         }
     }
 
@@ -513,6 +535,8 @@ struct ContentView: View {
                 selectedComponentID = componentID
             }
             workspaceLayout.activate(.structure)
+        case .deleteComponents:
+            deleteComponents(message.componentIDs ?? [])
         case .insertComponent:
             guard let type = message.componentType,
                   let placement = validatedPlacement(message.placement, on: page),
@@ -548,6 +572,27 @@ struct ContentView: View {
                   let placement = validatedPlacement(message.placement, on: page),
                   moveComponentsFromStructure(componentIDs, placement) else { return }
             workspaceLayout.activate(.structure)
+        case .editHTMLComponent:
+            guard let componentID = message.componentID,
+                  let propertyKey = message.propertyKey,
+                  let source = message.propertyValue,
+                  let component = page.components.node(withID: componentID),
+                  let package = component.type.definition.package,
+                  ComponentTemplateRenderer.htmlPrimitives(in: package.htmlTemplate).contains(where: {
+                      $0.key == propertyKey.rawValue
+                  }) else { return }
+            selectedComponentIDs = [componentID]
+            selectedComponentID = componentID
+            htmlSourceEditRequest = HTMLSourceEditRequest(
+                pageID: page.id,
+                componentID: componentID,
+                propertyKey: propertyKey,
+                source: .init(
+                    html: source,
+                    css: component.property(.init(rawValue: propertyKey.rawValue + "CSS")),
+                    javaScript: component.property(.init(rawValue: propertyKey.rawValue + "JavaScript"))
+                )
+            )
         case .editComponent:
             guard let componentID = message.componentID,
                   let propertyKey = message.propertyKey,
@@ -641,6 +686,30 @@ struct ContentView: View {
             selectedComponentID = componentID
             workspaceLayout.activate(.structure)
         }
+    }
+
+    private func saveHTMLSource(_ source: HTMLComponentSource, request: HTMLSourceEditRequest) {
+        guard let page = document.site.pages.first(where: { $0.id == request.pageID }),
+              let component = page.components.node(withID: request.componentID),
+              let package = component.type.definition.package,
+              ComponentTemplateRenderer.htmlPrimitives(in: package.htmlTemplate).contains(where: {
+                  $0.key == request.propertyKey.rawValue
+              }) else { return }
+        let values: [(ComponentProperty.Key, String)] = [
+            (request.propertyKey, source.html),
+            (.init(rawValue: request.propertyKey.rawValue + "CSS"), source.css),
+            (.init(rawValue: request.propertyKey.rawValue + "JavaScript"), source.javaScript)
+        ]
+        undoManager?.beginUndoGrouping()
+        for (key, value) in values {
+            if let context = document.site.globalComponentContext(containing: request.componentID), !context.isOverridden {
+                editor.setSharedReusableProperty(componentID: request.componentID, key: key, value: .string(value))
+            } else {
+                editor.setProperty(id: request.componentID, key: key, value: .string(value))
+            }
+        }
+        undoManager?.endUndoGrouping()
+        undoManager?.setActionName("Edit HTML Component")
     }
 
     private func imageType(filename: String, mediaType: String) -> UTType? {
@@ -878,7 +947,11 @@ struct ContentView: View {
     }
 
     private func deleteComponent() {
-        let componentIDs = topLevelSelectedComponentIDs
+        deleteComponents(Array(selectedComponentIDs))
+    }
+
+    private func deleteComponents(_ requestedIDs: [UUID]) {
+        let componentIDs = topLevelComponentIDs(from: Set(requestedIDs))
         guard !componentIDs.isEmpty else { return }
         editor.removeComponents(ids: componentIDs)
         selectedComponentIDs = []

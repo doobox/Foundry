@@ -200,7 +200,11 @@ struct HTMLPageRenderer: PageRendering {
                 context: .init(instanceID: UUID(uuid: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)), packageIdentifier: package.manifest.identifier, properties: [:], slots: [:])
             )
         }
-        let source = (instanceScripts + sharedScripts).joined(separator: "\n")
+        let htmlScripts = nodes.map {
+            ComponentArtifactPlan.htmlArtifact(for: $0.resolved(at: breakpoint), suffix: "JavaScript")
+        }
+            .filter { !$0.isEmpty }
+        let source = (instanceScripts + htmlScripts + sharedScripts).joined(separator: "\n")
         return source.isEmpty ? "" : "<script>\n\(source)\n</script>"
     }
 
@@ -413,7 +417,8 @@ struct HTMLPageRenderer: PageRendering {
         assets: [UUID: ProjectAssetContent],
         breakpoint: ResponsiveBreakpoint
     ) -> String {
-        let instanceStyles = page.components.flatMap(flattened).compactMap { sourceNode in
+        let nodes = page.components.flatMap(flattened)
+        let instanceStyles = nodes.compactMap { sourceNode in
             let node = sourceNode.resolved(at: breakpoint)
             guard let package = node.type.definition.package else { return nil }
             let css = ComponentTemplateRenderer.render(
@@ -427,6 +432,11 @@ struct HTMLPageRenderer: PageRendering {
             )
             return ComponentTemplateRenderer.scopedCSS(css, packageIdentifier: package.manifest.identifier)
         }.joined(separator: "\n")
+        let htmlStyles = nodes.map {
+            ComponentArtifactPlan.htmlArtifact(for: $0.resolved(at: breakpoint), suffix: "CSS")
+        }
+            .filter { !$0.isEmpty }
+            .joined(separator: "\n")
         var seenPackages: Set<String> = []
         let pageStyles = page.components.flatMap(flattened).compactMap { node -> String? in
             guard let package = node.type.definition.package,
@@ -442,7 +452,7 @@ struct HTMLPageRenderer: PageRendering {
                 )
             )
         }.joined(separator: "\n")
-        return [instanceStyles, pageStyles].filter { !$0.isEmpty }.joined(separator: "\n")
+        return [instanceStyles, htmlStyles, pageStyles].filter { !$0.isEmpty }.joined(separator: "\n")
     }
 
     private func themeControlStyles(

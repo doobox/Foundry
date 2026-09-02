@@ -10,6 +10,22 @@ nonisolated enum ComponentPackageAdapter {
                 isResponsive: false, isInspectorVisible: false
             )
         }
+        let implicitHTMLProperties = ComponentTemplateRenderer.htmlPrimitives(in: package.htmlTemplate).map { primitive in
+            ComponentPropertyDefinition(
+                key: .init(rawValue: primitive.key), label: "HTML", section: .content,
+                control: .multilineText, defaultValue: .string(primitive.defaultValue),
+                isResponsive: false, isInspectorVisible: false
+            )
+        }
+        let implicitHTMLArtifactProperties = ComponentTemplateRenderer.htmlPrimitives(in: package.htmlTemplate).flatMap { primitive in
+            ["CSS", "JavaScript"].map { suffix in
+                ComponentPropertyDefinition(
+                    key: .init(rawValue: primitive.key + suffix), label: suffix, section: .content,
+                    control: .multilineText, defaultValue: .string(""),
+                    isResponsive: false, isInspectorVisible: false
+                )
+            }
+        }
         let implicitImageProperties: [ComponentPropertyDefinition] = ComponentTemplateRenderer.hasImagePrimitive(in: package.htmlTemplate) ? [
             ComponentPropertyDefinition(
                 key: .source, label: "Image", section: .content,
@@ -24,7 +40,7 @@ nonisolated enum ComponentPackageAdapter {
             category: ComponentCategory(rawValue: ComponentPackageGroup.resolve(manifest.category).rawValue),
             allowsChildren: !manifest.slots.isEmpty,
             renderKind: .package,
-            properties: manifest.properties.flatMap(propertyDefinitions) + implicitTextProperties + implicitImageProperties,
+            properties: manifest.properties.flatMap(propertyDefinitions) + implicitTextProperties + implicitHTMLProperties + implicitHTMLArtifactProperties + implicitImageProperties,
             package: package
         )
     }

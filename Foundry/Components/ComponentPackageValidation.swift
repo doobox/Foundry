@@ -137,11 +137,11 @@ nonisolated enum ComponentPackageValidator {
                 continue
             }
             if template.matches(#"\{\{\s*(?:id|instance\.id|component\.|control\.|property\.|slot\.)"#) ||
-                template.matches(#"\{%\s*(?:slot|if)\b"#) || template.matches(#"%(?:text(?:=|%)|image%)"#) {
+                template.matches(#"\{\{\s*(?:slot\s+id|if\s+property|text(?:\s*=|\s*\}\})|html(?:\s*=|\s*\}\})|image\s*\}\})"#) {
                 diagnostics.append(.init(
                     severity: .error,
                     location: file.path,
-                    message: "Page- and site-scoped templates cannot use instance, component, control, property, slot, condition, or editable-text macros."
+                    message: "Page- and site-scoped templates cannot use instance, component, control, property, slot, condition, or editable-content macros."
                 ))
             }
         }
@@ -168,7 +168,7 @@ nonisolated enum ComponentPackageValidator {
         }
 
         for reference in template.references(matching: #"\{\{\s*(?:control|property)\.([A-Za-z][A-Za-z0-9_-]*)"#) +
-            template.references(matching: #"\{%\s*if\s+property\.([A-Za-z][A-Za-z0-9_-]*)"#) {
+            template.references(matching: #"\{\{\s*if\s+property\.([A-Za-z][A-Za-z0-9_-]*)"#) {
             if !propertyIDs.contains(reference.value) {
                 diagnostics.append(templateDiagnostic(
                     templateLocation,
@@ -201,7 +201,7 @@ nonisolated enum ComponentPackageValidator {
         }
 
         let slotReferences = template.references(
-            matching: #"\{%\s*slot\s+id\s*=\s*[\"']([A-Za-z][A-Za-z0-9_.-]*)[\"']"#
+            matching: #"\{\{\s*slot\s+id\s*=\s*[\"']([A-Za-z][A-Za-z0-9_.-]*)[\"']"#
         )
         let legacySlotReferences = template.references(
             matching: #"\{\{\s*slot\.([A-Za-z][A-Za-z0-9_.-]*)\s*\}\}"#
@@ -220,7 +220,7 @@ nonisolated enum ComponentPackageValidator {
                 template: template,
                 offset: legacy.offset,
                 severity: .warning,
-                message: "Use {% slot id=\"…\" %}; the {{ slot.… }} form cannot carry slot options."
+                message: "Use {{ slot id=\"…\" }}; the {{ slot.… }} form cannot carry slot options."
             ))
         }
         if requiresEditorAttributes {
@@ -252,9 +252,9 @@ nonisolated enum ComponentPackageValidator {
             }
         }
 
-        let ifCount = template.matchCount(#"\{%\s*if\b"#)
-        let endIfCount = template.matchCount(#"\{%\s*endif\s*%\}"#)
-        let elseCount = template.matchCount(#"\{%\s*else\s*%\}"#)
+        let ifCount = template.matchCount(#"\{\{\s*if\b"#)
+        let endIfCount = template.matchCount(#"\{\{\s*endif\s*\}\}"#)
+        let elseCount = template.matchCount(#"\{\{\s*else\s*\}\}"#)
         if ifCount != endIfCount || elseCount > ifCount {
             diagnostics.append(.init(
                 severity: .error,
@@ -263,14 +263,17 @@ nonisolated enum ComponentPackageValidator {
             ))
         }
 
-        let supportedDirectiveNames: Set<String> = ["if", "else", "endif", "slot"]
-        for reference in template.references(matching: #"\{%\s*([A-Za-z]+)\b"#)
-            where !supportedDirectiveNames.contains(reference.value) {
+        let supportedMacroNames: Set<String> = [
+            "id", "instance", "package", "component", "control", "property", "asset", "slot",
+            "if", "else", "endif", "text", "html", "image"
+        ]
+        for reference in template.references(matching: #"\{\{\s*([A-Za-z]+)(?:\.|\s|\}\})"#)
+            where !supportedMacroNames.contains(reference.value) {
             diagnostics.append(templateDiagnostic(
                 templateLocation,
                 template: template,
                 offset: reference.offset,
-                message: "Unknown template directive '\(reference.value)'."
+                message: "Unknown template macro '\(reference.value)'."
             ))
         }
     }

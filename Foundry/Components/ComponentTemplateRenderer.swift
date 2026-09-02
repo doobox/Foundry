@@ -33,6 +33,11 @@ nonisolated struct ComponentTextPrimitive: Equatable, Sendable {
     let defaultValue: String
 }
 
+nonisolated struct ComponentHTMLPrimitive: Equatable, Sendable {
+    let key: String
+    let defaultValue: String
+}
+
 nonisolated enum ComponentTemplateRenderer {
     private static let loremParagraph = "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum."
 
@@ -46,10 +51,15 @@ nonisolated enum ComponentTemplateRenderer {
         for match in matches {
             guard let wholeRange = Range(match.range(at: 0), in: result),
                   let expressionRange = Range(match.range(at: 1), in: result) else { continue }
-            let replacement = value(forExpression: String(result[expressionRange]), context: context)
+            let templateExpression = String(result[expressionRange])
+            let trimmedExpression = templateExpression.trimmingCharacters(in: .whitespacesAndNewlines)
+            if trimmedExpression == "html" || trimmedExpression.hasPrefix("html=") || trimmedExpression.hasPrefix("html =") {
+                continue
+            }
+            let replacement = value(forExpression: templateExpression, context: context)
             result.replaceSubrange(wholeRange, with: replacement)
         }
-        return result
+        return renderHTML(in: result, context: context)
     }
 
     static func textPrimitives(in template: String) -> [ComponentTextPrimitive] {
@@ -62,7 +72,16 @@ nonisolated enum ComponentTemplateRenderer {
     }
 
     static func hasImagePrimitive(in template: String) -> Bool {
-        template.range(of: #"%image%"#, options: .regularExpression) != nil
+        template.range(of: #"\{\{\s*image\s*\}\}"#, options: .regularExpression) != nil
+    }
+
+    static func htmlPrimitives(in template: String) -> [ComponentHTMLPrimitive] {
+        htmlPrimitiveMatches(in: template).enumerated().map { index, match in
+            ComponentHTMLPrimitive(
+                key: "html\(index + 1)",
+                defaultValue: htmlPrimitiveDefault(match: match, in: template)
+            )
+        }
     }
 
     static func scopedCSS(_ css: String, packageIdentifier: String) -> String {
@@ -103,12 +122,38 @@ nonisolated enum ComponentTemplateRenderer {
         } else {
             image = "<img class=\"foundry-image\" data-foundry-image-drop-zone src=\"\(escapeAttribute(source))\" alt=\"\">"
         }
-        return template.replacingOccurrences(of: "%image%", with: image)
+        let expression = try! NSRegularExpression(pattern: #"\{\{\s*image\s*\}\}"#)
+        return expression.stringByReplacingMatches(
+            in: template,
+            range: NSRange(template.startIndex..., in: template),
+            withTemplate: NSRegularExpression.escapedTemplate(for: image)
+        )
+    }
+
+    private static func renderHTML(in template: String, context: ComponentTemplateContext) -> String {
+        var result = template
+        let matches = htmlPrimitiveMatches(in: result)
+        for (index, match) in matches.enumerated().reversed() {
+            guard let wholeRange = Range(match.range(at: 0), in: result) else { continue }
+            let key = "html\(index + 1)"
+            let currentValue = stringValue(context.properties[key]) ?? htmlPrimitiveDefault(match: match, in: result)
+            result.replaceSubrange(wholeRange, with: currentValue)
+            if !context.componentAttributes.isEmpty {
+                addInlineEditingAttribute(
+                    for: key,
+                    atUTF16Offset: match.range.location,
+                    rendersHTML: true,
+                    inlineSource: currentValue,
+                    to: &result
+                )
+            }
+        }
+        return result
     }
 
     private static func primitiveMatches(in template: String) -> [NSTextCheckingResult] {
         let expression = try! NSRegularExpression(
-            pattern: #"%text(?:="([^"]*)")?%"#
+            pattern: #"\{\{\s*text(?:\s*=\s*"([^"]*)")?\s*\}\}"#
         )
         return expression.matches(in: template, range: NSRange(template.startIndex..., in: template))
     }
@@ -120,9 +165,31 @@ nonisolated enum ComponentTemplateRenderer {
         return loremParagraph
     }
 
+    private static func htmlPrimitiveMatches(in template: String) -> [NSTextCheckingResult] {
+        let expression = try! NSRegularExpression(
+            pattern: #"\{\{\s*html(?:\s*=\s*"([^"]*)")?\s*\}\}"#
+        )
+        return expression.matches(in: template, range: NSRange(template.startIndex..., in: template))
+    }
+
+    private static func htmlPrimitiveDefault(match: NSTextCheckingResult, in template: String) -> String {
+        if let htmlRange = Range(match.range(at: 1), in: template) {
+            return String(template[htmlRange])
+        }
+        return """
+        <ul>
+          <li>First item</li>
+          <li>Second item</li>
+          <li>Third item</li>
+        </ul>
+        """
+    }
+
     private static func addInlineEditingAttribute(
         for key: String,
         atUTF16Offset offset: Int,
+        rendersHTML: Bool = false,
+        inlineSource: String? = nil,
         to result: inout String
     ) {
         let textPosition = String.Index(utf16Offset: offset, in: result)
@@ -134,8 +201,12 @@ nonisolated enum ComponentTemplateRenderer {
               !tag.hasPrefix("<!"),
               !tag.hasPrefix("<?"),
               !tag.contains("data-foundry-inline-property=") else { return }
+        let htmlAttribute = rendersHTML ? " data-foundry-inline-html" : ""
+        let sourceAttribute = inlineSource.map {
+            " data-foundry-inline-source=\"\(Data($0.utf8).base64EncodedString())\""
+        } ?? ""
         result.insert(
-            contentsOf: " data-foundry-inline-property=\"\(escapeAttribute(key))\"",
+            contentsOf: " data-foundry-inline-property=\"\(escapeAttribute(key))\"\(htmlAttribute)\(sourceAttribute)",
             at: tagEnd
         )
     }
@@ -248,7 +319,7 @@ nonisolated enum ComponentTemplateRenderer {
 
     private static func renderConditions(in template: String, context: ComponentTemplateContext) -> String {
         let expression = try! NSRegularExpression(
-            pattern: #"\{%\s*if\s+property\.([A-Za-z][A-Za-z0-9_.-]*)(?:\s*==\s*[\"']([^\"']*)[\"'])?\s*%\}([\s\S]*?)(?:\{%\s*else\s*%\}([\s\S]*?))?\{%\s*endif\s*%\}"#
+            pattern: #"\{\{\s*if\s+property\.([A-Za-z][A-Za-z0-9_.-]*)(?:\s*==\s*[\"']([^\"']*)[\"'])?\s*\}\}([\s\S]*?)(?:\{\{\s*else\s*\}\}([\s\S]*?))?\{\{\s*endif\s*\}\}"#
         )
         var result = template
         var remainingPasses = 100
@@ -274,7 +345,7 @@ nonisolated enum ComponentTemplateRenderer {
 
     private static func renderSlots(in template: String, context: ComponentTemplateContext) -> String {
         let expression = try! NSRegularExpression(
-            pattern: #"\{%\s*slot\s+id\s*=\s*[\"']([A-Za-z][A-Za-z0-9_.-]*)[\"'](?:\s+[^%]*?)?\s*%\}"#
+            pattern: #"\{\{\s*slot\s+id\s*=\s*[\"']([A-Za-z][A-Za-z0-9_.-]*)[\"'](?:\s+[^}]*?)?\s*\}\}"#
         )
         var result = template
         let matches = expression.matches(in: result, range: NSRange(result.startIndex..., in: result)).reversed()

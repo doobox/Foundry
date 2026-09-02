@@ -106,7 +106,7 @@ struct ComponentPackageTests {
             )
         let packageURL = try makePackage(
             manifest: manifest,
-            template: "<section {{ component.attributes }}>{% slot id=\"content\" %}</section>"
+            template: "<section {{ component.attributes }}>{{ slot id=\"content\" }}</section>"
         )
         defer { try? FileManager.default.removeItem(at: packageURL) }
         let package = try ComponentPackageLoader.load(from: packageURL)
@@ -123,7 +123,7 @@ struct ComponentPackageTests {
 
     @Test
     func textPrimitivesUseAutomaticUniqueKeysAndStoredValues() throws {
-        let template = #"<h2>%text="Start here"%</h2><p>%text%</p><small>%text="Note"%</small>"#
+        let template = #"<h2>{{ text="Start here" }}</h2><p>{{ text }}</p><small>{{ text="Note" }}</small>"#
         let defaultContext = ComponentTemplateContext(
             instanceID: UUID(),
             packageIdentifier: "com.example.text",
@@ -168,7 +168,7 @@ struct ComponentPackageTests {
 
     @Test
     func bareTextPrimitiveUsesOneLoremParagraphWithoutAnExportedWrapper() {
-        let template = "<p>%text%</p>"
+        let template = "<p>{{ text }}</p>"
         let context = ComponentTemplateContext(
             instanceID: UUID(),
             packageIdentifier: "com.example.text",
@@ -185,8 +185,36 @@ struct ComponentPackageTests {
     }
 
     @Test
+    func htmlPrimitivePreservesMarkupAndSupportsCanvasEditing() throws {
+        let template = #"<div {{ component.attributes }}>{{ html="<strong>Start here</strong>" }}</div>"#
+        let editorContext = ComponentTemplateContext(
+            instanceID: UUID(), packageIdentifier: "com.example.html",
+            properties: ["html1": .string("<em>Edited & ready</em>")], slots: [:],
+            componentAttributes: "data-foundry-id=\"test-component\""
+        )
+
+        let primitive = try #require(ComponentTemplateRenderer.htmlPrimitives(in: template).first)
+        #expect(primitive.key == "html1")
+        #expect(primitive.defaultValue == "<strong>Start here</strong>")
+        let rendered = ComponentTemplateRenderer.render(template, context: editorContext)
+        #expect(rendered.contains("<em>Edited & ready</em>"))
+        #expect(rendered.contains("data-foundry-inline-property=\"html1\""))
+        #expect(rendered.contains("data-foundry-inline-html"))
+        let encodedSource = Data("<em>Edited & ready</em>".utf8).base64EncodedString()
+        #expect(rendered.contains("data-foundry-inline-source=\"\(encodedSource)\""))
+    }
+
+    @Test
+    func bareHTMLPrimitiveUsesAnEditableListDefault() throws {
+        let primitive = try #require(ComponentTemplateRenderer.htmlPrimitives(in: "<div>{{ html }}</div>").first)
+
+        #expect(primitive.defaultValue.contains("<ul>"))
+        #expect(primitive.defaultValue.components(separatedBy: "<li>").count - 1 == 3)
+    }
+
+    @Test
     func imagePrimitiveCreatesAnImplicitResponsiveImageSource() {
-        let template = "<figure {{ component.attributes }}>%image%</figure>"
+        let template = "<figure {{ component.attributes }}>{{ image }}</figure>"
         let editorContext = ComponentTemplateContext(
             instanceID: UUID(), packageIdentifier: "com.example.image",
             properties: [:], slots: [:], componentAttributes: "data-editor=\"true\""
@@ -205,7 +233,7 @@ struct ComponentPackageTests {
 
     @Test
     func textPrimitivePreservesEditedLineBreaks() {
-        let template = "<p>%text%</p>"
+        let template = "<p>{{ text }}</p>"
         let context = ComponentTemplateContext(
             instanceID: UUID(),
             packageIdentifier: "com.example.text",
@@ -266,10 +294,10 @@ struct ComponentPackageTests {
         let template = """
         <article class="card{{ component.class }}" {{ component.attributes }}>
           <h2>{{ property.title }}</h2>
-          {% if property.visible %}<span>Shown</span>{% else %}<span>Hidden</span>{% endif %}
-          {% if property.alignment == "center" %}<b>Centered</b>{% endif %}
+          {{ if property.visible }}<span>Shown</span>{{ else }}<span>Hidden</span>{{ endif }}
+          {{ if property.alignment == "center" }}<b>Centered</b>{{ endif }}
           <img src="{{ asset.images/icon.svg }}">
-          {% slot id="content" %}
+          {{ slot id="content" }}
         </article>
         """
 
@@ -292,10 +320,10 @@ struct ComponentPackageTests {
             template: """
             <section>
               {{ property.missing }}
-              {% slot id="unknown" %}
+              {{ slot id="unknown" }}
               {{ asset.../secret.txt }}
-              {% mystery %}
-              {% if property.title %}
+              {{ mystery }}
+              {{ if property.title }}
             </section>
             """
         )
@@ -340,7 +368,7 @@ struct ComponentPackageTests {
         )
         let packageURL = try makePackage(
             manifest: manifest,
-            template: "<section id=\"{{ id }}\" {{ component.attributes }}>{% slot id=\"content\" %}</section>",
+            template: "<section id=\"{{ id }}\" {{ component.attributes }}>{{ slot id=\"content\" }}</section>",
             additionalFiles: [
                 "instance.css": "#{{ id }} { color: red; }",
                 "default-scope.css": "#{{ id }} { display: block; }"
@@ -368,7 +396,7 @@ struct ComponentPackageTests {
         )
         let packageURL = try makePackage(
             manifest: manifestText,
-            template: "<section id=\"{{ id }}\" {{ component.attributes }}>{% slot id=\"content\" %}</section>",
+            template: "<section id=\"{{ id }}\" {{ component.attributes }}>{{ slot id=\"content\" }}</section>",
             additionalFiles: ["component.scss": ":host {}"]
         )
         defer { try? FileManager.default.removeItem(at: packageURL) }
@@ -399,7 +427,7 @@ struct ComponentPackageTests {
             .replacingOccurrences(of: instanceCSSDeclaration, with: declaration)
         let packageURL = try makePackage(
             manifest: manifestText,
-            template: "<section id=\"{{ id }}\" {{ component.attributes }}>{% slot id=\"content\" %}</section>",
+            template: "<section id=\"{{ id }}\" {{ component.attributes }}>{{ slot id=\"content\" }}</section>",
             additionalFiles: [
                 "instance.js": "document.querySelector('#{{ id }}');",
                 "page.js": "console.log('{{ package.id }} page');",
@@ -435,7 +463,7 @@ struct ComponentPackageTests {
             .replacingOccurrences(of: instanceCSSDeclaration, with: declaration)
         let packageURL = try makePackage(
             manifest: manifestText,
-            template: "<section class=\"test{{ component.class }}\" {{ component.attributes }}><button>Test</button>{% slot id=\"content\" %}</section>",
+            template: "<section class=\"test{{ component.class }}\" {{ component.attributes }}><button>Test</button>{{ slot id=\"content\" }}</section>",
             additionalFiles: ["instance.js": "component.querySelector('button');"]
         )
         defer { try? FileManager.default.removeItem(at: packageURL) }
@@ -445,10 +473,12 @@ struct ComponentPackageTests {
         let node = ComponentNode(type: ComponentType(rawValue: identifier))
         let site = Site(name: "JavaScript", pages: [Page(title: "Home", slug: "index", components: [node])])
 
-        let html = try #require(StaticSiteRenderer().render(site: site).file(at: "index.html")?.contents)
+        let bundle = StaticSiteRenderer().render(site: site)
+        let html = try #require(bundle.file(at: "index.html")?.contents)
+        let pageJavaScript = try #require(bundle.file(at: "assets/pages/\(site.pages[0].id.uuidString.lowercased()).js")?.contents)
 
         #expect(html.contains("data-foundry-id=\"\(node.id.uuidString)\""))
-        #expect(html.contains("document.querySelector('[data-foundry-id=\"\(node.id.uuidString)\"]')"))
+        #expect(pageJavaScript.contains("document.querySelector('[data-foundry-id=\"\(node.id.uuidString)\"]')"))
     }
 
     @Test
@@ -468,7 +498,7 @@ struct ComponentPackageTests {
             .replacingOccurrences(of: instanceCSSDeclaration, with: declaration)
         let packageURL = try makePackage(
             manifest: manifestText,
-            template: "<section id=\"{{ id }}\" {{ component.attributes }}>{% slot id=\"content\" %}</section>",
+            template: "<section id=\"{{ id }}\" {{ component.attributes }}>{{ slot id=\"content\" }}</section>",
             additionalFiles: [
                 "instance.php": "<?php $componentIDs[] = '{{ id }}'; ?>",
                 "page.php": "<?php $package = '{{ package.id }}'; ?>",
@@ -504,7 +534,7 @@ struct ComponentPackageTests {
         let manifestText = validManifest.replacingOccurrences(of: instanceCSSDeclaration, with: declaration)
         let packageURL = try makePackage(
             manifest: manifestText,
-            template: "<section {{ component.attributes }}>{% slot id=\"content\" %}</section>",
+            template: "<section {{ component.attributes }}>{{ slot id=\"content\" }}</section>",
             additionalFiles: ["component.php": "<?php return; ?>"]
         )
         defer { try? FileManager.default.removeItem(at: packageURL) }
@@ -536,7 +566,7 @@ struct ComponentPackageTests {
         )
         let packageURL = try makePackage(
             manifest: manifestText,
-            template: "<section {{ component.attributes }} style=\"text-align: {{ control.alignment }}\">{% slot id=\"content\" %}</section>"
+            template: "<section {{ component.attributes }} style=\"text-align: {{ control.alignment }}\">{{ slot id=\"content\" }}</section>"
         )
         defer { try? FileManager.default.removeItem(at: packageURL) }
 
@@ -566,7 +596,7 @@ struct ComponentPackageTests {
         )
         let packageURL = try makePackage(
             manifest: manifestText,
-            template: "<section {{ component.attributes }} style=\"font-family: {{ control.typeface }}\">{% slot id=\"content\" %}</section>"
+            template: "<section {{ component.attributes }} style=\"font-family: {{ control.typeface }}\">{{ slot id=\"content\" }}</section>"
         )
         defer { try? FileManager.default.removeItem(at: packageURL) }
 
@@ -667,7 +697,7 @@ struct ComponentPackageTests {
         )
         let packageURL = try makePackage(
             manifest: manifestText,
-            template: "<output {{ component.attributes }}>{{ control.opacity }}{% slot id=\"content\" %}</output>"
+            template: "<output {{ component.attributes }}>{{ control.opacity }}{{ slot id=\"content\" }}</output>"
         )
         defer { try? FileManager.default.removeItem(at: packageURL) }
 
@@ -707,7 +737,7 @@ struct ComponentPackageTests {
         )
         let packageURL = try makePackage(
             manifest: manifestText,
-            template: "<output {{ component.attributes }}>{{ control.dimensions[0] }}{% slot id=\"content\" %}</output>"
+            template: "<output {{ component.attributes }}>{{ control.dimensions[0] }}{{ slot id=\"content\" }}</output>"
         )
         defer { try? FileManager.default.removeItem(at: packageURL) }
 
@@ -771,7 +801,7 @@ struct ComponentPackageTests {
         )
         let packageURL = try makePackage(
             manifest: manifestText,
-            template: "<output {{ component.attributes }}>{{ control.slider }}{% slot id=\"content\" %}</output>"
+            template: "<output {{ component.attributes }}>{{ control.slider }}{{ slot id=\"content\" }}</output>"
         )
         defer { try? FileManager.default.removeItem(at: packageURL) }
 
@@ -844,7 +874,7 @@ struct ComponentPackageTests {
         )
         let packageURL = try makePackage(
             manifest: manifestText,
-            template: "<section {{ component.attributes }}>{% slot id=\"content\" %}</section>"
+            template: "<section {{ component.attributes }}>{{ slot id=\"content\" }}</section>"
         )
         defer { try? FileManager.default.removeItem(at: packageURL) }
 
@@ -859,7 +889,7 @@ struct ComponentPackageTests {
 
         let invalidPackageURL = try makePackage(
             manifest: manifestText,
-            template: "<section {{ component.attributes }}>{{ control.contentDivider }}{% slot id=\"content\" %}</section>"
+            template: "<section {{ component.attributes }}>{{ control.contentDivider }}{{ slot id=\"content\" }}</section>"
         )
         defer { try? FileManager.default.removeItem(at: invalidPackageURL) }
         let diagnostics = ComponentPackageValidator.validate(
@@ -889,7 +919,7 @@ struct ComponentPackageTests {
         let manifestText = validManifest.replacingOccurrences(of: instanceCSSDeclaration, with: declaration)
         let packageURL = try makePackage(
             manifest: manifestText,
-            template: "<section {{ component.attributes }}>{% slot id=\"content\" %}</section>",
+            template: "<section {{ component.attributes }}>{{ slot id=\"content\" }}</section>",
             additionalFiles: [
                 "head.html": "<meta name=\"package\" content=\"{{ package.id }}\">",
                 "body.html": "<div data-package=\"{{ package.id }}\"></div>"
@@ -914,7 +944,7 @@ struct ComponentPackageTests {
         let manifestText = validManifest.replacingOccurrences(of: instanceCSSDeclaration, with: declaration)
         let validURL = try makePackage(
             manifest: manifestText,
-            template: "<section {{ component.attributes }}>{% slot id=\"content\" %}</section>",
+            template: "<section {{ component.attributes }}>{{ slot id=\"content\" }}</section>",
             additionalFiles: ["site.css": ".package-{{ package.id }} { box-sizing: border-box; }"]
         )
         defer { try? FileManager.default.removeItem(at: validURL) }
@@ -926,7 +956,7 @@ struct ComponentPackageTests {
 
         let invalidURL = try makePackage(
             manifest: manifestText,
-            template: "<section {{ component.attributes }}>{% slot id=\"content\" %}</section>",
+            template: "<section {{ component.attributes }}>{{ slot id=\"content\" }}</section>",
             additionalFiles: ["site.css": "#{{ id }} { display: none; }"]
         )
         defer { try? FileManager.default.removeItem(at: invalidURL) }
@@ -946,7 +976,7 @@ struct ComponentPackageTests {
         let manifestText = validManifest.replacingOccurrences(of: instanceCSSDeclaration, with: declaration)
         let validURL = try makePackage(
             manifest: manifestText,
-            template: "<section {{ component.attributes }}>{% slot id=\"content\" %}</section>",
+            template: "<section {{ component.attributes }}>{{ slot id=\"content\" }}</section>",
             additionalFiles: ["page.css": "[data-foundry-package=\"{{ package.id }}\"] { display: block; }"]
         )
         defer { try? FileManager.default.removeItem(at: validURL) }
@@ -957,7 +987,7 @@ struct ComponentPackageTests {
 
         let invalidURL = try makePackage(
             manifest: manifestText,
-            template: "<section {{ component.attributes }}>{% slot id=\"content\" %}</section>",
+            template: "<section {{ component.attributes }}>{{ slot id=\"content\" }}</section>",
             additionalFiles: ["page.css": "#{{ id }} { color: {{ control.title }}; }"]
         )
         defer { try? FileManager.default.removeItem(at: invalidURL) }
@@ -1009,6 +1039,9 @@ struct ComponentPackageTests {
         let controls = catalog.packages["foundry.testing.controls"]
         #expect(controls?.manifest.name == "Controls")
         #expect(controls?.manifest.properties.contains { $0.control.count == 4 } == true)
+        let html = try #require(catalog.packages["foundry.content.html"])
+        let htmlDefinition = ComponentPackageAdapter.definition(from: html)
+        #expect(htmlDefinition.properties.contains { $0.key.rawValue == "html1" && !$0.isInspectorVisible })
     }
 
     @Test @MainActor

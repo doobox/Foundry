@@ -57,13 +57,32 @@ are safe by default whether used as text or inside a quoted attribute:
 
 Every referenced property must be declared in `component.json`.
 
+### Editable content primitives
+
+Foundry can create hidden editable properties directly from a template:
+
+```html
+<p>{{ text }}</p>
+<div>{{ html }}</div>
+<figure>{{ image }}</figure>
+```
+
+- `{{ text }}` inserts escaped inline-editable text. Use
+  `{{ text="Default text" }}` to provide a default.
+- `{{ html }}` inserts editable raw HTML. Use
+  `{{ html="<strong>Default HTML</strong>" }}` to provide a default.
+- `{{ image }}` inserts an image or an image drop zone in the canvas.
+
+Repeated text and HTML primitives receive distinct implicit properties in
+template order.
+
 ### Named slots
 
 A slot is a location that accepts child components:
 
 ```html
-<div class="card-media">{% slot id="media" %}</div>
-<div class="card-content">{% slot id="content" %}</div>
+<div class="card-media">{{ slot id="media" }}</div>
+<div class="card-content">{{ slot id="content" }}</div>
 ```
 
 In the canvas an empty slot becomes a named drop zone. In preview and export
@@ -79,15 +98,15 @@ components should use the slot directive.
 Use a Boolean/truthy property or compare a property with a string:
 
 ```html
-{% if property.showBadge %}
+{{ if property.showBadge }}
   <span class="badge">{{ property.badge }}</span>
-{% endif %}
+{{ endif }}
 
-{% if property.alignment == "center" %}
+{{ if property.alignment == "center" }}
   <div class="centered">…</div>
-{% else %}
+{{ else }}
   <div>…</div>
-{% endif %}
+{{ endif }}
 ```
 
 Each `if` requires one `endif` and can have at most one `else`.
