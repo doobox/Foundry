@@ -51,15 +51,24 @@ struct DockingWorkspaceView<PanelContent: View>: View {
         } message: {
             Text("Save the current panels, tabs, windows, and column widths.")
         }
-        .alert(item: $presetPendingDeletion) { preset in
-            Alert(
-                title: Text("Delete “\(preset.name)”?"),
-                message: Text("This workspace arrangement will be permanently deleted."),
-                primaryButton: .destructive(Text("Delete")) {
-                    deleteWorkspace(preset.id)
-                },
-                secondaryButton: .cancel()
-            )
+        .alert(
+            "Delete “\(presetPendingDeletion?.name ?? "Workspace")”?",
+            isPresented: Binding(
+                get: { presetPendingDeletion != nil },
+                set: { isPresented in
+                    if !isPresented {
+                        presetPendingDeletion = nil
+                    }
+                }
+            ),
+            presenting: presetPendingDeletion
+        ) { preset in
+            Button("Delete", role: .destructive) {
+                deleteWorkspace(preset.id)
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: { _ in
+            Text("This workspace arrangement will be permanently deleted.")
         }
         .onChange(of: workspaceLibrary.presets.map(\.id), initial: true) { _, presetIDs in
             if let selectedWorkspaceID, !presetIDs.contains(selectedWorkspaceID) {
