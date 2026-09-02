@@ -26,6 +26,14 @@ struct DockingWorkspaceView<PanelContent: View>: View {
             layout: $layout,
             showsSidebar: showsSidebar,
             showsInspector: showsInspector,
+            toolbarContent: WorkspaceToolbarContent(
+                sidebarToggle: AnyView(sidebarToggleButton),
+                workspaces: AnyView(workspacePresetsMenu),
+                preview: AnyView(previewSiteButton),
+                settings: AnyView(projectSettingsButton),
+                publish: AnyView(publishButton),
+                inspectorToggle: AnyView(inspectorToggleButton)
+            ),
             inspectorTransitionCompleted: {
                 inspectorIsTransitioning = false
             },
@@ -34,6 +42,7 @@ struct DockingWorkspaceView<PanelContent: View>: View {
             }
         )
         .id(workspacePresentationID)
+        .ignoresSafeArea(.container, edges: .top)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .frame(minWidth: requiredMinimumWidth)
         .alert("Save Workspace As", isPresented: $isNamingPreset) {
@@ -72,44 +81,6 @@ struct DockingWorkspaceView<PanelContent: View>: View {
                     dockBeside: dockBeside,
                     content: { panelContent(.canvas) }
                 )
-                .toolbar {
-                    ToolbarItem(placement: .navigation) {
-                        sidebarToggleButton
-                    }
-                    ToolbarItem {
-                        workspacePresetsMenu
-                    }
-                    ToolbarSpacer(.fixed)
-                    ToolbarItem {
-                        Button("Preview Site", systemImage: "safari", action: previewSite)
-                            .help("Generate and open a production preview")
-                    }
-                    ToolbarSpacer(.flexible)
-                    ToolbarItem {
-                        Button {
-                            openProjectSettings()
-                        } label: {
-                            Label("Project Settings", systemImage: "gearshape")
-                                .labelStyle(.iconOnly)
-                        }
-                        .help("Open project settings")
-                    }
-                    ToolbarSpacer(.fixed)
-                    ToolbarItem {
-                        Button {
-                            publishSite()
-                        } label: {
-                            Label("Publish", systemImage: "cloud")
-                                .labelStyle(.titleAndIcon)
-                                .padding(.horizontal, 5)
-                        }
-                        .help("Publish site")
-                    }
-                    ToolbarSpacer(.fixed)
-                    ToolbarItem {
-                        inspectorToggleButton
-                    }
-                }
             )
         }
 
@@ -204,6 +175,36 @@ struct DockingWorkspaceView<PanelContent: View>: View {
         .help(showsSidebar ? "Hide Sidebar" : "Show Sidebar")
     }
 
+    private var previewSiteButton: some View {
+        Button("Preview Site", systemImage: "safari", action: previewSite)
+            .labelStyle(.iconOnly)
+            .buttonStyle(.borderless)
+            .help("Generate and open a production preview")
+    }
+
+    private var projectSettingsButton: some View {
+        Button {
+            openProjectSettings()
+        } label: {
+            Label("Project Settings", systemImage: "gearshape")
+                .labelStyle(.iconOnly)
+        }
+        .buttonStyle(.borderless)
+        .help("Open project settings")
+    }
+
+    private var publishButton: some View {
+        Button {
+            publishSite()
+        } label: {
+            Label("Publish", systemImage: "cloud")
+                .labelStyle(.titleAndIcon)
+                .padding(.horizontal, 5)
+        }
+        .buttonStyle(.bordered)
+        .help("Publish site")
+    }
+
     private var workspacePresetsMenu: some View {
         Menu("Workspaces", systemImage: "rectangle.split.3x1") {
             Button("Default Workspace") {
@@ -281,10 +282,20 @@ struct DockingWorkspaceView<PanelContent: View>: View {
     }
 }
 
+private struct WorkspaceToolbarContent {
+    let sidebarToggle: AnyView
+    let workspaces: AnyView
+    let preview: AnyView
+    let settings: AnyView
+    let publish: AnyView
+    let inspectorToggle: AnyView
+}
+
 private struct AppKitWorkspaceSplitView: NSViewControllerRepresentable {
     @Binding var layout: WorkspaceLayout
     let showsSidebar: Bool
     let showsInspector: Bool
+    let toolbarContent: WorkspaceToolbarContent
     let inspectorTransitionCompleted: @MainActor () -> Void
     let columnContent: @MainActor (Binding<WorkspaceColumn>) -> AnyView
 
@@ -318,6 +329,7 @@ private struct AppKitWorkspaceSplitView: NSViewControllerRepresentable {
             columns: columns,
             showsSidebar: showsSidebar,
             showsInspector: showsInspector,
+            toolbarContent: toolbarContent,
             content: { columnID in
                 let fallback = columns.first(where: { $0.id == columnID })
                     ?? WorkspaceColumn(role: .workspace, panels: [])
@@ -347,7 +359,540 @@ private struct AppKitWorkspaceSplitView: NSViewControllerRepresentable {
 }
 
 @MainActor
-private final class AppKitWorkspaceSplitViewController: NSSplitViewController {
+private final class AppKitWorkspaceSplitViewController: NSSplitViewController, NSToolbarDelegate {
+    private struct OuterEntry {
+        let id: UUID
+        let role: WorkspaceColumnRole
+        let hostingController: NSHostingController<AnyView>
+        let splitViewItem: NSSplitViewItem
+        var sizing: PanelSizing
+        var preferredWidth: CGFloat
+    }
+
+    private enum ToolbarIdentifier {
+        static let toolbar = NSToolbar.Identifier("foundry.editor.toolbar")
+        static let sidebarToggle = NSToolbarItem.Identifier("foundry.toolbar.sidebar-toggle")
+        static let leadingSeparator = NSToolbarItem.Identifier("foundry.toolbar.sidebar-separator")
+        static let workspaces = NSToolbarItem.Identifier("foundry.toolbar.workspaces")
+        static let preview = NSToolbarItem.Identifier("foundry.toolbar.preview")
+        static let trailingSeparator = NSToolbarItem.Identifier("foundry.toolbar.inspector-separator")
+        static let settings = NSToolbarItem.Identifier("foundry.toolbar.settings")
+        static let publish = NSToolbarItem.Identifier("foundry.toolbar.publish")
+        static let inspectorToggle = NSToolbarItem.Identifier("foundry.toolbar.inspector-toggle")
+    }
+
+    private let detailSplitViewController = AppKitDetailSplitViewController()
+    private lazy var detailContainerController = AppKitDetailContainerViewController(
+        detailSplitViewController: detailSplitViewController
+    )
+    private var sidebarEntry: OuterEntry?
+    private var inspectorEntry: OuterEntry?
+    private var detailSplitViewItem: NSSplitViewItem?
+    private var preferredWidthChanged: (UUID, CGFloat) -> Void = { _, _ in }
+    private var inspectorTransitionCompleted: () -> Void = {}
+    private var toolbarContent: WorkspaceToolbarContent?
+    private var toolbarHostingViews: [NSToolbarItem.Identifier: NSHostingView<AnyView>] = [:]
+    private var activeDividerIndex: Int?
+    private var dividerCommitTask: Task<Void, Never>?
+    private var widthApplicationGeneration = 0
+    private var visibilityUpdateGeneration = 0
+    private var needsInitialWidthApplication = false
+    private var isApplyingInitialWidths = false
+    private var lastShowsSidebar: Bool?
+    private var lastShowsInspector: Bool?
+
+    private lazy var editorToolbar: NSToolbar = {
+        let toolbar = NSToolbar(identifier: ToolbarIdentifier.toolbar)
+        toolbar.delegate = self
+        toolbar.displayMode = .default
+        toolbar.allowsUserCustomization = false
+        toolbar.autosavesConfiguration = false
+        return toolbar
+    }()
+
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        view.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        view.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        splitView.isVertical = true
+        splitView.dividerStyle = .thin
+    }
+
+    override func viewDidAppear() {
+        super.viewDidAppear()
+        installWindowToolbarIfNeeded()
+    }
+
+    override func viewDidLayout() {
+        super.viewDidLayout()
+        installWindowToolbarIfNeeded()
+        guard needsInitialWidthApplication else { return }
+        needsInitialWidthApplication = false
+        scheduleInitialWidths()
+    }
+
+    deinit {
+        dividerCommitTask?.cancel()
+    }
+
+    func update(
+        columns: [WorkspaceColumn],
+        showsSidebar: Bool,
+        showsInspector: Bool,
+        toolbarContent: WorkspaceToolbarContent,
+        content: (UUID) -> AnyView,
+        preferredWidthChanged: @escaping (UUID, CGFloat) -> Void,
+        inspectorTransitionCompleted: @escaping () -> Void
+    ) {
+        loadViewIfNeeded()
+        self.preferredWidthChanged = preferredWidthChanged
+        self.inspectorTransitionCompleted = inspectorTransitionCompleted
+        self.toolbarContent = toolbarContent
+        updateToolbarHostingViews()
+
+        guard let sidebar = columns.first(where: { $0.role == .sidebarDock }),
+              let inspector = columns.first(where: { $0.role == .inspectorDock }) else {
+            return
+        }
+        let detailColumns = columns.filter { $0.role == .workspace || $0.role == .canvas }
+
+        if sidebarEntry?.id != sidebar.id || inspectorEntry?.id != inspector.id {
+            rebuildOuterSplit(
+                sidebar: sidebar,
+                inspector: inspector,
+                detailColumns: detailColumns,
+                showsSidebar: showsSidebar,
+                showsInspector: showsInspector,
+                content: content
+            )
+        } else {
+            updateOuterEntries(
+                sidebar: sidebar,
+                inspector: inspector,
+                detailColumns: detailColumns,
+                content: content
+            )
+            scheduleVisibilityUpdate(
+                showsSidebar: showsSidebar,
+                showsInspector: showsInspector
+            )
+        }
+
+        detailSplitViewController.update(
+            columns: detailColumns,
+            showsSidebar: true,
+            showsInspector: true,
+            content: content,
+            preferredWidthChanged: preferredWidthChanged,
+            inspectorTransitionCompleted: {}
+        )
+    }
+
+    private func rebuildOuterSplit(
+        sidebar: WorkspaceColumn,
+        inspector: WorkspaceColumn,
+        detailColumns: [WorkspaceColumn],
+        showsSidebar: Bool,
+        showsInspector: Bool,
+        content: (UUID) -> AnyView
+    ) {
+        widthApplicationGeneration += 1
+        activeDividerIndex = nil
+        dividerCommitTask?.cancel()
+        dividerCommitTask = nil
+
+        for item in splitViewItems.reversed() {
+            removeSplitViewItem(item)
+        }
+
+        let sidebarHostingController = NSHostingController(rootView: hostedRootView(content(sidebar.id)))
+        sidebarHostingController.sizingOptions = []
+        let sidebarItem = NSSplitViewItem(sidebarWithViewController: sidebarHostingController)
+        let sidebarSizing = sizing(for: sidebar)
+        sidebarEntry = OuterEntry(
+            id: sidebar.id,
+            role: .sidebarDock,
+            hostingController: sidebarHostingController,
+            splitViewItem: sidebarItem,
+            sizing: sidebarSizing,
+            preferredWidth: preferredWidth(for: sidebar, sizing: sidebarSizing)
+        )
+
+        let detailItem = NSSplitViewItem(viewController: detailContainerController)
+        detailSplitViewItem = detailItem
+
+        let inspectorHostingController = NSHostingController(rootView: hostedRootView(content(inspector.id)))
+        inspectorHostingController.sizingOptions = []
+        let inspectorItem = NSSplitViewItem(inspectorWithViewController: inspectorHostingController)
+        let inspectorSizing = sizing(for: inspector)
+        inspectorEntry = OuterEntry(
+            id: inspector.id,
+            role: .inspectorDock,
+            hostingController: inspectorHostingController,
+            splitViewItem: inspectorItem,
+            sizing: inspectorSizing,
+            preferredWidth: preferredWidth(for: inspector, sizing: inspectorSizing)
+        )
+
+        configureOuterItems(detailColumns: detailColumns)
+        sidebarItem.isCollapsed = !showsSidebar
+        inspectorItem.isCollapsed = !showsInspector
+        addSplitViewItem(sidebarItem)
+        addSplitViewItem(detailItem)
+        addSplitViewItem(inspectorItem)
+
+        lastShowsSidebar = showsSidebar
+        lastShowsInspector = showsInspector
+        needsInitialWidthApplication = true
+        view.needsLayout = true
+        installWindowToolbarIfNeeded()
+    }
+
+    private func updateOuterEntries(
+        sidebar: WorkspaceColumn,
+        inspector: WorkspaceColumn,
+        detailColumns: [WorkspaceColumn],
+        content: (UUID) -> AnyView
+    ) {
+        if var entry = sidebarEntry {
+            entry.sizing = sizing(for: sidebar)
+            entry.preferredWidth = preferredWidth(for: sidebar, sizing: entry.sizing)
+            entry.hostingController.rootView = hostedRootView(content(sidebar.id))
+            sidebarEntry = entry
+        }
+        if var entry = inspectorEntry {
+            entry.sizing = sizing(for: inspector)
+            entry.preferredWidth = preferredWidth(for: inspector, sizing: entry.sizing)
+            entry.hostingController.rootView = hostedRootView(content(inspector.id))
+            inspectorEntry = entry
+        }
+        configureOuterItems(detailColumns: detailColumns)
+    }
+
+    private func configureOuterItems(detailColumns: [WorkspaceColumn]) {
+        if let sidebarEntry {
+            configurePersistentDock(sidebarEntry)
+        }
+        if let inspectorEntry {
+            configurePersistentDock(inspectorEntry)
+        }
+        if let detailSplitViewItem {
+            detailSplitViewItem.minimumThickness = minimumWidth(for: detailColumns)
+            detailSplitViewItem.maximumThickness = NSSplitViewItem.unspecifiedDimension
+            detailSplitViewItem.automaticMaximumThickness = NSSplitViewItem.unspecifiedDimension
+            detailSplitViewItem.holdingPriority = .defaultLow
+        }
+    }
+
+    private func configurePersistentDock(_ entry: OuterEntry) {
+        let item = entry.splitViewItem
+        item.minimumThickness = entry.sizing.minimum
+        item.maximumThickness = entry.sizing.maximum.isFinite
+            ? entry.sizing.maximum
+            : NSSplitViewItem.unspecifiedDimension
+        item.automaticMaximumThickness = NSSplitViewItem.unspecifiedDimension
+        item.holdingPriority = NSLayoutConstraint.Priority(rawValue: 489)
+        item.canCollapse = true
+        item.canCollapseFromWindowResize = false
+        item.collapseBehavior = .preferResizingSiblingsWithFixedSplitView
+    }
+
+    private func minimumWidth(for columns: [WorkspaceColumn]) -> CGFloat {
+        let paneWidths = columns.reduce(CGFloat.zero) { $0 + sizing(for: $1).minimum }
+        let dividers = CGFloat(max(columns.count - 1, 0)) * splitView.dividerThickness
+        return paneWidths + dividers
+    }
+
+    private func scheduleInitialWidths() {
+        widthApplicationGeneration += 1
+        let generation = widthApplicationGeneration
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.01) { [weak self] in
+            guard let self, generation == self.widthApplicationGeneration else { return }
+            self.applyInitialWidths()
+        }
+    }
+
+    private func applyInitialWidths() {
+        guard splitView.subviews.count == 3,
+              let sidebarEntry,
+              let inspectorEntry,
+              let detailSplitViewItem else {
+            return
+        }
+
+        let dividerSpace = splitView.dividerThickness * 2
+        let availableWidth = max(splitView.bounds.width - dividerSpace, 0)
+        let detailMinimum = detailSplitViewItem.minimumThickness
+        var sidebarWidth = sidebarEntry.splitViewItem.isCollapsed ? 0 : sidebarEntry.preferredWidth
+        var inspectorWidth = inspectorEntry.splitViewItem.isCollapsed ? 0 : inspectorEntry.preferredWidth
+        let panelIdealTotal = sidebarWidth + inspectorWidth
+        let panelMinimumTotal = (sidebarEntry.splitViewItem.isCollapsed ? 0 : sidebarEntry.sizing.minimum)
+            + (inspectorEntry.splitViewItem.isCollapsed ? 0 : inspectorEntry.sizing.minimum)
+        let availablePanelWidth = max(availableWidth - detailMinimum, 0)
+
+        if panelIdealTotal > availablePanelWidth {
+            let capacity = panelIdealTotal - panelMinimumTotal
+            let shortage = panelIdealTotal - availablePanelWidth
+            let fraction = capacity > 0 ? min(shortage / capacity, 1) : 1
+            if !sidebarEntry.splitViewItem.isCollapsed {
+                sidebarWidth -= (sidebarEntry.preferredWidth - sidebarEntry.sizing.minimum) * fraction
+            }
+            if !inspectorEntry.splitViewItem.isCollapsed {
+                inspectorWidth -= (inspectorEntry.preferredWidth - inspectorEntry.sizing.minimum) * fraction
+            }
+        }
+
+        isApplyingInitialWidths = true
+        defer { isApplyingInitialWidths = false }
+        splitView.setPosition(sidebarWidth, ofDividerAt: 0)
+        splitView.setPosition(splitView.bounds.width - inspectorWidth, ofDividerAt: 1)
+    }
+
+    private func scheduleVisibilityUpdate(showsSidebar: Bool, showsInspector: Bool) {
+        visibilityUpdateGeneration += 1
+        let generation = visibilityUpdateGeneration
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.01) { [weak self] in
+            guard let self, generation == self.visibilityUpdateGeneration else { return }
+            self.updateSidebarVisibility(showsSidebar, animated: true)
+            self.updateInspectorVisibility(showsInspector, animated: true)
+        }
+    }
+
+    private func updateSidebarVisibility(_ showsSidebar: Bool, animated: Bool) {
+        guard let sidebarEntry else {
+            lastShowsSidebar = showsSidebar
+            return
+        }
+        guard lastShowsSidebar != showsSidebar else { return }
+        let shouldAnimate = animated && lastShowsSidebar != nil && view.window?.isVisible == true
+        lastShowsSidebar = showsSidebar
+        guard shouldAnimate else {
+            sidebarEntry.splitViewItem.isCollapsed = !showsSidebar
+            return
+        }
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = 0.2
+            sidebarEntry.splitViewItem.animator().isCollapsed = !showsSidebar
+        }
+    }
+
+    private func updateInspectorVisibility(_ showsInspector: Bool, animated: Bool) {
+        guard let inspectorEntry else {
+            lastShowsInspector = showsInspector
+            return
+        }
+        guard lastShowsInspector != showsInspector else { return }
+        let shouldAnimate = animated && lastShowsInspector != nil && view.window?.isVisible == true
+        lastShowsInspector = showsInspector
+        guard shouldAnimate else {
+            inspectorEntry.splitViewItem.isCollapsed = !showsInspector
+            inspectorTransitionCompleted()
+            return
+        }
+        let transitionCompleted = inspectorTransitionCompleted
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = 0.2
+            inspectorEntry.splitViewItem.animator().isCollapsed = !showsInspector
+        } completionHandler: {
+            Task { @MainActor in
+                transitionCompleted()
+            }
+        }
+    }
+
+    override func splitView(
+        _ splitView: NSSplitView,
+        constrainSplitPosition proposedPosition: CGFloat,
+        ofSubviewAt dividerIndex: Int
+    ) -> CGFloat {
+        guard !isApplyingInitialWidths else { return proposedPosition }
+        activeDividerIndex = dividerIndex
+        scheduleDividerWidthCommit()
+        return proposedPosition
+    }
+
+    private func scheduleDividerWidthCommit() {
+        dividerCommitTask?.cancel()
+        dividerCommitTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .milliseconds(120))
+            guard !Task.isCancelled, let self else { return }
+            if NSEvent.pressedMouseButtons & 1 == 1 {
+                self.scheduleDividerWidthCommit()
+            } else {
+                self.finishDividerDrag()
+            }
+        }
+    }
+
+    private func finishDividerDrag() {
+        defer {
+            activeDividerIndex = nil
+            dividerCommitTask = nil
+        }
+        guard let dividerIndex = activeDividerIndex else { return }
+
+        if dividerIndex == 0,
+           var sidebarEntry,
+           !sidebarEntry.splitViewItem.isCollapsed {
+            let width = constrained(splitView.subviews[0].frame.width, for: sidebarEntry.sizing)
+            sidebarEntry.preferredWidth = width
+            self.sidebarEntry = sidebarEntry
+            preferredWidthChanged(sidebarEntry.id, width)
+        } else if dividerIndex == 1,
+                  var inspectorEntry,
+                  !inspectorEntry.splitViewItem.isCollapsed {
+            let width = constrained(splitView.subviews[2].frame.width, for: inspectorEntry.sizing)
+            inspectorEntry.preferredWidth = width
+            self.inspectorEntry = inspectorEntry
+            preferredWidthChanged(inspectorEntry.id, width)
+        }
+    }
+
+    private func constrained(_ width: CGFloat, for sizing: PanelSizing) -> CGFloat {
+        min(max(width, sizing.minimum), sizing.maximum)
+    }
+
+    private func installWindowToolbarIfNeeded() {
+        guard splitViewItems.count == 3,
+              toolbarContent != nil,
+              let window = view.window else {
+            return
+        }
+        window.styleMask.insert(.fullSizeContentView)
+        window.titlebarAppearsTransparent = true
+        window.toolbarStyle = .unified
+        if window.toolbar !== editorToolbar {
+            window.toolbar = editorToolbar
+        }
+    }
+
+    private func updateToolbarHostingViews() {
+        for (identifier, hostingView) in toolbarHostingViews {
+            guard let content = toolbarView(for: identifier) else { continue }
+            hostingView.rootView = content
+        }
+    }
+
+    private func toolbarView(for identifier: NSToolbarItem.Identifier) -> AnyView? {
+        guard let toolbarContent else { return nil }
+        switch identifier {
+        case ToolbarIdentifier.sidebarToggle: return toolbarContent.sidebarToggle
+        case ToolbarIdentifier.workspaces: return toolbarContent.workspaces
+        case ToolbarIdentifier.preview: return toolbarContent.preview
+        case ToolbarIdentifier.settings: return toolbarContent.settings
+        case ToolbarIdentifier.publish: return toolbarContent.publish
+        case ToolbarIdentifier.inspectorToggle: return toolbarContent.inspectorToggle
+        default: return nil
+        }
+    }
+
+    func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
+        toolbarDefaultItemIdentifiers(toolbar)
+    }
+
+    func toolbarDefaultItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
+        [
+            ToolbarIdentifier.sidebarToggle,
+            ToolbarIdentifier.leadingSeparator,
+            ToolbarIdentifier.workspaces,
+            ToolbarIdentifier.preview,
+            .flexibleSpace,
+            ToolbarIdentifier.trailingSeparator,
+            ToolbarIdentifier.settings,
+            ToolbarIdentifier.publish,
+            ToolbarIdentifier.inspectorToggle
+        ]
+    }
+
+    func toolbar(
+        _ toolbar: NSToolbar,
+        itemForItemIdentifier itemIdentifier: NSToolbarItem.Identifier,
+        willBeInsertedIntoToolbar flag: Bool
+    ) -> NSToolbarItem? {
+        switch itemIdentifier {
+        case ToolbarIdentifier.leadingSeparator:
+            return NSTrackingSeparatorToolbarItem(
+                identifier: itemIdentifier,
+                splitView: splitView,
+                dividerIndex: 0
+            )
+        case ToolbarIdentifier.trailingSeparator:
+            return NSTrackingSeparatorToolbarItem(
+                identifier: itemIdentifier,
+                splitView: splitView,
+                dividerIndex: 1
+            )
+        default:
+            guard let content = toolbarView(for: itemIdentifier) else { return nil }
+            let hostingView = NSHostingView(rootView: content)
+            toolbarHostingViews[itemIdentifier] = hostingView
+            let item = NSToolbarItem(itemIdentifier: itemIdentifier)
+            item.view = hostingView
+            item.visibilityPriority = itemIdentifier == ToolbarIdentifier.inspectorToggle
+                || itemIdentifier == ToolbarIdentifier.sidebarToggle
+                ? .user
+                : .standard
+            return item
+        }
+    }
+
+    private func sizing(for column: WorkspaceColumn) -> PanelSizing {
+        guard !column.panels.isEmpty else {
+            switch column.role {
+            case .sidebarDock: return PanelSizing(panel: .pages)
+            case .inspectorDock: return PanelSizing(panel: .inspector)
+            case .canvas: return PanelSizing(panel: .canvas)
+            case .workspace: return .zero
+            }
+        }
+        return column.panels.map(PanelSizing.init).reduce(.zero) { $0.combined(with: $1) }
+    }
+
+    private func preferredWidth(for column: WorkspaceColumn, sizing: PanelSizing) -> CGFloat {
+        guard let preferredWidth = column.preferredWidth else { return sizing.ideal }
+        return constrained(CGFloat(preferredWidth), for: sizing)
+    }
+
+    private func hostedRootView(_ content: AnyView) -> AnyView {
+        AnyView(content.frame(maxWidth: .infinity, maxHeight: .infinity))
+    }
+}
+
+@MainActor
+private final class AppKitDetailContainerViewController: NSViewController {
+    private let detailSplitViewController: AppKitDetailSplitViewController
+
+    init(detailSplitViewController: AppKitDetailSplitViewController) {
+        self.detailSplitViewController = detailSplitViewController
+        super.init(nibName: nil, bundle: nil)
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    override func loadView() {
+        let containerView = NSView()
+        containerView.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        containerView.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        view = containerView
+
+        addChild(detailSplitViewController)
+        let detailView = detailSplitViewController.view
+        detailView.translatesAutoresizingMaskIntoConstraints = false
+        containerView.addSubview(detailView)
+        NSLayoutConstraint.activate([
+            detailView.leadingAnchor.constraint(equalTo: containerView.leadingAnchor),
+            detailView.trailingAnchor.constraint(equalTo: containerView.trailingAnchor),
+            detailView.topAnchor.constraint(equalTo: containerView.safeAreaLayoutGuide.topAnchor),
+            detailView.bottomAnchor.constraint(equalTo: containerView.bottomAnchor)
+        ])
+    }
+}
+
+@MainActor
+private final class AppKitDetailSplitViewController: NSSplitViewController {
     private struct Entry {
         let id: UUID
         var role: WorkspaceColumnRole
@@ -1358,12 +1903,14 @@ private struct WorkspaceColumnView<PanelContent: View>: View {
             }
         }
         .background {
-            if usesSidebarMaterial {
-                SidebarMaterialBackground()
-                    .ignoresSafeArea()
-            } else {
-                Color(nsColor: .controlBackgroundColor)
+            Group {
+                if usesSidebarMaterial {
+                    SidebarMaterialBackground()
+                } else {
+                    Color(nsColor: .controlBackgroundColor)
+                }
             }
+            .ignoresSafeArea()
         }
         .overlay(alignment: .leading) {
             SideDockTarget(title: "Dock Left", isTargeted: leadingTargeted)
