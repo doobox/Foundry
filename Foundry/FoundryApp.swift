@@ -1,8 +1,8 @@
 import SwiftUI
 
 nonisolated enum EditorWindowSize {
-    static let minimumWidth: CGFloat = 720
-    static let minimumHeight: CGFloat = 520
+    static let minimumWidth: CGFloat = 900
+    static let minimumHeight: CGFloat = 640
     static let idealWidth: CGFloat = 1_440
     static let idealHeight: CGFloat = 900
 }

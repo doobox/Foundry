@@ -749,22 +749,42 @@ private final class WindowMinimumSizeReaderView: NSView {
     private func applyMinimumContentSize() {
         guard let window else { return }
 
-        window.contentMinSize = minimumContentSize
-        let currentSize = window.contentLayoutRect.size
-        guard currentSize.width < minimumContentSize.width || currentSize.height < minimumContentSize.height else {
+        let contentBounds = window.contentView?.bounds.size ?? window.contentLayoutRect.size
+        let layoutSize = window.contentLayoutRect.size
+        let windowChrome = NSSize(
+            width: max(contentBounds.width - layoutSize.width, 0),
+            height: max(contentBounds.height - layoutSize.height, 0)
+        )
+        let effectiveContentMinimum = NSSize(
+            width: minimumContentSize.width + windowChrome.width,
+            height: minimumContentSize.height + windowChrome.height
+        )
+
+        if abs(window.contentMinSize.width - effectiveContentMinimum.width) > 0.5
+            || abs(window.contentMinSize.height - effectiveContentMinimum.height) > 0.5 {
+            window.contentMinSize = effectiveContentMinimum
+        }
+
+        let missingWidth = max(minimumContentSize.width - layoutSize.width, 0)
+        let missingHeight = max(minimumContentSize.height - layoutSize.height, 0)
+        guard missingWidth > 0.5 || missingHeight > 0.5 else {
             return
         }
 
-        let targetContentSize = NSSize(
-            width: max(currentSize.width, minimumContentSize.width),
-            height: max(currentSize.height, minimumContentSize.height)
-        )
         let currentFrame = window.frame
-        var targetFrame = window.frameRect(
-            forContentRect: NSRect(origin: .zero, size: targetContentSize)
-        )
-        targetFrame.origin.x = max(currentFrame.minX, window.screen?.visibleFrame.minX ?? currentFrame.minX)
+        var targetFrame = currentFrame
+        targetFrame.size.width += missingWidth
+        targetFrame.size.height += missingHeight
         targetFrame.origin.y = currentFrame.maxY - targetFrame.height
+
+        if let visibleFrame = window.screen?.visibleFrame {
+            targetFrame.origin.x = min(
+                max(targetFrame.minX, visibleFrame.minX),
+                max(visibleFrame.maxX - targetFrame.width, visibleFrame.minX)
+            )
+            targetFrame.origin.y = max(targetFrame.minY, visibleFrame.minY)
+        }
+
         window.setFrame(targetFrame, display: true)
     }
 }
