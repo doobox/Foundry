@@ -611,7 +611,7 @@ private final class AppKitWorkspaceSplitViewController: NSSplitViewController, N
     }
 
     private func applyInitialWidths() {
-        guard splitView.subviews.count == 3,
+        guard splitView.arrangedSubviews.count == 3,
               let sidebarEntry,
               let inspectorEntry,
               let detailSplitViewItem else {
@@ -732,14 +732,14 @@ private final class AppKitWorkspaceSplitViewController: NSSplitViewController, N
         if dividerIndex == 0,
            var sidebarEntry,
            !sidebarEntry.splitViewItem.isCollapsed {
-            let width = constrained(splitView.subviews[0].frame.width, for: sidebarEntry.sizing)
+            let width = constrained(splitView.arrangedSubviews[0].frame.width, for: sidebarEntry.sizing)
             sidebarEntry.preferredWidth = width
             self.sidebarEntry = sidebarEntry
             preferredWidthChanged(sidebarEntry.id, width)
         } else if dividerIndex == 1,
                   var inspectorEntry,
                   !inspectorEntry.splitViewItem.isCollapsed {
-            let width = constrained(splitView.subviews[2].frame.width, for: inspectorEntry.sizing)
+            let width = constrained(splitView.arrangedSubviews[2].frame.width, for: inspectorEntry.sizing)
             inspectorEntry.preferredWidth = width
             self.inspectorEntry = inspectorEntry
             preferredWidthChanged(inspectorEntry.id, width)
@@ -1109,11 +1109,11 @@ private final class AppKitDetailSplitViewController: NSSplitViewController {
     }
 
     private func applyInitialWidths() {
-        guard entries.count == splitView.subviews.count,
+        guard entries.count == splitView.arrangedSubviews.count,
               let canvasIndex = entries.firstIndex(where: { $0.role == .canvas }) else {
             return
         }
-        let totalPaneWidth = splitView.subviews.reduce(CGFloat.zero) { $0 + $1.frame.width }
+        let totalPaneWidth = splitView.arrangedSubviews.reduce(CGFloat.zero) { $0 + $1.frame.width }
         let dividerSpace = max(splitView.bounds.width - totalPaneWidth, 0)
         let availableWidth = max(splitView.bounds.width - dividerSpace, 0)
         guard availableWidth > 0 else { return }
@@ -1198,7 +1198,7 @@ private final class AppKitDetailSplitViewController: NSSplitViewController {
                 continue
             }
             let width = min(
-                max(splitView.subviews[index].frame.width, entries[index].sizing.minimum),
+                max(splitView.arrangedSubviews[index].frame.width, entries[index].sizing.minimum),
                 entries[index].sizing.maximum
             )
             entries[index].preferredWidth = width
