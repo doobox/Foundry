@@ -189,4 +189,79 @@ struct WorkspaceLayoutTests {
         #expect(restored.first?.layout.columns[0].preferredWidth == 275)
     }
 
+    @Test
+    func namedPresetsPersistDockVisibility() throws {
+        let suiteName = "WorkspaceLayoutTests.\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        var layout = WorkspaceLayout.standard
+        layout.showsSidebar = false
+        layout.showsInspector = false
+        let preset = WorkspacePreset(name: "Focused", layout: layout)
+
+        WorkspacePresetStore.persist([preset], to: defaults)
+        let restored = try #require(WorkspacePresetStore.restored(from: defaults).first)
+
+        #expect(restored.layout.showsSidebar == false)
+        #expect(restored.layout.showsInspector == false)
+    }
+
+    @Test
+    func newDocumentUsesLastSelectedNamedWorkspace() throws {
+        let suiteName = "WorkspaceLayoutTests.\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        var layout = WorkspaceLayout.standard
+        layout.columns[0].preferredWidth = 300
+        layout.moveToNewColumn(.structure, after: layout.columns[0].id)
+        let preset = WorkspacePreset(name: "Editing", layout: layout)
+
+        WorkspacePresetStore.persist([preset], to: defaults)
+        WorkspaceSelectionStore.persist(preset.id, to: defaults)
+
+        #expect(WorkspacePresetStore.initialLayoutForNewDocument(from: defaults) == layout)
+    }
+
+    @Test
+    func newDocumentUsesFactoryDefaultWhenNoNamedWorkspacesExist() throws {
+        let suiteName = "WorkspaceLayoutTests.\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        var layout = WorkspaceLayout.standard
+        layout.columns[0].preferredWidth = 300
+        layout.persist(to: defaults)
+
+        #expect(WorkspacePresetStore.initialLayoutForNewDocument(from: defaults) == .standard)
+    }
+
+    @Test
+    func newDocumentUsesLastLiveLayoutWhenDefaultIsSelected() throws {
+        let suiteName = "WorkspaceLayoutTests.\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        var layout = WorkspaceLayout.standard
+        layout.columns[0].preferredWidth = 300
+        layout.persist(to: defaults)
+        WorkspacePresetStore.persist(
+            [WorkspacePreset(name: "Editing", layout: WorkspaceLayout.standard)],
+            to: defaults
+        )
+
+        #expect(WorkspacePresetStore.initialLayoutForNewDocument(from: defaults) == layout)
+    }
+
+    @Test
+    func deletingLastSelectedWorkspaceClearsSelection() throws {
+        let suiteName = "WorkspaceLayoutTests.\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let preset = WorkspacePreset(name: "Editing", layout: .standard)
+        WorkspacePresetStore.persist([preset], to: defaults)
+        WorkspaceSelectionStore.persist(preset.id, to: defaults)
+
+        WorkspacePresetStore.persist([], to: defaults)
+
+        #expect(WorkspaceSelectionStore.restored(from: defaults) == nil)
+    }
+
 }

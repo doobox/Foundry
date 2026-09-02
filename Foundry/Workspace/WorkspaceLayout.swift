@@ -133,10 +133,19 @@ nonisolated struct DetachedWorkspacePanel: Codable, Equatable, Identifiable, Sen
 nonisolated struct WorkspaceLayout: Codable, Equatable, Sendable {
     var columns: [WorkspaceColumn]
     var detachedPanels: [DetachedWorkspacePanel]
+    var showsSidebar: Bool
+    var showsInspector: Bool
 
-    init(columns: [WorkspaceColumn], detachedPanels: [DetachedWorkspacePanel] = []) {
+    init(
+        columns: [WorkspaceColumn],
+        detachedPanels: [DetachedWorkspacePanel] = [],
+        showsSidebar: Bool = true,
+        showsInspector: Bool = true
+    ) {
         self.columns = columns
         self.detachedPanels = detachedPanels
+        self.showsSidebar = showsSidebar
+        self.showsInspector = showsInspector
     }
 
     static let standard = WorkspaceLayout(columns: [
@@ -280,12 +289,16 @@ nonisolated struct WorkspaceLayout: Codable, Equatable, Sendable {
     private enum CodingKeys: String, CodingKey {
         case columns
         case detachedPanels
+        case showsSidebar
+        case showsInspector
     }
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         columns = try container.decode([WorkspaceColumn].self, forKey: .columns)
         detachedPanels = try container.decodeIfPresent([DetachedWorkspacePanel].self, forKey: .detachedPanels) ?? []
+        showsSidebar = try container.decode(Bool.self, forKey: .showsSidebar)
+        showsInspector = try container.decode(Bool.self, forKey: .showsInspector)
         normalizeColumnRoles()
     }
 

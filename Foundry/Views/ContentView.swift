@@ -16,7 +16,7 @@ struct ContentView: View {
     @State private var selectedComponentID: UUID?
     @State private var copiedComponents: [ComponentNode] = []
     @State private var editsSharedReusableDefinition = false
-    @State private var workspaceLayout = WorkspaceLayout.restored()
+    @State private var workspaceLayout = WorkspacePresetStore.initialLayoutForNewDocument()
     @State private var detachedPanelWindows = DetachedPanelWindowCoordinator()
     @State private var themeWindowID = UUID()
     @State private var exportErrorMessage: String?

@@ -12,20 +12,18 @@ struct DockingWorkspaceView<PanelContent: View>: View {
     let publishSite: () -> Void
     @ViewBuilder let panelContent: (WorkspacePanel) -> PanelContent
     @Environment(WorkspacePresetLibrary.self) private var workspaceLibrary
-    @Environment(\.openWindow) private var openWindow
     @SceneStorage("foundry.workspace.selectedPresetID") private var selectedWorkspaceIDValue = ""
     @State private var isNamingPreset = false
     @State private var presetName = ""
-    @State private var showsSidebar = true
-    @State private var showsInspector = true
+    @State private var presetPendingDeletion: WorkspacePreset?
     @State private var inspectorIsTransitioning = false
     @State private var workspacePresentationID = UUID()
 
     var body: some View {
         AppKitWorkspaceSplitView(
             layout: $layout,
-            showsSidebar: showsSidebar,
-            showsInspector: showsInspector,
+            showsSidebar: layout.showsSidebar,
+            showsInspector: layout.showsInspector,
             toolbarContent: WorkspaceToolbarContent(
                 sidebarToggle: AnyView(sidebarToggleButton),
                 workspaces: AnyView(workspacePresetsMenu),
@@ -53,10 +51,23 @@ struct DockingWorkspaceView<PanelContent: View>: View {
         } message: {
             Text("Save the current panels, tabs, windows, and column widths.")
         }
+        .alert(item: $presetPendingDeletion) { preset in
+            Alert(
+                title: Text("Delete “\(preset.name)”?"),
+                message: Text("This workspace arrangement will be permanently deleted."),
+                primaryButton: .destructive(Text("Delete")) {
+                    deleteWorkspace(preset.id)
+                },
+                secondaryButton: .cancel()
+            )
+        }
         .onChange(of: workspaceLibrary.presets.map(\.id), initial: true) { _, presetIDs in
             if let selectedWorkspaceID, !presetIDs.contains(selectedWorkspaceID) {
                 setSelectedWorkspaceID(nil)
             }
+        }
+        .onAppear {
+            restoreInitialWorkspaceSelection()
         }
         .background {
             WindowMinimumContentSize(
@@ -106,9 +117,9 @@ struct DockingWorkspaceView<PanelContent: View>: View {
         let visibleColumns = layout.columns.filter { column in
             switch column.role {
             case .sidebarDock:
-                showsSidebar
+                layout.showsSidebar
             case .inspectorDock:
-                showsInspector
+                layout.showsInspector
             case .workspace, .canvas:
                 true
             }
@@ -157,22 +168,22 @@ struct DockingWorkspaceView<PanelContent: View>: View {
     private var inspectorToggleButton: some View {
         Button {
             inspectorIsTransitioning = true
-            showsInspector.toggle()
+            layout.showsInspector.toggle()
         } label: {
             Label("Toggle Inspector", systemImage: "sidebar.trailing")
                 .labelStyle(.iconOnly)
         }
-        .help(showsInspector ? "Hide Inspector" : "Show Inspector")
+        .help(layout.showsInspector ? "Hide Inspector" : "Show Inspector")
     }
 
     private var sidebarToggleButton: some View {
         Button {
-            showsSidebar.toggle()
+            layout.showsSidebar.toggle()
         } label: {
             Label("Toggle Sidebar", systemImage: "sidebar.leading")
                 .labelStyle(.iconOnly)
         }
-        .help(showsSidebar ? "Hide Sidebar" : "Show Sidebar")
+        .help(layout.showsSidebar ? "Hide Sidebar" : "Show Sidebar")
     }
 
     private var previewSiteButton: some View {
@@ -205,12 +216,17 @@ struct DockingWorkspaceView<PanelContent: View>: View {
 
     private var workspacePresetsMenu: some View {
         Menu("Workspaces", systemImage: "rectangle.split.3x1") {
-            Button("Default Workspace") {
-                layout.reset()
-                showsInspector = true
-                setSelectedWorkspaceID(nil)
-                workspacePresentationID = UUID()
-            }
+            Toggle(
+                "Default Workspace",
+                isOn: Binding(
+                    get: { selectedWorkspaceID == nil },
+                    set: { _ in
+                        layout.reset()
+                        setSelectedWorkspaceID(nil)
+                        workspacePresentationID = UUID()
+                    }
+                )
+            )
 
             if !workspaceLibrary.presets.isEmpty {
                 Divider()
@@ -219,11 +235,8 @@ struct DockingWorkspaceView<PanelContent: View>: View {
                         preset.name,
                         isOn: Binding(
                             get: { selectedWorkspaceID == preset.id },
-                            set: { isSelected in
-                                guard isSelected else { return }
-                                layout = preset.layout
-                                setSelectedWorkspaceID(preset.id)
-                                workspacePresentationID = UUID()
+                            set: { _ in
+                                applyWorkspacePreset(preset.id)
                             }
                         )
                     )
@@ -238,8 +251,12 @@ struct DockingWorkspaceView<PanelContent: View>: View {
                 presetName = suggestedWorkspaceName
                 isNamingPreset = true
             }
-            Button("Manage Workspaces…") {
-                openWindow(id: "workspace-manager")
+
+            if let selectedWorkspacePreset {
+                Divider()
+                Button("Delete “\(selectedWorkspacePreset.name)”…", role: .destructive) {
+                    presetPendingDeletion = selectedWorkspacePreset
+                }
             }
         }
         .menuIndicator(.hidden)
@@ -247,11 +264,15 @@ struct DockingWorkspaceView<PanelContent: View>: View {
     }
 
     private var suggestedWorkspaceName: String {
-        if let selectedWorkspaceID,
-           let preset = workspaceLibrary.presets.first(where: { $0.id == selectedWorkspaceID }) {
+        if let preset = selectedWorkspacePreset {
             return preset.name
         }
         return "Workspace \(workspaceLibrary.presets.count + 1)"
+    }
+
+    private var selectedWorkspacePreset: WorkspacePreset? {
+        guard let selectedWorkspaceID else { return nil }
+        return workspaceLibrary.presets.first(where: { $0.id == selectedWorkspaceID })
     }
 
     private func saveWorkspace() {
@@ -271,12 +292,36 @@ struct DockingWorkspaceView<PanelContent: View>: View {
         setSelectedWorkspaceID(workspaceLibrary.save(name: name, layout: layout))
     }
 
+    private func deleteWorkspace(_ id: UUID) {
+        workspaceLibrary.delete(id)
+        if selectedWorkspaceID == id {
+            setSelectedWorkspaceID(nil)
+        }
+    }
+
+    private func applyWorkspacePreset(_ id: UUID) {
+        guard let preset = workspaceLibrary.presets.first(where: { $0.id == id }) else { return }
+        layout = preset.layout
+        setSelectedWorkspaceID(id)
+        workspacePresentationID = UUID()
+    }
+
+    private func restoreInitialWorkspaceSelection() {
+        guard selectedWorkspaceID == nil,
+              let lastSelectedID = WorkspaceSelectionStore.restored(),
+              workspaceLibrary.presets.contains(where: { $0.id == lastSelectedID }) else {
+            return
+        }
+        selectedWorkspaceIDValue = lastSelectedID.uuidString
+    }
+
     private var selectedWorkspaceID: UUID? {
         UUID(uuidString: selectedWorkspaceIDValue)
     }
 
     private func setSelectedWorkspaceID(_ id: UUID?) {
         selectedWorkspaceIDValue = id?.uuidString ?? ""
+        WorkspaceSelectionStore.persist(id)
     }
 }
 
@@ -503,33 +548,37 @@ private final class AppKitWorkspaceSplitViewController: NSSplitViewController, N
             removeSplitViewItem(item)
         }
 
+        let sidebarSizing = sizing(for: sidebar)
+        let sidebarPreferredWidth = preferredWidth(for: sidebar, sizing: sidebarSizing)
         let sidebarHostingController = NSHostingController(rootView: hostedRootView(content(sidebar.id)))
         sidebarHostingController.sizingOptions = []
+        sidebarHostingController.view.frame.size.width = sidebarPreferredWidth
         let sidebarItem = NSSplitViewItem(sidebarWithViewController: sidebarHostingController)
-        let sidebarSizing = sizing(for: sidebar)
         sidebarEntry = OuterEntry(
             id: sidebar.id,
             role: .sidebarDock,
             hostingController: sidebarHostingController,
             splitViewItem: sidebarItem,
             sizing: sidebarSizing,
-            preferredWidth: preferredWidth(for: sidebar, sizing: sidebarSizing)
+            preferredWidth: sidebarPreferredWidth
         )
 
         let detailItem = NSSplitViewItem(viewController: detailContainerController)
         detailSplitViewItem = detailItem
 
+        let inspectorSizing = sizing(for: inspector)
+        let inspectorPreferredWidth = preferredWidth(for: inspector, sizing: inspectorSizing)
         let inspectorHostingController = NSHostingController(rootView: hostedRootView(content(inspector.id)))
         inspectorHostingController.sizingOptions = []
+        inspectorHostingController.view.frame.size.width = inspectorPreferredWidth
         let inspectorItem = NSSplitViewItem(inspectorWithViewController: inspectorHostingController)
-        let inspectorSizing = sizing(for: inspector)
         inspectorEntry = OuterEntry(
             id: inspector.id,
             role: .inspectorDock,
             hostingController: inspectorHostingController,
             splitViewItem: inspectorItem,
             sizing: inspectorSizing,
-            preferredWidth: preferredWidth(for: inspector, sizing: inspectorSizing)
+            preferredWidth: inspectorPreferredWidth
         )
 
         configureOuterItems(detailColumns: detailColumns)
@@ -538,6 +587,8 @@ private final class AppKitWorkspaceSplitViewController: NSSplitViewController, N
         addSplitViewItem(sidebarItem)
         addSplitViewItem(detailItem)
         addSplitViewItem(inspectorItem)
+        sidebarItem.isCollapsed = !showsSidebar
+        inspectorItem.isCollapsed = !showsInspector
 
         lastShowsSidebar = showsSidebar
         lastShowsInspector = showsInspector
@@ -661,8 +712,10 @@ private final class AppKitWorkspaceSplitViewController: NSSplitViewController, N
             lastShowsSidebar = showsSidebar
             return
         }
-        guard lastShowsSidebar != showsSidebar else { return }
-        let shouldAnimate = animated && lastShowsSidebar != nil && view.window?.isVisible == true
+        let visibilityChanged = lastShowsSidebar != showsSidebar
+        guard visibilityChanged || sidebarEntry.splitViewItem.isCollapsed == showsSidebar else { return }
+        let shouldAnimate = animated && visibilityChanged && lastShowsSidebar != nil
+            && view.window?.isVisible == true
         lastShowsSidebar = showsSidebar
         guard shouldAnimate else {
             sidebarEntry.splitViewItem.isCollapsed = !showsSidebar
@@ -679,8 +732,10 @@ private final class AppKitWorkspaceSplitViewController: NSSplitViewController, N
             lastShowsInspector = showsInspector
             return
         }
-        guard lastShowsInspector != showsInspector else { return }
-        let shouldAnimate = animated && lastShowsInspector != nil && view.window?.isVisible == true
+        let visibilityChanged = lastShowsInspector != showsInspector
+        guard visibilityChanged || inspectorEntry.splitViewItem.isCollapsed == showsInspector else { return }
+        let shouldAnimate = animated && visibilityChanged && lastShowsInspector != nil
+            && view.window?.isVisible == true
         lastShowsInspector = showsInspector
         guard shouldAnimate else {
             inspectorEntry.splitViewItem.isCollapsed = !showsInspector
@@ -703,7 +758,10 @@ private final class AppKitWorkspaceSplitViewController: NSSplitViewController, N
         constrainSplitPosition proposedPosition: CGFloat,
         ofSubviewAt dividerIndex: Int
     ) -> CGFloat {
-        guard !isApplyingInitialWidths else { return proposedPosition }
+        guard !isApplyingInitialWidths,
+              NSEvent.pressedMouseButtons & 1 == 1 else {
+            return proposedPosition
+        }
         activeDividerIndex = dividerIndex
         scheduleDividerWidthCommit()
         return proposedPosition
@@ -999,6 +1057,8 @@ private final class AppKitDetailSplitViewController: NSSplitViewController {
                 item = NSSplitViewItem(viewController: hostingController)
             }
             let panelSizing = sizing(for: column)
+            let panelPreferredWidth = preferredWidth(for: column, sizing: panelSizing)
+            hostingController.view.frame.size.width = panelPreferredWidth
             entries.append(
                 Entry(
                     id: column.id,
@@ -1006,7 +1066,7 @@ private final class AppKitDetailSplitViewController: NSSplitViewController {
                     hostingController: hostingController,
                     splitViewItem: item,
                     sizing: panelSizing,
-                    preferredWidth: preferredWidth(for: column, sizing: panelSizing)
+                    preferredWidth: panelPreferredWidth
                 )
             )
             configureSplitViewItem(at: entries.index(before: entries.endIndex))
@@ -1048,8 +1108,10 @@ private final class AppKitDetailSplitViewController: NSSplitViewController {
             lastShowsSidebar = showsSidebar
             return
         }
-        guard lastShowsSidebar != showsSidebar else { return }
-        let shouldAnimate = animated && lastShowsSidebar != nil && view.window?.isVisible == true
+        let visibilityChanged = lastShowsSidebar != showsSidebar
+        guard visibilityChanged || sidebar.splitViewItem.isCollapsed == showsSidebar else { return }
+        let shouldAnimate = animated && visibilityChanged && lastShowsSidebar != nil
+            && view.window?.isVisible == true
         lastShowsSidebar = showsSidebar
 
         guard shouldAnimate else {
@@ -1078,8 +1140,10 @@ private final class AppKitDetailSplitViewController: NSSplitViewController {
             lastShowsInspector = showsInspector
             return
         }
-        guard lastShowsInspector != showsInspector else { return }
-        let shouldAnimate = animated && lastShowsInspector != nil && view.window?.isVisible == true
+        let visibilityChanged = lastShowsInspector != showsInspector
+        guard visibilityChanged || inspector.splitViewItem.isCollapsed == showsInspector else { return }
+        let shouldAnimate = animated && visibilityChanged && lastShowsInspector != nil
+            && view.window?.isVisible == true
         lastShowsInspector = showsInspector
 
         guard shouldAnimate else {
@@ -1166,7 +1230,10 @@ private final class AppKitDetailSplitViewController: NSSplitViewController {
         constrainSplitPosition proposedPosition: CGFloat,
         ofSubviewAt dividerIndex: Int
     ) -> CGFloat {
-        guard !isApplyingInitialWidths else { return proposedPosition }
+        guard !isApplyingInitialWidths,
+              NSEvent.pressedMouseButtons & 1 == 1 else {
+            return proposedPosition
+        }
         activeDividerIndex = dividerIndex
         scheduleDividerWidthCommit()
         return proposedPosition

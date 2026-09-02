@@ -57,6 +57,16 @@ final class WorkspacePresetLibrary {
 }
 
 nonisolated enum WorkspacePresetStore {
+    static func initialLayoutForNewDocument(from defaults: UserDefaults = .standard) -> WorkspaceLayout {
+        let presets = restored(from: defaults)
+        guard !presets.isEmpty else { return .standard }
+        if let selectedID = WorkspaceSelectionStore.restored(from: defaults),
+           let preset = presets.first(where: { $0.id == selectedID }) {
+            return preset.layout
+        }
+        return WorkspaceLayout.restored(from: defaults)
+    }
+
     static func restored(from defaults: UserDefaults = .standard) -> [WorkspacePreset] {
         guard let data = defaults.data(forKey: storageKey),
               let presets = try? JSONDecoder().decode([WorkspacePreset].self, from: data) else {
@@ -72,7 +82,28 @@ nonisolated enum WorkspacePresetStore {
     static func persist(_ presets: [WorkspacePreset], to defaults: UserDefaults = .standard) {
         guard let data = try? JSONEncoder().encode(presets) else { return }
         defaults.set(data, forKey: storageKey)
+        if let selectedID = WorkspaceSelectionStore.restored(from: defaults),
+           !presets.contains(where: { $0.id == selectedID }) {
+            WorkspaceSelectionStore.persist(nil, to: defaults)
+        }
     }
 
     private static let storageKey = "foundry.workspace.presets.v1"
+}
+
+nonisolated enum WorkspaceSelectionStore {
+    static func restored(from defaults: UserDefaults = .standard) -> UUID? {
+        guard let value = defaults.string(forKey: storageKey) else { return nil }
+        return UUID(uuidString: value)
+    }
+
+    static func persist(_ id: UUID?, to defaults: UserDefaults = .standard) {
+        if let id {
+            defaults.set(id.uuidString, forKey: storageKey)
+        } else {
+            defaults.removeObject(forKey: storageKey)
+        }
+    }
+
+    private static let storageKey = "foundry.workspace.lastSelectedPresetID"
 }

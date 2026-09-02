@@ -45,12 +45,6 @@ struct FoundryApp: App {
         .windowToolbarStyle(.unified)
         .restorationBehavior(.disabled)
 
-        Window("Manage Workspaces", id: "workspace-manager") {
-            WorkspaceManagerView()
-                .environment(workspaceLibrary)
-        }
-        .defaultSize(width: 480, height: 320)
-
         Settings {
             SettingsView()
         }
