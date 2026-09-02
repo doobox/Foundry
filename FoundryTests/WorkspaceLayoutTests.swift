@@ -67,6 +67,32 @@ struct WorkspaceLayoutTests {
     }
 
     @Test
+    func solePanelInWorkspaceColumnCanDetach() {
+        var layout = WorkspaceLayout.standard
+        let sourceID = layout.columns[0].id
+        layout.moveToNewColumn(.components, after: sourceID)
+        let workspaceColumnID = layout.columns.first(where: { $0.panels == [.components] })?.id
+
+        layout.detach(.components)
+
+        #expect(layout.detachedPanels.map(\.panel) == [.components])
+        #expect(layout.columns.allSatisfy { $0.id != workspaceColumnID })
+        #expect(!layout.columns.flatMap(\.panels).contains(.components))
+    }
+
+    @Test
+    func detachedPanelFrameRoundTripsThroughJSON() throws {
+        var layout = WorkspaceLayout.standard
+        let frame = WorkspaceWindowFrame(x: 420, y: 260, width: 388, height: 640)
+        layout.detach(.assets, frame: frame)
+
+        let data = try JSONEncoder().encode(layout)
+        let decoded = try JSONDecoder().decode(WorkspaceLayout.self, from: data)
+
+        #expect(decoded.detachedPanels == [DetachedWorkspacePanel(panel: .assets, frame: frame)])
+    }
+
+    @Test
     func sideDockCreatesAdjacentColumn() {
         var layout = WorkspaceLayout.standard
         let canvasColumnID = layout.columns[1].id

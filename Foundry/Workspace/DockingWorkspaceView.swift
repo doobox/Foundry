@@ -108,7 +108,7 @@ struct DockingWorkspaceView<PanelContent: View>: View {
             WorkspaceColumnView(
                 column: columnBinding,
                 usesSidebarMaterial: column.role == .sidebarDock,
-                canMoveSelectedTab: column.panels.count > 1 || column.role.isPersistentDock,
+                canMoveSelectedTabToNewColumn: column.panels.count > 1 || column.role.isPersistentDock,
                 movePanel: movePanel,
                 dockBeside: dockBeside,
                 moveToNewColumn: { panel in
@@ -1948,7 +1948,7 @@ private struct FixedCanvasColumn<Content: View>: View {
 private struct WorkspaceColumnView<PanelContent: View>: View {
     @Binding var column: WorkspaceColumn
     let usesSidebarMaterial: Bool
-    let canMoveSelectedTab: Bool
+    let canMoveSelectedTabToNewColumn: Bool
     let movePanel: (WorkspacePanel, UUID, WorkspacePanel?) -> Void
     let dockBeside: (WorkspacePanel, UUID, Bool) -> Void
     let moveToNewColumn: (WorkspacePanel) -> Void
@@ -2060,7 +2060,7 @@ private struct WorkspaceColumnView<PanelContent: View>: View {
                             panel: panel,
                             isSelected: panel == column.selectedPanel,
                             isDropTargeted: targetedTab == panel,
-                            canMove: canMoveSelectedTab,
+                            canMoveToNewColumn: canMoveSelectedTabToNewColumn,
                             select: {
                                 column.selectedPanel = panel
                             },
@@ -2150,7 +2150,7 @@ private struct WorkspaceTab: View {
     let panel: WorkspacePanel
     let isSelected: Bool
     let isDropTargeted: Bool
-    let canMove: Bool
+    let canMoveToNewColumn: Bool
     let select: () -> Void
     let moveToNewColumn: () -> Void
     let detach: () -> Void
@@ -2183,9 +2183,8 @@ private struct WorkspaceTab: View {
         .draggable(WorkspacePanelDragPayload(panel: panel))
         .contextMenu {
             Button("Move Tab to New Column", systemImage: "rectangle.split.2x1", action: moveToNewColumn)
-                .disabled(!canMove)
+                .disabled(!canMoveToNewColumn)
             Button("Detach Tab", systemImage: "macwindow.on.rectangle", action: detach)
-                .disabled(!canMove)
         }
     }
 }

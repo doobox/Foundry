@@ -195,8 +195,7 @@ nonisolated struct WorkspaceLayout: Codable, Equatable, Sendable {
 
     mutating func detach(_ panel: WorkspacePanel, frame: WorkspaceWindowFrame = .initial) {
         guard panel != .canvas else { return }
-        guard let source = columns.first(where: { $0.panels.contains(panel) }),
-              source.panels.count > 1 || source.role.isPersistentDock else { return }
+        guard columns.contains(where: { $0.panels.contains(panel) }) else { return }
         remove(panel)
         detachedPanels.append(.init(panel: panel, frame: frame))
     }
