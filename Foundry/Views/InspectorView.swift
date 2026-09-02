@@ -114,7 +114,7 @@ private struct AssetLibraryNodeInspector: View {
                 LabeledContent("Size", value: asset.byteCount.formatted(.byteCount(style: .file)))
                 LabeledContent("Uses", value: usageCount(asset.id).formatted())
                 LabeledContent("Library Path", value: libraryPath(to: asset.id))
-                LabeledContent("Managed Path", value: "/\(asset.exportPath)")
+                LabeledContent("Managed Path", value: "/\(library.managedExportPath(for: asset))")
             }
         case .folder(let folder):
             Section("Asset Folder") {
@@ -177,7 +177,7 @@ private struct PageAssetInspector: View {
             LabeledContent("Type", value: asset.mediaType)
             LabeledContent("Size", value: asset.byteCount.formatted(.byteCount(style: .file)))
             LabeledContent("Path", value: exportPath)
-            Text("This file is exported at the path above and retained in managed asset storage for component references.")
+            Text("This file is exported only at the path above. Component references follow that path.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
@@ -285,6 +285,7 @@ private struct PageInspector: View {
                     set: { editor.setPageSlug(id: page.id, slug: $0) }
                 )
             )
+            .disabled(page.slug == "index")
             LabeledContent("Path", value: exportPath)
             LabeledContent("Export File", value: exportFilePath)
             Text("Slugs use lowercase letters, numbers, and hyphens. Duplicate slugs receive a numeric suffix.")

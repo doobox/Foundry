@@ -73,6 +73,66 @@ struct AssetManagementTests {
         #expect(bundle.file(at: "index.html")?.contents.contains(asset.exportPath) == true)
     }
 
+    @Test
+    func managedExportPreservesNestedResourceFolderStructure() throws {
+        let data = Data([0x89, 0x50, 0x4E, 0x47])
+        let asset = ProjectAsset(filename: "hero.png", mediaType: "image/png", byteCount: data.count)
+        let nested = ProjectAssetFolder(name: "Test Folder", children: [.asset(asset)])
+        let parent = ProjectAssetFolder(name: "Downloads", children: [.folder(nested)])
+        let site = Site(
+            name: "Assets",
+            pages: [Page(title: "Home", slug: "index")],
+            assetLibrary: [.folder(parent)]
+        )
+
+        let bundle = StaticSiteRenderer().render(
+            site: site,
+            assets: [asset.id: ProjectAssetContent(asset: asset, data: data)]
+        )
+        let expectedPath = "assets/downloads/test-folder/\(asset.storageFilename)"
+
+        #expect(site.publishedPath(for: asset) == expectedPath)
+        #expect(bundle.file(at: expectedPath)?.data == data)
+        #expect(bundle.file(at: "assets/images/\(asset.storageFilename)") == nil)
+    }
+
+    @Test
+    func resourcesViewOmitsPagePlacedAssetsWithoutDiscardingTheirFolders() throws {
+        let resource = ProjectAsset(filename: "library.png", mediaType: "image/png", byteCount: 1)
+        let placed = ProjectAsset(
+            filename: "download.png",
+            mediaType: "image/png",
+            byteCount: 1,
+            exportDirectory: .root
+        )
+        let folder = ProjectAssetFolder(name: "Images", children: [.asset(resource), .asset(placed)])
+
+        let visible = [ProjectAssetNode.folder(folder)].resourcesOnly
+        guard case .folder(let visibleFolder) = try #require(visible.first) else {
+            Issue.record("Expected the resource folder to remain visible")
+            return
+        }
+        #expect(visibleFolder.children == [.asset(resource)])
+    }
+
+    @Test @MainActor
+    func movingPagePlacedAssetToResourcesClearsItsPublicPlacement() throws {
+        let asset = ProjectAsset(
+            filename: "guide.pdf",
+            mediaType: "application/pdf",
+            byteCount: 1,
+            exportDirectory: .root
+        )
+        let document = FoundryDocument(site: Site(
+            name: "Assets",
+            pages: [Page(title: "Home", slug: "index")],
+            assetLibrary: [.asset(asset)]
+        ))
+
+        #expect(document.moveAssetNodeToResources(id: asset.id, to: .end, undoManager: nil))
+        #expect(try #require(document.site.assets.first).exportDirectory == nil)
+    }
+
     @Test @MainActor
     func importsAndRenamesArbitraryFileTypesInsideFolders() throws {
         let document = FoundryDocument()

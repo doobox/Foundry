@@ -36,6 +36,7 @@ struct ContentView: View {
     @State private var publishingTask: Task<Void, Never>?
     @State private var publishingChangeTask: Task<Void, Never>?
     @State private var publishingChangesByTreeItem: [UUID: PublishingChange] = [:]
+    @State private var previewSessionID = UUID()
     @State private var previewSessionApplicationIdentifier: String?
     @State private var isPreviewSessionOpen = false
     @State private var previewRefreshTask: Task<Void, Never>?
@@ -239,8 +240,10 @@ struct ContentView: View {
                 addPage: addPage,
                 addFolder: { _ = editor.addPageFolder(named: $0) },
                 duplicatePage: duplicatePage,
+                renamePage: { editor.renamePage(id: $0, title: $1) },
                 deletePage: deletePage,
                 movePage: movePage,
+                setHomePage: setHomePage,
                 moveTreeItem: { editor.movePageTreeItem($0, to: $1) },
                 importURLs: importPageTreeURLs
             )
@@ -281,14 +284,14 @@ struct ContentView: View {
             )
         case .assets:
             AssetsPanel(
-                library: document.site.assetLibrary,
+                library: document.site.assetLibrary.resourcesOnly,
                 selectedNodeID: inspectableAssetLibrarySelection,
                 importFiles: importAssets,
                 importURLs: importAssetURLs,
                 createFolder: { name, placement in
                     _ = document.createAssetFolder(named: name, at: placement, undoManager: undoManager)
                 },
-                moveNode: { document.moveAssetNode(id: $0, to: $1, undoManager: undoManager) },
+                moveNode: { document.moveAssetNodeToResources(id: $0, to: $1, undoManager: undoManager) },
                 deleteNode: deleteAssetLibraryNode
             )
             .onChange(of: selectedAssetLibraryNodeID) { _, selectedID in
@@ -732,19 +735,15 @@ struct ContentView: View {
         selectedComponentID = nil
     }
 
-    private func duplicatePage() {
-        guard let pageID = selectedPage?.id else {
-            return
-        }
+    private func duplicatePage(_ pageID: UUID) {
         let duplicatedPageID = editor.duplicatePage(id: pageID)
         selectedPageID = duplicatedPageID
         inspectedPageID = duplicatedPageID
         selectedComponentID = nil
     }
 
-    private func deletePage() {
-        guard let pageID = selectedPage?.id,
-              let nextPageID = editor.removePage(id: pageID) else {
+    private func deletePage(_ pageID: UUID) {
+        guard let nextPageID = editor.removePage(id: pageID) else {
             return
         }
         selectedPageID = nextPageID
@@ -752,11 +751,14 @@ struct ContentView: View {
         selectedComponentID = nil
     }
 
-    private func movePage(_ offset: Int) {
-        guard let pageID = selectedPage?.id else {
-            return
-        }
+    private func movePage(_ pageID: UUID, _ offset: Int) {
         editor.movePage(id: pageID, offset: offset)
+    }
+
+    private func setHomePage(_ pageID: UUID) {
+        editor.setHomePage(id: pageID)
+        selectedPageID = pageID
+        inspectedPageID = pageID
     }
 
     private func addComponentToPageEnd(_ type: ComponentType) {
@@ -961,11 +963,32 @@ struct ContentView: View {
     private func previewSite() {
         previewRefreshTask?.cancel()
         let bundle = StaticSiteRenderer().render(site: document.site, assets: document.assetContents)
+        let selectedPageOutputPath = selectedPage.map {
+            StaticSiteRenderer.outputPath(for: $0, in: document.site)
+        }
+        let applicationIdentifier = selectedPreviewApplicationIdentifier
+        let sessionID: UUID
+        if let previousApplicationIdentifier = previewSessionApplicationIdentifier,
+           previousApplicationIdentifier != applicationIdentifier {
+            let replacementSessionID = UUID()
+            previewSessionID = replacementSessionID
+            sessionID = replacementSessionID
+        } else {
+            sessionID = previewSessionID
+        }
         Task {
             do {
-                let previewURL = try await PreviewServer.shared.publish(bundle)
+                let serverURL = try await PreviewServer.shared.publish(bundle, notifyingClients: false)
+                let pageURL = selectedPageOutputPath.map {
+                    previewURL(for: $0, relativeTo: serverURL)
+                } ?? serverURL
+                let previewURL = previewURL(pageURL, sessionID: sessionID)
                 isPreviewSessionOpen = true
-                presentPreview(previewURL)
+                await presentPreview(
+                    previewURL,
+                    sessionID: sessionID,
+                    applicationIdentifier: applicationIdentifier
+                )
             } catch {
                 exportErrorMessage = error.localizedDescription
             }
@@ -988,15 +1011,17 @@ struct ContentView: View {
         }
     }
 
-    private func presentPreview(_ previewURL: URL) {
-        let applicationIdentifier = selectedPreviewApplicationIdentifier
+    private func presentPreview(
+        _ previewURL: URL,
+        sessionID: UUID,
+        applicationIdentifier: String?
+    ) async {
         if previewSessionApplicationIdentifier == applicationIdentifier,
-           let applicationIdentifier,
-           let runningApplication = NSRunningApplication.runningApplications(
-            withBundleIdentifier: applicationIdentifier
-           ).first {
-            NSApp.yieldActivation(to: runningApplication)
-            runningApplication.activate()
+           await PreviewServer.shared.navigatePreview(
+            sessionID: sessionID,
+            to: previewTarget(for: previewURL)
+           ) {
+            activatePreviewApplication(applicationIdentifier)
             return
         }
         previewSessionApplicationIdentifier = applicationIdentifier
@@ -1008,6 +1033,40 @@ struct ContentView: View {
             return PreviewApplicationCatalog.defaultApplication()?.bundleIdentifier
         }
         return previewApplicationIdentifier
+    }
+
+    private func previewURL(for outputPath: String, relativeTo serverURL: URL) -> URL {
+        outputPath.split(separator: "/").reduce(serverURL) { url, component in
+            url.appending(path: String(component))
+        }
+    }
+
+    private func previewURL(_ pageURL: URL, sessionID: UUID) -> URL {
+        guard var components = URLComponents(url: pageURL, resolvingAgainstBaseURL: false) else {
+            return pageURL
+        }
+        var queryItems = components.queryItems ?? []
+        queryItems.removeAll { $0.name == foundryPreviewSessionQueryName }
+        queryItems.append(URLQueryItem(name: foundryPreviewSessionQueryName, value: sessionID.uuidString))
+        components.queryItems = queryItems
+        return components.url ?? pageURL
+    }
+
+    private func previewTarget(for previewURL: URL) -> String {
+        guard let components = URLComponents(url: previewURL, resolvingAgainstBaseURL: false) else {
+            return previewURL.path
+        }
+        return components.percentEncodedQuery.map { "\(components.percentEncodedPath)?\($0)" }
+            ?? components.percentEncodedPath
+    }
+
+    private func activatePreviewApplication(_ applicationIdentifier: String?) {
+        guard let applicationIdentifier,
+              let runningApplication = NSRunningApplication.runningApplications(
+                withBundleIdentifier: applicationIdentifier
+              ).first else { return }
+        NSApp.yieldActivation(to: runningApplication)
+        runningApplication.activate()
     }
 
     private func openPreview(_ previewURL: URL) {

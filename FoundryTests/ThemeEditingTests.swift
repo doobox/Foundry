@@ -305,7 +305,7 @@ struct ThemeEditingTests {
 
         #expect(canvasCSS.contains("@font-face"))
         #expect(canvasCSS.contains("data:font/woff2;base64,AQID"))
-        #expect(exportCSS.contains("url('images/\(asset.storageFilename)')"))
+        #expect(exportCSS.contains("url('\(asset.storageFilename)')"))
     }
 
     @Test

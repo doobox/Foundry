@@ -79,7 +79,8 @@ extension ProjectEditor {
     @discardableResult
     func removePage(id: UUID) -> UUID? {
         guard document.site.pages.count > 1,
-              let index = document.site.pages.firstIndex(where: { $0.id == id }) else {
+              let index = document.site.pages.firstIndex(where: { $0.id == id }),
+              document.site.pages[index].slug != "index" else {
             return nil
         }
         let remainingPages = document.site.pages.enumerated()
@@ -103,12 +104,33 @@ extension ProjectEditor {
     }
 
     func setPageSlug(id: UUID, slug: String) {
+        guard document.site.pages.first(where: { $0.id == id })?.slug != "index" else {
+            return
+        }
         let normalized = uniqueSlug(for: slug, excluding: id)
         mutate(actionName: "Edit Page Slug") { site in
             guard let index = site.pages.firstIndex(where: { $0.id == id }) else {
                 return
             }
             site.pages[index].slug = normalized
+        }
+    }
+
+    func setHomePage(id: UUID) {
+        guard let target = document.site.pages.first(where: { $0.id == id }),
+              target.folderID == nil,
+              target.slug != "index" else { return }
+        let previousSlug = target.slug
+        let targetItem = PageTreeItem.page(id)
+        let reorderedRootItems = [targetItem] + childItems(of: nil).filter { $0 != targetItem }
+        mutate(actionName: "Set Home Page") { site in
+            guard let targetIndex = site.pages.firstIndex(where: { $0.id == id }) else { return }
+            if let homeIndex = site.pages.firstIndex(where: { $0.slug == "index" }),
+               homeIndex != targetIndex {
+                site.pages[homeIndex].slug = previousSlug
+            }
+            site.pages[targetIndex].slug = "index"
+            site.applyPageTreeOrder(reorderedRootItems, parentID: nil)
         }
     }
 
@@ -122,23 +144,34 @@ extension ProjectEditor {
     }
 
     func movePage(id: UUID, offset: Int) {
-        guard let source = document.site.pages.firstIndex(where: { $0.id == id }) else {
+        let item = PageTreeItem.page(id)
+        guard document.site.pages.first(where: { $0.id == id })?.slug != "index" else {
             return
         }
-        let destination = source + offset
-        guard document.site.pages.indices.contains(destination) else {
-            return
+        let parentID = parentID(of: item)
+        let siblings = childItems(of: parentID)
+        guard let sourceIndex = siblings.firstIndex(of: item) else { return }
+        let destinationIndex = sourceIndex + offset
+        guard siblings.indices.contains(destinationIndex) else { return }
+        let placement: PageTreePlacement
+        if offset < 0 {
+            placement = .before(siblings[destinationIndex])
+        } else if siblings.indices.contains(destinationIndex + 1) {
+            placement = .before(siblings[destinationIndex + 1])
+        } else {
+            placement = .end(parentFolderID: parentID)
         }
-        mutate(actionName: "Move Page") { site in
-            let page = site.pages.remove(at: source)
-            site.pages.insert(page, at: destination)
-        }
+        _ = movePageTreeItem(item, to: placement)
     }
 
     @discardableResult
     func movePageTreeItem(_ item: PageTreeItem, to placement: PageTreePlacement) -> Bool {
         if case .asset(let id) = item,
            !document.site.assets.contains(where: { $0.id == id }) {
+            return false
+        }
+        if case .page(let id) = item,
+           document.site.pages.first(where: { $0.id == id })?.slug == "index" {
             return false
         }
         let destinationParentID: UUID?
@@ -149,6 +182,12 @@ extension ProjectEditor {
             destinationParentID = folderID
         case .end(let parentFolderID):
             destinationParentID = parentFolderID
+        }
+
+        if destinationParentID == nil,
+           case .before(.page(let destinationID)) = placement,
+           document.site.pages.first(where: { $0.id == destinationID })?.slug == "index" {
+            return false
         }
 
         if case .folder(let folderID) = item {
@@ -168,6 +207,12 @@ extension ProjectEditor {
             destinationIndex = destinationItems.endIndex
         }
         destinationItems.insert(item, at: destinationIndex)
+
+        if destinationParentID == nil,
+           let homeID = document.site.pages.first(where: { $0.slug == "index" })?.id {
+            let homeItem = PageTreeItem.page(homeID)
+            destinationItems = [homeItem] + destinationItems.filter { $0 != homeItem }
+        }
 
         let sourceParentID = parentID(of: item)
         let sourceItems = sourceParentID == destinationParentID
@@ -206,9 +251,17 @@ extension ProjectEditor {
                 return nil
             }
         }
+        let homeID = parentID == nil
+            ? document.site.pages.first(where: { $0.slug == "index" })?.id
+            : nil
         return (pages + folders + assets)
             .sorted { lhs, rhs in
-                lhs.1 == rhs.1 ? lhs.0.id.uuidString < rhs.0.id.uuidString : lhs.1 < rhs.1
+                let lhsIsHome = lhs.0.id == homeID
+                let rhsIsHome = rhs.0.id == homeID
+                if lhsIsHome != rhsIsHome { return lhsIsHome }
+                return lhs.1 == rhs.1
+                    ? lhs.0.id.uuidString < rhs.0.id.uuidString
+                    : lhs.1 < rhs.1
             }
             .map(\.0)
     }

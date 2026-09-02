@@ -9,6 +9,13 @@ struct PagesOutlineView: NSViewRepresentable {
     @Binding var selectedPageID: UUID?
     @Binding var selectedFolderID: UUID?
     @Binding var selectedAssetID: UUID?
+    let addPage: () -> Void
+    let requestAddFolder: () -> Void
+    let duplicatePage: (UUID) -> Void
+    let renamePage: (UUID, String) -> Void
+    let deletePage: (UUID) -> Void
+    let movePage: (UUID, Int) -> Void
+    let setHomePage: (UUID) -> Void
     let moveItem: (PageTreeItem, PageTreePlacement) -> Bool
     let importURLs: ([URL], PageTreePlacement) -> Void
 
@@ -18,7 +25,8 @@ struct PagesOutlineView: NSViewRepresentable {
 
     func makeNSView(context: Context) -> NSScrollView {
         let column = NSTableColumn(identifier: .pageColumn)
-        let outlineView = NSOutlineView()
+        let outlineView = PagesNativeOutlineView()
+        outlineView.handleKeyEvent = context.coordinator.handleKeyEvent
         outlineView.addTableColumn(column)
         outlineView.outlineTableColumn = column
         outlineView.headerView = nil
@@ -28,6 +36,9 @@ struct PagesOutlineView: NSViewRepresentable {
         outlineView.allowsMultipleSelection = false
         outlineView.dataSource = context.coordinator
         outlineView.delegate = context.coordinator
+        let contextMenu = NSMenu()
+        contextMenu.delegate = context.coordinator
+        outlineView.menu = contextMenu
         outlineView.registerForDraggedTypes([.pageTreeItem, .assetNode, .fileURL])
         outlineView.setDraggingSourceOperationMask(.move, forLocal: true)
 
@@ -61,7 +72,7 @@ struct PagesOutlineView: NSViewRepresentable {
     }
 
     @MainActor
-    final class Coordinator: NSObject, NSOutlineViewDataSource, NSOutlineViewDelegate {
+    final class Coordinator: NSObject, NSOutlineViewDataSource, NSOutlineViewDelegate, NSTextFieldDelegate, NSMenuDelegate {
         var parent: PagesOutlineView
         weak var outlineView: NSOutlineView?
         private var roots: [PageOutlineItem] = []
@@ -81,7 +92,7 @@ struct PagesOutlineView: NSViewRepresentable {
             selectedFolderID: UUID?,
             selectedAssetID: UUID?
         ) {
-            let signature = pages.map { "p:\($0.id):\($0.folderID?.uuidString ?? "root"):\($0.order):\($0.title):\(parent.publishingChanges[$0.id]?.rawValue ?? "published")" }
+            let signature = pages.map { "p:\($0.id):\($0.folderID?.uuidString ?? "root"):\($0.order):\($0.title):\($0.slug):\(parent.publishingChanges[$0.id]?.rawValue ?? "published")" }
                 + folders.map { "f:\($0.id):\($0.parentID?.uuidString ?? "root"):\($0.order):\($0.name)" }
                 + assets.compactMap { asset in
                     asset.exportDirectory.map { "a:\(asset.id):\($0):\(asset.exportOrder):\(asset.filename):\(parent.publishingChanges[asset.id]?.rawValue ?? "published")" }
@@ -122,15 +133,240 @@ struct PagesOutlineView: NSViewRepresentable {
             let cell = outlineView.makeView(withIdentifier: identifier, owner: nil) as? PageOutlineCell
                 ?? makeCell(identifier: identifier)
             cell.textField?.stringValue = item.title
+            cell.textField?.identifier = NSUserInterfaceItemIdentifier(item.id.uuidString)
+            cell.textField?.delegate = self
+            cell.textField?.isEditable = item.isPage
+            cell.textField?.isSelectable = item.isPage
             cell.imageView?.image = NSImage(
                 systemSymbolName: item.systemImage,
                 accessibilityDescription: item.title
             )
-            cell.statusField.stringValue = item.publishingChange?.title ?? ""
-            cell.statusField.textColor = item.publishingChange == .new ? .systemBlue : .systemOrange
+            cell.statusField.stringValue = item.publishingChange == nil ? "" : "●"
+            cell.statusField.textColor = .systemBlue
             cell.statusField.isHidden = item.publishingChange == nil
-            cell.toolTip = item.publishingChange.map { "\($0.title) since the last successful publish" }
+            cell.toolTip = item.publishingChange.map { _ in "Changes awaiting publication" }
             return cell
+        }
+
+        func menuNeedsUpdate(_ menu: NSMenu) {
+            menu.removeAllItems()
+            guard let outlineView else { return }
+            let row = outlineView.clickedRow >= 0 ? outlineView.clickedRow : outlineView.selectedRow
+            let item = row >= 0 ? outlineView.item(atRow: row) as? PageOutlineItem : nil
+            if let item {
+                selectForContextAction(item)
+            }
+
+            menu.addItem(menuItem("New Page", action: #selector(addPageFromContextMenu), key: "n", modifiers: [.command, .option]))
+            menu.addItem(menuItem("New Folder…", action: #selector(addFolderFromContextMenu), key: "n", modifiers: [.command, .shift]))
+
+            guard let item, case .page = item.kind else { return }
+            menu.addItem(.separator())
+            menu.addItem(menuItem(
+                "Rename",
+                action: #selector(renameFromContextMenu(_:)),
+                item: item,
+                key: "\r",
+                modifiers: []
+            ))
+            menu.addItem(menuItem("Duplicate", action: #selector(duplicateFromContextMenu(_:)), item: item, key: "d"))
+            if item.isTopLevelPage {
+                let setHome = menuItem(
+                    "Set as Homepage",
+                    action: #selector(setHomeFromContextMenu(_:)),
+                    item: item
+                )
+                setHome.state = item.isHome ? .on : .off
+                setHome.isEnabled = !item.isHome
+                menu.addItem(setHome)
+            }
+            menu.addItem(.separator())
+            let moveUp = menuItem(
+                "Move Up",
+                action: #selector(moveUpFromContextMenu(_:)),
+                item: item,
+                key: String(Character(UnicodeScalar(NSUpArrowFunctionKey)!)),
+                modifiers: [.command, .option]
+            )
+            moveUp.isEnabled = canMove(item, offset: -1)
+            menu.addItem(moveUp)
+            let moveDown = menuItem(
+                "Move Down",
+                action: #selector(moveDownFromContextMenu(_:)),
+                item: item,
+                key: String(Character(UnicodeScalar(NSDownArrowFunctionKey)!)),
+                modifiers: [.command, .option]
+            )
+            moveDown.isEnabled = canMove(item, offset: 1)
+            menu.addItem(moveDown)
+            menu.addItem(.separator())
+            let delete = menuItem(
+                "Delete",
+                action: #selector(deleteFromContextMenu(_:)),
+                item: item,
+                key: String(Character(UnicodeScalar(NSDeleteCharacter)!)),
+                modifiers: []
+            )
+            delete.isEnabled = !item.isHome
+            menu.addItem(delete)
+        }
+
+        private func menuItem(
+            _ title: String,
+            action: Selector,
+            item: PageOutlineItem? = nil,
+            key: String = "",
+            modifiers: NSEvent.ModifierFlags = .command
+        ) -> NSMenuItem {
+            let menuItem = NSMenuItem(title: title, action: action, keyEquivalent: key)
+            menuItem.target = self
+            menuItem.representedObject = item?.id
+            menuItem.keyEquivalentModifierMask = modifiers
+            return menuItem
+        }
+
+        func handleKeyEvent(_ event: NSEvent) -> Bool {
+            guard let outlineView, outlineView.currentEditor() == nil else { return false }
+            let modifiers = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+            let character = event.charactersIgnoringModifiers?.lowercased()
+
+            if modifiers == [.command, .option], character == "n" {
+                parent.addPage()
+                return true
+            }
+            if modifiers == [.command, .shift], character == "n" {
+                parent.requestAddFolder()
+                return true
+            }
+            guard let item = selectedPageItem else { return false }
+            if modifiers.isEmpty, [36, 76].contains(event.keyCode) {
+                beginRenaming(item)
+                return true
+            }
+            if modifiers == .command, character == "d" {
+                parent.duplicatePage(item.id)
+                return true
+            }
+            if modifiers == [.command, .option] {
+                switch event.keyCode {
+                case 126 where canMove(item, offset: -1):
+                    parent.movePage(item.id, -1)
+                    return true
+                case 125 where canMove(item, offset: 1):
+                    parent.movePage(item.id, 1)
+                    return true
+                default:
+                    break
+                }
+            }
+            if [51, 117].contains(event.keyCode), !item.isHome {
+                parent.deletePage(item.id)
+                return true
+            }
+            return false
+        }
+
+        @objc private func addPageFromContextMenu() {
+            parent.addPage()
+        }
+
+        @objc private func addFolderFromContextMenu() {
+            parent.requestAddFolder()
+        }
+
+        @objc private func duplicateFromContextMenu(_ sender: NSMenuItem) {
+            performPageAction(sender, action: parent.duplicatePage)
+        }
+
+        @objc private func renameFromContextMenu(_ sender: NSMenuItem) {
+            guard let item = contextItem(from: sender), case .page = item.kind else { return }
+            selectForContextAction(item)
+            beginRenaming(item)
+        }
+
+        @objc private func setHomeFromContextMenu(_ sender: NSMenuItem) {
+            performPageAction(sender, action: parent.setHomePage)
+        }
+
+        @objc private func moveUpFromContextMenu(_ sender: NSMenuItem) {
+            performPageAction(sender) { parent.movePage($0, -1) }
+        }
+
+        @objc private func moveDownFromContextMenu(_ sender: NSMenuItem) {
+            performPageAction(sender) { parent.movePage($0, 1) }
+        }
+
+        @objc private func deleteFromContextMenu(_ sender: NSMenuItem) {
+            performPageAction(sender, action: parent.deletePage)
+        }
+
+        private func performPageAction(_ sender: NSMenuItem, action: (UUID) -> Void) {
+            guard let item = contextItem(from: sender), case .page = item.kind else { return }
+            selectForContextAction(item)
+            action(item.id)
+        }
+
+        private func contextItem(from sender: NSMenuItem) -> PageOutlineItem? {
+            guard let id = sender.representedObject as? UUID else { return nil }
+            return itemsByID[id]
+        }
+
+        private var selectedPageItem: PageOutlineItem? {
+            guard let outlineView, outlineView.selectedRow >= 0,
+                  let item = outlineView.item(atRow: outlineView.selectedRow) as? PageOutlineItem,
+                  case .page = item.kind else { return nil }
+            return item
+        }
+
+        private func selectForContextAction(_ item: PageOutlineItem) {
+            guard let outlineView else { return }
+            let row = outlineView.row(forItem: item)
+            guard row >= 0 else { return }
+            outlineView.selectRowIndexes(IndexSet(integer: row), byExtendingSelection: false)
+        }
+
+        private func beginRenaming(_ item: PageOutlineItem) {
+            guard let outlineView else { return }
+            let row = outlineView.row(forItem: item)
+            guard row >= 0 else { return }
+            outlineView.editColumn(0, row: row, with: nil, select: true)
+        }
+
+        func controlTextDidEndEditing(_ notification: Notification) {
+            guard let textField = notification.object as? NSTextField,
+                  let identifier = textField.identifier?.rawValue,
+                  let pageID = UUID(uuidString: identifier),
+                  let item = itemsByID[pageID],
+                  case .page = item.kind else { return }
+            let title = textField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !title.isEmpty else {
+                textField.stringValue = item.title
+                return
+            }
+            guard title != item.title else { return }
+            parent.renamePage(pageID, title)
+        }
+
+        private func canMove(_ item: PageOutlineItem, offset: Int) -> Bool {
+            guard !item.isHome else { return false }
+            guard let siblings = siblings(containing: item, in: roots),
+                  let index = siblings.firstIndex(where: { $0 === item }) else { return false }
+            let destinationIndex = index + offset
+            guard siblings.indices.contains(destinationIndex) else { return false }
+            return !(destinationIndex == 0 && siblings.first?.isHome == true)
+        }
+
+        private func siblings(
+            containing soughtItem: PageOutlineItem,
+            in items: [PageOutlineItem]
+        ) -> [PageOutlineItem]? {
+            if items.contains(where: { $0 === soughtItem }) { return items }
+            for item in items {
+                if let result = siblings(containing: soughtItem, in: item.children) {
+                    return result
+                }
+            }
+            return nil
         }
 
         func outlineViewSelectionDidChange(_ notification: Notification) {
@@ -161,6 +397,9 @@ struct PagesOutlineView: NSViewRepresentable {
             guard let item = item as? PageOutlineItem else { return nil }
             let pasteboardItem = NSPasteboardItem()
             pasteboardItem.setString(item.payload, forType: .pageTreeItem)
+            if case .asset = item.kind {
+                pasteboardItem.setString("foundry-asset-node:\(item.id.uuidString)", forType: .assetNode)
+            }
             if item.isImageAsset {
                 pasteboardItem.setString("foundry-image-asset:\(item.id.uuidString)", forType: .string)
             }
@@ -174,6 +413,14 @@ struct PagesOutlineView: NSViewRepresentable {
             proposedChildIndex index: Int
         ) -> NSDragOperation {
             guard draggedItem(from: info) != nil || !fileURLs(from: info).isEmpty else { return [] }
+            if let draggedItem = draggedItem(from: info),
+               case .page(let id) = draggedItem,
+               itemsByID[id]?.isHome == true {
+                return []
+            }
+            if item == nil, index == 0, roots.first?.isHome == true {
+                return []
+            }
             if index == NSOutlineViewDropOnItemIndex,
                (item as? PageOutlineItem)?.isFolder != true {
                 return []
@@ -218,6 +465,8 @@ struct PagesOutlineView: NSViewRepresentable {
                         kind: .page($0.id),
                         title: $0.title,
                         order: $0.order,
+                        isHome: $0.slug == "index",
+                        isTopLevelPage: $0.folderID == nil,
                         publishingChange: parent.publishingChanges[$0.id]
                     )
                 }
@@ -299,8 +548,10 @@ struct PagesOutlineView: NSViewRepresentable {
             let imageView = NSImageView()
             imageView.symbolConfiguration = .init(pointSize: 14, weight: .regular)
             let textField = NSTextField(labelWithString: "")
+            textField.isEditable = true
+            textField.isSelectable = true
             let statusField = cell.statusField
-            statusField.font = .systemFont(ofSize: NSFont.smallSystemFontSize, weight: .medium)
+            statusField.font = .systemFont(ofSize: 8, weight: .semibold)
             statusField.alignment = .right
             textField.lineBreakMode = .byTruncatingTail
             imageView.translatesAutoresizingMaskIntoConstraints = false
@@ -383,12 +634,18 @@ private final class PageOutlineItem: NSObject {
     let kind: PageTreeItem
     let title: String
     let order: Int
+    let isHome: Bool
+    let isTopLevelPage: Bool
     let isImageAsset: Bool
     var publishingChange: PublishingChange?
     var children: [PageOutlineItem] = []
     var id: UUID { kind.id }
     var isFolder: Bool {
         if case .folder = kind { return true }
+        return false
+    }
+    var isPage: Bool {
+        if case .page = kind { return true }
         return false
     }
     var payload: String {
@@ -400,7 +657,7 @@ private final class PageOutlineItem: NSObject {
     }
     var systemImage: String {
         switch kind {
-        case .page: "doc"
+        case .page: isHome ? "house" : "doc"
         case .folder: "folder"
         case .asset: isImageAsset ? "photo" : "doc.richtext"
         }
@@ -410,23 +667,39 @@ private final class PageOutlineItem: NSObject {
         kind: PageTreeItem,
         title: String,
         order: Int,
+        isHome: Bool = false,
+        isTopLevelPage: Bool = false,
         isImageAsset: Bool = false,
         publishingChange: PublishingChange? = nil
     ) {
         self.kind = kind
         self.title = title
         self.order = order
+        self.isHome = isHome
+        self.isTopLevelPage = isTopLevelPage
         self.isImageAsset = isImageAsset
         self.publishingChange = publishingChange
     }
 
     static func sort(_ lhs: PageOutlineItem, _ rhs: PageOutlineItem) -> Bool {
-        lhs.order == rhs.order ? lhs.id.uuidString < rhs.id.uuidString : lhs.order < rhs.order
+        if lhs.isHome != rhs.isHome { return lhs.isHome }
+        return lhs.order == rhs.order
+            ? lhs.id.uuidString < rhs.id.uuidString
+            : lhs.order < rhs.order
     }
 }
 
 private final class PageOutlineCell: NSTableCellView {
     let statusField = NSTextField(labelWithString: "")
+}
+
+private final class PagesNativeOutlineView: NSOutlineView {
+    var handleKeyEvent: ((NSEvent) -> Bool)?
+
+    override func keyDown(with event: NSEvent) {
+        if handleKeyEvent?(event) == true { return }
+        super.keyDown(with: event)
+    }
 }
 
 private extension NSPasteboard.PasteboardType {

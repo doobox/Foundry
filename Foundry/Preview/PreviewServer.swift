@@ -1,6 +1,8 @@
 import Foundation
 import Network
 
+nonisolated let foundryPreviewSessionQueryName = "__foundry_session"
+
 actor PreviewServer {
     static let shared = PreviewServer()
 
@@ -11,9 +13,15 @@ actor PreviewServer {
     private var startContinuation: CheckedContinuation<URL, any Error>?
     private var revision: UInt64 = 0
     private var documentRoot: URL?
-    private var eventStreams: [UUID: NWConnection] = [:]
+    private struct EventStream {
+        let connection: NWConnection
+        let sessionID: UUID?
+    }
 
-    func publish(_ bundle: SiteExportBundle) async throws -> URL {
+    private var eventStreams: [UUID: EventStream] = [:]
+    private var navigationAcknowledgements: Set<UUID> = []
+
+    func publish(_ bundle: SiteExportBundle, notifyingClients: Bool = true) async throws -> URL {
         let nextRoot = FileManager.default.temporaryDirectory
             .appending(path: "FoundryPreview-\(UUID().uuidString)", directoryHint: .isDirectory)
         try SiteExportWriter().write(bundle, to: nextRoot)
@@ -21,7 +29,9 @@ actor PreviewServer {
         documentRoot = nextRoot
         self.bundle = bundle
         revision &+= 1
-        publishReloadEvent()
+        if notifyingClients {
+            publishReloadEvent()
+        }
         if let previousRoot {
             Task {
                 try? await Task.sleep(for: .seconds(10))
@@ -112,6 +122,11 @@ actor PreviewServer {
                         await self.openEventStream(connection, request: parsedRequest)
                         return
                     }
+                    if let parsedRequest = PreviewHTTPRequest(data: request),
+                       parsedRequest.target == "/__foundry/navigation-ack" {
+                        await self.acknowledgeNavigation(connection, request: parsedRequest)
+                        return
+                    }
                     let response = await self.phpResponse(
                         for: request,
                         bundle: bundle,
@@ -140,7 +155,8 @@ actor PreviewServer {
         }
 
         let streamID = UUID()
-        eventStreams[streamID] = connection
+        let sessionID = request.queryValue(named: foundryPreviewSessionQueryName).flatMap(UUID.init(uuidString:))
+        eventStreams[streamID] = EventStream(connection: connection, sessionID: sessionID)
         connection.stateUpdateHandler = { [weak self] state in
             switch state {
             case .failed, .cancelled:
@@ -172,9 +188,67 @@ actor PreviewServer {
     }
 
     private func publishReloadEvent() {
-        for connection in eventStreams.values {
-            sendReloadEvent(to: connection)
+        for stream in eventStreams.values {
+            sendReloadEvent(to: stream.connection)
         }
+    }
+
+    func navigatePreview(sessionID: UUID, to target: String) async -> Bool {
+        let matchingStreams = eventStreams.filter { $0.value.sessionID == sessionID }
+        let navigationID = UUID()
+        let navigation = PreviewNavigation(id: navigationID, target: target)
+        guard !matchingStreams.isEmpty,
+              let encodedTarget = try? JSONEncoder().encode(navigation),
+              let payload = String(data: encodedTarget, encoding: .utf8) else { return false }
+        let event = Data("event: navigate\ndata: \(payload)\n\n".utf8)
+        var delivered = false
+        for (streamID, stream) in matchingStreams {
+            if await send(event, to: stream.connection) {
+                delivered = true
+            } else {
+                stream.connection.cancel()
+                removeEventStream(streamID)
+            }
+        }
+        guard delivered else { return false }
+
+        for _ in 0..<25 {
+            if navigationAcknowledgements.remove(navigationID) != nil {
+                return true
+            }
+            try? await Task.sleep(for: .milliseconds(20))
+        }
+
+        for (streamID, stream) in matchingStreams {
+            stream.connection.cancel()
+            removeEventStream(streamID)
+        }
+        navigationAcknowledgements.remove(navigationID)
+        return false
+    }
+
+    private func send(_ content: Data, to connection: NWConnection) async -> Bool {
+        await withCheckedContinuation { continuation in
+            connection.send(content: content, completion: .contentProcessed { error in
+                continuation.resume(returning: error == nil)
+            })
+        }
+    }
+
+    private func acknowledgeNavigation(_ connection: NWConnection, request: PreviewHTTPRequest) {
+        guard request.method == "GET",
+              let navigationID = request.queryValue(named: "id").flatMap(UUID.init(uuidString:)) else {
+            let response = Data(
+                "HTTP/1.1 400 Bad Request\r\nContent-Length: 0\r\nConnection: close\r\n\r\n".utf8
+            )
+            connection.send(content: response, completion: .contentProcessed { _ in connection.cancel() })
+            return
+        }
+        navigationAcknowledgements.insert(navigationID)
+        let response = Data(
+            "HTTP/1.1 204 No Content\r\nContent-Length: 0\r\nCache-Control: no-store\r\nConnection: close\r\n\r\n".utf8
+        )
+        connection.send(content: response, completion: .contentProcessed { _ in connection.cancel() })
     }
 
     private func sendReloadEvent(to connection: NWConnection) {
@@ -211,7 +285,8 @@ actor PreviewServer {
             return PreviewHTTPRouter.response(
                 for: result,
                 method: request.method,
-                revision: revision
+                revision: revision,
+                sessionID: request.previewSessionID
             )
         } catch {
             return PreviewHTTPRouter.phpErrorResponse(error)
@@ -223,12 +298,21 @@ actor PreviewServer {
     }
 }
 
+private nonisolated struct PreviewNavigation: Encodable {
+    let id: UUID
+    let target: String
+}
+
 nonisolated struct PreviewHTTPRequest: Sendable {
     let method: String
     let target: String
     let query: String
     let headers: [String: String]
     let body: Data
+
+    var previewSessionID: UUID? {
+        queryValue(named: foundryPreviewSessionQueryName).flatMap(UUID.init(uuidString:))
+    }
 
     func queryValue(named name: String) -> String? {
         var components = URLComponents()
@@ -300,7 +384,10 @@ nonisolated enum PreviewHTTPRouter {
         guard let file = bundle.file(at: resolvedPath) else {
             return response(status: "404 Not Found", body: Data("Not Found".utf8), contentType: "text/plain")
         }
-        let body = liveReloadRevision.map { liveReloadBody(for: file.data, path: resolvedPath, revision: $0) } ?? file.data
+        let sessionID = PreviewHTTPRequest(data: request)?.previewSessionID
+        let body = liveReloadRevision.map {
+            liveReloadBody(for: file.data, path: resolvedPath, revision: $0, sessionID: sessionID)
+        } ?? file.data
         return response(
             status: "200 OK",
             body: method == "HEAD" ? Data() : body,
@@ -320,8 +407,18 @@ nonisolated enum PreviewHTTPRouter {
         return nil
     }
 
-    static func response(for cgi: PHPPreviewCGIResponse, method: String, revision: UInt64) -> Data {
-        let body = liveReloadBody(for: cgi.body, path: "index.php", revision: revision)
+    static func response(
+        for cgi: PHPPreviewCGIResponse,
+        method: String,
+        revision: UInt64,
+        sessionID: UUID? = nil
+    ) -> Data {
+        let body = liveReloadBody(
+            for: cgi.body,
+            path: "index.php",
+            revision: revision,
+            sessionID: sessionID
+        )
         let contentType = cgi.headers.first { $0.key.caseInsensitiveCompare("Content-Type") == .orderedSame }?.value
             ?? "text/html; charset=utf-8"
         let forwardedHeaders = cgi.headers.filter {
@@ -361,15 +458,38 @@ nonisolated enum PreviewHTTPRouter {
         }
     }
 
-    private static func liveReloadBody(for data: Data, path: String, revision: UInt64) -> Data {
+    private static func liveReloadBody(
+        for data: Data,
+        path: String,
+        revision: UInt64,
+        sessionID: UUID?
+    ) -> Data {
         guard path.hasSuffix(".html") || path.hasSuffix(".php"),
               var html = String(data: data, encoding: .utf8) else { return data }
         let script = """
         <script>
         (() => {
           const revision = '\(revision)';
-          const events = new EventSource('/__foundry/events?revision=' + encodeURIComponent(revision));
+          const requestedSession = '\(sessionID?.uuidString ?? "")';
+          if (requestedSession) sessionStorage.setItem('\(foundryPreviewSessionQueryName)', requestedSession);
+          const session = requestedSession || sessionStorage.getItem('\(foundryPreviewSessionQueryName)') || '';
+          const events = new EventSource('/__foundry/events?revision=' + encodeURIComponent(revision) + (session ? '&\(foundryPreviewSessionQueryName)=' + encodeURIComponent(session) : ''));
           events.addEventListener('reload', () => location.reload());
+          events.addEventListener('navigate', async event => {
+            const navigation = JSON.parse(event.data);
+            try {
+              await fetch('/__foundry/navigation-ack?id=' + encodeURIComponent(navigation.id), {
+                cache: 'no-store'
+              });
+            } finally {
+              const current = location.pathname + location.search;
+              if (current === navigation.target) {
+                location.reload();
+              } else {
+                location.assign(navigation.target);
+              }
+            }
+          });
         })();
         </script>
         """

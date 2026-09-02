@@ -520,7 +520,8 @@ nonisolated extension Theme {
 
     func fontSourceCSS(
         assets: [UUID: ProjectAssetContent],
-        destination: ThemeFontCSSDestination
+        destination: ThemeFontCSSDestination,
+        exportedSource: ((ProjectAsset) -> String)? = nil
     ) -> String {
         let rules = typography.allFonts.flatMap { definition -> [String] in
             switch definition.source {
@@ -536,7 +537,7 @@ nonisolated extension Theme {
                     case .canvas:
                         "data:\(content.asset.mediaType);base64,\(content.data.base64EncodedString())"
                     case .export:
-                        "images/\(content.asset.storageFilename)"
+                        exportedSource?(content.asset) ?? content.asset.storageFilename
                     }
                     let filename = content.asset.filename.lowercased()
                     let style = filename.contains("italic") ? "italic" : "normal"

@@ -30,7 +30,7 @@ nonisolated struct ProjectAsset: Codable, Equatable, Identifiable, Sendable {
     }
 
     var storageFilename: String { id.uuidString + "." + fileExtension }
-    var exportPath: String { "assets/images/" + storageFilename }
+    var exportPath: String { "assets/" + storageFilename }
     var reference: String { "foundry-asset:" + id.uuidString }
 
     private var fileExtension: String {
@@ -74,6 +74,29 @@ nonisolated indirect enum ProjectAssetNode: Codable, Equatable, Identifiable, Se
         case .folder(let folder): folder.id
         case .asset(let asset): asset.id
         }
+    }
+}
+
+nonisolated extension Array where Element == ProjectAssetNode {
+    func managedExportPath(for asset: ProjectAsset) -> String {
+        let folders = folderPath(containingAssetID: asset.id) ?? []
+        return (["assets"] + folders + [asset.storageFilename]).joined(separator: "/")
+    }
+
+    private func folderPath(containingAssetID assetID: UUID) -> [String]? {
+        for node in self {
+            switch node {
+            case .asset(let asset) where asset.id == assetID:
+                return []
+            case .folder(let folder):
+                if let childPath = folder.children.folderPath(containingAssetID: assetID) {
+                    return [Page.slugify(folder.name)] + childPath
+                }
+            case .asset:
+                continue
+            }
+        }
+        return nil
     }
 }
 

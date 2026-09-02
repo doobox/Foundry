@@ -97,8 +97,9 @@ struct PreviewHTTPRouterTests {
 
     @Test
     func livePreviewUsesASingleEventStreamForReloads() throws {
+        let sessionID = UUID()
         let html = PreviewHTTPRouter.response(
-            for: Data("GET / HTTP/1.1\r\n\r\n".utf8),
+            for: Data("GET /?\(foundryPreviewSessionQueryName)=\(sessionID.uuidString) HTTP/1.1\r\n\r\n".utf8),
             bundle: bundle,
             liveReloadRevision: 42
         )
@@ -106,18 +107,23 @@ struct PreviewHTTPRouterTests {
         let text = try #require(String(data: html, encoding: .utf8))
         #expect(text.contains("new EventSource('/__foundry/events?revision='"))
         #expect(text.contains("addEventListener('reload'"))
+        #expect(text.contains("addEventListener('navigate'"))
+        #expect(text.contains("/__foundry/navigation-ack?id="))
+        #expect(text.contains(sessionID.uuidString))
         #expect(!text.contains("setInterval"))
         #expect(!text.contains("fetch('/__foundry/revision'"))
     }
 
     @Test
     func eventStreamRequestKeepsItsRevisionQuery() throws {
+        let sessionID = UUID()
         let request = try #require(PreviewHTTPRequest(data: Data(
-            "GET /__foundry/events?revision=42 HTTP/1.1\r\nHost: localhost\r\n\r\n".utf8
+            "GET /__foundry/events?revision=42&\(foundryPreviewSessionQueryName)=\(sessionID.uuidString) HTTP/1.1\r\nHost: localhost\r\n\r\n".utf8
         )))
 
         #expect(request.target == "/__foundry/events")
         #expect(request.queryValue(named: "revision") == "42")
+        #expect(request.previewSessionID == sessionID)
     }
 
     @Test

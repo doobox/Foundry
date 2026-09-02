@@ -26,6 +26,22 @@ struct ComponentPackageTests {
             publicURL: "", absoluteURL: true
         )
         #expect(resource.href == "/\(asset.exportPath)")
+
+        let resourceFolder = ProjectAssetFolder(name: "Test Folder", children: [.asset(asset)])
+        let nestedResource = ComponentLinkResolver.resolve(
+            .init(destination: .resource(asset.id)), pages: [page], folders: [], assets: [asset],
+            assetLibrary: [.folder(resourceFolder)], publicURL: "", absoluteURL: true
+        )
+        #expect(nestedResource.href == "/assets/test-folder/\(asset.storageFilename)")
+
+        let folder = PageFolder(name: "Downloads", slug: "downloads")
+        var placedAsset = asset
+        placedAsset.exportDirectory = .folder(folder.id)
+        let placedResource = ComponentLinkResolver.resolve(
+            .init(destination: .resource(asset.id)), pages: [page], folders: [folder], assets: [placedAsset],
+            publicURL: "", absoluteURL: true
+        )
+        #expect(placedResource.href == "/downloads/guide.pdf")
     }
 
     @Test

@@ -280,23 +280,20 @@ nonisolated struct SitePublisher: Sendable {
     ) async throws -> PublishingResult {
         if site.publishingDestination == .local {
             guard let localDirectory else { throw PublishingError.missingLocalDestination }
-            try await Task.detached {
-                try SiteExportWriter().write(
-                    bundle,
-                    to: localDirectory,
-                    cleaningObsoleteFiles: site.cleansObsoleteExportFiles
-                )
-            }.value
-            let manifest = PublishingPlan.make(
+            let manifestStore = PublishingManifestStore()
+            let plan = PublishingPlan.make(
                 bundle: bundle,
-                previous: nil,
-                removesObsoleteFiles: true
-            ).nextManifest
-            try PublishingManifestStore().save(manifest, for: site, localDirectory: localDirectory)
+                previous: forceAllFiles ? nil : manifestStore.load(for: site, localDirectory: localDirectory),
+                removesObsoleteFiles: site.cleansObsoleteExportFiles
+            )
+            try await Task.detached {
+                try SiteExportWriter().apply(plan, bundle: bundle, to: localDirectory)
+            }.value
+            try manifestStore.save(plan.nextManifest, for: site, localDirectory: localDirectory)
             return PublishingResult(
-                uploadedFileCount: bundle.files.count,
-                unchangedFileCount: 0,
-                removedFileCount: 0
+                uploadedFileCount: plan.uploads.count,
+                unchangedFileCount: plan.unchangedFileCount,
+                removedFileCount: plan.removals.count
             )
         }
 

@@ -104,6 +104,59 @@ struct PublishingTests {
     }
 
     @Test
+    func localPublishingHonorsChangedAndUnchangedManifestState() async throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appending(path: UUID().uuidString, directoryHint: .isDirectory)
+        var site = Site.starter()
+        site.publishingDestination = .local
+        let store = PublishingManifestStore()
+        defer {
+            try? FileManager.default.removeItem(at: directory)
+            try? store.remove(for: site, localDirectory: directory)
+        }
+        let bundle = SiteExportBundle(files: [
+            .init(path: "index.html", contents: "published")
+        ])
+        let publisher = SitePublisher()
+
+        let firstResult = try await publisher.publish(
+            bundle: bundle,
+            site: site,
+            localDirectory: directory,
+            credential: "",
+            progress: { _ in }
+        )
+        let outputURL = directory.appending(path: "index.html")
+        try Data("locally edited".utf8).write(to: outputURL)
+
+        let unchangedResult = try await publisher.publish(
+            bundle: bundle,
+            site: site,
+            localDirectory: directory,
+            credential: "",
+            progress: { _ in }
+        )
+        let skippedContents = String(decoding: try Data(contentsOf: outputURL), as: UTF8.self)
+
+        try store.remove(for: site, localDirectory: directory)
+        let changedResult = try await publisher.publish(
+            bundle: bundle,
+            site: site,
+            localDirectory: directory,
+            credential: "",
+            progress: { _ in }
+        )
+        let republishedContents = String(decoding: try Data(contentsOf: outputURL), as: UTF8.self)
+
+        #expect(firstResult.uploadedFileCount == 1)
+        #expect(unchangedResult.uploadedFileCount == 0)
+        #expect(unchangedResult.unchangedFileCount == 1)
+        #expect(skippedContents == "locally edited")
+        #expect(changedResult.uploadedFileCount == 1)
+        #expect(republishedContents == "published")
+    }
+
+    @Test
     func publishingChangesDistinguishNewModifiedAndUnchangedFiles() {
         let original = SiteExportBundle(files: [
             .init(path: "unchanged.html", contents: "same"),

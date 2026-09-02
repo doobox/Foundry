@@ -15,6 +15,26 @@ nonisolated enum ComponentLinkResolver {
         publicURL: String,
         absoluteURL: Bool
     ) -> Result {
+        resolve(
+            link,
+            pages: pages,
+            folders: folders,
+            assets: assets,
+            assetLibrary: nil,
+            publicURL: publicURL,
+            absoluteURL: absoluteURL
+        )
+    }
+
+    static func resolve(
+        _ link: ComponentLink,
+        pages: [Page],
+        folders: [PageFolder],
+        assets: [ProjectAsset],
+        assetLibrary: [ProjectAssetNode]?,
+        publicURL: String,
+        absoluteURL: Bool
+    ) -> Result {
         let path: String
         switch link.destination {
         case .none: path = ""
@@ -22,7 +42,9 @@ nonisolated enum ComponentLinkResolver {
         case .page(let id):
             path = pages.first(where: { $0.id == id }).map { pagePath($0, folders: folders) } ?? ""
         case .resource(let id):
-            path = assets.first(where: { $0.id == id }).map { "/" + $0.exportPath } ?? ""
+            path = assets.first(where: { $0.id == id }).map {
+                "/" + assetPath($0, folders: folders, assetLibrary: assetLibrary)
+            } ?? ""
         }
         var href = path
         if absoluteURL, path.hasPrefix("/"), let base = normalizedPublicURL(publicURL) {
@@ -57,6 +79,32 @@ nonisolated enum ComponentLinkResolver {
             folderID = folder.parentID
         }
         return "/" + segments.joined(separator: "/") + "/"
+    }
+
+    private static func assetPath(
+        _ asset: ProjectAsset,
+        folders: [PageFolder],
+        assetLibrary: [ProjectAssetNode]?
+    ) -> String {
+        let filename = (asset.filename as NSString).lastPathComponent
+        let safeFilename = filename.isEmpty ? asset.storageFilename : filename
+        switch asset.exportDirectory {
+        case .root:
+            return safeFilename
+        case .folder(let folderID):
+            var currentID: UUID? = folderID
+            var slugs: [String] = []
+            var visited = Set<UUID>()
+            while let id = currentID,
+                  visited.insert(id).inserted,
+                  let folder = folders.first(where: { $0.id == id }) {
+                slugs.insert(folder.slug, at: 0)
+                currentID = folder.parentID
+            }
+            return (slugs + [safeFilename]).joined(separator: "/")
+        case nil:
+            return assetLibrary?.managedExportPath(for: asset) ?? asset.exportPath
+        }
     }
 
     private static func normalizedPublicURL(_ value: String) -> String? {

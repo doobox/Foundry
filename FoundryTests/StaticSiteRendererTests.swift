@@ -141,7 +141,39 @@ struct StaticSiteRendererTests {
         )
 
         #expect(bundle.file(at: "downloads/guide.txt")?.data == data)
-        #expect(bundle.file(at: asset.exportPath)?.data == data)
+        #expect(bundle.file(at: asset.exportPath) == nil)
+    }
+
+    @Test
+    func pagePlacedImageUsesItsSinglePublicPathFromNestedPages() throws {
+        let pagesFolder = PageFolder(name: "Articles", slug: "articles")
+        let filesFolder = PageFolder(name: "Downloads", slug: "downloads")
+        let data = Data([0x89, 0x50, 0x4E, 0x47])
+        let asset = ProjectAsset(
+            filename: "hero.png",
+            mediaType: "image/png",
+            byteCount: data.count,
+            exportDirectory: .folder(filesFolder.id)
+        )
+        var image = ComponentNode.make(.image)
+        image.setProperty(.source, value: .url(asset.reference))
+        let page = Page(title: "Story", slug: "story", components: [image], folderID: pagesFolder.id)
+        let site = Site(
+            name: "Files",
+            pages: [page],
+            pageFolders: [pagesFolder, filesFolder],
+            assetLibrary: [.asset(asset)]
+        )
+
+        let bundle = StaticSiteRenderer().render(
+            site: site,
+            assets: [asset.id: ProjectAssetContent(asset: asset, data: data)]
+        )
+
+        #expect(bundle.file(at: "downloads/hero.png")?.data == data)
+        #expect(bundle.file(at: asset.exportPath) == nil)
+        #expect(try #require(bundle.file(at: "articles/story/index.html"))
+            .contents.contains("src=\"../../downloads/hero.png\""))
     }
 
     @Test

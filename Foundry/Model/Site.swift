@@ -256,3 +256,32 @@ nonisolated private extension ProjectAssetNode {
         }
     }
 }
+
+nonisolated extension Site {
+    func publishedPath(for asset: ProjectAsset) -> String {
+        let filename = (asset.filename as NSString).lastPathComponent
+        let safeFilename = filename.isEmpty ? asset.storageFilename : filename
+        switch asset.exportDirectory {
+        case .root:
+            return safeFilename
+        case .folder(let folderID):
+            let folderPath = publishedFolderPath(for: folderID)
+            return folderPath.isEmpty ? safeFilename : folderPath + "/" + safeFilename
+        case nil:
+            return assetLibrary.managedExportPath(for: asset)
+        }
+    }
+
+    private func publishedFolderPath(for folderID: UUID) -> String {
+        var currentID: UUID? = folderID
+        var slugs: [String] = []
+        var visited = Set<UUID>()
+        while let id = currentID,
+              visited.insert(id).inserted,
+              let folder = pageFolders.first(where: { $0.id == id }) {
+            slugs.insert(folder.slug, at: 0)
+            currentID = folder.parentID
+        }
+        return slugs.joined(separator: "/")
+    }
+}

@@ -78,6 +78,33 @@ struct PageEditingTests {
     }
 
     @Test
+    func cannotDeleteHomePageWhenOtherPagesExist() throws {
+        let document = FoundryDocument()
+        let editor = ProjectEditor(document: document, undoManager: nil)
+        let homeID = try #require(document.site.pages.first?.id)
+        _ = editor.addPage()
+
+        let nextSelection = editor.removePage(id: homeID)
+
+        #expect(nextSelection == nil)
+        #expect(document.site.pages.contains(where: { $0.id == homeID }))
+        #expect(document.site.pages.count == 2)
+    }
+
+    @Test
+    func nonHomePageCanBeDeleted() {
+        let document = FoundryDocument()
+        let editor = ProjectEditor(document: document, undoManager: nil)
+        let pageID = editor.addPage()
+
+        _ = editor.removePage(id: pageID)
+
+        #expect(!document.site.pages.contains(where: { $0.id == pageID }))
+        #expect(document.site.pages.count == 1)
+        #expect(document.site.pages.first?.slug == "index")
+    }
+
+    @Test
     func pageChangesParticipateInUndoAndRedo() {
         let document = FoundryDocument()
         let undoManager = UndoManager()
@@ -116,12 +143,80 @@ struct PageEditingTests {
     func reordersPagesWithoutChangingIdentity() {
         let document = FoundryDocument()
         let editor = ProjectEditor(document: document, undoManager: nil)
-        let firstID = document.site.pages[0].id
+        let homeID = document.site.pages[0].id
         let secondID = editor.addPage()
+        let thirdID = editor.addPage()
 
-        editor.movePage(id: secondID, offset: -1)
+        editor.movePage(id: thirdID, offset: -1)
 
-        #expect(document.site.pages.map(\.id) == [secondID, firstID])
+        let visibleOrder = document.site.pages
+            .sorted { $0.order < $1.order }
+            .map(\.id)
+        #expect(visibleOrder == [homeID, thirdID, secondID])
+    }
+
+    @Test
+    func setsTopLevelPageAsHomeWithoutLosingPreviousRoute() throws {
+        let document = FoundryDocument()
+        let editor = ProjectEditor(document: document, undoManager: nil)
+        let previousHomeID = try #require(document.site.pages.first?.id)
+        let newHomeID = editor.addPage()
+        let previousRoute = try #require(
+            document.site.pages.first(where: { $0.id == newHomeID })?.slug
+        )
+
+        editor.setHomePage(id: newHomeID)
+
+        #expect(document.site.pages.first(where: { $0.id == newHomeID })?.slug == "index")
+        #expect(document.site.pages.first(where: { $0.id == previousHomeID })?.slug == previousRoute)
+        #expect(document.site.pages.filter { $0.slug == "index" }.count == 1)
+        let rootOrder = document.site.pages
+            .filter { $0.folderID == nil }
+            .sorted { $0.order < $1.order }
+            .map(\.id)
+        #expect(rootOrder.first == newHomeID)
+    }
+
+    @Test
+    func homePageSlugAndTreePositionCannotBeChangedDirectly() throws {
+        let folder = PageFolder(name: "Company", slug: "company", order: 1)
+        let site = Site(
+            name: "Protected Home",
+            pages: [Page(title: "Home", slug: "index", order: 0)],
+            pageFolders: [folder],
+            assetLibrary: []
+        )
+        let document = FoundryDocument(site: site)
+        let editor = ProjectEditor(document: document, undoManager: nil)
+        let homeID = try #require(document.site.pages.first?.id)
+
+        editor.setPageSlug(id: homeID, slug: "welcome")
+        let movedIntoFolder = editor.movePageTreeItem(.page(homeID), to: .insideFolder(folder.id))
+        let placedBeforeHome = editor.movePageTreeItem(.folder(folder.id), to: .before(.page(homeID)))
+
+        #expect(document.site.pages.first?.slug == "index")
+        #expect(document.site.pages.first?.folderID == nil)
+        #expect(!movedIntoFolder)
+        #expect(!placedBeforeHome)
+    }
+
+    @Test
+    func nestedPageCannotBecomeHome() throws {
+        let folder = PageFolder(name: "Company", slug: "company")
+        let nestedPage = Page(title: "About", slug: "about", folderID: folder.id)
+        let site = Site(
+            name: "Nested",
+            pages: [Page(title: "Home", slug: "index"), nestedPage],
+            pageFolders: [folder],
+            assetLibrary: []
+        )
+        let document = FoundryDocument(site: site)
+        let editor = ProjectEditor(document: document, undoManager: nil)
+
+        editor.setHomePage(id: nestedPage.id)
+
+        #expect(document.site.pages.first(where: { $0.id == nestedPage.id })?.slug == "about")
+        #expect(document.site.pages.filter { $0.slug == "index" }.count == 1)
     }
 
     @Test

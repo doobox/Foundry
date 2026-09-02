@@ -21,7 +21,7 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
                     theme: site.theme,
                     stylesheetPaths: [rootPrefix + "assets/site.css", rootPrefix + "assets/pages/\(pageAssetName).css"],
                     scriptPaths: [rootPrefix + "assets/site.js", rootPrefix + "assets/pages/\(pageAssetName).js"],
-                    assetPrefix: rootPrefix + "assets/images",
+                    assetPrefix: rootPrefix + "assets",
                     assets: assets,
                     site: site
                 )
@@ -30,18 +30,13 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
                 contents: pageStyles(for: page, site: site, assets: assets)
             ), SiteExportFile(
                 path: "assets/pages/\(pageAssetName).js",
-                contents: pageScripts(for: page, theme: site.theme, assetPrefix: rootPrefix + "assets/images", assets: assets, site: site)
+                contents: pageScripts(for: page, theme: site.theme, assetPrefix: rootPrefix + "assets", assets: assets, site: site)
             )]
         }
         files.append(.init(path: "assets/site.css", contents: stylesheet(for: site, assets: assets)))
         files.append(.init(path: "assets/site.js", contents: siteScripts(for: site)))
         files.append(contentsOf: site.assets.compactMap { asset in
-            assets[asset.id].map { SiteExportFile(path: asset.exportPath, data: $0.data) }
-        })
-        files.append(contentsOf: site.assets.compactMap { asset in
-            guard let content = assets[asset.id],
-                  let exportPath = Self.customExportPath(for: asset, in: site) else { return nil }
-            return SiteExportFile(path: exportPath, data: content.data)
+            assets[asset.id].map { SiteExportFile(path: site.publishedPath(for: asset), data: $0.data) }
         })
         if site.generatesSitemap, let baseURL = validPublicURL(site.publicURL) {
             files.append(.init(path: "sitemap.xml", contents: sitemap(for: site, baseURL: baseURL)))
@@ -65,16 +60,7 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
     }
 
     static func customExportPath(for asset: ProjectAsset, in site: Site) -> String? {
-        let filename = (asset.filename as NSString).lastPathComponent
-        let safeFilename = filename.isEmpty ? asset.storageFilename : filename
-        switch asset.exportDirectory {
-        case .root:
-            return safeFilename
-        case .folder(let folderID):
-            return joinedPath(folderPath(for: folderID, in: site), safeFilename)
-        case nil:
-            return nil
-        }
+        asset.exportDirectory == nil ? nil : site.publishedPath(for: asset)
     }
 
     private static func folderPath(for folderID: UUID?, in site: Site) -> String {
@@ -260,13 +246,13 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
         }
         let socialImage = page.metadata.socialImage.isEmpty ? site.defaultSocialImage : page.metadata.socialImage
         if !socialImage.isEmpty {
-            let source = exportSource(socialImage, assetPrefix: assetPrefix, assets: assets)
+            let source = exportSource(socialImage, assetPrefix: assetPrefix, assets: assets, site: site)
             if !source.isEmpty {
                 tags.append("<meta property=\"og:image\" content=\"\(escapeAttribute(source))\">")
             }
         }
         if !site.favicon.isEmpty {
-            let source = exportSource(site.favicon, assetPrefix: assetPrefix, assets: assets)
+            let source = exportSource(site.favicon, assetPrefix: assetPrefix, assets: assets, site: site)
             if !source.isEmpty {
                 tags.append("<link rel=\"icon\" href=\"\(escapeAttribute(source))\">")
             }
@@ -331,7 +317,7 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
             let customAttributes = link.attributes.isEmpty ? "" : " \(link.attributes)"
             return "<a class=\"foundry-button \(componentClass(node))\" style=\"\(style + textStyles(node, theme: theme))\" href=\"\(escapeAttribute(link.href))\"\(target)\(aria)\(customAttributes)>\(escape(node.property(.text)))</a>"
         case .image:
-            let source = exportSource(node.property(.source), assetPrefix: assetPrefix, assets: assets)
+            let source = exportSource(node.property(.source), assetPrefix: assetPrefix, assets: assets, site: site)
             return "<img class=\"foundry-image \(componentClass(node))\" style=\"\(style)\" src=\"\(escapeAttribute(source))\" alt=\"\(escapeAttribute(node.property(.altText)))\">"
         case .divider:
             let color = safeHex(node.colorProperty(.borderColor, theme: theme), fallback: "#D9D9DE")
@@ -380,6 +366,7 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
             pages: site.pages,
             folders: site.pageFolders,
             assets: site.assets,
+            assetLibrary: site.assetLibrary,
             publicURL: site.publicURL,
             absoluteURL: false
         )
@@ -389,10 +376,21 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
         node.children.map { render($0, theme: theme, assetPrefix: assetPrefix, assets: assets, site: site) }.joined()
     }
 
-    private func exportSource(_ source: String, assetPrefix: String, assets: [UUID: ProjectAssetContent]) -> String {
+    private func exportSource(
+        _ source: String,
+        assetPrefix: String,
+        assets: [UUID: ProjectAssetContent],
+        site: Site
+    ) -> String {
         guard let id = source.foundryAssetID else { return source }
         guard let content = assets[id] else { return "" }
-        return assetPrefix + "/" + content.asset.storageFilename
+        return siteRootPrefix(from: assetPrefix) + site.publishedPath(for: content.asset)
+    }
+
+    private func siteRootPrefix(from assetPrefix: String) -> String {
+        let managedAssetsPath = "assets"
+        guard assetPrefix.hasSuffix(managedAssetsPath) else { return "" }
+        return String(assetPrefix.dropLast(managedAssetsPath.count))
     }
 
     private func element(_ tag: String, _ className: String, _ node: ComponentNode, _ style: String, _ contents: String) -> String {
@@ -428,7 +426,11 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
     private func stylesheet(for site: Site, assets: [UUID: ProjectAssetContent]) -> String {
         let theme = site.theme
         return """
-        \(theme.fontSourceCSS(assets: assets, destination: .export))
+        \(theme.fontSourceCSS(
+            assets: assets,
+            destination: .export,
+            exportedSource: { "../" + site.publishedPath(for: $0) }
+        ))
         :root{font-size:\(theme.typography.baseSize)px;--foundry-color-background:\(theme.colors.background);--foundry-color-surface:\(theme.colors.surface);--foundry-color-text:\(theme.colors.text);--foundry-color-accent:\(theme.colors.accent);--foundry-font-body:\(theme.typography.bodyFont.cssFamily);--foundry-font-heading:\(theme.typography.headingFont.cssFamily);--foundry-font-monospace:\(theme.typography.monospacedFont.cssFamily);\(theme.customFontCSSVariables)\(theme.fontSizeCSSVariables)\(theme.spacingCSSVariables)}
         \(theme.screens.containerCSS)
         *,*::before,*::after{box-sizing:border-box}
@@ -461,7 +463,7 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
                             properties: packageProperties(
                                 resolved,
                                 theme: site.theme,
-                                assetPrefix: "",
+                                assetPrefix: "../assets",
                                 assets: assets,
                                 site: site
                             ),
@@ -510,7 +512,13 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
                 context: .init(
                     instanceID: node.id,
                     packageIdentifier: package.manifest.identifier,
-                    properties: packageProperties(node, theme: site.theme, assetPrefix: "", assets: assets, site: site),
+                    properties: packageProperties(
+                        node,
+                        theme: site.theme,
+                        assetPrefix: "../../assets",
+                        assets: assets,
+                        site: site
+                    ),
                     slots: [:],
                     componentClass: componentClass(node)
                 )
@@ -582,7 +590,7 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
         theme: Theme,
         assetPrefix: String,
         assets: [UUID: ProjectAssetContent],
-        site: Site? = nil
+        site: Site
     ) -> [String: ComponentPackageValue] {
         var values: [String: ComponentPackageValue] = Dictionary(uniqueKeysWithValues: node.type.definition.properties.map { definition in
             let value = node.propertyValue(definition.key)
@@ -590,7 +598,7 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
                case .url(let source) = value {
                 return (
                     definition.key.rawValue,
-                    .string(exportSource(source, assetPrefix: assetPrefix, assets: assets))
+                    .string(exportSource(source, assetPrefix: assetPrefix, assets: assets, site: site))
                 )
             }
             if case .color = definition.control {
@@ -634,18 +642,17 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
             }
             return (definition.key.rawValue, packageValue(value))
         })
-        if let site {
-            for definition in node.type.definition.properties {
-                guard case .link(let absoluteURL) = definition.control,
-                      case .link(let link) = node.propertyValue(definition.key) else { continue }
-                let resolved = ComponentLinkResolver.resolve(
-                    link, pages: site.pages, folders: site.pageFolders, assets: site.assets,
-                    publicURL: site.publicURL, absoluteURL: absoluteURL
-                )
-                values[definition.key.rawValue] = .string(resolved.href)
-                values[definition.key.rawValue + ".target"] = .string(resolved.target)
-                values[definition.key.rawValue + ".attributes"] = .string(resolved.attributes)
-            }
+        for definition in node.type.definition.properties {
+            guard case .link(let absoluteURL) = definition.control,
+                  case .link(let link) = node.propertyValue(definition.key) else { continue }
+            let resolved = ComponentLinkResolver.resolve(
+                link, pages: site.pages, folders: site.pageFolders, assets: site.assets,
+                assetLibrary: site.assetLibrary,
+                publicURL: site.publicURL, absoluteURL: absoluteURL
+            )
+            values[definition.key.rawValue] = .string(resolved.href)
+            values[definition.key.rawValue + ".target"] = .string(resolved.target)
+            values[definition.key.rawValue + ".attributes"] = .string(resolved.attributes)
         }
         return ComponentPackageDerivedValueResolver.resolve(
             values,

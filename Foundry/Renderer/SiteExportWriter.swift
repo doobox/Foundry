@@ -32,6 +32,28 @@ nonisolated struct SiteExportWriter: SiteExportWriting {
         try manifest.write(to: directory.appending(path: Self.manifestFilename), options: .atomic)
     }
 
+    func apply(
+        _ plan: PublishingPlan,
+        bundle: SiteExportBundle,
+        to directory: URL
+    ) throws {
+        let fileManager = FileManager.default
+        try fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
+        for path in plan.removals where Self.isSafeRelativePath(path) {
+            let url = directory.appending(path: path)
+            if fileManager.fileExists(atPath: url.path) {
+                try fileManager.removeItem(at: url)
+            }
+        }
+        for file in plan.uploads {
+            let url = directory.appending(path: file.path)
+            try fileManager.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try file.data.write(to: url, options: .atomic)
+        }
+        let manifest = try JSONEncoder().encode(bundle.files.map(\.path).sorted())
+        try manifest.write(to: directory.appending(path: Self.manifestFilename), options: .atomic)
+    }
+
     private static let manifestFilename = ".foundry-export-manifest.json"
 
     private static func isSafeRelativePath(_ path: String) -> Bool {

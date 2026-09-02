@@ -153,6 +153,15 @@ final class FoundryDocument: ReferenceFileDocument {
     }
 
     @MainActor
+    func moveAssetNodeToResources(id: UUID, to placement: AssetPlacement, undoManager: UndoManager?) -> Bool {
+        var nextSite = site
+        guard nextSite.assetLibrary.move(id: id, to: placement) else { return false }
+        _ = nextSite.assetLibrary.clearExportDirectory(forAssetID: id)
+        replaceSite(with: nextSite, undoManager: undoManager, actionName: "Move Asset to Resources")
+        return true
+    }
+
+    @MainActor
     func removeAsset(id: UUID, undoManager: UndoManager?) {
         var nextSite = site
         guard nextSite.assetLibrary.removeNode(id: id) != nil else { return }

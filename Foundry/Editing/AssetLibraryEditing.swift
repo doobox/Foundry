@@ -1,6 +1,18 @@
 import Foundation
 
 nonisolated extension Array where Element == ProjectAssetNode {
+    var resourcesOnly: [ProjectAssetNode] {
+        compactMap { node in
+            switch node {
+            case .asset(let asset):
+                return asset.exportDirectory == nil ? node : nil
+            case .folder(var folder):
+                folder.children = folder.children.resourcesOnly
+                return .folder(folder)
+            }
+        }
+    }
+
     func node(withID id: UUID) -> ProjectAssetNode? {
         for node in self {
             if node.id == id { return node }
@@ -63,6 +75,26 @@ nonisolated extension Array where Element == ProjectAssetNode {
                 return true
             case .folder(var folder):
                 if folder.children.renameAsset(id: id, to: filename) {
+                    self[index] = .folder(folder)
+                    return true
+                }
+            case .asset:
+                continue
+            }
+        }
+        return false
+    }
+
+    mutating func clearExportDirectory(forAssetID id: UUID) -> Bool {
+        for index in indices {
+            switch self[index] {
+            case .asset(var asset) where asset.id == id:
+                asset.exportDirectory = nil
+                asset.exportOrder = 0
+                self[index] = .asset(asset)
+                return true
+            case .folder(var folder):
+                if folder.children.clearExportDirectory(forAssetID: id) {
                     self[index] = .folder(folder)
                     return true
                 }

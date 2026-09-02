@@ -11,9 +11,11 @@ struct PagesPanel: View {
     @Binding var selectedAssetID: UUID?
     let addPage: () -> Void
     let addFolder: (String) -> Void
-    let duplicatePage: () -> Void
-    let deletePage: () -> Void
-    let movePage: (Int) -> Void
+    let duplicatePage: (UUID) -> Void
+    let renamePage: (UUID, String) -> Void
+    let deletePage: (UUID) -> Void
+    let movePage: (UUID, Int) -> Void
+    let setHomePage: (UUID) -> Void
     let moveTreeItem: (PageTreeItem, PageTreePlacement) -> Bool
     let importURLs: ([URL], PageTreePlacement) -> Void
     @State private var isNamingFolder = false
@@ -29,6 +31,16 @@ struct PagesPanel: View {
                 selectedPageID: $selectedPageID,
                 selectedFolderID: $selectedFolderID,
                 selectedAssetID: $selectedAssetID,
+                addPage: addPage,
+                requestAddFolder: {
+                    folderName = ""
+                    isNamingFolder = true
+                },
+                duplicatePage: duplicatePage,
+                renamePage: renamePage,
+                deletePage: deletePage,
+                movePage: movePage,
+                setHomePage: setHomePage,
                 moveItem: moveTreeItem,
                 importURLs: importURLs
             )
@@ -39,27 +51,6 @@ struct PagesPanel: View {
                 }
             }
 
-            Divider()
-            HStack {
-                Menu("Add", systemImage: "plus") {
-                    Button("New Page", systemImage: "doc.badge.plus", action: addPage)
-                    Button("New Folder…", systemImage: "folder.badge.plus") {
-                        folderName = ""
-                        isNamingFolder = true
-                    }
-                }
-                Menu("Page Actions", systemImage: "ellipsis.circle") {
-                    Button("Duplicate", action: duplicatePage)
-                    Button("Move Up") { movePage(-1) }
-                    Button("Move Down") { movePage(1) }
-                    Divider()
-                    Button("Delete", role: .destructive, action: deletePage)
-                        .disabled(pages.count <= 1)
-                }
-                Spacer()
-            }
-            .labelStyle(.iconOnly)
-            .padding(8)
         }
         .alert("New Folder", isPresented: $isNamingFolder) {
             TextField("Folder Name", text: $folderName)

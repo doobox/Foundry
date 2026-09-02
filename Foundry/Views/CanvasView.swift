@@ -100,9 +100,9 @@ struct CanvasView: View {
 
                     Divider()
                     CanvasStatusBar(
+                        pageName: page.title,
                         viewportWidth: viewportWidth,
-                        scale: scale,
-                        breakpoint: ResponsiveBreakpoint.forViewportWidth(viewportWidth, screens: theme.screens)
+                        scale: scale
                     )
                 }
             } else {
@@ -328,19 +328,20 @@ private final class ResizeHandleView: NSView {
 }
 
 private struct CanvasStatusBar: View {
+    let pageName: String
     let viewportWidth: Double
     let scale: Double
-    let breakpoint: ResponsiveBreakpoint
 
     var body: some View {
         HStack(spacing: 12) {
-            Label("\(Int(viewportWidth)) px", systemImage: "ruler")
-            Text(breakpoint.displayName)
+            Text(pageName)
             Spacer()
+            Text("\(Int(viewportWidth)) px")
             Label(
                 scale.formatted(.percent.precision(.fractionLength(0))),
                 systemImage: "magnifyingglass"
             )
+            .foregroundStyle(scale < 1 ? Color.orange : Color.secondary)
         }
         .font(.caption)
         .imageScale(.medium)
