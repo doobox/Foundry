@@ -178,7 +178,6 @@ struct DockingWorkspaceView<PanelContent: View>: View {
     private var previewSiteButton: some View {
         Button("Preview Site", systemImage: "safari", action: previewSite)
             .labelStyle(.iconOnly)
-            .buttonStyle(.borderless)
             .help("Generate and open a production preview")
     }
 
@@ -189,7 +188,6 @@ struct DockingWorkspaceView<PanelContent: View>: View {
             Label("Project Settings", systemImage: "gearshape")
                 .labelStyle(.iconOnly)
         }
-        .buttonStyle(.borderless)
         .help("Open project settings")
     }
 
@@ -798,6 +796,7 @@ private final class AppKitWorkspaceSplitViewController: NSSplitViewController, N
             ToolbarIdentifier.preview,
             .flexibleSpace,
             ToolbarIdentifier.trailingSeparator,
+            .flexibleSpace,
             ToolbarIdentifier.settings,
             ToolbarIdentifier.publish,
             ToolbarIdentifier.inspectorToggle
