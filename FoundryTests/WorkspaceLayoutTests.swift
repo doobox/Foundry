@@ -56,6 +56,8 @@ struct WorkspaceLayoutTests {
     @Test
     func detachingAndRedockingPreservesPanelIdentity() {
         var layout = WorkspaceLayout.standard
+        let sourceColumnID = layout.columns[0].id
+        let sourcePanelIndex = layout.columns[0].panels.firstIndex(of: .components)
 
         layout.detach(.components)
         #expect(layout.detachedPanels.map(\.panel) == [.components])
@@ -63,7 +65,7 @@ struct WorkspaceLayoutTests {
 
         layout.redockClosedPanel(.components)
         #expect(layout.detachedPanels.isEmpty)
-        #expect(layout.columns.flatMap(\.panels).contains(.components))
+        #expect(layout.columns.first(where: { $0.id == sourceColumnID })?.panels[sourcePanelIndex ?? 0] == .components)
     }
 
     @Test
@@ -71,13 +73,23 @@ struct WorkspaceLayoutTests {
         var layout = WorkspaceLayout.standard
         let sourceID = layout.columns[0].id
         layout.moveToNewColumn(.components, after: sourceID)
-        let workspaceColumnID = layout.columns.first(where: { $0.panels == [.components] })?.id
+        let workspaceColumnIndex = layout.columns.firstIndex(where: { $0.panels == [.components] })
+        let workspaceColumnID = workspaceColumnIndex.map { layout.columns[$0].id }
+        if let workspaceColumnIndex {
+            layout.columns[workspaceColumnIndex].preferredWidth = 412
+        }
 
         layout.detach(.components)
 
         #expect(layout.detachedPanels.map(\.panel) == [.components])
         #expect(layout.columns.allSatisfy { $0.id != workspaceColumnID })
         #expect(!layout.columns.flatMap(\.panels).contains(.components))
+
+        layout.redockClosedPanel(.components)
+
+        #expect(layout.columns.firstIndex(where: { $0.id == workspaceColumnID }) == workspaceColumnIndex)
+        #expect(layout.columns.first(where: { $0.id == workspaceColumnID })?.panels == [.components])
+        #expect(layout.columns.first(where: { $0.id == workspaceColumnID })?.preferredWidth == 412)
     }
 
     @Test
@@ -89,7 +101,7 @@ struct WorkspaceLayoutTests {
         let data = try JSONEncoder().encode(layout)
         let decoded = try JSONDecoder().decode(WorkspaceLayout.self, from: data)
 
-        #expect(decoded.detachedPanels == [DetachedWorkspacePanel(panel: .assets, frame: frame)])
+        #expect(decoded == layout)
     }
 
     @Test

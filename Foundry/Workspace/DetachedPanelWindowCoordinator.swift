@@ -21,6 +21,45 @@ final class DetachedPanelWindowCoordinator: NSObject, NSWindowDelegate {
     private var updateFrame: ((WorkspacePanel, WorkspaceWindowFrame) -> Void)?
     private var closePanel: ((WorkspacePanel) -> Void)?
 
+    override init() {
+        super.init()
+        let center = NotificationCenter.default
+        center.addObserver(
+            self,
+            selector: #selector(activeWindowContextDidChange(_:)),
+            name: NSWindow.didBecomeKeyNotification,
+            object: nil
+        )
+        center.addObserver(
+            self,
+            selector: #selector(activeWindowContextDidChange(_:)),
+            name: NSWindow.didMiniaturizeNotification,
+            object: nil
+        )
+        center.addObserver(
+            self,
+            selector: #selector(activeWindowContextDidChange(_:)),
+            name: NSWindow.didDeminiaturizeNotification,
+            object: nil
+        )
+        center.addObserver(
+            self,
+            selector: #selector(activeWindowContextDidChange(_:)),
+            name: NSApplication.didBecomeActiveNotification,
+            object: nil
+        )
+        center.addObserver(
+            self,
+            selector: #selector(activeWindowContextDidChange(_:)),
+            name: NSApplication.didResignActiveNotification,
+            object: nil
+        )
+    }
+
+    deinit {
+        NotificationCenter.default.removeObserver(self)
+    }
+
     func attach(to window: NSWindow?) {
         guard ownerWindow !== window else { return }
         ownerWindow = window
@@ -64,7 +103,10 @@ final class DetachedPanelWindowCoordinator: NSObject, NSWindowDelegate {
             closeWindow(for: panel)
         }
 
-        guard ownerWindow != nil else { return }
+        guard ownerWindow != nil else {
+            updatePanelVisibility()
+            return
+        }
 
         for (index, detached) in requestedPanels.enumerated() {
             guard let content = panelContent[detached.panel] else { continue }
@@ -76,6 +118,8 @@ final class DetachedPanelWindowCoordinator: NSObject, NSWindowDelegate {
                 present(detached, rootView: rootView, cascadeIndex: index)
             }
         }
+
+        updatePanelVisibility()
     }
 
     private func present(
@@ -91,12 +135,11 @@ final class DetachedPanelWindowCoordinator: NSObject, NSWindowDelegate {
             backing: .buffered,
             defer: false
         )
-        window.setFrame(frame, display: false)
         window.title = detached.panel.title
         window.identifier = NSUserInterfaceItemIdentifier("foundry.detached.\(detached.panel.rawValue)")
         window.tabbingMode = .disallowed
         window.isFloatingPanel = true
-        window.hidesOnDeactivate = false
+        window.hidesOnDeactivate = true
         window.animationBehavior = .utilityWindow
         window.collectionBehavior.insert(.fullScreenAuxiliary)
         window.minSize = Metrics.minimumSize
@@ -105,14 +148,13 @@ final class DetachedPanelWindowCoordinator: NSObject, NSWindowDelegate {
         window.maxSize = maximumSize
         window.standardWindowButton(.zoomButton)?.isEnabled = false
         window.contentViewController = hostingController
+        window.setFrame(frame, display: false)
         window.delegate = self
 
         windows[detached.panel] = WindowRecord(
             window: window,
             hostingController: hostingController
         )
-
-        window.makeKeyAndOrderFront(nil)
 
         let resolvedWorkspaceFrame = WorkspaceWindowFrame(frame)
         if resolvedWorkspaceFrame != detached.frame {
@@ -205,6 +247,42 @@ final class DetachedPanelWindowCoordinator: NSObject, NSWindowDelegate {
 
     private func panel(for window: NSWindow) -> WorkspacePanel? {
         windows.first(where: { $0.value.window === window })?.key
+    }
+
+    @objc private func activeWindowContextDidChange(_ notification: Notification) {
+        updatePanelVisibility()
+    }
+
+    private func updatePanelVisibility() {
+        let shouldShow = ownsActiveWindowContext
+        for record in windows.values {
+            if shouldShow {
+                if !record.window.isVisible {
+                    record.window.orderFront(nil)
+                }
+            } else if record.window.isVisible {
+                record.window.orderOut(nil)
+            }
+        }
+    }
+
+    private var ownsActiveWindowContext: Bool {
+        guard NSApp.isActive,
+              let ownerWindow,
+              ownerWindow.isVisible,
+              !ownerWindow.isMiniaturized,
+              var activeWindow = NSApp.keyWindow ?? NSApp.mainWindow else {
+            return false
+        }
+
+        while true {
+            if activeWindow === ownerWindow ||
+                windows.values.contains(where: { $0.window === activeWindow }) {
+                return true
+            }
+            guard let parent = activeWindow.parent else { return false }
+            activeWindow = parent
+        }
     }
 }
 

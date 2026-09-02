@@ -120,14 +120,23 @@ nonisolated struct WorkspaceWindowFrame: Codable, Equatable, Sendable {
     var width: Double
     var height: Double
 
-    static let initial = WorkspaceWindowFrame(x: 180, y: 180, width: 320, height: 520)
+    static let initial = WorkspaceWindowFrame(x: 180, y: 180, width: 330, height: 650)
 }
 
 nonisolated struct DetachedWorkspacePanel: Codable, Equatable, Identifiable, Sendable {
     var panel: WorkspacePanel
     var frame: WorkspaceWindowFrame
+    var origin: DetachedPanelOrigin? = nil
 
     var id: WorkspacePanel { panel }
+}
+
+nonisolated struct DetachedPanelOrigin: Codable, Equatable, Sendable {
+    var columnID: UUID
+    var columnIndex: Int
+    var panelIndex: Int
+    var columnRole: WorkspaceColumnRole
+    var columnPreferredWidth: Double?
 }
 
 nonisolated struct WorkspaceLayout: Codable, Equatable, Sendable {
@@ -195,9 +204,18 @@ nonisolated struct WorkspaceLayout: Codable, Equatable, Sendable {
 
     mutating func detach(_ panel: WorkspacePanel, frame: WorkspaceWindowFrame = .initial) {
         guard panel != .canvas else { return }
-        guard columns.contains(where: { $0.panels.contains(panel) }) else { return }
+        guard let columnIndex = columns.firstIndex(where: { $0.panels.contains(panel) }),
+              let panelIndex = columns[columnIndex].panels.firstIndex(of: panel) else { return }
+        let sourceColumn = columns[columnIndex]
+        let origin = DetachedPanelOrigin(
+            columnID: sourceColumn.id,
+            columnIndex: columnIndex,
+            panelIndex: panelIndex,
+            columnRole: sourceColumn.role,
+            columnPreferredWidth: sourceColumn.preferredWidth
+        )
         remove(panel)
-        detachedPanels.append(.init(panel: panel, frame: frame))
+        detachedPanels.append(.init(panel: panel, frame: frame, origin: origin))
     }
 
     mutating func updateFrame(_ frame: WorkspaceWindowFrame, for panel: WorkspacePanel) {
@@ -207,8 +225,30 @@ nonisolated struct WorkspaceLayout: Codable, Equatable, Sendable {
 
     mutating func redockClosedPanel(_ panel: WorkspacePanel) {
         guard panel != .canvas else { return }
-        guard detachedPanels.contains(where: { $0.panel == panel }) else { return }
+        guard let detached = detachedPanels.first(where: { $0.panel == panel }) else { return }
         detachedPanels.removeAll(where: { $0.panel == panel })
+
+        if let origin = detached.origin {
+            if let columnIndex = columns.firstIndex(where: { $0.id == origin.columnID }) {
+                let insertionIndex = min(origin.panelIndex, columns[columnIndex].panels.endIndex)
+                columns[columnIndex].panels.insert(panel, at: insertionIndex)
+                columns[columnIndex].selectedPanel = panel
+                return
+            }
+
+            insertWorkspaceColumn(
+                WorkspaceColumn(
+                    id: origin.columnID,
+                    role: origin.columnRole,
+                    panels: [panel],
+                    selectedPanel: panel,
+                    preferredWidth: origin.columnPreferredWidth
+                ),
+                at: origin.columnIndex
+            )
+            return
+        }
+
         let destinationRole: WorkspaceColumnRole = panel == .inspector ? .inspectorDock : .sidebarDock
         guard let index = columns.firstIndex(where: { $0.role == destinationRole }) else { return }
         columns[index].panels.append(panel)
