@@ -2,7 +2,12 @@ import Foundation
 import Testing
 @testable import Foundry
 
+@MainActor
 struct ComponentDefinitionTests {
+    init() {
+        _ = ComponentPackageCatalog.shared
+    }
+
     @Test
     func definitionsHaveUniquePropertyKeysAndDefaults() {
         for type in ComponentType.allCases {
@@ -35,11 +40,12 @@ struct ComponentDefinitionTests {
     }
 
     @Test
-    func legacyAndUnknownComponentIdentifiersDecodeSafely() throws {
-        let legacy = try JSONDecoder().decode(ComponentType.self, from: Data("\"container\"".utf8))
+    func unknownComponentIdentifiersDecodeWithoutAliases() throws {
+        let unqualified = try JSONDecoder().decode(ComponentType.self, from: Data("\"container\"".utf8))
         let unknown = try JSONDecoder().decode(ComponentType.self, from: Data("\"com.example.gallery\"".utf8))
 
-        #expect(legacy == .container)
+        #expect(unqualified.rawValue == "container")
+        #expect(unqualified.definition.renderKind == .unavailable)
         #expect(unknown.rawValue == "com.example.gallery")
         #expect(unknown.definition.renderKind == .unavailable)
     }
@@ -52,51 +58,74 @@ struct ComponentDefinitionTests {
 
         #expect(decoded == original)
         #expect(decoded.propertyValue(.init(rawValue: "typeface")) == .choice("body"))
-        #expect(decoded.propertyValue(.init(rawValue: "textSize")) == .choice("base"))
+        #expect(decoded.propertyValue(.init(rawValue: "textSize")) == .packageFontSize(.init(
+            source: "base",
+            customValue: "1rem"
+        )))
+        #expect(decoded.propertyValue(.init(rawValue: "textColor")) == .packageColor(.init(
+            source: ThemeColorRole.text.rawValue,
+            customColor: "#000000",
+            adjustment: 0,
+            opacity: 1
+        )))
     }
 
     @Test
-    func missingStoredPropertiesUseDefinitionDefaults() {
-        let legacyText = ComponentNode(
+    func missingStoredPropertiesUsePackageDefaults() {
+        let text = ComponentNode(
             type: .paragraph,
-            properties: [.init(key: .text, value: .string("Legacy"))]
+            properties: [.init(key: .init(rawValue: "content1"), value: .string("Hello"))]
         )
 
-        #expect(legacyText.property(.init(rawValue: "typeface")) == "body")
-        #expect(legacyText.property(.init(rawValue: "textSize")) == "base")
+        #expect(text.property(.init(rawValue: "typeface")) == "body")
+        #expect(text.propertyValue(.init(rawValue: "textSize")) == .packageFontSize(.init(
+            source: "base",
+            customValue: "1rem"
+        )))
     }
 
     @Test
-    func stylePropertiesAreOrganizedIntoInspectorSections() {
+    func packagePropertiesAreOrganizedIntoInspectorSections() {
         let buttonProperties = ComponentType.button.definition.properties
 
-        #expect(buttonProperties.first(where: { $0.key == .text })?.section == .content)
-        #expect(buttonProperties.first(where: { $0.key == .fontSize })?.section == .typography)
+        #expect(buttonProperties.first(where: { $0.key.rawValue == "content1" })?.section == .content)
+        #expect(buttonProperties.first(where: { $0.key.rawValue == "textSize" })?.section == .typography)
         #expect(buttonProperties.first(where: { $0.key == .backgroundColor })?.section == .appearance)
         #expect(buttonProperties.first(where: { $0.key == .padding })?.section == .layout)
         #expect(buttonProperties.first(where: { $0.key == .destination })?.section == .link)
         #expect(buttonProperties.first(where: { $0.key == .accessibilityLabel })?.section == .accessibility)
     }
 
-    @Test @MainActor
-    func rendererAppliesSchemaPropertiesAndEscapesAccessibilityLabel() {
+    @Test
+    func rendererAppliesPackagePropertiesAndEscapesAccessibilityLabel() {
         var container = ComponentNode.make(.container)
         var text = ComponentNode.make(.paragraph)
         var button = ComponentNode.make(.button)
-        container.setProperty(.padding, value: .number(24))
+        container.setProperty(.padding, value: .packageSpacing(.init(
+            sources: ["custom", "custom", "custom", "custom"],
+            customValues: [24, 24, 24, 24]
+        )))
         container.setProperty(.borderWidth, value: .number(2))
-        container.setProperty(.init(rawValue: "borderColorCustom"), value: .color("#ABCDEF"))
+        container.setProperty(.borderColor, value: .packageColor(.init(
+            source: "custom",
+            customColor: "#ABCDEF",
+            adjustment: 0,
+            opacity: 1
+        )))
         container.setProperty(.cornerRadius, value: .number(28))
         container.setProperty(.maxWidth, value: .number(920))
         text.setProperty(.init(rawValue: "typeface"), value: .choice("heading"))
-        text.setProperty(.init(rawValue: "textSize"), value: .choice("xl"))
+        text.setProperty(.init(rawValue: "textSize"), value: .packageFontSize(.init(
+            source: "xl",
+            customValue: "1rem"
+        )))
         button.setProperty(.accessibilityLabel, value: .string("Open \"details\""))
         container.children = [text, button]
 
         let page = Page(title: "Test", slug: "test", components: [container])
         let html = HTMLPageRenderer().render(page: page, theme: .standard)
 
-        #expect(html.contains("padding: 24px"))
+        #expect(html.contains("padding: 24px 24px 24px 24px"))
         #expect(html.contains("border: 2px solid #ABCDEF"))
         #expect(html.contains("border-radius: 28px"))
         #expect(html.contains("max-width: 920px"))
@@ -106,7 +135,7 @@ struct ComponentDefinitionTests {
         #expect(html.contains("[data-foundry-id]:hover:not(:has([data-foundry-id]:hover))"))
     }
 
-    @Test @MainActor
+    @Test
     func rendererSupportsExpandedStockComponentSet() {
         var columns = ComponentNode.make(.columns)
         columns.children = [ComponentNode.make(.heading), ComponentNode.make(.image)]
@@ -120,15 +149,15 @@ struct ComponentDefinitionTests {
             theme: .standard
         )
 
-        #expect(html.contains("class=\"foundry-section\""))
-        #expect(html.contains("class=\"foundry-columns\""))
-        #expect(html.contains("<h2 class=\"foundry-heading\""))
-        #expect(html.contains("class=\"foundry-image\""))
-        #expect(html.contains("class=\"foundry-divider\""))
-        #expect(html.contains("class=\"foundry-spacer\""))
+        #expect(html.contains("class=\"foundry-section"))
+        #expect(html.contains("class=\"foundry-columns"))
+        #expect(html.contains("<h2 class=\"foundry-heading"))
+        #expect(html.contains("class=\"foundry-image"))
+        #expect(html.contains("class=\"foundry-divider"))
+        #expect(html.contains("class=\"foundry-spacer"))
     }
 
-    @Test @MainActor
+    @Test
     func unknownComponentRendersPlaceholderWithoutLosingChildren() {
         let unknownType = ComponentType(rawValue: "com.example.gallery")
         let unknown = ComponentNode(type: unknownType, children: [ComponentNode.make(.paragraph)])
@@ -141,7 +170,7 @@ struct ComponentDefinitionTests {
         #expect(html.contains("class=\"paragraph"))
     }
 
-    @Test @MainActor
+    @Test
     func styleEditParticipatesInUndoAndRedo() throws {
         let document = FoundryDocument()
         let undoManager = UndoManager()

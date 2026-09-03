@@ -4,7 +4,7 @@ import Observation
 import UniformTypeIdentifiers
 
 nonisolated struct ThemeBundleMetadata: Codable, Equatable, Sendable {
-    static let currentFormatVersion = 2
+    static let currentFormatVersion = 3
 
     let id: UUID
     var name: String
@@ -34,8 +34,8 @@ nonisolated struct SavedTheme: Equatable, Identifiable, Sendable {
 }
 
 nonisolated struct ThemePreviewImage: Equatable, Sendable {
-    static let pixelWidth = 1600
-    static let pixelHeight = 1000
+    static let pixelWidth = 1000
+    static let pixelHeight = 1600
 
     let data: Data
     let filename: String
@@ -68,7 +68,7 @@ nonisolated enum ThemeBundleError: Error, LocalizedError {
         case .previewTypeMismatch:
             "The preview image’s file extension does not match its contents."
         case .invalidPreviewDimensions(let width, let height):
-            "The preview image is \(width) × \(height) px. Choose an image that is exactly 1600 × 1000 px."
+            "The preview image is \(width) × \(height) px. Choose an image that is exactly \(ThemePreviewImage.pixelWidth) × \(ThemePreviewImage.pixelHeight) px."
         }
     }
 }
@@ -134,9 +134,12 @@ nonisolated enum ThemeBundleStore {
         if fileManager.fileExists(atPath: bundleURL.path) {
             try fileManager.removeItem(at: bundleURL)
         }
-        try fileManager.createDirectory(at: assetsURL, withIntermediateDirectories: true)
+        try fileManager.createDirectory(at: resourcesURL, withIntermediateDirectories: true)
         let referencedAssetIDs = theme.bundledFontAssetIDs
         let bundledResources = referencedAssetIDs.compactMap { assetContents[$0] }
+        if !bundledResources.isEmpty {
+            try fileManager.createDirectory(at: assetsURL, withIntermediateDirectories: true)
+        }
         let resources = bundledResources.map {
             ThemeBundleResource(asset: $0.asset, storageFilename: $0.asset.storageFilename)
         }
@@ -230,12 +233,23 @@ nonisolated enum ThemeBundleStore {
     static func builtInThemes(bundle: Bundle = .main) -> [SavedTheme] {
         guard let bundleURL = bundle.url(forResource: "BuiltInThemes", withExtension: "bundle"),
               let themeBundle = Bundle(url: bundleURL),
-              let resourcesURL = themeBundle.resourceURL else { return [] }
-        return themeURLs(in: resourcesURL).compactMap { try? load(from: $0, isBuiltIn: true) }
+              let resourcesURL = themeBundle.resourceURL else {
+            preconditionFailure("The built-in theme bundle is missing.")
+        }
+        return themeURLs(in: resourcesURL).map { url in
+            do {
+                return try load(from: url, isBuiltIn: true)
+            } catch {
+                preconditionFailure("Invalid built-in theme at \(url.path): \(error.localizedDescription)")
+            }
+        }
     }
 
     static var systemTheme: Theme {
-        builtInThemes().first(where: { $0.metadata.id == systemThemeID })?.theme ?? .standard
+        guard let theme = builtInThemes().first(where: { $0.metadata.id == systemThemeID })?.theme else {
+            preconditionFailure("The System UI theme is missing.")
+        }
+        return theme
     }
 }
 
@@ -261,7 +275,7 @@ final class ThemeLibrary {
             ).filter(ThemeBundleStore.isThemeURL)
             let builtInThemes = ThemeBundleStore.builtInThemes()
             let builtInIDs = Set(builtInThemes.map(\.id))
-            let userThemes = urls.compactMap { try? ThemeBundleStore.load(from: $0) }
+            let userThemes = try urls.map { try ThemeBundleStore.load(from: $0) }
                 .filter { !builtInIDs.contains($0.id) }
             themes = (builtInThemes + userThemes)
                 .sorted { $0.metadata.name.localizedStandardCompare($1.metadata.name) == .orderedAscending }

@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>minimumAPIVersion</key><integer>1</integer>
+    <key>id</key><string>foundry.content.heading</string>
+    <key>title</key><string>Heading</string>
+    <key>description</key><string>Adds an editable semantic heading.</string>
+    <key>author</key><string>Foundry</string>
+    <key>version</key><string>1.0.0</string>
+    <key>group</key><string>Content</string>
+    <key>tags</key><array><string>built-in</string><string>text</string></array>
+    <key>slots</key><array/>
+    <key>customItems</key>
+    <array>
+        <dict>
+            <key>id</key><string>headingLevel</string>
+            <key>labels</key><string>Level</string>
+            <key>group</key><string>Typography</string>
+            <key>type</key><string>select</string>
+            <key>options</key><array>
+                <dict><key>value</key><string>1</string><key>title</key><string>Heading 1</string></dict>
+                <dict><key>value</key><string>2</string><key>title</key><string>Heading 2</string></dict>
+                <dict><key>value</key><string>3</string><key>title</key><string>Heading 3</string></dict>
+                <dict><key>value</key><string>4</string><key>title</key><string>Heading 4</string></dict>
+                <dict><key>value</key><string>5</string><key>title</key><string>Heading 5</string></dict>
+                <dict><key>value</key><string>6</string><key>title</key><string>Heading 6</string></dict>
+            </array>
+            <key>default</key><string>2</string>
+            <key>responsive</key><false/>
+        </dict>
+        <dict><key>id</key><string>typeface</string><key>labels</key><string>Typeface</string><key>group</key><string>Typography</string><key>type</key><string>fontFamily</string><key>default</key><string>heading</string><key>responsive</key><true/></dict>
+        <dict><key>id</key><string>textSize</string><key>labels</key><string>Font Size</string><key>group</key><string>Typography</string><key>type</key><string>fontSize</string><key>themeValues</key><string>fontSizes</string><key>customValue</key><string>3rem</string><key>default</key><string>3xl</string><key>responsive</key><true/></dict>
+        <dict><key>id</key><string>lineHeight</string><key>labels</key><string>Line Height</string><key>group</key><string>Typography</string><key>type</key><string>lineHeight</string><key>fontSize</key><string>textSize</string><key>default</key><string>theme</string><key>responsive</key><true/></dict>
+        <dict><key>id</key><string>textAlignment</string><key>labels</key><string>Alignment</string><key>group</key><string>Typography</string><key>type</key><string>textAlignment</string><key>default</key><string>start</string><key>responsive</key><true/></dict>
+        <dict><key>id</key><string>textColor</string><key>labels</key><string>Colour</string><key>group</key><string>Colour</string><key>type</key><string>color</string><key>themeValues</key><string>text</string><key>colorMath</key><true/><key>opacity</key><true/><key>customColor</key><string>#171719</string><key>default</key><string>custom</string><key>responsive</key><true/></dict>
+    </array>
+    <key>templates</key><dict><key>html</key><string>component.html</string><key>files</key><array><dict><key>path</key><string>component.css</string><key>scope</key><string>instance</string></dict></array></dict>
+    <key>assets</key><array/>
+</dict>
+</plist>

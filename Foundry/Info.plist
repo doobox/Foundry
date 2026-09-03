@@ -40,6 +40,18 @@
 				<string>uk.co.garysimpson.foundry.devpack</string>
 			</array>
 		</dict>
+		<dict>
+			<key>CFBundleTypeName</key>
+			<string>Foundry Theme</string>
+			<key>CFBundleTypeRole</key>
+			<string>Viewer</string>
+			<key>LSHandlerRank</key>
+			<string>Owner</string>
+			<key>LSItemContentTypes</key>
+			<array>
+				<string>uk.co.garysimpson.foundry.theme</string>
+			</array>
+		</dict>
 	</array>
 	<key>UTExportedTypeDeclarations</key>
 	<array>
@@ -129,6 +141,27 @@
 				<key>public.filename-extension</key>
 				<array>
 					<string>exampletext</string>
+				</array>
+			</dict>
+		</dict>
+		<dict>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>com.apple.package</string>
+			</array>
+			<key>UTTypeDescription</key>
+			<string>Foundry Theme</string>
+			<key>UTTypeIdentifier</key>
+			<string>uk.co.garysimpson.foundry.theme</string>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.filename-extension</key>
+				<array>
+					<string>foundrytheme</string>
+				</array>
+				<key>public.mime-type</key>
+				<array>
+					<string>application/vnd.foundry.theme</string>
 				</array>
 			</dict>
 		</dict>

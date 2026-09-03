@@ -124,7 +124,7 @@ struct CanvasBridgeTests {
             language: "en",
             theme: .standard,
             assets: [asset.id: ProjectAssetContent(asset: asset, data: gifData)],
-            breakpoint: .desktop
+            breakpoint: .extraLarge
         )
 
         #expect(html.contains("data:image/png;base64,"))

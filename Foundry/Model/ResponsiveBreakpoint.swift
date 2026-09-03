@@ -2,65 +2,77 @@ import Foundation
 
 nonisolated enum ResponsiveBreakpoint: String, Codable, CaseIterable, Identifiable, Sendable {
     case mobile
-    case tabletPortrait
-    case tabletLandscape
-    case desktop
+    case small
+    case medium
+    case large
+    case extraLarge
+    case doubleExtraLarge
 
     var id: String { rawValue }
 
     var displayName: String {
         switch self {
-        case .mobile: "Mobile"
-        case .tabletPortrait: "Tablet Portrait"
-        case .tabletLandscape: "Tablet Landscape"
-        case .desktop: "Desktop"
+        case .mobile: "Extra Small"
+        case .small: "Small"
+        case .medium: "Medium"
+        case .large: "Large"
+        case .extraLarge: "Extra Large"
+        case .doubleExtraLarge: "Double Extra Large"
+        }
+    }
+
+    var screenID: ThemeScreenID {
+        switch self {
+        case .mobile: .mobile
+        case .small: .small
+        case .medium: .medium
+        case .large: .large
+        case .extraLarge: .extraLarge
+        case .doubleExtraLarge: .doubleExtraLarge
         }
     }
 
     var minimumWidth: Int? {
         switch self {
         case .mobile: nil
-        case .tabletPortrait: 768
-        case .tabletLandscape: 1024
-        case .desktop: 1280
+        case .small: 576
+        case .medium: 768
+        case .large: 992
+        case .extraLarge: 1200
+        case .doubleExtraLarge: 1400
         }
     }
 
     func minimumWidth(in screens: ScreenTokens) -> Int? {
-        let screenID: ThemeScreenID? = switch self {
-        case .mobile: nil
-        case .tabletPortrait: .medium
-        case .tabletLandscape: .large
-        case .desktop: .extraLarge
-        }
-        guard let screenID else { return nil }
+        guard self != .mobile else { return nil }
         let screen = screens.screen(screenID)
         return screen.isEnabled ? Int(screen.minimumWidth.rounded()) : nil
     }
 
     var inheritedBreakpoints: [ResponsiveBreakpoint] {
-        switch self {
-        case .mobile: []
-        case .tabletPortrait: [.tabletPortrait]
-        case .tabletLandscape: [.tabletLandscape, .tabletPortrait]
-        case .desktop: [.desktop, .tabletLandscape, .tabletPortrait]
+        let breakpoints = Self.allCases
+        guard let index = breakpoints.firstIndex(of: self), index > breakpoints.startIndex else {
+            return []
         }
+        return Array(breakpoints[breakpoints.index(after: breakpoints.startIndex)...index].reversed())
     }
 
     static func forViewportWidth(_ width: Double) -> ResponsiveBreakpoint {
-        if width >= 1280 { return .desktop }
-        if width >= 1024 { return .tabletLandscape }
-        if width >= 768 { return .tabletPortrait }
+        for breakpoint in allCases.reversed() {
+            if let minimumWidth = breakpoint.minimumWidth, width >= Double(minimumWidth) {
+                return breakpoint
+            }
+        }
         return .mobile
     }
 
     static func forViewportWidth(_ width: Double, screens: ScreenTokens) -> ResponsiveBreakpoint {
-        let desktop = screens.screen(.extraLarge)
-        let landscape = screens.screen(.large)
-        let portrait = screens.screen(.medium)
-        if desktop.isEnabled, width >= desktop.minimumWidth { return .desktop }
-        if landscape.isEnabled, width >= landscape.minimumWidth { return .tabletLandscape }
-        if portrait.isEnabled, width >= portrait.minimumWidth { return .tabletPortrait }
+        for breakpoint in allCases.reversed() where breakpoint != .mobile {
+            let screen = screens.screen(breakpoint.screenID)
+            if screen.isEnabled, width >= screen.minimumWidth {
+                return breakpoint
+            }
+        }
         return .mobile
     }
 }

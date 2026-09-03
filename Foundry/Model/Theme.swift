@@ -27,7 +27,7 @@ nonisolated struct Theme: Codable, Equatable, Sendable {
         colors = try container.decode(ColorTokens.self, forKey: .colors)
         spacing = try container.decode(SpacingTokens.self, forKey: .spacing)
         typography = try container.decode(TypographyTokens.self, forKey: .typography)
-        screens = try container.decodeIfPresent(ScreenTokens.self, forKey: .screens) ?? .standard
+        screens = try container.decode(ScreenTokens.self, forKey: .screens)
     }
 
     static let standard = Theme(
@@ -35,7 +35,8 @@ nonisolated struct Theme: Codable, Equatable, Sendable {
             background: "#F7F7F8",
             surface: "#FFFFFF",
             text: "#171719",
-            accent: "#5B5BD6"
+            accent: "#5B5BD6",
+            links: "#5B5BD6"
         ),
         spacing: .standard,
         typography: .init(
@@ -43,7 +44,7 @@ nonisolated struct Theme: Codable, Equatable, Sendable {
             headingFont: .system(family: "system-ui", weights: [500, 600, 700, 800]),
             monospacedFont: .system(family: "ui-monospace", weights: [400, 500, 600, 700]),
             customFonts: [],
-            baseSize: 16,
+            bodySize: TypographyTokens.standardBodySize,
             customFontSizes: []
         )
     )
@@ -55,20 +56,21 @@ nonisolated enum ThemeScreenID: String, Codable, CaseIterable, Identifiable, Sen
     var id: String { rawValue }
     var shortTitle: String {
         switch self {
-        case .mobile: "Mobile"
+        case .mobile: "XS"
         case .small: "SM"
         case .medium: "MD"
         case .large: "LG"
         case .extraLarge: "XL"
-        case .doubleExtraLarge: "2XL"
+        case .doubleExtraLarge: "XXL"
         }
     }
     var systemImage: String {
         switch self {
         case .mobile: "iphone"
-        case .small, .extraLarge: "laptopcomputer"
+        case .small: "iphone.landscape"
         case .medium: "ipad"
         case .large: "ipad.landscape"
+        case .extraLarge: "laptopcomputer"
         case .doubleExtraLarge: "desktopcomputer"
         }
     }
@@ -103,11 +105,11 @@ nonisolated struct ThemeScreen: Codable, Equatable, Identifiable, Sendable {
 nonisolated struct ScreenTokens: Codable, Equatable, Sendable {
     static let standard = ScreenTokens(screens: [
         .init(id: .mobile, isEnabled: true, minimumWidth: 0, container: .init(value: 0, unit: .auto)),
-        .init(id: .small, isEnabled: true, minimumWidth: 640, container: .init(value: 640, unit: .auto)),
+        .init(id: .small, isEnabled: true, minimumWidth: 576, container: .init(value: 576, unit: .auto)),
         .init(id: .medium, isEnabled: true, minimumWidth: 768, container: .init(value: 768, unit: .auto)),
-        .init(id: .large, isEnabled: true, minimumWidth: 1024, container: .init(value: 1024, unit: .auto)),
-        .init(id: .extraLarge, isEnabled: false, minimumWidth: 1280, container: .init(value: 1280, unit: .auto)),
-        .init(id: .doubleExtraLarge, isEnabled: false, minimumWidth: 1536, container: .init(value: 1536, unit: .auto))
+        .init(id: .large, isEnabled: true, minimumWidth: 992, container: .init(value: 992, unit: .auto)),
+        .init(id: .extraLarge, isEnabled: true, minimumWidth: 1200, container: .init(value: 1200, unit: .auto)),
+        .init(id: .doubleExtraLarge, isEnabled: true, minimumWidth: 1400, container: .init(value: 1400, unit: .auto))
     ])
 
     var screens: [ThemeScreen]
@@ -128,7 +130,7 @@ nonisolated struct ScreenTokens: Codable, Equatable, Sendable {
 
     func canvasWidth(for screen: ThemeScreen) -> Double {
         guard screen.id == .mobile else { return screen.minimumWidth }
-        let nextMinimum = enabledScreens.first(where: { $0.id != .mobile })?.minimumWidth ?? 640
+        let nextMinimum = enabledScreens.first(where: { $0.id != .mobile })?.minimumWidth ?? 576
         return max(320, min(390, nextMinimum - 1))
     }
 
@@ -182,6 +184,28 @@ nonisolated struct ColorTokens: Codable, Equatable, Sendable {
     var surface: String
     var text: String
     var accent: String
+    var links: String
+
+    enum CodingKeys: String, CodingKey {
+        case background, surface, text, accent, links
+    }
+
+    init(background: String, surface: String, text: String, accent: String, links: String) {
+        self.background = background
+        self.surface = surface
+        self.text = text
+        self.accent = accent
+        self.links = links
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        background = try container.decode(String.self, forKey: .background)
+        surface = try container.decode(String.self, forKey: .surface)
+        text = try container.decode(String.self, forKey: .text)
+        accent = try container.decode(String.self, forKey: .accent)
+        links = try container.decode(String.self, forKey: .links)
+    }
 }
 
 nonisolated enum ThemeColorRole: String, Codable, CaseIterable, Identifiable, Sendable {
@@ -189,6 +213,7 @@ nonisolated enum ThemeColorRole: String, Codable, CaseIterable, Identifiable, Se
     case surface
     case text
     case accent
+    case links
 
     var id: String { rawValue }
     var title: String { rawValue.capitalized }
@@ -258,16 +283,16 @@ nonisolated struct SpacingTokens: Codable, Equatable, Sendable {
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        threeExtraSmall = try container.decodeIfPresent(Double.self, forKey: .threeExtraSmall) ?? Self.standard.threeExtraSmall
-        doubleExtraSmall = try container.decodeIfPresent(Double.self, forKey: .doubleExtraSmall) ?? Self.standard.doubleExtraSmall
-        extraSmall = try container.decodeIfPresent(Double.self, forKey: .extraSmall) ?? Self.standard.extraSmall
-        small = try container.decodeIfPresent(Double.self, forKey: .small) ?? Self.standard.small
-        medium = try container.decodeIfPresent(Double.self, forKey: .medium) ?? Self.standard.medium
-        large = try container.decodeIfPresent(Double.self, forKey: .large) ?? Self.standard.large
-        extraLarge = try container.decodeIfPresent(Double.self, forKey: .extraLarge) ?? Self.standard.extraLarge
-        doubleExtraLarge = try container.decodeIfPresent(Double.self, forKey: .doubleExtraLarge) ?? Self.standard.doubleExtraLarge
-        threeExtraLarge = try container.decodeIfPresent(Double.self, forKey: .threeExtraLarge) ?? Self.standard.threeExtraLarge
-        custom = try container.decodeIfPresent([ThemeSpacing].self, forKey: .custom) ?? []
+        threeExtraSmall = try container.decode(Double.self, forKey: .threeExtraSmall)
+        doubleExtraSmall = try container.decode(Double.self, forKey: .doubleExtraSmall)
+        extraSmall = try container.decode(Double.self, forKey: .extraSmall)
+        small = try container.decode(Double.self, forKey: .small)
+        medium = try container.decode(Double.self, forKey: .medium)
+        large = try container.decode(Double.self, forKey: .large)
+        extraLarge = try container.decode(Double.self, forKey: .extraLarge)
+        doubleExtraLarge = try container.decode(Double.self, forKey: .doubleExtraLarge)
+        threeExtraLarge = try container.decode(Double.self, forKey: .threeExtraLarge)
+        custom = try container.decode([ThemeSpacing].self, forKey: .custom)
     }
 
     var usesStandardPredefinedScale: Bool {
@@ -300,32 +325,72 @@ nonisolated struct ThemeSpacing: Codable, Equatable, Identifiable, Sendable {
 }
 
 nonisolated struct TypographyTokens: Codable, Equatable, Sendable {
+    static let standardBodySize = 16.0
+
     var bodyFont: ThemeFontDefinition
     var headingFont: ThemeFontDefinition
     var monospacedFont: ThemeFontDefinition
     var customFonts: [ThemeCustomFont]
-    var baseSize: Double
+    var bodySize: Double
+    var predefinedFontSizes: [ThemeFontSize]
     var customFontSizes: [ThemeFontSize]
 
     static let standardFontSizes: [ThemeFontSize] = [
-        .init(id: "xs", title: "Extra Small", size: 0.75, lineHeight: .snug),
+        .init(id: "xs", title: "Fine", size: 0.75, lineHeight: .snug),
         .init(id: "sm", title: "Small", size: 0.875, lineHeight: .normal),
-        .init(id: "base", title: "Base", size: 1, lineHeight: .normal),
-        .init(id: "lg", title: "Large", size: 1.125, lineHeight: .relaxed),
-        .init(id: "xl", title: "Extra Large", size: 1.25, lineHeight: .normal),
-        .init(id: "2xl", title: "2XL", size: 1.5, lineHeight: .snug),
-        .init(id: "3xl", title: "3XL", size: 1.875, lineHeight: .tight),
-        .init(id: "4xl", title: "4XL", size: 2.25, lineHeight: .tight),
-        .init(id: "5xl", title: "5XL", size: 3, lineHeight: .none),
-        .init(id: "6xl", title: "6XL", size: 3.75, lineHeight: .none),
-        .init(id: "7xl", title: "7XL", size: 4.5, lineHeight: .none),
-        .init(id: "8xl", title: "8XL", size: 6, lineHeight: .none),
-        .init(id: "9xl", title: "9XL", size: 8, lineHeight: .none)
+        .init(id: "base", title: "Body (Root Size)", size: 1, lineHeight: .normal),
+        .init(id: "lg", title: "Lead", size: 1.125, lineHeight: .relaxed),
+        .init(id: "xl", title: "Large", size: 1.25, lineHeight: .normal),
+        .init(id: "2xl", title: "Subtitle", size: 1.5, lineHeight: .snug),
+        .init(id: "3xl", title: "Title", size: 1.75, lineHeight: .tight),
+        .init(id: "4xl", title: "Heading", size: 2, lineHeight: .tight),
+        .init(id: "5xl", title: "Display Small", size: 2.5, lineHeight: .none),
+        .init(id: "6xl", title: "Display", size: 3, lineHeight: .none),
+        .init(id: "7xl", title: "Display Large", size: 4, lineHeight: .none),
+        .init(id: "8xl", title: "Hero", size: 5, lineHeight: .none),
+        .init(id: "9xl", title: "Hero Large", size: 6, lineHeight: .none)
     ]
+
+    init(
+        bodyFont: ThemeFontDefinition,
+        headingFont: ThemeFontDefinition,
+        monospacedFont: ThemeFontDefinition,
+        customFonts: [ThemeCustomFont],
+        bodySize: Double,
+        predefinedFontSizes: [ThemeFontSize] = Self.standardFontSizes,
+        customFontSizes: [ThemeFontSize]
+    ) {
+        self.bodyFont = bodyFont
+        self.headingFont = headingFont
+        self.monospacedFont = monospacedFont
+        self.customFonts = customFonts
+        self.bodySize = bodySize
+        self.predefinedFontSizes = predefinedFontSizes
+        self.customFontSizes = customFontSizes
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case bodyFont, headingFont, monospacedFont, customFonts, bodySize, predefinedFontSizes, customFontSizes
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        bodyFont = try container.decode(ThemeFontDefinition.self, forKey: .bodyFont)
+        headingFont = try container.decode(ThemeFontDefinition.self, forKey: .headingFont)
+        monospacedFont = try container.decode(ThemeFontDefinition.self, forKey: .monospacedFont)
+        customFonts = try container.decode([ThemeCustomFont].self, forKey: .customFonts)
+        bodySize = try container.decode(Double.self, forKey: .bodySize)
+        predefinedFontSizes = try container.decode([ThemeFontSize].self, forKey: .predefinedFontSizes)
+        customFontSizes = try container.decode([ThemeFontSize].self, forKey: .customFontSizes)
+    }
 
     var fontSizes: [ThemeFontSize] {
         let reservedIDs = Set(Self.standardFontSizes.map(\.id))
-        return Self.standardFontSizes + customFontSizes.filter { !reservedIDs.contains($0.id) }
+        return predefinedFontSizes + customFontSizes.filter { !reservedIDs.contains($0.id) }
+    }
+
+    var usesStandardPredefinedFontSizes: Bool {
+        bodySize == Self.standardBodySize && predefinedFontSizes == Self.standardFontSizes
     }
 }
 
@@ -456,6 +521,7 @@ nonisolated extension Theme {
         case .surface: colors.surface
         case .text: colors.text
         case .accent: colors.accent
+        case .links: colors.links
         }
     }
 
@@ -464,17 +530,25 @@ nonisolated extension Theme {
             .init(value: ThemeFontRole.body.rawValue, label: "Body — \(typography.bodyFont.family)"),
             .init(value: ThemeFontRole.heading.rawValue, label: "Heading — \(typography.headingFont.family)"),
             .init(value: ThemeFontRole.monospaced.rawValue, label: "Monospaced — \(typography.monospacedFont.family)")
-        ] + typography.customFonts.map { font in
-            .init(value: "custom:\(font.id.uuidString.lowercased())", label: "\(font.name) — \(font.font.family)")
+        ] + typography.customFonts.enumerated().map { index, font in
+            .init(
+                value: "custom:\(font.id.uuidString.lowercased())",
+                label: "\(font.name) — \(font.font.family)",
+                separatorBefore: index == 0
+            )
         }
     }
 
     var fontSizeChoices: [ComponentPropertyChoice] {
-        typography.fontSizes.map {
-            let pixels = ($0.size * typography.baseSize).formatted(
+        typography.fontSizes.enumerated().map { index, size in
+            let pixels = (size.size * typography.bodySize).formatted(
                 .number.precision(.fractionLength(0...1))
             )
-            return .init(value: $0.id, label: "\($0.title) — \($0.size.formatted()) rem (\(pixels) px)")
+            return .init(
+                value: size.id,
+                label: "\(size.title) — \(size.size.formatted()) rem (\(pixels) px)",
+                separatorBefore: index == TypographyTokens.standardFontSizes.count && !typography.customFontSizes.isEmpty
+            )
         }
     }
 
@@ -492,17 +566,18 @@ nonisolated extension Theme {
         ]
         return predefined.map { id, title, multiplier in
             let rem = multiplier * SpacingTokens.baseRem
-            let pixels = rem * typography.baseSize
+            let pixels = rem * typography.bodySize
             return .init(
                 value: id,
                 label: "\(title) — \(rem.cssNumber) rem (\(pixels.cssNumber) px)"
             )
-        } + spacing.custom.map { item in
+        } + spacing.custom.enumerated().map { index, item in
             let rem = item.value * SpacingTokens.baseRem
-            let pixels = rem * typography.baseSize
+            let pixels = rem * typography.bodySize
             return .init(
                 value: "custom:\(item.id.uuidString.lowercased())",
-                label: "\(item.name) — \(rem.cssNumber) rem (\(pixels.cssNumber) px)"
+                label: "\(item.name) — \(rem.cssNumber) rem (\(pixels.cssNumber) px)",
+                separatorBefore: index == 0
             )
         }
     }
@@ -604,6 +679,7 @@ nonisolated extension Theme {
         case .surfaceColor: colors.surface
         case .textColor: colors.text
         case .accentColor: colors.accent
+        case .linksColor: colors.links
         case .threeExtraSmallSpacing, .doubleExtraSmallSpacing, .extraSmallSpacing,
              .smallSpacing, .mediumSpacing, .largeSpacing, .extraLargeSpacing,
              .doubleExtraLargeSpacing, .threeExtraLargeSpacing: nil
@@ -621,7 +697,7 @@ nonisolated extension Theme {
         case .extraLargeSpacing: spacing.extraLarge
         case .doubleExtraLargeSpacing: spacing.doubleExtraLarge
         case .threeExtraLargeSpacing: spacing.threeExtraLarge
-        case .backgroundColor, .surfaceColor, .textColor, .accentColor: nil
+        case .backgroundColor, .surfaceColor, .textColor, .accentColor, .linksColor: nil
         }
     }
 }

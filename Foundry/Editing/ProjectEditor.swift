@@ -166,6 +166,7 @@ struct ProjectEditor {
             case .surfaceColor: site.theme.colors.surface = value
             case .textColor: site.theme.colors.text = value
             case .accentColor: site.theme.colors.accent = value
+            case .linksColor: site.theme.colors.links = value
             case .threeExtraSmallSpacing, .doubleExtraSmallSpacing, .extraSmallSpacing,
                  .smallSpacing, .mediumSpacing, .largeSpacing, .extraLargeSpacing,
                  .doubleExtraLargeSpacing, .threeExtraLargeSpacing: break
@@ -217,23 +218,24 @@ struct ProjectEditor {
             case .extraLargeSpacing: site.theme.spacing.extraLarge = value
             case .doubleExtraLargeSpacing: site.theme.spacing.doubleExtraLarge = value
             case .threeExtraLargeSpacing: site.theme.spacing.threeExtraLarge = value
-            case .backgroundColor, .surfaceColor, .textColor, .accentColor: break
+            case .backgroundColor, .surfaceColor, .textColor, .accentColor, .linksColor: break
             }
         }
     }
 
     func resetThemeSpacingScale() {
         mutate(actionName: "Reset Theme Spacing Scale") { site in
-            let standard = SpacingTokens.standard
-            site.theme.spacing.threeExtraSmall = standard.threeExtraSmall
-            site.theme.spacing.doubleExtraSmall = standard.doubleExtraSmall
-            site.theme.spacing.extraSmall = standard.extraSmall
-            site.theme.spacing.small = standard.small
-            site.theme.spacing.medium = standard.medium
-            site.theme.spacing.large = standard.large
-            site.theme.spacing.extraLarge = standard.extraLarge
-            site.theme.spacing.doubleExtraLarge = standard.doubleExtraLarge
-            site.theme.spacing.threeExtraLarge = standard.threeExtraLarge
+            guard let source = ThemeLibrary.shared.themes.first(where: { $0.id == site.themeSourceID }) else { return }
+            let defaults = source.theme.spacing
+            site.theme.spacing.threeExtraSmall = defaults.threeExtraSmall
+            site.theme.spacing.doubleExtraSmall = defaults.doubleExtraSmall
+            site.theme.spacing.extraSmall = defaults.extraSmall
+            site.theme.spacing.small = defaults.small
+            site.theme.spacing.medium = defaults.medium
+            site.theme.spacing.large = defaults.large
+            site.theme.spacing.extraLarge = defaults.extraLarge
+            site.theme.spacing.doubleExtraLarge = defaults.doubleExtraLarge
+            site.theme.spacing.threeExtraLarge = defaults.threeExtraLarge
         }
     }
 
@@ -429,20 +431,26 @@ struct ProjectEditor {
     func setThemeFontSize(id: String, value: Double) {
         guard value.isFinite, value > 0 else { return }
         mutate(actionName: "Edit Theme Font Size") { site in
-            guard let index = site.theme.typography.customFontSizes.firstIndex(where: { $0.id == id }) else { return }
-            site.theme.typography.customFontSizes[index].size = value
+            if let index = site.theme.typography.predefinedFontSizes.firstIndex(where: { $0.id == id }) {
+                site.theme.typography.predefinedFontSizes[index].size = value
+            } else if let index = site.theme.typography.customFontSizes.firstIndex(where: { $0.id == id }) {
+                site.theme.typography.customFontSizes[index].size = value
+            }
         }
     }
 
-    func setThemeBaseSize(_ value: Double) {
+    func setThemeBodySize(_ value: Double) {
         guard value.isFinite, value > 0 else { return }
-        mutate(actionName: "Edit Theme Base Size") { $0.theme.typography.baseSize = value }
+        mutate(actionName: "Edit Theme Body Size") { $0.theme.typography.bodySize = value }
     }
 
     func setThemeFontSizeLineHeight(id: String, value: ThemeLineHeight) {
         mutate(actionName: "Edit Theme Line Height") { site in
-            guard let index = site.theme.typography.customFontSizes.firstIndex(where: { $0.id == id }) else { return }
-            site.theme.typography.customFontSizes[index].lineHeight = value
+            if let index = site.theme.typography.predefinedFontSizes.firstIndex(where: { $0.id == id }) {
+                site.theme.typography.predefinedFontSizes[index].lineHeight = value
+            } else if let index = site.theme.typography.customFontSizes.firstIndex(where: { $0.id == id }) {
+                site.theme.typography.customFontSizes[index].lineHeight = value
+            }
         }
     }
 
@@ -450,6 +458,14 @@ struct ProjectEditor {
         mutate(actionName: "Rename Theme Font Size") { site in
             guard let index = site.theme.typography.customFontSizes.firstIndex(where: { $0.id == id }) else { return }
             site.theme.typography.customFontSizes[index].title = value
+        }
+    }
+
+    func resetThemeFontSizeScale() {
+        mutate(actionName: "Reset Theme Font Size Scale") { site in
+            guard let source = ThemeLibrary.shared.themes.first(where: { $0.id == site.themeSourceID }) else { return }
+            site.theme.typography.bodySize = source.theme.typography.bodySize
+            site.theme.typography.predefinedFontSizes = source.theme.typography.predefinedFontSizes
         }
     }
 
@@ -504,9 +520,33 @@ struct ProjectEditor {
         }
     }
 
-    func applyTheme(_ theme: Theme) {
-        mutate(actionName: "Apply Theme") { site in
-            site.theme = theme
+    func selectTheme(_ theme: Theme, sourceID: UUID) {
+        mutate(actionName: "Select Theme") { site in
+            guard site.themeSourceID != sourceID else { return }
+            site.projectThemeValues.absorb(site.theme)
+            site.saveActiveThemeState()
+            site.projectThemeValues.include(theme)
+            let selected = site.themeStates.first(where: { $0.sourceID == sourceID })?.theme ?? theme
+            site.theme = site.projectThemeValues.applied(to: selected)
+            site.themeSourceID = sourceID
+        }
+    }
+
+    func resetTheme(_ theme: Theme, sourceID: UUID) {
+        mutate(actionName: "Reset Theme") { site in
+            site.projectThemeValues.absorb(site.theme)
+            site.themeStates.removeAll { $0.sourceID == sourceID }
+            site.theme = site.projectThemeValues.applied(to: theme)
+            site.themeSourceID = sourceID
+        }
+    }
+
+    func commitTheme(_ theme: Theme, sourceID: UUID) {
+        mutate(actionName: "Update Theme Defaults") { site in
+            site.themeStates.removeAll { $0.sourceID == sourceID }
+            site.projectThemeValues.absorb(theme)
+            site.theme = site.projectThemeValues.applied(to: theme)
+            site.themeSourceID = sourceID
         }
     }
 

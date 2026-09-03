@@ -5,6 +5,33 @@ import Testing
 @MainActor
 struct ThemeEditingTests {
     @Test
+    func switchingThemesPreservesPerThemeEditsAndProjectThemeValues() throws {
+        let document = FoundryDocument()
+        let editor = ProjectEditor(document: document, undoManager: UndoManager())
+        let systemTheme = document.site.theme
+        let alternateID = UUID()
+        var alternateTheme = systemTheme
+        alternateTheme.colors.accent = "#112233"
+
+        let customSpacingID = editor.addThemeSpacing()
+        editor.setThemeColor(.accentColor, value: "#AABBCC")
+        editor.selectTheme(alternateTheme, sourceID: alternateID)
+
+        #expect(document.site.theme.colors.accent == "#112233")
+        #expect(document.site.theme.spacing.custom.contains { $0.id == customSpacingID })
+
+        editor.setThemeColor(.accentColor, value: "#445566")
+        editor.selectTheme(systemTheme, sourceID: ThemeBundleStore.systemThemeID)
+
+        #expect(document.site.theme.colors.accent == "#AABBCC")
+        #expect(document.site.theme.spacing.custom.contains { $0.id == customSpacingID })
+
+        editor.selectTheme(alternateTheme, sourceID: alternateID)
+        #expect(document.site.theme.colors.accent == "#445566")
+        #expect(document.site.theme.spacing.custom.contains { $0.id == customSpacingID })
+    }
+
+    @Test
     func designTokenReferencesRoundTripThroughProjectJSON() throws {
         var site = Site.starter()
         let componentID = try #require(site.pages.first?.components.first?.id)
@@ -27,30 +54,59 @@ struct ThemeEditingTests {
         theme.colors.accent = "#123ABC"
         theme.spacing.large = 44
         var container = ComponentNode.make(.container)
-        container.setProperty(.backgroundColor, value: .choice("accent"))
-        container.setProperty(.padding, value: .token(.largeSpacing))
+        container.setProperty(.backgroundColor, value: .packageColor(.init(
+            source: ThemeColorRole.accent.rawValue,
+            customColor: "#000000",
+            adjustment: 0,
+            opacity: 1
+        )))
+        container.setProperty(.padding, value: .packageSpacing(.init(
+            sources: ["lg", "lg", "lg", "lg"],
+            customValues: [0, 0, 0, 0]
+        )))
         let page = Page(title: "Tokens", slug: "tokens", components: [container])
 
         let html = HTMLPageRenderer().render(page: page, theme: theme)
 
         #expect(html.contains("background-color: #123ABC"))
-        #expect(html.contains("padding: 44px"))
+        #expect(html.contains("padding: var(--foundry-space-lg) var(--foundry-space-lg) var(--foundry-space-lg) var(--foundry-space-lg)"))
+    }
+
+    @Test
+    func legacyThemeColorsUseAccentForLinks() throws {
+        let data = Data("{\"background\":\"#FFFFFF\",\"surface\":\"#EEEEEE\",\"text\":\"#111111\",\"accent\":\"#123ABC\"}".utf8)
+        let colors = try JSONDecoder().decode(ColorTokens.self, from: data)
+
+        #expect(colors.links == "#123ABC")
     }
 
     @Test @MainActor
-    func paragraphColorResolvesThemeRoleMathAndOpacity() {
+    func paragraphColorAppliesPickerOpacityOnlyToCustomColors() {
         _ = ComponentPackageCatalog.shared
         var paragraph = ComponentNode.make(.paragraph)
-        paragraph.setProperty(.init(rawValue: "textColor"), value: .choice(ThemeColorRole.accent.rawValue))
-        paragraph.setProperty(.init(rawValue: "textColorColorMath"), value: .number(-20))
-        paragraph.setProperty(.init(rawValue: "textColorOpacity"), value: .number(0.5))
+        paragraph.setProperty(.init(rawValue: "textColor"), value: .packageColor(.init(
+            source: ThemeColorRole.accent.rawValue,
+            customColor: "#000000",
+            adjustment: -20,
+            opacity: 0.5
+        )))
 
         let darkened = ComponentTemplateRenderer.transformColor("#5B5BD6", target: 0, amount: 0.2)
-        let expected = ComponentTemplateRenderer.colorWithAlpha(darkened, alpha: 0.5)
         let page = Page(title: "Colour", slug: "colour", components: [paragraph])
-        let html = HTMLPageRenderer().render(page: page, theme: .standard)
+        let themedHTML = HTMLPageRenderer().render(page: page, theme: .standard)
 
-        #expect(html.contains("color: \(expected)"))
+        #expect(themedHTML.contains("color: \(darkened)"))
+        #expect(!themedHTML.contains("color: rgb("))
+
+        paragraph.setProperty(.init(rawValue: "textColor"), value: .packageColor(.init(
+            source: "custom",
+            customColor: "#123456",
+            adjustment: 0,
+            opacity: 0.5
+        )))
+        let customPage = Page(title: "Colour", slug: "colour", components: [paragraph])
+        let customHTML = HTMLPageRenderer().render(page: customPage, theme: .standard)
+        #expect(customHTML.contains("color: \(ComponentTemplateRenderer.colorWithAlpha("#123456", alpha: 0.5))"))
     }
 
     @Test
@@ -136,8 +192,10 @@ struct ThemeEditingTests {
         editor.setThemeScreenContainerUnit(.large, value: .viewportWidth)
         editor.setThemeScreenContainerWidth(.large, value: 92)
 
-        #expect(ResponsiveBreakpoint.forViewportWidth(819, screens: document.site.theme.screens) == .mobile)
-        #expect(ResponsiveBreakpoint.forViewportWidth(820, screens: document.site.theme.screens) == .tabletPortrait)
+        #expect(ResponsiveBreakpoint.forViewportWidth(575, screens: document.site.theme.screens) == .mobile)
+        #expect(ResponsiveBreakpoint.forViewportWidth(576, screens: document.site.theme.screens) == .small)
+        #expect(ResponsiveBreakpoint.forViewportWidth(819, screens: document.site.theme.screens) == .small)
+        #expect(ResponsiveBreakpoint.forViewportWidth(820, screens: document.site.theme.screens) == .medium)
         #expect(document.site.theme.screens.containerCSS.contains("92vw"))
 
         let data = try FoundryDocument.encoder.encode(document.site)
@@ -157,7 +215,7 @@ struct ThemeEditingTests {
         #expect(screens.containerCSS.contains("700px"))
         #expect(screens.containerCSS.contains("88vw"))
         #expect(screens.containerCSS.contains("94%"))
-        #expect(screens.containerCSS.contains("1280px"))
+        #expect(screens.containerCSS.contains("1200px"))
     }
 
     @Test

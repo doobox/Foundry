@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Conditional visibility · Foundry Developer</title><link rel="stylesheet" href="styles.css"><script src="app.js" defer></script></head>
+<body><div class="shell"><nav data-doc-nav aria-label="Documentation"></nav><main>
+<div class="breadcrumbs"><a href="index.html">Foundry Developer</a><span>›</span><a href="custom-controls.html">Custom controls</a></div>
+<p class="eyebrow">Shared control capability</p><h1>Conditional visibility <code class="title-code">enable</code></h1>
+<p class="lede">Show a custom item only when another control in the same component satisfies a condition. This keeps the Inspector focused on controls relevant to the author’s current choices.</p>
+
+<h2>Equality</h2>
+<p>Add an <code>enable</code> dictionary directly to any custom item. Its <code>id</code> identifies the controlling property and <code>value</code> supplies the expected plist value. When <code>operation</code> is omitted, Foundry uses exact, type-aware equality.</p>
+<pre><code>&lt;key&gt;enable&lt;/key&gt;
+&lt;dict&gt;
+    &lt;key&gt;id&lt;/key&gt;&lt;string&gt;layout&lt;/string&gt;
+    &lt;key&gt;value&lt;/key&gt;&lt;string&gt;grid&lt;/string&gt;
+&lt;/dict&gt;</code></pre>
+<p>The item is shown only while <code>layout</code> equals <code>grid</code>. String <code>"1"</code>, Number <code>1</code>, Boolean <code>true</code>, and String <code>"true"</code> are different values. Equality does not coerce types or round numbers.</p>
+
+<h2>Enable dictionary keys</h2>
+<section class="key-reference"><h3><code>id</code></h3><div class="key-meta"><span>String</span><strong>Required</strong></div><p>ID of another value-producing control in the same component. Append a zero-based index such as <code>titles[2]</code> to read one member of a multi-control.</p></section>
+<section class="key-reference"><h3><code>operation</code></h3><div class="key-meta"><span>String</span><strong>Optional</strong><span>Default: ==</span></div><p>The comparison to perform. Use one of the canonical operations below.</p></section>
+<section class="key-reference"><h3><code>value</code></h3><div class="key-meta"><span>String, Number, Boolean or array</span><strong>Conditionally required</strong></div><p>Expected value. Required by every operation except <code>isEmpty</code> and <code>isNotEmpty</code>, which reject it.</p></section>
+
+<h2>Equality and numbers</h2>
+<ul class="rule-list">
+<li><code>==</code> performs exact, type-aware equality. Aliases: <code>=</code>, <code>equals</code>, <code>equalTo</code>.</li>
+<li><code>!=</code> performs exact inequality. Aliases: <code>notEqual</code>, <code>notEqualTo</code>.</li>
+<li><code>&lt;</code>, <code>&lt;=</code>, <code>&gt;</code>, and <code>&gt;=</code> compare Numbers only.</li>
+<li>Numeric aliases: <code>lessThan</code>, <code>lessThanOrEqualTo</code>, <code>lessThanOrEquals</code>, <code>greaterThan</code>, <code>greaterThanOrEqualTo</code>, and <code>greaterThanOrEquals</code>.</li>
+</ul>
+<p>Escape symbolic operators when they appear inside XML:</p><pre><code>&lt;key&gt;operation&lt;/key&gt;&lt;string&gt;&amp;gt;=&lt;/string&gt;
+&lt;key&gt;value&lt;/key&gt;&lt;integer&gt;600&lt;/integer&gt;</code></pre>
+
+<h2>Strings and wildcards</h2>
+<ul class="rule-list">
+<li><code>contains</code> and <code>notContains</code> perform case-sensitive substring searches.</li>
+<li><code>containsInsensitive</code> and <code>notContainsInsensitive</code> perform substring searches while ignoring case.</li>
+<li><code>matches</code> and <code>notMatches</code> perform case-sensitive whole-string wildcard matches.</li>
+<li><code>matchesInsensitive</code> and <code>notMatchesInsensitive</code> perform wildcard matches while ignoring case.</li>
+</ul>
+<p>Wildcard patterns use <code>*</code> for zero or more characters and <code>?</code> for exactly one character. <code>Red*</code> matches <code>Red</code> and <code>Reddish</code>; <code>R?d</code> matches <code>Red</code> and <code>Rad</code>.</p>
+<div class="note"><strong>Compatibility aliases:</strong> <code>doesntcontain</code> maps to <code>notContainsInsensitive</code>, <code>caseInsensitiveMatches</code> maps to <code>matchesInsensitive</code>, and <code>caseInsensitiveDoesntMatch</code> maps to <code>notMatchesInsensitive</code>.</div>
+
+<h2>Empty and array values</h2>
+<ul class="rule-list">
+<li><code>isEmpty</code> succeeds for an empty String, empty array, unselected asset, or link with no destination.</li>
+<li><code>isNotEmpty</code> is the inverse. Neither empty operation accepts a <code>value</code> key.</li>
+<li>Number <code>0</code> and Boolean <code>false</code> are valid values and are never empty.</li>
+<li><code>containsValue</code> checks an array for one exact, type-aware value; <code>notContainsValue</code> is its inverse.</li>
+</ul>
+<pre><code>&lt;key&gt;enable&lt;/key&gt;
+&lt;dict&gt;
+    &lt;key&gt;id&lt;/key&gt;&lt;string&gt;destination&lt;/string&gt;
+    &lt;key&gt;operation&lt;/key&gt;&lt;string&gt;isNotEmpty&lt;/string&gt;
+&lt;/dict&gt;</code></pre>
+
+<h2>Multi-control members</h2>
+<p>Use the template language’s zero-based array notation to inspect one member. This example reads the third title:</p>
+<pre><code>&lt;key&gt;enable&lt;/key&gt;
+&lt;dict&gt;
+    &lt;key&gt;id&lt;/key&gt;&lt;string&gt;titles[2]&lt;/string&gt;
+    &lt;key&gt;operation&lt;/key&gt;&lt;string&gt;containsInsensitive&lt;/string&gt;
+    &lt;key&gt;value&lt;/key&gt;&lt;string&gt;featured&lt;/string&gt;
+&lt;/dict&gt;</code></pre>
+<p>To search the complete array for an exact member, reference its unindexed ID and use <code>containsValue</code>.</p>
+
+<h2>Runtime behaviour</h2>
+<ul class="rule-list">
+<li>An item without <code>enable</code> is shown. A failed condition hides the complete inspector item rather than disabling it.</li>
+<li>Hiding an item preserves its stored value, and that value remains available to templates.</li>
+<li>The Inspector updates when the controlling value changes.</li>
+<li>Responsive conditions use the controlling property’s effective value at the selected breakpoint.</li>
+<li>Theme-backed controls compare their stored semantic reference rather than resolved CSS output.</li>
+<li>A missing or unavailable runtime value safely evaluates as hidden.</li>
+</ul>
+
+<h2>Validation</h2>
+<p>Foundry rejects malformed indexed references, unknown control IDs, self-references, dependency cycles, unsupported operations, missing required values, values supplied to empty checks, and indexes outside a multi-control’s declared count.</p>
+<div class="page-links"><a class="card" href="custom-controls.html"><strong>All custom controls</strong><p>Choose the inspector building block to conditionally present.</p></a><a class="card" href="control-arrays.html"><strong>Control arrays</strong><p>Declare and reference two to four related values.</p></a></div>
+</main></div></body></html>

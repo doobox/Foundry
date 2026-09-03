@@ -16,6 +16,7 @@ with:
 - [Libraries and assets](../docs/manifest-resources.html)
 - [Template values and macros](../docs/template-values.html)
 - [Custom controls](../docs/custom-controls.html)
+- [Conditional control visibility](../docs/enable-control.html)
 - [Icon control](../docs/icon-control.html)
 - [Editable content primitives](../docs/editable-text.html)
 - [Child-component slots](../docs/slots.html)

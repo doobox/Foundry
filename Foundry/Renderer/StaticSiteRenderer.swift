@@ -331,34 +331,7 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
     }
 
     private func render(_ node: ComponentNode, theme: Theme, assetPrefix: String, packageAssetPrefix: String, assets: [UUID: ProjectAssetContent], site: Site) -> String {
-        let style = sharedStyles(for: node, theme: theme)
         switch node.type.definition.renderKind {
-        case .section:
-            return element("section", "foundry-section", node, style, children(of: node, theme: theme, assetPrefix: assetPrefix, packageAssetPrefix: packageAssetPrefix, assets: assets, site: site))
-        case .columns:
-            let columns = clamped(node.numberProperty(.columnCount), to: 1...6)
-            let gap = clamped(node.numberProperty(.gap), to: 0...120)
-            return element("section", "foundry-columns", node, style + "grid-template-columns:repeat(\(columns),minmax(0,1fr));gap:\(gap)px;", children(of: node, theme: theme, assetPrefix: assetPrefix, packageAssetPrefix: packageAssetPrefix, assets: assets, site: site))
-        case .text:
-            return element("div", "foundry-text", node, style + textStyles(node, theme: theme), escape(node.property(.text)))
-        case .heading:
-            let level = min(max(Int(node.property(.headingLevel)) ?? 2, 1), 6)
-            return element("h\(level)", "foundry-heading", node, style + textStyles(node, theme: theme), escape(node.property(.text)))
-        case .button:
-            let label = escapeAttribute(node.property(.accessibilityLabel))
-            let aria = label.isEmpty ? "" : " aria-label=\"\(label)\""
-            let link = resolvedLink(for: node, site: site)
-            let target = link.target.isEmpty ? "" : " target=\"\(escapeAttribute(link.target))\""
-            let customAttributes = link.attributes.isEmpty ? "" : " \(link.attributes)"
-            return "<a class=\"foundry-button \(componentClass(node))\" style=\"\(style + textStyles(node, theme: theme))\" href=\"\(escapeAttribute(link.href))\"\(target)\(aria)\(customAttributes)>\(escape(node.property(.text)))</a>"
-        case .image:
-            let source = exportSource(node.property(.source), assetPrefix: assetPrefix, assets: assets, site: site)
-            return "<img class=\"foundry-image \(componentClass(node))\" style=\"\(style)\" src=\"\(escapeAttribute(source))\" alt=\"\(escapeAttribute(node.property(.altText)))\">"
-        case .divider:
-            let color = safeHex(node.colorProperty(.borderColor, theme: theme), fallback: "#D9D9DE")
-            return "<hr class=\"foundry-divider \(componentClass(node))\" style=\"\(style)border:0;border-top:\(clamped(node.numberProperty(.borderWidth), to: 1...24))px solid \(color);\">"
-        case .spacer:
-            return "<div class=\"foundry-spacer \(componentClass(node))\" style=\"\(style)min-height:\(clamped(node.numberProperty(.height), to: 0...600))px;\"></div>"
         case .package:
             guard let package = node.type.definition.package else {
                 return missingPackageHTML(
@@ -412,25 +385,6 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
         }
     }
 
-    private func resolvedLink(for node: ComponentNode, site: Site) -> ComponentLinkResolver.Result {
-        guard case .link(let link) = node.propertyValue(.destination) else {
-            return .init(href: "", target: "", attributes: "")
-        }
-        return ComponentLinkResolver.resolve(
-            link,
-            pages: site.pages,
-            folders: site.pageFolders,
-            assets: site.assets,
-            assetLibrary: site.assetLibrary,
-            publicURL: site.publicURL,
-            absoluteURL: false
-        )
-    }
-
-    private func children(of node: ComponentNode, theme: Theme, assetPrefix: String, packageAssetPrefix: String, assets: [UUID: ProjectAssetContent], site: Site) -> String {
-        node.children.map { render($0, theme: theme, assetPrefix: assetPrefix, packageAssetPrefix: packageAssetPrefix, assets: assets, site: site) }.joined()
-    }
-
     private func exportSource(
         _ source: String,
         assetPrefix: String,
@@ -448,36 +402,6 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
         return String(assetPrefix.dropLast(managedAssetsPath.count))
     }
 
-    private func element(_ tag: String, _ className: String, _ node: ComponentNode, _ style: String, _ contents: String) -> String {
-        "<\(tag) class=\"\(className) \(componentClass(node))\" style=\"\(style)\">\(contents)</\(tag)>"
-    }
-
-    private func textStyles(_ node: ComponentNode, theme: Theme) -> String {
-        let color = safeHex(node.colorProperty(.textColor, theme: theme), fallback: "#171719")
-        return "color:\(color);font-size:\(clamped(node.numberProperty(.fontSize), to: 10...120))px;text-align:\(alignment(node.property(.alignment)));"
-    }
-
-    private func sharedStyles(for node: ComponentNode, theme: Theme) -> String {
-        var styles = "padding:\(clamped(node.numberProperty(.padding, theme: theme), to: 0...160))px;"
-        styles += "margin-top:\(clamped(node.numberProperty(.marginTop, theme: theme), to: 0...240))px;"
-        styles += "margin-bottom:\(clamped(node.numberProperty(.marginBottom, theme: theme), to: 0...240))px;"
-        if node.type.definition.properties.contains(where: { $0.key == .backgroundColor }) {
-            styles += "background-color:\(safeHex(node.colorProperty(.backgroundColor, theme: theme), fallback: "#FFFFFF"));"
-        }
-        if node.type.definition.properties.contains(where: { $0.key == .borderColor }) {
-            styles += "border:\(clamped(node.numberProperty(.borderWidth, theme: theme), to: 0...24))px solid \(safeHex(node.colorProperty(.borderColor, theme: theme), fallback: "#D9D9DE"));"
-            styles += "border-radius:\(clamped(node.numberProperty(.cornerRadius), to: 0...160))px;"
-        }
-        let maxWidth = min(max(node.numberProperty(.maxWidth), 0), 1600)
-        if maxWidth > 0 { styles += "max-width:\(clamped(maxWidth, to: 0...1600))px;" }
-        switch node.property(.horizontalAlignment) {
-        case "center": styles += "margin-left:auto;margin-right:auto;"
-        case "trailing": styles += "margin-left:auto;margin-right:0;"
-        default: styles += "margin-left:0;margin-right:auto;"
-        }
-        return styles
-    }
-
     private func stylesheet(for site: Site, assets: [UUID: ProjectAssetContent]) -> String {
         let theme = site.theme
         let sitePackages = ComponentArtifactPlan.sitePackages(in: site)
@@ -487,11 +411,12 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
             destination: .export,
             exportedSource: { "../" + site.publishedPath(for: $0) }
         ))
-        :root{font-size:\(theme.typography.baseSize)px;--foundry-color-background:\(theme.colors.background);--foundry-color-surface:\(theme.colors.surface);--foundry-color-text:\(theme.colors.text);--foundry-color-accent:\(theme.colors.accent);--foundry-font-body:\(theme.typography.bodyFont.cssFamily);--foundry-font-heading:\(theme.typography.headingFont.cssFamily);--foundry-font-monospace:\(theme.typography.monospacedFont.cssFamily);\(theme.customFontCSSVariables)\(theme.fontSizeCSSVariables)\(theme.spacingCSSVariables)}
+        :root{font-size:\(theme.typography.bodySize)px;--foundry-color-background:\(theme.colors.background);--foundry-color-surface:\(theme.colors.surface);--foundry-color-text:\(theme.colors.text);--foundry-color-accent:\(theme.colors.accent);--foundry-color-links:\(theme.colors.links);--foundry-font-body:\(theme.typography.bodyFont.cssFamily);--foundry-font-heading:\(theme.typography.headingFont.cssFamily);--foundry-font-monospace:\(theme.typography.monospacedFont.cssFamily);\(theme.customFontCSSVariables)\(theme.fontSizeCSSVariables)\(theme.spacingCSSVariables)}
         \(theme.screens.containerCSS)
         *,*::before,*::after{box-sizing:border-box}
         html,body{min-height:100%}
         body{margin:0;background:var(--foundry-color-background);color:var(--foundry-color-text);font-family:var(--foundry-font-body);font-size:var(--foundry-font-size-base);line-height:var(--foundry-font-size-base-line-height);display:flex;flex-direction:column;align-items:stretch}
+        a{color:var(--foundry-color-links)}
         h1,h2,h3,h4,h5,h6,.foundry-heading{font-family:var(--foundry-font-heading)}code,pre,kbd,samp{font-family:var(--foundry-font-monospace)}
         .foundry-container{width:100%;max-width:var(--foundry-container-width)!important}.foundry-button{display:block;width:fit-content;text-decoration:none;font-weight:600}.foundry-columns{display:grid}.foundry-image{display:block;width:100%;height:auto}.foundry-spacer{min-height:8px}
         \(FoundryWebLibraryRegistry.exportCSS(for: sitePackages))
@@ -522,7 +447,7 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
         assets: [UUID: ProjectAssetContent]
     ) -> String {
         let nodes = page.components.flatMap(\.flattened)
-        return [ResponsiveBreakpoint.tabletPortrait, .tabletLandscape, .desktop].compactMap { breakpoint in
+        return ResponsiveBreakpoint.allCases.dropFirst().compactMap { breakpoint in
             guard let minimumWidth = breakpoint.minimumWidth(in: site.theme.screens) else { return nil }
             let rules = nodes.compactMap { node -> String? in
                 guard node.responsiveOverrides?.contains(where: { $0.breakpoint == breakpoint }) == true else { return nil }
@@ -549,21 +474,9 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
                         css,
                         packageIdentifier: package.manifest.identifier
                     )
-                    let themeCSS = themeControlDeclarations(for: resolved, theme: site.theme)
-                    return scopedCSS + (themeCSS.isEmpty ? "" : ".\(componentClass(resolved)){\(themeCSS)}")
+                    return scopedCSS
                 }
-                var declarations = sharedStyles(for: resolved, theme: site.theme)
-                switch resolved.type.definition.renderKind {
-                case .text, .heading, .button:
-                    declarations += textStyles(resolved, theme: site.theme)
-                case .columns:
-                    declarations += "grid-template-columns:repeat(\(clamped(resolved.numberProperty(.columnCount), to: 1...6)),minmax(0,1fr));gap:\(clamped(resolved.numberProperty(.gap), to: 0...120))px;"
-                case .spacer:
-                    declarations += "min-height:\(clamped(resolved.numberProperty(.height), to: 0...600))px;"
-                default:
-                    break
-                }
-                return ".\(componentClass(node)){\(declarations.replacingOccurrences(of: ";", with: "!important;"))}"
+                return nil
             }.joined()
             return rules.isEmpty ? nil : "@media(min-width:\(minimumWidth)px){\(rules)}"
         }.joined(separator: "\n")
@@ -615,7 +528,6 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
                 )
             )
         }.joined(separator: "\n")
-        let themeStyles = themeControlStyles(for: page, theme: site.theme)
         let responsiveStyles = responsiveStyles(
             for: page,
             in: site,
@@ -623,7 +535,7 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
             packageAssetPrefix: packageAssetPrefix,
             assets: assets
         )
-        return [instanceStyles, pagePackageStyles, themeStyles, responsiveStyles]
+        return [instanceStyles, pagePackageStyles, responsiveStyles]
             .filter { !$0.isEmpty }
             .joined(separator: "\n")
     }
@@ -644,26 +556,6 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
         }.joined(separator: "\n")
     }
 
-    private func themeControlStyles(for page: Page, theme: Theme) -> String {
-        page.components.flatMap(\.flattened).compactMap { node in
-            let declarations = themeControlDeclarations(for: node, theme: theme)
-            return declarations.isEmpty ? nil : ".\(componentClass(node)){\(declarations)}"
-        }.joined(separator: "\n")
-    }
-
-    private func themeControlDeclarations(for node: ComponentNode, theme: Theme) -> String {
-        guard node.type.definition.package == nil else { return "" }
-        var declarations = ""
-        if node.type.definition.properties.contains(where: { $0.control.isThemeFontFamily }) {
-            declarations += "font-family:\(theme.fontCSSVariable(for: node.property(.themeFontFamily)));"
-        }
-        if node.type.definition.properties.contains(where: { $0.control.isThemeFontSize }) {
-            declarations += ThemeTypographyControlCSS.declarations(for: node, theme: theme)
-                .joined(separator: ";") + ";"
-        }
-        return declarations
-    }
-
     private func packageValue(_ value: ComponentProperty.Value) -> ComponentPackageValue {
         switch value {
         case .number(let value): .number(value)
@@ -672,6 +564,9 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
         case .token(let value): .string(value.rawValue)
         case .array(let values): .array(values.map(packageValue))
         case .link: .string("")
+        case .packageColor(let value): .string(value.source)
+        case .packageFontSize(let value): .string(value.source)
+        case .packageSpacing(let value): .array(value.sources.map(ComponentPackageValue.string))
         }
     }
 
@@ -684,6 +579,26 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
     ) -> [String: ComponentPackageValue] {
         var values: [String: ComponentPackageValue] = Dictionary(uniqueKeysWithValues: node.type.definition.properties.map { definition in
             let value = node.propertyValue(definition.key)
+            if let source = definition.themeValueSource,
+               case .choice(let reference) = value,
+               let resolved = ComponentPackageThemeValueResolver.resolve(reference, from: source, theme: theme) {
+                return (definition.key.rawValue, .string(resolved))
+            }
+            if let source = definition.themeValueSource,
+               case .array(let items) = value {
+                return (definition.key.rawValue, .array(items.map { item in
+                    let reference: String
+                    switch item {
+                    case .choice(let value), .string(let value): reference = value
+                    default: return packageValue(item)
+                    }
+                    guard
+                          let resolved = ComponentPackageThemeValueResolver.resolve(reference, from: source, theme: theme) else {
+                        return packageValue(item)
+                    }
+                    return .string(resolved)
+                }))
+            }
             if case .asset = definition.control,
                case .url(let source) = value {
                 return (
@@ -694,13 +609,13 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
             if case .color = definition.control {
                 return (definition.key.rawValue, .string(node.colorProperty(definition.key, theme: theme)))
             }
-            if case .packageColor(_, let customColorKey, let colorMathKey, let opacityKey) = definition.control {
+            if case .packageColor(_, let colorMath, let opacity) = definition.control,
+               case .packageColor(let colorValue) = value {
                 return (
                     definition.key.rawValue,
                     .string(ComponentPackageColorResolver.resolve(
-                        node: node, key: definition.key, theme: theme,
-                        customColorKey: customColorKey,
-                        colorMathKey: colorMathKey, opacityKey: opacityKey
+                        colorValue, theme: theme,
+                        colorMath: colorMath, opacity: opacity
                     ))
                 )
             }
@@ -710,20 +625,19 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
             if case .themeFontSize = definition.control {
                 return (definition.key.rawValue, .string(theme.fontSizeCSSVariable(for: node.property(definition.key))))
             }
-            if case .packageFontSize(let themeValues, let customValueKey) = definition.control {
-                let source = node.property(definition.key)
-                let resolved = !themeValues || source == "custom"
-                    ? node.property(customValueKey) : theme.fontSizeCSSVariable(for: source)
+            if case .packageFontSize(let themeValues) = definition.control,
+               case .packageFontSize(let fontSizeValue) = value {
+                let resolved = !themeValues || fontSizeValue.source == "custom"
+                    ? fontSizeValue.customValue : theme.fontSizeCSSVariable(for: fontSizeValue.source)
                 return (definition.key.rawValue, .string(resolved))
             }
-            if case .packageSpacing(let kind, let customValueKey, _, _) = definition.control {
+            if case .packageSpacing(let kind, _, _) = definition.control,
+               case .packageSpacing(let spacingValue) = value {
                 return (
                     definition.key.rawValue,
                     .string(ComponentPackageSpacingResolver.resolve(
-                        node: node,
-                        key: definition.key,
+                        spacingValue,
                         theme: theme,
-                        customValueKey: customValueKey,
                         kind: kind
                     ))
                 )
@@ -777,6 +691,12 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
             raw = values.map(\.stringValue).joined(separator: " ")
         case .link:
             raw = ""
+        case .packageColor(let value):
+            raw = value.source
+        case .packageFontSize(let value):
+            raw = value.source
+        case .packageSpacing(let value):
+            raw = value.sources.joined(separator: " ")
         }
         return raw.filter { !";{}<>".contains($0) }
     }
@@ -790,14 +710,16 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
         site: Site
     ) -> String {
         if let preview = node.missingPackageSnapshot?.previewHTML { return preview }
-        return children(
-            of: node,
-            theme: theme,
-            assetPrefix: assetPrefix,
-            packageAssetPrefix: packageAssetPrefix,
-            assets: assets,
-            site: site
-        )
+        return node.children.map {
+            render(
+                $0,
+                theme: theme,
+                assetPrefix: assetPrefix,
+                packageAssetPrefix: packageAssetPrefix,
+                assets: assets,
+                site: site
+            )
+        }.joined()
     }
 
     private func isSafeRelativePath(_ path: String) -> Bool {

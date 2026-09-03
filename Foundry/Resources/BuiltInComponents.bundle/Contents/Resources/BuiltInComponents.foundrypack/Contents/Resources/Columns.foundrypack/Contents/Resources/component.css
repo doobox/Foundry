@@ -1,0 +1,7 @@
+#{{ id }} {
+    box-sizing: border-box;
+    display: grid;
+    grid-template-columns: repeat({{ control.columnCount }}, minmax(0, 1fr));
+    gap: {{ control.gap }}px;
+    width: 100%;
+}

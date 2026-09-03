@@ -409,7 +409,7 @@ private struct ComponentInspector: View {
 
     private var inspectorGroups: [ComponentPropertySection] {
         component.type.definition.properties.reduce(into: []) { groups, property in
-            guard property.isInspectorVisible,
+            guard isVisible(property),
                   !groups.contains(property.section) else { return }
             groups.append(property.section)
         }
@@ -417,8 +417,16 @@ private struct ComponentInspector: View {
 
     private func properties(in section: ComponentPropertySection) -> [ComponentPropertyDefinition] {
         component.type.definition.properties.filter {
-            $0.section == section && $0.isInspectorVisible
+            $0.section == section && isVisible($0)
         }
+    }
+
+    private func isVisible(_ property: ComponentPropertyDefinition) -> Bool {
+        property.isInspectorVisible && ComponentPackageEnableEvaluator.isVisible(
+            property.enable,
+            for: component,
+            at: property.isResponsive ? breakpoint : .mobile
+        )
     }
 
     private var componentIdentityHeader: some View {

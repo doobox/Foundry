@@ -38,7 +38,7 @@
 			<key>responsive</key>
 			<false/>
 			<key>themeValues</key>
-			<true/>
+			<string>fontSizes</string>
 			<key>type</key>
 			<string>fontSize</string>
 		</dict>
@@ -74,7 +74,48 @@
 		</dict>
 		<dict>
 			<key>default</key>
-			<string>text</string>
+			<string>none</string>
+			<key>group</key>
+			<string>Typography</string>
+			<key>id</key>
+			<string>textDecoration</string>
+			<key>labels</key>
+			<string>Underline</string>
+			<key>options</key>
+			<array>
+				<dict>
+					<key>title</key>
+					<string>No Underline</string>
+					<key>value</key>
+					<string>none</string>
+				</dict>
+				<dict>
+					<key>title</key>
+					<string>Underline</string>
+					<key>value</key>
+					<string>underline</string>
+				</dict>
+				<dict>
+					<key>title</key>
+					<string>Overline</string>
+					<key>value</key>
+					<string>overline</string>
+				</dict>
+				<dict>
+					<key>title</key>
+					<string>Line Through</string>
+					<key>value</key>
+					<string>line-through</string>
+				</dict>
+			</array>
+			<key>responsive</key>
+			<true/>
+			<key>type</key>
+			<string>select</string>
+		</dict>
+		<dict>
+			<key>default</key>
+			<string>custom</string>
 			<key>group</key>
 			<string>Colour</string>
 			<key>id</key>
@@ -90,7 +131,7 @@
 			<key>opacity</key>
 			<true/>
 			<key>themeValues</key>
-			<true/>
+			<string>text</string>
 			<key>type</key>
 			<string>color</string>
 		</dict>

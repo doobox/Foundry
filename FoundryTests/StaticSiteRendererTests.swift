@@ -41,6 +41,8 @@ struct StaticSiteRendererTests {
         #expect(exportedCSS.contains("display:flex;flex-direction:column;align-items:stretch"))
         #expect(exportedCSS.contains("*,*::before,*::after{box-sizing:border-box}"))
         #expect(exportedCSS.contains("--foundry-color-background:"))
+        #expect(exportedCSS.contains("--foundry-color-links:"))
+        #expect(exportedCSS.contains("a{color:var(--foundry-color-links)}"))
         #expect(exportedCSS.contains("--foundry-spacing-base:"))
         #expect(exportedCSS.contains(".foundry-container{"))
         #expect(!exportedCSS.contains("--background:"))
@@ -49,6 +51,8 @@ struct StaticSiteRendererTests {
         #expect(canvasHTML.contains("html, body { min-height: 100%; }"))
         #expect(canvasHTML.contains("display: flex; flex-direction: column; align-items: stretch;"))
         #expect(canvasHTML.contains("--foundry-color-background:"))
+        #expect(canvasHTML.contains("--foundry-color-links:"))
+        #expect(canvasHTML.contains("a { color: var(--foundry-color-links); }"))
         #expect(canvasHTML.contains("--foundry-editor-chrome"))
         #expect(canvasHTML.contains("foundry-container"))
         #expect(!canvasHTML.contains("--background:"))
@@ -60,9 +64,30 @@ struct StaticSiteRendererTests {
         var site = Site.starter()
         let componentID = try #require(site.pages.first?.components.first?.id)
         site.updateComponent(id: componentID) {
-            $0.setResponsiveProperty(.padding, value: .number(8), at: .mobile)
-            $0.setResponsiveProperty(.padding, value: .number(18), at: .tabletPortrait)
-            $0.setResponsiveProperty(.padding, value: .number(24), at: .tabletLandscape)
+            $0.setResponsiveProperty(
+                .padding,
+                value: .packageSpacing(.init(
+                    sources: Array(repeating: "custom", count: 4),
+                    customValues: Array(repeating: 8, count: 4)
+                )),
+                at: .mobile
+            )
+            $0.setResponsiveProperty(
+                .padding,
+                value: .packageSpacing(.init(
+                    sources: Array(repeating: "custom", count: 4),
+                    customValues: Array(repeating: 18, count: 4)
+                )),
+                at: .medium
+            )
+            $0.setResponsiveProperty(
+                .padding,
+                value: .packageSpacing(.init(
+                    sources: Array(repeating: "custom", count: 4),
+                    customValues: Array(repeating: 24, count: 4)
+                )),
+                at: .large
+            )
         }
 
         let bundle = StaticSiteRenderer().render(site: site)
@@ -70,11 +95,11 @@ struct StaticSiteRendererTests {
         let html = try #require(bundle.files.first(where: { $0.path == "index.html" })?.contents)
 
         #expect(css.contains("@media(min-width:768px)"))
-        #expect(css.contains("@media(min-width:1024px)"))
+        #expect(css.contains("@media(min-width:992px)"))
         #expect(!css.contains("@media(max-width:"))
-        #expect(css.contains("padding: 8px"))
-        #expect(css.contains("padding: 18px"))
-        #expect(css.contains("padding: 24px"))
+        #expect(css.contains("padding: 8px 8px 8px 8px"))
+        #expect(css.contains("padding: 18px 18px 18px 18px"))
+        #expect(css.contains("padding: 24px 24px 24px 24px"))
         #expect(html.contains("id=\"foundry-\(componentID.uuidString.lowercased())\""))
         #expect(!html.contains("data-foundry"))
     }

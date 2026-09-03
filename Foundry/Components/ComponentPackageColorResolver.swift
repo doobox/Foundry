@@ -2,25 +2,22 @@ import Foundation
 
 nonisolated enum ComponentPackageColorResolver {
     static func resolve(
-        node: ComponentNode,
-        key: ComponentProperty.Key,
+        _ value: ComponentPackageColorValue,
         theme: Theme,
-        customColorKey: ComponentProperty.Key,
-        colorMathKey: ComponentProperty.Key?,
-        opacityKey: ComponentProperty.Key?
+        colorMath: Bool,
+        opacity: Bool
     ) -> String {
-        let source = node.property(key)
         let baseColor: String
-        if source == "custom" {
-            baseColor = node.colorProperty(customColorKey, theme: theme)
-        } else if let role = ThemeColorRole(rawValue: source) {
+        if value.source == "custom" {
+            baseColor = value.customColor
+        } else if let role = ThemeColorRole(rawValue: value.source) {
             baseColor = theme.color(for: role)
         } else {
-            baseColor = node.colorProperty(customColorKey, theme: theme)
+            baseColor = value.customColor
         }
         let adjustedColor: String
-        if let colorMathKey {
-            let adjustment = min(max(node.numberProperty(colorMathKey, theme: theme), -100), 100)
+        if colorMath {
+            let adjustment = min(max(value.adjustment, -100), 100)
             adjustedColor = ComponentTemplateRenderer.transformColor(
                 baseColor,
                 target: adjustment < 0 ? 0 : 255,
@@ -29,10 +26,10 @@ nonisolated enum ComponentPackageColorResolver {
         } else {
             adjustedColor = baseColor
         }
-        guard let opacityKey else { return adjustedColor }
+        guard opacity, value.source == "custom" else { return adjustedColor }
         return ComponentTemplateRenderer.colorWithAlpha(
             adjustedColor,
-            alpha: node.numberProperty(opacityKey, theme: theme)
+            alpha: min(max(value.opacity, 0), 1)
         )
     }
 }

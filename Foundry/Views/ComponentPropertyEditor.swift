@@ -203,19 +203,27 @@ struct ComponentPropertyEditor: View {
                     accessibilityLabel: definition.label
                 )
             }
-        case .packageColor(let themeValues, let customColorKey, let colorMathKey, let opacityKey):
+        case .packageColor(let themeValues, let colorMath, let opacity):
             PackageColorControlEditor(
                 label: definition.label,
                 choices: themeValues ? theme.colorChoices : [],
                 theme: theme,
-                source: stringBinding(as: .choice),
-                customColor: colorBinding(for: customColorKey),
-                adjustment: colorMathKey.map(numberBinding(for:)),
-                opacity: opacityKey.map(numberBinding(for:))
+                source: packageColorSourceBinding,
+                customColor: packageCustomColorBinding,
+                adjustment: colorMath ? packageColorAdjustmentBinding : nil,
+                allowsOpacity: opacity,
+                indicator: responsiveIndicator
             )
         case .choice(let choices):
             InspectorRow(title: definition.label, indicator: responsiveIndicator) {
-                InspectorPopup(selection: stringBinding(as: .choice), options: choices.map { .init(title: $0.label, value: $0.value) }, accessibilityLabel: definition.label, help: definition.label)
+                InspectorPopup(
+                    selection: stringBinding(as: .choice),
+                    options: choiceOptions(choices).map {
+                        .init(title: $0.label, value: $0.value, separatorBefore: $0.separatorBefore)
+                    },
+                    accessibilityLabel: definition.label,
+                    help: definition.label
+                )
             }
         case .themeFontFamily:
             InspectorRow(title: definition.label, indicator: responsiveIndicator) {
@@ -225,21 +233,21 @@ struct ComponentPropertyEditor: View {
             InspectorRow(title: definition.label, indicator: responsiveIndicator) {
                 InspectorPopup(selection: stringBinding(as: .choice), options: theme.fontSizeChoices.map { .init(title: $0.label, value: $0.value) }, accessibilityLabel: definition.label, help: definition.label)
             }
-        case .packageFontSize(let themeValues, let customValueKey):
+        case .packageFontSize(let themeValues):
             PackageThemeValueGridEditor(
                 label: definition.label,
                 choices: themeValues ? theme.fontSizeChoices : [],
-                source: stringBinding(as: .choice),
-                customValue: stringBinding(for: customValueKey),
+                source: packageFontSizeSourceBinding,
+                customValue: packageFontSizeCustomBinding,
                 indicator: responsiveIndicator
             )
-        case .packageSpacing(let kind, let customValueKey, let range, let step):
+        case .packageSpacing(let kind, let range, let step):
             PackageSpacingControlEditor(
                 label: definition.label,
                 kind: kind,
                 themeChoices: theme.spacingChoices,
                 sources: (0..<4).map(spacingSourceBinding),
-                customValues: (0..<4).map { spacingNumberBinding($0, key: customValueKey) },
+                customValues: (0..<4).map(packageSpacingCustomBinding),
                 range: range,
                 step: step,
                 indicator: responsiveIndicator
@@ -289,6 +297,26 @@ struct ComponentPropertyEditor: View {
         }
     }
 
+    private func choiceOptions(_ declared: [ComponentPropertyChoice]) -> [ComponentPropertyChoice] {
+        guard let source = definition.themeValueSource else { return declared }
+        let themeChoices = ComponentPackageThemeValueResolver.choices(for: source, theme: theme)
+        let themeValues = Set(themeChoices.map(\.value))
+        var developerChoices = declared.filter { !themeValues.contains($0.value) && $0.value != "custom" }
+        if !themeChoices.isEmpty, !developerChoices.isEmpty {
+            developerChoices[0].separatorBefore = true
+        }
+        var result = themeChoices + developerChoices
+        if definition.allowsCustomThemeValue {
+            result.append(.init(value: "custom", label: "Custom", separatorBefore: !result.isEmpty))
+        }
+        return result
+    }
+
+    private func themedArrayElement(_ element: ComponentPropertyControl) -> ComponentPropertyControl {
+        guard case .choice(let declared) = element else { return element }
+        return .choice(choiceOptions(declared))
+    }
+
     private var assetBinding: Binding<UUID?> {
         Binding(
             get: { displayComponent.property(definition.key).foundryAssetID },
@@ -308,13 +336,6 @@ struct ComponentPropertyEditor: View {
         )
     }
 
-    private func stringBinding(for key: ComponentProperty.Key) -> Binding<String> {
-        Binding(
-            get: { displayComponent.property(key) },
-            set: { setProperty(.string($0), key: key) }
-        )
-    }
-
     private var numberBinding: Binding<Double> {
         Binding(
             get: { displayComponent.numberProperty(definition.key, theme: theme) },
@@ -322,24 +343,10 @@ struct ComponentPropertyEditor: View {
         )
     }
 
-    private func numberBinding(for key: ComponentProperty.Key) -> Binding<Double> {
-        Binding(
-            get: { displayComponent.numberProperty(key, theme: theme) },
-            set: { setProperty(.number($0), key: key) }
-        )
-    }
-
     private var colorBinding: Binding<Color> {
         Binding(
             get: { Color(hex: displayComponent.colorProperty(definition.key, theme: theme)) ?? .white },
             set: { setProperty(.color($0.hexString ?? "#FFFFFF")) }
-        )
-    }
-
-    private func colorBinding(for key: ComponentProperty.Key) -> Binding<Color> {
-        Binding(
-            get: { Color(hex: displayComponent.colorProperty(key, theme: theme)) ?? .black },
-            set: { setProperty(.color($0.hexString ?? "#000000"), key: key) }
         )
     }
 
@@ -394,22 +401,104 @@ struct ComponentPropertyEditor: View {
         )
     }
 
-    private func spacingSourceBinding(_ index: Int) -> Binding<String> {
-        let value = arrayElementBinding(index, key: definition.key, fallback: .choice("none"))
-        return Binding(
-            get: { value.wrappedValue.stringValue },
-            set: { value.wrappedValue = .choice($0) }
+    private var packageColorValue: ComponentPackageColorValue {
+        if case .packageColor(let value) = displayComponent.propertyValue(definition.key) { return value }
+        if case .packageColor(let value) = definition.defaultValue { return value }
+        return .init(source: "custom", customColor: "#000000", adjustment: 0, opacity: 1)
+    }
+
+    private var packageColorSourceBinding: Binding<String> {
+        Binding(
+            get: { packageColorValue.source },
+            set: { source in
+                var value = packageColorValue
+                value.source = source
+                setProperty(.packageColor(value))
+            }
         )
     }
 
-    private func spacingNumberBinding(
-        _ index: Int,
-        key: ComponentProperty.Key
-    ) -> Binding<Double> {
-        let value = arrayElementBinding(index, key: key, fallback: .number(0))
+    private var packageCustomColorBinding: Binding<Color> {
+        Binding(
+            get: {
+                (Color(hex: packageColorValue.customColor) ?? .black)
+                    .opacity(packageColorValue.opacity)
+            },
+            set: { color in
+                var value = packageColorValue
+                value.customColor = color.hexString ?? "#000000"
+                value.opacity = Double(NSColor(color).usingColorSpace(.sRGB)?.alphaComponent ?? 1)
+                setProperty(.packageColor(value))
+            }
+        )
+    }
+
+    private var packageColorAdjustmentBinding: Binding<Double> {
+        Binding(
+            get: { packageColorValue.adjustment },
+            set: { adjustment in
+                var value = packageColorValue
+                value.adjustment = adjustment
+                setProperty(.packageColor(value))
+            }
+        )
+    }
+
+    private var packageFontSizeValue: ComponentPackageFontSizeValue {
+        if case .packageFontSize(let value) = displayComponent.propertyValue(definition.key) { return value }
+        if case .packageFontSize(let value) = definition.defaultValue { return value }
+        return .init(source: "custom", customValue: "1rem")
+    }
+
+    private var packageFontSizeSourceBinding: Binding<String> {
+        Binding(
+            get: { packageFontSizeValue.source },
+            set: { source in
+                var value = packageFontSizeValue
+                value.source = source
+                setProperty(.packageFontSize(value))
+            }
+        )
+    }
+
+    private var packageFontSizeCustomBinding: Binding<String> {
+        Binding(
+            get: { packageFontSizeValue.customValue },
+            set: { customValue in
+                var value = packageFontSizeValue
+                value.customValue = customValue
+                setProperty(.packageFontSize(value))
+            }
+        )
+    }
+
+    private var packageSpacingValue: ComponentPackageSpacingValue {
+        if case .packageSpacing(let value) = displayComponent.propertyValue(definition.key) { return value }
+        if case .packageSpacing(let value) = definition.defaultValue { return value }
+        return .init(sources: Array(repeating: "none", count: 4), customValues: Array(repeating: 0, count: 4))
+    }
+
+    private func spacingSourceBinding(_ index: Int) -> Binding<String> {
         return Binding(
-            get: { value.wrappedValue.numberValue ?? 0 },
-            set: { value.wrappedValue = .number($0) }
+            get: { packageSpacingValue.sources.indices.contains(index) ? packageSpacingValue.sources[index] : "none" },
+            set: { source in
+                var value = packageSpacingValue
+                while value.sources.count <= index { value.sources.append("none") }
+                value.sources[index] = source
+                setProperty(.packageSpacing(value))
+            }
+        )
+    }
+
+    private func packageSpacingCustomBinding(_ index: Int) -> Binding<Double> {
+        return Binding(
+            get: { packageSpacingValue.customValues.indices.contains(index) ? packageSpacingValue.customValues[index] : 0 },
+            set: { customValue in
+                var value = packageSpacingValue
+                while value.customValues.count <= index { value.customValues.append(0) }
+                value.customValues[index] = customValue
+                setProperty(.packageSpacing(value))
+            }
         )
     }
 
@@ -434,7 +523,7 @@ struct ComponentPropertyEditor: View {
                         unit: units.indices.contains(index) ? units[index] : "",
                         help: help,
                         value: arrayElementBinding(index),
-                        element: element,
+                        element: themedArrayElement(element),
                         assets: assets
                     )
                 }
@@ -448,7 +537,7 @@ struct ComponentPropertyEditor: View {
                     units: units,
                     help: help,
                     values: (0..<count).map(arrayElementBinding),
-                    element: element,
+                    element: themedArrayElement(element),
                     assets: assets
                 )
             }
@@ -952,7 +1041,14 @@ private struct InspectorControlArrayItem: View {
         case .toggle:
             Toggle("", isOn: booleanBinding).labelsHidden()
         case .choice(let choices):
-            InspectorPopup(selection: stringBinding, options: choices.map { .init(title: $0.label, value: $0.value) }, accessibilityLabel: subtitle ?? "Choice", help: help)
+            InspectorPopup(
+                selection: stringBinding,
+                options: choices.map {
+                    .init(title: $0.label, value: $0.value, separatorBefore: $0.separatorBefore)
+                },
+                accessibilityLabel: subtitle ?? "Choice",
+                help: help
+            )
         case .lineHeight:
             InspectorPopup(selection: stringBinding, options: lineHeightControlChoices.map { .init(title: $0.label, value: $0.value) }, accessibilityLabel: subtitle ?? "Line height", help: help)
         case .asset:
@@ -964,7 +1060,16 @@ private struct InspectorControlArrayItem: View {
     }
 
     private var stringBinding: Binding<String> {
-        Binding(get: { value.stringValue }, set: { value = .string($0) })
+        Binding(
+            get: { value.stringValue },
+            set: { newValue in
+                if case .choice = element {
+                    value = .choice(newValue)
+                } else {
+                    value = .string(newValue)
+                }
+            }
+        )
     }
 
     private var iconBinding: Binding<String> {
@@ -1044,9 +1149,9 @@ private struct PackageThemeValueGridEditor: View {
     }
 
     private var popupOptions: [InspectorPopupOption<String>] {
-        [InspectorPopupOption(title: "Custom", value: "custom")] + choices.map {
-            InspectorPopupOption(title: $0.label, value: $0.value)
-        }
+        choices.map {
+            InspectorPopupOption(title: $0.label, value: $0.value, separatorBefore: $0.separatorBefore)
+        } + [InspectorPopupOption(title: "Custom", value: "custom", separatorBefore: !choices.isEmpty)]
     }
 }
 
@@ -1109,12 +1214,14 @@ private struct PackageSpacingControlEditor: View {
     }
 
     private func popupOptions(for source: String) -> [InspectorPopupOption<String>] {
-        var options = [InspectorPopupOption(title: "None", value: "none")]
+        var options = themeChoices.map {
+            InspectorPopupOption(title: $0.label, value: $0.value, separatorBefore: $0.separatorBefore)
+        }
+        options.append(.init(title: "None", value: "none", separatorBefore: !options.isEmpty))
         if kind.permitsAuto {
             options.append(.init(title: "Auto", value: "auto"))
         }
-        options.append(contentsOf: themeChoices.map { .init(title: $0.label, value: $0.value) })
-        options.append(.init(title: "Custom", value: "custom"))
+        options.append(.init(title: "Custom", value: "custom", separatorBefore: true))
         if !options.contains(where: { $0.value == source }) {
             options.insert(.init(title: "Missing Theme Spacing", value: source), at: 0)
         }
@@ -1129,23 +1236,30 @@ private struct PackageColorControlEditor: View {
     @Binding var source: String
     @Binding var customColor: Color
     let adjustment: Binding<Double>?
-    let opacity: Binding<Double>?
+    let allowsOpacity: Bool
+    let indicator: InspectorRowIndicator
 
     var body: some View {
         Group {
             if !choices.isEmpty {
-                InspectorRow(title: label) {
+                InspectorRow(title: label, indicator: indicator) {
                     InspectorPopup(
                         selection: $source,
-                        options: [InspectorPopupOption(title: "Custom", value: "custom")] + choices.map { .init(title: $0.label, value: $0.value) },
+                        options: choices.map {
+                            .init(title: $0.label, value: $0.value, separatorBefore: $0.separatorBefore)
+                        } + [InspectorPopupOption(title: "Custom", value: "custom", separatorBefore: !choices.isEmpty)],
                         accessibilityLabel: label,
                         help: label
                     )
                 }
             }
             if source == "custom" || choices.isEmpty {
-                InspectorRow(title: choices.isEmpty ? label : "Custom colour", alignment: .center) {
-                    InspectorColorWell(color: $customColor)
+                InspectorRow(
+                    title: choices.isEmpty ? label : "Colour",
+                    alignment: .center,
+                    indicator: choices.isEmpty ? indicator : nil
+                ) {
+                    InspectorColorWell(color: $customColor, supportsAlpha: allowsOpacity)
                 }
             }
             if let adjustment {
@@ -1153,14 +1267,6 @@ private struct PackageColorControlEditor: View {
                     HStack {
                         InspectorSlider(value: adjustment, range: -100...100, step: 1, accessibilityLabel: "Lighter or darker", help: "Adjust the selected colour")
                         Text(adjustment.wrappedValue.formatted() + "%").monospacedDigit().frame(minWidth: 42, alignment: .trailing)
-                    }
-                }
-            }
-            if let opacity {
-                InspectorRow(title: "Opacity", alignment: .center) {
-                    HStack {
-                        InspectorSlider(value: opacity, range: 0...1, step: 0.1, tickMarkCount: 11, accessibilityLabel: "Opacity", help: "Set opacity from zero to one hundred percent")
-                        Text(opacity.wrappedValue.formatted(.percent.precision(.fractionLength(0)))).monospacedDigit().frame(minWidth: 42, alignment: .trailing)
                     }
                 }
             }

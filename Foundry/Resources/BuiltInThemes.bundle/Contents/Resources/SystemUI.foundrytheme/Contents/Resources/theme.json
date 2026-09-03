@@ -2,6 +2,7 @@
   "colors" : {
     "accent" : "#5B5BD6",
     "background" : "#F7F7F8",
+    "links" : "#5B5BD6",
     "surface" : "#FFFFFF",
     "text" : "#171719"
   },
@@ -17,8 +18,18 @@
     "threeExtraLarge" : 24,
     "threeExtraSmall" : 1
   },
+  "screens" : {
+    "screens" : [
+      { "container" : { "unit" : "auto", "value" : 0 }, "id" : "mobile", "isEnabled" : true, "minimumWidth" : 0 },
+      { "container" : { "unit" : "auto", "value" : 576 }, "id" : "small", "isEnabled" : true, "minimumWidth" : 576 },
+      { "container" : { "unit" : "auto", "value" : 768 }, "id" : "medium", "isEnabled" : true, "minimumWidth" : 768 },
+      { "container" : { "unit" : "auto", "value" : 992 }, "id" : "large", "isEnabled" : true, "minimumWidth" : 992 },
+      { "container" : { "unit" : "auto", "value" : 1200 }, "id" : "extraLarge", "isEnabled" : true, "minimumWidth" : 1200 },
+      { "container" : { "unit" : "auto", "value" : 1400 }, "id" : "doubleExtraLarge", "isEnabled" : true, "minimumWidth" : 1400 }
+    ]
+  },
   "typography" : {
-    "baseSize" : 16,
+    "bodySize" : 16,
     "bodyFont" : {
       "fallbacks" : [],
       "family" : "system-ui",
@@ -44,6 +55,21 @@
       "styles" : [ "normal" ],
       "systemFontNames" : [ "ui-monospace" ],
       "weights" : [ 400, 500, 600, 700 ]
-    }
+    },
+    "predefinedFontSizes" : [
+      { "id" : "xs", "lineHeight" : "snug", "size" : 0.75, "title" : "Fine" },
+      { "id" : "sm", "lineHeight" : "normal", "size" : 0.875, "title" : "Small" },
+      { "id" : "base", "lineHeight" : "normal", "size" : 1, "title" : "Body (Root Size)" },
+      { "id" : "lg", "lineHeight" : "relaxed", "size" : 1.125, "title" : "Lead" },
+      { "id" : "xl", "lineHeight" : "normal", "size" : 1.25, "title" : "Large" },
+      { "id" : "2xl", "lineHeight" : "snug", "size" : 1.5, "title" : "Subtitle" },
+      { "id" : "3xl", "lineHeight" : "tight", "size" : 1.75, "title" : "Title" },
+      { "id" : "4xl", "lineHeight" : "tight", "size" : 2, "title" : "Heading" },
+      { "id" : "5xl", "lineHeight" : "none", "size" : 2.5, "title" : "Display Small" },
+      { "id" : "6xl", "lineHeight" : "none", "size" : 3, "title" : "Display" },
+      { "id" : "7xl", "lineHeight" : "none", "size" : 4, "title" : "Display Large" },
+      { "id" : "8xl", "lineHeight" : "none", "size" : 5, "title" : "Hero" },
+      { "id" : "9xl", "lineHeight" : "none", "size" : 6, "title" : "Hero Large" }
+    ]
   }
 }

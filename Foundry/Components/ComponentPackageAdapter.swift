@@ -70,7 +70,10 @@ nonisolated enum ComponentPackageAdapter {
                     help: property.toolTip
                 ),
                 defaultValue: .array(paddedDefaults.prefix(count).map { value($0, control: property.control.type) }),
-                isResponsive: property.responsive
+                isResponsive: property.responsive,
+                enable: property.enable,
+                themeValueSource: property.control.themeValueSource,
+                allowsCustomThemeValue: property.control.allowsCustom == true
             )]
         }
         if property.control.type == .color { return colorProperties(for: property) }
@@ -81,7 +84,10 @@ nonisolated enum ComponentPackageAdapter {
                 section: .init(rawValue: property.group),
                 control: .themeFontFamily,
                 defaultValue: value(property.defaultValue, control: .select),
-                isResponsive: property.responsive
+                isResponsive: property.responsive,
+                enable: property.enable,
+                themeValueSource: property.control.themeValueSource,
+                allowsCustomThemeValue: property.control.allowsCustom == true
             )]
         }
         if property.control.type == .fontSize { return fontSizeProperties(for: property) }
@@ -95,7 +101,10 @@ nonisolated enum ComponentPackageAdapter {
             defaultValue: value(property.defaultValue, control: property.control.type),
             isResponsive: property.responsive,
             isInspectorVisible: property.control.type != .math &&
-                (property.control.type != .info || !property.label.isEmpty)
+                (property.control.type != .info || !property.label.isEmpty),
+            enable: property.enable,
+            themeValueSource: property.control.themeValueSource,
+            allowsCustomThemeValue: property.control.allowsCustom == true
         )]
     }
 
@@ -104,19 +113,24 @@ nonisolated enum ComponentPackageAdapter {
         kind: ComponentSpacingKind
     ) -> [ComponentPropertyDefinition] {
         let key = ComponentProperty.Key(rawValue: property.id)
-        let customKey = ComponentProperty.Key(rawValue: property.id + "Custom")
         let section = ComponentPropertySection(rawValue: property.group)
-        let defaultSources: [ComponentProperty.Value]
+        let defaultSources: [String]
         if case .array(let values) = property.defaultValue {
-            defaultSources = Array(values.prefix(4)).map { value($0, control: .select) }
+            defaultSources = Array(values.prefix(4)).map(\.stringValue)
         } else {
             defaultSources = []
         }
         let paddedSources = Array(
-            (defaultSources + Array(repeating: .choice("none"), count: 4)).prefix(4)
+            (defaultSources + Array(repeating: "none", count: 4)).prefix(4)
         )
+        let declaredCustomValues: [Double]
+        if case .array(let values) = property.control.customValue {
+            declaredCustomValues = values.compactMap(\.numberValue)
+        } else {
+            declaredCustomValues = []
+        }
         let customValues = Array(
-            ((property.control.customValue ?? []) + Array(repeating: 0, count: 4)).prefix(4)
+            (declaredCustomValues + Array(repeating: 0, count: 4)).prefix(4)
         )
         let range: ClosedRange<Double> = kind == .padding
             ? (property.control.minimum ?? 0)...(property.control.maximum ?? 640)
@@ -129,51 +143,42 @@ nonisolated enum ComponentPackageAdapter {
                 section: section,
                 control: .packageSpacing(
                     kind: kind,
-                    customValueKey: customKey,
                     range: range,
                     step: property.control.step ?? 1
                 ),
-                defaultValue: .array(paddedSources),
-                isResponsive: property.responsive
-            ),
-            .init(
-                key: customKey,
-                label: "Custom values",
-                section: section,
-                control: .array(
-                    element: .number(range: range, step: property.control.step ?? 1, unit: "px"),
-                    count: 4,
-                    labels: ["Top", "Right", "Bottom", "Left"],
-                    subtitles: [],
-                    units: ["px", "px", "px", "px"],
-                    help: property.toolTip
-                ),
-                defaultValue: .array(customValues.map(ComponentProperty.Value.number)),
+                defaultValue: .packageSpacing(.init(
+                    sources: paddedSources,
+                    customValues: customValues
+                )),
                 isResponsive: property.responsive,
-                isInspectorVisible: false
+                enable: property.enable,
+                themeValueSource: property.control.themeValueSource,
+                allowsCustomThemeValue: property.control.allowsCustom == true
             )
         ]
     }
 
     private static func fontSizeProperties(for property: ComponentPackageProperty) -> [ComponentPropertyDefinition] {
         let key = ComponentProperty.Key(rawValue: property.id)
-        let customKey = ComponentProperty.Key(rawValue: property.id + "Custom")
         let section = ComponentPropertySection(rawValue: property.group)
+        let source = property.defaultValue.stringValue
+        let customValue: String
+        if case .string(let value) = property.control.customValue {
+            customValue = value
+        } else {
+            customValue = "1rem"
+        }
         return [
             .init(
                 key: key, label: property.label, section: section,
                 control: .packageFontSize(
-                    themeValues: property.control.themeValues ?? false,
-                    customValueKey: customKey
+                    themeValues: property.control.themeValueSource == .fontSizes
                 ),
-                defaultValue: value(property.defaultValue, control: .select),
-                isResponsive: property.responsive
-            ),
-            .init(
-                key: customKey, label: "Custom value", section: section,
-                control: .singleLineText,
-                defaultValue: .string("1rem"),
-                isResponsive: property.responsive, isInspectorVisible: false
+                defaultValue: .packageFontSize(.init(source: source, customValue: customValue)),
+                isResponsive: property.responsive,
+                enable: property.enable,
+                themeValueSource: property.control.themeValueSource,
+                allowsCustomThemeValue: property.control.allowsCustom == true
             )
         ]
     }
@@ -181,46 +186,26 @@ nonisolated enum ComponentPackageAdapter {
     private static func colorProperties(for property: ComponentPackageProperty) -> [ComponentPropertyDefinition] {
         let key = ComponentProperty.Key(rawValue: property.id)
         let section = ComponentPropertySection(rawValue: property.group)
-        let customColorKey = ComponentProperty.Key(rawValue: property.id + "Custom")
-        let colorMathKey = property.control.colorMath == true
-            ? ComponentProperty.Key(rawValue: property.id + "ColorMath") : nil
-        let opacityKey = property.control.opacity == true
-            ? ComponentProperty.Key(rawValue: property.id + "Opacity") : nil
-        var definitions = [
+        return [
             ComponentPropertyDefinition(
                 key: key, label: property.label, section: section,
                 control: .packageColor(
-                    themeValues: property.control.themeValues ?? false,
-                    customColorKey: customColorKey,
-                    colorMathKey: colorMathKey,
-                    opacityKey: opacityKey
+                    themeValues: property.control.themeValueSource == .colors,
+                    colorMath: property.control.colorMath ?? false,
+                    opacity: property.control.opacity ?? false
                 ),
-                defaultValue: value(property.defaultValue, control: .select),
-                isResponsive: property.responsive
-            ),
-            ComponentPropertyDefinition(
-                key: customColorKey, label: "Custom colour", section: section,
-                control: .color, defaultValue: .color(property.control.customColor ?? "#000000"),
-                isResponsive: property.responsive, isInspectorVisible: false
+                defaultValue: .packageColor(.init(
+                    source: property.control.themeValueDefault ?? property.defaultValue.stringValue,
+                    customColor: property.control.customColor ?? "#000000",
+                    adjustment: 0,
+                    opacity: 1
+                )),
+                isResponsive: property.responsive,
+                enable: property.enable,
+                themeValueSource: property.control.themeValueSource,
+                allowsCustomThemeValue: property.control.allowsCustom == true
             )
         ]
-        if let colorMathKey {
-            definitions.append(.init(
-                key: colorMathKey, label: "Lighter or darker", section: section,
-                control: .number(range: -100...100, step: 1, unit: "%"),
-                defaultValue: .number(0), isResponsive: property.responsive,
-                isInspectorVisible: false
-            ))
-        }
-        if let opacityKey {
-            definitions.append(.init(
-                key: opacityKey, label: "Opacity", section: section,
-                control: .number(range: 0...1, step: 0.01, unit: ""),
-                defaultValue: .number(1), isResponsive: property.responsive,
-                isInspectorVisible: false
-            ))
-        }
-        return definitions
     }
 
     private static func control(_ control: ComponentPackageControl, unit: String) -> ComponentPropertyControl {

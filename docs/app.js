@@ -29,7 +29,8 @@ const controlLinks = [
     ["Line height", "line-height.html"],
     ["Info", "info-control.html"],
     ["Divider", "divider-control.html"],
-    ["Control arrays", "control-arrays.html"]
+    ["Control arrays", "control-arrays.html"],
+    ["Conditional visibility", "enable-control.html"]
 ];
 
 const templateLinks = [

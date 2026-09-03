@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>minimumAPIVersion</key><integer>1</integer>
+    <key>id</key><string>dev.foundry.theme_values</string>
+    <key>title</key><string>Theme Values Demo</string>
+    <key>description</key><string>Demonstrates basic select controls populated from named theme sources.</string>
+    <key>author</key><string>Foundry Development</string>
+    <key>version</key><string>1.0.0</string>
+    <key>group</key><string>Other</string>
+    <key>tags</key><array><string>Development</string><string>Theme</string></array>
+    <key>assets</key><array><string>icon.svg</string></array>
+    <key>slots</key><array/>
+    <key>customItems</key><array>
+        <dict>
+            <key>id</key><string>foreground</string><key>labels</key><string>Foreground</string><key>group</key><string>Theme Values</string>
+            <key>type</key><string>color</string><key>themeValues</key><string>text</string>
+            <key>customColor</key><string>#D946EF</string><key>default</key><string>custom</string><key>responsive</key><true/>
+        </dict>
+        <dict>
+            <key>id</key><string>background</string><key>labels</key><string>Background</string><key>group</key><string>Theme Values</string>
+            <key>type</key><string>color</string><key>themeValues</key><string>surface</string>
+            <key>customColor</key><string>#FFF1F2</string>
+            <key>default</key><string>custom</string><key>responsive</key><true/>
+        </dict>
+        <dict>
+            <key>id</key><string>font</string><key>labels</key><string>Font</string><key>group</key><string>Theme Values</string>
+            <key>type</key><string>select</string><key>themeValues</key><string>fontFamilies</string>
+            <key>default</key><string>body</string><key>responsive</key><false/>
+        </dict>
+        <dict>
+            <key>id</key><string>size</string><key>labels</key><string>Size</string><key>group</key><string>Theme Values</string>
+            <key>type</key><string>select</string><key>themeValues</key><string>fontSizes</string>
+            <key>default</key><string>base</string><key>responsive</key><true/>
+        </dict>
+        <dict>
+            <key>id</key><string>gap</string><key>labels</key><string>Gap</string><key>group</key><string>Theme Values</string>
+            <key>type</key><string>select</string><key>themeValues</key><string>spacing</string>
+            <key>default</key><string>md</string><key>responsive</key><true/>
+        </dict>
+        <dict>
+            <key>id</key><string>topBorder</string><key>labels</key><string>Top border</string><key>group</key><string>Theme Values</string>
+            <key>type</key><string>color</string><key>themeValues</key><string>accent</string>
+            <key>customColor</key><string>#5B5BD6</string><key>default</key><string>custom</string><key>responsive</key><false/>
+        </dict>
+        <dict>
+            <key>id</key><string>bottomBorder</string><key>labels</key><string>Bottom border</string><key>group</key><string>Theme Values</string>
+            <key>type</key><string>color</string><key>themeValues</key><string>links</string>
+            <key>customColor</key><string>#5B5BD6</string><key>default</key><string>custom</string><key>responsive</key><false/>
+        </dict>
+    </array>
+    <key>templates</key><dict><key>html</key><string>component.html</string></dict>
+</dict>
+</plist>

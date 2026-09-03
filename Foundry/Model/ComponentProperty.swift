@@ -1,5 +1,22 @@
 import Foundation
 
+nonisolated struct ComponentPackageColorValue: Codable, Equatable, Sendable {
+    var source: String
+    var customColor: String
+    var adjustment: Double
+    var opacity: Double
+}
+
+nonisolated struct ComponentPackageFontSizeValue: Codable, Equatable, Sendable {
+    var source: String
+    var customValue: String
+}
+
+nonisolated struct ComponentPackageSpacingValue: Codable, Equatable, Sendable {
+    var sources: [String]
+    var customValues: [Double]
+}
+
 nonisolated struct ComponentProperty: Codable, Equatable, Identifiable, Sendable {
     let id: UUID
     var key: Key
@@ -64,6 +81,9 @@ nonisolated struct ComponentProperty: Codable, Equatable, Identifiable, Sendable
         case token(DesignToken)
         case array([Value])
         case link(ComponentLink)
+        case packageColor(ComponentPackageColorValue)
+        case packageFontSize(ComponentPackageFontSizeValue)
+        case packageSpacing(ComponentPackageSpacingValue)
 
         var stringValue: String {
             switch self {
@@ -79,6 +99,12 @@ nonisolated struct ComponentProperty: Codable, Equatable, Identifiable, Sendable
                 values.map(\.stringValue).joined(separator: ", ")
             case .link:
                 ""
+            case .packageColor(let value):
+                value.source
+            case .packageFontSize(let value):
+                value.source
+            case .packageSpacing(let value):
+                value.sources.joined(separator: ", ")
             }
         }
 
@@ -100,57 +126,6 @@ nonisolated struct ComponentProperty: Codable, Equatable, Identifiable, Sendable
         var arrayValue: [Value]? {
             guard case .array(let value) = self else { return nil }
             return value
-        }
-    }
-}
-
-nonisolated enum ThemeTypographyControlCSS {
-    static func declarations(for node: ComponentNode, theme: Theme) -> [String] {
-        let keys = Set(node.type.definition.properties.map(\.key))
-        guard keys.contains(.themeFontSize) else { return [] }
-
-        let sizeReference = node.property(.themeFontSize)
-        let lineHeight = node.property(.themeLineHeight)
-        var declarations = [
-            "font-size: \(theme.fontSizeCSSVariable(for: sizeReference))",
-            "line-height: \(resolvedLineHeight(lineHeight, sizeReference: sizeReference, theme: theme))",
-            "text-align: \(node.property(.themeTextAlignment))",
-            "font-weight: \(node.property(.themeFontWeight))",
-            "letter-spacing: \(letterSpacing(node.property(.themeLetterSpacing)))",
-            "font-style: \(node.propertyValue(.themeItalic).booleanValue == true ? "italic" : "normal")",
-            "text-shadow: \(textShadow(node.property(.themeTextShadow)))",
-            "text-transform: \(node.property(.themeTextCase))",
-            "white-space: \(node.property(.themeWhitespace))",
-            "text-decoration-line: \(node.property(.themeUnderline))"
-        ]
-        declarations.removeAll { $0.hasSuffix(": none") && $0.hasPrefix("text-transform") }
-        return declarations
-    }
-
-    private static func resolvedLineHeight(_ value: String, sizeReference: String, theme: Theme) -> String {
-        guard value != "theme", let lineHeight = ThemeLineHeight(rawValue: value) else {
-            return theme.lineHeightCSSVariable(for: sizeReference)
-        }
-        return lineHeight.value.formatted(.number.precision(.fractionLength(0...3)))
-    }
-
-    private static func letterSpacing(_ value: String) -> String {
-        switch value {
-        case "tighter": "-0.05em"
-        case "tight": "-0.025em"
-        case "wide": "0.025em"
-        case "wider": "0.05em"
-        case "widest": "0.1em"
-        default: "0em"
-        }
-    }
-
-    private static func textShadow(_ value: String) -> String {
-        switch value {
-        case "small": "0 1px 2px rgb(0 0 0 / 0.18)"
-        case "medium": "0 2px 4px rgb(0 0 0 / 0.22)"
-        case "large": "0 4px 10px rgb(0 0 0 / 0.28)"
-        default: "none"
         }
     }
 }

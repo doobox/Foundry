@@ -44,10 +44,11 @@ nonisolated enum ComponentPackageManifestSchema {
     private static let slotKeys: Set<String> = ["id", "title", "accepts", "minimum", "maximum"]
     private static let propertyKeys: Set<String> = [
         "id", "labels", "group", "default", "responsive", "subtitles", "units", "toolTip",
-        "type", "minimum", "maximum", "step", "options", "themeValues", "colorMath", "opacity",
+        "type", "minimum", "maximum", "step", "options", "themeValues", "allowsCustom", "colorMath", "opacity",
         "customColor", "customValue", "count", "ticks", "showsValueField", "trueValue", "falseValue",
-        "systemImage", "fontSize", "argument1", "argument2", "operation", "round", "absoluteURL"
+        "systemImage", "fontSize", "argument1", "argument2", "operation", "round", "absoluteURL", "enable"
     ]
+    private static let enableKeys: Set<String> = ["id", "operation", "value"]
     private static let optionKeys: Set<String> = ["value", "title"]
     private static let templateKeys: Set<String> = ["html", "editorCSS", "files"]
     private static let templateFileKeys: Set<String> = ["path", "scope", "placement", "closure"]
@@ -107,6 +108,9 @@ nonisolated enum ComponentPackageManifestSchema {
         dictionaries(in: dictionary["customItems"]).enumerated().forEach { index, property in
             let location = "Info.plist:customItems[\(index)]"
             unknownKeys(in: property, allowed: propertyKeys, location: location, into: &diagnostics)
+            if let enable = property["enable"] as? [String: Any] {
+                unknownKeys(in: enable, allowed: enableKeys, location: "\(location).enable", into: &diagnostics)
+            }
             dictionaries(in: property["options"]).enumerated().forEach { optionIndex, option in
                 unknownKeys(
                     in: option,

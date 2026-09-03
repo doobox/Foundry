@@ -6,10 +6,11 @@
         &lt;key&gt;labels&lt;/key&gt;&lt;string&gt;Text size&lt;/string&gt;
         &lt;key&gt;group&lt;/key&gt;&lt;string&gt;Typography&lt;/string&gt;
     &lt;key&gt;type&lt;/key&gt;&lt;string&gt;fontSize&lt;/string&gt;
-            &lt;key&gt;themeValues&lt;/key&gt;&lt;true/&gt;
+            &lt;key&gt;themeValues&lt;/key&gt;&lt;string&gt;fontSizes&lt;/string&gt;
         &lt;key&gt;default&lt;/key&gt;&lt;string&gt;base&lt;/string&gt;
         &lt;key&gt;responsive&lt;/key&gt;&lt;true/&gt;
     &lt;/dict&gt;
 &lt;/array&gt;</code></pre><pre><code>#{{ id }} { font-size: {{ control.textSize }}; }</code></pre>
 <h2>Theme choices</h2><p>The portable scale names are <code>xs</code>, <code>sm</code>, <code>base</code>, <code>lg</code>, <code>xl</code>, and <code>2xl</code> through <code>9xl</code>. The project theme resolves each name to its configured measurement. Custom values remain available because this is still a custom control.</p>
-<div class="note"><strong>One value, one target.</strong> The developer decides where the size is applied through the template; Foundry does not force typography onto the component root.</div></main></div></body></html>
+<h2>Custom size</h2><p>Use the optional <code>customValue</code> String to set the initial custom CSS length. It defaults to <code>1rem</code> and must be non-negative, for example <code>18px</code>, <code>1.125rem</code>, or <code>5vw</code>.</p>
+<div class="note"><strong>One value, one target.</strong> Foundry stores the selected source and custom CSS length together under the declared ID. Templates receive the resolved CSS length; Foundry does not create a hidden sibling property or force typography onto the component root.</div></main></div></body></html>

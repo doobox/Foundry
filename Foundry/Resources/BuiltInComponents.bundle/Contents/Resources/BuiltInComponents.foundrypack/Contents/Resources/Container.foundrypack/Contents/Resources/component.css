@@ -3,7 +3,7 @@
     display: block;
     width: 100%;
     max-width: {{ control.maxWidth }}px;
-    padding: {{ control.padding }}px;
+    padding: {{ control.padding }};
     background-color: {{ control.backgroundColor }};
     border: {{ control.borderWidth }}px solid {{ control.borderColor }};
     border-radius: {{ control.cornerRadius }}px;

@@ -174,11 +174,11 @@
 			<key>type</key>
 			<string>color</string>
 			<key>default</key>
-			<string>background</string>
+			<string>custom</string>
 			<key>customColor</key>
 			<string>#FFFFFF</string>
 			<key>themeValues</key>
-			<true/>
+			<string>background</string>
 			<key>opacity</key>
 			<true/>
 			<key>responsive</key>

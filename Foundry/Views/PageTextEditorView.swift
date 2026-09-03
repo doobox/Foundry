@@ -175,7 +175,7 @@ struct PageTextEditorView: View {
                     attributes.link = nil
                 }
             } label: {
-                Image(systemName: "textformat")
+                Image(systemName: "xmark")
             }
             .help("Clear formatting")
 

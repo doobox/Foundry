@@ -99,6 +99,7 @@ nonisolated enum ComponentPackageValidator {
         for property in manifest.properties {
             validate(property.id, expression: propertyExpression, location: "Info.plist:customItems.\(property.id)", message: "Property IDs must start with a letter and contain only letters, numbers, underscores, or hyphens.", into: &diagnostics)
             validate(property, into: &diagnostics)
+            validateEnable(property, properties: manifest.properties, into: &diagnostics)
             if property.control.type == .lineHeight,
                let fontSizeID = property.control.fontSize,
                !manifest.properties.contains(where: { $0.id == fontSizeID && $0.control.type == .fontSize }) {
@@ -109,6 +110,7 @@ nonisolated enum ComponentPackageValidator {
                 ))
             }
         }
+        validateEnableCycles(manifest.properties, into: &diagnostics)
         for slot in manifest.slots {
             validate(slot.id, expression: propertyExpression, location: "Info.plist:slots.\(slot.id)", message: "Slot IDs must start with a letter and contain only letters, numbers, underscores, or hyphens.", into: &diagnostics)
             if slot.minimum < 0 || (slot.maximum.map { $0 < slot.minimum } == true) {
@@ -368,6 +370,7 @@ nonisolated enum ComponentPackageValidator {
 
     private static func validate(_ property: ComponentPackageProperty, into diagnostics: inout [ComponentPackageDiagnostic]) {
         let location = "Info.plist:customItems.\(property.id)"
+        validateThemeValues(property, location: location, into: &diagnostics)
         if property.control.type == .padding || property.control.type == .margin {
             validateSpacing(property, location: location, into: &diagnostics)
             return
@@ -393,6 +396,62 @@ nonisolated enum ComponentPackageValidator {
             return
         }
         validate(property.defaultValue, for: property, location: location, allowsLiteralColor: false, into: &diagnostics)
+    }
+
+    private static func validateThemeValues(
+        _ property: ComponentPackageProperty,
+        location: String,
+        into diagnostics: inout [ComponentPackageDiagnostic]
+    ) {
+        if property.control.allowsCustom.orFalse,
+           property.control.type != .select || property.control.themeValueSource == nil {
+            diagnostics.append(.init(
+                severity: .error,
+                location: "\(location).allowsCustom",
+                message: "allowsCustom requires a select control with a named themeValues source."
+            ))
+        }
+        if property.control.type == .color {
+            if let themeDefault = property.control.themeValueDefault,
+               ThemeColorRole(rawValue: themeDefault) == nil {
+                diagnostics.append(.init(
+                    severity: .error,
+                    location: "\(location).themeValues",
+                    message: "A color themeValues string must be background, surface, text, accent, or links."
+                ))
+            }
+            if property.control.themeValues != nil, property.control.themeValueDefault == nil {
+                diagnostics.append(.init(
+                    severity: .error,
+                    location: "\(location).themeValues",
+                    message: "A color themeValues string must be background, surface, text, accent, or links."
+                ))
+            }
+            return
+        } else if property.control.themeValueDefault != nil {
+            diagnostics.append(.init(
+                severity: .error,
+                location: "\(location).themeValues",
+                message: "The \(property.control.type.rawValue) control does not accept a theme role as themeValues."
+            ))
+        }
+        guard let source = property.control.themeValueSource else { return }
+        let supported: Bool
+        switch (property.control.type, source) {
+        case (.select, .fontFamilies), (.select, .fontSizes), (.select, .spacing),
+             (.fontFamily, .fontFamilies),
+             (.fontSize, .fontSizes), (.margin, .spacing), (.padding, .spacing):
+            supported = true
+        default:
+            supported = false
+        }
+        if !supported {
+            diagnostics.append(.init(
+                severity: .error,
+                location: "\(location).themeValues",
+                message: "The \(property.control.type.rawValue) control cannot request \(source.rawValue) theme values."
+            ))
+        }
     }
 
     private static func validateSpacing(
@@ -428,7 +487,16 @@ nonisolated enum ComponentPackageValidator {
             }
         }
 
-        if let customValues = property.control.customValue {
+        if let declaredCustomValue = property.control.customValue {
+            guard case .array(let rawCustomValues) = declaredCustomValue else {
+                diagnostics.append(.init(
+                    severity: .error,
+                    location: "\(location).customValue",
+                    message: "customValue must contain exactly four numbers in top, right, bottom, left order."
+                ))
+                return
+            }
+            let customValues = rawCustomValues.compactMap(\.numberValue)
             if customValues.count != 4 {
                 diagnostics.append(.init(
                     severity: .error,
@@ -553,10 +621,17 @@ nonisolated enum ComponentPackageValidator {
                 diagnostics.append(.init(severity: .error, location: location, message: "A toggle control requires a Boolean default value."))
             }
         case .select:
-            guard case .string(let value) = defaultValue,
-                  property.control.options?.contains(where: { $0.value == value }) == true else {
+            guard case .string(let value) = defaultValue else {
                 diagnostics.append(.init(severity: .error, location: location, message: "A select default must match one of its options."))
                 return
+            }
+            let declaredMatch = property.control.options?.contains(where: { $0.value == value }) == true
+            let themeMatch = property.control.themeValueSource.map {
+                ComponentPackageThemeValueResolver.choices(for: $0, theme: .standard).contains(where: { $0.value == value })
+            } ?? false
+            let customMatch = property.control.allowsCustom.orFalse && value == "custom"
+            if !declaredMatch && !themeMatch && !customMatch {
+                diagnostics.append(.init(severity: .error, location: location, message: "A select default must match one of its declared or requested theme values."))
             }
         case .icon:
             guard case .string(let value) = defaultValue,
@@ -573,10 +648,9 @@ nonisolated enum ComponentPackageValidator {
                 diagnostics.append(.init(severity: .error, location: location, message: "A color control requires a string default value."))
                 return
             }
-            let themeDefaults = Set(ThemeColorRole.allCases.map(\.rawValue))
             let isLiteralColor = allowsLiteralColor && value.matches(#"^#[0-9A-Fa-f]{6}([0-9A-Fa-f]{2})?$"#)
-            if !isLiteralColor && value != "custom" && (!property.control.themeValues.orFalse || !themeDefaults.contains(value)) {
-                diagnostics.append(.init(severity: .error, location: location, message: "A color default must be custom, or a known theme role when themeValues is enabled."))
+            if !isLiteralColor && value != "custom" {
+                diagnostics.append(.init(severity: .error, location: location, message: "A color default must be custom."))
             }
             if let customColor = property.control.customColor,
                !customColor.matches(#"^#[0-9A-Fa-f]{6}$"#) {
@@ -594,11 +668,22 @@ nonisolated enum ComponentPackageValidator {
         case .fontSize:
             if case .string(let value) = defaultValue {
                 let sizes = Set(Theme.standard.typography.fontSizes.map(\.id))
-                if value != "custom" && (!property.control.themeValues.orFalse || !sizes.contains(value)) {
+                if value != "custom" && (property.control.themeValueSource != .fontSizes || !sizes.contains(value)) {
                     diagnostics.append(.init(severity: .error, location: location, message: "A fontSize default must be custom, or a known theme size when themeValues is enabled."))
                 }
             } else {
                 diagnostics.append(.init(severity: .error, location: location, message: "A fontSize control requires a string default value."))
+            }
+            if let customValue = property.control.customValue {
+                guard case .string(let value) = customValue,
+                      value.matches(#"^(?:\d+(?:\.\d+)?|\.\d+)(?:px|rem|em|%|vw|vh|vmin|vmax|ch|ex)$"#) else {
+                    diagnostics.append(.init(
+                        severity: .error,
+                        location: "\(location).customValue",
+                        message: "A fontSize customValue must be a CSS length such as 1rem or 18px."
+                    ))
+                    return
+                }
             }
         case .lineHeight:
             if case .string(let value) = defaultValue,
@@ -631,6 +716,76 @@ nonisolated enum ComponentPackageValidator {
         var seen: Set<String> = []
         for value in values where !seen.insert(value).inserted {
             diagnostics.append(.init(severity: .error, location: "Info.plist", message: "Duplicate \(kind) identifier '\(value)'."))
+        }
+    }
+
+    private static func validateEnable(
+        _ property: ComponentPackageProperty,
+        properties: [ComponentPackageProperty],
+        into diagnostics: inout [ComponentPackageDiagnostic]
+    ) {
+        guard let enable = property.enable else { return }
+        let location = "Info.plist:customItems.\(property.id).enable"
+        let expression = try! NSRegularExpression(pattern: #"^([A-Za-z][A-Za-z0-9_-]*)(?:\[([0-9]+)\])?$"#)
+        guard let match = expression.firstMatch(in: enable.id, range: NSRange(enable.id.startIndex..., in: enable.id)),
+              let keyRange = Range(match.range(at: 1), in: enable.id) else {
+            diagnostics.append(.init(severity: .error, location: location, message: "Enable id must reference a control, optionally followed by a zero-based array index."))
+            return
+        }
+        let key = String(enable.id[keyRange])
+        guard key != property.id else {
+            diagnostics.append(.init(severity: .error, location: location, message: "A control cannot enable itself."))
+            return
+        }
+        guard let source = properties.first(where: { $0.id == key }) else {
+            diagnostics.append(.init(severity: .error, location: location, message: "Enable references unknown control '\(key)'."))
+            return
+        }
+        if let indexRange = Range(match.range(at: 2), in: enable.id), let index = Int(enable.id[indexRange]) {
+            guard let count = source.control.count else {
+                diagnostics.append(.init(severity: .error, location: location, message: "Enable index requires '\(key)' to be a multi-control."))
+                return
+            }
+            if index >= count {
+                diagnostics.append(.init(severity: .error, location: location, message: "Enable index \(index) is outside '\(key)' count \(count)."))
+            }
+        }
+
+        let operation = ComponentPackageEnableEvaluator.canonicalOperation(enable.operation)
+        let supported = Set(["==", "!=", "<", "<=", ">", ">=", "contains", "notContains",
+                             "containsInsensitive", "notContainsInsensitive", "matches", "notMatches",
+                             "matchesInsensitive", "notMatchesInsensitive", "containsValue", "notContainsValue",
+                             "isEmpty", "isNotEmpty"])
+        guard supported.contains(operation) else {
+            diagnostics.append(.init(severity: .error, location: location, message: "Unknown enable operation '\(enable.operation)'."))
+            return
+        }
+        let needsValue = operation != "isEmpty" && operation != "isNotEmpty"
+        if needsValue && enable.value == nil {
+            diagnostics.append(.init(severity: .error, location: location, message: "Enable operation '\(operation)' requires a value."))
+        } else if !needsValue && enable.value != nil {
+            diagnostics.append(.init(severity: .error, location: location, message: "Enable operation '\(operation)' does not accept a value."))
+        }
+    }
+
+    private static func validateEnableCycles(
+        _ properties: [ComponentPackageProperty],
+        into diagnostics: inout [ComponentPackageDiagnostic]
+    ) {
+        let dependencies = Dictionary(uniqueKeysWithValues: properties.compactMap { property -> (String, String)? in
+            guard let id = property.enable?.id else { return nil }
+            return (property.id, String(id.prefix { $0 != "[" }))
+        })
+        for property in properties {
+            var visited = Set<String>()
+            var current: String? = property.id
+            while let value = current, let next = dependencies[value] {
+                guard visited.insert(value).inserted else {
+                    diagnostics.append(.init(severity: .error, location: "Info.plist:customItems.\(property.id).enable", message: "Enable conditions contain a dependency cycle."))
+                    break
+                }
+                current = next
+            }
         }
     }
 

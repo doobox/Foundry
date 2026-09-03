@@ -41,8 +41,7 @@ nonisolated struct ComponentType: RawRepresentable, Codable, Hashable, Identifia
 
     init(from decoder: Decoder) throws {
         let container = try decoder.singleValueContainer()
-        let identifier = try container.decode(String.self)
-        rawValue = Self.legacyIdentifiers[identifier] ?? identifier
+        rawValue = try container.decode(String.self)
     }
 
     func encode(to encoder: Encoder) throws {
@@ -62,8 +61,4 @@ nonisolated struct ComponentType: RawRepresentable, Codable, Hashable, Identifia
 
     static var allCases: [ComponentType] { ComponentRegistry.availableTypes }
 
-    private static let legacyIdentifiers: [String: String] = [
-        "container": container.rawValue,
-        "button": button.rawValue
-    ]
 }

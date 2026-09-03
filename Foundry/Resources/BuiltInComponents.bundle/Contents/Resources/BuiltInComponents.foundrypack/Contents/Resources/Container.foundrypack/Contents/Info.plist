@@ -26,7 +26,7 @@
 			<key>customColor</key>
 			<string>#FFFFFF</string>
 			<key>themeValues</key>
-			<true/>
+			<string>surface</string>
 			<key>type</key>
 			<string>color</string>
 		</dict>
@@ -92,7 +92,19 @@
 		</dict>
 		<dict>
 			<key>default</key>
-			<integer>32</integer>
+			<array>
+				<string>custom</string>
+				<string>custom</string>
+				<string>custom</string>
+				<string>custom</string>
+			</array>
+			<key>customValue</key>
+			<array>
+				<integer>32</integer>
+				<integer>32</integer>
+				<integer>32</integer>
+				<integer>32</integer>
+			</array>
 			<key>group</key>
 			<string>Layout</string>
 			<key>id</key>
@@ -108,9 +120,7 @@
 			<key>step</key>
 			<integer>4</integer>
 			<key>type</key>
-			<string>number</string>
-			<key>units</key>
-			<string>px</string>
+			<string>padding</string>
 		</dict>
 		<dict>
 			<key>default</key>

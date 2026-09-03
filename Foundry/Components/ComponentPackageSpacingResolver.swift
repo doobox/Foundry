@@ -4,18 +4,16 @@ nonisolated enum ComponentPackageSpacingResolver {
     private static let sideCount = 4
 
     static func resolve(
-        node: ComponentNode,
-        key: ComponentProperty.Key,
+        _ value: ComponentPackageSpacingValue,
         theme: Theme,
-        customValueKey: ComponentProperty.Key,
         kind: ComponentSpacingKind
     ) -> String {
         let sources = padded(
-            node.propertyValue(key).arrayValue?.map(\.stringValue) ?? [],
+            value.sources,
             with: "none"
         )
         let customValues = padded(
-            node.propertyValue(customValueKey).arrayValue?.map { $0.numberValue ?? 0 } ?? [],
+            value.customValues,
             with: 0
         )
 

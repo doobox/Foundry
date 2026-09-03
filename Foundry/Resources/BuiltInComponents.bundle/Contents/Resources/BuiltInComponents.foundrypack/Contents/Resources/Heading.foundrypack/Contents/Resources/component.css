@@ -1,0 +1,8 @@
+#{{ id }} {
+    color: {{ control.textColor }};
+    font-family: {{ control.typeface }};
+    font-size: {{ control.textSize }};
+    line-height: {{ control.lineHeight }};
+    text-align: {{ control.textAlignment }};
+    margin-block: 0 1.5rem;
+}

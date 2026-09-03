@@ -5,6 +5,7 @@ nonisolated enum DesignToken: String, Codable, CaseIterable, Identifiable, Senda
     case surfaceColor
     case textColor
     case accentColor
+    case linksColor
     case threeExtraSmallSpacing
     case doubleExtraSmallSpacing
     case extraSmallSpacing
@@ -23,6 +24,7 @@ nonisolated enum DesignToken: String, Codable, CaseIterable, Identifiable, Senda
         case .surfaceColor: "Surface"
         case .textColor: "Text"
         case .accentColor: "Accent"
+        case .linksColor: "Links"
         case .threeExtraSmallSpacing: "3XS"
         case .doubleExtraSmallSpacing: "2XS"
         case .extraSmallSpacing: "XS"
@@ -35,7 +37,9 @@ nonisolated enum DesignToken: String, Codable, CaseIterable, Identifiable, Senda
         }
     }
 
-    static let colorTokens: [DesignToken] = [.backgroundColor, .surfaceColor, .textColor, .accentColor]
+    static let colorTokens: [DesignToken] = [
+        .backgroundColor, .surfaceColor, .textColor, .accentColor, .linksColor
+    ]
     static let spacingTokens: [DesignToken] = [
         .threeExtraSmallSpacing, .doubleExtraSmallSpacing, .extraSmallSpacing,
         .smallSpacing, .mediumSpacing, .largeSpacing, .extraLargeSpacing,

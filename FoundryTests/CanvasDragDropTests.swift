@@ -10,7 +10,7 @@ struct CanvasDragDropTests {
         let insert = CanvasMessage.decode([
             "version": 1,
             "event": "insertComponent",
-            "componentType": "button",
+            "componentType": "foundry.content.button",
             "placement": ["kind": "inside", "targetID": targetID.uuidString]
         ])
         let move = CanvasMessage.decode([

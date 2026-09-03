@@ -10,7 +10,7 @@ struct DocumentCodingTests {
         let componentID = try #require(site.pages.first?.components.first?.id)
         site.updateComponent(id: componentID) {
             $0.setResponsiveProperty(.padding, value: .number(6), at: .mobile)
-            $0.setResponsiveProperty(.padding, value: .number(12), at: .tabletPortrait)
+            $0.setResponsiveProperty(.padding, value: .number(12), at: .small)
         }
 
         let data = try FoundryDocument.encoder.encode(site)
@@ -19,8 +19,8 @@ struct DocumentCodingTests {
 
         #expect(component.numberProperty(.padding) == 6)
         #expect(component.propertyValue(.padding, at: .mobile) == .number(6))
-        #expect(component.propertyValue(.padding, at: .tabletPortrait) == .number(12))
-        #expect(component.propertyValue(.padding, at: .tabletLandscape) == .number(12))
+        #expect(component.propertyValue(.padding, at: .small) == .number(12))
+        #expect(component.propertyValue(.padding, at: .medium) == .number(12))
     }
 
     @Test

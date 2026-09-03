@@ -182,8 +182,6 @@ private struct ThemeSettingsDetail: View {
     let theme: Theme
     let assets: [ProjectAsset]
     let session: ThemeEditorSession
-    @State private var expandedFontSizeID: String?
-
     private var editor: ProjectEditor { session.editor }
 
     var body: some View {
@@ -243,40 +241,25 @@ private struct ThemeSettingsDetail: View {
 
     private var fontSizeSettings: some View {
         List {
-            VStack(alignment: .leading, spacing: 14) {
-                    Text("Base Font")
-                        .font(.headline)
-                        .foregroundStyle(.secondary)
-                    HStack(spacing: 12) {
-                        Text("Root Size")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .frame(width: 76, alignment: .leading)
-                            .lineLimit(1)
-                        Slider(value: baseSizeBinding, in: 10...24, step: 1)
-                            .frame(minWidth: 180)
-                        TextField(
-                            "Root Size",
-                            value: baseSizeBinding,
-                            format: .number.precision(.fractionLength(0...2))
-                        )
-                        .labelsHidden()
-                        .textFieldStyle(.roundedBorder)
-                        .multilineTextAlignment(.trailing)
-                        .frame(width: 72)
-                        Text("px")
-                            .foregroundStyle(.secondary)
-                            .frame(width: 28, alignment: .leading)
-                    }
-                    .padding(12)
-                    .background(.quaternary, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+            Section {
+                ForEach(theme.typography.predefinedFontSizes) { token in
+                    fontSizeEditor(token, isCustom: false)
                 }
-                .listRowBackground(Color.clear)
-                .listRowSeparator(.hidden)
-                .listRowInsets(EdgeInsets(top: 10, leading: 0, bottom: 12, trailing: 0))
+            } header: {
+                HStack {
+                    Text("Predefined Scale")
+                    Spacer()
+                    Button("Reset", systemImage: "arrow.counterclockwise") {
+                        editor.resetThemeFontSizeScale()
+                    }
+                    .labelStyle(.iconOnly)
+                    .buttonStyle(.borderless)
+                    .help("Reset Predefined Font Size Scale")
+                }
+            }
             Section {
                 ForEach(theme.typography.customFontSizes) { token in
-                    fontSizeEditor(token)
+                    fontSizeEditor(token, isCustom: true)
                 }
                 .onMove(perform: editor.moveThemeFontSizes)
             } header: {
@@ -318,45 +301,24 @@ private struct ThemeSettingsDetail: View {
         )
     }
 
-    private func fontSizeBinding(for id: String) -> Binding<Double> {
-        Binding(
-            get: { theme.typography.fontSizes.first(where: { $0.id == id })?.size ?? 1 },
-            set: { editor.setThemeFontSize(id: id, value: $0) }
-        )
-    }
-
     private func pixelSizeBinding(for id: String) -> Binding<Double> {
         Binding(
             get: {
+                if id == "base" {
+                    return theme.typography.bodySize
+                }
                 let rem = theme.typography.fontSizes.first(where: { $0.id == id })?.size ?? 1
-                return rem * theme.typography.baseSize
+                return rem * theme.typography.bodySize
             },
             set: { pixels in
-                editor.setThemeFontSize(
-                    id: id,
-                    value: pixels / max(theme.typography.baseSize, 1)
-                )
-            }
-        )
-    }
-
-    private var baseSizeBinding: Binding<Double> {
-        Binding(
-            get: { theme.typography.baseSize },
-            set: editor.setThemeBaseSize
-        )
-    }
-
-    private func lineHeightBinding(for id: String) -> Binding<Double> {
-        Binding(
-            get: {
-                let lineHeight = theme.typography.customFontSizes
-                    .first(where: { $0.id == id })?.lineHeight ?? .normal
-                return Double(ThemeLineHeight.allCases.firstIndex(of: lineHeight) ?? 3)
-            },
-            set: { value in
-                let index = min(max(Int(value.rounded()), 0), ThemeLineHeight.allCases.count - 1)
-                editor.setThemeFontSizeLineHeight(id: id, value: ThemeLineHeight.allCases[index])
+                if id == "base" {
+                    editor.setThemeBodySize(pixels)
+                } else {
+                    editor.setThemeFontSize(
+                        id: id,
+                        value: pixels / max(theme.typography.bodySize, 1)
+                    )
+                }
             }
         )
     }
@@ -368,119 +330,39 @@ private struct ThemeSettingsDetail: View {
         )
     }
 
-    private func remDescription(_ value: Double) -> String {
-        let rem = value.formatted(.number.precision(.fractionLength(0...3)))
-        let pixels = (value * theme.typography.baseSize).formatted(
-            .number.precision(.fractionLength(0...1))
-        )
-        return "\(rem) rem (\(pixels) px)"
-    }
-
     @ViewBuilder
-    private func fontSizeEditor(_ token: ThemeFontSize) -> some View {
-        VStack(spacing: 0) {
-            HStack(spacing: 10) {
-                Button {
-                    withAnimation(.snappy(duration: 0.2)) {
-                        expandedFontSizeID = expandedFontSizeID == token.id ? nil : token.id
-                    }
-                } label: {
-                    Image(systemName: "chevron.right")
-                        .rotationEffect(.degrees(expandedFontSizeID == token.id ? 90 : 0))
-                }
-                .buttonStyle(.plain)
-                .help(expandedFontSizeID == token.id ? "Collapse" : "Expand")
-
-                TextField("Name", text: fontSizeTitleBinding(for: token.id))
-                    .labelsHidden()
+    private func fontSizeEditor(_ token: ThemeFontSize, isCustom: Bool) -> some View {
+        HStack(spacing: 12) {
+            if isCustom {
+                TextField("Size Name", text: fontSizeTitleBinding(for: token.id))
                     .textFieldStyle(.roundedBorder)
-                    .frame(minWidth: 120, idealWidth: 220, maxWidth: 300)
-
-                Spacer()
-
-                Text(remDescription(token.size))
-                    .foregroundStyle(.secondary)
-                Button(role: .destructive) {
-                    if expandedFontSizeID == token.id {
-                        expandedFontSizeID = nil
-                    }
+                    .frame(width: 150)
+            } else {
+                Text(token.title)
+                    .frame(width: 150, alignment: .leading)
+            }
+            Slider(value: pixelSizeBinding(for: token.id), in: 8...160, step: 1)
+                .frame(minWidth: 180)
+            TextField(
+                "Pixels",
+                value: pixelSizeBinding(for: token.id),
+                format: .number.precision(.fractionLength(0...1))
+            )
+            .labelsHidden()
+            .textFieldStyle(.roundedBorder)
+            .multilineTextAlignment(.trailing)
+            .frame(width: 90)
+            Text("px · \(token.size.formatted(.number.precision(.fractionLength(0...3)))) rem")
+                .foregroundStyle(.secondary)
+                .frame(width: 140, alignment: .leading)
+            if isCustom {
+                Button("Delete Size", systemImage: "trash", role: .destructive) {
                     editor.removeThemeFontSize(id: token.id)
-                } label: {
-                    Image(systemName: "trash")
                 }
+                .labelStyle(.iconOnly)
                 .buttonStyle(.borderless)
                 .help("Delete Custom Size")
             }
-
-            if expandedFontSizeID == token.id {
-                Divider()
-                    .padding(.vertical, 12)
-
-                VStack(alignment: .leading, spacing: 14) {
-                    sizeEditor(token)
-                    lineHeightEditor(token)
-                }
-            }
-        }
-        .padding(12)
-        .background(.quaternary, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-        .listRowBackground(Color.clear)
-        .listRowSeparator(.hidden)
-        .listRowInsets(EdgeInsets(top: 6, leading: 0, bottom: 6, trailing: 0))
-    }
-
-    private func sizeEditor(_ token: ThemeFontSize) -> some View {
-        HStack(spacing: 12) {
-            Text("Size")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .frame(width: 76, alignment: .leading)
-                .lineLimit(1)
-            Slider(value: pixelSizeBinding(for: token.id), in: 8...160, step: 1)
-                .frame(minWidth: 180)
-            HStack(spacing: 12) {
-                TextField(
-                    "Rem",
-                    value: fontSizeBinding(for: token.id),
-                    format: .number.precision(.fractionLength(0...3))
-                )
-                .labelsHidden()
-                .textFieldStyle(.roundedBorder)
-                .multilineTextAlignment(.trailing)
-                .frame(width: 72)
-                Text("rem")
-                    .foregroundStyle(.secondary)
-                    .frame(width: 28, alignment: .leading)
-                TextField(
-                    "Pixels",
-                    value: pixelSizeBinding(for: token.id),
-                    format: .number.precision(.fractionLength(0...1))
-                )
-                .labelsHidden()
-                .textFieldStyle(.roundedBorder)
-                .multilineTextAlignment(.trailing)
-                .frame(width: 72)
-                Text("px")
-                    .foregroundStyle(.secondary)
-                    .frame(width: 20, alignment: .leading)
-            }
-            .frame(width: 228, alignment: .trailing)
-        }
-    }
-
-    private func lineHeightEditor(_ token: ThemeFontSize) -> some View {
-        HStack(spacing: 12) {
-            Text("Line Height")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .frame(width: 76, alignment: .leading)
-                .lineLimit(1)
-            Slider(value: lineHeightBinding(for: token.id), in: 0...5, step: 1)
-            .labelsHidden()
-            .frame(minWidth: 180)
-            Text(token.lineHeight.title)
-                .foregroundStyle(.secondary)
-                .frame(width: 228, alignment: .leading)
         }
     }
 }
@@ -643,7 +525,6 @@ private struct ThemeSpacingSettings: View {
                     }
                     .labelStyle(.iconOnly)
                     .buttonStyle(.borderless)
-                    .disabled(spacing.usesStandardPredefinedScale)
                     .help("Reset Predefined Spacing Scale")
                 }
             }
@@ -1307,19 +1188,21 @@ private struct ThemeLibraryBrowser: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            ThemeLibraryToolbar(
-                createTheme: { isCreatingTheme = true },
-                importTheme: importTheme
-            )
+            ThemeLibraryToolbar()
             Divider()
             ScrollView {
                 LazyVGrid(columns: columns, spacing: 20) {
                     ForEach(library.themes) { savedTheme in
                         ThemeLibraryItem(
                             savedTheme: savedTheme,
-                            isSelected: selectedThemeID == savedTheme.id
+                            isSelected: selectedThemeID == savedTheme.id,
+                            isModified: selectedThemeID == savedTheme.id && savedTheme.theme != document.site.theme,
+                            createTheme: { isCreatingTheme = true },
+                            importTheme: importTheme
                         ) {
-                            applyTheme(savedTheme)
+                            selectTheme(savedTheme)
+                        } reset: {
+                            resetTheme(savedTheme)
                         } update: {
                             themePendingUpdate = savedTheme
                         } export: {
@@ -1334,7 +1217,8 @@ private struct ThemeLibraryBrowser: View {
         }
         .navigationTitle("Themes")
         .onAppear {
-            selectedThemeID = library.themes.first(where: { $0.theme == document.site.theme })?.id
+            library.reload()
+            selectedThemeID = document.site.themeSourceID
         }
         .sheet(isPresented: $isCreatingTheme) {
             ThemeCreationSheet { name, preview in
@@ -1343,6 +1227,10 @@ private struct ThemeLibraryBrowser: View {
                     from: document.site.theme,
                     preview: preview,
                     assetContents: document.assetContents
+                )
+                ProjectEditor(document: document, undoManager: undoManager).commitTheme(
+                    savedTheme.theme,
+                    sourceID: savedTheme.id
                 )
                 selectedThemeID = savedTheme.id
             }
@@ -1391,6 +1279,10 @@ private struct ThemeLibraryBrowser: View {
                 from: document.site.theme,
                 assetContents: document.assetContents
             )
+            ProjectEditor(document: document, undoManager: undoManager).commitTheme(
+                updated.theme,
+                sourceID: updated.id
+            )
             selectedThemeID = updated.id
         } catch {
             errorMessage = error.localizedDescription
@@ -1411,7 +1303,19 @@ private struct ThemeLibraryBrowser: View {
         }
     }
 
-    private func applyTheme(_ savedTheme: SavedTheme) {
+    private func selectTheme(_ savedTheme: SavedTheme) {
+        let theme = projectTheme(from: savedTheme)
+        ProjectEditor(document: document, undoManager: undoManager).selectTheme(theme, sourceID: savedTheme.id)
+        selectedThemeID = savedTheme.id
+    }
+
+    private func resetTheme(_ savedTheme: SavedTheme) {
+        let theme = projectTheme(from: savedTheme)
+        ProjectEditor(document: document, undoManager: undoManager).resetTheme(theme, sourceID: savedTheme.id)
+        selectedThemeID = savedTheme.id
+    }
+
+    private func projectTheme(from savedTheme: SavedTheme) -> Theme {
         var assetMapping: [UUID: UUID] = [:]
         for content in savedTheme.resources {
             let newID = document.importAsset(
@@ -1422,9 +1326,7 @@ private struct ThemeLibraryBrowser: View {
             )
             assetMapping[content.asset.id] = newID
         }
-        let theme = savedTheme.theme.remappingBundledFontAssets(assetMapping)
-        ProjectEditor(document: document, undoManager: undoManager).applyTheme(theme)
-        selectedThemeID = savedTheme.id
+        return savedTheme.theme.remappingBundledFontAssets(assetMapping)
     }
 
     private func exportTheme(_ savedTheme: SavedTheme) {
@@ -1449,20 +1351,15 @@ private struct ThemeLibraryBrowser: View {
             errorMessage = error.localizedDescription
         }
     }
+
 }
 
 private struct ThemeLibraryToolbar: View {
-    let createTheme: () -> Void
-    let importTheme: () -> Void
-
     var body: some View {
         HStack {
             Text("Theme Library")
                 .font(.headline)
             Spacer()
-            Button("Import Theme", systemImage: "square.and.arrow.down", action: importTheme)
-            Button("Create New Theme", systemImage: "plus", action: createTheme)
-                .buttonStyle(.borderedProminent)
         }
         .padding(.horizontal, 24)
         .padding(.vertical, 14)
@@ -1472,28 +1369,86 @@ private struct ThemeLibraryToolbar: View {
 private struct ThemeLibraryItem: View {
     let savedTheme: SavedTheme
     let isSelected: Bool
+    let isModified: Bool
+    let createTheme: () -> Void
+    let importTheme: () -> Void
     let apply: () -> Void
+    let reset: () -> Void
     let update: () -> Void
     let export: () -> Void
     let delete: () -> Void
 
     var body: some View {
-        Button(action: apply) {
-            VStack(alignment: .leading, spacing: 10) {
-                ThemeCardPreview(imageURL: savedTheme.previewURL, isSelected: isSelected)
-                Text(savedTheme.metadata.name)
-                    .font(.headline)
+        VStack(alignment: .leading, spacing: 10) {
+            Button(action: apply) {
+                ThemeCardPreview(imageURL: savedTheme.previewURL, isSelected: isSelected, isModified: isModified)
+            }
+            .buttonStyle(.plain)
+            HStack {
+                Button(action: apply) {
+                    Text(savedTheme.metadata.name)
+                        .font(.headline)
+                }
+                .buttonStyle(.plain)
+                Spacer()
+                Menu {
+                    ThemeActionCommands(
+                        savedTheme: savedTheme,
+                        createTheme: createTheme,
+                        importTheme: importTheme,
+                        resetTheme: reset,
+                        updateTheme: { _ in update() },
+                        exportTheme: { _ in export() },
+                        deleteTheme: { _ in delete() }
+                    )
+                } label: {
+                    Image(systemName: "ellipsis.circle")
+                }
+                .menuStyle(.borderlessButton)
+                .menuIndicator(.hidden)
+                .help("Theme Actions")
             }
         }
-        .buttonStyle(.plain)
         .contextMenu {
-            if !savedTheme.isBuiltIn {
-                Button("Update Theme", systemImage: "arrow.triangle.2.circlepath", action: update)
+            ThemeActionCommands(
+                savedTheme: savedTheme,
+                createTheme: createTheme,
+                importTheme: importTheme,
+                resetTheme: reset,
+                updateTheme: { _ in update() },
+                exportTheme: { _ in export() },
+                deleteTheme: { _ in delete() }
+            )
+        }
+    }
+}
+
+private struct ThemeActionCommands: View {
+    let savedTheme: SavedTheme?
+    let createTheme: () -> Void
+    let importTheme: () -> Void
+    let resetTheme: () -> Void
+    let updateTheme: (SavedTheme) -> Void
+    let exportTheme: (SavedTheme) -> Void
+    let deleteTheme: (SavedTheme) -> Void
+
+    var body: some View {
+        Button("Create New Theme", systemImage: "plus", action: createTheme)
+        Button("Import Theme", systemImage: "square.and.arrow.down", action: importTheme)
+        Divider()
+        Button("Reset Theme", systemImage: "arrow.counterclockwise", action: resetTheme)
+            .disabled(savedTheme == nil)
+        Button("Export Theme", systemImage: "square.and.arrow.up") {
+            if let savedTheme { exportTheme(savedTheme) }
+        }
+        .disabled(savedTheme == nil)
+        if let savedTheme, !savedTheme.isBuiltIn {
+            Button("Update Theme", systemImage: "arrow.triangle.2.circlepath") {
+                updateTheme(savedTheme)
             }
-            Button("Export Theme", systemImage: "square.and.arrow.up", action: export)
-            if !savedTheme.isBuiltIn {
-                Divider()
-                Button("Delete Theme", systemImage: "trash", role: .destructive, action: delete)
+            Divider()
+            Button("Delete Theme", systemImage: "trash", role: .destructive) {
+                deleteTheme(savedTheme)
             }
         }
     }
@@ -1502,6 +1457,7 @@ private struct ThemeLibraryItem: View {
 private struct ThemeCardPreview: View {
     let imageURL: URL
     let isSelected: Bool
+    let isModified: Bool
 
     var body: some View {
         Group {
@@ -1515,12 +1471,12 @@ private struct ThemeCardPreview: View {
                     .overlay { Image(systemName: "photo") }
             }
         }
-            .aspectRatio(1.6, contentMode: .fit)
+            .aspectRatio(0.625, contentMode: .fit)
             .clipShape(.rect(cornerRadius: 10))
             .overlay {
                 if isSelected {
                     RoundedRectangle(cornerRadius: 10)
-                        .stroke(.tint, lineWidth: 3)
+                        .stroke(isModified ? Color.orange : Color.accentColor, lineWidth: 3)
                 }
             }
     }
@@ -1533,6 +1489,7 @@ private struct ThemeCreationSheet: View {
     @State private var preview: ThemePreviewImage?
     @State private var previewImage: NSImage?
     @State private var errorMessage: String?
+    @State private var isPreviewDropTargeted = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
@@ -1550,25 +1507,38 @@ private struct ThemeCreationSheet: View {
                 Text("Preview Image")
                     .font(.headline)
                 Button(action: choosePreview) {
-                    Group {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 10)
+                            .fill(isPreviewDropTargeted ? Color.accentColor.opacity(0.12) : Color.primary.opacity(0.06))
+                        RoundedRectangle(cornerRadius: 10)
+                            .strokeBorder(
+                                isPreviewDropTargeted ? Color.accentColor : Color.secondary.opacity(0.45),
+                                style: StrokeStyle(lineWidth: 1.5, dash: [7, 5])
+                            )
                         if let previewImage {
                             Image(nsImage: previewImage)
                                 .resizable()
-                                .scaledToFill()
+                                .scaledToFit()
+                                .padding(12)
                         } else {
-                            ContentUnavailableView(
-                                "Choose Preview Image",
-                                systemImage: "photo.badge.plus",
-                                description: Text("PNG, JPEG, or WebP · exactly 1600 × 1000 px")
-                            )
+                            VStack(spacing: 10) {
+                                Image(systemName: "photo.badge.plus")
+                                    .font(.system(size: 30))
+                                Text("Drop a Preview Image Here")
+                                    .font(.headline)
+                                Text("or click to choose · PNG, JPEG, or WebP · exactly 1000 × 1600 px")
+                                    .foregroundStyle(.secondary)
+                            }
+                            .multilineTextAlignment(.center)
+                            .padding(24)
                         }
                     }
                     .frame(maxWidth: .infinity)
-                    .aspectRatio(1.6, contentMode: .fit)
-                    .background(.quaternary.opacity(0.5))
-                    .clipShape(.rect(cornerRadius: 10))
+                    .frame(height: 300)
+                    .contentShape(.rect)
                 }
                 .buttonStyle(.plain)
+                .onDrop(of: [.fileURL], isTargeted: $isPreviewDropTargeted, perform: acceptPreviewDrop)
             }
 
             if let errorMessage {
@@ -1599,6 +1569,29 @@ private struct ThemeCreationSheet: View {
         panel.allowsMultipleSelection = false
         panel.canChooseDirectories = false
         guard panel.runModal() == .OK, let url = panel.url else { return }
+        loadPreview(from: url)
+    }
+
+    private func acceptPreviewDrop(_ providers: [NSItemProvider]) -> Bool {
+        guard let provider = providers.first(where: { $0.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier) }) else {
+            return false
+        }
+        provider.loadObject(ofClass: NSURL.self) { item, error in
+            let url = (item as? NSURL).map { $0 as URL }
+            Task { @MainActor in
+                if let url {
+                    loadPreview(from: url)
+                } else {
+                    preview = nil
+                    previewImage = nil
+                    errorMessage = error?.localizedDescription ?? "The dropped item is not a readable image file."
+                }
+            }
+        }
+        return true
+    }
+
+    private func loadPreview(from url: URL) {
         do {
             preview = try ThemeBundleStore.preview(from: url)
             previewImage = NSImage(contentsOf: url)
@@ -1622,5 +1615,5 @@ private struct ThemeCreationSheet: View {
 }
 
 private extension UTType {
-    static let foundryTheme = UTType(importedAs: "com.foundry.theme", conformingTo: .bundle)
+    static let foundryTheme = UTType(exportedAs: "uk.co.garysimpson.foundry.theme", conformingTo: .package)
 }

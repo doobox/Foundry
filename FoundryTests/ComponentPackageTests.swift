@@ -123,6 +123,135 @@ struct ComponentPackageTests {
     }
 
     @Test
+    func namedThemeValuesDecodePopulateAndResolve() throws {
+        let plist = """
+        <?xml version="1.0" encoding="UTF-8"?>
+        <plist version="1.0"><dict>
+        <key>minimumAPIVersion</key><integer>1</integer>
+        <key>id</key><string>com.example.theme-values</string>
+        <key>title</key><string>Theme Values</string><key>description</key><string>Named theme sources</string>
+        <key>author</key><string>Foundry</string><key>version</key><string>1.0.0</string><key>group</key><string>Other</string>
+        <key>tags</key><array/><key>assets</key><array/><key>slots</key><array/>
+        <key>customItems</key><array><dict>
+        <key>id</key><string>tone</string><key>labels</key><string>Tone</string><key>group</key><string>Appearance</string>
+        <key>type</key><string>select</string><key>themeValues</key><string>spacing</string>
+        <key>allowsCustom</key><true/>
+        <key>options</key><array><dict><key>value</key><string>inherit</string><key>title</key><string>Inherit</string></dict></array>
+        <key>default</key><string>md</string><key>responsive</key><false/>
+        </dict></array>
+        <key>templates</key><dict><key>html</key><string>component.html</string></dict>
+        </dict></plist>
+        """
+        let manifest = try PropertyListDecoder().decode(ComponentPackageManifest.self, from: Data(plist.utf8))
+        let property = try #require(manifest.properties.first)
+
+        #expect(property.control.themeValues == .source(.spacing))
+        #expect(property.control.themeValueSource == .spacing)
+        #expect(property.control.allowsCustom == true)
+        let diagnostics = ComponentPackageValidator.validate(manifest, rootURL: FileManager.default.temporaryDirectory)
+        #expect(!diagnostics.contains { $0.location.contains("themeValues") || $0.message.contains("select default") })
+        #expect(ComponentPackageThemeValueResolver.choices(for: .spacing, theme: .standard).contains { $0.value == "md" })
+        #expect(ComponentPackageThemeValueResolver.resolve("md", from: .spacing, theme: .standard) == "var(--foundry-space-md)")
+
+        var theme = Theme.standard
+        theme.typography.customFontSizes.append(.init(id: "display", title: "Display", size: 5, lineHeight: .none))
+        let sizeChoices = ComponentPackageThemeValueResolver.choices(for: .fontSizes, theme: theme)
+        #expect(sizeChoices.first?.value == "xs")
+        #expect(sizeChoices.last?.value == "display")
+        #expect(sizeChoices.last?.separatorBefore == true)
+
+        do {
+            _ = try PropertyListDecoder().decode(
+                ComponentPackageControl.self,
+                from: Data("<plist version=\"1.0\"><dict><key>type</key><string>color</string><key>themeValues</key><true/></dict></plist>".utf8)
+            )
+            Issue.record("Boolean themeValues should be rejected")
+        } catch {
+            // String-only decoding intentionally rejects the removed API.
+        }
+    }
+
+    @Test
+    func enableConditionsDecodeAndEvaluateScalarAndIndexedValues() throws {
+        let plist = """
+        <?xml version="1.0" encoding="UTF-8"?>
+        <plist version="1.0"><dict>
+        <key>minimumAPIVersion</key><integer>1</integer>
+        <key>id</key><string>com.example.enable</string>
+        <key>title</key><string>Enable</string><key>description</key><string>Conditional controls</string>
+        <key>version</key><string>1.0.0</string><key>group</key><string>Other</string>
+        <key>assets</key><array/><key>slots</key><array/>
+        <key>customItems</key><array>
+        <dict><key>id</key><string>mode</string><key>labels</key><string>Mode</string><key>type</key><string>select</string><key>options</key><array><dict><key>value</key><string>featured</string><key>title</key><string>Featured</string></dict></array><key>default</key><string>featured</string><key>responsive</key><false/></dict>
+        <dict><key>id</key><string>titles</string><key>labels</key><array><string>One</string><string>Two</string><string>Three</string></array><key>type</key><string>text</string><key>count</key><integer>3</integer><key>default</key><array><string>One</string><string>Two</string><string>Featured story</string></array><key>responsive</key><false/></dict>
+        <dict><key>id</key><string>detail</string><key>labels</key><string>Detail</string><key>type</key><string>text</string><key>default</key><string>Visible</string><key>responsive</key><false/><key>enable</key><dict><key>id</key><string>titles[2]</string><key>operation</key><string>containsInsensitive</string><key>value</key><string>featured</string></dict></dict>
+        </array><key>templates</key><dict><key>html</key><string>component.html</string></dict>
+        </dict></plist>
+        """
+        let manifest = try PropertyListDecoder().decode(ComponentPackageManifest.self, from: Data(plist.utf8))
+        let enabledProperty = try #require(manifest.properties.last)
+        #expect(enabledProperty.enable?.id == "titles[2]")
+        #expect(enabledProperty.enable?.operation == "containsInsensitive")
+
+        #expect(ComponentPackageEnableEvaluator.evaluate(
+            .string("Featured story"),
+            operation: enabledProperty.enable?.operation ?? "",
+            expected: enabledProperty.enable?.value
+        ))
+        #expect(!ComponentPackageEnableEvaluator.evaluate(
+            .string("Ordinary story"),
+            operation: enabledProperty.enable?.operation ?? "",
+            expected: enabledProperty.enable?.value
+        ))
+        #expect(ComponentPackageEnableEvaluator.evaluate(.string(""), operation: "isEmpty", expected: nil))
+        #expect(ComponentPackageEnableEvaluator.evaluate(.number(10), operation: ">=", expected: .number(10)))
+    }
+
+    @Test
+    func enableConditionsDevelopmentFixtureLoads() throws {
+        let repositoryURL = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let fixtureURL = repositoryURL.appending(
+            path: "DevelopmentFixtures/EnableConditions.foundrydevpack",
+            directoryHint: .isDirectory
+        )
+        let package = try ComponentPackageLoader.load(from: fixtureURL)
+        #expect(package.manifest.identifier == "dev.foundry.enable_conditions")
+        #expect(package.manifest.properties.contains { $0.enable?.id == "titles[2]" })
+    }
+
+    @Test @MainActor
+    func themeValuesDevelopmentFixtureLoads() throws {
+        let repositoryURL = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let fixtureURL = repositoryURL.appending(
+            path: "DevelopmentFixtures/ThemeValues.foundrydevpack",
+            directoryHint: .isDirectory
+        )
+        let package = try ComponentPackageLoader.load(from: fixtureURL)
+        #expect(package.manifest.identifier == "dev.foundry.theme_values")
+        #expect(package.manifest.properties.contains { $0.control.themeValueSource == .fontFamilies })
+        #expect(package.manifest.properties.contains { $0.id == "topBorder" && $0.control.themeValueDefault == "accent" })
+        #expect(package.manifest.properties.contains { $0.id == "bottomBorder" && $0.control.themeValueDefault == "links" })
+        let background = try #require(ComponentPackageAdapter.definition(from: package).properties.first { $0.key.rawValue == "background" })
+        #expect(background.defaultValue == .packageColor(.init(source: "surface", customColor: "#FFF1F2", adjustment: 0, opacity: 1)))
+
+        ComponentRegistry.register(package)
+        var component = ComponentNode(type: ComponentType(rawValue: package.manifest.identifier))
+        component.setProperty(
+            .init(rawValue: "background"),
+            value: .packageColor(.init(source: "custom", customColor: "#123456", adjustment: 0, opacity: 1))
+        )
+        let site = Site(name: "Theme values", pages: [Page(title: "Home", slug: "index", components: [component])])
+        let html = HTMLPageRenderer(site: site).render(page: site.pages[0], theme: site.theme)
+        #expect(html.contains("border-top: 4px solid #5B5BD6"))
+        #expect(html.contains("border-bottom: 4px solid #5B5BD6"))
+        #expect(html.contains("background: #123456"))
+    }
+
+    @Test
     func virtualControlsAndButtonOutputsResolveFromManifestValues() throws {
         let plist = """
         <?xml version="1.0" encoding="UTF-8"?>
@@ -1256,13 +1385,13 @@ struct ComponentPackageTests {
         let sectionPadding = try #require(ComponentType.section.definition.properties.first {
             $0.key.rawValue == "padding"
         })
-        #expect(sectionPadding.defaultValue == .array([
-            .choice("2xl"), .choice("none"), .choice("2xl"), .choice("none")
-        ]))
+        #expect(sectionPadding.defaultValue == .packageSpacing(.init(
+            sources: ["2xl", "none", "2xl", "none"],
+            customValues: [64, 0, 64, 0]
+        )))
         #expect(sectionPadding.isResponsive)
-        if case .packageSpacing(let kind, let customValueKey, let range, let step) = sectionPadding.control {
+        if case .packageSpacing(let kind, let range, let step) = sectionPadding.control {
             #expect(kind == .padding)
-            #expect(customValueKey.rawValue == "paddingCustom")
             #expect(range == 0...320)
             #expect(step == 4)
         } else {
@@ -1271,13 +1400,13 @@ struct ComponentPackageTests {
         let sectionMargin = try #require(ComponentType.section.definition.properties.first {
             $0.key.rawValue == "margin"
         })
-        #expect(sectionMargin.defaultValue == .array([
-            .choice("none"), .choice("none"), .choice("none"), .choice("none")
-        ]))
+        #expect(sectionMargin.defaultValue == .packageSpacing(.init(
+            sources: ["none", "none", "none", "none"],
+            customValues: [0, 0, 0, 0]
+        )))
         #expect(sectionMargin.isResponsive)
-        if case .packageSpacing(let kind, let customValueKey, let range, let step) = sectionMargin.control {
+        if case .packageSpacing(let kind, let range, let step) = sectionMargin.control {
             #expect(kind == .margin)
-            #expect(customValueKey.rawValue == "marginCustom")
             #expect(range == -320...320)
             #expect(step == 4)
         } else {
@@ -1290,20 +1419,9 @@ struct ComponentPackageTests {
         #expect(ComponentType.image.definition.properties.contains {
             $0.key.rawValue == "alignment" && $0.defaultValue == .choice("center") && $0.isResponsive
         })
-        let bundleURL = try #require(Bundle.main.url(forResource: "BuiltInComponents", withExtension: "bundle"))
-        let componentBundle = try #require(Bundle(url: bundleURL))
-        let containerURL = try #require(
-            componentBundle.url(forResource: "BuiltInComponents", withExtension: "foundrypack")
-        )
-        let controlsURL = containerURL.appending(path: "Contents/Resources/Controls.foundrypack", directoryHint: .isDirectory)
-        let loadedControls = try ComponentPackageLoader.load(from: controlsURL)
-        #expect(loadedControls.manifest.properties.contains { $0.control.count == 4 })
-        let rhythmSliders = try #require(loadedControls.manifest.properties.first { $0.id == "rhythmSliders" })
-        #expect(rhythmSliders.labels == ["Glow", "Bounce", "Energy", "Joy"])
-        #expect(rhythmSliders.subtitles.count == 4)
-        let controls = catalog.packages["foundry.testing.controls"]
-        #expect(controls?.manifest.name == "Controls")
-        #expect(controls?.manifest.properties.contains { $0.control.count == 4 } == true)
+        let packagedIdentifiers = Set(catalog.packages.keys)
+        #expect(Set(ComponentRegistry.builtInTypes.map(\.rawValue)).isSubset(of: packagedIdentifiers))
+        #expect(catalog.packages["foundry.testing.controls"] == nil)
         let html = try #require(catalog.packages["foundry.content.html"])
         let htmlDefinition = ComponentPackageAdapter.definition(from: html)
         #expect(htmlDefinition.properties.contains { $0.key.rawValue == "html1" && !$0.isInspectorVisible })
@@ -1312,38 +1430,21 @@ struct ComponentPackageTests {
     @Test @MainActor
     func spacingControlsResolveThemeCustomAndAutomaticValuesAsCSSShorthand() {
         _ = ComponentPackageCatalog.shared
-        let paddingKey = ComponentProperty.Key(rawValue: "padding")
-        let paddingCustomKey = ComponentProperty.Key(rawValue: "paddingCustom")
-        var node = ComponentNode.make(.section)
-        node.setProperty(paddingKey, value: .array([
-            .choice("lg"), .choice("custom"), .choice("none"), .choice("3xs")
-        ]))
-        node.setProperty(paddingCustomKey, value: .array([
-            .number(0), .number(24), .number(0), .number(0)
-        ]))
-
         #expect(ComponentPackageSpacingResolver.resolve(
-            node: node,
-            key: paddingKey,
+            .init(
+                sources: ["lg", "custom", "none", "3xs"],
+                customValues: [0, 24, 0, 0]
+            ),
             theme: .standard,
-            customValueKey: paddingCustomKey,
             kind: .padding
         ) == "var(--foundry-space-lg) 24px 0 var(--foundry-space-3xs)")
 
-        let marginKey = ComponentProperty.Key(rawValue: "margin")
-        let marginCustomKey = ComponentProperty.Key(rawValue: "marginCustom")
-        node.setProperty(marginKey, value: .array([
-            .choice("custom"), .choice("auto"), .choice("sm"), .choice("auto")
-        ]))
-        node.setProperty(marginCustomKey, value: .array([
-            .number(-12), .number(0), .number(0), .number(0)
-        ]))
-
         #expect(ComponentPackageSpacingResolver.resolve(
-            node: node,
-            key: marginKey,
+            .init(
+                sources: ["custom", "auto", "sm", "auto"],
+                customValues: [-12, 0, 0, 0]
+            ),
             theme: .standard,
-            customValueKey: marginCustomKey,
             kind: .margin
         ) == "-12px auto var(--foundry-space-sm) auto")
     }
@@ -1353,27 +1454,35 @@ struct ComponentPackageTests {
         _ = ComponentPackageCatalog.shared
         let properties = ComponentType.paragraph.definition.properties
         let color = try #require(properties.first(where: { $0.key.rawValue == "textColor" }))
-        let custom = try #require(properties.first(where: { $0.key.rawValue == "textColorCustom" }))
-        let colorMath = try #require(properties.first(where: { $0.key.rawValue == "textColorColorMath" }))
-        let opacity = try #require(properties.first(where: { $0.key.rawValue == "textColorOpacity" }))
         let alignment = try #require(properties.first(where: { $0.key.rawValue == "textAlignment" }))
         let lineHeight = try #require(properties.first(where: { $0.key.rawValue == "lineHeight" }))
+        let textDecoration = try #require(properties.first(where: { $0.key.rawValue == "textDecoration" }))
 
-        #expect(color.defaultValue == .choice(ThemeColorRole.text.rawValue))
-        if case .packageColor(let themeValues, _, let mathKey, let opacityKey) = color.control {
+        #expect(color.defaultValue == .packageColor(.init(
+            source: ThemeColorRole.text.rawValue,
+            customColor: "#000000",
+            adjustment: 0,
+            opacity: 1
+        )))
+        if case .packageColor(let themeValues, let colorMath, let opacity) = color.control {
             #expect(themeValues)
-            #expect(mathKey == colorMath.key)
-            #expect(opacityKey == opacity.key)
+            #expect(colorMath)
+            #expect(opacity)
         } else {
             Issue.record("Paragraph should use the package colour control")
         }
-        #expect(custom.defaultValue == .color("#000000"))
-        #expect(colorMath.defaultValue == .number(0))
-        #expect(opacity.defaultValue == .number(1))
+        #expect(!properties.contains { $0.key.rawValue.hasPrefix("textColor") && $0.key != color.key })
         #expect(alignment.defaultValue == .choice("start"))
         #expect(alignment.isResponsive)
         if case .textAlignment = alignment.control {} else {
             Issue.record("Paragraph should use the specialised text-alignment control")
+        }
+        #expect(textDecoration.defaultValue == .choice("none"))
+        #expect(textDecoration.isResponsive)
+        if case .choice(let choices) = textDecoration.control {
+            #expect(choices.map(\.value) == ["none", "underline", "overline", "line-through"])
+        } else {
+            Issue.record("Paragraph should use a select control for text decoration")
         }
         #expect(lineHeight.defaultValue == .choice("theme"))
         #expect(lineHeight.isResponsive)
@@ -1392,6 +1501,11 @@ struct ComponentPackageTests {
                 "line-height: {{ control.lineHeight }}"
             ) == true
         )
+        #expect(
+            ComponentType.paragraph.definition.package?.css.contains(
+                "text-decoration-line: {{ control.textDecoration }}"
+            ) == true
+        )
 
         var paragraph = ComponentNode.make(.paragraph)
         var site = Site(name: "Line height", pages: [Page(title: "Home", slug: "index", components: [paragraph])])
@@ -1402,6 +1516,11 @@ struct ComponentPackageTests {
         site.pages[0].components = [paragraph]
         let overriddenHTML = HTMLPageRenderer(site: site).render(page: site.pages[0], theme: site.theme)
         #expect(overriddenHTML.contains("line-height: 2"))
+
+        paragraph.setProperty(.init(rawValue: "textDecoration"), value: .choice("underline"))
+        site.pages[0].components = [paragraph]
+        let underlinedHTML = HTMLPageRenderer(site: site).render(page: site.pages[0], theme: site.theme)
+        #expect(underlinedHTML.contains("text-decoration-line: underline"))
     }
 
     @Test

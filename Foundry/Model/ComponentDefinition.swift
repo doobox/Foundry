@@ -63,14 +63,6 @@ nonisolated enum ComponentPackageGroup: String, CaseIterable, Sendable {
 }
 
 nonisolated enum ComponentRenderKind: Sendable {
-    case section
-    case columns
-    case text
-    case heading
-    case button
-    case image
-    case divider
-    case spacer
     case package
     case unavailable
 }
@@ -83,6 +75,9 @@ nonisolated struct ComponentPropertyDefinition: Identifiable, Sendable {
     let defaultValue: ComponentProperty.Value
     let isResponsive: Bool
     let isInspectorVisible: Bool
+    let enable: ComponentPackageEnable?
+    let themeValueSource: ComponentPackageThemeValueSource?
+    let allowsCustomThemeValue: Bool
 
     var id: ComponentProperty.Key { key }
 
@@ -93,7 +88,10 @@ nonisolated struct ComponentPropertyDefinition: Identifiable, Sendable {
         control: ComponentPropertyControl,
         defaultValue: ComponentProperty.Value,
         isResponsive: Bool? = nil,
-        isInspectorVisible: Bool = true
+        isInspectorVisible: Bool = true,
+        enable: ComponentPackageEnable? = nil,
+        themeValueSource: ComponentPackageThemeValueSource? = nil,
+        allowsCustomThemeValue: Bool = false
     ) {
         self.key = key
         self.label = label
@@ -102,6 +100,9 @@ nonisolated struct ComponentPropertyDefinition: Identifiable, Sendable {
         self.defaultValue = defaultValue
         self.isResponsive = isResponsive ?? Self.builtInResponsiveKeys.contains(key)
         self.isInspectorVisible = isInspectorVisible
+        self.enable = enable
+        self.themeValueSource = themeValueSource
+        self.allowsCustomThemeValue = allowsCustomThemeValue
     }
 
     private static let builtInResponsiveKeys: Set<ComponentProperty.Key> = [
@@ -142,17 +143,15 @@ nonisolated enum ComponentPropertyControl: Sendable {
     case icon
     case packageColor(
         themeValues: Bool,
-        customColorKey: ComponentProperty.Key,
-        colorMathKey: ComponentProperty.Key?,
-        opacityKey: ComponentProperty.Key?
+        colorMath: Bool,
+        opacity: Bool
     )
     case choice([ComponentPropertyChoice])
     case themeFontFamily
     case themeFontSize
-    case packageFontSize(themeValues: Bool, customValueKey: ComponentProperty.Key)
+    case packageFontSize(themeValues: Bool)
     case packageSpacing(
         kind: ComponentSpacingKind,
-        customValueKey: ComponentProperty.Key,
         range: ClosedRange<Double>,
         step: Double
     )
@@ -182,6 +181,7 @@ nonisolated enum ComponentSpacingKind: String, Sendable {
 nonisolated struct ComponentPropertyChoice: Identifiable, Sendable {
     let value: String
     let label: String
+    var separatorBefore: Bool = false
 
     var id: String { value }
 }

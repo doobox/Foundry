@@ -1,5 +1,61 @@
 import Foundation
 
+nonisolated struct ProjectThemeValues: Codable, Equatable, Sendable {
+    var spacing: [ThemeSpacing] = []
+    var fonts: [ThemeCustomFont] = []
+    var fontSizes: [ThemeFontSize] = []
+
+    mutating func absorb(_ theme: Theme) {
+        spacing = theme.spacing.custom
+        fonts = theme.typography.customFonts
+        fontSizes = theme.typography.customFontSizes
+    }
+
+    mutating func include(_ theme: Theme) {
+        Self.mergeKeepingExisting(theme.spacing.custom, into: &spacing, id: \.id)
+        Self.mergeKeepingExisting(theme.typography.customFonts, into: &fonts, id: \.id)
+        Self.mergeKeepingExisting(theme.typography.customFontSizes, into: &fontSizes, id: \.id)
+    }
+
+    func applied(to theme: Theme) -> Theme {
+        var result = theme
+        Self.mergeReplacingExisting(spacing, into: &result.spacing.custom, id: \.id)
+        Self.mergeReplacingExisting(fonts, into: &result.typography.customFonts, id: \.id)
+        Self.mergeReplacingExisting(fontSizes, into: &result.typography.customFontSizes, id: \.id)
+        return result
+    }
+
+    private static func mergeReplacingExisting<Element, ID: Hashable>(
+        _ incoming: [Element],
+        into values: inout [Element],
+        id: KeyPath<Element, ID>
+    ) {
+        for value in incoming {
+            if let index = values.firstIndex(where: { $0[keyPath: id] == value[keyPath: id] }) {
+                values[index] = value
+            } else {
+                values.append(value)
+            }
+        }
+    }
+
+    private static func mergeKeepingExisting<Element, ID: Hashable>(
+        _ incoming: [Element],
+        into values: inout [Element],
+        id: KeyPath<Element, ID>
+    ) {
+        let existing = Set(values.map { $0[keyPath: id] })
+        values.append(contentsOf: incoming.filter { !existing.contains($0[keyPath: id]) })
+    }
+}
+
+nonisolated struct ProjectThemeState: Codable, Equatable, Identifiable, Sendable {
+    let sourceID: UUID
+    var theme: Theme
+
+    var id: UUID { sourceID }
+}
+
 nonisolated enum PublishingDestinationKind: String, Codable, CaseIterable, Sendable {
     case local
     case sftp
@@ -32,7 +88,7 @@ nonisolated enum PublishingDestinationKind: String, Codable, CaseIterable, Senda
 }
 
 nonisolated struct Site: Codable, Equatable, Identifiable, Sendable {
-    static let currentSchemaVersion = 9
+    static let currentSchemaVersion = 11
 
     let id: UUID
     var schemaVersion: Int
@@ -63,12 +119,24 @@ nonisolated struct Site: Codable, Equatable, Identifiable, Sendable {
     var pages: [Page]
     var pageFolders: [PageFolder]
     var theme: Theme
+    var themeSourceID: UUID
+    var projectThemeValues: ProjectThemeValues
+    var themeStates: [ProjectThemeState]
     var reusableComponents: [ReusableComponentDefinition]
     var globalComponents: [ReusableComponentDefinition]
     var assetLibrary: [ProjectAssetNode]
     var componentPackages: [ComponentPackageLock]
 
     var assets: [ProjectAsset] { assetLibrary.flatMap(\.allAssets) }
+
+    mutating func saveActiveThemeState() {
+        let state = ProjectThemeState(sourceID: themeSourceID, theme: theme)
+        if let index = themeStates.firstIndex(where: { $0.sourceID == themeSourceID }) {
+            themeStates[index] = state
+        } else {
+            themeStates.append(state)
+        }
+    }
 
     init(
         id: UUID = UUID(),
@@ -100,6 +168,9 @@ nonisolated struct Site: Codable, Equatable, Identifiable, Sendable {
         pages: [Page],
         pageFolders: [PageFolder] = [],
         theme: Theme = ThemeBundleStore.systemTheme,
+        themeSourceID: UUID = ThemeBundleStore.systemThemeID,
+        projectThemeValues: ProjectThemeValues = .init(),
+        themeStates: [ProjectThemeState] = [],
         reusableComponents: [ReusableComponentDefinition] = [],
         globalComponents: [ReusableComponentDefinition] = [],
         assetLibrary: [ProjectAssetNode],
@@ -134,6 +205,9 @@ nonisolated struct Site: Codable, Equatable, Identifiable, Sendable {
         self.pages = pages
         self.pageFolders = pageFolders
         self.theme = theme
+        self.themeSourceID = themeSourceID
+        self.projectThemeValues = projectThemeValues
+        self.themeStates = themeStates
         self.reusableComponents = reusableComponents
         self.globalComponents = globalComponents
         self.assetLibrary = assetLibrary
@@ -173,7 +247,7 @@ nonisolated struct Site: Codable, Equatable, Identifiable, Sendable {
     }
 
     private enum CodingKeys: String, CodingKey {
-        case id, schemaVersion, name, language, publicURL, titleSuffix, defaultDescription, favicon, defaultSocialImage, generatesCanonicalURLs, generatesSitemap, generatesRobotsTXT, allowsSearchIndexing, customCodeEnabled, headCode, bodyStartCode, bodyEndCode, analyticsCode, cleansObsoleteExportFiles, publishingDestination, publishingHost, publishingPort, publishingUsername, publishingRemotePath, publishingS3Bucket, publishingS3Region, pages, pageFolders, theme, reusableComponents, globalComponents, assetLibrary, componentPackages
+        case id, schemaVersion, name, language, publicURL, titleSuffix, defaultDescription, favicon, defaultSocialImage, generatesCanonicalURLs, generatesSitemap, generatesRobotsTXT, allowsSearchIndexing, customCodeEnabled, headCode, bodyStartCode, bodyEndCode, analyticsCode, cleansObsoleteExportFiles, publishingDestination, publishingHost, publishingPort, publishingUsername, publishingRemotePath, publishingS3Bucket, publishingS3Region, pages, pageFolders, theme, themeSourceID, projectThemeValues, themeStates, reusableComponents, globalComponents, assetLibrary, componentPackages
     }
 
     init(from decoder: Decoder) throws {
@@ -207,6 +281,9 @@ nonisolated struct Site: Codable, Equatable, Identifiable, Sendable {
         pages = try container.decode([Page].self, forKey: .pages)
         pageFolders = try container.decodeIfPresent([PageFolder].self, forKey: .pageFolders) ?? []
         theme = try container.decode(Theme.self, forKey: .theme)
+        themeSourceID = try container.decode(UUID.self, forKey: .themeSourceID)
+        projectThemeValues = try container.decode(ProjectThemeValues.self, forKey: .projectThemeValues)
+        themeStates = try container.decode([ProjectThemeState].self, forKey: .themeStates)
         reusableComponents = try container.decodeIfPresent(
             [ReusableComponentDefinition].self,
             forKey: .reusableComponents
@@ -228,14 +305,14 @@ nonisolated struct Site: Codable, Equatable, Identifiable, Sendable {
                     type: .paragraph,
                     name: "Paragraph",
                     properties: [
-                        .init(key: .text, value: .string("Build something remarkable."))
+                        .init(key: .init(rawValue: "content1"), value: .string("Build something remarkable."))
                     ]
                 ),
                 ComponentNode(
                     type: .button,
                     name: "Call to action",
                     properties: [
-                        .init(key: .text, value: .string("Get started")),
+                        .init(key: .init(rawValue: "content1"), value: .string("Get started")),
                         .init(key: .destination, value: .link(.init(destination: .url("#get-started"))))
                     ]
                 )

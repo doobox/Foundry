@@ -8,7 +8,7 @@ struct HTMLPageRenderer: PageRendering {
 
     init(site: Site? = nil) { self.site = site }
     func render(page: Page, theme: Theme) -> String {
-        render(page: page, language: "en", theme: theme, assets: [:], breakpoint: .desktop)
+        render(page: page, language: "en", theme: theme, assets: [:], breakpoint: .extraLarge)
     }
 
     func render(page: Page, language: String, theme: Theme, assets: [UUID: ProjectAssetContent], breakpoint: ResponsiveBreakpoint) -> String {
@@ -41,11 +41,12 @@ struct HTMLPageRenderer: PageRendering {
           <style>
             \(theme.fontSourceCSS(assets: assets, destination: .canvas))
             :root {
-              font-size: \(theme.typography.baseSize)px;
+              font-size: \(theme.typography.bodySize)px;
               --foundry-color-background: \(theme.colors.background);
               --foundry-color-surface: \(theme.colors.surface);
               --foundry-color-text: \(theme.colors.text);
               --foundry-color-accent: \(theme.colors.accent);
+              --foundry-color-links: \(theme.colors.links);
               --foundry-font-body: \(theme.typography.bodyFont.cssFamily);
               --foundry-font-heading: \(theme.typography.headingFont.cssFamily);
               --foundry-font-monospace: \(theme.typography.monospacedFont.cssFamily);
@@ -56,6 +57,7 @@ struct HTMLPageRenderer: PageRendering {
               \(theme.spacingCSSVariables)
             }
             *, *::before, *::after { box-sizing: border-box; }
+            a { color: var(--foundry-color-links); }
             \(theme.screens.containerCSS)
             .foundry-container { width: 100%; max-width: var(--foundry-container-width) !important; }
             [data-foundry-id] {
@@ -157,7 +159,6 @@ struct HTMLPageRenderer: PageRendering {
             .unavailable { padding: 16px; border: 2px dashed #C33; color: #922; background: #FFF5F5; }
             \(FoundryWebLibraryRegistry.canvasCSS(for: ComponentArtifactPlan(page: page).packages))
             \(packageStyles(for: page, theme: theme, assets: assets, breakpoint: breakpoint))
-            \(themeControlStyles(for: page, theme: theme, breakpoint: breakpoint))
           </style>
         \(analyticsCode)
         \(headEnd)
@@ -298,68 +299,6 @@ struct HTMLPageRenderer: PageRendering {
         let node = sourceNode.resolved(at: breakpoint)
         let globalDefinitionID = node.reusableDefinitionID ?? globalDefinitionID
         switch node.type.definition.renderKind {
-        case .section:
-            let style = sharedStyles(for: node, theme: theme).joined(separator: "; ")
-            let children = renderedChildren(of: node, theme: theme, assets: assets, globalDefinitionID: globalDefinitionID, breakpoint: breakpoint)
-            return "<section class=\"foundry-section\" \(attributes(for: node, globalDefinitionID: globalDefinitionID)) style=\"\(style)\">\(children)</section>"
-        case .columns:
-            let count = clamped(node.numberProperty(.columnCount), to: 1...6)
-            let gap = clamped(node.numberProperty(.gap), to: 0...120)
-            let style = (sharedStyles(for: node, theme: theme) + [
-                "grid-template-columns: repeat(\(count), minmax(0, 1fr))",
-                "gap: \(gap)px"
-            ]).joined(separator: "; ")
-            let children = renderedChildren(of: node, theme: theme, assets: assets, globalDefinitionID: globalDefinitionID, breakpoint: breakpoint)
-            return "<section class=\"foundry-columns\" \(attributes(for: node, globalDefinitionID: globalDefinitionID)) style=\"\(style)\">\(children)</section>"
-        case .text:
-            let color = safeHex(node.colorProperty(.textColor, theme: theme), fallback: "#171719")
-            let size = clamped(node.numberProperty(.fontSize), to: 10...120)
-            let alignment = cssAlignment(node.property(.alignment))
-            let style = (sharedStyles(for: node, theme: theme) + [
-                "color: \(color)",
-                "font-size: \(size)px",
-                "text-align: \(alignment)"
-            ]).joined(separator: "; ")
-            return "<div class=\"foundry-text\" \(attributes(for: node, globalDefinitionID: globalDefinitionID)) style=\"\(style)\">\(escape(node.property(.text)))</div>"
-        case .heading:
-            let color = safeHex(node.colorProperty(.textColor, theme: theme), fallback: "#171719")
-            let size = clamped(node.numberProperty(.fontSize), to: 10...120)
-            let level = Int(node.property(.headingLevel)) ?? 2
-            let safeLevel = min(max(level, 1), 6)
-            let style = (sharedStyles(for: node, theme: theme) + [
-                "color: \(color)", "font-size: \(size)px", "text-align: \(cssAlignment(node.property(.alignment)))"
-            ]).joined(separator: "; ")
-            return "<h\(safeLevel) class=\"foundry-heading\" \(attributes(for: node, globalDefinitionID: globalDefinitionID)) style=\"\(style)\">\(escape(node.property(.text)))</h\(safeLevel)>"
-        case .button:
-            let title = escape(node.property(.text))
-            let link = resolvedLink(for: node)
-            let label = escapeAttribute(node.property(.accessibilityLabel))
-            let ariaLabel = label.isEmpty ? "" : " aria-label=\"\(label)\""
-            let target = link.target.isEmpty ? "" : " target=\"\(escapeAttribute(link.target))\""
-            let customAttributes = link.attributes.isEmpty ? "" : " \(link.attributes)"
-            let color = safeHex(node.colorProperty(.textColor, theme: theme), fallback: "#FFFFFF")
-            let size = clamped(node.numberProperty(.fontSize), to: 10...72)
-            let style = (sharedStyles(for: node, theme: theme) + [
-                "color: \(color)",
-                "font-size: \(size)px"
-            ]).joined(separator: "; ")
-            return "<a class=\"foundry-button\" \(attributes(for: node, globalDefinitionID: globalDefinitionID)) style=\"\(style)\" href=\"\(escapeAttribute(link.href))\"\(target)\(ariaLabel)\(customAttributes)>\(title)</a>"
-        case .image:
-            let source = escapeAttribute(canvasSource(node.property(.source), assets: assets))
-            let altText = escapeAttribute(node.property(.altText))
-            let style = sharedStyles(for: node, theme: theme).joined(separator: "; ")
-            if source.isEmpty {
-                return "<div class=\"foundry-image foundry-empty-drop-zone\" \(attributes(for: node, globalDefinitionID: globalDefinitionID)) style=\"\(style)\">Drop an image here</div>"
-            }
-            return "<img class=\"foundry-image\" \(attributes(for: node, globalDefinitionID: globalDefinitionID)) style=\"\(style)\" src=\"\(source)\" alt=\"\(altText)\">"
-        case .divider:
-            let color = safeHex(node.colorProperty(.borderColor, theme: theme), fallback: "#D9D9DE")
-            let width = clamped(node.numberProperty(.borderWidth), to: 1...24)
-            let style = (sharedStyles(for: node, theme: theme) + ["border: 0", "border-top: \(width)px solid \(color)"]).joined(separator: "; ")
-            return "<hr class=\"foundry-divider\" \(attributes(for: node, globalDefinitionID: globalDefinitionID)) style=\"\(style)\">"
-        case .spacer:
-            let height = clamped(node.numberProperty(.height), to: 0...600)
-            return "<div class=\"foundry-spacer\" \(attributes(for: node, globalDefinitionID: globalDefinitionID)) style=\"min-height: \(height)px\"><div class=\"foundry-empty-drop-zone foundry-contentless-drop-zone\" data-foundry-adjacent-target=\"\(node.id.uuidString)\">Spacer · \(height)px — drop before or after</div></div>"
         case .package:
             guard let package = node.type.definition.package else {
                 return unavailableComponent(node, theme: theme, assets: assets, globalDefinitionID: globalDefinitionID, breakpoint: breakpoint)
@@ -371,6 +310,12 @@ struct HTMLPageRenderer: PageRendering {
                 }.joined()
                 return (slot.id, html.isEmpty ? "<div class=\"foundry-empty-drop-zone\" data-foundry-empty-parent=\"\(node.id.uuidString)\" data-foundry-slot-id=\"\(escapeAttribute(slot.id))\">Drop a component into \(escape(slot.title))</div>" : html)
             })
+            let adjacentDropAttribute = package.manifest.slots.isEmpty
+                ? " data-foundry-adjacent-target=\"\(node.id.uuidString)\""
+                : ""
+            let canvasAttributes = attributes(for: node, globalDefinitionID: globalDefinitionID) +
+                " data-foundry-package=\"\(escapeAttribute(package.manifest.identifier))\"" +
+                adjacentDropAttribute
             let rendered = ComponentTemplateRenderer.render(
                 package.htmlTemplate,
                 context: .init(
@@ -378,8 +323,7 @@ struct HTMLPageRenderer: PageRendering {
                     packageIdentifier: package.manifest.identifier,
                     properties: packageProperties(node, theme: theme, assets: assets),
                     slots: slots,
-                    componentAttributes: attributes(for: node, globalDefinitionID: globalDefinitionID) +
-                        " data-foundry-package=\"\(escapeAttribute(package.manifest.identifier))\"",
+                    componentAttributes: canvasAttributes,
                     assetBasePath: package.resourceRootURL.absoluteString,
                     enablesEditorMarkup: true,
                     richTextLinkContext: richTextLinkContext
@@ -389,24 +333,10 @@ struct HTMLPageRenderer: PageRendering {
                 package.htmlTemplate.contains("{{component.attributes}}") {
                 return rendered
             }
-            return "<div \(attributes(for: node, globalDefinitionID: globalDefinitionID)) data-foundry-package=\"\(escapeAttribute(package.manifest.identifier))\">\(rendered)</div>"
+            return "<div \(canvasAttributes)>\(rendered)</div>"
         case .unavailable:
             return unavailableComponent(node, theme: theme, assets: assets, globalDefinitionID: globalDefinitionID, breakpoint: breakpoint)
         }
-    }
-
-    private func resolvedLink(for node: ComponentNode) -> ComponentLinkResolver.Result {
-        guard case .link(let link) = node.propertyValue(.destination) else {
-            return .init(href: "", target: "", attributes: "")
-        }
-        return ComponentLinkResolver.resolve(
-            link,
-            pages: site?.pages ?? [],
-            folders: site?.pageFolders ?? [],
-            assets: site?.assets ?? [],
-            publicURL: site?.publicURL ?? "",
-            absoluteURL: false
-        )
     }
 
     private var richTextLinkContext: FoundryRichTextCodec.LinkContext {
@@ -466,29 +396,29 @@ struct HTMLPageRenderer: PageRendering {
         return [instanceStyles, htmlStyles, pageStyles].filter { !$0.isEmpty }.joined(separator: "\n")
     }
 
-    private func themeControlStyles(
-        for page: Page,
-        theme: Theme,
-        breakpoint: ResponsiveBreakpoint
-    ) -> String {
-        page.components.flatMap(flattened).compactMap { sourceNode in
-            let node = sourceNode.resolved(at: breakpoint)
-            guard node.type.definition.package == nil else { return nil }
-            var declarations: [String] = []
-            if node.type.definition.properties.contains(where: { $0.control.isThemeFontFamily }) {
-                declarations.append("font-family: \(theme.fontCSSVariable(for: node.property(.themeFontFamily)))")
-            }
-            if node.type.definition.properties.contains(where: { $0.control.isThemeFontSize }) {
-                declarations.append(contentsOf: ThemeTypographyControlCSS.declarations(for: node, theme: theme))
-            }
-            guard !declarations.isEmpty else { return nil }
-            return "[data-foundry-id=\"\(node.id.uuidString)\"] { \(declarations.joined(separator: "; ")); }"
-        }.joined(separator: "\n")
-    }
-
     private func packageProperties(_ node: ComponentNode, theme: Theme, assets: [UUID: ProjectAssetContent]) -> [String: ComponentPackageValue] {
         var values: [String: ComponentPackageValue] = Dictionary(uniqueKeysWithValues: node.type.definition.properties.map { definition in
             let value = node.propertyValue(definition.key)
+            if let source = definition.themeValueSource,
+               case .choice(let reference) = value,
+               let resolved = ComponentPackageThemeValueResolver.resolve(reference, from: source, theme: theme) {
+                return (definition.key.rawValue, .string(resolved))
+            }
+            if let source = definition.themeValueSource,
+               case .array(let items) = value {
+                return (definition.key.rawValue, .array(items.map { item in
+                    let reference: String
+                    switch item {
+                    case .choice(let value), .string(let value): reference = value
+                    default: return packageValue(item)
+                    }
+                    guard
+                          let resolved = ComponentPackageThemeValueResolver.resolve(reference, from: source, theme: theme) else {
+                        return packageValue(item)
+                    }
+                    return .string(resolved)
+                }))
+            }
             if case .asset = definition.control,
                case .url(let source) = value {
                 return (definition.key.rawValue, .string(canvasSource(source, assets: assets)))
@@ -496,13 +426,13 @@ struct HTMLPageRenderer: PageRendering {
             if case .color = definition.control {
                 return (definition.key.rawValue, .string(node.colorProperty(definition.key, theme: theme)))
             }
-            if case .packageColor(_, let customColorKey, let colorMathKey, let opacityKey) = definition.control {
+            if case .packageColor(_, let colorMath, let opacity) = definition.control,
+               case .packageColor(let colorValue) = value {
                 return (
                     definition.key.rawValue,
                     .string(ComponentPackageColorResolver.resolve(
-                        node: node, key: definition.key, theme: theme,
-                        customColorKey: customColorKey,
-                        colorMathKey: colorMathKey, opacityKey: opacityKey
+                        colorValue, theme: theme,
+                        colorMath: colorMath, opacity: opacity
                     ))
                 )
             }
@@ -512,20 +442,19 @@ struct HTMLPageRenderer: PageRendering {
             if case .themeFontSize = definition.control {
                 return (definition.key.rawValue, .string(theme.fontSizeCSSVariable(for: node.property(definition.key))))
             }
-            if case .packageFontSize(let themeValues, let customValueKey) = definition.control {
-                let source = node.property(definition.key)
-                let resolved = !themeValues || source == "custom"
-                    ? node.property(customValueKey) : theme.fontSizeCSSVariable(for: source)
+            if case .packageFontSize(let themeValues) = definition.control,
+               case .packageFontSize(let fontSizeValue) = value {
+                let resolved = !themeValues || fontSizeValue.source == "custom"
+                    ? fontSizeValue.customValue : theme.fontSizeCSSVariable(for: fontSizeValue.source)
                 return (definition.key.rawValue, .string(resolved))
             }
-            if case .packageSpacing(let kind, let customValueKey, _, _) = definition.control {
+            if case .packageSpacing(let kind, _, _) = definition.control,
+               case .packageSpacing(let spacingValue) = value {
                 return (
                     definition.key.rawValue,
                     .string(ComponentPackageSpacingResolver.resolve(
-                        node: node,
-                        key: definition.key,
+                        spacingValue,
                         theme: theme,
-                        customValueKey: customValueKey,
                         kind: kind
                     ))
                 )
@@ -577,6 +506,9 @@ struct HTMLPageRenderer: PageRendering {
         case .token(let value): .string(value.rawValue)
         case .array(let values): .array(values.map(packageValue))
         case .link: .string("")
+        case .packageColor(let value): .string(value.source)
+        case .packageFontSize(let value): .string(value.source)
+        case .packageSpacing(let value): .array(value.sources.map(ComponentPackageValue.string))
         }
     }
 
@@ -622,61 +554,12 @@ struct HTMLPageRenderer: PageRendering {
         return output as Data
     }
 
-    private func sharedStyles(for node: ComponentNode, theme: Theme) -> [String] {
-        var styles: [String] = []
-        if node.type.definition.properties.contains(where: { $0.key == .backgroundColor }) {
-            styles.append("background-color: \(safeHex(node.colorProperty(.backgroundColor, theme: theme), fallback: "#FFFFFF"))")
-        }
-        if node.type.definition.properties.contains(where: { $0.key == .borderColor }) {
-            styles.append("border: \(clamped(node.numberProperty(.borderWidth, theme: theme), to: 0...24))px solid \(safeHex(node.colorProperty(.borderColor, theme: theme), fallback: "#D9D9DE"))")
-            styles.append("border-radius: \(clamped(node.numberProperty(.cornerRadius), to: 0...160))px")
-        }
-        styles.append("padding: \(clamped(node.numberProperty(.padding, theme: theme), to: 0...160))px")
-        styles.append("margin-top: \(clamped(node.numberProperty(.marginTop, theme: theme), to: 0...240))px")
-        styles.append("margin-bottom: \(clamped(node.numberProperty(.marginBottom, theme: theme), to: 0...240))px")
-
-        let maxWidth = min(max(node.numberProperty(.maxWidth), 0), 1600)
-        if maxWidth > 0 {
-            styles.append("max-width: \(clamped(maxWidth, to: 0...1600))px")
-        }
-        styles.append(contentsOf: horizontalPosition(node.property(.horizontalAlignment)))
-        return styles
-    }
-
-    private func horizontalPosition(_ value: String) -> [String] {
-        switch value {
-        case "center": ["margin-left: auto", "margin-right: auto"]
-        case "trailing": ["margin-left: auto", "margin-right: 0"]
-        default: ["margin-left: 0", "margin-right: auto"]
-        }
-    }
-
     private func attributes(for node: ComponentNode, globalDefinitionID: UUID?) -> String {
         let acceptsChildren = node.type.definition.allowsChildren ? "true" : "false"
         let globalAttributes = globalDefinitionID.map {
             " data-foundry-global=\"\($0.uuidString)\" data-foundry-global-override=\"\(node.overridesGlobalDefinition == true)\""
         } ?? ""
         return "id=\"foundry-\(node.id.uuidString.lowercased())\" data-foundry-id=\"\(node.id.uuidString)\" data-foundry-type=\"\(escapeAttribute(node.type.displayName))\" data-foundry-name=\"\(escapeAttribute(node.name))\" data-foundry-accepts-children=\"\(acceptsChildren)\"\(globalAttributes)"
-    }
-
-    private func cssAlignment(_ value: String) -> String {
-        switch value {
-        case "center": "center"
-        case "trailing": "right"
-        default: "left"
-        }
-    }
-
-    private func safeHex(_ value: String, fallback: String) -> String {
-        let digits = value.hasPrefix("#") ? value.dropFirst() : Substring()
-        guard digits.count == 6, digits.allSatisfy({ $0.isHexDigit }) else {
-            return fallback
-        }
-        return "#\(digits)"
-    }
-
-    private func clamped(_ value: Double, to range: ClosedRange<Double>) -> String {
-        min(max(value, range.lowerBound), range.upperBound).formatted(.number.precision(.fractionLength(0...2)))
     }
 
     private func escape(_ value: String) -> String {

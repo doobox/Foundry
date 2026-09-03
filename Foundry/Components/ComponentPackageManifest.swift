@@ -126,6 +126,7 @@ nonisolated struct ComponentPackageProperty: Codable, Equatable, Identifiable, S
     let subtitles: [String]
     let units: [String]
     let toolTip: String?
+    let enable: ComponentPackageEnable?
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -136,6 +137,7 @@ nonisolated struct ComponentPackageProperty: Codable, Equatable, Identifiable, S
         case subtitles
         case units
         case toolTip
+        case enable
     }
 
     init(from decoder: Decoder) throws {
@@ -145,6 +147,7 @@ nonisolated struct ComponentPackageProperty: Codable, Equatable, Identifiable, S
         control = try ComponentPackageControl(from: decoder)
         subtitles = try container.decodeIfPresent([String].self, forKey: .subtitles) ?? []
         toolTip = try container.decodeIfPresent(String.self, forKey: .toolTip)
+        enable = try container.decodeIfPresent(ComponentPackageEnable.self, forKey: .enable)
 
         if control.count != nil {
             labels = try container.decode([String].self, forKey: .labels)
@@ -194,6 +197,32 @@ nonisolated struct ComponentPackageProperty: Codable, Equatable, Identifiable, S
             try container.encode(subtitles, forKey: .subtitles)
         }
         try container.encodeIfPresent(toolTip, forKey: .toolTip)
+        try container.encodeIfPresent(enable, forKey: .enable)
+    }
+}
+
+nonisolated struct ComponentPackageEnable: Codable, Equatable, Sendable {
+    let id: String
+    let operation: String
+    let value: ComponentPackageValue?
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case operation
+        case value
+    }
+
+    init(id: String, operation: String = "==", value: ComponentPackageValue? = nil) {
+        self.id = id
+        self.operation = operation
+        self.value = value
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        operation = try container.decodeIfPresent(String.self, forKey: .operation) ?? "=="
+        value = try container.decodeIfPresent(ComponentPackageValue.self, forKey: .value)
     }
 }
 
@@ -227,11 +256,12 @@ nonisolated struct ComponentPackageControl: Codable, Equatable, Sendable {
     let maximum: Double?
     let step: Double?
     let options: [ComponentPackageOption]?
-    let themeValues: Bool?
+    let themeValues: ComponentPackageThemeValues?
+    let allowsCustom: Bool?
     let colorMath: Bool?
     let opacity: Bool?
     let customColor: String?
-    let customValue: [Double]?
+    let customValue: ComponentPackageValue?
     let count: Int?
     let ticks: Int?
     let showsValueField: Bool?
@@ -244,6 +274,47 @@ nonisolated struct ComponentPackageControl: Codable, Equatable, Sendable {
     let operation: String?
     let round: Bool?
     let absoluteURL: Bool?
+}
+
+nonisolated enum ComponentPackageThemeValueSource: String, Codable, CaseIterable, Sendable {
+    case colors
+    case fontFamilies
+    case fontSizes
+    case spacing
+}
+
+nonisolated enum ComponentPackageThemeValues: Codable, Equatable, Sendable {
+    case source(ComponentPackageThemeValueSource)
+    case defaultValue(String)
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        let value = try container.decode(String.self)
+        self = ComponentPackageThemeValueSource(rawValue: value).map(Self.source) ?? .defaultValue(value)
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        switch self {
+        case .source(let source): try container.encode(source)
+        case .defaultValue(let value): try container.encode(value)
+        }
+    }
+}
+
+nonisolated extension ComponentPackageControl {
+    var themeValueSource: ComponentPackageThemeValueSource? {
+        switch themeValues {
+        case .source(let source): source
+        case .defaultValue: type == .color ? .colors : nil
+        case nil: nil
+        }
+    }
+
+    var themeValueDefault: String? {
+        guard case .defaultValue(let value) = themeValues else { return nil }
+        return value
+    }
 }
 
 nonisolated struct ComponentPackageOption: Codable, Equatable, Identifiable, Sendable {
@@ -280,6 +351,14 @@ nonisolated enum ComponentPackageValue: Codable, Equatable, Sendable {
         case .boolean(let value): try container.encode(value)
         case .array(let value): try container.encode(value)
         }
+    }
+
+    var stringValue: String {
+        if case .string(let value) = self { value } else { "" }
+    }
+
+    var numberValue: Double? {
+        if case .number(let value) = self { value } else { nil }
     }
 }
 

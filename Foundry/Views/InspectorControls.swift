@@ -113,6 +113,7 @@ struct InspectorRowIndicator {
 struct InspectorPopupOption<Value: Hashable>: Identifiable, Equatable {
     let title: String
     let value: Value
+    var separatorBefore: Bool = false
 
     var id: Value { value }
 }
@@ -187,12 +188,19 @@ struct InspectorPopup<Value: Hashable>: NSViewRepresentable {
 
     private func rebuildMenu(of popup: NSPopUpButton) {
         popup.removeAllItems()
-        popup.addItems(withTitles: options.map(\.title))
+        for (index, option) in options.enumerated() {
+            if option.separatorBefore, popup.numberOfItems > 0 {
+                popup.menu?.addItem(.separator())
+            }
+            let item = NSMenuItem(title: option.title, action: nil, keyEquivalent: "")
+            item.tag = index
+            popup.menu?.addItem(item)
+        }
     }
 
     private func updateSelection(of popup: NSPopUpButton) {
         if let selectedIndex = options.firstIndex(where: { $0.value == selection }) {
-            popup.selectItem(at: selectedIndex)
+            popup.select(popup.itemArray.first(where: { !$0.isSeparatorItem && $0.tag == selectedIndex }))
         } else {
             popup.select(nil)
         }
@@ -209,8 +217,9 @@ struct InspectorPopup<Value: Hashable>: NSViewRepresentable {
         }
 
         @objc func selectionChanged(_ sender: NSPopUpButton) {
-            guard !isUpdating, options.indices.contains(sender.indexOfSelectedItem) else { return }
-            selection.wrappedValue = options[sender.indexOfSelectedItem].value
+            let optionIndex = sender.selectedItem?.tag ?? -1
+            guard !isUpdating, options.indices.contains(optionIndex) else { return }
+            selection.wrappedValue = options[optionIndex].value
         }
     }
 }
