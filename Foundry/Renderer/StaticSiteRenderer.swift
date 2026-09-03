@@ -384,7 +384,15 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
                     componentClass: componentClass(node) + " " +
                         ComponentTemplateRenderer.packageClass(for: package.manifest.identifier),
                     componentAttributes: "id=\"foundry-\(node.id.uuidString.lowercased())\"",
-                    assetBasePath: joinedPath(packageAssetPrefix, package.manifest.identifier)
+                    assetBasePath: joinedPath(packageAssetPrefix, package.manifest.identifier),
+                    richTextLinkContext: .init(
+                        pages: site.pages,
+                        folders: site.pageFolders,
+                        assets: site.assets,
+                        assetLibrary: site.assetLibrary,
+                        publicURL: site.publicURL,
+                        absoluteURL: false
+                    )
                 )
             )
             if package.htmlTemplate.contains("{{ component.attributes }}") ||

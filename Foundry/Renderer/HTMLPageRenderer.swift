@@ -135,10 +135,6 @@ struct HTMLPageRenderer: PageRendering {
             .foundry-empty-page { min-height: 100vh; }
             .foundry-contentless-drop-zone { min-height: 32px; padding: 6px 12px; }
             .foundry-columns > .foundry-empty-drop-zone { grid-column: 1 / -1; }
-            .foundry-editing {
-              cursor: text !important; outline: 3px solid var(--foundry-editor-chrome) !important;
-              outline-offset: 4px; user-select: text; -webkit-user-select: text;
-            }
             [data-foundry-global].foundry-empty-drop-zone {
               border-color: color-mix(in srgb, var(--foundry-editor-chrome) 42%, transparent);
             }
@@ -385,7 +381,8 @@ struct HTMLPageRenderer: PageRendering {
                     componentAttributes: attributes(for: node, globalDefinitionID: globalDefinitionID) +
                         " data-foundry-package=\"\(escapeAttribute(package.manifest.identifier))\"",
                     assetBasePath: package.resourceRootURL.absoluteString,
-                    enablesEditorMarkup: true
+                    enablesEditorMarkup: true,
+                    richTextLinkContext: richTextLinkContext
                 )
             )
             if package.htmlTemplate.contains("{{ component.attributes }}") ||
@@ -407,6 +404,17 @@ struct HTMLPageRenderer: PageRendering {
             pages: site?.pages ?? [],
             folders: site?.pageFolders ?? [],
             assets: site?.assets ?? [],
+            publicURL: site?.publicURL ?? "",
+            absoluteURL: false
+        )
+    }
+
+    private var richTextLinkContext: FoundryRichTextCodec.LinkContext {
+        .init(
+            pages: site?.pages ?? [],
+            folders: site?.pageFolders ?? [],
+            assets: site?.assets ?? [],
+            assetLibrary: site?.assetLibrary,
             publicURL: site?.publicURL ?? "",
             absoluteURL: false
         )

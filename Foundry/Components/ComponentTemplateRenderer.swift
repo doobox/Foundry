@@ -9,6 +9,7 @@ nonisolated struct ComponentTemplateContext: Sendable {
     let componentAttributes: String
     let assetBasePath: String
     let enablesEditorMarkup: Bool
+    let richTextLinkContext: FoundryRichTextCodec.LinkContext?
 
     init(
         instanceID: UUID,
@@ -18,7 +19,8 @@ nonisolated struct ComponentTemplateContext: Sendable {
         componentClass: String = "",
         componentAttributes: String = "",
         assetBasePath: String = "",
-        enablesEditorMarkup: Bool = false
+        enablesEditorMarkup: Bool = false,
+        richTextLinkContext: FoundryRichTextCodec.LinkContext? = nil
     ) {
         self.instanceID = instanceID
         self.packageIdentifier = packageIdentifier
@@ -28,6 +30,7 @@ nonisolated struct ComponentTemplateContext: Sendable {
         self.componentAttributes = componentAttributes
         self.assetBasePath = assetBasePath
         self.enablesEditorMarkup = enablesEditorMarkup
+        self.richTextLinkContext = richTextLinkContext
     }
 }
 
@@ -108,9 +111,22 @@ nonisolated enum ComponentTemplateRenderer {
             let key = "content\(index + 1)"
             let declaredDefault = primitiveDefault(match: match, in: result)
             let currentValue = stringValue(context.properties[key]) ?? declaredDefault
-            result.replaceSubrange(wholeRange, with: escapeText(currentValue))
+            let renderedValue: String
+            if let fragment = FoundryRichTextCodec.htmlFragment(from: currentValue) {
+                renderedValue = context.richTextLinkContext.map {
+                    FoundryRichTextCodec.resolvingLinks(in: fragment, context: $0)
+                } ?? fragment
+            } else {
+                renderedValue = escapeText(currentValue)
+            }
+            result.replaceSubrange(wholeRange, with: renderedValue)
             if context.enablesEditorMarkup {
-                addInlineEditingAttribute(for: key, atUTF16Offset: match.range.location, to: &result)
+                addInlineEditingAttribute(
+                    for: key,
+                    atUTF16Offset: match.range.location,
+                    inlineSource: currentValue,
+                    to: &result
+                )
             }
         }
         return result

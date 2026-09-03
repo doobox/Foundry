@@ -10,6 +10,14 @@ private struct HTMLSourceEditRequest: Identifiable {
     let source: HTMLComponentSource
 }
 
+private struct PageTextEditRequest: Identifiable {
+    let id = UUID()
+    let pageID: UUID
+    let componentID: UUID
+    let propertyKey: ComponentProperty.Key
+    let value: String
+}
+
 private struct PageDeletionRequest {
     let pageID: UUID
     let title: String
@@ -50,6 +58,7 @@ struct ContentView: View {
     @State private var componentCatalog = ComponentPackageCatalog.shared
     @State private var canvasViewportWidth = 390.0
     @State private var htmlSourceEditRequest: HTMLSourceEditRequest?
+    @State private var pageTextEditRequest: PageTextEditRequest?
     @State private var pageDeletionRequest: PageDeletionRequest?
     @AppStorage(AppPreferenceKey.appearance)
     private var appearance: AppAppearance = .system
@@ -222,6 +231,20 @@ struct ContentView: View {
                 save: { source in
                     saveHTMLSource(source, request: request)
                     htmlSourceEditRequest = nil
+                }
+            )
+        }
+        .sheet(item: $pageTextEditRequest) { request in
+            PageTextEditorView(
+                value: request.value,
+                pages: document.site.pages,
+                folders: document.site.pageFolders,
+                assets: document.site.assets,
+                publicURL: document.site.publicURL,
+                cancel: { pageTextEditRequest = nil },
+                save: { value in
+                    savePageText(value, request: request)
+                    pageTextEditRequest = nil
                 }
             )
         }
@@ -642,13 +665,14 @@ struct ContentView: View {
                       }
                   }),
                   let value = message.propertyValue else { return }
-            if let context = document.site.globalComponentContext(containing: componentID), !context.isOverridden {
-                editor.setSharedReusableProperty(componentID: componentID, key: propertyKey, value: .string(value))
-            } else {
-                editor.setProperty(id: componentID, key: propertyKey, value: .string(value))
-            }
+            selectedComponentIDs = [componentID]
             selectedComponentID = componentID
-            workspaceLayout.activate(.structure)
+            pageTextEditRequest = PageTextEditRequest(
+                pageID: page.id,
+                componentID: componentID,
+                propertyKey: propertyKey,
+                value: value
+            )
         case .importImageAsset:
             guard let componentID = message.componentID,
                   page.components.node(withID: componentID)?.type == .image,
@@ -747,6 +771,30 @@ struct ContentView: View {
         }
         undoManager?.endUndoGrouping()
         undoManager?.setActionName("Edit HTML Component")
+    }
+
+    private func savePageText(_ value: String, request: PageTextEditRequest) {
+        guard let page = document.site.pages.first(where: { $0.id == request.pageID }),
+              let component = page.components.node(withID: request.componentID),
+              component.type.definition.properties.contains(where: { definition in
+                  guard definition.key == request.propertyKey else { return false }
+                  switch definition.control {
+                  case .singleLineText, .multilineText: return true
+                  default: return false
+                  }
+              }) else { return }
+        undoManager?.beginUndoGrouping()
+        if let context = document.site.globalComponentContext(containing: request.componentID), !context.isOverridden {
+            editor.setSharedReusableProperty(
+                componentID: request.componentID,
+                key: request.propertyKey,
+                value: .string(value)
+            )
+        } else {
+            editor.setProperty(id: request.componentID, key: request.propertyKey, value: .string(value))
+        }
+        undoManager?.endUndoGrouping()
+        undoManager?.setActionName("Edit Text")
     }
 
     private func imageType(filename: String, mediaType: String) -> UTType? {

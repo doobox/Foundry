@@ -251,6 +251,74 @@ struct ComponentPackageTests {
     }
 
     @Test
+    func textPrimitivesRenderVersionedRichTextWithoutChangingPlainTextEscaping() {
+        let template = #"<p>{{ text="Start here" }}</p>"#
+        let fragment = #"<strong>Hello</strong> <a href="https://example.com">world</a>"#
+        let richValue = FoundryRichTextCodec.storageValue(forHTMLFragment: fragment)
+        let richContext = ComponentTemplateContext(
+            instanceID: UUID(),
+            packageIdentifier: "com.example.text",
+            properties: ["content1": .string(richValue)],
+            slots: [:],
+            componentAttributes: "data-foundry-id=\"test-component\"",
+            enablesEditorMarkup: true
+        )
+        let plainContext = ComponentTemplateContext(
+            instanceID: UUID(),
+            packageIdentifier: "com.example.text",
+            properties: ["content1": .string("<script>alert('no')</script>")],
+            slots: [:]
+        )
+
+        let richHTML = ComponentTemplateRenderer.render(template, context: richContext)
+        #expect(richHTML.contains(fragment))
+        #expect(richHTML.contains("data-foundry-inline-property=\"content1\""))
+        #expect(richHTML.contains("data-foundry-inline-source=\"\(Data(richValue.utf8).base64EncodedString())\""))
+
+        let plainHTML = ComponentTemplateRenderer.render(template, context: plainContext)
+        #expect(plainHTML.contains("&lt;script&gt;alert(&#39;no&#39;)&lt;/script&gt;"))
+        #expect(!plainHTML.contains("<script>"))
+    }
+
+    @Test
+    func richTextLinksPreserveStructureAndResolveAtRenderTime() throws {
+        let pageID = UUID()
+        let link = ComponentLink(
+            destination: .page(pageID),
+            anchor: "details",
+            opensInNewWindow: true,
+            attributes: [.init(name: "data-source", value: "rich text")]
+        )
+        let linkURL = try #require(FoundryRichTextCodec.URL(for: link))
+        #expect(FoundryRichTextCodec.componentLink(from: linkURL) == link)
+
+        let fragment = #"<a href="\#(linkURL.absoluteString)">Learn more</a>"#
+        let richValue = FoundryRichTextCodec.storageValue(forHTMLFragment: fragment)
+        let page = Page(id: pageID, title: "About", slug: "about")
+        let context = ComponentTemplateContext(
+            instanceID: UUID(),
+            packageIdentifier: "com.example.rich-link",
+            properties: ["content1": .string(richValue)],
+            slots: [:],
+            richTextLinkContext: .init(
+                pages: [page],
+                folders: [],
+                assets: [],
+                assetLibrary: [],
+                publicURL: "",
+                absoluteURL: false
+            )
+        )
+
+        let rendered = ComponentTemplateRenderer.render(#"<p>{{ text }}</p>"#, context: context)
+        #expect(rendered.contains(#"href="/about/#details""#))
+        #expect(rendered.contains(#"target="_blank""#))
+        #expect(rendered.contains(#"data-source="rich text""#))
+        #expect(rendered.contains(#"rel="noopener noreferrer""#))
+        #expect(!rendered.contains("foundry-rich-link-v1:"))
+    }
+
+    @Test
     func htmlPrimitivePreservesMarkupAndSupportsCanvasEditing() throws {
         let template = #"<div {{ component.attributes }}>{{ html="<strong>Start here</strong>" }}</div>"#
         let editorContext = ComponentTemplateContext(

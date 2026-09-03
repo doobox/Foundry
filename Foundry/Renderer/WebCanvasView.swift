@@ -70,7 +70,6 @@ struct WebCanvasView: NSViewRepresentable {
           let placement = null;
           let selectedComponentIDs = [];
           let activeDragSources = [];
-          let activeInlineEdit = null;
           let globalMenuTarget = null;
           let globalMenuRelinks = false;
           const globalMenu = document.createElement('div');
@@ -119,7 +118,7 @@ struct WebCanvasView: NSViewRepresentable {
 
           const updateChromeTitle = () => {
             chromeFrame = null;
-            if (!hoveredComponent || !hoveredComponent.isConnected || !editorOptions.showsTitles || activeInlineEdit) {
+            if (!hoveredComponent || !hoveredComponent.isConnected || !editorOptions.showsTitles) {
               chromeTitle.style.setProperty('display', 'none', 'important');
               return;
             }
@@ -323,7 +322,7 @@ struct WebCanvasView: NSViewRepresentable {
 
           document.addEventListener('keydown', event => {
             if (event.key !== 'Backspace' && event.key !== 'Delete') return;
-            if (activeInlineEdit || selectedComponentIDs.length === 0) return;
+            if (selectedComponentIDs.length === 0) return;
             const target = event.target;
             if (target?.isContentEditable || target?.closest?.('input, textarea, select, [contenteditable="true"]')) return;
             event.preventDefault();
@@ -476,9 +475,6 @@ struct WebCanvasView: NSViewRepresentable {
             const element = editableElement ?? event.target.closest(selector);
             const editableProperty = element?.dataset.foundryInlineProperty;
             if (!element || !editableProperty) return;
-            if (activeInlineEdit && activeInlineEdit.element !== element) {
-              activeInlineEdit.finish(true);
-            }
             event.preventDefault();
             event.stopPropagation();
 
@@ -500,63 +496,20 @@ struct WebCanvasView: NSViewRepresentable {
               return;
             }
 
-            const original = element.innerText;
-            const commitsOnReturn = (componentElement ?? element).dataset.foundryType !== 'Text';
-            let finished = false;
-            element.contentEditable = 'true';
-            element.draggable = false;
-            element.classList.add('foundry-editing');
-            element.focus();
-
-            const selection = window.getSelection();
-            const range = document.createRange();
-            range.selectNodeContents(element);
-            selection.removeAllRanges();
-            selection.addRange(range);
-
-            const finish = commit => {
-              if (finished) return;
-              finished = true;
-              if (activeInlineEdit?.element === element) activeInlineEdit = null;
-              element.contentEditable = 'false';
-              element.draggable = true;
-              element.classList.remove('foundry-editing');
-              if (!commit) {
-                element.textContent = original;
-                return;
-              }
-              const value = element.innerText;
-              if (value !== original) {
-                window.webkit.messageHandlers.foundryCanvas.postMessage({
-                  version: 1,
-                  event: 'editComponent',
-                  componentID: (componentElement ?? element).dataset.foundryId,
-                  propertyKey: editableProperty,
-                  propertyValue: value
-                });
-              }
-            };
-
-            activeInlineEdit = { element, finish };
-            element.addEventListener('keydown', keyEvent => {
-              if (keyEvent.key === 'Escape') {
-                keyEvent.preventDefault();
-                finish(false);
-                element.blur();
-              } else if (keyEvent.key === 'Enter' && (commitsOnReturn || keyEvent.metaKey || keyEvent.ctrlKey)) {
-                keyEvent.preventDefault();
-                finish(true);
-                element.blur();
-              }
+            const source = element.dataset.foundryInlineSource
+              ? decodeSource(element.dataset.foundryInlineSource)
+              : element.innerText;
+            window.webkit.messageHandlers.foundryCanvas.postMessage({
+              version: 1,
+              event: 'editComponent',
+              componentID: (componentElement ?? element).dataset.foundryId,
+              propertyKey: editableProperty,
+              propertyValue: source
             });
           }, true);
 
           document.addEventListener('click', event => {
             const element = event.target.closest(selector);
-            if (activeInlineEdit && !activeInlineEdit.element.contains(event.target)) {
-              activeInlineEdit.finish(true);
-            }
-            if (activeInlineEdit?.element.contains(event.target)) return;
             if (element?.isContentEditable) return;
             if (!element) return;
             event.preventDefault();

@@ -581,13 +581,14 @@ struct ComponentPropertyEditor: View {
     }
 }
 
-private struct ComponentLinkEditor: View {
+struct ComponentLinkEditor: View {
     @Binding var link: ComponentLink
     let pages: [Page]
     let folders: [PageFolder]
     let assets: [ProjectAsset]
     let publicURL: String
     let absoluteURL: Bool
+    var remove: (() -> Void)? = nil
     let cancel: () -> Void
     let apply: () -> Void
 
@@ -625,6 +626,9 @@ private struct ComponentLinkEditor: View {
             }
             .formStyle(.grouped)
             HStack {
+                if let remove {
+                    Button("Remove", role: .destructive, action: remove)
+                }
                 Spacer()
                 Button("Cancel", action: cancel)
                 Button("Set Link", action: apply)
