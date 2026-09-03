@@ -2019,14 +2019,16 @@ private struct WorkspaceColumnView<PanelContent: View>: View {
             if column.panels.isEmpty {
                 emptyDockContent
             } else {
-                HStack {
-                    Text(column.selectedPanel.title)
-                        .font(.headline)
-                    Spacer()
+                if column.selectedPanel != .pages {
+                    HStack {
+                        Text(column.selectedPanel.title)
+                            .font(.headline)
+                        Spacer()
+                    }
+                    .padding(.horizontal, 12)
+                    .frame(height: 38)
+                    Divider()
                 }
-                .padding(.horizontal, 12)
-                .frame(height: 38)
-                Divider()
                 panelContent(column.selectedPanel)
                     .scrollContentBackground(.hidden)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)

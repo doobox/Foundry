@@ -24,6 +24,15 @@ struct PagesPanel: View {
 
     var body: some View {
         VStack(spacing: 0) {
+            PagesPanelHeader(
+                addPage: addPage,
+                addFolder: {
+                    folderName = ""
+                    isNamingFolder = true
+                }
+            )
+            Divider()
+
             PagesOutlineView(
                 pages: pages,
                 folders: folders,
@@ -61,6 +70,33 @@ struct PagesPanel: View {
             }
             .disabled(folderName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
         }
+    }
+}
+
+private struct PagesPanelHeader: View {
+    let addPage: () -> Void
+    let addFolder: () -> Void
+
+    var body: some View {
+        HStack {
+            Text("Pages")
+                .font(.headline)
+            Spacer()
+            Menu {
+                Button("New Page", systemImage: "doc.badge.plus", action: addPage)
+                Button("New Folder…", systemImage: "folder.badge.plus", action: addFolder)
+            } label: {
+                Image(systemName: "plus")
+                    .frame(width: 22, height: 22)
+                    .contentShape(Rectangle())
+            }
+            .menuIndicator(.hidden)
+            .menuStyle(.borderlessButton)
+            .accessibilityLabel("Add Page or Folder")
+            .help("Add a page or folder")
+        }
+        .padding(.horizontal, 12)
+        .frame(height: 38)
     }
 }
 
