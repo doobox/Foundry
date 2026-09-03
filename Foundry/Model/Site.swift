@@ -297,30 +297,9 @@ nonisolated struct Site: Codable, Equatable, Identifiable, Sendable {
     }
 
     static func starter() -> Site {
-        let container = ComponentNode(
-            type: .container,
-            name: "Hero",
-            children: [
-                ComponentNode(
-                    type: .paragraph,
-                    name: "Paragraph",
-                    properties: [
-                        .init(key: .init(rawValue: "content1"), value: .string("Build something remarkable."))
-                    ]
-                ),
-                ComponentNode(
-                    type: .button,
-                    name: "Call to action",
-                    properties: [
-                        .init(key: .init(rawValue: "content1"), value: .string("Get started")),
-                        .init(key: .destination, value: .link(.init(destination: .url("#get-started"))))
-                    ]
-                )
-            ]
-        )
         return Site(
             name: "Untitled Site",
-            pages: [Page(title: "Home", slug: "index", components: [container])]
+            pages: [Page(title: "Home", slug: "index")]
         )
     }
 }

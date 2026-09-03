@@ -57,23 +57,29 @@ nonisolated enum ComponentPackageAdapter {
                 defaults = Array(repeating: property.defaultValue, count: count)
             }
             let paddedDefaults = defaults + Array(repeating: defaults.last ?? .string(""), count: max(0, count - defaults.count))
+            let isLineHeight = property.control.type == .select &&
+                property.control.themeValueSource == .lineHeights
             return [ComponentPropertyDefinition(
                 key: .init(rawValue: property.id),
                 label: property.label,
                 section: .init(rawValue: property.group),
                 control: .array(
-                    element: control(property.control, unit: ""),
+                    element: isLineHeight ? .packageLineHeight : control(property.control, unit: ""),
                     count: count,
                     labels: Array(property.labels.prefix(count)),
                     subtitles: Array(property.subtitles.prefix(count)),
                     units: Array(property.units.prefix(count)),
                     help: property.toolTip
                 ),
-                defaultValue: .array(paddedDefaults.prefix(count).map { value($0, control: property.control.type) }),
+                defaultValue: .array(paddedDefaults.prefix(count).map {
+                    isLineHeight
+                        ? .packageLineHeight(.init(source: $0.stringValue, customValue: ThemeLineHeight.normal.value))
+                        : value($0, control: property.control.type)
+                }),
                 isResponsive: property.responsive,
                 enable: property.enable,
                 themeValueSource: property.control.themeValueSource,
-                allowsCustomThemeValue: property.control.allowsCustom == true
+                allowsCustomThemeValue: isLineHeight || property.control.allowsCustom == true
             )]
         }
         if property.control.type == .color { return colorProperties(for: property) }
@@ -91,6 +97,10 @@ nonisolated enum ComponentPackageAdapter {
             )]
         }
         if property.control.type == .fontSize { return fontSizeProperties(for: property) }
+        if property.control.type == .select,
+           property.control.themeValueSource == .lineHeights {
+            return lineHeightProperties(for: property)
+        }
         return [ComponentPropertyDefinition(
             key: .init(rawValue: property.id),
             label: property.label,
@@ -208,6 +218,25 @@ nonisolated enum ComponentPackageAdapter {
         ]
     }
 
+    private static func lineHeightProperties(for property: ComponentPackageProperty) -> [ComponentPropertyDefinition] {
+        [
+            ComponentPropertyDefinition(
+                key: .init(rawValue: property.id),
+                label: property.label,
+                section: .init(rawValue: property.group),
+                control: .packageLineHeight,
+                defaultValue: .packageLineHeight(.init(
+                    source: property.defaultValue.stringValue,
+                    customValue: ThemeLineHeight.normal.value
+                )),
+                isResponsive: property.responsive,
+                enable: property.enable,
+                themeValueSource: .lineHeights,
+                allowsCustomThemeValue: true
+            )
+        ]
+    }
+
     private static func control(_ control: ComponentPackageControl, unit: String) -> ComponentPropertyControl {
         switch control.type {
         case .text: .singleLineText
@@ -226,8 +255,6 @@ nonisolated enum ComponentPackageAdapter {
         case .fontFamily: .themeFontFamily
         case .fontSize: .themeFontSize
         case .margin, .padding: .derived
-        case .lineHeight:
-            .lineHeight(fontSizeKey: control.fontSize.map(ComponentProperty.Key.init(rawValue:)))
         case .textAlignment: .textAlignment
         case .divider: .divider
         case .slider:
@@ -257,7 +284,7 @@ nonisolated enum ComponentPackageAdapter {
             switch control {
             case .link: .link(.init(destination: value.isEmpty ? .none : .url(value)))
             case .color: .color(value)
-            case .icon, .select, .fontFamily, .fontSize, .margin, .padding, .lineHeight, .textAlignment: .choice(value)
+            case .icon, .select, .fontFamily, .fontSize, .margin, .padding, .textAlignment: .choice(value)
             case .date: .string(value)
             default: .string(value)
             }

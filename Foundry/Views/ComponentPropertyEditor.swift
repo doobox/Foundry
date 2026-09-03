@@ -241,6 +241,14 @@ struct ComponentPropertyEditor: View {
                 customValue: packageFontSizeCustomBinding,
                 indicator: responsiveIndicator
             )
+        case .packageLineHeight:
+            PackageLineHeightControlEditor(
+                label: definition.label,
+                choices: theme.lineHeightChoices,
+                source: packageLineHeightSourceBinding,
+                customValue: packageLineHeightCustomBinding,
+                indicator: responsiveIndicator
+            )
         case .packageSpacing(let kind, let range, let step):
             PackageSpacingControlEditor(
                 label: definition.label,
@@ -252,15 +260,6 @@ struct ComponentPropertyEditor: View {
                 step: step,
                 indicator: responsiveIndicator
             )
-        case .lineHeight:
-            InspectorRow(title: definition.label, indicator: responsiveIndicator) {
-                InspectorPopup(
-                    selection: stringBinding(as: .choice),
-                    options: lineHeightControlChoices.map { .init(title: $0.label, value: $0.value) },
-                    accessibilityLabel: definition.label,
-                    help: definition.label
-                )
-            }
         case .textAlignment:
             InspectorRow(title: definition.label, indicator: responsiveIndicator) {
                 InspectorSegmentedControl(selection: stringBinding(as: .choice), segments: alignmentSegments)
@@ -468,6 +467,34 @@ struct ComponentPropertyEditor: View {
                 var value = packageFontSizeValue
                 value.customValue = customValue
                 setProperty(.packageFontSize(value))
+            }
+        )
+    }
+
+    private var packageLineHeightValue: ComponentPackageLineHeightValue {
+        if case .packageLineHeight(let value) = displayComponent.propertyValue(definition.key) { return value }
+        if case .packageLineHeight(let value) = definition.defaultValue { return value }
+        return .init(source: "normal", customValue: ThemeLineHeight.normal.value)
+    }
+
+    private var packageLineHeightSourceBinding: Binding<String> {
+        Binding(
+            get: { packageLineHeightValue.source },
+            set: { source in
+                var value = packageLineHeightValue
+                value.source = source
+                setProperty(.packageLineHeight(value))
+            }
+        )
+    }
+
+    private var packageLineHeightCustomBinding: Binding<Double> {
+        Binding(
+            get: { packageLineHeightValue.customValue },
+            set: { customValue in
+                var value = packageLineHeightValue
+                value.customValue = customValue
+                setProperty(.packageLineHeight(value))
             }
         )
     }
@@ -1049,8 +1076,37 @@ private struct InspectorControlArrayItem: View {
                 accessibilityLabel: subtitle ?? "Choice",
                 help: help
             )
-        case .lineHeight:
-            InspectorPopup(selection: stringBinding, options: lineHeightControlChoices.map { .init(title: $0.label, value: $0.value) }, accessibilityLabel: subtitle ?? "Line height", help: help)
+        case .packageLineHeight:
+            VStack(spacing: 4) {
+                InspectorPopup(
+                    selection: lineHeightSourceBinding,
+                    options: ThemeLineHeight.allCases.map {
+                        .init(
+                            title: "\($0.title) — \($0.value.formatted(.number.precision(.fractionLength(0...3))))",
+                            value: $0.rawValue
+                        )
+                    } + [.init(title: "Custom", value: "custom", separatorBefore: true)],
+                    accessibilityLabel: subtitle ?? title,
+                    help: help
+                )
+                if lineHeightValue.source == "custom" {
+                    HStack(spacing: 4) {
+                        InspectorNumberField(
+                            value: lineHeightCustomBinding,
+                            range: 0...10,
+                            step: 0.05,
+                            accessibilityLabel: "Custom line height",
+                            help: "A unitless CSS line-height value"
+                        )
+                        InspectorStepper(
+                            value: lineHeightCustomBinding,
+                            range: 0...10,
+                            increment: 0.05,
+                            accessibilityLabel: "Custom line height"
+                        )
+                    }
+                }
+            }
         case .asset:
             InspectorPopup(selection: assetBinding, options: [InspectorPopupOption(title: "None", value: nil)] + assets.map { .init(title: $0.filename, value: $0.id as UUID?) }, accessibilityLabel: subtitle ?? "Image", help: help)
         default:
@@ -1068,6 +1124,33 @@ private struct InspectorControlArrayItem: View {
                 } else {
                     value = .string(newValue)
                 }
+            }
+        )
+    }
+
+    private var lineHeightValue: ComponentPackageLineHeightValue {
+        if case .packageLineHeight(let lineHeight) = value { return lineHeight }
+        return .init(source: "normal", customValue: ThemeLineHeight.normal.value)
+    }
+
+    private var lineHeightSourceBinding: Binding<String> {
+        Binding(
+            get: { lineHeightValue.source },
+            set: { source in
+                var lineHeight = lineHeightValue
+                lineHeight.source = source
+                value = .packageLineHeight(lineHeight)
+            }
+        )
+    }
+
+    private var lineHeightCustomBinding: Binding<Double> {
+        Binding(
+            get: { lineHeightValue.customValue },
+            set: { customValue in
+                var lineHeight = lineHeightValue
+                lineHeight.customValue = customValue
+                value = .packageLineHeight(lineHeight)
             }
         )
     }
@@ -1108,16 +1191,6 @@ private struct InspectorControlArrayItem: View {
         )
     }
 }
-
-private let lineHeightControlChoices = [
-    ComponentPropertyChoice(value: "theme", label: "Theme"),
-    ComponentPropertyChoice(value: "none", label: "None"),
-    ComponentPropertyChoice(value: "tight", label: "Tight"),
-    ComponentPropertyChoice(value: "snug", label: "Snug"),
-    ComponentPropertyChoice(value: "normal", label: "Normal"),
-    ComponentPropertyChoice(value: "relaxed", label: "Relaxed"),
-    ComponentPropertyChoice(value: "loose", label: "Loose")
-]
 
 private struct PackageThemeValueGridEditor: View {
     let label: String
@@ -1226,6 +1299,48 @@ private struct PackageSpacingControlEditor: View {
             options.insert(.init(title: "Missing Theme Spacing", value: source), at: 0)
         }
         return options
+    }
+}
+
+private struct PackageLineHeightControlEditor: View {
+    let label: String
+    let choices: [ComponentPropertyChoice]
+    @Binding var source: String
+    @Binding var customValue: Double
+    let indicator: InspectorRowIndicator
+
+    var body: some View {
+        Group {
+            InspectorRow(title: label, indicator: indicator) {
+                InspectorPopup(
+                    selection: $source,
+                    options: choices.map {
+                        .init(title: $0.label, value: $0.value, separatorBefore: $0.separatorBefore)
+                    } + [.init(title: "Custom", value: "custom", separatorBefore: true)],
+                    accessibilityLabel: label,
+                    help: label
+                )
+            }
+            if source == "custom" {
+                InspectorRow(title: "Line height") {
+                    HStack(spacing: 4) {
+                        InspectorNumberField(
+                            value: $customValue,
+                            range: 0...10,
+                            step: 0.05,
+                            accessibilityLabel: "Custom line height",
+                            help: "A unitless CSS line-height value"
+                        )
+                        InspectorStepper(
+                            value: $customValue,
+                            range: 0...10,
+                            increment: 0.05,
+                            accessibilityLabel: "Custom line height"
+                        )
+                    }
+                }
+            }
+        }
     }
 }
 

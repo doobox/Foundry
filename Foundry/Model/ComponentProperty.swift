@@ -12,6 +12,11 @@ nonisolated struct ComponentPackageFontSizeValue: Codable, Equatable, Sendable {
     var customValue: String
 }
 
+nonisolated struct ComponentPackageLineHeightValue: Codable, Equatable, Sendable {
+    var source: String
+    var customValue: Double
+}
+
 nonisolated struct ComponentPackageSpacingValue: Codable, Equatable, Sendable {
     var sources: [String]
     var customValues: [Double]
@@ -83,6 +88,7 @@ nonisolated struct ComponentProperty: Codable, Equatable, Identifiable, Sendable
         case link(ComponentLink)
         case packageColor(ComponentPackageColorValue)
         case packageFontSize(ComponentPackageFontSizeValue)
+        case packageLineHeight(ComponentPackageLineHeightValue)
         case packageSpacing(ComponentPackageSpacingValue)
 
         var stringValue: String {
@@ -102,6 +108,8 @@ nonisolated struct ComponentProperty: Codable, Equatable, Identifiable, Sendable
             case .packageColor(let value):
                 value.source
             case .packageFontSize(let value):
+                value.source
+            case .packageLineHeight(let value):
                 value.source
             case .packageSpacing(let value):
                 value.sources.joined(separator: ", ")

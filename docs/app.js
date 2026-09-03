@@ -26,7 +26,6 @@ const controlLinks = [
     ["Text alignment", "text-alignment.html"],
     ["Font family", "font-family.html"],
     ["Font size", "font-size.html"],
-    ["Line height", "line-height.html"],
     ["Info", "info-control.html"],
     ["Divider", "divider-control.html"],
     ["Control arrays", "control-arrays.html"],
@@ -57,7 +56,6 @@ const sections = [
     { title: "Template language", links: [["Values & macros", "template-values.html"], ["Editable content", "editable-text.html"]] },
     { title: "Themes", links: [["Theme values", "theme-controls.html"], ["Theme bundles", "theme-bundles.html"]] },
     { title: "Reference", links: [["API map", "components.html"]] },
-    { title: "Planning", links: [["Built-in components", "built-in-components.html"]] }
 ];
 
 const pageName = value => value.split("#")[0];
@@ -106,7 +104,6 @@ const breadcrumbParents = {
     "theme-controls.html": ["Themes", "theme-controls.html"],
     "theme-bundles.html": ["Themes", "theme-controls.html"],
     "components.html": ["Reference", "components.html"],
-    "built-in-components.html": ["Planning", "built-in-components.html"]
 };
 
 const breadcrumbs = document.querySelector(".breadcrumbs");
@@ -125,8 +122,7 @@ const referenceTypeByPage = {
     "link-control.html": "link",
     "text-alignment.html": "textAlignment",
     "font-family.html": "fontFamily",
-    "font-size.html": "fontSize",
-    "line-height.html": "lineHeight"
+    "font-size.html": "fontSize"
 };
 const referenceType = referenceTypeByPage[window.location.pathname.split("/").pop()];
 if (referenceType) {

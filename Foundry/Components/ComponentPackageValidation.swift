@@ -100,15 +100,6 @@ nonisolated enum ComponentPackageValidator {
             validate(property.id, expression: propertyExpression, location: "Info.plist:customItems.\(property.id)", message: "Property IDs must start with a letter and contain only letters, numbers, underscores, or hyphens.", into: &diagnostics)
             validate(property, into: &diagnostics)
             validateEnable(property, properties: manifest.properties, into: &diagnostics)
-            if property.control.type == .lineHeight,
-               let fontSizeID = property.control.fontSize,
-               !manifest.properties.contains(where: { $0.id == fontSizeID && $0.control.type == .fontSize }) {
-                diagnostics.append(.init(
-                    severity: .error,
-                    location: "Info.plist:customItems.\(property.id)",
-                    message: "lineHeight fontSize must reference a declared fontSize control."
-                ))
-            }
         }
         validateEnableCycles(manifest.properties, into: &diagnostics)
         for slot in manifest.slots {
@@ -438,7 +429,7 @@ nonisolated enum ComponentPackageValidator {
         guard let source = property.control.themeValueSource else { return }
         let supported: Bool
         switch (property.control.type, source) {
-        case (.select, .fontFamilies), (.select, .fontSizes), (.select, .spacing),
+        case (.select, .fontFamilies), (.select, .fontSizes), (.select, .lineHeights), (.select, .spacing),
              (.fontFamily, .fontFamilies),
              (.fontSize, .fontSizes), (.margin, .spacing), (.padding, .spacing):
             supported = true
@@ -629,7 +620,9 @@ nonisolated enum ComponentPackageValidator {
             let themeMatch = property.control.themeValueSource.map {
                 ComponentPackageThemeValueResolver.choices(for: $0, theme: .standard).contains(where: { $0.value == value })
             } ?? false
-            let customMatch = property.control.allowsCustom.orFalse && value == "custom"
+            let customMatch = value == "custom" && (
+                property.control.allowsCustom.orFalse || property.control.themeValueSource == .lineHeights
+            )
             if !declaredMatch && !themeMatch && !customMatch {
                 diagnostics.append(.init(severity: .error, location: location, message: "A select default must match one of its declared or requested theme values."))
             }
@@ -685,16 +678,6 @@ nonisolated enum ComponentPackageValidator {
                     return
                 }
             }
-        case .lineHeight:
-            if case .string(let value) = defaultValue,
-               value == "theme" || ThemeLineHeight(rawValue: value) != nil {
-                break
-            }
-            diagnostics.append(.init(
-                severity: .error,
-                location: location,
-                message: "A lineHeight default must be theme, none, tight, snug, normal, relaxed, or loose."
-            ))
         case .textAlignment:
             if case .string(let value) = defaultValue,
                ["start", "center", "end", "justify"].contains(value) {

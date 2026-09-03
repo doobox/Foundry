@@ -150,12 +150,12 @@ nonisolated enum ComponentPropertyControl: Sendable {
     case themeFontFamily
     case themeFontSize
     case packageFontSize(themeValues: Bool)
+    case packageLineHeight
     case packageSpacing(
         kind: ComponentSpacingKind,
         range: ClosedRange<Double>,
         step: Double
     )
-    case lineHeight(fontSizeKey: ComponentProperty.Key?)
     case textAlignment
     case divider
     case toggle

@@ -240,7 +240,6 @@ nonisolated struct ComponentPackageControl: Codable, Equatable, Sendable {
         case fontSize
         case margin
         case padding
-        case lineHeight
         case textAlignment
         case divider
         case slider
@@ -268,7 +267,6 @@ nonisolated struct ComponentPackageControl: Codable, Equatable, Sendable {
     let trueValue: ComponentPackageValue?
     let falseValue: ComponentPackageValue?
     let systemImage: String?
-    let fontSize: String?
     let argument1: ComponentPackageValue?
     let argument2: ComponentPackageValue?
     let operation: String?
@@ -280,6 +278,7 @@ nonisolated enum ComponentPackageThemeValueSource: String, Codable, CaseIterable
     case colors
     case fontFamilies
     case fontSizes
+    case lineHeights
     case spacing
 }
 

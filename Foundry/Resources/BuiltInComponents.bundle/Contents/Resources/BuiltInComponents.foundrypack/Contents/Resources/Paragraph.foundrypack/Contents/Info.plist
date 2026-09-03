@@ -44,7 +44,7 @@
 		</dict>
 		<dict>
 			<key>default</key>
-			<string>theme</string>
+			<string>normal</string>
 			<key>group</key>
 			<string>Typography</string>
 			<key>id</key>
@@ -53,10 +53,10 @@
 			<string>Line Height</string>
 			<key>responsive</key>
 			<true/>
-			<key>fontSize</key>
-			<string>textSize</string>
 			<key>type</key>
-			<string>lineHeight</string>
+			<string>select</string>
+			<key>themeValues</key>
+			<string>lineHeights</string>
 		</dict>
 		<dict>
 			<key>default</key>

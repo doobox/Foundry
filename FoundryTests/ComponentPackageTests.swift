@@ -1484,12 +1484,12 @@ struct ComponentPackageTests {
         } else {
             Issue.record("Paragraph should use a select control for text decoration")
         }
-        #expect(lineHeight.defaultValue == .choice("theme"))
+        #expect(lineHeight.defaultValue == .choice("normal"))
         #expect(lineHeight.isResponsive)
-        if case .lineHeight(let fontSizeKey) = lineHeight.control {
-            #expect(fontSizeKey?.rawValue == "textSize")
+        if case .packageLineHeight = lineHeight.control {
+            #expect(lineHeight.themeValueSource == .lineHeights)
         } else {
-            Issue.record("Paragraph should use the theme-aware line-height control")
+            Issue.record("Paragraph should use a select populated with theme line heights")
         }
         #expect(
             ComponentType.paragraph.definition.package?.css.contains(
@@ -1510,12 +1510,23 @@ struct ComponentPackageTests {
         var paragraph = ComponentNode.make(.paragraph)
         var site = Site(name: "Line height", pages: [Page(title: "Home", slug: "index", components: [paragraph])])
         let themedHTML = HTMLPageRenderer(site: site).render(page: site.pages[0], theme: site.theme)
-        #expect(themedHTML.contains("line-height: var(--foundry-font-size-base-line-height)"))
+        #expect(themedHTML.contains("line-height: 1.5"))
 
-        paragraph.setProperty(.init(rawValue: "lineHeight"), value: .choice("loose"))
+        paragraph.setProperty(
+            .init(rawValue: "lineHeight"),
+            value: .packageLineHeight(.init(source: "loose", customValue: 1.5))
+        )
         site.pages[0].components = [paragraph]
         let overriddenHTML = HTMLPageRenderer(site: site).render(page: site.pages[0], theme: site.theme)
         #expect(overriddenHTML.contains("line-height: 2"))
+
+        paragraph.setProperty(
+            .init(rawValue: "lineHeight"),
+            value: .packageLineHeight(.init(source: "custom", customValue: 1.7))
+        )
+        site.pages[0].components = [paragraph]
+        let customHTML = HTMLPageRenderer(site: site).render(page: site.pages[0], theme: site.theme)
+        #expect(customHTML.contains("line-height: 1.7"))
 
         paragraph.setProperty(.init(rawValue: "textDecoration"), value: .choice("underline"))
         site.pages[0].components = [paragraph]

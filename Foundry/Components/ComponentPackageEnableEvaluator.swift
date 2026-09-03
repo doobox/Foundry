@@ -106,6 +106,7 @@ nonisolated enum ComponentPackageEnableEvaluator {
         case .array(let values): .array(values.compactMap(packageValue))
         case .packageColor(let value): .string(value.source)
         case .packageFontSize(let value): .string(value.source)
+        case .packageLineHeight(let value): .string(value.source)
         case .packageSpacing(let value): .array(value.sources.map(ComponentPackageValue.string))
         case .link: nil
         }

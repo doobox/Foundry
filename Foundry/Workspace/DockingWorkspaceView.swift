@@ -15,8 +15,8 @@ struct DockingWorkspaceView<PanelContent: View>: View {
     @SceneStorage("foundry.workspace.selectedPresetID") private var selectedWorkspaceIDValue = ""
     @AppStorage(AppPreferenceKey.showsDeveloperPanel) private var showsDeveloperPanel = false
     @State private var isNamingPreset = false
+    @State private var isManagingWorkspaces = false
     @State private var presetName = ""
-    @State private var presetPendingDeletion: WorkspacePreset?
     @State private var inspectorIsTransitioning = false
     @State private var workspacePresentationID = UUID()
 
@@ -51,25 +51,6 @@ struct DockingWorkspaceView<PanelContent: View>: View {
                 .disabled(presetName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
         } message: {
             Text("Save the current panels, tabs, windows, and column widths.")
-        }
-        .alert(
-            "Delete “\(presetPendingDeletion?.name ?? "Workspace")”?",
-            isPresented: Binding(
-                get: { presetPendingDeletion != nil },
-                set: { isPresented in
-                    if !isPresented {
-                        presetPendingDeletion = nil
-                    }
-                }
-            ),
-            presenting: presetPendingDeletion
-        ) { preset in
-            Button("Delete", role: .destructive) {
-                deleteWorkspace(preset.id)
-            }
-            Button("Cancel", role: .cancel) {}
-        } message: { _ in
-            Text("This workspace arrangement will be permanently deleted.")
         }
         .onChange(of: workspaceLibrary.presets.map(\.id), initial: true) { _, presetIDs in
             if let selectedWorkspaceID, !presetIDs.contains(selectedWorkspaceID) {
@@ -262,26 +243,25 @@ struct DockingWorkspaceView<PanelContent: View>: View {
                 saveWorkspace()
             }
             Button("Save Workspace As…") {
-                presetName = suggestedWorkspaceName
+                presetName = ""
                 isNamingPreset = true
             }
 
-            if let selectedWorkspacePreset {
-                Divider()
-                Button("Delete “\(selectedWorkspacePreset.name)”…", role: .destructive) {
-                    presetPendingDeletion = selectedWorkspacePreset
-                }
+            Divider()
+            Button("Manage Workspaces…") {
+                isManagingWorkspaces = true
             }
         }
         .menuIndicator(.hidden)
         .help("Save or restore a workspace arrangement")
-    }
-
-    private var suggestedWorkspaceName: String {
-        if let preset = selectedWorkspacePreset {
-            return preset.name
+        .popover(isPresented: $isManagingWorkspaces, arrowEdge: .bottom) {
+            WorkspaceManagementPopover(
+                presets: workspaceLibrary.presets,
+                requestDeletion: { preset in
+                    deleteWorkspace(preset.id)
+                }
+            )
         }
-        return "Workspace \(workspaceLibrary.presets.count + 1)"
     }
 
     private var selectedWorkspacePreset: WorkspacePreset? {
@@ -292,7 +272,7 @@ struct DockingWorkspaceView<PanelContent: View>: View {
     private func saveWorkspace() {
         guard let selectedWorkspaceID,
               let preset = workspaceLibrary.presets.first(where: { $0.id == selectedWorkspaceID }) else {
-            presetName = suggestedWorkspaceName
+            presetName = ""
             isNamingPreset = true
             return
         }
@@ -309,7 +289,9 @@ struct DockingWorkspaceView<PanelContent: View>: View {
     private func deleteWorkspace(_ id: UUID) {
         workspaceLibrary.delete(id)
         if selectedWorkspaceID == id {
+            layout.reset(includingDeveloperPanel: showsDeveloperPanel)
             setSelectedWorkspaceID(nil)
+            workspacePresentationID = UUID()
         }
     }
 
@@ -338,6 +320,66 @@ struct DockingWorkspaceView<PanelContent: View>: View {
     private func setSelectedWorkspaceID(_ id: UUID?) {
         selectedWorkspaceIDValue = id?.uuidString ?? ""
         WorkspaceSelectionStore.persist(id)
+    }
+}
+
+private struct WorkspaceManagementPopover: View {
+    let presets: [WorkspacePreset]
+    let requestDeletion: (WorkspacePreset) -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text("Workspaces")
+                .font(.headline)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 12)
+
+            Divider()
+
+            if presets.isEmpty {
+                Text("No saved workspaces")
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(16)
+            } else {
+                ScrollView {
+                    LazyVStack(spacing: 0) {
+                        ForEach(presets) { preset in
+                            WorkspaceManagementRow(
+                                name: preset.name,
+                                delete: { requestDeletion(preset) }
+                            )
+                            Divider()
+                        }
+                    }
+                }
+                .frame(maxHeight: 360)
+            }
+        }
+        .frame(width: 320)
+    }
+}
+
+private struct WorkspaceManagementRow: View {
+    let name: String
+    let delete: () -> Void
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Text(name)
+                .lineLimit(1)
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+            Button(role: .destructive, action: delete) {
+                Image(systemName: "trash")
+            }
+            .buttonStyle(.borderless)
+            .accessibilityLabel("Delete \(name)")
+            .help("Delete \(name)")
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
     }
 }
 

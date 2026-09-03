@@ -566,6 +566,7 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
         case .link: .string("")
         case .packageColor(let value): .string(value.source)
         case .packageFontSize(let value): .string(value.source)
+        case .packageLineHeight(let value): .string(value.source)
         case .packageSpacing(let value): .array(value.sources.map(ComponentPackageValue.string))
         }
     }
@@ -590,6 +591,8 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
                     let reference: String
                     switch item {
                     case .choice(let value), .string(let value): reference = value
+                    case .packageLineHeight(let value):
+                        return .string(ComponentPackageThemeValueResolver.resolveLineHeight(value, theme: theme))
                     default: return packageValue(item)
                     }
                     guard
@@ -631,6 +634,11 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
                     ? fontSizeValue.customValue : theme.fontSizeCSSVariable(for: fontSizeValue.source)
                 return (definition.key.rawValue, .string(resolved))
             }
+            if case .packageLineHeight = definition.control,
+               case .packageLineHeight(let lineHeightValue) = value {
+                let resolved = ComponentPackageThemeValueResolver.resolveLineHeight(lineHeightValue, theme: theme)
+                return (definition.key.rawValue, .string(resolved))
+            }
             if case .packageSpacing(let kind, _, _) = definition.control,
                case .packageSpacing(let spacingValue) = value {
                 return (
@@ -639,17 +647,6 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
                         spacingValue,
                         theme: theme,
                         kind: kind
-                    ))
-                )
-            }
-            if case .lineHeight(let fontSizeKey) = definition.control {
-                return (
-                    definition.key.rawValue,
-                    .string(ComponentPackageLineHeightResolver.resolve(
-                        node.property(definition.key),
-                        fontSizeKey: fontSizeKey,
-                        node: node,
-                        theme: theme
                     ))
                 )
             }
@@ -694,6 +691,8 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
         case .packageColor(let value):
             raw = value.source
         case .packageFontSize(let value):
+            raw = value.source
+        case .packageLineHeight(let value):
             raw = value.source
         case .packageSpacing(let value):
             raw = value.sources.joined(separator: " ")

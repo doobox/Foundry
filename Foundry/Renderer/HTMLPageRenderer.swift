@@ -410,6 +410,8 @@ struct HTMLPageRenderer: PageRendering {
                     let reference: String
                     switch item {
                     case .choice(let value), .string(let value): reference = value
+                    case .packageLineHeight(let value):
+                        return .string(ComponentPackageThemeValueResolver.resolveLineHeight(value, theme: theme))
                     default: return packageValue(item)
                     }
                     guard
@@ -448,6 +450,11 @@ struct HTMLPageRenderer: PageRendering {
                     ? fontSizeValue.customValue : theme.fontSizeCSSVariable(for: fontSizeValue.source)
                 return (definition.key.rawValue, .string(resolved))
             }
+            if case .packageLineHeight = definition.control,
+               case .packageLineHeight(let lineHeightValue) = value {
+                let resolved = ComponentPackageThemeValueResolver.resolveLineHeight(lineHeightValue, theme: theme)
+                return (definition.key.rawValue, .string(resolved))
+            }
             if case .packageSpacing(let kind, _, _) = definition.control,
                case .packageSpacing(let spacingValue) = value {
                 return (
@@ -456,17 +463,6 @@ struct HTMLPageRenderer: PageRendering {
                         spacingValue,
                         theme: theme,
                         kind: kind
-                    ))
-                )
-            }
-            if case .lineHeight(let fontSizeKey) = definition.control {
-                return (
-                    definition.key.rawValue,
-                    .string(ComponentPackageLineHeightResolver.resolve(
-                        node.property(definition.key),
-                        fontSizeKey: fontSizeKey,
-                        node: node,
-                        theme: theme
                     ))
                 )
             }
@@ -508,6 +504,7 @@ struct HTMLPageRenderer: PageRendering {
         case .link: .string("")
         case .packageColor(let value): .string(value.source)
         case .packageFontSize(let value): .string(value.source)
+        case .packageLineHeight(let value): .string(value.source)
         case .packageSpacing(let value): .array(value.sources.map(ComponentPackageValue.string))
         }
     }

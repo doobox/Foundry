@@ -552,6 +552,15 @@ nonisolated extension Theme {
         }
     }
 
+    var lineHeightChoices: [ComponentPropertyChoice] {
+        ThemeLineHeight.allCases.map {
+            .init(
+                value: $0.rawValue,
+                label: "\($0.title) — \($0.value.formatted(.number.precision(.fractionLength(0...3))))"
+            )
+        }
+    }
+
     var spacingChoices: [ComponentPropertyChoice] {
         let predefined: [(String, String, Double)] = [
             ("3xs", "3XS", spacing.threeExtraSmall),
