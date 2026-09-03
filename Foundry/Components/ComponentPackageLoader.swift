@@ -27,6 +27,13 @@ nonisolated struct LoadedComponentPackage: Sendable {
     var resourceRootURL: URL {
         rootURL.appending(path: "Contents/Resources", directoryHint: .isDirectory)
     }
+
+    func declaresJavaScript(in scopes: ComponentPackageTemplateFile.Scope...) -> Bool {
+        manifest.render.files.contains { file in
+            scopes.contains { $0.rawValue == file.scope.rawValue }
+                && file.path.lowercased().hasSuffix(".js")
+        }
+    }
 }
 
 nonisolated struct LoadedPlacedHTMLTemplate: Sendable {

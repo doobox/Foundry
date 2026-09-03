@@ -4,12 +4,44 @@ import Testing
 
 struct WorkspaceLayoutTests {
     @Test
-    func standardLayoutContainsEveryPanelOnce() {
+    func standardLayoutContainsEveryNonDeveloperPanelOnce() {
         let panels = WorkspaceLayout.standard.columns.flatMap(\.panels)
+        let expectedPanels = WorkspacePanel.allCases.filter { $0 != .developer }
 
-        #expect(panels.count == WorkspacePanel.allCases.count)
-        #expect(Set(panels) == Set(WorkspacePanel.allCases))
+        #expect(panels.count == expectedPanels.count)
+        #expect(Set(panels) == Set(expectedPanels))
         #expect(WorkspaceLayout.standard.columns.map(\.role) == [.sidebarDock, .canvas, .inspectorDock])
+    }
+
+    @Test
+    func developerPanelIsAddedOnceAndCanBeHiddenAgain() {
+        var layout = WorkspaceLayout.standard
+
+        layout.setDeveloperPanelVisible(true)
+        layout.setDeveloperPanelVisible(true)
+
+        #expect(layout.columns.flatMap(\.panels).filter { $0 == .developer }.count == 1)
+        #expect(layout.columns.first?.panels.last == .developer)
+
+        layout.setDeveloperPanelVisible(false)
+
+        #expect(!layout.columns.flatMap(\.panels).contains(.developer))
+        #expect(!layout.detachedPanels.contains(where: { $0.panel == .developer }))
+    }
+
+    @Test
+    func newDocumentIncludesDeveloperPanelOnlyWhenPreferenceIsEnabled() throws {
+        let suiteName = "WorkspaceLayoutTests.\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        #expect(!WorkspacePresetStore.initialLayoutForNewDocument(from: defaults)
+            .columns.flatMap(\.panels).contains(.developer))
+
+        defaults.set(true, forKey: AppPreferenceKey.showsDeveloperPanel)
+
+        #expect(WorkspacePresetStore.initialLayoutForNewDocument(from: defaults)
+            .columns.flatMap(\.panels).contains(.developer))
     }
 
     @Test
@@ -50,7 +82,7 @@ struct WorkspaceLayoutTests {
 
         #expect(layout.columns.count == 4)
         #expect(layout.columns[1].panels == [.components])
-        #expect(Set(layout.columns.flatMap(\.panels)) == Set(WorkspacePanel.allCases))
+        #expect(Set(layout.columns.flatMap(\.panels)) == Set(WorkspacePanel.allCases.filter { $0 != .developer }))
     }
 
     @Test

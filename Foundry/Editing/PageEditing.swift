@@ -15,7 +15,15 @@ enum PageTreeItem: Equatable, Sendable {
 enum PageTreePlacement: Equatable, Sendable {
     case before(PageTreeItem)
     case insideFolder(UUID)
+    case insidePage(UUID)
     case end(parentFolderID: UUID?)
+    case endPage(UUID)
+}
+
+private enum PageTreeParent: Equatable {
+    case root
+    case folder(UUID)
+    case page(UUID)
 }
 
 @MainActor
@@ -25,7 +33,7 @@ extension ProjectEditor {
         let folder = PageFolder(
             name: name,
             slug: name,
-            order: childItems(of: nil).count
+            order: childItems(of: .root).count
         )
         mutate(actionName: "Add Page Folder") { $0.pageFolders.append(folder) }
         return folder.id
@@ -52,7 +60,7 @@ extension ProjectEditor {
         let page = Page(
             title: title,
             slug: uniqueSlug(for: title),
-            order: childItems(of: nil).count
+            order: childItems(of: .root).count
         )
         mutate(actionName: "Add Page") { $0.pages.append(page) }
         return page.id
@@ -77,19 +85,50 @@ extension ProjectEditor {
     }
 
     @discardableResult
-    func removePage(id: UUID) -> UUID? {
+    func removePage(id: UUID, includingSubpages: Bool = false) -> UUID? {
         guard document.site.pages.count > 1,
               let index = document.site.pages.firstIndex(where: { $0.id == id }),
               document.site.pages[index].slug != "index" else {
             return nil
         }
+        var removedIDs: Set<UUID> = [id]
+        if includingSubpages {
+            var foundAnotherLevel = true
+            while foundAnotherLevel {
+                foundAnotherLevel = false
+                for page in document.site.pages where
+                    page.parentPageID.map(removedIDs.contains) == true
+                    && removedIDs.insert(page.id).inserted {
+                    foundAnotherLevel = true
+                }
+            }
+        }
         let remainingPages = document.site.pages.enumerated()
-            .filter { $0.offset != index }
+            .filter { !removedIDs.contains($0.element.id) }
             .map(\.element)
-        let nextPageID = remainingPages[min(index, remainingPages.count - 1)].id
+        guard !remainingPages.isEmpty else { return nil }
+        let parentPageID = document.site.pages[index].parentPageID
+        let nextPageID = parentPageID.flatMap { parentID in
+            remainingPages.first(where: { $0.id == parentID })?.id
+        } ?? remainingPages[min(index, remainingPages.count - 1)].id
 
-        mutate(actionName: "Delete Page") { site in
-            site.pages.removeAll(where: { $0.id == id })
+        let deletedItem = PageTreeItem.page(id)
+        let deletedParent = parent(of: deletedItem)
+        var replacementSiblings = childItems(of: deletedParent)
+        if let deletedIndex = replacementSiblings.firstIndex(of: deletedItem) {
+            if includingSubpages {
+                replacementSiblings.remove(at: deletedIndex)
+            } else {
+                replacementSiblings.replaceSubrange(
+                    deletedIndex...deletedIndex,
+                    with: childItems(of: .page(id))
+                )
+            }
+        }
+
+        mutate(actionName: includingSubpages ? "Delete Page and Subpages" : "Delete Page") { site in
+            site.pages.removeAll(where: { removedIDs.contains($0.id) })
+            site.applyPageTreeOrder(replacementSiblings, parent: deletedParent)
         }
         return nextPageID
     }
@@ -100,6 +139,18 @@ extension ProjectEditor {
                 return
             }
             site.pages[index].title = title
+        }
+    }
+
+    func renamePageFromOutline(id: UUID, title: String) {
+        guard let page = document.site.pages.first(where: { $0.id == id }) else { return }
+        let slug = page.slug == "index"
+            ? "index"
+            : uniqueSlug(for: title, excluding: id)
+        mutate(actionName: "Rename Page") { site in
+            guard let index = site.pages.firstIndex(where: { $0.id == id }) else { return }
+            site.pages[index].title = title
+            site.pages[index].slug = slug
         }
     }
 
@@ -119,10 +170,14 @@ extension ProjectEditor {
     func setHomePage(id: UUID) {
         guard let target = document.site.pages.first(where: { $0.id == id }),
               target.folderID == nil,
+              target.parentPageID == nil,
               target.slug != "index" else { return }
         let previousSlug = target.slug
         let targetItem = PageTreeItem.page(id)
-        let reorderedRootItems = [targetItem] + childItems(of: nil).filter { $0 != targetItem }
+        let promotedChildren = childItems(of: .page(id))
+        let reorderedRootItems = [targetItem]
+            + promotedChildren
+            + childItems(of: .root).filter { $0 != targetItem }
         mutate(actionName: "Set Home Page") { site in
             guard let targetIndex = site.pages.firstIndex(where: { $0.id == id }) else { return }
             if let homeIndex = site.pages.firstIndex(where: { $0.slug == "index" }),
@@ -130,7 +185,7 @@ extension ProjectEditor {
                 site.pages[homeIndex].slug = previousSlug
             }
             site.pages[targetIndex].slug = "index"
-            site.applyPageTreeOrder(reorderedRootItems, parentID: nil)
+            site.applyPageTreeOrder(reorderedRootItems, parent: .root)
         }
     }
 
@@ -148,8 +203,8 @@ extension ProjectEditor {
         guard document.site.pages.first(where: { $0.id == id })?.slug != "index" else {
             return
         }
-        let parentID = parentID(of: item)
-        let siblings = childItems(of: parentID)
+        let itemParent = parent(of: item)
+        let siblings = childItems(of: itemParent)
         guard let sourceIndex = siblings.firstIndex(of: item) else { return }
         let destinationIndex = sourceIndex + offset
         guard siblings.indices.contains(destinationIndex) else { return }
@@ -159,7 +214,11 @@ extension ProjectEditor {
         } else if siblings.indices.contains(destinationIndex + 1) {
             placement = .before(siblings[destinationIndex + 1])
         } else {
-            placement = .end(parentFolderID: parentID)
+            switch itemParent {
+            case .root: placement = .end(parentFolderID: nil)
+            case .folder(let id): placement = .end(parentFolderID: id)
+            case .page(let id): placement = .endPage(id)
+            }
         }
         _ = movePageTreeItem(item, to: placement)
     }
@@ -174,84 +233,123 @@ extension ProjectEditor {
            document.site.pages.first(where: { $0.id == id })?.slug == "index" {
             return false
         }
-        let destinationParentID: UUID?
+        let destinationParent: PageTreeParent
         switch placement {
         case .before(let destination):
-            destinationParentID = parentID(of: destination)
+            destinationParent = parent(of: destination)
         case .insideFolder(let folderID):
-            destinationParentID = folderID
+            destinationParent = .folder(folderID)
+        case .insidePage(let pageID), .endPage(let pageID):
+            destinationParent = .page(pageID)
         case .end(let parentFolderID):
-            destinationParentID = parentFolderID
+            destinationParent = parentFolderID.map(PageTreeParent.folder) ?? .root
         }
 
-        if destinationParentID == nil,
+        if destinationParent == .root,
            case .before(.page(let destinationID)) = placement,
            document.site.pages.first(where: { $0.id == destinationID })?.slug == "index" {
             return false
         }
 
         if case .folder(let folderID) = item {
-            guard destinationParentID != folderID,
-                  destinationParentID.map({ !isFolder($0, descendantOf: folderID) }) ?? true else {
+            switch destinationParent {
+            case .page:
+                return false
+            case .folder(let destinationFolderID)
+                where destinationFolderID == folderID
+                    || isFolder(destinationFolderID, descendantOf: folderID):
+                return false
+            case .root, .folder:
+                break
+            }
+        }
+
+        if case .page(let pageID) = item,
+           case .page(let destinationPageID) = destinationParent {
+            guard pageID != destinationPageID,
+                  !isPage(destinationPageID, descendantOf: pageID),
+                  document.site.pages.first(where: { $0.id == destinationPageID })?.slug != "index" else {
                 return false
             }
         }
 
-        var destinationItems = childItems(of: destinationParentID).filter { $0 != item }
+        if case .page = destinationParent,
+           case .page = item {
+            // Pages are the only tree items that may be nested under another page.
+        } else if case .page = destinationParent {
+            return false
+        }
+
+        var destinationItems = childItems(of: destinationParent).filter { $0 != item }
         let destinationIndex: Int
         switch placement {
         case .before(let destination):
             guard let index = destinationItems.firstIndex(of: destination) else { return false }
             destinationIndex = index
-        case .insideFolder, .end:
+        case .insideFolder, .insidePage, .end, .endPage:
             destinationIndex = destinationItems.endIndex
         }
         destinationItems.insert(item, at: destinationIndex)
 
-        if destinationParentID == nil,
+        if destinationParent == .root,
            let homeID = document.site.pages.first(where: { $0.slug == "index" })?.id {
             let homeItem = PageTreeItem.page(homeID)
             destinationItems = [homeItem] + destinationItems.filter { $0 != homeItem }
         }
 
-        let sourceParentID = parentID(of: item)
-        let sourceItems = sourceParentID == destinationParentID
+        let sourceParent = parent(of: item)
+        let sourceItems = sourceParent == destinationParent
             ? destinationItems
-            : childItems(of: sourceParentID).filter { $0 != item }
+            : childItems(of: sourceParent).filter { $0 != item }
 
         mutate(actionName: "Move Page Item") { site in
             if case .asset(let id) = item {
-                let directory: ProjectAsset.ExportDirectory = destinationParentID.map {
-                    .folder($0)
-                } ?? .root
+                let directory: ProjectAsset.ExportDirectory
+                switch destinationParent {
+                case .root: directory = .root
+                case .folder(let id): directory = .folder(id)
+                case .page: return
+                }
                 guard site.assetLibrary.setExportDirectory(directory, forAssetID: id) else { return }
             }
-            site.applyPageTreeOrder(sourceItems, parentID: sourceParentID)
-            if sourceParentID != destinationParentID {
-                site.applyPageTreeOrder(destinationItems, parentID: destinationParentID)
+            site.applyPageTreeOrder(sourceItems, parent: sourceParent)
+            if sourceParent != destinationParent {
+                site.applyPageTreeOrder(destinationItems, parent: destinationParent)
             }
         }
         return true
     }
 
-    private func childItems(of parentID: UUID?) -> [PageTreeItem] {
+    private func childItems(of parent: PageTreeParent) -> [PageTreeItem] {
         let pages = document.site.pages
-            .filter { $0.folderID == parentID }
+            .filter { page in
+                switch parent {
+                case .root: page.folderID == nil && page.parentPageID == nil
+                case .folder(let id): page.folderID == id && page.parentPageID == nil
+                case .page(let id): page.parentPageID == id
+                }
+            }
             .map { (PageTreeItem.page($0.id), $0.order) }
         let folders = document.site.pageFolders
-            .filter { $0.parentID == parentID }
+            .filter { folder in
+                switch parent {
+                case .root: folder.parentID == nil
+                case .folder(let id): folder.parentID == id
+                case .page: false
+                }
+            }
             .map { (PageTreeItem.folder($0.id), $0.order) }
         let assets = document.site.assets.compactMap { asset -> (PageTreeItem, Int)? in
-            switch asset.exportDirectory {
-            case .root where parentID == nil:
+            switch (parent, asset.exportDirectory) {
+            case (.root, .root):
                 return (.asset(asset.id), asset.exportOrder)
-            case .folder(let folderID) where folderID == parentID:
+            case (.folder(let parentID), .folder(let folderID)) where folderID == parentID:
                 return (.asset(asset.id), asset.exportOrder)
             default:
                 return nil
             }
         }
-        let homeID = parentID == nil
+        let homeID = parent == .root
             ? document.site.pages.first(where: { $0.slug == "index" })?.id
             : nil
         return (pages + folders + assets)
@@ -266,14 +364,19 @@ extension ProjectEditor {
             .map(\.0)
     }
 
-    private func parentID(of item: PageTreeItem) -> UUID? {
+    private func parent(of item: PageTreeItem) -> PageTreeParent {
         switch item {
-        case .page(let id): document.site.pages.first { $0.id == id }?.folderID
-        case .folder(let id): document.site.pageFolders.first { $0.id == id }?.parentID
+        case .page(let id):
+            guard let page = document.site.pages.first(where: { $0.id == id }) else { return .root }
+            if let parentPageID = page.parentPageID { return .page(parentPageID) }
+            if let folderID = page.folderID { return .folder(folderID) }
+            return .root
+        case .folder(let id):
+            return document.site.pageFolders.first { $0.id == id }?.parentID.map(PageTreeParent.folder) ?? .root
         case .asset(let id):
             switch document.site.assets.first(where: { $0.id == id })?.exportDirectory {
-            case .folder(let folderID): folderID
-            default: nil
+            case .folder(let folderID): return .folder(folderID)
+            default: return .root
             }
         }
     }
@@ -283,6 +386,16 @@ extension ProjectEditor {
         while let id = currentID {
             if id == folderID { return true }
             currentID = document.site.pageFolders.first { $0.id == id }?.parentID
+        }
+        return false
+    }
+
+    private func isPage(_ candidateID: UUID, descendantOf pageID: UUID) -> Bool {
+        var currentID: UUID? = candidateID
+        var visited = Set<UUID>()
+        while let id = currentID, visited.insert(id).inserted {
+            if id == pageID { return true }
+            currentID = document.site.pages.first { $0.id == id }?.parentPageID
         }
         return false
     }
@@ -307,19 +420,38 @@ extension ProjectEditor {
 }
 
 private extension Site {
-    mutating func applyPageTreeOrder(_ items: [PageTreeItem], parentID: UUID?) {
+    mutating func applyPageTreeOrder(_ items: [PageTreeItem], parent: PageTreeParent) {
         for (order, item) in items.enumerated() {
             switch item {
             case .page(let id):
                 guard let index = pages.firstIndex(where: { $0.id == id }) else { continue }
-                pages[index].folderID = parentID
+                switch parent {
+                case .root:
+                    pages[index].folderID = nil
+                    pages[index].parentPageID = nil
+                case .folder(let parentID):
+                    pages[index].folderID = parentID
+                    pages[index].parentPageID = nil
+                case .page(let parentID):
+                    pages[index].folderID = nil
+                    pages[index].parentPageID = parentID
+                }
                 pages[index].order = order
             case .folder(let id):
                 guard let index = pageFolders.firstIndex(where: { $0.id == id }) else { continue }
-                pageFolders[index].parentID = parentID
+                switch parent {
+                case .root: pageFolders[index].parentID = nil
+                case .folder(let parentID): pageFolders[index].parentID = parentID
+                case .page: continue
+                }
                 pageFolders[index].order = order
             case .asset(let id):
-                let directory: ProjectAsset.ExportDirectory = parentID.map { .folder($0) } ?? .root
+                let directory: ProjectAsset.ExportDirectory
+                switch parent {
+                case .root: directory = .root
+                case .folder(let parentID): directory = .folder(parentID)
+                case .page: continue
+                }
                 _ = assetLibrary.setExportDirectory(directory, order: order, forAssetID: id)
             }
         }

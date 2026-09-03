@@ -75,7 +75,7 @@ struct InspectorView: View {
         } else if let asset {
             PageAssetInspector(asset: asset, content: assetContents[asset.id], folders: folders)
         } else if let page {
-            PageInspector(page: page, folders: folders, editor: editor)
+            PageInspector(page: page, pages: pages, folders: folders, editor: editor)
         } else {
             ContentUnavailableView(
                 "No Selection",
@@ -266,6 +266,7 @@ private struct PageFolderInspector: View {
 
 private struct PageInspector: View {
     let page: Page
+    let pages: [Page]
     let folders: [PageFolder]
     let editor: ProjectEditor
 
@@ -316,17 +317,7 @@ private struct PageInspector: View {
     }
 
     private var exportPath: String {
-        guard page.slug != "index" else { return "/" }
-        var currentID = page.folderID
-        var slugs = [page.slug]
-        var visited = Set<UUID>()
-        while let id = currentID,
-              visited.insert(id).inserted,
-              let folder = folders.first(where: { $0.id == id }) {
-            slugs.insert(folder.slug, at: 0)
-            currentID = folder.parentID
-        }
-        return "/" + slugs.joined(separator: "/") + "/"
+        PageRouteResolver.path(for: page, pages: pages, folders: folders)
     }
 
     private var exportFilePath: String {

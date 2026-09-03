@@ -407,7 +407,7 @@ private struct PublishingProjectSettingsView: View {
                             .disabled(!canPublish || isTestingConnection)
                     }
                     if site.publishingDestination == .local, localDestination != nil {
-                        Button("Reveal Folder") {
+                        Button("Reveal Folder", systemImage: "macwindow.and.pointer.arrow") {
                             if let localDestination { NSWorkspace.shared.activateFileViewerSelecting([localDestination]) }
                         }
                     }
@@ -475,7 +475,9 @@ private struct PublishingProjectSettingsView: View {
             warnings.append("\(missingAssets.count) project resource files are unavailable and cannot be published.")
         }
         let unavailableComponents = site.pages.flatMap(\.components).flatMap(\.flattened)
-            .filter { $0.missingPackageSnapshot != nil }
+            .filter { component in
+                component.packageLock != nil && component.type.definition.renderKind == .unavailable
+            }
         if !unavailableComponents.isEmpty {
             warnings.append("\(unavailableComponents.count) components use unavailable packages.")
         }
@@ -546,18 +548,7 @@ private struct PublishingProjectSettingsView: View {
     }
 
     private func relativeURL(for page: Page) -> String {
-        guard page.slug != "index" else { return "/" }
-        var currentID = page.folderID
-        var slugs: [String] = []
-        var visited = Set<UUID>()
-        while let id = currentID,
-              visited.insert(id).inserted,
-              let folder = pageFolders.first(where: { $0.id == id }) {
-            slugs.insert(folder.slug, at: 0)
-            currentID = folder.parentID
-        }
-        slugs.append(page.slug)
-        return "/" + slugs.joined(separator: "/") + "/"
+        PageRouteResolver.path(for: page, pages: pages, folders: pageFolders)
     }
 }
 

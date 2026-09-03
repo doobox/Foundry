@@ -63,8 +63,8 @@
 &lt;/dict&gt;
 &lt;/plist&gt;</code></pre></section>
 <section class="step"><h2>Own the markup</h2><pre><code>&lt;aside id="{{ id }}" {{ component.attributes }}&gt;
-    &lt;h2&gt;%text="A useful callout"%&lt;/h2&gt;
-    {% slot id="content" %}
+    &lt;h2&gt;{{ text="A useful callout" }}&lt;/h2&gt;
+    {{ slot id="content" }}
 &lt;/aside&gt;</code></pre><p><code>{{ component.attributes }}</code> carries Foundry’s editor hooks. Put it on the element representing the component. <code>{{ id }}</code> is yours to place wherever the CSS should target.</p></section>
 <section class="step"><h2>Own the CSS</h2><pre><code>#{{ id }} {
     padding: {{ control.padding }}px;

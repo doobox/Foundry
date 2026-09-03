@@ -20,8 +20,6 @@ typedef struct {
     const uint8_t *data;
     size_t dataLength;
     int32_t testOnly;
-    int32_t deleteOnly;
-    const char *deleteCommand;
     int32_t createRemoteDirectories;
     int32_t requireExplicitFTPSTLS;
 } FoundryCurlRequest;

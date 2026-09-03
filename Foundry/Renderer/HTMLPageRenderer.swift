@@ -286,16 +286,11 @@ struct HTMLPageRenderer: PageRendering {
 
     private func absoluteURL(for page: Page, in site: Site, baseURL: String) -> String {
         guard page.slug != "index" else { return baseURL + "/" }
-        var currentID = page.folderID
-        var slugs: [String] = []
-        var visited = Set<UUID>()
-        while let id = currentID,
-              visited.insert(id).inserted,
-              let folder = site.pageFolders.first(where: { $0.id == id }) {
-            slugs.insert(folder.slug, at: 0)
-            currentID = folder.parentID
-        }
-        slugs.append(page.slug)
+        let slugs = PageRouteResolver.pathSegments(
+            for: page,
+            pages: site.pages,
+            folders: site.pageFolders
+        )
         return baseURL + "/" + slugs.joined(separator: "/") + "/"
     }
 

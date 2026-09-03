@@ -21,6 +21,7 @@ nonisolated enum WorkspacePanel: String, Codable, CaseIterable, Identifiable, Se
     case globalComponents
     case structure
     case assets
+    case developer
     case canvas
     case inspector
 
@@ -34,6 +35,7 @@ nonisolated enum WorkspacePanel: String, Codable, CaseIterable, Identifiable, Se
         case .globalComponents: "Global Components"
         case .structure: "Structure"
         case .assets: "Assets"
+        case .developer: "Developer"
         case .canvas: "Canvas"
         case .inspector: "Inspector"
         }
@@ -47,6 +49,7 @@ nonisolated enum WorkspacePanel: String, Codable, CaseIterable, Identifiable, Se
         case .globalComponents: "globe"
         case .structure: "list.bullet.indent"
         case .assets: "photo.on.rectangle.angled"
+        case .developer: "apple.terminal"
         case .canvas: "macwindow"
         case .inspector: "slider.horizontal.3"
         }
@@ -260,17 +263,27 @@ nonisolated struct WorkspaceLayout: Codable, Equatable, Sendable {
         columns[index].selectedPanel = panel
     }
 
-    mutating func reset() {
+    mutating func reset(includingDeveloperPanel: Bool = false) {
         self = .standard
+        setDeveloperPanelVisible(includingDeveloperPanel)
     }
 
     static func restored(from defaults: UserDefaults = .standard) -> WorkspaceLayout {
+        let includesDeveloperPanel = defaults.bool(forKey: AppPreferenceKey.showsDeveloperPanel)
         guard let data = defaults.data(forKey: storageKey),
               var layout = try? JSONDecoder().decode(WorkspaceLayout.self, from: data) else {
-            return .standard
+            var layout = WorkspaceLayout.standard
+            layout.setDeveloperPanelVisible(includesDeveloperPanel)
+            return layout
         }
-        layout.addMissingUtilityPanels()
-        guard layout.isValid else { return .standard }
+        layout.addMissingUtilityPanels(
+            includingDeveloperPanel: includesDeveloperPanel
+        )
+        guard layout.isValid else {
+            var fallback = WorkspaceLayout.standard
+            fallback.setDeveloperPanelVisible(includesDeveloperPanel)
+            return fallback
+        }
         return layout
     }
 
@@ -292,10 +305,17 @@ nonisolated struct WorkspaceLayout: Codable, Equatable, Sendable {
         columns.removeAll(where: { $0.panels.isEmpty && !$0.role.isPersistentDock })
     }
 
-    mutating func addMissingUtilityPanels() {
+    mutating func addMissingUtilityPanels(includingDeveloperPanel: Bool = false) {
         normalizeColumnRoles()
+        if !includingDeveloperPanel {
+            remove(.developer)
+        }
         let existing = Set(columns.flatMap(\.panels) + detachedPanels.map(\.panel))
-        let missing = WorkspacePanel.allCases.filter { !existing.contains($0) && $0 != .canvas }
+        let missing = WorkspacePanel.allCases.filter {
+            !existing.contains($0) &&
+                $0 != .canvas &&
+                ($0 != .developer || includingDeveloperPanel)
+        }
         guard !missing.isEmpty else { return }
 
         for panel in missing {
@@ -308,11 +328,26 @@ nonisolated struct WorkspaceLayout: Codable, Equatable, Sendable {
         }
     }
 
+    mutating func setDeveloperPanelVisible(_ isVisible: Bool) {
+        if isVisible {
+            guard !columns.flatMap(\.panels).contains(.developer),
+                  !detachedPanels.contains(where: { $0.panel == .developer }),
+                  let sidebarIndex = columns.firstIndex(where: { $0.role == .sidebarDock }) else {
+                return
+            }
+            columns[sidebarIndex].panels.append(.developer)
+        } else {
+            remove(.developer)
+        }
+    }
+
     private var isValid: Bool {
         let panels = columns.flatMap(\.panels) + detachedPanels.map(\.panel)
+        let requiredPanels = Set(WorkspacePanel.allCases.filter { $0 != .developer })
         return !columns.isEmpty &&
-            Set(panels) == Set(WorkspacePanel.allCases) &&
-            panels.count == WorkspacePanel.allCases.count &&
+            requiredPanels.isSubset(of: Set(panels)) &&
+            Set(panels).count == panels.count &&
+            panels.allSatisfy { requiredPanels.contains($0) || $0 == .developer } &&
             columns.filter { $0.role == .sidebarDock }.count == 1 &&
             columns.filter { $0.role == .canvas }.count == 1 &&
             columns.filter { $0.role == .inspectorDock }.count == 1 &&

@@ -69,8 +69,8 @@ struct AssetManagementTests {
             assets: [asset.id: ProjectAssetContent(asset: asset, data: data)]
         )
 
-        #expect(bundle.file(at: asset.exportPath)?.data == data)
-        #expect(bundle.file(at: "index.html")?.contents.contains(asset.exportPath) == true)
+        #expect(bundle.file(at: "assets/hero.png")?.data == data)
+        #expect(bundle.file(at: "index.html")?.contents.contains("assets/hero.png") == true)
     }
 
     @Test
@@ -89,11 +89,53 @@ struct AssetManagementTests {
             site: site,
             assets: [asset.id: ProjectAssetContent(asset: asset, data: data)]
         )
-        let expectedPath = "assets/downloads/test-folder/\(asset.storageFilename)"
+        let expectedPath = "assets/downloads/test-folder/hero.png"
 
         #expect(site.publishedPath(for: asset) == expectedPath)
         #expect(bundle.file(at: expectedPath)?.data == data)
         #expect(bundle.file(at: "assets/images/\(asset.storageFilename)") == nil)
+    }
+
+    @Test
+    func managedExportUsesReadableNamesAndStableSuffixesOnlyForCollisions() {
+        let first = ProjectAsset(
+            id: UUID(uuidString: "11111111-1111-1111-1111-111111111111")!,
+            filename: "Team Photo@2x.PNG",
+            mediaType: "image/png",
+            byteCount: 1
+        )
+        let second = ProjectAsset(
+            id: UUID(uuidString: "22222222-2222-2222-2222-222222222222")!,
+            filename: "Team Photo 2x.png",
+            mediaType: "image/png",
+            byteCount: 1
+        )
+        let unique = ProjectAsset(filename: "Company Logo.svg", mediaType: "image/svg+xml", byteCount: 1)
+        let library: [ProjectAssetNode] = [.asset(first), .asset(second), .asset(unique)]
+
+        #expect(library.managedExportPath(for: first) == "assets/team-photo-2x--11111111.png")
+        #expect(library.managedExportPath(for: second) == "assets/team-photo-2x--22222222.png")
+        #expect(library.managedExportPath(for: unique) == "assets/company-logo.svg")
+    }
+
+    @Test
+    func managedExportDisambiguatesSanitizedFolderNameCollisions() {
+        let firstAsset = ProjectAsset(filename: "Photo.png", mediaType: "image/png", byteCount: 1)
+        let secondAsset = ProjectAsset(filename: "Photo.png", mediaType: "image/png", byteCount: 1)
+        let firstFolder = ProjectAssetFolder(
+            id: UUID(uuidString: "aaaaaaaa-1111-1111-1111-111111111111")!,
+            name: "Team Photos",
+            children: [.asset(firstAsset)]
+        )
+        let secondFolder = ProjectAssetFolder(
+            id: UUID(uuidString: "bbbbbbbb-2222-2222-2222-222222222222")!,
+            name: "Team@Photos",
+            children: [.asset(secondAsset)]
+        )
+        let library: [ProjectAssetNode] = [.folder(firstFolder), .folder(secondFolder)]
+
+        #expect(library.managedExportPath(for: firstAsset) == "assets/team-photos--aaaaaaaa/photo.png")
+        #expect(library.managedExportPath(for: secondAsset) == "assets/team-photos--bbbbbbbb/photo.png")
     }
 
     @Test

@@ -4,6 +4,30 @@ import Testing
 
 struct ComponentPackageTests {
     @Test
+    func brokenDevelopmentFixtureFailsWithActionableDiagnostics() throws {
+        let repositoryURL = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let fixtureURL = repositoryURL.appending(
+            path: "DevelopmentFixtures/BrokenComponent.foundrydevpack",
+            directoryHint: .isDirectory
+        )
+
+        let header = try FoundryPackLoader.load(from: fixtureURL)
+        #expect(header.type == .component)
+
+        do {
+            _ = try ComponentPackageLoader.load(from: fixtureURL)
+            Issue.record("The intentionally broken component unexpectedly loaded.")
+        } catch ComponentPackageLoadingError.invalid(let diagnostics) {
+            #expect(diagnostics.contains { $0.message.contains("reverse-DNS") })
+            #expect(diagnostics.contains { $0.message.contains("does not exist") })
+        } catch {
+            Issue.record("Expected component validation diagnostics, but received: \(error)")
+        }
+    }
+
+    @Test
     func linkControlResolvesPagesResourcesAnchorsTargetsAndAttributes() {
         let page = Page(title: "Profile", slug: "profile")
         let asset = ProjectAsset(filename: "guide.pdf", mediaType: "application/pdf", byteCount: 10)
@@ -21,6 +45,22 @@ struct ComponentPackageTests {
         #expect(resolved.target == "_blank")
         #expect(resolved.attributes == "title=\"Read &amp; learn\" rel=\"noopener noreferrer\"")
 
+        let parentPage = Page(title: "Services", slug: "services")
+        let childPage = Page(
+            title: "Design",
+            slug: "design",
+            parentPageID: parentPage.id
+        )
+        let nestedPageLink = ComponentLinkResolver.resolve(
+            .init(destination: .page(childPage.id)),
+            pages: [parentPage, childPage],
+            folders: [],
+            assets: [],
+            publicURL: "",
+            absoluteURL: false
+        )
+        #expect(nestedPageLink.href == "/services/design/")
+
         let resource = ComponentLinkResolver.resolve(
             .init(destination: .resource(asset.id)), pages: [page], folders: [], assets: [asset],
             publicURL: "", absoluteURL: true
@@ -32,7 +72,7 @@ struct ComponentPackageTests {
             .init(destination: .resource(asset.id)), pages: [page], folders: [], assets: [asset],
             assetLibrary: [.folder(resourceFolder)], publicURL: "", absoluteURL: true
         )
-        #expect(nestedResource.href == "/assets/test-folder/\(asset.storageFilename)")
+        #expect(nestedResource.href == "/assets/test-folder/guide.pdf")
 
         let folder = PageFolder(name: "Downloads", slug: "downloads")
         var placedAsset = asset
@@ -491,7 +531,7 @@ struct ComponentPackageTests {
 
         let bundle = StaticSiteRenderer().render(site: site)
         let html = try #require(bundle.file(at: "index.html")?.contents)
-        let pageJavaScript = try #require(bundle.file(at: "assets/pages/\(site.pages[0].id.uuidString.lowercased()).js")?.contents)
+        let pageJavaScript = try #require(bundle.file(at: "files/page.js")?.contents)
 
         #expect(html.contains("data-foundry-id=\"\(node.id.uuidString)\""))
         #expect(pageJavaScript.contains("document.querySelector('[data-foundry-id=\"\(node.id.uuidString)\"]')"))

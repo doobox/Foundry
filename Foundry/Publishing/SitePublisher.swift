@@ -79,6 +79,7 @@ nonisolated enum PublishingChange: String, Sendable, Equatable {
 nonisolated struct PublishingPlan: Sendable, Equatable {
     let uploads: [SiteExportFile]
     let removals: [String]
+    let removalHashes: [String: String]
     let unchangedFileCount: Int
     let nextManifest: PublishingManifest
 
@@ -95,6 +96,11 @@ nonisolated struct PublishingPlan: Sendable, Equatable {
         return PublishingPlan(
             uploads: uploads,
             removals: removesObsoleteFiles ? obsolete : [],
+            removalHashes: removesObsoleteFiles
+                ? Dictionary(uniqueKeysWithValues: obsolete.compactMap { path in
+                    previousFiles[path].map { (path, $0) }
+                })
+                : [:],
             unchangedFileCount: bundle.files.count - uploads.count,
             nextManifest: PublishingManifest(files: retained)
         )
@@ -286,14 +292,14 @@ nonisolated struct SitePublisher: Sendable {
                 previous: forceAllFiles ? nil : manifestStore.load(for: site, localDirectory: localDirectory),
                 removesObsoleteFiles: site.cleansObsoleteExportFiles
             )
-            try await Task.detached {
+            let removedFileCount = try await Task.detached {
                 try SiteExportWriter().apply(plan, bundle: bundle, to: localDirectory)
             }.value
             try manifestStore.save(plan.nextManifest, for: site, localDirectory: localDirectory)
             return PublishingResult(
                 uploadedFileCount: plan.uploads.count,
                 unchangedFileCount: plan.unchangedFileCount,
-                removedFileCount: plan.removals.count
+                removedFileCount: removedFileCount
             )
         }
 
@@ -302,7 +308,7 @@ nonisolated struct SitePublisher: Sendable {
         let plan = PublishingPlan.make(
             bundle: bundle,
             previous: forceAllFiles ? nil : manifestStore.load(for: site, localDirectory: localDirectory),
-            removesObsoleteFiles: site.cleansObsoleteExportFiles
+            removesObsoleteFiles: false
         )
         let tracker = PublishingProgressTracker(files: plan.uploads, handler: progress)
         try await uploadConcurrently(
@@ -311,21 +317,11 @@ nonisolated struct SitePublisher: Sendable {
             credential: credential,
             tracker: tracker
         )
-        for path in plan.removals {
-            try Task.checkCancellation()
-            try await perform(
-                site: site,
-                relativePath: path,
-                credential: credential,
-                operation: .delete,
-                context: CurlProgressContext(file: path)
-            )
-        }
         try manifestStore.save(plan.nextManifest, for: site, localDirectory: localDirectory)
         return PublishingResult(
             uploadedFileCount: plan.uploads.count,
             unchangedFileCount: plan.unchangedFileCount,
-            removedFileCount: plan.removals.count
+            removedFileCount: 0
         )
     }
 
@@ -419,12 +415,7 @@ nonisolated struct SitePublisher: Sendable {
 
     private enum Operation {
         case upload(Data)
-        case delete
         case test
-
-        var isDelete: Bool {
-            if case .delete = self { true } else { false }
-        }
 
         var isTest: Bool {
             if case .test = self { true } else { false }
@@ -441,18 +432,15 @@ nonisolated struct SitePublisher: Sendable {
         let data: Data
         switch operation {
         case .upload(let contents): data = contents
-        case .delete, .test: data = Data()
+        case .test: data = Data()
         }
         try await withTaskCancellationHandler {
             try await Task.detached {
                 try data.withUnsafeBytes { bytes in
-                    let requestPath = operation.isDelete && site.publishingDestination != .amazonS3
-                        ? ""
-                        : relativePath
                     let url = PublishingRemoteURLBuilder.url(
                         site: site,
-                        relativePath: requestPath,
-                        testOnly: operation.isTest || operation.isDelete
+                        relativePath: relativePath,
+                        testOnly: operation.isTest
                     ) as NSString
                     let username = site.publishingUsername as NSString
                     let password = credential as NSString
@@ -460,9 +448,6 @@ nonisolated struct SitePublisher: Sendable {
                     let knownHosts = knownHostsPath as NSString?
                     let awsSignature = site.publishingDestination == .amazonS3
                         ? "aws:amz:\(site.publishingS3Region):s3" as NSString
-                        : nil
-                    let deleteCommand = operation.isDelete
-                        ? PublishingRemoteURLBuilder.deleteCommand(site: site, relativePath: relativePath)
                         : nil
                     var request = FoundryCurlRequest(
                         url: url.utf8String,
@@ -474,8 +459,6 @@ nonisolated struct SitePublisher: Sendable {
                         data: bytes.bindMemory(to: UInt8.self).baseAddress,
                         dataLength: bytes.count,
                         testOnly: operation.isTest ? 1 : 0,
-                        deleteOnly: operation.isDelete ? 1 : 0,
-                        deleteCommand: deleteCommand?.utf8String,
                         createRemoteDirectories: 1,
                         requireExplicitFTPSTLS: site.publishingDestination == .ftps ? 1 : 0
                     )
@@ -536,19 +519,6 @@ nonisolated enum PublishingRemoteURLBuilder {
         }
         let suffix = testOnly && !path.hasSuffix("/") ? "/" : ""
         return base + path + suffix
-    }
-
-    static func deleteCommand(site: Site, relativePath: String) -> NSString {
-        let root = trimmedPath(site.publishingRemotePath)
-        let path = [root, relativePath].filter { !$0.isEmpty }.joined(separator: "/")
-        switch site.publishingDestination {
-        case .sftp:
-            return "rm \(site.publishingRemotePath.hasPrefix("/") ? "/" : "")\(path)" as NSString
-        case .ftp, .ftps:
-            return "DELE \(site.publishingRemotePath.hasPrefix("/") ? "/" : "")\(path)" as NSString
-        case .local, .amazonS3:
-            return "" as NSString
-        }
     }
 
     private static func effectivePort(_ site: Site) -> Int {

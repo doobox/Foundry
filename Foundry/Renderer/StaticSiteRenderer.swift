@@ -6,35 +6,67 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
     }
 
     func render(site: Site, assets: [UUID: ProjectAssetContent]) -> SiteExportBundle {
+        let includesSiteJavaScript = ComponentArtifactPlan.sitePackages(in: site).contains {
+            $0.declaresJavaScript(in: .site)
+        }
         var files = site.pages.flatMap { page -> [SiteExportFile] in
             let isHome = page.slug == "index"
-            let directory = isHome ? "" : joinedPath(Self.folderPath(for: page.folderID, in: site), page.slug)
+            let directory = isHome
+                ? ""
+                : PageRouteResolver.pathSegments(
+                    for: page,
+                    pages: site.pages,
+                    folders: site.pageFolders
+                ).joined(separator: "/")
             let rootPrefix = directory.isEmpty
                 ? ""
                 : String(repeating: "../", count: directory.split(separator: "/").count)
-            let pageAssetName = page.id.uuidString.lowercased()
-            return [SiteExportFile(
+            let includesPageJavaScript = pageRequiresJavaScript(page)
+            let pageFilesDirectory = Self.joinedPath(directory, "files")
+            let pageStylesAssetPrefix = String(
+                repeating: "../",
+                count: directory.split(separator: "/").count + 1
+            ) + "assets"
+            var pageFiles = [SiteExportFile(
                 path: Self.outputPath(for: page, in: site),
                 contents: render(
                     page: page,
                     language: site.language,
                     theme: site.theme,
-                    stylesheetPaths: [rootPrefix + "assets/site.css", rootPrefix + "assets/pages/\(pageAssetName).css"],
-                    scriptPaths: [rootPrefix + "assets/site.js", rootPrefix + "assets/pages/\(pageAssetName).js"],
+                    stylesheetPaths: [rootPrefix + "files/site.css", "files/page.css"],
+                    scriptPaths: (includesSiteJavaScript ? [rootPrefix + "files/site.js"] : [])
+                        + (includesPageJavaScript ? ["files/page.js"] : []),
                     assetPrefix: rootPrefix + "assets",
                     assets: assets,
                     site: site
                 )
             ), SiteExportFile(
-                path: "assets/pages/\(pageAssetName).css",
-                contents: pageStyles(for: page, site: site, assets: assets)
-            ), SiteExportFile(
-                path: "assets/pages/\(pageAssetName).js",
-                contents: pageScripts(for: page, theme: site.theme, assetPrefix: rootPrefix + "assets", assets: assets, site: site)
+                path: Self.joinedPath(pageFilesDirectory, "page.css"),
+                contents: pageStyles(
+                    for: page,
+                    site: site,
+                    assetPrefix: pageStylesAssetPrefix,
+                    assets: assets
+                )
             )]
+            if includesPageJavaScript {
+                pageFiles.append(SiteExportFile(
+                    path: Self.joinedPath(pageFilesDirectory, "page.js"),
+                    contents: pageScripts(
+                        for: page,
+                        theme: site.theme,
+                        assetPrefix: rootPrefix + "assets",
+                        assets: assets,
+                        site: site
+                    )
+                ))
+            }
+            return pageFiles
         }
-        files.append(.init(path: "assets/site.css", contents: stylesheet(for: site, assets: assets)))
-        files.append(.init(path: "assets/site.js", contents: siteScripts(for: site)))
+        files.append(.init(path: "files/site.css", contents: stylesheet(for: site, assets: assets)))
+        if includesSiteJavaScript {
+            files.append(.init(path: "files/site.js", contents: siteScripts(for: site)))
+        }
         files.append(contentsOf: site.assets.compactMap { asset in
             assets[asset.id].map { SiteExportFile(path: site.publishedPath(for: asset), data: $0.data) }
         })
@@ -47,6 +79,16 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
         return SiteExportBundle(files: files.sorted { $0.path < $1.path })
     }
 
+    private func pageRequiresJavaScript(_ page: Page) -> Bool {
+        page.components.flatMap(\.flattened).contains { node in
+            if !ComponentArtifactPlan.htmlArtifact(for: node, suffix: "JavaScript")
+                .trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                return true
+            }
+            return node.type.definition.package?.declaresJavaScript(in: .instance, .page) == true
+        }
+    }
+
     static func requiresPhp(_ page: Page) -> Bool {
         ComponentArtifactPlan(page: page).nodes.contains {
             ComponentRegistry.definition(for: $0.type).package?.manifest.requiresPhp == true
@@ -56,24 +98,16 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
     static func outputPath(for page: Page, in site: Site) -> String {
         let pageExtension = requiresPhp(page) ? "php" : "html"
         guard page.slug != "index" else { return "index.\(pageExtension)" }
-        return joinedPath(folderPath(for: page.folderID, in: site), page.slug, "index.\(pageExtension)")
+        let directory = PageRouteResolver.pathSegments(
+            for: page,
+            pages: site.pages,
+            folders: site.pageFolders
+        ).joined(separator: "/")
+        return joinedPath(directory, "index.\(pageExtension)")
     }
 
     static func customExportPath(for asset: ProjectAsset, in site: Site) -> String? {
         asset.exportDirectory == nil ? nil : site.publishedPath(for: asset)
-    }
-
-    private static func folderPath(for folderID: UUID?, in site: Site) -> String {
-        var currentID = folderID
-        var slugs: [String] = []
-        var visited = Set<UUID>()
-        while let id = currentID,
-              visited.insert(id).inserted,
-              let folder = site.pageFolders.first(where: { $0.id == id }) {
-            slugs.insert(folder.slug, at: 0)
-            currentID = folder.parentID
-        }
-        return slugs.joined(separator: "/")
     }
 
     private static func joinedPath(_ components: String...) -> String {
@@ -270,8 +304,11 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
 
     private func absoluteURL(for page: Page, in site: Site, baseURL: String) -> String {
         guard page.slug != "index" else { return baseURL + "/" }
-        let folder = Self.folderPath(for: page.folderID, in: site)
-        let path = joinedPath(folder, page.slug)
+        let path = PageRouteResolver.pathSegments(
+            for: page,
+            pages: site.pages,
+            folders: site.pageFolders
+        ).joined(separator: "/")
         return baseURL + "/" + path + "/"
     }
 
@@ -439,16 +476,16 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
         h1,h2,h3,h4,h5,h6,.foundry-heading{font-family:var(--foundry-font-heading)}code,pre,kbd,samp{font-family:var(--foundry-font-monospace)}
         .foundry-container{width:100%;max-width:var(--foundry-container-width)!important}.foundry-button{display:block;width:fit-content;text-decoration:none;font-weight:600}.foundry-columns{display:grid}.foundry-image{display:block;width:100%;height:auto}.foundry-spacer{min-height:8px}
         \(sitePackageStyles(for: site))
-        \(themeControlStyles(for: site))
-        \(responsiveStyles(for: site, assets: assets))
         """
     }
 
     private func responsiveStyles(
-        for site: Site,
+        for page: Page,
+        in site: Site,
+        assetPrefix: String,
         assets: [UUID: ProjectAssetContent]
     ) -> String {
-        let nodes = site.pages.flatMap { $0.components.flatMap(\.flattened) }
+        let nodes = page.components.flatMap(\.flattened)
         return [ResponsiveBreakpoint.tabletPortrait, .tabletLandscape, .desktop].compactMap { breakpoint in
             guard let minimumWidth = breakpoint.minimumWidth(in: site.theme.screens) else { return nil }
             let rules = nodes.compactMap { node -> String? in
@@ -463,7 +500,7 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
                             properties: packageProperties(
                                 resolved,
                                 theme: site.theme,
-                                assetPrefix: "../assets",
+                                assetPrefix: assetPrefix,
                                 assets: assets,
                                 site: site
                             ),
@@ -503,7 +540,12 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
         "data-foundry-id=\"\(node.id.uuidString)\" data-foundry-package=\"\(escapeAttribute(packageIdentifier))\""
     }
 
-    private func pageStyles(for page: Page, site: Site, assets: [UUID: ProjectAssetContent]) -> String {
+    private func pageStyles(
+        for page: Page,
+        site: Site,
+        assetPrefix: String,
+        assets: [UUID: ProjectAssetContent]
+    ) -> String {
         let nodes = ComponentArtifactPlan(page: page).nodes
         let instanceStyles = nodes.compactMap { node in
             guard let package = node.type.definition.package else { return nil }
@@ -515,7 +557,7 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
                     properties: packageProperties(
                         node,
                         theme: site.theme,
-                        assetPrefix: "../../assets",
+                        assetPrefix: assetPrefix,
                         assets: assets,
                         site: site
                     ),
@@ -537,7 +579,16 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
                 )
             )
         }.joined(separator: "\n")
-        return [instanceStyles, pagePackageStyles].filter { !$0.isEmpty }.joined(separator: "\n")
+        let themeStyles = themeControlStyles(for: page, theme: site.theme)
+        let responsiveStyles = responsiveStyles(
+            for: page,
+            in: site,
+            assetPrefix: assetPrefix,
+            assets: assets
+        )
+        return [instanceStyles, pagePackageStyles, themeStyles, responsiveStyles]
+            .filter { !$0.isEmpty }
+            .joined(separator: "\n")
     }
 
     private func sitePackageStyles(for site: Site) -> String {
@@ -554,9 +605,9 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
         }.joined(separator: "\n")
     }
 
-    private func themeControlStyles(for site: Site) -> String {
-        site.pages.flatMap { $0.components.flatMap(\.flattened) }.compactMap { node in
-            let declarations = themeControlDeclarations(for: node, theme: site.theme)
+    private func themeControlStyles(for page: Page, theme: Theme) -> String {
+        page.components.flatMap(\.flattened).compactMap { node in
+            let declarations = themeControlDeclarations(for: node, theme: theme)
             return declarations.isEmpty ? nil : ".\(componentClass(node)){\(declarations)}"
         }.joined(separator: "\n")
     }

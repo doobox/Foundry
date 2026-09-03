@@ -40,7 +40,9 @@ nonisolated enum ComponentLinkResolver {
         case .none: path = ""
         case .url(let value), .plainText(let value): path = value
         case .page(let id):
-            path = pages.first(where: { $0.id == id }).map { pagePath($0, folders: folders) } ?? ""
+            path = pages.first(where: { $0.id == id }).map {
+                PageRouteResolver.path(for: $0, pages: pages, folders: folders)
+            } ?? ""
         case .resource(let id):
             path = assets.first(where: { $0.id == id }).map {
                 "/" + assetPath($0, folders: folders, assetLibrary: assetLibrary)
@@ -66,19 +68,6 @@ nonisolated enum ComponentLinkResolver {
             target: link.opensInNewWindow ? "_blank" : "",
             attributes: custom.joined(separator: " ")
         )
-    }
-
-    private static func pagePath(_ page: Page, folders: [PageFolder]) -> String {
-        guard page.slug != "index" else { return "/" }
-        var segments = [page.slug]
-        var folderID = page.folderID
-        var visited = Set<UUID>()
-        while let id = folderID, visited.insert(id).inserted,
-              let folder = folders.first(where: { $0.id == id }) {
-            segments.insert(folder.slug, at: 0)
-            folderID = folder.parentID
-        }
-        return "/" + segments.joined(separator: "/") + "/"
     }
 
     private static func assetPath(

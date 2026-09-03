@@ -47,6 +47,45 @@ struct PageEditingTests {
     }
 
     @Test
+    func renamingPageInOutlineUpdatesItsPublishedSlug() throws {
+        let document = FoundryDocument()
+        let editor = ProjectEditor(document: document, undoManager: nil)
+        let aboutID = editor.addPage()
+        let childID = editor.addPage()
+        #expect(editor.movePageTreeItem(.page(childID), to: .insidePage(aboutID)))
+
+        editor.renamePageFromOutline(id: aboutID, title: "About Us")
+        editor.renamePageFromOutline(id: childID, title: "Our Team")
+
+        let about = try #require(document.site.pages.first(where: { $0.id == aboutID }))
+        let child = try #require(document.site.pages.first(where: { $0.id == childID }))
+        #expect(about.slug == "about-us")
+        #expect(child.slug == "our-team")
+        #expect(PageRouteResolver.path(
+            for: child,
+            pages: document.site.pages,
+            folders: document.site.pageFolders
+        ) == "/about-us/our-team/")
+    }
+
+    @Test
+    func outlineRenameKeepsHomeAtRootAndMakesSlugsUnique() throws {
+        let document = FoundryDocument()
+        let editor = ProjectEditor(document: document, undoManager: nil)
+        let homeID = try #require(document.site.pages.first?.id)
+        let firstID = editor.addPage()
+        let secondID = editor.addPage()
+
+        editor.renamePageFromOutline(id: homeID, title: "Welcome")
+        editor.renamePageFromOutline(id: firstID, title: "About")
+        editor.renamePageFromOutline(id: secondID, title: "About")
+
+        #expect(document.site.pages.first(where: { $0.id == homeID })?.slug == "index")
+        #expect(document.site.pages.first(where: { $0.id == firstID })?.slug == "about")
+        #expect(document.site.pages.first(where: { $0.id == secondID })?.slug == "about-2")
+    }
+
+    @Test
     func duplicatesPageWithFreshTreeIdentifiers() throws {
         let document = FoundryDocument()
         let editor = ProjectEditor(document: document, undoManager: nil)
@@ -178,6 +217,23 @@ struct PageEditingTests {
     }
 
     @Test
+    func settingParentPageAsHomePromotesItsChildrenToTheRoot() throws {
+        let document = FoundryDocument()
+        let editor = ProjectEditor(document: document, undoManager: nil)
+        let parentID = editor.addPage()
+        let childID = editor.addPage()
+        #expect(editor.movePageTreeItem(.page(childID), to: .insidePage(parentID)))
+
+        editor.setHomePage(id: parentID)
+
+        let parent = try #require(document.site.pages.first(where: { $0.id == parentID }))
+        let child = try #require(document.site.pages.first(where: { $0.id == childID }))
+        #expect(parent.slug == "index")
+        #expect(child.parentPageID == nil)
+        #expect(child.folderID == nil)
+    }
+
+    @Test
     func homePageSlugAndTreePositionCannotBeChangedDirectly() throws {
         let folder = PageFolder(name: "Company", slug: "company", order: 1)
         let site = Site(
@@ -192,11 +248,14 @@ struct PageEditingTests {
 
         editor.setPageSlug(id: homeID, slug: "welcome")
         let movedIntoFolder = editor.movePageTreeItem(.page(homeID), to: .insideFolder(folder.id))
+        let otherPageID = editor.addPage()
+        let movedIntoPage = editor.movePageTreeItem(.page(homeID), to: .insidePage(otherPageID))
         let placedBeforeHome = editor.movePageTreeItem(.folder(folder.id), to: .before(.page(homeID)))
 
         #expect(document.site.pages.first?.slug == "index")
         #expect(document.site.pages.first?.folderID == nil)
         #expect(!movedIntoFolder)
+        #expect(!movedIntoPage)
         #expect(!placedBeforeHome)
     }
 
@@ -238,6 +297,88 @@ struct PageEditingTests {
         #expect(document.site.pageFolders.first(where: { $0.id == child.id })?.parentID == parent.id)
         #expect(document.site.pages.first?.folderID == child.id)
         #expect(!editor.movePageTreeItem(.folder(parent.id), to: .insideFolder(child.id)))
+    }
+
+    @Test
+    func pagesCanContainPagesAndDriveNestedRoutes() throws {
+        let document = FoundryDocument()
+        let editor = ProjectEditor(document: document, undoManager: nil)
+        let servicesID = editor.addPage()
+        let designID = editor.addPage()
+        editor.renamePage(id: servicesID, title: "Services")
+        editor.setPageSlug(id: servicesID, slug: "services")
+        editor.renamePage(id: designID, title: "Design")
+        editor.setPageSlug(id: designID, slug: "design")
+
+        #expect(editor.movePageTreeItem(.page(designID), to: .insidePage(servicesID)))
+        let design = try #require(document.site.pages.first(where: { $0.id == designID }))
+        #expect(design.parentPageID == servicesID)
+        #expect(design.folderID == nil)
+        #expect(PageRouteResolver.path(
+            for: design,
+            pages: document.site.pages,
+            folders: document.site.pageFolders
+        ) == "/services/design/")
+        #expect(StaticSiteRenderer.outputPath(for: design, in: document.site) == "services/design/index.html")
+    }
+
+    @Test
+    func pageParentRelationshipSurvivesSiteEncoding() throws {
+        let parent = Page(title: "Services", slug: "services")
+        let child = Page(title: "Design", slug: "design", parentPageID: parent.id)
+        let site = Site(name: "Nested", pages: [parent, child])
+
+        let data = try JSONEncoder().encode(site)
+        let decoded = try JSONDecoder().decode(Site.self, from: data)
+
+        #expect(decoded.pages.first(where: { $0.id == child.id })?.parentPageID == parent.id)
+    }
+
+    @Test
+    func pageCannotMoveInsideItselfOrItsDescendant() {
+        let document = FoundryDocument()
+        let editor = ProjectEditor(document: document, undoManager: nil)
+        let parentID = editor.addPage()
+        let childID = editor.addPage()
+
+        #expect(editor.movePageTreeItem(.page(childID), to: .insidePage(parentID)))
+        #expect(!editor.movePageTreeItem(.page(parentID), to: .insidePage(childID)))
+        #expect(!editor.movePageTreeItem(.page(parentID), to: .insidePage(parentID)))
+    }
+
+    @Test
+    func deletingParentPagePromotesItsChildren() throws {
+        let document = FoundryDocument()
+        let editor = ProjectEditor(document: document, undoManager: nil)
+        let parentID = editor.addPage()
+        let childID = editor.addPage()
+        #expect(editor.movePageTreeItem(.page(childID), to: .insidePage(parentID)))
+
+        _ = editor.removePage(id: parentID)
+
+        let child = try #require(document.site.pages.first(where: { $0.id == childID }))
+        #expect(child.parentPageID == nil)
+        #expect(child.folderID == nil)
+    }
+
+    @Test
+    func deletingParentPageAndSubpagesRemovesTheEntireSubtree() {
+        let document = FoundryDocument()
+        let editor = ProjectEditor(document: document, undoManager: nil)
+        let parentID = editor.addPage()
+        let childID = editor.addPage()
+        let grandchildID = editor.addPage()
+        let unrelatedID = editor.addPage()
+        #expect(editor.movePageTreeItem(.page(childID), to: .insidePage(parentID)))
+        #expect(editor.movePageTreeItem(.page(grandchildID), to: .insidePage(childID)))
+
+        _ = editor.removePage(id: parentID, includingSubpages: true)
+
+        #expect(!document.site.pages.contains(where: { $0.id == parentID }))
+        #expect(!document.site.pages.contains(where: { $0.id == childID }))
+        #expect(!document.site.pages.contains(where: { $0.id == grandchildID }))
+        #expect(document.site.pages.contains(where: { $0.id == unrelatedID }))
+        #expect(document.site.pages.contains(where: { $0.slug == "index" }))
     }
 
     @Test

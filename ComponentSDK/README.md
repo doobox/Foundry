@@ -1,143 +1,82 @@
-# Foundry Component SDK — API 1
+# Foundry component API
 
-A Foundry component is a self-contained folder ending in
-`.foundrycomponent-dev` while it is under development. Choose **Add Development
-Component** in Foundry's Components panel to load it. Foundry validates the
-folder and watches its files; saved HTML, CSS, SVG, and manifest changes appear
-without reinstalling or restarting the app.
+The current component format is a macOS-style `.foundrypack` bundle with an
+`Info.plist` manifest. While developing, use the identical structure with a
+`.foundrydevpack` extension so Finder exposes it as an ordinary folder and
+Foundry can watch it in place.
 
-Rename or package the finished folder as `.foundrycomponent` for distribution.
-Installation, signing, and updates will be added after the API 1 authoring model
-stabilises.
+The complete browsable reference lives in [`docs`](../docs/index.html). Start
+with:
 
-## Required files
+- [Build a component](../docs/quick-start.html)
+- [Pack structure and development workflow](../docs/bundle-structure.html)
+- [Info.plist reference](../docs/info-plist.html)
+- [Template values and scopes](../docs/template-values.html)
+- [Custom controls](../docs/custom-controls.html)
+- [Editable content primitives](../docs/editable-text.html)
+- [Child-component slots](../docs/slots.html)
 
-- `component.json`: identity, version, properties, slots, rendering, assets,
-  runtime capabilities, and support metadata.
-- An SVG icon referenced by the manifest.
-- An HTML template referenced by the manifest.
-- Optional CSS, editor-only CSS, runtime JavaScript, and static assets.
+## Minimal structure
 
-Property and slot IDs are stable data identifiers. Never rename one after
-shipping without also providing a migration.
-
-## Templates
-
-API 1 is declarative and deterministic: a template cannot execute native code.
-Whitespace inside delimiters is optional.
-
-### Required root hooks
-
-The template's root element must include the two component hooks:
-
-```html
-<article class="card{{ component.class }}" {{ component.attributes }}>
-  …
-</article>
+```text
+Example.foundrydevpack/
+└── Contents/
+    ├── Info.plist
+    └── Resources/
+        ├── component.html
+        ├── component.css
+        └── icon.svg
 ```
 
-- `{{ component.class }}` adds scoped production classes when needed. Keep it
-  immediately beside your own final class name as shown above.
-- `{{ component.attributes }}` adds selection, inline-editing, drag/drop, and
-  package-boundary attributes in the canvas. Production export removes editor
-  metadata.
+`Contents/Info.plist`:
 
-These hooks let Foundry supply editor behaviour without package-specific Swift
-code or an extra wrapper element.
-
-### Properties
-
-`{{ property.title }}` inserts an HTML-escaped property value. Property values
-are safe by default whether used as text or inside a quoted attribute:
-
-```html
-<h2>{{ property.title }}</h2>
-<a href="{{ property.destination }}">Read more</a>
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>type</key><string>component</string>
+    <key>CFBundleIdentifier</key><string>com.example.component</string>
+    <key>title</key><string>Example</string>
+    <key>templates</key>
+    <dict>
+        <key>html</key><string>component.html</string>
+        <key>files</key>
+        <array>
+            <dict>
+                <key>path</key><string>component.css</string>
+                <key>scope</key><string>instance</string>
+            </dict>
+        </array>
+    </dict>
+</dict>
+</plist>
 ```
 
-Every referenced property must be declared in `component.json`.
-
-### Editable content primitives
-
-Foundry can create hidden editable properties directly from a template:
+`Contents/Resources/component.html`:
 
 ```html
-<p>{{ text }}</p>
-<div>{{ html }}</div>
-<figure>{{ image }}</figure>
+<section id="{{ id }}" {{ component.attributes }}>
+    <h2>{{ text="Example heading" }}</h2>
+</section>
 ```
 
-- `{{ text }}` inserts escaped inline-editable text. Use
-  `{{ text="Default text" }}` to provide a default.
-- `{{ html }}` inserts editable raw HTML. Use
-  `{{ html="<strong>Default HTML</strong>" }}` to provide a default.
-- `{{ image }}` inserts an image or an image drop zone in the canvas.
+## Loading and distribution
 
-Repeated text and HTML primitives receive distinct implicit properties in
-template order.
+Open a `.foundrydevpack` directly or put it in
+`~/Library/Application Support/Foundry/Packs`. Foundry watches development
+packs and reloads a valid edit when the application becomes active. Rename the
+finished bundle to `.foundrypack`; opening it validates and installs it into the
+same Packs directory. Packs may recursively contain component or collection
+packs.
 
-### Named slots
+The retired `.foundrycomponent`, `.foundrycomponent-dev` and `component.json`
+prototype formats are not accepted by the current loader.
 
-A slot is a location that accepts child components:
+## Execution boundary
 
-```html
-<div class="card-media">{{ slot id="media" }}</div>
-<div class="card-content">{{ slot id="content" }}</div>
-```
-
-In the canvas an empty slot becomes a named drop zone. In preview and export
-the directive emits only its children, with no editor chrome. Slot acceptance
-rules and child limits are declared in `component.json`. Children retain their
-slot ID in the document, so multiple slots remain distinct.
-
-The early `{{ slot.content }}` prototype still loads with a warning, but new
-components should use the slot directive.
-
-### Conditions
-
-Use a Boolean/truthy property or compare a property with a string:
-
-```html
-{{ if property.showBadge }}
-  <span class="badge">{{ property.badge }}</span>
-{{ endif }}
-
-{{ if property.alignment == "center" }}
-  <div class="centered">…</div>
-{{ else }}
-  <div>…</div>
-{{ endif }}
-```
-
-Each `if` requires one `endif` and can have at most one `else`.
-
-### Package assets and identifiers
-
-- `{{ asset.images/icon.svg }}` inserts an escaped URL rooted at the package's
-  exported asset directory. The path must also appear in `assets` in the
-  manifest.
-- `{{ instance.id }}` inserts the stable component-instance UUID.
-- `{{ package.id }}` inserts the package identifier.
-
-CSS uses `:host` to refer to the current package boundary. Foundry replaces it
-with a package-specific selector, preventing ordinary component styles from
-leaking into other packages.
-
-## Runtime capabilities
-
-Runtime JavaScript is optional. A package declares each capability it needs.
-DOM access and timers are accepted by default in development packages. Network
-and local-storage access require approval and are currently rejected.
-
-Packages never receive native macOS, filesystem, shell, or Foundry document
-APIs.
-
-## Validation
-
-Foundry checks identifiers, API compatibility, semantic versions, unique
-property and slot IDs, control/default compatibility, safe relative paths,
-declared files, slot limits, runtime capabilities, template structure, unknown
-directives, undeclared properties/assets, and missing or unknown slots. Template
-errors include a line number where possible.
-
-Copy `Starter.foundrycomponent-dev` to begin a component.
+Packages provide declarative metadata plus website HTML, CSS, JavaScript and
+optional PHP. They do not execute native Swift, AppKit, shell or filesystem
+code. JavaScript runs only in the rendered website, and PHP runs in exported
+pages or Foundry's bundled local-preview runtime.

@@ -45,6 +45,7 @@ nonisolated struct Page: Codable, Equatable, Identifiable, Sendable {
     var metadata: PageMetadata
     var components: [ComponentNode]
     var folderID: UUID?
+    var parentPageID: UUID?
     var order: Int
 
     init(
@@ -54,6 +55,7 @@ nonisolated struct Page: Codable, Equatable, Identifiable, Sendable {
         metadata: PageMetadata = .init(),
         components: [ComponentNode] = [],
         folderID: UUID? = nil,
+        parentPageID: UUID? = nil,
         order: Int = 0
     ) {
         self.id = id
@@ -62,11 +64,12 @@ nonisolated struct Page: Codable, Equatable, Identifiable, Sendable {
         self.metadata = metadata
         self.components = components
         self.folderID = folderID
+        self.parentPageID = parentPageID
         self.order = order
     }
 
     private enum CodingKeys: String, CodingKey {
-        case id, title, slug, metadata, components, folderID, order
+        case id, title, slug, metadata, components, folderID, parentPageID, order
     }
 
     init(from decoder: Decoder) throws {
@@ -77,6 +80,7 @@ nonisolated struct Page: Codable, Equatable, Identifiable, Sendable {
         metadata = try container.decodeIfPresent(PageMetadata.self, forKey: .metadata) ?? .init()
         components = try container.decode([ComponentNode].self, forKey: .components)
         folderID = try container.decodeIfPresent(UUID.self, forKey: .folderID)
+        parentPageID = try container.decodeIfPresent(UUID.self, forKey: .parentPageID)
         order = try container.decodeIfPresent(Int.self, forKey: .order) ?? 0
     }
 
@@ -97,8 +101,47 @@ nonisolated struct Page: Codable, Equatable, Identifiable, Sendable {
             metadata: metadata,
             components: components.map { $0.duplicated() },
             folderID: folderID,
+            parentPageID: parentPageID,
             order: order
         )
+    }
+}
+
+nonisolated enum PageRouteResolver {
+    static func pathSegments(
+        for page: Page,
+        pages: [Page],
+        folders: [PageFolder]
+    ) -> [String] {
+        guard page.slug != "index" else { return [] }
+
+        var segments = [page.slug]
+        var currentPage = page
+        var visitedPages: Set<UUID> = [page.id]
+        while let parentID = currentPage.parentPageID,
+              visitedPages.insert(parentID).inserted,
+              let parent = pages.first(where: { $0.id == parentID }) {
+            if parent.slug != "index" {
+                segments.insert(parent.slug, at: 0)
+            }
+            currentPage = parent
+        }
+
+        var folderID = currentPage.folderID
+        var folderSegments: [String] = []
+        var visitedFolders = Set<UUID>()
+        while let id = folderID,
+              visitedFolders.insert(id).inserted,
+              let folder = folders.first(where: { $0.id == id }) {
+            folderSegments.insert(folder.slug, at: 0)
+            folderID = folder.parentID
+        }
+        return folderSegments + segments
+    }
+
+    static func path(for page: Page, pages: [Page], folders: [PageFolder]) -> String {
+        let segments = pathSegments(for: page, pages: pages, folders: folders)
+        return segments.isEmpty ? "/" : "/" + segments.joined(separator: "/") + "/"
     }
 }
 

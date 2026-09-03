@@ -15,6 +15,11 @@ struct SettingsView: View {
                 .tabItem {
                     Label("Preview", systemImage: "safari")
                 }
+
+            DeveloperSettingsView()
+                .tabItem {
+                    Label("Developer", systemImage: "apple.terminal")
+                }
         }
         .task {
             appearance.apply()
@@ -32,9 +37,6 @@ private struct GeneralSettingsView: View {
     private var overridesCanvasBackground = false
     @AppStorage(AppPreferenceKey.canvasBackgroundColor)
     private var canvasBackgroundHex = CanvasBackgroundPreference.defaultColor
-    @AppStorage(AppPreferenceKey.enablesCanvasWebInspector)
-    private var enablesCanvasWebInspector = false
-
     var body: some View {
         Form {
             Section("Appearance") {
@@ -65,10 +67,6 @@ private struct GeneralSettingsView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
 
-                Toggle("Enable Canvas Web Inspector", isOn: $enablesCanvasWebInspector)
-                Text("Adds Inspect Element to the canvas context menu and exposes the canvas through Safari’s Develop menu.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
             }
         }
         .formStyle(.grouped)
@@ -88,6 +86,33 @@ private struct GeneralSettingsView: View {
                 }
             }
         )
+    }
+}
+
+private struct DeveloperSettingsView: View {
+    @AppStorage(AppPreferenceKey.showsDeveloperPanel)
+    private var showsDeveloperPanel = false
+    @AppStorage(AppPreferenceKey.enablesCanvasWebInspector)
+    private var enablesCanvasWebInspector = false
+
+    var body: some View {
+        Form {
+            Section("Components") {
+                Toggle("Show Developer Panel", isOn: $showsDeveloperPanel)
+                Text("Adds a workspace panel containing component loading errors and warnings.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Section("Canvas") {
+                Toggle("Enable Canvas Web Inspector", isOn: $enablesCanvasWebInspector)
+                Text("Adds Inspect Element to the canvas context menu and exposes the canvas through Safari’s Develop menu.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .formStyle(.grouped)
+        .frame(width: 560, height: 260)
     }
 }
 

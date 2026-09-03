@@ -33,8 +33,18 @@ nonisolated struct ProjectAsset: Codable, Equatable, Identifiable, Sendable {
     var exportPath: String { "assets/" + storageFilename }
     var reference: String { "foundry-asset:" + id.uuidString }
 
+    var readableExportFilename: String {
+        let lastComponent = (filename as NSString).lastPathComponent
+        let stem = (lastComponent as NSString).deletingPathExtension
+        let readableStem = stem.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            ? "file" : Page.slugify(stem)
+        return readableStem + "." + fileExtension
+    }
+
     private var fileExtension: String {
         let value = (filename as NSString).pathExtension.lowercased()
+            .components(separatedBy: CharacterSet.alphanumerics.inverted)
+            .joined()
         return value.isEmpty ? "bin" : value
     }
 
@@ -79,24 +89,50 @@ nonisolated indirect enum ProjectAssetNode: Codable, Equatable, Identifiable, Se
 
 nonisolated extension Array where Element == ProjectAssetNode {
     func managedExportPath(for asset: ProjectAsset) -> String {
-        let folders = folderPath(containingAssetID: asset.id) ?? []
-        return (["assets"] + folders + [asset.storageFilename]).joined(separator: "/")
+        managedExportPaths()[asset.id] ?? asset.exportPath
     }
 
-    private func folderPath(containingAssetID assetID: UUID) -> [String]? {
-        for node in self {
-            switch node {
-            case .asset(let asset) where asset.id == assetID:
-                return []
-            case .folder(let folder):
-                if let childPath = folder.children.folderPath(containingAssetID: assetID) {
-                    return [Page.slugify(folder.name)] + childPath
+    func managedExportPaths() -> [UUID: String] {
+        var paths: [UUID: String] = [:]
+
+        func collect(_ nodes: [ProjectAssetNode], under components: [String]) {
+            let assets = nodes.compactMap { node -> ProjectAsset? in
+                guard case .asset(let asset) = node else { return nil }
+                return asset
+            }
+            let folders = nodes.compactMap { node -> ProjectAssetFolder? in
+                guard case .folder(let folder) = node else { return nil }
+                return folder
+            }
+            let filenameCounts = Dictionary(grouping: assets) {
+                $0.readableExportFilename.lowercased()
+            }.mapValues(\.count)
+            let folderNameCounts = Dictionary(grouping: folders) {
+                Page.slugify($0.name).lowercased()
+            }.mapValues(\.count)
+
+            for asset in assets {
+                var filename = asset.readableExportFilename
+                if filenameCounts[filename.lowercased(), default: 0] > 1 {
+                    let base = (filename as NSString).deletingPathExtension
+                    let ext = (filename as NSString).pathExtension
+                    let suffix = asset.id.uuidString.lowercased().prefix(8)
+                    filename = "\(base)--\(suffix).\(ext)"
                 }
-            case .asset:
-                continue
+                paths[asset.id] = (components + [filename]).joined(separator: "/")
+            }
+
+            for folder in folders {
+                let readableName = Page.slugify(folder.name)
+                let exportName = folderNameCounts[readableName.lowercased(), default: 0] > 1
+                    ? "\(readableName)--\(folder.id.uuidString.lowercased().prefix(8))"
+                    : readableName
+                collect(folder.children, under: components + [exportName])
             }
         }
-        return nil
+
+        collect(self, under: ["assets"])
+        return paths
     }
 }
 

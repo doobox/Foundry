@@ -32,8 +32,8 @@ const controlLinks = [
 const sections = [
     { title: "Get started", links: [["Overview", "index.html"], ["Build a component", "quick-start.html"]] },
     { title: "Packages", links: [["Pack structure", "bundle-structure.html"], ["Nested packs", "nested-packs.html"]] },
-    { title: "Build components", links: [["Templates", "template-values.html"], ["Custom controls", "custom-controls.html", controlLinks], ["Editable text", "editable-text.html"], ["Child components", "slots.html"]] },
-    { title: "Themes", links: [["Theme values", "theme-controls.html"]] },
+    { title: "Build components", links: [["Templates", "template-values.html"], ["Custom controls", "custom-controls.html", controlLinks], ["Editable content", "editable-text.html"], ["Child components", "slots.html"]] },
+    { title: "Themes", links: [["Theme values", "theme-controls.html"], ["Theme bundles", "theme-bundles.html"]] },
     { title: "Reference", links: [["Info.plist", "info-plist.html"], ["API index", "components.html"]] }
 ];
 

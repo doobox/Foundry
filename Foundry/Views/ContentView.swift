@@ -10,6 +10,12 @@ private struct HTMLSourceEditRequest: Identifiable {
     let source: HTMLComponentSource
 }
 
+private struct PageDeletionRequest {
+    let pageID: UUID
+    let title: String
+    let subpageCount: Int
+}
+
 struct ContentView: View {
     @ObservedObject var document: FoundryDocument
     @Environment(\.undoManager) private var undoManager
@@ -44,6 +50,7 @@ struct ContentView: View {
     @State private var componentCatalog = ComponentPackageCatalog.shared
     @State private var canvasViewportWidth = 390.0
     @State private var htmlSourceEditRequest: HTMLSourceEditRequest?
+    @State private var pageDeletionRequest: PageDeletionRequest?
     @AppStorage(AppPreferenceKey.appearance)
     private var appearance: AppAppearance = .system
     @AppStorage(AppPreferenceKey.externalPreviewAutoReload)
@@ -223,6 +230,31 @@ struct ContentView: View {
         } message: {
             Text(exportErrorMessage ?? "The site could not be generated.")
         }
+        .alert(
+            "Delete \(pageDeletionRequest.map { "“\($0.title)”" } ?? "Page")?",
+            isPresented: pageDeletionAlertBinding
+        ) {
+            Button("Delete Page Only", role: .destructive) {
+                guard let request = pageDeletionRequest else { return }
+                performPageDeletion(request.pageID, includingSubpages: false)
+                pageDeletionRequest = nil
+            }
+            Button("Delete Page and Subpages", role: .destructive) {
+                guard let request = pageDeletionRequest else { return }
+                performPageDeletion(request.pageID, includingSubpages: true)
+                pageDeletionRequest = nil
+            }
+            Button("Cancel", role: .cancel) {
+                pageDeletionRequest = nil
+            }
+        } message: {
+            let count = pageDeletionRequest?.subpageCount ?? 0
+            Text(
+                count == 1
+                    ? "This page contains one subpage. Keeping it will move it up one level."
+                    : "This page contains \(count) subpages. Keeping them will move its direct subpages up one level."
+            )
+        }
     }
 
     @ViewBuilder
@@ -240,7 +272,7 @@ struct ContentView: View {
                 addPage: addPage,
                 addFolder: { _ = editor.addPageFolder(named: $0) },
                 duplicatePage: duplicatePage,
-                renamePage: { editor.renamePage(id: $0, title: $1) },
+                renamePage: { editor.renamePageFromOutline(id: $0, title: $1) },
                 deletePage: deletePage,
                 movePage: movePage,
                 setHomePage: setHomePage,
@@ -300,6 +332,8 @@ struct ContentView: View {
                 selectedPageAssetID = nil
                 selectedComponentID = nil
             }
+        case .developer:
+            DeveloperPanel()
         case .canvas:
             CanvasView(
                 page: selectedPage,
@@ -743,12 +777,48 @@ struct ContentView: View {
     }
 
     private func deletePage(_ pageID: UUID) {
-        guard let nextPageID = editor.removePage(id: pageID) else {
-            return
+        let subpageCount = descendantPageIDs(of: pageID).count
+        if subpageCount > 0,
+           let page = document.site.pages.first(where: { $0.id == pageID }) {
+            pageDeletionRequest = PageDeletionRequest(
+                pageID: pageID,
+                title: page.title,
+                subpageCount: subpageCount
+            )
+        } else {
+            performPageDeletion(pageID, includingSubpages: false)
         }
+    }
+
+    private func performPageDeletion(_ pageID: UUID, includingSubpages: Bool) {
+        guard let nextPageID = editor.removePage(
+            id: pageID,
+            includingSubpages: includingSubpages
+        ) else { return }
         selectedPageID = nextPageID
         inspectedPageID = nextPageID
         selectedComponentID = nil
+    }
+
+    private func descendantPageIDs(of pageID: UUID) -> Set<UUID> {
+        var descendants = Set<UUID>()
+        var parents: Set<UUID> = [pageID]
+        while !parents.isEmpty {
+            let children = Set(document.site.pages.compactMap { page in
+                page.parentPageID.map(parents.contains) == true ? page.id : nil
+            }).subtracting(descendants)
+            guard !children.isEmpty else { break }
+            descendants.formUnion(children)
+            parents = children
+        }
+        return descendants
+    }
+
+    private var pageDeletionAlertBinding: Binding<Bool> {
+        Binding(
+            get: { pageDeletionRequest != nil },
+            set: { if !$0 { pageDeletionRequest = nil } }
+        )
     }
 
     private func movePage(_ pageID: UUID, _ offset: Int) {

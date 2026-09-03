@@ -13,6 +13,7 @@ struct DockingWorkspaceView<PanelContent: View>: View {
     @ViewBuilder let panelContent: (WorkspacePanel) -> PanelContent
     @Environment(WorkspacePresetLibrary.self) private var workspaceLibrary
     @SceneStorage("foundry.workspace.selectedPresetID") private var selectedWorkspaceIDValue = ""
+    @AppStorage(AppPreferenceKey.showsDeveloperPanel) private var showsDeveloperPanel = false
     @State private var isNamingPreset = false
     @State private var presetName = ""
     @State private var presetPendingDeletion: WorkspacePreset?
@@ -77,6 +78,10 @@ struct DockingWorkspaceView<PanelContent: View>: View {
         }
         .onAppear {
             restoreInitialWorkspaceSelection()
+        }
+        .onChange(of: showsDeveloperPanel, initial: true) { _, isVisible in
+            layout.setDeveloperPanelVisible(isVisible)
+            workspacePresentationID = UUID()
         }
         .background {
             WindowMinimumContentSize(
@@ -230,7 +235,7 @@ struct DockingWorkspaceView<PanelContent: View>: View {
                 isOn: Binding(
                     get: { selectedWorkspaceID == nil },
                     set: { _ in
-                        layout.reset()
+                        layout.reset(includingDeveloperPanel: showsDeveloperPanel)
                         setSelectedWorkspaceID(nil)
                         workspacePresentationID = UUID()
                     }
@@ -310,7 +315,9 @@ struct DockingWorkspaceView<PanelContent: View>: View {
 
     private func applyWorkspacePreset(_ id: UUID) {
         guard let preset = workspaceLibrary.presets.first(where: { $0.id == id }) else { return }
-        layout = preset.layout
+        var appliedLayout = preset.layout
+        appliedLayout.setDeveloperPanelVisible(showsDeveloperPanel)
+        layout = appliedLayout
         setSelectedWorkspaceID(id)
         workspacePresentationID = UUID()
     }
@@ -1426,6 +1433,8 @@ nonisolated private struct PanelSizing {
             self.init(minimum: 230, ideal: 290, maximum: 380)
         case .assets:
             self.init(minimum: 220, ideal: 280, maximum: 360)
+        case .developer:
+            self.init(minimum: 260, ideal: 340, maximum: 520)
         case .inspector:
             self.init(minimum: 380, ideal: 380, maximum: 494)
         case .canvas:

@@ -1,9 +1,15 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Editable text · Foundry Developer</title><link rel="stylesheet" href="styles.css"><script src="app.js" defer></script></head><body><div class="shell"><nav data-doc-nav></nav><main><div class="breadcrumbs"><a href="index.html">Foundry Developer</a><span>›</span>Build components</div><p class="eyebrow">Content</p><h1>Editable text</h1><p class="lede">Add canvas-editable plain text without declaring a custom control or accepting a Foundry-generated HTML wrapper.</p>
-<h2>With your own default</h2><pre><code>&lt;h2&gt;%text="A useful heading"%&lt;/h2&gt;</code></pre><p>The supplied text is used until the site author edits it.</p>
-<h2>With placeholder copy</h2><pre><code>&lt;p&gt;%text%&lt;/p&gt;</code></pre><p>Foundry supplies its standard placeholder paragraph as the initial value.</p>
-<h2>Use it more than once</h2><pre><code>&lt;article id="{{ id }}" {{ component.attributes }}&gt;
-    &lt;h2&gt;%text="Title"%&lt;/h2&gt;
-    &lt;p&gt;%text%&lt;/p&gt;
-    &lt;small&gt;%text="Footnote"%&lt;/small&gt;
-&lt;/article&gt;</code></pre><p>Foundry assigns stable internal property keys in declaration order. Each primitive expands to escaped plain text. The surrounding element always belongs to the developer.</p>
-<div class="callout warning"><strong>Use custom controls for named values.</strong> If text needs a meaningful template ID, responsive variants, or use outside its immediate markup position, declare it under <code>customItems</code>.</div></main></div></body></html>
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Editable content · Foundry Developer</title><link rel="stylesheet" href="styles.css"><script src="app.js" defer></script></head><body><div class="shell"><nav data-doc-nav></nav><main><div class="breadcrumbs"><a href="index.html">Foundry Developer</a><span>›</span>Build components</div><p class="eyebrow">Canvas editing</p><h1>Editable content primitives</h1><p class="lede">Put editable text, trusted HTML or an image directly into developer-owned markup without declaring a visible <code>customItems</code> control.</p>
+<h2>Plain text</h2><pre><code>&lt;h2&gt;{{ text="A useful heading" }}&lt;/h2&gt;
+&lt;p&gt;{{ text }}&lt;/p&gt;</code></pre><p><code>{{ text }}</code> uses Foundry’s placeholder paragraph; the assignment form supplies your own default. Output is HTML-escaped and line breaks become <code>&lt;br&gt;</code> elements.</p>
+<h2>Trusted HTML</h2><pre><code>&lt;div class="rich-content"&gt;
+    {{ html="&lt;ul&gt;&lt;li&gt;First item&lt;/li&gt;&lt;/ul&gt;" }}
+&lt;/div&gt;</code></pre><p><code>{{ html }}</code> creates a source editor for HTML, CSS and JavaScript. HTML is inserted unescaped at the primitive’s position. Its CSS is emitted with that component instance’s page CSS and its JavaScript with that instance’s page script. Foundry supplies a small list when no default is declared.</p><div class="callout warning"><strong>HTML is trusted source.</strong> This primitive is intended for authors who are allowed to add executable website code. Do not use it for arbitrary visitor input.</div>
+<h2>Image</h2><pre><code>&lt;figure {{ component.attributes }}&gt;
+    {{ image }}
+&lt;/figure&gt;</code></pre><p><code>{{ image }}</code> creates an implicit <code>source</code> asset property and a drop zone in the canvas. Once an image is selected, Foundry emits an <code>img.foundry-image</code> element. Add captions, aspect-ratio wrappers and production styling in your own template and CSS.</p>
+<h2>Stable declaration order</h2><p>Repeated text primitives become hidden properties named <code>content1</code>, <code>content2</code>, and so on. Repeated HTML primitives become <code>html1</code>, <code>html2</code>, and so on. Their order is part of saved component data, so append new primitives where possible rather than reordering shipped ones.</p><pre><code>&lt;article id="{{ id }}" {{ component.attributes }}&gt;
+    &lt;h2&gt;{{ text="Title" }}&lt;/h2&gt;
+    &lt;div&gt;{{ html }}&lt;/div&gt;
+    &lt;small&gt;{{ text="Footnote" }}&lt;/small&gt;
+&lt;/article&gt;</code></pre>
+<div class="callout warning"><strong>Use custom controls for named values.</strong> If content needs a meaningful template ID, responsive variants, reuse in another template file, or specialised inspector UI, declare it under <code>customItems</code>.</div></main></div></body></html>

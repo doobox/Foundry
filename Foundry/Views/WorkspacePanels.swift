@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 import UniformTypeIdentifiers
 
@@ -99,6 +100,15 @@ struct ComponentLibraryPanel: View {
                                         Button("Add to Page End", systemImage: "plus") {
                                             addToPageEnd(type)
                                         }
+                                        if let packageURL = type.definition.package?.rootURL {
+                                            Divider()
+                                            Button(
+                                                "Show in Finder",
+                                                systemImage: "macwindow.and.pointer.arrow"
+                                            ) {
+                                                NSWorkspace.shared.activateFileViewerSelecting([packageURL])
+                                            }
+                                        }
                                     }
                                     .accessibilityAction(named: "Add to Page End") {
                                         addToPageEnd(type)
@@ -137,6 +147,186 @@ struct ComponentLibraryPanel: View {
                 types: categoryTypes
             )
         }
+    }
+}
+
+struct DeveloperPanel: View {
+    @State private var catalog = ComponentPackageCatalog.shared
+
+    var body: some View {
+        let _ = catalog.revision
+        VStack(spacing: 0) {
+            HStack(spacing: 10) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(summaryTitle)
+                        .font(.headline)
+                    Text(summaryDescription)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                Spacer(minLength: 8)
+
+                Button("Reload Components", systemImage: "arrow.clockwise") {
+                    catalog.reloadAllPacks()
+                }
+                .labelStyle(.iconOnly)
+                .help("Reload component packages")
+            }
+            .padding(12)
+
+            Divider()
+
+            if issues.isEmpty {
+                ContentUnavailableView(
+                    "No Component Issues",
+                    systemImage: "checkmark.circle",
+                    description: Text("Package validation and loading issues will appear here.")
+                )
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                ScrollView {
+                    LazyVStack(alignment: .leading, spacing: 12) {
+                        ForEach(issues) { issue in
+                            DeveloperPackageIssueCard(issue: issue)
+                        }
+                    }
+                    .padding(12)
+                }
+            }
+        }
+    }
+
+    private var issues: [DeveloperPackageIssue] {
+        catalog.diagnostics.compactMap { url, diagnostics in
+            guard !diagnostics.isEmpty else { return nil }
+            return DeveloperPackageIssue(url: url, diagnostics: diagnostics)
+        }
+        .sorted {
+            $0.displayName.localizedStandardCompare($1.displayName) == .orderedAscending
+        }
+    }
+
+    private var errorCount: Int {
+        issues.reduce(into: 0) { count, issue in
+            count += issue.diagnostics.count { $0.severity == .error }
+        }
+    }
+
+    private var warningCount: Int {
+        issues.reduce(into: 0) { count, issue in
+            count += issue.diagnostics.count { $0.severity == .warning }
+        }
+    }
+
+    private var summaryTitle: String {
+        guard !issues.isEmpty else { return "Components are healthy" }
+        return issues.count == 1 ? "1 component needs attention" : "\(issues.count) components need attention"
+    }
+
+    private var summaryDescription: String {
+        guard !issues.isEmpty else { return "All discovered component packages loaded successfully." }
+        var parts: [String] = []
+        if errorCount > 0 {
+            parts.append(errorCount == 1 ? "1 error" : "\(errorCount) errors")
+        }
+        if warningCount > 0 {
+            parts.append(warningCount == 1 ? "1 warning" : "\(warningCount) warnings")
+        }
+        return parts.joined(separator: ", ")
+    }
+}
+
+private struct DeveloperPackageIssue: Identifiable {
+    let url: URL
+    let diagnostics: [ComponentPackageDiagnostic]
+    let displayName: String
+    let identifier: String?
+
+    var id: URL { url }
+    var hasErrors: Bool { diagnostics.contains { $0.severity == .error } }
+
+    init(url: URL, diagnostics: [ComponentPackageDiagnostic]) {
+        self.url = url
+        self.diagnostics = diagnostics
+
+        let manifestURL = url.appending(path: "Contents/Info.plist")
+        let manifest: [String: Any]?
+        if let data = try? Data(contentsOf: manifestURL),
+           let propertyList = try? PropertyListSerialization.propertyList(from: data, format: nil) {
+            manifest = propertyList as? [String: Any]
+        } else {
+            manifest = nil
+        }
+        let title = manifest?["title"] as? String
+        let identifier = manifest?["CFBundleIdentifier"] as? String
+        displayName = title.flatMap { $0.isEmpty ? nil : $0 }
+            ?? url.deletingPathExtension().lastPathComponent
+        self.identifier = identifier?.isEmpty == false ? identifier : nil
+    }
+}
+
+private struct DeveloperPackageIssueCard: View {
+    let issue: DeveloperPackageIssue
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .top, spacing: 9) {
+                Image(systemName: issue.hasErrors ? "xmark.octagon.fill" : "exclamationmark.triangle.fill")
+                    .foregroundStyle(issue.hasErrors ? .red : .orange)
+                    .font(.title3)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(issue.displayName)
+                        .font(.headline)
+                    Text(issue.hasErrors ? "Failed to load" : "Loaded with warnings")
+                        .font(.caption.weight(.medium))
+                        .foregroundStyle(issue.hasErrors ? .red : .orange)
+                    if let identifier = issue.identifier {
+                        Text(identifier)
+                            .font(.caption.monospaced())
+                            .foregroundStyle(.secondary)
+                            .textSelection(.enabled)
+                    }
+                }
+
+                Spacer(minLength: 8)
+
+                Button("Show in Finder", systemImage: "macwindow.and.pointer.arrow") {
+                    NSWorkspace.shared.activateFileViewerSelecting([issue.url])
+                }
+                .labelStyle(.iconOnly)
+                .help("Show package in Finder")
+            }
+
+            Divider()
+
+            ForEach(Array(issue.diagnostics.enumerated()), id: \.offset) { _, diagnostic in
+                HStack(alignment: .top, spacing: 8) {
+                    Image(systemName: diagnostic.severity == .error ? "xmark.circle.fill" : "exclamationmark.triangle.fill")
+                        .foregroundStyle(diagnostic.severity == .error ? .red : .orange)
+                        .frame(width: 16)
+
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(diagnostic.message)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .textSelection(.enabled)
+                        Text(diagnostic.location)
+                            .font(.caption.monospaced())
+                            .foregroundStyle(.secondary)
+                            .textSelection(.enabled)
+                    }
+                }
+            }
+
+            Text(issue.url.path(percentEncoded: false))
+                .font(.caption2.monospaced())
+                .foregroundStyle(.tertiary)
+                .lineLimit(2)
+                .textSelection(.enabled)
+        }
+        .padding(12)
+        .background(.quaternary.opacity(0.45), in: RoundedRectangle(cornerRadius: 10))
     }
 }
 

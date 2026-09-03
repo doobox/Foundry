@@ -12,26 +12,24 @@ struct StaticSiteRendererTests {
         html.setProperty(.init(rawValue: "html1JavaScript"), value: "window.uniqueDeletedJavaScript = true;")
         let page = Page(title: "Home", slug: "index", components: [html])
         let document = FoundryDocument(site: Site(name: "Deletion", pages: [page]))
-        let pageAssetName = page.id.uuidString.lowercased()
-
         let before = StaticSiteRenderer().render(site: document.site)
         #expect(try #require(before.file(at: "index.html")).contents.contains("unique-deleted-html"))
-        #expect(try #require(before.file(at: "assets/pages/\(pageAssetName).css")).contents.contains("unique-deleted-css"))
-        #expect(try #require(before.file(at: "assets/pages/\(pageAssetName).js")).contents.contains("uniqueDeletedJavaScript"))
+        #expect(try #require(before.file(at: "files/page.css")).contents.contains("unique-deleted-css"))
+        #expect(try #require(before.file(at: "files/page.js")).contents.contains("uniqueDeletedJavaScript"))
 
         ProjectEditor(document: document, undoManager: nil).removeComponent(id: html.id)
 
         let after = StaticSiteRenderer().render(site: document.site)
         #expect(!(try #require(after.file(at: "index.html"))).contents.contains("unique-deleted-html"))
-        #expect(!(try #require(after.file(at: "assets/pages/\(pageAssetName).css"))).contents.contains("unique-deleted-css"))
-        #expect(!(try #require(after.file(at: "assets/pages/\(pageAssetName).js"))).contents.contains("uniqueDeletedJavaScript"))
+        #expect(!(try #require(after.file(at: "files/page.css"))).contents.contains("unique-deleted-css"))
+        #expect(after.file(at: "files/page.js") == nil)
     }
 
     @Test @MainActor
     func pageShellIsNeutralAndAllowsEdgeToEdgeComponents() throws {
         let site = Site.starter()
         let exportedCSS = try #require(
-            StaticSiteRenderer().render(site: site).file(at: "assets/site.css")?.contents
+            StaticSiteRenderer().render(site: site).file(at: "files/site.css")?.contents
         )
         let canvasHTML = HTMLPageRenderer(site: site).render(
             page: try #require(site.pages.first),
@@ -66,7 +64,7 @@ struct StaticSiteRendererTests {
         }
 
         let bundle = StaticSiteRenderer().render(site: site)
-        let css = try #require(bundle.files.first(where: { $0.path == "assets/site.css" })?.contents)
+        let css = try #require(bundle.files.first(where: { $0.path == "files/page.css" })?.contents)
         let html = try #require(bundle.files.first(where: { $0.path == "index.html" })?.contents)
 
         #expect(css.contains("@media(min-width:768px)"))
@@ -86,15 +84,14 @@ struct StaticSiteRendererTests {
 
         let bundle = StaticSiteRenderer().render(site: site)
 
-        #expect(bundle.file(at: "assets/site.css") != nil)
-        #expect(bundle.file(at: "assets/site.js") != nil)
-        for page in site.pages {
-            let pageAssetName = page.id.uuidString.lowercased()
-            #expect(bundle.file(at: "assets/pages/\(pageAssetName).css") != nil)
-            #expect(bundle.file(at: "assets/pages/\(pageAssetName).js") != nil)
-        }
-        #expect(try #require(bundle.file(at: "index.html")).contents.contains("href=\"assets/site.css\""))
-        #expect(try #require(bundle.file(at: "about/index.html")).contents.contains("href=\"../assets/site.css\""))
+        #expect(bundle.file(at: "files/site.css") != nil)
+        #expect(bundle.file(at: "files/site.js") == nil)
+        #expect(bundle.file(at: "files/page.css") != nil)
+        #expect(bundle.file(at: "about/files/page.css") != nil)
+        #expect(bundle.file(at: "files/page.js") == nil)
+        #expect(bundle.file(at: "about/files/page.js") == nil)
+        #expect(try #require(bundle.file(at: "index.html")).contents.contains("href=\"files/site.css\""))
+        #expect(try #require(bundle.file(at: "about/index.html")).contents.contains("href=\"../files/site.css\""))
     }
 
     @Test
@@ -115,7 +112,7 @@ struct StaticSiteRendererTests {
 
         #expect(bundle.file(at: "index.html") != nil)
         let about = try #require(bundle.file(at: "company/team/about/index.html"))
-        #expect(about.contents.contains("href=\"../../../assets/site.css\""))
+        #expect(about.contents.contains("href=\"../../../files/site.css\""))
     }
 
     @Test
@@ -325,7 +322,7 @@ struct StaticSiteRendererTests {
         try SiteExportWriter().write(StaticSiteRenderer().render(site: .starter()), to: directory)
 
         #expect(FileManager.default.fileExists(atPath: directory.appending(path: "index.html").path))
-        #expect(FileManager.default.fileExists(atPath: directory.appending(path: "assets/site.css").path))
+        #expect(FileManager.default.fileExists(atPath: directory.appending(path: "files/site.css").path))
     }
 
     @Test
@@ -346,12 +343,49 @@ struct StaticSiteRendererTests {
 
         try writer.write(
             SiteExportBundle(files: [SiteExportFile(path: "index.html", contents: "new")]),
-            to: directory,
-            cleaningObsoleteFiles: true
+            to: directory
         )
 
         #expect(!FileManager.default.fileExists(atPath: directory.appending(path: "obsolete.html").path))
         #expect(FileManager.default.fileExists(atPath: directory.appending(path: "keep.txt").path))
         #expect(try String(contentsOf: directory.appending(path: "index.html"), encoding: .utf8) == "new")
+    }
+
+    @Test
+    func writerPreservesModifiedObsoleteFilesAndPrunesOnlyEmptyOwnedDirectories() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appending(path: "FoundryExportOwnershipTests-\(UUID().uuidString)", directoryHint: .isDirectory)
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        let writer = SiteExportWriter()
+        try writer.write(
+            SiteExportBundle(files: [
+                SiteExportFile(path: "old/files/generated.css", contents: "generated"),
+                SiteExportFile(path: "changed/files/generated.css", contents: "generated")
+            ]),
+            to: directory
+        )
+        let changedURL = directory.appending(path: "changed/files/generated.css")
+        try Data("user edit".utf8).write(to: changedURL)
+
+        try writer.write(SiteExportBundle(files: []), to: directory)
+
+        #expect(!FileManager.default.fileExists(atPath: directory.appending(path: "old").path))
+        #expect(FileManager.default.fileExists(atPath: changedURL.path))
+        #expect(try String(contentsOf: changedURL, encoding: .utf8) == "user edit")
+    }
+
+    @Test
+    func writerRejectsPathsOutsideTheExportRoot() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appending(path: "FoundryExportPathTests-\(UUID().uuidString)", directoryHint: .isDirectory)
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        #expect(throws: SiteExportWriterError.self) {
+            try SiteExportWriter().write(
+                SiteExportBundle(files: [SiteExportFile(path: "../outside.txt", contents: "unsafe")]),
+                to: directory
+            )
+        }
     }
 }

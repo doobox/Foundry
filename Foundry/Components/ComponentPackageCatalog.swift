@@ -38,8 +38,7 @@ final class ComponentPackageCatalog {
             directoryHint: .isDirectory
         )
         for url in FoundryPackLoader.packURLs(in: containerURL, includingRoot: true) {
-            guard let pack = try? FoundryPackLoader.load(from: url), pack.type == .component else { continue }
-            reload(url)
+            loadComponentPack(at: url)
         }
     }
 
@@ -50,15 +49,41 @@ final class ComponentPackageCatalog {
                 openDevelopmentPack(at: url)
                 continue
             }
-            guard let pack = try? FoundryPackLoader.load(from: url), pack.type == .component else { continue }
-            reload(url)
+            loadComponentPack(at: url)
+        }
+    }
+
+    private func loadComponentPack(at url: URL, allowsReplacement: Bool = false) {
+        do {
+            let pack = try FoundryPackLoader.load(from: url)
+            guard pack.type == .component else {
+                if diagnostics.removeValue(forKey: url.standardizedFileURL) != nil {
+                    revision += 1
+                }
+                return
+            }
+            reload(url, allowsReplacement: allowsReplacement)
+        } catch {
+            removeRegisteredPackages(at: url)
+            diagnostics[url.standardizedFileURL] = [
+                .init(
+                    severity: .error,
+                    location: "Info.plist",
+                    message: error.localizedDescription
+                )
+            ]
+            revision += 1
         }
     }
 
     private func reload(_ url: URL, allowsReplacement: Bool = false) {
+        let url = url.standardizedFileURL
         do {
             let package = try ComponentPackageLoader.load(from: url)
-            if !allowsReplacement, let previous = packages[package.manifest.identifier], previous.rootURL != url {
+            if !allowsReplacement,
+               let previous = packages[package.manifest.identifier],
+               previous.rootURL.standardizedFileURL != url {
+                removeRegisteredPackages(at: url)
                 diagnostics[url] = [
                     .init(
                         severity: .error,
@@ -66,8 +91,10 @@ final class ComponentPackageCatalog {
                         message: "Another installed package already uses '\(package.manifest.identifier)'."
                     )
                 ]
+                revision += 1
                 return
             }
+            removeRegisteredPackages(at: url)
             packages[package.manifest.identifier] = package
             diagnostics[url] = ComponentPackageValidator.validate(
                 package.manifest,
@@ -76,9 +103,11 @@ final class ComponentPackageCatalog {
             ComponentRegistry.register(package)
             revision += 1
         } catch ComponentPackageLoadingError.invalid(let packageDiagnostics) {
+            removeRegisteredPackages(at: url)
             diagnostics[url] = packageDiagnostics
             revision += 1
         } catch {
+            removeRegisteredPackages(at: url)
             diagnostics[url] = [
                 .init(severity: .error, location: url.lastPathComponent, message: error.localizedDescription)
             ]
@@ -86,8 +115,27 @@ final class ComponentPackageCatalog {
         }
     }
 
+    private func removeRegisteredPackages(at url: URL) {
+        let url = url.standardizedFileURL
+        let identifiers = packages.compactMap { identifier, package in
+            package.rootURL.standardizedFileURL == url ? identifier : nil
+        }
+        for identifier in identifiers {
+            packages.removeValue(forKey: identifier)
+            ComponentRegistry.unregisterPackage(identifier: identifier)
+        }
+    }
+
     func reloadInstalledPacks() {
         loadInstalledComponents()
+    }
+
+    func reloadAllPacks() {
+        loadBundledComponents()
+        loadInstalledComponents()
+        for rootURL in Array(developmentWatchers.keys) {
+            reloadDevelopmentPack(at: rootURL)
+        }
     }
 
     func openDevelopmentPack(at rootURL: URL) {
@@ -112,8 +160,7 @@ final class ComponentPackageCatalog {
 
     private func reloadDevelopmentPack(at rootURL: URL) {
         for url in FoundryPackLoader.packURLs(in: rootURL, includingRoot: true) {
-            guard let pack = try? FoundryPackLoader.load(from: url), pack.type == .component else { continue }
-            reload(url, allowsReplacement: true)
+            loadComponentPack(at: url, allowsReplacement: true)
         }
     }
 }

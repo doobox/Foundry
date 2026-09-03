@@ -9,6 +9,7 @@ nonisolated enum AppPreferenceKey {
     static let overridesCanvasBackground = "canvas.background.override"
     static let canvasBackgroundColor = "canvas.background.color"
     static let enablesCanvasWebInspector = "canvas.webInspector.enabled"
+    static let showsDeveloperPanel = "developer.panel.visible"
 }
 
 nonisolated enum AppAppearance: String, CaseIterable, Identifiable {

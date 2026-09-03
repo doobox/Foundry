@@ -92,13 +92,13 @@ struct PagesOutlineView: NSViewRepresentable {
             selectedFolderID: UUID?,
             selectedAssetID: UUID?
         ) {
-            let signature = pages.map { "p:\($0.id):\($0.folderID?.uuidString ?? "root"):\($0.order):\($0.title):\($0.slug):\(parent.publishingChanges[$0.id]?.rawValue ?? "published")" }
+            let signature = pages.map { "p:\($0.id):\($0.folderID?.uuidString ?? "root"):\($0.parentPageID?.uuidString ?? "root"):\($0.order):\($0.title):\($0.slug):\(parent.publishingChanges[$0.id]?.rawValue ?? "published")" }
                 + folders.map { "f:\($0.id):\($0.parentID?.uuidString ?? "root"):\($0.order):\($0.name)" }
                 + assets.compactMap { asset in
                     asset.exportDirectory.map { "a:\(asset.id):\($0):\(asset.exportOrder):\(asset.filename):\(parent.publishingChanges[asset.id]?.rawValue ?? "published")" }
                 }
             if signature != displayedSignature {
-                let expandedIDs = expandedFolderIDs()
+                let expandedIDs = expandedItemIDs()
                 displayedSignature = signature
                 rebuild(pages: pages, folders: folders, assets: assets)
                 outlineView?.reloadData()
@@ -124,7 +124,7 @@ struct PagesOutlineView: NSViewRepresentable {
         func outlineView(_ outlineView: NSOutlineView, isItemExpandable item: Any) -> Bool {
             guard let item = item as? PageOutlineItem else { return false }
             if case .folder = item.kind { return true }
-            return false
+            return item.isPage && !item.children.isEmpty
         }
 
         func outlineView(_ outlineView: NSOutlineView, viewFor tableColumn: NSTableColumn?, item: Any) -> NSView? {
@@ -421,9 +421,12 @@ struct PagesOutlineView: NSViewRepresentable {
             if item == nil, index == 0, roots.first?.isHome == true {
                 return []
             }
-            if index == NSOutlineViewDropOnItemIndex,
-               (item as? PageOutlineItem)?.isFolder != true {
-                return []
+            if index == NSOutlineViewDropOnItemIndex {
+                guard let target = item as? PageOutlineItem else { return [] }
+                if target.isFolder { return draggedItem(from: info) == nil ? .copy : .move }
+                guard target.isPage, !target.isHome,
+                      let draggedItem = draggedItem(from: info),
+                      case .page = draggedItem else { return [] }
             }
             return draggedItem(from: info) == nil ? .copy : .move
         }
@@ -448,7 +451,10 @@ struct PagesOutlineView: NSViewRepresentable {
 
         private func rebuild(pages: [Page], folders: [PageFolder], assets: [ProjectAsset]) {
             itemsByID.removeAll(keepingCapacity: true)
-            let pagesByParent = Dictionary(grouping: pages, by: \.folderID)
+            let pagesByFolder = Dictionary(grouping: pages.filter { $0.parentPageID == nil }, by: \.folderID)
+            let pagesByPage = Dictionary(grouping: pages.compactMap { page in
+                page.parentPageID.map { ($0, page) }
+            }, by: { $0.0 })
             let foldersByParent = Dictionary(grouping: folders, by: \.parentID)
             let assetsByParent = Dictionary(grouping: assets.compactMap { asset -> (UUID?, ProjectAsset)? in
                 switch asset.exportDirectory {
@@ -458,18 +464,27 @@ struct PagesOutlineView: NSViewRepresentable {
                 }
             }, by: { $0.0 })
             var visitedFolders = Set<UUID>()
+            var visitedPages = Set<UUID>()
+
+            func pageItem(_ page: Page) -> PageOutlineItem? {
+                guard visitedPages.insert(page.id).inserted else { return nil }
+                let item = PageOutlineItem(
+                    kind: .page(page.id),
+                    title: page.title,
+                    order: page.order,
+                    isHome: page.slug == "index",
+                    isTopLevelPage: page.folderID == nil && page.parentPageID == nil,
+                    publishingChange: parent.publishingChanges[page.id]
+                )
+                item.children = (pagesByPage[page.id] ?? [])
+                    .map(\.1)
+                    .compactMap(pageItem)
+                    .sorted(by: PageOutlineItem.sort)
+                return item
+            }
 
             func children(parentID: UUID?) -> [PageOutlineItem] {
-                let pageItems = (pagesByParent[parentID] ?? []).map {
-                    PageOutlineItem(
-                        kind: .page($0.id),
-                        title: $0.title,
-                        order: $0.order,
-                        isHome: $0.slug == "index",
-                        isTopLevelPage: $0.folderID == nil,
-                        publishingChange: parent.publishingChanges[$0.id]
-                    )
-                }
+                let pageItems = (pagesByFolder[parentID] ?? []).compactMap(pageItem)
                 let folderItems = (foldersByParent[parentID] ?? []).compactMap { folder -> PageOutlineItem? in
                     guard visitedFolders.insert(folder.id).inserted else { return nil }
                     let item = PageOutlineItem(kind: .folder(folder.id), title: folder.name, order: folder.order)
@@ -500,15 +515,23 @@ struct PagesOutlineView: NSViewRepresentable {
         private func placement(parent item: PageOutlineItem?, childIndex index: Int) -> PageTreePlacement? {
             let siblings = item?.children ?? roots
             if index == NSOutlineViewDropOnItemIndex {
-                guard let item, case .folder(let id) = item.kind else { return nil }
-                return .insideFolder(id)
+                guard let item else { return nil }
+                switch item.kind {
+                case .folder(let id): return .insideFolder(id)
+                case .page(let id) where !item.isHome: return .insidePage(id)
+                case .page, .asset: return nil
+                }
             }
             if siblings.indices.contains(index) {
                 return .before(siblings[index].kind)
             }
             let parentFolderID: UUID?
-            if let item, case .folder(let id) = item.kind {
-                parentFolderID = id
+            if let item {
+                switch item.kind {
+                case .folder(let id): parentFolderID = id
+                case .page(let id): return .endPage(id)
+                case .asset: parentFolderID = nil
+                }
             } else {
                 parentFolderID = nil
             }
@@ -582,10 +605,10 @@ struct PagesOutlineView: NSViewRepresentable {
             return nil
         }
 
-        private func expandedFolderIDs() -> Set<UUID> {
+        private func expandedItemIDs() -> Set<UUID> {
             guard let outlineView else { return [] }
             return Set(itemsByID.values.compactMap {
-                $0.isFolder && outlineView.isItemExpanded($0) ? $0.id : nil
+                ($0.isFolder || $0.isPage) && outlineView.isItemExpanded($0) ? $0.id : nil
             })
         }
 

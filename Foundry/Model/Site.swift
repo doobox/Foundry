@@ -89,7 +89,7 @@ nonisolated struct Site: Codable, Equatable, Identifiable, Sendable {
         bodyStartCode: String = "",
         bodyEndCode: String = "",
         analyticsCode: String = "",
-        cleansObsoleteExportFiles: Bool = false,
+        cleansObsoleteExportFiles: Bool = true,
         publishingDestination: PublishingDestinationKind = .local,
         publishingHost: String = "",
         publishingPort: Int = 0,
@@ -196,7 +196,7 @@ nonisolated struct Site: Codable, Equatable, Identifiable, Sendable {
         bodyStartCode = try container.decodeIfPresent(String.self, forKey: .bodyStartCode) ?? ""
         bodyEndCode = try container.decodeIfPresent(String.self, forKey: .bodyEndCode) ?? ""
         analyticsCode = try container.decodeIfPresent(String.self, forKey: .analyticsCode) ?? ""
-        cleansObsoleteExportFiles = try container.decodeIfPresent(Bool.self, forKey: .cleansObsoleteExportFiles) ?? false
+        cleansObsoleteExportFiles = try container.decodeIfPresent(Bool.self, forKey: .cleansObsoleteExportFiles) ?? true
         publishingDestination = try container.decodeIfPresent(PublishingDestinationKind.self, forKey: .publishingDestination) ?? .local
         publishingHost = try container.decodeIfPresent(String.self, forKey: .publishingHost) ?? ""
         publishingPort = try container.decodeIfPresent(Int.self, forKey: .publishingPort) ?? 0

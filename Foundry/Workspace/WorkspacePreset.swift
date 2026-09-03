@@ -59,7 +59,13 @@ final class WorkspacePresetLibrary {
 nonisolated enum WorkspacePresetStore {
     static func initialLayoutForNewDocument(from defaults: UserDefaults = .standard) -> WorkspaceLayout {
         let presets = restored(from: defaults)
-        guard !presets.isEmpty else { return .standard }
+        guard !presets.isEmpty else {
+            var layout = WorkspaceLayout.standard
+            layout.setDeveloperPanelVisible(
+                defaults.bool(forKey: AppPreferenceKey.showsDeveloperPanel)
+            )
+            return layout
+        }
         if let selectedID = WorkspaceSelectionStore.restored(from: defaults),
            let preset = presets.first(where: { $0.id == selectedID }) {
             return preset.layout
@@ -74,7 +80,9 @@ nonisolated enum WorkspacePresetStore {
         }
         return presets.map { preset in
             var migrated = preset
-            migrated.layout.addMissingUtilityPanels()
+            migrated.layout.addMissingUtilityPanels(
+                includingDeveloperPanel: defaults.bool(forKey: AppPreferenceKey.showsDeveloperPanel)
+            )
             return migrated
         }
     }
