@@ -12,6 +12,7 @@ nonisolated struct ComponentPackageDiagnostic: Equatable, Sendable {
 }
 
 nonisolated enum ComponentPackageValidator {
+    private static let maximumTagCount = 5
     private static let identifierExpression = try! NSRegularExpression(
         pattern: #"^[a-z][a-z0-9_]*(\.[a-z0-9_]+)+$"#
     )
@@ -21,9 +22,76 @@ nonisolated enum ComponentPackageValidator {
     static func validate(_ manifest: ComponentPackageManifest, rootURL: URL) -> [ComponentPackageDiagnostic] {
         var diagnostics: [ComponentPackageDiagnostic] = []
 
-        validate(manifest.identifier, expression: identifierExpression, location: "Info.plist:CFBundleIdentifier", message: "Use a lowercase reverse-DNS identifier, for example com.example.hero.", into: &diagnostics)
+        if manifest.minimumAPIVersion > FoundryComponentAPI.supportedVersions.upperBound {
+            diagnostics.append(.init(
+                severity: .error,
+                location: "Info.plist:minimumAPIVersion",
+                message: "This component requires Foundry component API \(manifest.minimumAPIVersion), but this version of Foundry supports through API \(FoundryComponentAPI.supportedVersions.upperBound). Update Foundry to use this component."
+            ))
+        } else if manifest.minimumAPIVersion < FoundryComponentAPI.supportedVersions.lowerBound {
+            diagnostics.append(.init(
+                severity: .error,
+                location: "Info.plist:minimumAPIVersion",
+                message: "This component requires an unsupported Foundry component API."
+            ))
+        }
+        validate(manifest.identifier, expression: identifierExpression, location: "Info.plist:id", message: "Use a lowercase reverse-DNS identifier, for example com.example.hero.", into: &diagnostics)
         if manifest.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             diagnostics.append(.init(severity: .error, location: "Info.plist:title", message: "A component title is required."))
+        }
+        if SemanticVersion(manifest.version) == nil {
+            diagnostics.append(.init(
+                severity: .error,
+                location: "Info.plist:version",
+                message: "Use a semantic version in MAJOR.MINOR.PATCH form, for example 1.0.0."
+            ))
+        }
+        if manifest.tags.count > maximumTagCount {
+            diagnostics.append(.init(
+                severity: .error,
+                location: "Info.plist:tags",
+                message: "A component can declare at most \(maximumTagCount) tags."
+            ))
+        }
+
+        var seenLibraries = Set<ComponentPackageLibraryRequirement>()
+        for library in manifest.libraries {
+            let location = "Info.plist:libraries.\(library.identifier)"
+            if library.identifier.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                diagnostics.append(.init(
+                    severity: .error,
+                    location: location,
+                    message: "A library id is required."
+                ))
+            } else if library.majorVersion < 1 {
+                diagnostics.append(.init(
+                    severity: .error,
+                    location: location,
+                    message: "A library majorVersion must be greater than zero."
+                ))
+            } else if !FoundryWebLibraryRegistry.supports(library) {
+                diagnostics.append(.init(
+                    severity: .error,
+                    location: location,
+                    message: "Foundry does not provide \(library.identifier) major version \(library.majorVersion)."
+                ))
+            }
+            if !seenLibraries.insert(library).inserted {
+                diagnostics.append(.init(
+                    severity: .error,
+                    location: location,
+                    message: "This library requirement is declared more than once."
+                ))
+            }
+        }
+
+        if manifest.properties.contains(where: { $0.control.type == .icon }),
+           !manifest.libraries.contains(FoundryWebLibraryRegistry.iconRequirement) {
+            diagnostics.append(.init(
+                severity: .error,
+                location: "Info.plist:libraries",
+                message: "An icon control requires com.foundry.icons major version 1 in libraries."
+            ))
         }
 
         validateUnique(manifest.properties.map(\.id), kind: "property", into: &diagnostics)
@@ -60,6 +128,13 @@ nonisolated enum ComponentPackageValidator {
         }
         for file in manifest.render.files {
             let fileExtension = URL(fileURLWithPath: file.path).pathExtension.lowercased()
+            if file.scope == .site, fileExtension != "css" {
+                diagnostics.append(.init(
+                    severity: .error,
+                    location: "Info.plist:templates.files.\(file.path)",
+                    message: "Site scope is available only to CSS templates."
+                ))
+            }
             if fileExtension == "css", file.placement != nil {
                 diagnostics.append(.init(
                     severity: .error,
@@ -88,7 +163,7 @@ nonisolated enum ComponentPackageValidator {
                     message: "Additional HTML templates require placement."
                 ))
             }
-            if fileExtension == "html", file.scope != .page {
+            if fileExtension == "html", file.scope == .instance {
                 diagnostics.append(.init(
                     severity: .error,
                     location: "Info.plist:templates.files.\(file.path)",
@@ -103,12 +178,13 @@ nonisolated enum ComponentPackageValidator {
                 ))
             }
         }
-        if !manifest.requiresPhp,
-           manifest.render.files.contains(where: { $0.path.lowercased().hasSuffix(".php") }) {
+        let declaresPHP = manifest.render.files.contains { $0.path.lowercased().hasSuffix(".php") }
+            || manifest.assets.contains { $0.lowercased().hasSuffix(".php") }
+        if !manifest.requiresPhp, declaresPHP {
             diagnostics.append(.init(
                 severity: .error,
                 location: "Info.plist:requiresPhp",
-                message: "Components with PHP templates must set requiresPhp to true."
+                message: "Components with PHP templates or assets must set requiresPhp to true."
             ))
         }
         let templates: [(path: String?, requiresEditorAttributes: Bool)] = [
@@ -203,10 +279,10 @@ nonisolated enum ComponentPackageValidator {
         let slotReferences = template.references(
             matching: #"\{\{\s*slot\s+id\s*=\s*[\"']([A-Za-z][A-Za-z0-9_.-]*)[\"']"#
         )
-        let legacySlotReferences = template.references(
+        let invalidSlotReferences = template.references(
             matching: #"\{\{\s*slot\.([A-Za-z][A-Za-z0-9_.-]*)\s*\}\}"#
         )
-        for reference in slotReferences + legacySlotReferences where !slotIDs.contains(reference.value) {
+        for reference in slotReferences where !slotIDs.contains(reference.value) {
             diagnostics.append(templateDiagnostic(
                 templateLocation,
                 template: template,
@@ -214,17 +290,16 @@ nonisolated enum ComponentPackageValidator {
                 message: "Unknown slot '\(reference.value)'. Declare it in Info.plist."
             ))
         }
-        if let legacy = legacySlotReferences.first {
+        for reference in invalidSlotReferences {
             diagnostics.append(templateDiagnostic(
                 templateLocation,
                 template: template,
-                offset: legacy.offset,
-                severity: .warning,
-                message: "Use {{ slot id=\"…\" }}; the {{ slot.… }} form cannot carry slot options."
+                offset: reference.offset,
+                message: "Slot macros must use {{ slot id=\"…\" }}."
             ))
         }
         if requiresEditorAttributes {
-            let referencedSlotIDs = Set((slotReferences + legacySlotReferences).map(\.value))
+            let referencedSlotIDs = Set(slotReferences.map(\.value))
             for slotID in slotIDs.subtracting(referencedSlotIDs).sorted() {
                 diagnostics.append(.init(
                     severity: .error,
@@ -293,6 +368,10 @@ nonisolated enum ComponentPackageValidator {
 
     private static func validate(_ property: ComponentPackageProperty, into diagnostics: inout [ComponentPackageDiagnostic]) {
         let location = "Info.plist:customItems.\(property.id)"
+        if property.control.type == .padding || property.control.type == .margin {
+            validateSpacing(property, location: location, into: &diagnostics)
+            return
+        }
         if let count = property.control.count {
             guard (2...4).contains(count) else {
                 diagnostics.append(.init(severity: .error, location: location, message: "Control arrays must contain between two and four controls."))
@@ -314,6 +393,89 @@ nonisolated enum ComponentPackageValidator {
             return
         }
         validate(property.defaultValue, for: property, location: location, allowsLiteralColor: false, into: &diagnostics)
+    }
+
+    private static func validateSpacing(
+        _ property: ComponentPackageProperty,
+        location: String,
+        into diagnostics: inout [ComponentPackageDiagnostic]
+    ) {
+        let isMargin = property.control.type == .margin
+        if property.control.count != nil {
+            diagnostics.append(.init(
+                severity: .error,
+                location: location,
+                message: "\(isMargin ? "Margin" : "Padding") always contains top, right, bottom and left values; remove count."
+            ))
+        }
+        guard case .array(let defaults) = property.defaultValue, defaults.count == 4 else {
+            diagnostics.append(.init(
+                severity: .error,
+                location: location,
+                message: "A \(isMargin ? "margin" : "padding") control requires exactly four string defaults in top, right, bottom, left order."
+            ))
+            return
+        }
+        let permitted = Set(["none", "custom", "3xs", "2xs", "xs", "sm", "md", "lg", "xl", "2xl", "3xl"] + (isMargin ? ["auto"] : []))
+        for (index, value) in defaults.enumerated() {
+            guard case .string(let source) = value, permitted.contains(source) else {
+                diagnostics.append(.init(
+                    severity: .error,
+                    location: "\(location).default[\(index)]",
+                    message: "Use none, custom, a standard theme spacing ID\(isMargin ? ", or auto" : "")."
+                ))
+                continue
+            }
+        }
+
+        if let customValues = property.control.customValue {
+            if customValues.count != 4 {
+                diagnostics.append(.init(
+                    severity: .error,
+                    location: "\(location).customValue",
+                    message: "customValue must contain exactly four numbers in top, right, bottom, left order."
+                ))
+            }
+            if !isMargin, customValues.contains(where: { $0 < 0 }) {
+                diagnostics.append(.init(
+                    severity: .error,
+                    location: "\(location).customValue",
+                    message: "Padding custom values cannot be negative."
+                ))
+            }
+            let minimum = property.control.minimum ?? (isMargin ? -640 : 0)
+            let maximum = property.control.maximum ?? 640
+            if customValues.contains(where: { $0 < minimum || $0 > maximum }) {
+                diagnostics.append(.init(
+                    severity: .error,
+                    location: "\(location).customValue",
+                    message: "Every customValue must be within the control's \(minimum)…\(maximum) range."
+                ))
+            }
+        }
+        if let minimum = property.control.minimum,
+           let maximum = property.control.maximum,
+           maximum <= minimum {
+            diagnostics.append(.init(
+                severity: .error,
+                location: location,
+                message: "The control maximum must be greater than its minimum."
+            ))
+        }
+        if !isMargin, let minimum = property.control.minimum, minimum < 0 {
+            diagnostics.append(.init(
+                severity: .error,
+                location: location,
+                message: "Padding minimum cannot be negative."
+            ))
+        }
+        if let step = property.control.step, step <= 0 {
+            diagnostics.append(.init(
+                severity: .error,
+                location: location,
+                message: "The control step must be greater than zero."
+            ))
+        }
     }
 
     private static func validate(
@@ -394,6 +556,16 @@ nonisolated enum ComponentPackageValidator {
             guard case .string(let value) = defaultValue,
                   property.control.options?.contains(where: { $0.value == value }) == true else {
                 diagnostics.append(.init(severity: .error, location: location, message: "A select default must match one of its options."))
+                return
+            }
+        case .icon:
+            guard case .string(let value) = defaultValue,
+                  FoundryWebLibraryRegistry.icon(named: value) != nil else {
+                diagnostics.append(.init(
+                    severity: .error,
+                    location: location,
+                    message: "An icon default must be a valid Foundry icon name, for example stars."
+                ))
                 return
             }
         case .color:

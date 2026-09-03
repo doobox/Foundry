@@ -1,20 +1,51 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Nested packs · Foundry Developer</title><link rel="stylesheet" href="styles.css"><script src="app.js" defer></script></head><body><div class="shell"><nav data-doc-nav></nav><main><div class="breadcrumbs"><a href="index.html">Foundry Developer</a><span>›</span>Packages</div><p class="eyebrow">Packages</p><h1>Nested packs</h1><p class="lede">Ship one component, a product containing many components, or functional packs nested to any depth. The same rules apply to built-ins and third-party packs.</p>
-<pre><code>Acme.foundrypack/
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Collections and nested packs · Foundry Developer</title>
+<link rel="stylesheet" href="styles.css">
+<script src="app.js" defer>
+</script>
+</head>
+<body>
+<div class="shell">
+<nav data-doc-nav>
+</nav>
+<main>
+<div class="breadcrumbs">
+<a href="index.html">Foundry Developer</a>
+<span>›</span>Packages</div>
+<p class="eyebrow">Package</p>
+<h1>Collections and nested packs</h1>
+<p class="lede">Ship one component, a product containing many components, or functional packs nested to any depth. The same rules apply to built-ins and third-party packs.</p>
+<pre>
+<code>Acme.foundrypack/
 └── Contents/
-    ├── Info.plist                    type = collection
+    ├── Info.plist                    collection = true
     └── Resources/
-        ├── Hero.foundrypack/         type = component
-        └── Navigation.foundrypack/   type = component
+        ├── Hero.foundrypack/         collection omitted
+        └── Navigation.foundrypack/   collection omitted
             └── Contents/
                 └── Resources/
-                    └── MenuItem.foundrypack/</code></pre>
-<h2>Functional outer packs</h2><p>The top-level pack does not have to be a collection. A <code>component</code> can render its own HTML and still contain more packs under <code>Contents/Resources</code>.</p>
-<h2>Installation behaviour</h2><p>Foundry installs the selected outer bundle once. It recursively discovers valid packs without moving, renaming or flattening any child. Relative resources therefore remain stable.</p>
-<h2>Collection Info.plist</h2><pre><code>&lt;?xml version="1.0" encoding="UTF-8"?&gt;
+                    └── MenuItem.foundrypack/</code>
+</pre>
+<h2>Functional outer packs</h2>
+<p>The top-level pack does not have to be a collection. With <code>collection</code> omitted or set to <code>false</code>, it is a component that can render its own HTML while still containing more packs under <code>Contents/Resources</code>.</p>
+<h2>Installation behaviour</h2>
+<p>Foundry installs the selected outer bundle once. It recursively discovers valid packs without moving, renaming or flattening any child. Relative resources therefore remain stable.</p>
+<h2>Collection Info.plist</h2>
+<pre>
+<code>&lt;?xml version="1.0" encoding="UTF-8"?&gt;
 &lt;plist version="1.0"&gt;
 &lt;dict&gt;
-    &lt;key&gt;type&lt;/key&gt;&lt;string&gt;collection&lt;/string&gt;
-    &lt;key&gt;CFBundleIdentifier&lt;/key&gt;&lt;string&gt;uk.co.example.acme&lt;/string&gt;
+    &lt;key&gt;collection&lt;/key&gt;&lt;true/&gt;
 &lt;/dict&gt;
-&lt;/plist&gt;</code></pre><div class="callout"><strong>Use <code>collection</code> only when the pack itself has no behaviour.</strong> It describes intent; nesting does not require it.</div>
-</main></div></body></html>
+&lt;/plist&gt;</code>
+</pre>
+<div class="callout">
+<strong>This is the complete collection manifest.</strong> Set <code>collection</code> to <code>true</code> only when the parent pack itself has no component behaviour. Nesting does not require the key.</div>
+</main>
+</div>
+</body>
+</html>

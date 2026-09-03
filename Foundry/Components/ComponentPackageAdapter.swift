@@ -46,6 +46,8 @@ nonisolated enum ComponentPackageAdapter {
     }
 
     private static func propertyDefinitions(_ property: ComponentPackageProperty) -> [ComponentPropertyDefinition] {
+        if property.control.type == .padding { return spacingProperties(for: property, kind: .padding) }
+        if property.control.type == .margin { return spacingProperties(for: property, kind: .margin) }
         if let requestedCount = property.control.count, requestedCount > 1 {
             let count = min(max(requestedCount, 2), 4)
             let defaults: [ComponentPackageValue]
@@ -95,6 +97,62 @@ nonisolated enum ComponentPackageAdapter {
             isInspectorVisible: property.control.type != .math &&
                 (property.control.type != .info || !property.label.isEmpty)
         )]
+    }
+
+    private static func spacingProperties(
+        for property: ComponentPackageProperty,
+        kind: ComponentSpacingKind
+    ) -> [ComponentPropertyDefinition] {
+        let key = ComponentProperty.Key(rawValue: property.id)
+        let customKey = ComponentProperty.Key(rawValue: property.id + "Custom")
+        let section = ComponentPropertySection(rawValue: property.group)
+        let defaultSources: [ComponentProperty.Value]
+        if case .array(let values) = property.defaultValue {
+            defaultSources = Array(values.prefix(4)).map { value($0, control: .select) }
+        } else {
+            defaultSources = []
+        }
+        let paddedSources = Array(
+            (defaultSources + Array(repeating: .choice("none"), count: 4)).prefix(4)
+        )
+        let customValues = Array(
+            ((property.control.customValue ?? []) + Array(repeating: 0, count: 4)).prefix(4)
+        )
+        let range: ClosedRange<Double> = kind == .padding
+            ? (property.control.minimum ?? 0)...(property.control.maximum ?? 640)
+            : (property.control.minimum ?? -640)...(property.control.maximum ?? 640)
+
+        return [
+            .init(
+                key: key,
+                label: property.label,
+                section: section,
+                control: .packageSpacing(
+                    kind: kind,
+                    customValueKey: customKey,
+                    range: range,
+                    step: property.control.step ?? 1
+                ),
+                defaultValue: .array(paddedSources),
+                isResponsive: property.responsive
+            ),
+            .init(
+                key: customKey,
+                label: "Custom values",
+                section: section,
+                control: .array(
+                    element: .number(range: range, step: property.control.step ?? 1, unit: "px"),
+                    count: 4,
+                    labels: ["Top", "Right", "Bottom", "Left"],
+                    subtitles: [],
+                    units: ["px", "px", "px", "px"],
+                    help: property.toolTip
+                ),
+                defaultValue: .array(customValues.map(ComponentProperty.Value.number)),
+                isResponsive: property.responsive,
+                isInspectorVisible: false
+            )
+        ]
     }
 
     private static func fontSizeProperties(for property: ComponentPackageProperty) -> [ComponentPropertyDefinition] {
@@ -175,12 +233,14 @@ nonisolated enum ComponentPackageAdapter {
                 step: control.step ?? 1, unit: unit
             )
         case .color: .color
+        case .icon: .icon
         case .select:
             .choice((control.options ?? []).map { .init(value: $0.value, label: $0.title) })
         case .link: .link(absoluteURL: control.absoluteURL ?? false)
         case .toggle: .toggle
         case .fontFamily: .themeFontFamily
         case .fontSize: .themeFontSize
+        case .margin, .padding: .derived
         case .lineHeight:
             .lineHeight(fontSizeKey: control.fontSize.map(ComponentProperty.Key.init(rawValue:)))
         case .textAlignment: .textAlignment
@@ -212,7 +272,7 @@ nonisolated enum ComponentPackageAdapter {
             switch control {
             case .link: .link(.init(destination: value.isEmpty ? .none : .url(value)))
             case .color: .color(value)
-            case .select, .fontFamily, .fontSize, .lineHeight, .textAlignment: .choice(value)
+            case .icon, .select, .fontFamily, .fontSize, .margin, .padding, .lineHeight, .textAlignment: .choice(value)
             case .date: .string(value)
             default: .string(value)
             }

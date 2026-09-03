@@ -1,0 +1,11 @@
+#{{ id }} {
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    justify-content: {{ control.verticalAlignment }};
+    width: 100%;
+    min-height: {{ control.minimumHeight }}px;
+    margin: {{ control.margin }};
+    padding: {{ control.padding }};
+    background-color: {{ control.backgroundColor }};
+}

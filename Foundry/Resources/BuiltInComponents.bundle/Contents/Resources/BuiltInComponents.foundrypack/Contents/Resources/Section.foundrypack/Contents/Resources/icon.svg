@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-labelledby="title">
+  <title id="title">Section</title>
+  <rect width="128" height="128" rx="24" fill="#f2f2f7"/>
+  <rect x="20" y="26" width="88" height="76" rx="10" fill="none" stroke="#242426" stroke-width="8"/>
+  <path d="M36 48h56M36 64h38M36 80h48" fill="none" stroke="#242426" stroke-width="7" stroke-linecap="round"/>
+</svg>

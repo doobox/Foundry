@@ -1,57 +1,76 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Info.plist · Foundry Developer</title><link rel="stylesheet" href="styles.css"><script src="app.js" defer></script></head><body><div class="shell"><nav data-doc-nav></nav><main><div class="breadcrumbs"><a href="index.html">Foundry Developer</a><span>›</span>Reference</div><p class="eyebrow">Plist reference</p><h1>Info.plist</h1><p class="lede">The current developer-facing keys accepted by a component <code>.foundrypack</code>. Paths are relative to <code>Contents/Resources</code>.</p>
-<h2>Identity</h2>
-<section class="reference-entry"><h3>type</h3><div class="api-meta"><span class="pill required">Required String</span></div><p><code>component</code> or <code>collection</code>. The remaining component-specific keys on this page apply when the type is <code>component</code>.</p></section>
-<section class="reference-entry"><h3>CFBundleIdentifier</h3><div class="api-meta"><span class="pill required">Required String</span></div><p>Globally unique, stable reverse-domain identity, for example <code>uk.co.example.callout</code>. Changing it creates a different component.</p></section>
-<section class="reference-entry"><h3>title</h3><div class="api-meta"><span class="pill required">Required String</span></div><p>Human-readable library and inspector name.</p></section>
-<section class="reference-entry"><h3>description</h3><div class="api-meta"><span class="pill">String</span><span class="pill">Optional</span><span class="pill">Default: empty</span></div><p>Short library description.</p></section>
-<section class="reference-entry"><h3>author</h3><div class="api-meta"><span class="pill">String</span><span class="pill">Optional</span><span class="pill">Default: omitted</span></div><p>Developer, company or publisher.</p></section>
-<section class="reference-entry"><h3>version</h3><div class="api-meta"><span class="pill">String</span><span class="pill">Optional</span><span class="pill">Default: omitted</span></div><p>Human-readable component version such as <code>1.0</code> or <code>2.1.3</code>.</p></section>
-<section class="reference-entry"><h3>group</h3><div class="api-meta"><span class="pill">String</span><span class="pill">Optional</span><span class="pill">Default: Other</span></div><p>Library group: <code>Layout</code>, <code>Content</code>, <code>Media</code>, <code>Navigation</code>, <code>Forms</code>, <code>Interactive</code>, or <code>Other</code>.</p></section>
-<section class="reference-entry"><h3>tags</h3><div class="api-meta"><span class="pill">String array</span><span class="pill">Optional</span><span class="pill">Default: []</span></div><p>Additional component-library search terms.</p></section>
-<h2>Rendering</h2>
-<section class="reference-entry"><h3>requiresPhp</h3><div class="api-meta"><span class="pill">Boolean</span><span class="pill">Optional</span><span class="pill">Default: false</span></div><p>Exports every page containing an instance of this component with an <code>index.php</code> filename instead of <code>index.html</code>. A nested child component can require PHP for its containing page. This key controls the exported page extension independently of PHP template execution.</p><pre><code>&lt;key&gt;requiresPhp&lt;/key&gt;&lt;true/&gt;</code></pre></section>
-<section class="reference-entry"><h3>templates</h3><div class="api-meta"><span class="pill required">Required Dictionary</span></div><p>Declares the component templates processed by Foundry.</p><dl><dt>html</dt><dd>Required primary HTML template path. Processed once per component instance and required to contain <code>{{ component.attributes }}</code>.</dd><dt>files</dt><dd>Optional array of dictionaries containing <code>path</code> plus optional <code>scope</code>. CSS, JavaScript and PHP accept <code>instance</code> (default), <code>page</code>, or <code>site</code>. JavaScript also accepts optional Boolean <code>closure</code>, defaulting to <code>true</code>. Additional HTML requires <code>page</code> scope and a <code>placement</code> of <code>headStart</code>, <code>headEnd</code>, <code>bodyStart</code>, or <code>bodyEnd</code>.</dd><dt>editorCSS</dt><dd>Optional instance-scoped, canvas-only CSS path excluded from production export.</dd></dl><pre><code>&lt;key&gt;templates&lt;/key&gt;
-&lt;dict&gt;
-    &lt;key&gt;html&lt;/key&gt;&lt;string&gt;component.html&lt;/string&gt;
-    &lt;key&gt;files&lt;/key&gt;
-    &lt;array&gt;
-        &lt;dict&gt;
-            &lt;key&gt;path&lt;/key&gt;&lt;string&gt;component.css&lt;/string&gt;
-            &lt;key&gt;scope&lt;/key&gt;&lt;string&gt;instance&lt;/string&gt;
-        &lt;/dict&gt;
-        &lt;dict&gt;
-            &lt;key&gt;path&lt;/key&gt;&lt;string&gt;component.js&lt;/string&gt;
-            &lt;key&gt;scope&lt;/key&gt;&lt;string&gt;instance&lt;/string&gt;
-        &lt;/dict&gt;
-    &lt;/array&gt;
-    &lt;key&gt;editorCSS&lt;/key&gt;&lt;string&gt;editor.css&lt;/string&gt;
-&lt;/dict&gt;</code></pre>
-<div class="note"><strong>PHP is implemented.</strong> PHP templates are included in exported PHP pages and executed by Foundry’s bundled local-preview runtime. Set <code>requiresPhp</code> whenever a package declares PHP.</div><pre><code>&lt;key&gt;requiresPhp&lt;/key&gt;&lt;true/&gt;
-&lt;key&gt;files&lt;/key&gt;
-&lt;array&gt;
-        &lt;dict&gt;
-            &lt;key&gt;path&lt;/key&gt;&lt;string&gt;server/component.php&lt;/string&gt;
-            &lt;key&gt;scope&lt;/key&gt;&lt;string&gt;site&lt;/string&gt;
-        &lt;/dict&gt;
-&lt;/array&gt;</code></pre><p>PHP source is macro-processed and placed before the page doctype. Instance scope is emitted for every component instance; page and site scope are deduplicated by component bundle identifier on each containing page. Foundry’s bundled runtime executes generated PHP pages during local preview. Sass and SCSS are not accepted template formats. See <a href="template-values.html">Templates</a>.</p></section>
-<section class="reference-entry"><h3>assets</h3><div class="api-meta"><span class="pill">String array</span><span class="pill">Optional</span><span class="pill">Default: []</span></div><p>Safe relative paths for non-template resources used by <code>{{ asset.&lt;path&gt; }}</code>. Every referenced asset must be declared and exist below <code>Contents/Resources</code>. The current validator and template URL resolver support this contract; production copying of package-owned asset files is not yet wired into the site export writer, so do not depend on packaged assets for shipping output yet.</p></section>
-<h2>Author controls</h2>
-<section class="reference-entry"><h3>customItems</h3><div class="api-meta"><span class="pill">Dictionary array</span><span class="pill">Optional</span><span class="pill">Default: []</span></div><p>Component-specific inspector controls. Each member is a flat control declaration. Value-producing items require <code>id</code>, <code>type</code>, <code>default</code>, and <code>responsive</code>; <code>labels</code> is optional for a single control. For a single control, <code>labels</code> is a String. When <code>count</code> is 2 through 4, <code>labels</code> and <code>default</code> are required equal-length arrays, and every label must be non-empty. Optional <code>subtitles</code> supplies secondary captions and cannot contain more entries than <code>count</code>; optional <code>group</code> sets the disclosure-section title and defaults to <code>Settings</code>; optional <code>toolTip</code> adds help. Presentation-only <code>divider</code> and <code>info</code> items need <code>id</code> and <code>type</code> (an info row also needs non-empty <code>labels</code> to be visible). Virtual <code>math</code> items additionally require their documented operands. See <a href="custom-controls.html">Custom controls</a>.</p></section>
-<section class="reference-entry"><h3>slots</h3><div class="api-meta"><span class="pill">Dictionary array</span><span class="pill">Optional</span><span class="pill">Default: []</span></div><p>Named child-component regions. Each slot requires <code>id</code>, <code>title</code>, <code>accepts</code>, and <code>minimum</code>; <code>maximum</code> is optional. See <a href="slots.html">Child components</a>.</p></section>
-<h2>Support and recovery</h2>
-<section class="reference-entry"><h3>helpURL</h3><div class="api-meta"><span class="pill">URL String</span><span class="pill">Optional</span><span class="pill">Default: omitted</span></div><p>Absolute component support or documentation URL.</p></section>
-<section class="reference-entry"><h3>missingComponent</h3><div class="api-meta"><span class="pill">Dictionary</span><span class="pill">Optional</span><span class="pill">Default: omitted</span></div><p>Fallback retained when the package is unavailable. Accepts optional <code>message</code> and HTML <code>preview</code> Strings.</p></section>
-<h2>Minimal component Info.plist</h2><pre><code>&lt;?xml version="1.0" encoding="UTF-8"?&gt;
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Info.plist overview · Foundry Developer</title>
+<link rel="stylesheet" href="styles.css">
+<script src="app.js" defer></script>
+</head>
+<body>
+<div class="shell">
+<nav data-doc-nav aria-label="Documentation"></nav>
+<main>
+<div class="breadcrumbs"><a href="index.html">Foundry Developer</a><span>›</span>Info.plist</div>
+<p class="eyebrow">Component manifest</p>
+<h1>Info.plist</h1>
+<p class="lede">The manifest gives Foundry a component’s identity, files, controls, dependencies, and composition rules. Start with the minimum declaration, then add only the capabilities the component actually needs.</p>
+
+<div class="note"><strong>Strict by design.</strong> Unknown or misspelled keys are errors, and every declared path is relative to <code>Contents/Resources</code>. Foundry reports a rejected pack in the Developer panel instead of guessing what its author intended.</div>
+
+<h2>Choose the part you need</h2>
+<div class="manifest-map">
+    <a class="card" href="manifest-identity.html"><code>Identity</code><strong>Name the component</strong><p>API compatibility, stable ID, title, version, author, group, and tags.</p></a>
+    <a class="card" href="templates.html"><code>templates</code><strong>Declare template files</strong><p>Primary HTML, CSS, JavaScript, PHP, additional HTML, scopes, and editor CSS.</p></a>
+    <a class="card" href="manifest-resources.html"><code>libraries · assets</code><strong>Request dependencies and files</strong><p>Built-in web libraries, packaged assets, and the PHP hosting requirement.</p></a>
+    <a class="card" href="custom-controls.html"><code>customItems</code><strong>Build the Inspector</strong><p>Every author-facing control, its default value, responsive behaviour, and output.</p></a>
+    <a class="card" href="slots.html"><code>slots</code><strong>Accept child components</strong><p>Name the regions that receive children and define what each region accepts.</p></a>
+    <a class="card" href="manifest-support.html"><code>helpURL · missingComponent</code><strong>Support and recovery</strong><p>Link to help and preserve useful fallback information when a pack is unavailable.</p></a>
+</div>
+
+<h2>Minimal component manifest</h2>
+<p>This is the smallest valid component <code>Info.plist</code>. It identifies the API contract and component release, then points Foundry to the primary HTML template.</p>
+<pre><code>&lt;?xml version="1.0" encoding="UTF-8"?&gt;
 &lt;!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
   "http://www.apple.com/DTDs/PropertyList-1.0.dtd"&gt;
 &lt;plist version="1.0"&gt;
 &lt;dict&gt;
-    &lt;key&gt;type&lt;/key&gt;&lt;string&gt;component&lt;/string&gt;
-    &lt;key&gt;CFBundleIdentifier&lt;/key&gt;&lt;string&gt;uk.co.example.component&lt;/string&gt;
-    &lt;key&gt;title&lt;/key&gt;&lt;string&gt;Example&lt;/string&gt;
+    &lt;key&gt;minimumAPIVersion&lt;/key&gt;&lt;integer&gt;1&lt;/integer&gt;
+    &lt;key&gt;id&lt;/key&gt;&lt;string&gt;uk.co.example.callout&lt;/string&gt;
+    &lt;key&gt;title&lt;/key&gt;&lt;string&gt;Callout&lt;/string&gt;
+    &lt;key&gt;version&lt;/key&gt;&lt;string&gt;1.0.0&lt;/string&gt;
     &lt;key&gt;templates&lt;/key&gt;
     &lt;dict&gt;
         &lt;key&gt;html&lt;/key&gt;&lt;string&gt;component.html&lt;/string&gt;
     &lt;/dict&gt;
 &lt;/dict&gt;
-&lt;/plist&gt;</code></pre></main></div></body></html>
+&lt;/plist&gt;</code></pre>
+
+<h2>Collection manifest</h2>
+<p>A collection is only a container for nested packs. Its manifest contains exactly one key. Foundry checks <code>collection</code> before component validation, so key order does not matter.</p>
+<pre><code>&lt;?xml version="1.0" encoding="UTF-8"?&gt;
+&lt;!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd"&gt;
+&lt;plist version="1.0"&gt;
+&lt;dict&gt;
+    &lt;key&gt;collection&lt;/key&gt;&lt;true/&gt;
+&lt;/dict&gt;
+&lt;/plist&gt;</code></pre>
+<p>Do not put component identity, template files, controls, or slots in a collection manifest. Foundry continues searching for component packs below the collection’s <code>Contents/Resources</code> directory.</p>
+
+<h2>How the pieces connect</h2>
+<div class="rule-summary">
+    <div><strong>1. Declare</strong><span><code>Info.plist</code> names files and author-facing controls.</span></div>
+    <div><strong>2. Read</strong><span>Templates consume values such as <code>{{ control.accent }}</code>.</span></div>
+    <div><strong>3. Render</strong><span>Foundry validates, processes, previews, and exports the declared result.</span></div>
+</div>
+<p>The manifest is the source of truth for which template files exist. Foundry does not scan source text and guess whether a CSS, JavaScript, or PHP file should be included.</p>
+
+<div class="page-links">
+    <a class="card" href="manifest-identity.html"><strong>Start with identity</strong><p>Choose a stable component ID and declare API and release versions.</p></a>
+    <a class="card" href="templates.html"><strong>Then declare template files</strong><p>Learn the valid entry for each supported file type.</p></a>
+</div>
+</main>
+</div>
+</body>
+</html>

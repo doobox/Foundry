@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Libraries and assets · Foundry Developer</title>
+<link rel="stylesheet" href="styles.css">
+<script src="app.js" defer></script>
+</head>
+<body>
+<div class="shell">
+<nav data-doc-nav aria-label="Documentation"></nav>
+<main>
+<div class="breadcrumbs"><a href="index.html">Foundry Developer</a><span>›</span><a href="info-plist.html">Info.plist</a></div>
+<p class="eyebrow">Info.plist</p>
+<h1>Libraries and assets</h1>
+<p class="lede">Use libraries for Foundry-managed web dependencies and assets for component-owned files that templates reference but do not process as source templates.</p>
+
+<h2>libraries</h2>
+<section class="reference-entry">
+<h3>libraries</h3>
+<div class="api-meta"><span class="pill">Dictionary array</span><span class="pill">Optional</span><span class="pill">Default: []</span></div>
+<p>Requests a web library supplied by Foundry. Foundry includes a requested library only when the site uses a component that declares it, and deduplicates the same request across components.</p>
+<p>API version 1 provides the locally bundled Bootstrap Icons library as <code>com.foundry.icons</code>, major version <code>1</code>. Third-party components request it; they do not bundle or download their own copy.</p>
+<pre><code>&lt;key&gt;libraries&lt;/key&gt;
+&lt;array&gt;
+    &lt;dict&gt;
+        &lt;key&gt;id&lt;/key&gt;&lt;string&gt;com.foundry.icons&lt;/string&gt;
+        &lt;key&gt;majorVersion&lt;/key&gt;&lt;integer&gt;1&lt;/integer&gt;
+    &lt;/dict&gt;
+&lt;/array&gt;</code></pre>
+<p>After declaring the library, use Bootstrap Icons classes in markup, for example <code>&lt;i class="bi bi-alarm"&gt;&lt;/i&gt;</code>. To let authors choose the icon, add Foundry’s searchable <a href="icon-control.html"><code>icon</code> custom control</a>.</p>
+</section>
+
+<h2>assets</h2>
+<section class="reference-entry">
+<h3>assets</h3>
+<div class="api-meta"><span class="pill">String array</span><span class="pill">Optional</span><span class="pill">Default: []</span></div>
+<p>Lists component-owned resources that templates use without processing them as templates—for example images, fonts, JSON, video, or a PHP endpoint. Every path must be safe, relative to <code>Contents/Resources</code>, and point to a file that exists.</p>
+<pre><code>&lt;key&gt;assets&lt;/key&gt;
+&lt;array&gt;
+    &lt;string&gt;images/badge.svg&lt;/string&gt;
+    &lt;string&gt;data/defaults.json&lt;/string&gt;
+&lt;/array&gt;</code></pre>
+<p>Reference a declared asset with <code>{{ asset.&lt;path&gt; }}</code>:</p>
+<pre><code>&lt;img src="{{ asset.images/badge.svg }}" alt=""&gt;</code></pre>
+<p>Foundry publishes assets below <code>files/components/&lt;component-id&gt;/</code> and preserves their relative directory structure.</p>
+</section>
+
+<h2>requiresPhp</h2>
+<section class="reference-entry">
+<h3>requiresPhp</h3>
+<div class="api-meta"><span class="pill">Boolean</span><span class="pill">Optional</span><span class="pill">Default: false</span></div>
+<p>Declares that the component needs PHP-capable hosting. When <code>true</code>, every page containing the component uses a <code>.php</code> extension. Set it when the component declares a PHP template or a PHP asset, including a separate endpoint called by JavaScript.</p>
+<pre><code>&lt;key&gt;requiresPhp&lt;/key&gt;
+&lt;true/&gt;</code></pre>
+<div class="callout warning"><strong>Keep the declaration explicit.</strong> A <code>.php</code> file alone does not replace this key. <code>requiresPhp</code> is the component’s statement that the page and its hosting environment require PHP.</div>
+</section>
+
+<h2>Template files are not assets</h2>
+<p>Put a file under <code>templates</code> when Foundry should process its macros and emit its result. Put it under <code>assets</code> when Foundry should copy it as a resource. A path should not be declared in both places.</p>
+<div class="rule-summary">
+    <div><strong>Template</strong><span>Foundry reads and processes the source.</span></div>
+    <div><strong>Asset</strong><span>Foundry publishes the packaged file.</span></div>
+    <div><strong>Library</strong><span>Foundry supplies and deduplicates the dependency.</span></div>
+</div>
+
+<div class="page-links">
+    <a class="card" href="templates.html"><strong>Template files</strong><p>See the supported source file types and scopes.</p></a>
+    <a class="card" href="template-values.html"><strong>Asset template values</strong><p>Use declared assets safely from component markup and styles.</p></a>
+</div>
+</main>
+</div>
+</body>
+</html>

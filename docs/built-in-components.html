@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Built-in components · Foundry Developer</title>
+<link rel="stylesheet" href="styles.css">
+<script src="app.js" defer></script>
+</head>
+<body>
+<div class="shell">
+<nav data-doc-nav></nav>
+<main>
+<div class="breadcrumbs"><a href="index.html">Foundry Developer</a><span>›</span>Planning</div>
+<p class="eyebrow">Product roadmap</p>
+<h1>Built-in components</h1>
+<p class="lede">The essential component collection Foundry should provide so an author can build a complete website without third-party add-ons. This is a working reference: implementing the components will also help expose missing API capabilities and controls.</p>
+
+<div class="note"><strong>Layout reference:</strong> Foundry remains framework-free, but its layout primitives follow the proven separation used by Bootstrap: a full-width page region contains a width-constrained container, which in turn contains a row, stack or grid. See Bootstrap's <a href="https://getbootstrap.com/docs/5.0/layout/containers/">Containers</a> and <a href="https://getbootstrap.com/docs/5.0/layout/grid/">Grid</a> documentation.</div>
+
+<h2>Core building blocks</h2>
+
+<h3>Layout</h3>
+<dl class="syntax-list">
+<dt>Section <span class="pill required">Available</span></dt><dd>A full-width semantic page region with background, responsive vertical spacing and minimum-height controls. It deliberately does not constrain content width.</dd>
+<dt>Container <span class="pill required">Available</span></dt><dd>Centres and constrains content and provides its horizontal gutters. Place one inside a Section for the standard page-building pattern.</dd>
+<dt>Stack</dt><dd>A responsive vertical or horizontal flex layout.</dd>
+<dt>Grid</dt><dd>Responsive columns with configurable gaps and alignment.</dd>
+<dt>Spacer</dt><dd>Intentional responsive space between elements.</dd>
+<dt>Divider</dt><dd>A horizontal or vertical visual separator.</dd>
+</dl>
+
+<h3>Text</h3>
+<dl class="syntax-list">
+<dt>Heading</dt><dd>Editable text with <code>h1</code>–<code>h6</code> semantics independent of its visual size.</dd>
+<dt>Paragraph</dt><dd>Editable body copy with typography, alignment and colour controls.</dd>
+<dt>Rich Text</dt><dd>Headings, paragraphs, lists, emphasis and links in one editable region.</dd>
+<dt>List</dt><dd>Ordered or unordered repeatable items.</dd>
+<dt>Text Link</dt><dd>An inline link to a site page, URL, email address or telephone number.</dd>
+<dt>Button</dt><dd>A prominent styled link or action.</dd>
+<dt>Blockquote</dt><dd>A semantic quotation with an optional citation.</dd>
+<dt>Code / Preformatted Text</dt><dd>Semantic inline or block code with preserved formatting.</dd>
+</dl>
+
+<h3>Media</h3>
+<dl class="syntax-list">
+<dt>Image</dt><dd>An accessible responsive image with sizing, fit and presentation controls.</dd>
+<dt>Icon</dt><dd>An icon selected from Foundry’s built-in icon library.</dd>
+<dt>Video</dt><dd>Hosted or local video with playback and accessibility options.</dd>
+<dt>Audio</dt><dd>Audio playback with appropriate metadata and controls.</dd>
+<dt>Embed</dt><dd>An iframe or trusted third-party embed.</dd>
+<dt>Gallery</dt><dd>A repeatable collection of images with responsive layout controls.</dd>
+</dl>
+
+<h3>Site structure and navigation</h3>
+<dl class="syntax-list">
+<dt>Site Logo</dt><dd>A site identity image linked to the homepage.</dd>
+<dt>Navigation Menu</dt><dd>Navigation generated from the project’s page hierarchy.</dd>
+<dt>Breadcrumbs</dt><dd>The current page’s position in the site hierarchy.</dd>
+<dt>Social Links</dt><dd>A repeatable set of labelled social destinations and icons.</dd>
+</dl>
+
+<h3>Forms</h3>
+<dl class="syntax-list">
+<dt>Form</dt><dd>The semantic form container, submission destination and shared validation behavior.</dd>
+<dt>Text Field</dt><dd>A labelled single-line text input.</dd>
+<dt>Email Field</dt><dd>An email input with appropriate browser semantics.</dd>
+<dt>Telephone Field</dt><dd>A telephone input with appropriate browser semantics.</dd>
+<dt>Number Field</dt><dd>A numeric input with optional range and step rules.</dd>
+<dt>Text Area</dt><dd>A labelled multiline text input.</dd>
+<dt>Select Menu</dt><dd>A labelled choice from a defined set of options.</dd>
+<dt>Checkbox</dt><dd>A single Boolean choice.</dd>
+<dt>Radio Group</dt><dd>One choice from a visible group of options.</dd>
+<dt>Submit Button</dt><dd>A form-aware submission action.</dd>
+<dt>Form Status / Validation Message</dt><dd>Accessible success, failure and validation feedback.</dd>
+</dl>
+
+<h3>Utility</h3>
+<dl class="syntax-list">
+<dt>HTML</dt><dd>Trusted custom HTML, CSS and JavaScript for advanced authors.</dd>
+<dt>Anchor / Page Position</dt><dd>A named destination for links within a page.</dd>
+<dt>Alert / Callout</dt><dd>A visually distinct informational, warning or error message.</dd>
+<dt>Details / Accordion</dt><dd>Expandable content built on appropriate disclosure semantics.</dd>
+</dl>
+
+<h2>Expected interactive components</h2>
+<p>These are not required to assemble a basic page, but users will reasonably expect them in a complete built-in collection.</p>
+<ul>
+<li>Tabs</li>
+<li>Modal / Dialog</li>
+<li>Slideshow</li>
+<li>Responsive Picture</li>
+<li>Navigation Dropdown</li>
+<li>Mobile Menu</li>
+<li>Search Field</li>
+<li>Pagination</li>
+<li>Progress Indicator</li>
+<li>Table</li>
+</ul>
+
+<h2>Ready-made composite components</h2>
+<p>These should be assembled from the core building blocks wherever possible, providing useful starting points without introducing a second layout system.</p>
+<ul>
+<li>Site Header</li>
+<li>Hero Section</li>
+<li>Feature Grid</li>
+<li>Card</li>
+<li>Image and Text Section</li>
+<li>Call to Action</li>
+<li>Pricing Table</li>
+<li>Testimonials</li>
+<li>FAQ</li>
+<li>Contact Form</li>
+<li>Site Footer</li>
+</ul>
+
+<h2>Recommended build order</h2>
+<ol>
+<li>Section</li>
+<li>Container</li>
+<li>Heading</li>
+<li>Button</li>
+<li>Stack</li>
+<li>Grid</li>
+<li>Divider</li>
+<li>List</li>
+<li>Icon</li>
+<li>Video</li>
+<li>Navigation Menu</li>
+<li>Form and its fields</li>
+<li>Rich Text</li>
+</ol>
+<div class="note"><strong>Why this order?</strong> It introduces editable content, semantic elements, link controls, responsive layout, child slots, repeated data, libraries, page-tree access and forms progressively, making API gaps easier to identify and solve.</div>
+</main>
+</div>
+</body>
+</html>

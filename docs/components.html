@@ -1,5 +1,50 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>API index · Foundry Developer</title><link rel="stylesheet" href="styles.css"><script src="app.js" defer></script></head><body><div class="shell"><nav data-doc-nav></nav><main><div class="breadcrumbs"><a href="index.html">Foundry Developer</a><span>›</span>Reference</div><p class="eyebrow">Reference</p><h1>API index</h1><p class="lede">A compact map of the implemented developer-facing component API.</p>
-<h2>Packages</h2><div class="page-links"><a class="card" href="bundle-structure.html"><strong>Pack structure</strong><p>Contents, Resources, templates and assets.</p></a><a class="card" href="nested-packs.html"><strong>Nested packs</strong><p>Functional packs and recursive collections.</p></a></div>
-<h2>Component authoring</h2><div class="page-links"><a class="card" href="template-values.html"><strong>Templates</strong><p><code>{{ id }}</code>, controls and colour filters.</p></a><a class="card" href="custom-controls.html"><strong>Custom controls</strong><p>Text, number, select, image, toggle and more.</p></a><a class="card" href="editable-text.html"><strong>Editable content</strong><p>Canvas-editable text, HTML and image primitives.</p></a><a class="card" href="slots.html"><strong>Child components</strong><p>Named regions for composition.</p></a></div>
-<h2>Themes</h2><div class="page-links"><a class="card" href="theme-controls.html"><strong>Theme-aware controls</strong><p>Connect component controls to portable project-theme values.</p></a><a class="card" href="theme-bundles.html"><strong>Theme bundles</strong><p>The current <code>.foundrytheme</code> interchange bundle and validation rules.</p></a><a class="card" href="colour.html"><strong>Colour</strong><p>Custom and theme colours with opt-in adjustments.</p></a><a class="card" href="font-family.html"><strong>Font family</strong><p>Portable theme roles and fonts configured in the Theme Editor.</p></a><a class="card" href="font-size.html"><strong>Font size</strong><p>Custom sizes and the project type scale.</p></a><a class="card" href="text-alignment.html"><strong>Text alignment</strong><p>A specialised custom control for logical CSS alignment.</p></a></div>
-<h2>Info.plist</h2><div class="page-links"><a class="card" href="info-plist.html"><strong>Info.plist reference</strong><p>Identity, templates, resources and recovery.</p></a></div></main></div></body></html>
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>API map · Foundry Developer</title>
+<link rel="stylesheet" href="styles.css">
+<script src="app.js" defer></script>
+</head>
+<body>
+<div class="shell">
+<nav data-doc-nav aria-label="Documentation"></nav>
+<main>
+<div class="breadcrumbs"><a href="index.html">Foundry Developer</a><span>›</span>Reference</div>
+<p class="eyebrow">Reference</p>
+<h1>API map</h1>
+<p class="lede">Every implemented developer-facing area, grouped by where it lives and what it controls.</p>
+
+<h2>Package</h2>
+<div class="page-links">
+    <a class="card" href="bundle-structure.html"><strong>Bundle structure</strong><p><code>Contents</code>, <code>Resources</code>, development packs, template files, and assets.</p></a>
+    <a class="card" href="nested-packs.html"><strong>Collections and nested packs</strong><p>Group components without flattening their bundles.</p></a>
+</div>
+
+<h2>Info.plist</h2>
+<div class="page-links">
+    <a class="card" href="info-plist.html"><strong>Manifest overview</strong><p>The minimal component and collection declarations, plus a map of every section.</p></a>
+    <a class="card" href="manifest-identity.html"><strong>Identity and metadata</strong><p>API version, component ID, title, release version, author, group, and tags.</p></a>
+    <a class="card" href="templates.html"><strong>Template files</strong><p>Primary HTML, CSS, JavaScript, PHP, additional HTML, scope, and editor CSS.</p></a>
+    <a class="card" href="manifest-resources.html"><strong>Libraries and assets</strong><p>Foundry-managed dependencies, packaged resources, and PHP requirements.</p></a>
+    <a class="card" href="custom-controls.html"><strong>Custom controls</strong><p>Every component Inspector control and its declaration.</p></a>
+    <a class="card" href="slots.html"><strong>Child slots</strong><p>Named component regions and child-count rules.</p></a>
+    <a class="card" href="manifest-support.html"><strong>Support and recovery</strong><p>Help links, missing-component fallback, and validation behaviour.</p></a>
+</div>
+
+<h2>Template language</h2>
+<div class="page-links">
+    <a class="card" href="template-values.html"><strong>Values and macros</strong><p>Identity, controls, assets, conditions, and component hooks.</p></a>
+    <a class="card" href="editable-text.html"><strong>Editable content</strong><p>Canvas-editable text, trusted HTML, and image primitives.</p></a>
+</div>
+
+<h2>Themes</h2>
+<div class="page-links">
+    <a class="card" href="theme-controls.html"><strong>Theme-aware controls</strong><p>Connect compatible component controls to project-theme values.</p></a>
+    <a class="card" href="theme-bundles.html"><strong>Theme bundles</strong><p>The <code>.foundrytheme</code> interchange format and validation rules.</p></a>
+</div>
+</main>
+</div>
+</body>
+</html>

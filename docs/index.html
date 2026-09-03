@@ -1,7 +1,68 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="description" content="Build components for Foundry with your own HTML and CSS."><title>Foundry Developer</title><link rel="stylesheet" href="styles.css"><script src="app.js" defer></script></head><body><div class="shell"><nav data-doc-nav aria-label="Documentation"></nav><main>
-<section class="hero"><p class="eyebrow">Component API</p><h1>Your markup. Your CSS. Foundry does the wiring.</h1><p class="lede">Build portable components from ordinary files. Declare inspector controls in <code>Info.plist</code>, then place their values exactly where your HTML and CSS need them.</p><div class="hero-actions"><a class="button" href="quick-start.html">Build your first component</a><a class="button secondary" href="template-values.html">Learn the template API</a></div></section>
-<h2>The model</h2><div class="card-grid"><a class="card" href="bundle-structure.html"><strong>1. Package files</strong><p>Put a plist, icon, templates and assets inside a standard <code>.foundrypack</code>.</p></a><a class="card" href="custom-controls.html"><strong>2. Request controls</strong><p>Describe the values an author can edit, including responsive and theme-aware controls.</p></a><a class="card" href="template-values.html"><strong>3. Consume values</strong><p>Use <code>{{ id }}</code> and <code>{{ control.name }}</code> in developer-owned templates.</p></a></div>
-<div class="note"><strong>Small on purpose.</strong> Foundry substitutes values and renders slots; it does not invent your component structure or provide a general-purpose template language.</div>
-<h2>Core syntax</h2><dl class="syntax-list"><dt><code>{{ id }}</code></dt><dd>Stable, CSS-safe ID for this component instance.</dd><dt><code>{{ control.padding }}</code></dt><dd>The resolved value of a declared control.</dd><dt><code>{{ slot id="content" }}</code></dt><dd>Where child components are rendered.</dd><dt><code>{{ text="Default" }}</code></dt><dd>Plain text the site author can edit directly.</dd><dt><code>{{ html="&lt;strong&gt;Default&lt;/strong&gt;" }}</code></dt><dd>Trusted HTML the site author can edit together with instance CSS and JavaScript.</dd><dt><code>{{ image }}</code></dt><dd>An author-editable project image or canvas drop zone.</dd></dl>
-<h2>Go further</h2><div class="page-links"><a class="card" href="theme-controls.html"><strong>Theme-aware controls</strong><p>Connect colour and typography controls to the project theme.</p></a><a class="card" href="nested-packs.html"><strong>Ship a collection</strong><p>Bundle any number of functional packs without flattening them.</p></a><a class="card" href="info-plist.html"><strong>Info.plist reference</strong><p>Every current developer-facing plist key.</p></a></div>
-</main></div></body></html>
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="description" content="Build components for Foundry with ordinary HTML, CSS, JavaScript, and PHP.">
+<title>Foundry Developer</title>
+<link rel="stylesheet" href="styles.css">
+<script src="app.js" defer></script>
+</head>
+<body>
+<div class="shell">
+<nav data-doc-nav aria-label="Documentation"></nav>
+<main>
+<section class="hero">
+<p class="eyebrow">Foundry component API</p>
+<h1>Your files, made visual.</h1>
+<p class="lede">Build portable website components from ordinary HTML, CSS, JavaScript, and PHP. <code>Info.plist</code> declares the component; templates remain yours.</p>
+<div class="hero-actions">
+    <a class="button" href="quick-start.html">Build your first component</a>
+    <a class="button secondary" href="info-plist.html">Explore Info.plist</a>
+</div>
+</section>
+
+<h2>A clear path through the API</h2>
+<div class="steps journey">
+    <section class="step">
+        <h3>Package the component</h3>
+        <p>Start with the standard <code>.foundrypack</code> bundle structure. During development, use <code>.foundrydevpack</code> so the package remains easy to inspect and reload.</p>
+        <p><a href="bundle-structure.html">Understand the bundle structure →</a></p>
+    </section>
+    <section class="step">
+        <h3>Describe it in Info.plist</h3>
+        <p>Give the component a stable identity, name its source templates and assets, request any libraries, and declare the controls authors will see.</p>
+        <p><a href="info-plist.html">Open the manifest guide →</a></p>
+    </section>
+    <section class="step">
+        <h3>Use values in your templates</h3>
+        <p>Place control values, identity, editable content, conditions, assets, and child slots exactly where your markup and styles require them.</p>
+        <p><a href="template-values.html">Learn the template language →</a></p>
+    </section>
+    <section class="step">
+        <h3>Validate in Foundry</h3>
+        <p>Install or open the development pack. Foundry reports invalid manifests and missing files in the Developer panel instead of silently accepting ambiguous declarations.</p>
+        <p><a href="manifest-support.html#validation-failures">Understand validation →</a></p>
+    </section>
+</div>
+
+<h2>The three things to remember</h2>
+<div class="card-grid">
+    <a class="card" href="info-plist.html"><strong>The manifest declares</strong><p><code>Info.plist</code> is the source of truth for identity, files, dependencies, controls, and slots.</p></a>
+    <a class="card" href="templates.html"><strong>Scope controls frequency</strong><p>Instance, page, and site scope describe how often a declared file is processed.</p></a>
+    <a class="card" href="template-values.html"><strong>Templates consume values</strong><p>Macros insert resolved values without taking ownership of your markup or CSS selectors.</p></a>
+</div>
+
+<div class="note"><strong>Foundry does not guess.</strong> It processes the files the manifest declares, validates the current API shape, and leaves component structure and browser code under the developer’s control.</div>
+
+<h2>Common destinations</h2>
+<div class="page-links">
+    <a class="card" href="custom-controls.html"><strong>Custom controls</strong><p>Build the component Inspector with text, colour, links, icons, typography, and more.</p></a>
+    <a class="card" href="slots.html"><strong>Child slots</strong><p>Compose components by declaring named regions for children.</p></a>
+    <a class="card" href="theme-controls.html"><strong>Theme-aware values</strong><p>Let compatible controls follow the active project theme.</p></a>
+    <a class="card" href="components.html"><strong>API map</strong><p>Jump directly to every implemented developer-facing topic.</p></a>
+</div>
+</main>
+</div>
+</body>
+</html>

@@ -457,7 +457,9 @@ private struct ComponentInspector: View {
     }
 
     private var componentDeveloper: String {
-        component.type.definition.package?.manifest.author ?? "Foundry"
+        component.type.definition.package?.manifest.author.flatMap { author in
+            author.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : author
+        } ?? "Unknown Developer"
     }
 }
 

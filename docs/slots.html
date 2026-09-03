@@ -1,4 +1,4 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Child components · Foundry Developer</title><link rel="stylesheet" href="styles.css"><script src="app.js" defer></script></head><body><div class="shell"><nav data-doc-nav></nav><main><div class="breadcrumbs"><a href="index.html">Foundry Developer</a><span>›</span>Build components</div><p class="eyebrow">Composition</p><h1>Accept child components</h1><p class="lede">Any functional component can contain children. Declare one or more named slots in <code>Info.plist</code>, then place each slot exactly where its children should render.</p>
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Child slots · Foundry Developer</title><link rel="stylesheet" href="styles.css"><script src="app.js" defer></script></head><body><div class="shell"><nav data-doc-nav></nav><main><div class="breadcrumbs"><a href="index.html">Foundry Developer</a><span>›</span><a href="info-plist.html">Info.plist</a></div><p class="eyebrow">Info.plist · slots</p><h1>Accept child components</h1><p class="lede">Any functional component can contain children. Declare one or more named slots in <code>Info.plist</code>, then place each slot exactly where its children should render.</p>
 <h2>Declare a slot</h2><pre><code>&lt;key&gt;slots&lt;/key&gt;
 &lt;array&gt;
     &lt;dict&gt;
@@ -9,7 +9,7 @@
         &lt;key&gt;maximum&lt;/key&gt;&lt;integer&gt;6&lt;/integer&gt;
     &lt;/dict&gt;
 &lt;/array&gt;</code></pre>
-<h2>Place it in HTML</h2><pre><code>&lt;section id="{{ id }}" {{ component.attributes }}&gt;
+<h2>Place it in HTML</h2><pre><code>&lt;section {{ component.attributes }}&gt;
     &lt;header&gt;{{ text="Section title" }}&lt;/header&gt;
     &lt;div class="items"&gt;
         {{ slot id="content" }}

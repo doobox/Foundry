@@ -10,10 +10,8 @@ nonisolated struct LoadedComponentPackage: Sendable {
     let placedHTML: [LoadedPlacedHTMLTemplate]
     let instanceJavaScript: String
     let pageJavaScript: String
-    let siteJavaScript: String
     let instancePHP: String
     let pagePHP: String
-    let sitePHP: String
     let editorCSS: String
 
     var lock: ComponentPackageLock {
@@ -71,13 +69,15 @@ nonisolated enum ComponentPackageLoader {
         let manifest: ComponentPackageManifest
         do {
             let data = try Data(contentsOf: manifestURL)
+            let schemaDiagnostics = try ComponentPackageManifestSchema.diagnostics(for: data)
+            guard !schemaDiagnostics.contains(where: { $0.severity == .error }) else {
+                throw ComponentPackageLoadingError.invalid(schemaDiagnostics)
+            }
             manifest = try PropertyListDecoder().decode(ComponentPackageManifest.self, from: data)
+        } catch let error as ComponentPackageLoadingError {
+            throw error
         } catch {
             throw ComponentPackageLoadingError.unreadableManifest(error)
-        }
-
-        guard manifest.type == .component else {
-            throw ComponentPackageLoadingError.unreadableManifest(CocoaError(.fileReadCorruptFile))
         }
 
         let resourceRootURL = rootURL.appending(path: "Contents/Resources", directoryHint: .isDirectory)
@@ -107,7 +107,7 @@ nonisolated enum ComponentPackageLoader {
                     guard file.closure else { return source }
                     let parameter = scope == .instance ? "component" : "page"
                     let argument = scope == .instance
-                        ? "document.querySelector('[data-foundry-id=\"{{ instance.uuid }}\"]')"
+                        ? "document.getElementById('{{ id }}')"
                         : "document"
                     return """
                     (function (\(parameter)) {
@@ -134,10 +134,8 @@ nonisolated enum ComponentPackageLoader {
             placedHTML: placedHTML,
             instanceJavaScript: try javascript(scope: .instance),
             pageJavaScript: try javascript(scope: .page),
-            siteJavaScript: try javascript(scope: .site),
             instancePHP: try php(scope: .instance),
             pagePHP: try php(scope: .page),
-            sitePHP: try php(scope: .site),
             editorCSS: try readIfPresent(manifest.render.editorCSS, from: resourceRootURL),
         )
     }

@@ -148,6 +148,7 @@ struct HTMLPageRenderer: PageRendering {
               margin: 0; background: var(--foundry-color-background);
               color: var(--foundry-color-text); font-family: var(--foundry-font-body);
               font-size: var(--foundry-font-size-base); line-height: var(--foundry-font-size-base-line-height);
+              display: flex; flex-direction: column; align-items: stretch;
             }
             h1, h2, h3, h4, h5, h6, .foundry-heading { font-family: var(--foundry-font-heading); }
             code, pre, kbd, samp { font-family: var(--foundry-font-monospace); }
@@ -158,6 +159,7 @@ struct HTMLPageRenderer: PageRendering {
             .foundry-image { display: block; width: 100%; height: auto; }
             .foundry-spacer { min-height: 8px; }
             .unavailable { padding: 16px; border: 2px dashed #C33; color: #922; background: #FFF5F5; }
+            \(FoundryWebLibraryRegistry.canvasCSS(for: ComponentArtifactPlan(page: page).packages))
             \(packageStyles(for: page, theme: theme, assets: assets, breakpoint: breakpoint))
             \(themeControlStyles(for: page, theme: theme, breakpoint: breakpoint))
           </style>
@@ -185,7 +187,8 @@ struct HTMLPageRenderer: PageRendering {
                     instanceID: node.id,
                     packageIdentifier: package.manifest.identifier,
                     properties: packageProperties(node, theme: theme, assets: assets),
-                    slots: [:]
+                    slots: [:],
+                    assetBasePath: package.resourceRootURL.absoluteString
                 )
             )
         }
@@ -193,11 +196,11 @@ struct HTMLPageRenderer: PageRendering {
         let sharedScripts = nodes.compactMap { node -> String? in
             guard let package = node.type.definition.package,
                   seenPackages.insert(package.manifest.identifier).inserted else { return nil }
-            let source = [package.pageJavaScript, package.siteJavaScript].filter { !$0.isEmpty }.joined(separator: "\n")
+            let source = package.pageJavaScript
             guard !source.isEmpty else { return nil }
             return ComponentTemplateRenderer.render(
                 source,
-                context: .init(instanceID: UUID(uuid: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)), packageIdentifier: package.manifest.identifier, properties: [:], slots: [:])
+                context: .init(instanceID: UUID(uuid: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)), packageIdentifier: package.manifest.identifier, properties: [:], slots: [:], assetBasePath: package.resourceRootURL.absoluteString)
             )
         }
         let htmlScripts = nodes.map {
@@ -219,7 +222,8 @@ struct HTMLPageRenderer: PageRendering {
                 instanceID: UUID(uuid: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)),
                 packageIdentifier: package.manifest.identifier,
                 properties: [:],
-                slots: [:]
+                slots: [:],
+                assetBasePath: package.resourceRootURL.absoluteString
             )
             return templates.map { ComponentTemplateRenderer.render($0.contents, context: context) }.joined(separator: "\n")
         }.joined(separator: "\n")
@@ -379,7 +383,9 @@ struct HTMLPageRenderer: PageRendering {
                     properties: packageProperties(node, theme: theme, assets: assets),
                     slots: slots,
                     componentAttributes: attributes(for: node, globalDefinitionID: globalDefinitionID) +
-                        " data-foundry-package=\"\(escapeAttribute(package.manifest.identifier))\""
+                        " data-foundry-package=\"\(escapeAttribute(package.manifest.identifier))\"",
+                    assetBasePath: package.resourceRootURL.absoluteString,
+                    enablesEditorMarkup: true
                 )
             )
             if package.htmlTemplate.contains("{{ component.attributes }}") ||
@@ -422,7 +428,8 @@ struct HTMLPageRenderer: PageRendering {
                     instanceID: node.id,
                     packageIdentifier: package.manifest.identifier,
                     properties: packageProperties(node, theme: theme, assets: assets),
-                    slots: [:]
+                    slots: [:],
+                    assetBasePath: package.resourceRootURL.absoluteString
                 )
             )
             return ComponentTemplateRenderer.scopedCSS(css, packageIdentifier: package.manifest.identifier)
@@ -443,7 +450,8 @@ struct HTMLPageRenderer: PageRendering {
                     instanceID: UUID(uuid: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)),
                     packageIdentifier: package.manifest.identifier,
                     properties: [:],
-                    slots: [:]
+                    slots: [:],
+                    assetBasePath: package.resourceRootURL.absoluteString
                 )
             )
         }.joined(separator: "\n")
@@ -501,6 +509,18 @@ struct HTMLPageRenderer: PageRendering {
                 let resolved = !themeValues || source == "custom"
                     ? node.property(customValueKey) : theme.fontSizeCSSVariable(for: source)
                 return (definition.key.rawValue, .string(resolved))
+            }
+            if case .packageSpacing(let kind, let customValueKey, _, _) = definition.control {
+                return (
+                    definition.key.rawValue,
+                    .string(ComponentPackageSpacingResolver.resolve(
+                        node: node,
+                        key: definition.key,
+                        theme: theme,
+                        customValueKey: customValueKey,
+                        kind: kind
+                    ))
+                )
             }
             if case .lineHeight(let fontSizeKey) = definition.control {
                 return (
@@ -628,7 +648,7 @@ struct HTMLPageRenderer: PageRendering {
         let globalAttributes = globalDefinitionID.map {
             " data-foundry-global=\"\($0.uuidString)\" data-foundry-global-override=\"\(node.overridesGlobalDefinition == true)\""
         } ?? ""
-        return "data-foundry-id=\"\(node.id.uuidString)\" data-foundry-type=\"\(escapeAttribute(node.type.displayName))\" data-foundry-name=\"\(escapeAttribute(node.name))\" data-foundry-accepts-children=\"\(acceptsChildren)\"\(globalAttributes)"
+        return "id=\"foundry-\(node.id.uuidString.lowercased())\" data-foundry-id=\"\(node.id.uuidString)\" data-foundry-type=\"\(escapeAttribute(node.type.displayName))\" data-foundry-name=\"\(escapeAttribute(node.name))\" data-foundry-accepts-children=\"\(acceptsChildren)\"\(globalAttributes)"
     }
 
     private func cssAlignment(_ value: String) -> String {

@@ -10,11 +10,16 @@ with:
 
 - [Build a component](../docs/quick-start.html)
 - [Pack structure and development workflow](../docs/bundle-structure.html)
-- [Info.plist reference](../docs/info-plist.html)
-- [Template values and scopes](../docs/template-values.html)
+- [Info.plist overview](../docs/info-plist.html)
+- [Identity and metadata](../docs/manifest-identity.html)
+- [Template file declarations](../docs/templates.html)
+- [Libraries and assets](../docs/manifest-resources.html)
+- [Template values and macros](../docs/template-values.html)
 - [Custom controls](../docs/custom-controls.html)
+- [Icon control](../docs/icon-control.html)
 - [Editable content primitives](../docs/editable-text.html)
 - [Child-component slots](../docs/slots.html)
+- [Support and recovery](../docs/manifest-support.html)
 
 ## Minimal structure
 
@@ -36,9 +41,10 @@ Example.foundrydevpack/
   "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-    <key>type</key><string>component</string>
-    <key>CFBundleIdentifier</key><string>com.example.component</string>
+    <key>minimumAPIVersion</key><integer>1</integer>
+    <key>id</key><string>com.example.component</string>
     <key>title</key><string>Example</string>
+    <key>version</key><string>1.0.0</string>
     <key>templates</key>
     <dict>
         <key>html</key><string>component.html</string>
@@ -57,7 +63,7 @@ Example.foundrydevpack/
 `Contents/Resources/component.html`:
 
 ```html
-<section id="{{ id }}" {{ component.attributes }}>
+<section {{ component.attributes }}>
     <h2>{{ text="Example heading" }}</h2>
 </section>
 ```
@@ -68,8 +74,11 @@ Open a `.foundrydevpack` directly or put it in
 `~/Library/Application Support/Foundry/Packs`. Foundry watches development
 packs and reloads a valid edit when the application becomes active. Rename the
 finished bundle to `.foundrypack`; opening it validates and installs it into the
-same Packs directory. Packs may recursively contain component or collection
-packs.
+same Packs directory. Packs may recursively contain other packs. A pack is a
+component by default; an outer packaging container sets the optional Boolean
+`collection` key to `true` so Foundry skips the parent itself while continuing
+to discover its nested components. A collection manifest contains only
+`collection = true`; component metadata belongs to its nested packs.
 
 The retired `.foundrycomponent`, `.foundrycomponent-dev` and `component.json`
 prototype formats are not accepted by the current loader.

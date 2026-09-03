@@ -1,95 +1,115 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Templates · Foundry Developer</title><link rel="stylesheet" href="styles.css"><script src="app.js" defer></script></head><body><div class="shell"><nav data-doc-nav></nav><main><div class="breadcrumbs"><a href="index.html">Foundry Developer</a><span>›</span>Build components</div><p class="eyebrow">Template API</p><h1>Put values where they belong</h1><p class="lede">Foundry processes the HTML, CSS, JavaScript, PHP and editor CSS named by <code>Info.plist</code>. The developer owns the resulting structure and selectors; scope controls how often each template is emitted.</p>
-<div class="note"><strong>Implemented template formats.</strong> Foundry accepts <code>.html</code>, <code>.css</code>, <code>.js</code> and <code>.php</code> template files. Sass and SCSS are not currently compiled or accepted as templates.</div>
-<h2>Template scope</h2><p>Declare each additional template as a dictionary containing its <code>path</code> and optional <code>scope</code>. Scope controls available values, lifetime and deduplication; it does not choose a selector.</p><dl class="syntax-list"><dt><code>instance</code></dt><dd>Default. Processed once for every component instance. Instance identity, controls and editable-instance values are available.</dd><dt><code>page</code></dt><dd>Processed once per package on every page that uses it. Page CSS and JavaScript are emitted in that page’s managed files.</dd><dt><code>site</code></dt><dd>Processed once per package for the site when that package is used anywhere. Site CSS and JavaScript are emitted in the shared managed files.</dd></dl>
-<pre><code>&lt;key&gt;files&lt;/key&gt;
-&lt;array&gt;
-    &lt;dict&gt;
-        &lt;key&gt;path&lt;/key&gt;&lt;string&gt;component.css&lt;/string&gt;
-        &lt;key&gt;scope&lt;/key&gt;&lt;string&gt;instance&lt;/string&gt;
-    &lt;/dict&gt;
-    &lt;dict&gt;
-        &lt;key&gt;path&lt;/key&gt;&lt;string&gt;shared.css&lt;/string&gt;
-        &lt;key&gt;scope&lt;/key&gt;&lt;string&gt;page&lt;/string&gt;
-    &lt;/dict&gt;
-    &lt;dict&gt;
-        &lt;key&gt;path&lt;/key&gt;&lt;string&gt;site.css&lt;/string&gt;
-        &lt;key&gt;scope&lt;/key&gt;&lt;string&gt;site&lt;/string&gt;
-    &lt;/dict&gt;
-&lt;/array&gt;</code></pre>
-<p>Page and site templates are deduplicated by component bundle identifier. They reject <code>{{ id }}</code>, <code>{{ component.attributes }}</code>, <code>{{ control.* }}</code>, editable text, conditions and slots because there is no single component instance to supply those values.</p>
-<h2>HTML placement</h2><p>Additional HTML templates use <code>page</code> scope and require <code>placement</code>: <code>headStart</code>, <code>headEnd</code>, <code>bodyStart</code> or <code>bodyEnd</code>. Foundry emits each template once on a page when its component package is used.</p><pre><code>&lt;dict&gt;
-    &lt;key&gt;path&lt;/key&gt;&lt;string&gt;metadata.html&lt;/string&gt;
-    &lt;key&gt;scope&lt;/key&gt;&lt;string&gt;page&lt;/string&gt;
-    &lt;key&gt;placement&lt;/key&gt;&lt;string&gt;headEnd&lt;/string&gt;
-&lt;/dict&gt;</code></pre><div class="note"><strong>Placement is separate from scope.</strong> Scope answers “how often?” while placement answers “where?”. The primary <code>html</code> template remains instance-scoped in the normal component flow. Additional placed HTML deliberately uses page scope; site-scoped HTML is not accepted because an exported site has no single HTML document.</div>
-<h2>JavaScript</h2><p>JavaScript templates accept <code>instance</code>, <code>page</code> and <code>site</code> scope. Foundry processes their allowed macros and emits the resulting source in a script block at the end of the body. The code runs as ordinary website JavaScript under the browser’s normal security rules.</p><p>Each JavaScript file is wrapped in its own immediately invoked function by default, keeping its variables out of the global scope. The developer writes an ordinary file; Foundry places the complete processed source inside the wrapper.</p><pre><code>&lt;dict&gt;
-    &lt;key&gt;path&lt;/key&gt;&lt;string&gt;component.js&lt;/string&gt;
-    &lt;key&gt;scope&lt;/key&gt;&lt;string&gt;instance&lt;/string&gt;
-    &lt;key&gt;closure&lt;/key&gt;&lt;true/&gt;
-&lt;/dict&gt;</code></pre>
-<h3>The component helper</h3><p>An instance-scoped closure receives <code>component</code>, the native HTML element carrying that instance’s <code>data-foundry-id</code> from <code>{{ component.attributes }}</code>. The developer can place <code>{{ id }}</code> wherever their markup and styling require; Foundry does not use it to locate the component.</p><pre><code>&lt;div id="{{ id }}" {{ component.attributes }}&gt;
-    &lt;button class="show-button"&gt;Show message&lt;/button&gt;
-    &lt;p class="message" hidden&gt;Hello from Foundry&lt;/p&gt;
-&lt;/div&gt;</code></pre><pre><code>const button = component.querySelector(".show-button");
-const message = component.querySelector(".message");
-
-button.addEventListener("click", () =&gt; {
-    message.hidden = false;
-});</code></pre><p>Foundry produces:</p><pre><code>(function (component) {
-    "use strict";
-
-    const button = component.querySelector(".show-button");
-    const message = component.querySelector(".message");
-    button.addEventListener("click", () =&gt; { message.hidden = false; });
-})(document.querySelector('[data-foundry-id="A12B3C4D-1234-5678-90AB-CDEF12345678"]'));</code></pre><p>The helper is found through the stable <code>data-foundry-id</code> emitted by <code>{{ component.attributes }}</code>, independently of where you place <code>{{ id }}</code>. Page- and site-scoped closures receive <code>page</code>, which is the browser’s <code>document</code>. <code>closure</code> is optional and defaults to <code>true</code>. Set it to <code>false</code> only when the file intentionally creates globals; raw files receive no helper. Each template receives a separate closure.</p>
-<h2>Identity and package values</h2><section class="reference-entry"><h3>{{ id }} and {{ instance.id }}</h3><p>Equivalent spellings that resolve to a stable, CSS-safe ID unique to the instance, such as <code>foundry-a12b…</code>. Whitespace inside braces is optional, so <code>{{id}}</code> is equivalent; the spaced form is recommended for readability.</p><pre><code>&lt;article id="{{ id }}" {{ component.attributes }}&gt;…&lt;/article&gt;
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Template values · Foundry Developer</title>
+<link rel="stylesheet" href="styles.css">
+<script src="app.js" defer>
+</script>
+</head>
+<body>
+<div class="shell">
+<nav data-doc-nav>
+</nav>
+<main>
+<div class="breadcrumbs">
+<a href="index.html">Foundry Developer</a>
+<span>›</span>Template language</div>
+<p class="eyebrow">Template API</p>
+<h1>Put values where they belong</h1>
+<p class="lede">Use Foundry’s template values to place instance identity, inspector values, assets, conditions, editable content, and child-component slots in developer-owned markup and styles.</p>
+<div class="note"><strong>Looking for Info.plist declarations?</strong> See <a href="templates.html">Template files</a> for the separate HTML, CSS, JavaScript, PHP, additional HTML, and editor CSS rules.</div>
+<h2>Identity and package values</h2>
+<section class="reference-entry">
+<h3>{{ id }} and {{ instance.id }}</h3>
+<p>Equivalent spellings that resolve to a stable, CSS-safe ID unique to the instance, such as <code>foundry-a12b…</code>. Whitespace inside braces is optional, so <code>{{id}}</code> is equivalent; the spaced form is recommended for readability.</p>
+<pre>
+<code>&lt;article {{ component.attributes }}&gt;…&lt;/article&gt;
 
 #{{ id }} { border-radius: 12px; }
-#{{ id }} .title { font-weight: 700; }</code></pre></section><section class="reference-entry"><h3>{{ instance.uuid }}</h3><p>The raw stable UUID for the instance, without the <code>foundry-</code> prefix. This is the value used by <code>data-foundry-id</code>.</p></section><section class="reference-entry"><h3>{{ package.id }}</h3><p>The escaped reverse-domain package identifier. It is available in all scopes and is the preferred value for shared package selectors.</p><pre><code>[data-foundry-package="{{ package.id }}"] { … }</code></pre></section><section class="reference-entry"><h3>{{ asset.&lt;path&gt; }}</h3><p>An escaped URL formed from the current component-asset base and a safe relative path declared in the manifest’s <code>assets</code> array.</p><pre><code>&lt;img src="{{ asset.images/icon.svg }}" alt=""&gt;</code></pre></section>
-<h2>Control values</h2><section class="reference-entry"><h3>{{ control.&lt;id&gt; }}</h3><p>Resolves a value declared by <code>customItems</code> or a named theme control. Responsive values resolve at the breakpoint currently being rendered.</p><pre><code>#{{ id }} {
+#{{ id }} .title { font-weight: 700; }</code>
+</pre>
+</section>
+<section class="reference-entry">
+<h3>{{ instance.uuid }}</h3>
+<p>The raw stable UUID for the instance, without the <code>foundry-</code> prefix. It is primarily useful in generated values that need the unprefixed identifier.</p>
+</section>
+<section class="reference-entry">
+<h3>{{ package.id }}</h3>
+<p>The escaped reverse-domain package identifier. It is available in all scopes and is the preferred value for shared package selectors.</p>
+<pre>
+<code>[data-foundry-package="{{ package.id }}"] { … }</code>
+</pre>
+</section>
+<section class="reference-entry">
+<h3>{{ asset.&lt;path&gt; }}</h3>
+<p>An escaped URL formed from the current component-asset base and a safe relative path declared in the manifest’s <code>assets</code> array.</p>
+<pre>
+<code>&lt;img src="{{ asset.images/icon.svg }}" alt=""&gt;</code>
+</pre>
+</section>
+<h2>Control values</h2>
+<section class="reference-entry">
+<h3>{{ control.&lt;id&gt; }}</h3>
+<p>Resolves a value declared by <code>customItems</code> or a named theme control. Responsive values resolve at the breakpoint currently being rendered.</p>
+<pre>
+<code>#{{ id }} {
     max-width: {{ control.maxWidth }}px;
     text-align: {{ control.alignment }};
 }
 
 #{{ id }} .media {
     opacity: {{ control.imageOpacity }};
-}</code></pre></section><section class="reference-entry"><h3>{{ control.&lt;id&gt;[&lt;index&gt;] }}</h3><p>Resolves one member of a control array using a zero-based index. The equivalent <code>property</code> spelling is also accepted.</p><pre><code>#{{ id }} {
+}</code>
+</pre>
+</section>
+<section class="reference-entry">
+<h3>{{ control.&lt;id&gt;[&lt;index&gt;] }}</h3>
+<p>Resolves one member of a control array using a zero-based index. The equivalent <code>property</code> spelling is also accepted.</p>
+<pre>
+<code>#{{ id }} {
     --primary: {{ control.palette[0] }};
     --secondary: {{ property.palette[1] }};
     padding: {{ control.insets[0] }}px {{ control.insets[1] }}px;
-}</code></pre><p>The index must refer to an item declared by the control’s <code>count</code>. See <a href="control-arrays.html">Control arrays</a>.</p></section>
-<h2>Conditions</h2><p>Conditionals use property values, not arbitrary expressions. A Boolean, non-zero number, non-empty String or non-empty array is truthy; an optional String comparison is also supported.</p><pre><code>{{ if property.featured }}
+}</code>
+</pre>
+<p>The index must refer to an item declared by the control’s <code>count</code>. See <a href="control-arrays.html">Control arrays</a>.</p>
+</section>
+<h2>Conditions</h2>
+<p>Conditionals use property values, not arbitrary expressions. A Boolean, non-zero number, non-empty String or non-empty array is truthy; an optional String comparison is also supported.</p>
+<pre>
+<code>{{ if property.featured }}
     &lt;span class="badge"&gt;Featured&lt;/span&gt;
 {{ else }}
     &lt;span class="badge muted"&gt;Standard&lt;/span&gt;
 {{ endif }}
 
-{{ if property.alignment == "center" }}centered{{ endif }}</code></pre><p>Each <code>if</code> requires one <code>endif</code> and accepts at most one <code>else</code>.</p>
-<h2>Component hooks</h2><dl class="syntax-list"><dt><code>{{ component.attributes }}</code></dt><dd>Required editor and runtime metadata. Place it on the element that represents the component. It emits stable <code>data-foundry-id</code> and <code>data-foundry-package</code> attributes.</dd><dt><code>{{ component.class }}</code></dt><dd>Foundry’s generated class fragment, including a leading space when non-empty, for appending inside an existing <code>class</code> attribute.</dd><dt><code>:host</code></dt><dd>In component CSS, replaced with a package boundary selector matching either <code>data-foundry-package</code> or the generated package class.</dd></dl>
-<div class="note"><strong>No hidden selector rules.</strong> Foundry does not assume that a control belongs on the top-level element. Use the same control more than once or target any descendant your component requires.</div>
-<h2>Supported template files</h2><dl><dt>HTML</dt><dd>Primary instance markup and additional page-scoped head/body markup.</dd><dt>CSS</dt><dd>Instance, page or site styles used by the canvas and export.</dd><dt>JavaScript</dt><dd>Client-side component behaviour with scope-appropriate values substituted.</dd><dt>PHP</dt><dd>Server-side source with scope-appropriate macros substituted and placed before the exported page doctype.</dd><dt>Editor CSS</dt><dd>Canvas-only instance CSS excluded from production export.</dd></dl>
-<div class="note"><strong>PHP export and preview are implemented.</strong> Set <code>&lt;key&gt;requiresPhp&lt;/key&gt;&lt;true/&gt;</code> and declare <code>.php</code> files under <code>templates.files</code>. Instance PHP is emitted for every component; page and site PHP is emitted once per package on each page. Foundry executes the generated page with its bundled PHP runtime in local preview, including query strings, request bodies, response status and headers. Development errors are shown in preview and do not change production export.</div>
-<h2>Editor CSS</h2><p>Editor CSS adds authoring affordances that are useful inside Foundry but should not appear on the published site. A component might use it to:</p><ul><li>give an empty container enough height to receive a dropped component;</li><li>outline or tint an editable region;</li><li>show a short placeholder label when real content is absent;</li><li>make a small interaction target easier to select on the canvas.</li></ul>
-<p>Name the file with <code>editorCSS</code> in <code>Info.plist</code>:</p><pre><code>&lt;key&gt;templates&lt;/key&gt;
-&lt;dict&gt;
-    &lt;key&gt;html&lt;/key&gt;&lt;string&gt;component.html&lt;/string&gt;
-    &lt;key&gt;files&lt;/key&gt;&lt;array&gt;
-        &lt;dict&gt;&lt;key&gt;path&lt;/key&gt;&lt;string&gt;component.css&lt;/string&gt;&lt;/dict&gt;
-    &lt;/array&gt;
-    &lt;key&gt;editorCSS&lt;/key&gt;&lt;string&gt;editor.css&lt;/string&gt;
-&lt;/dict&gt;</code></pre>
-<p><code>editor.css</code> is processed with the same instance and control macros as every other template:</p><pre><code>#{{ id }} .content {
-    min-height: 72px;
-    outline: 1px dashed rgb(0 0 0 / 0.25);
-    outline-offset: -1px;
-}
-
-#{{ id }} .content:empty::before {
-    content: "Drop components here";
-    color: rgb(0 0 0 / 0.45);
-}</code></pre>
-<p>Foundry loads this stylesheet for the editing canvas and excludes it from production export.</p>
-<div class="callout warning"><strong>Keep it editorial.</strong> The normal component CSS should remain the source of truth for the published layout. Editor CSS should improve selection, empty states and drop targets without disguising how the component will actually render.</div>
-<div class="callout warning"><strong>Unsupported extensions fail validation.</strong> Compile Sass, SCSS, TypeScript or other source formats before packaging them, then declare the generated CSS or JavaScript.</div>
-<p>The <code>html</code>, <code>files</code> and <code>editorCSS</code> entries are declared under <code>templates</code> in <code>Info.plist</code>.</p>
-</main></div></body></html>
+{{ if property.alignment == "center" }}centered{{ endif }}</code>
+</pre>
+<p>Each <code>if</code> requires one <code>endif</code> and accepts at most one <code>else</code>.</p>
+<h2>Component hooks</h2>
+<dl class="syntax-list">
+<dt>
+<code>{{ component.attributes }}</code>
+</dt>
+<dd>Required root-element attributes. Place it on the element that represents the component. It emits the stable HTML <code>id</code> used by instance JavaScript; Foundry adds private editing metadata only while rendering the canvas.</dd>
+<dt>
+<code>{{ component.class }}</code>
+</dt>
+<dd>Foundry’s generated class fragment, including a leading space when non-empty, for appending inside an existing <code>class</code> attribute.</dd>
+<dt>
+<code>:host</code>
+</dt>
+<dd>In component CSS, replaced with a package boundary selector matching either <code>data-foundry-package</code> or the generated package class.</dd>
+</dl>
+<div class="note">
+<strong>No hidden selector rules.</strong> Foundry does not assume that a control belongs on the top-level element. Use the same control more than once or target any descendant your component requires.</div>
+<div class="page-links">
+<a class="card" href="templates.html"><strong>Template files</strong><p>File types, scopes, placement, closures, PHP, and editor CSS.</p></a>
+<a class="card" href="custom-controls.html"><strong>Custom controls</strong><p>Declare the inspector values consumed by <code>{{ control.id }}</code>.</p></a>
+</div>
+</main>
+</div>
+</body>
+</html>

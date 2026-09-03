@@ -56,7 +56,7 @@ final class ComponentPackageCatalog {
     private func loadComponentPack(at url: URL, allowsReplacement: Bool = false) {
         do {
             let pack = try FoundryPackLoader.load(from: url)
-            guard pack.type == .component else {
+            guard !pack.isCollection else {
                 if diagnostics.removeValue(forKey: url.standardizedFileURL) != nil {
                     revision += 1
                 }
@@ -87,7 +87,7 @@ final class ComponentPackageCatalog {
                 diagnostics[url] = [
                     .init(
                         severity: .error,
-                        location: "Info.plist:CFBundleIdentifier",
+                        location: "Info.plist:id",
                         message: "Another installed package already uses '\(package.manifest.identifier)'."
                     )
                 ]

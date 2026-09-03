@@ -196,6 +196,13 @@ struct ComponentPropertyEditor: View {
                     }
                 }
             }
+        case .icon:
+            InspectorRow(title: definition.label, indicator: responsiveIndicator) {
+                FoundryIconPicker(
+                    selection: stringBinding(as: .choice),
+                    accessibilityLabel: definition.label
+                )
+            }
         case .packageColor(let themeValues, let customColorKey, let colorMathKey, let opacityKey):
             PackageColorControlEditor(
                 label: definition.label,
@@ -224,6 +231,17 @@ struct ComponentPropertyEditor: View {
                 choices: themeValues ? theme.fontSizeChoices : [],
                 source: stringBinding(as: .choice),
                 customValue: stringBinding(for: customValueKey),
+                indicator: responsiveIndicator
+            )
+        case .packageSpacing(let kind, let customValueKey, let range, let step):
+            PackageSpacingControlEditor(
+                label: definition.label,
+                kind: kind,
+                themeChoices: theme.spacingChoices,
+                sources: (0..<4).map(spacingSourceBinding),
+                customValues: (0..<4).map { spacingNumberBinding($0, key: customValueKey) },
+                range: range,
+                step: step,
                 indicator: responsiveIndicator
             )
         case .lineHeight:
@@ -354,17 +372,44 @@ struct ComponentPropertyEditor: View {
     }
 
     private func arrayElementBinding(_ index: Int) -> Binding<ComponentProperty.Value> {
+        arrayElementBinding(index, key: definition.key, fallback: .string(""))
+    }
+
+    private func arrayElementBinding(
+        _ index: Int,
+        key: ComponentProperty.Key,
+        fallback: ComponentProperty.Value
+    ) -> Binding<ComponentProperty.Value> {
         Binding(
             get: {
-                let values = displayComponent.propertyValue(definition.key).arrayValue ?? []
-                return values.indices.contains(index) ? values[index] : .string("")
+                let values = displayComponent.propertyValue(key).arrayValue ?? []
+                return values.indices.contains(index) ? values[index] : fallback
             },
             set: { newValue in
-                var values = displayComponent.propertyValue(definition.key).arrayValue ?? []
-                while values.count <= index { values.append(.string("")) }
+                var values = displayComponent.propertyValue(key).arrayValue ?? []
+                while values.count <= index { values.append(fallback) }
                 values[index] = newValue
-                setProperty(.array(values))
+                setProperty(.array(values), key: key)
             }
+        )
+    }
+
+    private func spacingSourceBinding(_ index: Int) -> Binding<String> {
+        let value = arrayElementBinding(index, key: definition.key, fallback: .choice("none"))
+        return Binding(
+            get: { value.wrappedValue.stringValue },
+            set: { value.wrappedValue = .choice($0) }
+        )
+    }
+
+    private func spacingNumberBinding(
+        _ index: Int,
+        key: ComponentProperty.Key
+    ) -> Binding<Double> {
+        let value = arrayElementBinding(index, key: key, fallback: .number(0))
+        return Binding(
+            get: { value.wrappedValue.numberValue ?? 0 },
+            set: { value.wrappedValue = .number($0) }
         )
     }
 
@@ -855,6 +900,11 @@ private struct InspectorControlArrayItem: View {
         switch element {
         case .color:
             InspectorColorWell(color: colorBinding)
+        case .icon:
+            FoundryIconPicker(
+                selection: iconBinding,
+                accessibilityLabel: subtitle ?? title
+            )
         case .singleLineText:
             InspectorTextField(text: stringBinding, accessibilityLabel: subtitle ?? "Text value", help: help)
         case .number(let range, let step, let unit):
@@ -911,6 +961,10 @@ private struct InspectorControlArrayItem: View {
 
     private var stringBinding: Binding<String> {
         Binding(get: { value.stringValue }, set: { value = .string($0) })
+    }
+
+    private var iconBinding: Binding<String> {
+        Binding(get: { value.stringValue }, set: { value = .choice($0) })
     }
 
     private var numberBinding: Binding<Double> {
@@ -989,6 +1043,78 @@ private struct PackageThemeValueGridEditor: View {
         [InspectorPopupOption(title: "Custom", value: "custom")] + choices.map {
             InspectorPopupOption(title: $0.label, value: $0.value)
         }
+    }
+}
+
+private struct PackageSpacingControlEditor: View {
+    let label: String
+    let kind: ComponentSpacingKind
+    let themeChoices: [ComponentPropertyChoice]
+    let sources: [Binding<String>]
+    let customValues: [Binding<Double>]
+    let range: ClosedRange<Double>
+    let step: Double
+    let indicator: InspectorRowIndicator
+
+    private let sides = ["Top", "Right", "Bottom", "Left"]
+
+    var body: some View {
+        InspectorRow(title: label, alignment: .top, indicator: indicator) {
+            VStack(alignment: .leading, spacing: 8) {
+                ForEach(0..<4, id: \.self) { index in
+                    sideEditor(index)
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func sideEditor(_ index: Int) -> some View {
+        let source = sources[index]
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 6) {
+                Text(sides[index])
+                    .foregroundStyle(.secondary)
+                    .frame(width: 44, alignment: .trailing)
+                InspectorPopup(
+                    selection: source,
+                    options: popupOptions(for: source.wrappedValue),
+                    accessibilityLabel: "\(label) \(sides[index])",
+                    help: "Choose theme or custom \(kind.rawValue) for the \(sides[index].lowercased()) side"
+                )
+            }
+            if source.wrappedValue == "custom" {
+                HStack(spacing: 4) {
+                    Color.clear.frame(width: 44, height: 0)
+                    InspectorNumberField(
+                        value: customValues[index],
+                        range: range,
+                        step: step,
+                        accessibilityLabel: "Custom \(label) \(sides[index])"
+                    )
+                    InspectorUnitLabel(unit: "px")
+                    InspectorStepper(
+                        value: customValues[index],
+                        range: range,
+                        increment: step,
+                        accessibilityLabel: "Custom \(label) \(sides[index])"
+                    )
+                }
+            }
+        }
+    }
+
+    private func popupOptions(for source: String) -> [InspectorPopupOption<String>] {
+        var options = [InspectorPopupOption(title: "None", value: "none")]
+        if kind.permitsAuto {
+            options.append(.init(title: "Auto", value: "auto"))
+        }
+        options.append(contentsOf: themeChoices.map { .init(title: $0.label, value: $0.value) })
+        options.append(.init(title: "Custom", value: "custom"))
+        if !options.contains(where: { $0.value == source }) {
+            options.insert(.init(title: "Missing Theme Spacing", value: source), at: 0)
+        }
+        return options
     }
 }
 

@@ -2,7 +2,9 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<key>CFBundleIdentifier</key>
+	<key>minimumAPIVersion</key>
+	<integer>1</integer>
+	<key>id</key>
 	<string>foundry.content.paragraph</string>
 	<key>assets</key>
 	<array/>
@@ -119,9 +121,7 @@
 	</dict>
 	<key>title</key>
 	<string>Paragraph</string>
-	<key>type</key>
-	<string>component</string>
 	<key>version</key>
-	<string>1.0</string>
+	<string>1.0.0</string>
 </dict>
 </plist>

@@ -478,6 +478,48 @@ nonisolated extension Theme {
         }
     }
 
+    var spacingChoices: [ComponentPropertyChoice] {
+        let predefined: [(String, String, Double)] = [
+            ("3xs", "3XS", spacing.threeExtraSmall),
+            ("2xs", "2XS", spacing.doubleExtraSmall),
+            ("xs", "Extra Small", spacing.extraSmall),
+            ("sm", "Small", spacing.small),
+            ("md", "Medium", spacing.medium),
+            ("lg", "Large", spacing.large),
+            ("xl", "Extra Large", spacing.extraLarge),
+            ("2xl", "2XL", spacing.doubleExtraLarge),
+            ("3xl", "3XL", spacing.threeExtraLarge)
+        ]
+        return predefined.map { id, title, multiplier in
+            let rem = multiplier * SpacingTokens.baseRem
+            let pixels = rem * typography.baseSize
+            return .init(
+                value: id,
+                label: "\(title) — \(rem.cssNumber) rem (\(pixels.cssNumber) px)"
+            )
+        } + spacing.custom.map { item in
+            let rem = item.value * SpacingTokens.baseRem
+            let pixels = rem * typography.baseSize
+            return .init(
+                value: "custom:\(item.id.uuidString.lowercased())",
+                label: "\(item.name) — \(rem.cssNumber) rem (\(pixels.cssNumber) px)"
+            )
+        }
+    }
+
+    func spacingCSSVariable(for reference: String) -> String? {
+        let predefined = Set(["3xs", "2xs", "xs", "sm", "md", "lg", "xl", "2xl", "3xl"])
+        if predefined.contains(reference) {
+            return "var(--foundry-space-\(reference))"
+        }
+        guard reference.hasPrefix("custom:"),
+              let id = UUID(uuidString: String(reference.dropFirst("custom:".count))),
+              let spacing = spacing.custom.first(where: { $0.id == id }) else {
+            return nil
+        }
+        return "var(\(spacing.cssVariable))"
+    }
+
     func fontSizeCSSVariable(for reference: String) -> String {
         let id = typography.fontSizes.contains(where: { $0.id == reference }) ? reference : "base"
         return "var(--foundry-font-size-\(id))"

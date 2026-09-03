@@ -259,7 +259,7 @@ private struct DeveloperPackageIssue: Identifiable {
             manifest = nil
         }
         let title = manifest?["title"] as? String
-        let identifier = manifest?["CFBundleIdentifier"] as? String
+        let identifier = manifest?["id"] as? String
         displayName = title.flatMap { $0.isEmpty ? nil : $0 }
             ?? url.deletingPathExtension().lastPathComponent
         self.identifier = identifier?.isEmpty == false ? identifier : nil
@@ -510,7 +510,9 @@ private struct ComponentLibraryDetail: View {
     }
 
     private var componentDeveloper: String {
-        componentPackage?.manifest.author ?? "Foundry"
+        componentPackage?.manifest.author.flatMap { author in
+            author.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : author
+        } ?? "Unknown Developer"
     }
 
     private var componentVersion: String {

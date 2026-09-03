@@ -3,6 +3,7 @@ import Synchronization
 
 nonisolated enum ComponentRegistry {
     static let builtInTypes: [ComponentType] = [
+        .section,
         .container,
         .paragraph
     ]
@@ -29,11 +30,6 @@ nonisolated enum ComponentRegistry {
     private static let packageDefinitions = Mutex<[ComponentType: ComponentDefinition]>([:])
 
     private static let builtInDefinitions: [ComponentType: ComponentDefinition] = [
-        .section: definition(
-            .section, "Section", "rectangle.inset.filled", .layout, children: true, render: .section,
-            properties: ComponentStyleProperties.appearance(background: "#FFFFFF", cornerRadius: 0) +
-                ComponentStyleProperties.layout(padding: 48, maxWidth: 1200, alignment: "center")
-        ),
         .columns: definition(
             .columns, "Columns", "rectangle.split.3x1", .layout, children: true, render: .columns,
             properties: [

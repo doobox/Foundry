@@ -1,23 +1,8 @@
 import Foundation
 
-nonisolated enum FoundryPackType: String, Codable, Sendable {
-    case component
-    case collection
-}
-
-nonisolated struct FoundryPackHeader: Codable, Sendable {
-    let type: FoundryPackType
-    let identifier: String
-
-    enum CodingKeys: String, CodingKey {
-        case type
-        case identifier = "CFBundleIdentifier"
-    }
-}
-
 nonisolated struct FoundryPack: Sendable {
-    let type: FoundryPackType
-    let identifier: String
+    let isCollection: Bool
+    let identifier: String?
     let rootURL: URL
 }
 
@@ -48,14 +33,12 @@ nonisolated enum FoundryPackLoader {
             throw FoundryPackLoadingError.missingManifest
         }
         do {
-            let header = try PropertyListDecoder().decode(
-                FoundryPackHeader.self,
-                from: Data(contentsOf: manifestURL)
+            let inspection = try ComponentPackageManifestSchema.inspect(Data(contentsOf: manifestURL))
+            return FoundryPack(
+                isCollection: inspection.kind == .collection,
+                identifier: inspection.identifier,
+                rootURL: rootURL
             )
-            guard !header.identifier.isEmpty else {
-                throw CocoaError(.fileReadCorruptFile)
-            }
-            return FoundryPack(type: header.type, identifier: header.identifier, rootURL: rootURL)
         } catch {
             throw FoundryPackLoadingError.invalidManifest(error)
         }

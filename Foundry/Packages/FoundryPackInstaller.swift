@@ -8,11 +8,8 @@ enum FoundryPackInstaller {
         guard !packURLs.isEmpty else { throw FoundryPackLoadingError.wrongExtension }
         for url in packURLs {
             let pack = try FoundryPackLoader.load(from: url)
-            switch pack.type {
-            case .component:
+            if !pack.isCollection {
                 _ = try ComponentPackageLoader.load(from: url)
-            case .collection:
-                break
             }
         }
 

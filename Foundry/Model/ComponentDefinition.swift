@@ -139,6 +139,7 @@ nonisolated enum ComponentPropertyControl: Sendable {
     case details(help: String?)
     case derived
     case color
+    case icon
     case packageColor(
         themeValues: Bool,
         customColorKey: ComponentProperty.Key,
@@ -149,6 +150,12 @@ nonisolated enum ComponentPropertyControl: Sendable {
     case themeFontFamily
     case themeFontSize
     case packageFontSize(themeValues: Bool, customValueKey: ComponentProperty.Key)
+    case packageSpacing(
+        kind: ComponentSpacingKind,
+        customValueKey: ComponentProperty.Key,
+        range: ClosedRange<Double>,
+        step: Double
+    )
     case lineHeight(fontSizeKey: ComponentProperty.Key?)
     case textAlignment
     case divider
@@ -163,6 +170,13 @@ nonisolated enum ComponentPropertyControl: Sendable {
         if case .themeFontSize = self { true } else { false }
     }
 
+}
+
+nonisolated enum ComponentSpacingKind: String, Sendable {
+    case margin
+    case padding
+
+    var permitsAuto: Bool { self == .margin }
 }
 
 nonisolated struct ComponentPropertyChoice: Identifiable, Sendable {

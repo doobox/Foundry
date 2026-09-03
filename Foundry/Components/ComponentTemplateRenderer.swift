@@ -8,6 +8,7 @@ nonisolated struct ComponentTemplateContext: Sendable {
     let componentClass: String
     let componentAttributes: String
     let assetBasePath: String
+    let enablesEditorMarkup: Bool
 
     init(
         instanceID: UUID,
@@ -16,7 +17,8 @@ nonisolated struct ComponentTemplateContext: Sendable {
         slots: [String: String],
         componentClass: String = "",
         componentAttributes: String = "",
-        assetBasePath: String = ""
+        assetBasePath: String = "",
+        enablesEditorMarkup: Bool = false
     ) {
         self.instanceID = instanceID
         self.packageIdentifier = packageIdentifier
@@ -25,6 +27,7 @@ nonisolated struct ComponentTemplateContext: Sendable {
         self.componentClass = componentClass
         self.componentAttributes = componentAttributes
         self.assetBasePath = assetBasePath
+        self.enablesEditorMarkup = enablesEditorMarkup
     }
 }
 
@@ -106,7 +109,7 @@ nonisolated enum ComponentTemplateRenderer {
             let declaredDefault = primitiveDefault(match: match, in: result)
             let currentValue = stringValue(context.properties[key]) ?? declaredDefault
             result.replaceSubrange(wholeRange, with: escapeText(currentValue))
-            if !context.componentAttributes.isEmpty {
+            if context.enablesEditorMarkup {
                 addInlineEditingAttribute(for: key, atUTF16Offset: match.range.location, to: &result)
             }
         }
@@ -117,10 +120,11 @@ nonisolated enum ComponentTemplateRenderer {
         guard hasImagePrimitive(in: template) else { return template }
         let source = stringValue(context.properties["source"]) ?? ""
         let image: String
-        if source.isEmpty && !context.componentAttributes.isEmpty {
+        if source.isEmpty && context.enablesEditorMarkup {
             image = "<span class=\"foundry-image-drop-zone\" data-foundry-image-drop-zone>Drop an image here</span>"
         } else {
-            image = "<img class=\"foundry-image\" data-foundry-image-drop-zone src=\"\(escapeAttribute(source))\" alt=\"\">"
+            let editorAttribute = context.enablesEditorMarkup ? " data-foundry-image-drop-zone" : ""
+            image = "<img class=\"foundry-image\"\(editorAttribute) src=\"\(escapeAttribute(source))\" alt=\"\">"
         }
         let expression = try! NSRegularExpression(pattern: #"\{\{\s*image\s*\}\}"#)
         return expression.stringByReplacingMatches(
@@ -138,7 +142,7 @@ nonisolated enum ComponentTemplateRenderer {
             let key = "html\(index + 1)"
             let currentValue = stringValue(context.properties[key]) ?? htmlPrimitiveDefault(match: match, in: result)
             result.replaceSubrange(wholeRange, with: currentValue)
-            if !context.componentAttributes.isEmpty {
+            if context.enablesEditorMarkup {
                 addInlineEditingAttribute(
                     for: key,
                     atUTF16Offset: match.range.location,
@@ -237,9 +241,6 @@ nonisolated enum ComponentTemplateRenderer {
             let path = String(key.dropFirst("asset.".count))
             guard isSafeRelativePath(path) else { return "" }
             return escapeAttribute(join(context.assetBasePath, path))
-        }
-        if key.hasPrefix("slot.") {
-            return context.slots[String(key.dropFirst("slot.".count))] ?? ""
         }
         let prefix = key.hasPrefix("control.") ? "control." : "property."
         guard key.hasPrefix(prefix) else { return "" }

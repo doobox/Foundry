@@ -14,7 +14,7 @@ struct ComponentPackageTests {
         )
 
         let header = try FoundryPackLoader.load(from: fixtureURL)
-        #expect(header.type == .component)
+        #expect(!header.isCollection)
 
         do {
             _ = try ComponentPackageLoader.load(from: fixtureURL)
@@ -89,9 +89,10 @@ struct ComponentPackageTests {
         let plist = """
         <?xml version="1.0" encoding="UTF-8"?>
         <plist version="1.0"><dict>
-        <key>type</key><string>component</string><key>CFBundleIdentifier</key><string>com.example.arrays</string>
+        <key>minimumAPIVersion</key><integer>1</integer>
+        <key>id</key><string>com.example.arrays</string>
         <key>title</key><string>Arrays</string><key>description</key><string>Array controls</string>
-        <key>author</key><string>Foundry</string><key>version</key><string>1</string><key>group</key><string>Other</string>
+        <key>author</key><string>Foundry</string><key>version</key><string>1.0.0</string><key>group</key><string>Other</string>
         <key>tags</key><array/><key>assets</key><array/><key>slots</key><array/>
         <key>customItems</key><array><dict>
         <key>id</key><string>palette</string><key>labels</key><array><string>One</string><string>Two</string><string>Three</string><string>Four</string></array><key>group</key><string>Appearance</string>
@@ -126,8 +127,10 @@ struct ComponentPackageTests {
         let plist = """
         <?xml version="1.0" encoding="UTF-8"?>
         <plist version="1.0"><dict>
-        <key>type</key><string>component</string><key>CFBundleIdentifier</key><string>com.example.derived</string>
+        <key>minimumAPIVersion</key><integer>1</integer>
+        <key>id</key><string>com.example.derived</string>
         <key>title</key><string>Derived</string><key>description</key><string>Derived controls</string>
+        <key>version</key><string>1.0.0</string>
         <key>group</key><string>Other</string><key>assets</key><array/><key>slots</key><array/>
         <key>customItems</key><array>
         <dict><key>id</key><string>amount</string><key>labels</key><string>Amount</string><key>group</key><string>Test</string><key>type</key><string>number</string><key>default</key><real>21</real><key>responsive</key><false/></dict>
@@ -146,7 +149,7 @@ struct ComponentPackageTests {
     }
 
     @Test
-    func requiresPhpDefaultsToFalseAndForcesPhpPageExportWhenEnabled() throws {
+    func phpCapabilityForcesPageExtensionWithoutAnInlinePHPTemplate() throws {
         let defaultManifest = try PropertyListDecoder().decode(
             ComponentPackageManifest.self,
             from: Data(validManifest.utf8)
@@ -157,12 +160,17 @@ struct ComponentPackageTests {
         let manifest = validManifest
             .replacingOccurrences(of: "com.example.card", with: identifier)
             .replacingOccurrences(
+                of: "<key>assets</key><array><string>images/icon.svg</string></array>",
+                with: "<key>assets</key><array><string>images/icon.svg</string><string>server/endpoint.php</string></array>"
+            )
+            .replacingOccurrences(
                 of: "<key>templates</key>",
                 with: "<key>requiresPhp</key><true/>\n            <key>templates</key>"
             )
         let packageURL = try makePackage(
             manifest: manifest,
-            template: "<section {{ component.attributes }}>{{ slot id=\"content\" }}</section>"
+            template: "<section {{ component.attributes }}>{{ slot id=\"content\" }}</section>",
+            additionalFiles: ["server/endpoint.php": "<?php echo 'ready'; ?>"]
         )
         defer { try? FileManager.default.removeItem(at: packageURL) }
         let package = try ComponentPackageLoader.load(from: packageURL)
@@ -173,8 +181,9 @@ struct ComponentPackageTests {
         let bundle = StaticSiteRenderer().render(site: site)
 
         #expect(package.manifest.requiresPhp)
-        #expect(bundle.file(at: "index.php") != nil)
         #expect(bundle.file(at: "index.html") == nil)
+        #expect(bundle.file(at: "index.php") != nil)
+        #expect(bundle.file(at: "files/components/\(identifier)/server/endpoint.php") != nil)
     }
 
     @Test
@@ -201,7 +210,8 @@ struct ComponentPackageTests {
             packageIdentifier: "com.example.text",
             properties: [:],
             slots: [:],
-            componentAttributes: "data-foundry-id=\"test-component\""
+            componentAttributes: "data-foundry-id=\"test-component\"",
+            enablesEditorMarkup: true
         )
 
         let primitives = ComponentTemplateRenderer.textPrimitives(in: template)
@@ -246,7 +256,8 @@ struct ComponentPackageTests {
         let editorContext = ComponentTemplateContext(
             instanceID: UUID(), packageIdentifier: "com.example.html",
             properties: ["html1": .string("<em>Edited & ready</em>")], slots: [:],
-            componentAttributes: "data-foundry-id=\"test-component\""
+            componentAttributes: "data-foundry-id=\"test-component\"",
+            enablesEditorMarkup: true
         )
 
         let primitive = try #require(ComponentTemplateRenderer.htmlPrimitives(in: template).first)
@@ -273,7 +284,8 @@ struct ComponentPackageTests {
         let template = "<figure {{ component.attributes }}>{{ image }}</figure>"
         let editorContext = ComponentTemplateContext(
             instanceID: UUID(), packageIdentifier: "com.example.image",
-            properties: [:], slots: [:], componentAttributes: "data-editor=\"true\""
+            properties: [:], slots: [:], componentAttributes: "data-editor=\"true\"",
+            enablesEditorMarkup: true
         )
         let exportContext = ComponentTemplateContext(
             instanceID: UUID(), packageIdentifier: "com.example.image",
@@ -370,6 +382,34 @@ struct ComponentPackageTests {
     }
 
     @Test
+    func dottedSlotSyntaxIsRejectedAndNotRendered() throws {
+        let packageURL = try makePackage(
+            manifest: validManifest,
+            template: "<section {{ component.attributes }}>{{ slot.content }}</section>"
+        )
+        defer { try? FileManager.default.removeItem(at: packageURL) }
+        let manifest = try PropertyListDecoder().decode(
+            ComponentPackageManifest.self,
+            from: Data(validManifest.utf8)
+        )
+        let diagnostics = ComponentPackageValidator.validate(
+            manifest,
+            rootURL: packageURL.appending(path: "Contents/Resources", directoryHint: .isDirectory)
+        )
+        let context = ComponentTemplateContext(
+            instanceID: UUID(),
+            packageIdentifier: "com.example.card",
+            properties: [:],
+            slots: ["content": "<strong>Child</strong>"]
+        )
+
+        #expect(diagnostics.contains {
+            $0.severity == .error && $0.message == "Slot macros must use {{ slot id=\"…\" }}."
+        })
+        #expect(!ComponentTemplateRenderer.render("{{ slot.content }}", context: context).contains("Child"))
+    }
+
+    @Test
     func validatorReportsTemplateContractErrorsWithLineLocations() throws {
         let packageURL = try makePackage(
             manifest: validManifest,
@@ -401,8 +441,41 @@ struct ComponentPackageTests {
         #expect(messages.contains(where: { $0.contains("Declared slot 'content'") }))
         #expect(messages.contains(where: { $0.contains("Asset paths must be relative") }))
         #expect(messages.contains(where: { $0.contains("unbalanced") }))
-        #expect(messages.contains(where: { $0.contains("Unknown template directive 'mystery'") }))
+        #expect(messages.contains(where: { $0.contains("Unknown template macro 'mystery'") }))
         #expect(diagnostics.contains(where: { $0.location == "component.html:2" }))
+    }
+
+    @Test
+    func validatorRejectsMoreThanFiveTags() throws {
+        let manifestText = validManifest.replacingOccurrences(
+            of: "<key>description</key><string>A test card.</string>",
+            with: """
+            <key>description</key><string>A test card.</string>
+            <key>tags</key>
+            <array>
+                <string>one</string><string>two</string><string>three</string>
+                <string>four</string><string>five</string><string>six</string>
+            </array>
+            """
+        )
+        let packageURL = try makePackage(
+            manifest: manifestText,
+            template: "<section {{ component.attributes }}>{{ slot id=\"content\" }}</section>"
+        )
+        defer { try? FileManager.default.removeItem(at: packageURL) }
+        let manifest = try PropertyListDecoder().decode(
+            ComponentPackageManifest.self,
+            from: Data(manifestText.utf8)
+        )
+
+        let diagnostics = ComponentPackageValidator.validate(
+            manifest,
+            rootURL: packageURL.appending(path: "Contents/Resources", directoryHint: .isDirectory)
+        )
+
+        #expect(diagnostics.contains {
+            $0.location == "Info.plist:tags" && $0.message == "A component can declare at most 5 tags."
+        })
     }
 
     @Test
@@ -476,7 +549,6 @@ struct ComponentPackageTests {
         <array>
             <dict><key>path</key><string>instance.js</string><key>scope</key><string>instance</string></dict>
             <dict><key>path</key><string>page.js</string><key>scope</key><string>page</string><key>closure</key><false/></dict>
-            <dict><key>path</key><string>site.js</string><key>scope</key><string>site</string></dict>
         </array>
         """
         let manifestText = validManifest
@@ -486,8 +558,7 @@ struct ComponentPackageTests {
             template: "<section id=\"{{ id }}\" {{ component.attributes }}>{{ slot id=\"content\" }}</section>",
             additionalFiles: [
                 "instance.js": "document.querySelector('#{{ id }}');",
-                "page.js": "console.log('{{ package.id }} page');",
-                "site.js": "console.log('{{ package.id }} site');"
+                "page.js": "console.log('{{ package.id }} page');"
             ]
         )
         defer { try? FileManager.default.removeItem(at: packageURL) }
@@ -496,13 +567,44 @@ struct ComponentPackageTests {
 
         #expect(package.instanceJavaScript.hasPrefix("(function (component) {"))
         #expect(package.instanceJavaScript.contains("\"use strict\";"))
-        #expect(package.instanceJavaScript.contains("{{ instance.uuid }}"))
-        #expect(package.instanceJavaScript.contains("document.querySelector('[data-foundry-id=\"{{ instance.uuid }}\"]')"))
+        #expect(package.instanceJavaScript.contains("{{ id }}"))
+        #expect(package.instanceJavaScript.contains("document.getElementById('{{ id }}')"))
         #expect(package.pageJavaScript.contains("page"))
         #expect(!package.pageJavaScript.contains("(function ()"))
-        #expect(package.siteJavaScript.contains("site"))
-        #expect(package.siteJavaScript.hasPrefix("(function (page) {"))
-        #expect(package.siteJavaScript.hasSuffix("})(document);"))
+    }
+
+    @Test
+    func validatorAllowsSiteScopeOnlyForCSS() throws {
+        let declaration = """
+        <key>files</key>
+        <array>
+            <dict><key>path</key><string>site.js</string><key>scope</key><string>site</string></dict>
+            <dict><key>path</key><string>site.php</string><key>scope</key><string>site</string></dict>
+        </array>
+        """
+        let manifestText = validManifest
+            .replacingOccurrences(of: "<key>templates</key>", with: "<key>requiresPhp</key><true/>\n            <key>templates</key>")
+            .replacingOccurrences(of: instanceCSSDeclaration, with: declaration)
+        let packageURL = try makePackage(
+            manifest: manifestText,
+            template: "<section {{ component.attributes }}>{{ slot id=\"content\" }}</section>",
+            additionalFiles: [
+                "site.js": "console.log('site');",
+                "site.php": "<?php $site = true; ?>"
+            ]
+        )
+        defer { try? FileManager.default.removeItem(at: packageURL) }
+        let manifest = try PropertyListDecoder().decode(
+            ComponentPackageManifest.self,
+            from: Data(manifestText.utf8)
+        )
+
+        let diagnostics = ComponentPackageValidator.validate(
+            manifest,
+            rootURL: packageURL.appending(path: "Contents/Resources", directoryHint: .isDirectory)
+        )
+
+        #expect(diagnostics.filter { $0.message == "Site scope is available only to CSS templates." }.count == 2)
     }
 
     @Test
@@ -533,8 +635,8 @@ struct ComponentPackageTests {
         let html = try #require(bundle.file(at: "index.html")?.contents)
         let pageJavaScript = try #require(bundle.file(at: "files/page.js")?.contents)
 
-        #expect(html.contains("data-foundry-id=\"\(node.id.uuidString)\""))
-        #expect(pageJavaScript.contains("document.querySelector('[data-foundry-id=\"\(node.id.uuidString)\"]')"))
+        #expect(html.contains("id=\"foundry-\(node.id.uuidString.lowercased())\""))
+        #expect(pageJavaScript.contains("document.getElementById('foundry-\(node.id.uuidString.lowercased())')"))
     }
 
     @Test
@@ -545,7 +647,6 @@ struct ComponentPackageTests {
         <array>
             <dict><key>path</key><string>instance.php</string><key>scope</key><string>instance</string></dict>
             <dict><key>path</key><string>page.php</string><key>scope</key><string>page</string></dict>
-            <dict><key>path</key><string>site.php</string><key>scope</key><string>site</string></dict>
         </array>
         """
         let manifestText = validManifest
@@ -557,8 +658,7 @@ struct ComponentPackageTests {
             template: "<section id=\"{{ id }}\" {{ component.attributes }}>{{ slot id=\"content\" }}</section>",
             additionalFiles: [
                 "instance.php": "<?php $componentIDs[] = '{{ id }}'; ?>",
-                "page.php": "<?php $package = '{{ package.id }}'; ?>",
-                "site.php": "<?php $siteSetup = true; ?>"
+                "page.php": "<?php $package = '{{ package.id }}'; ?>"
             ]
         )
         defer { try? FileManager.default.removeItem(at: packageURL) }
@@ -576,7 +676,6 @@ struct ComponentPackageTests {
         #expect(php.contains(first.id.uuidString.lowercased()))
         #expect(php.contains(second.id.uuidString.lowercased()))
         #expect(php.components(separatedBy: "$package =").count - 1 == 1)
-        #expect(php.components(separatedBy: "$siteSetup =").count - 1 == 1)
         let doctypeRange = try #require(php.range(of: "<!doctype html>"))
         #expect(doctypeRange.lowerBound > php.startIndex)
     }
@@ -616,10 +715,7 @@ struct ComponentPackageTests {
             <key>responsive</key><true/>
         </dict>
         """
-        let manifestText = validManifest.replacingOccurrences(
-            of: "<key>customItems</key>",
-            with: "<key>customItems</key>\n            <array>\n                \(item)\n            </array>\n            <key>unusedItems</key>"
-        )
+        let manifestText = manifest(withCustomItems: item)
         let packageURL = try makePackage(
             manifest: manifestText,
             template: "<section {{ component.attributes }} style=\"text-align: {{ control.alignment }}\">{{ slot id=\"content\" }}</section>"
@@ -646,10 +742,7 @@ struct ComponentPackageTests {
             <key>responsive</key><true/>
         </dict>
         """
-        let manifestText = validManifest.replacingOccurrences(
-            of: "<key>customItems</key>",
-            with: "<key>customItems</key>\n            <array>\n                \(item)\n            </array>\n            <key>unusedItems</key>"
-        )
+        let manifestText = manifest(withCustomItems: item)
         let packageURL = try makePackage(
             manifest: manifestText,
             template: "<section {{ component.attributes }} style=\"font-family: {{ control.typeface }}\">{{ slot id=\"content\" }}</section>"
@@ -705,10 +798,7 @@ struct ComponentPackageTests {
             <key>responsive</key><false/>
         </dict>
         """
-        let manifestText = validManifest.replacingOccurrences(
-            of: "<key>customItems</key>",
-            with: "<key>customItems</key>\n            <array>\n                \(numberItem)\n            </array>\n            <key>unusedItems</key>"
-        )
+        let manifestText = manifest(withCustomItems: numberItem)
         let manifest = try PropertyListDecoder().decode(
             ComponentPackageManifest.self,
             from: Data(manifestText.utf8)
@@ -733,6 +823,42 @@ struct ComponentPackageTests {
     }
 
     @Test
+    func spacingControlsEnforceTheirFourSideContract() throws {
+        let paddingItem = """
+        <dict>
+            <key>id</key><string>padding</string>
+            <key>labels</key><array><string>Padding</string></array>
+            <key>type</key><string>padding</string>
+            <key>default</key>
+            <array>
+                <string>lg</string><string>auto</string><string>custom</string><string>none</string>
+            </array>
+            <key>customValue</key>
+            <array><real>16</real><real>0</real><real>-8</real><real>0</real></array>
+            <key>minimum</key><real>0</real>
+            <key>maximum</key><real>64</real>
+            <key>count</key><integer>4</integer>
+            <key>responsive</key><false/>
+        </dict>
+        """
+        let manifestText = manifest(withCustomItems: paddingItem)
+        let manifest = try PropertyListDecoder().decode(
+            ComponentPackageManifest.self,
+            from: Data(manifestText.utf8)
+        )
+        let diagnostics = ComponentPackageValidator.validate(
+            manifest,
+            rootURL: FileManager.default.temporaryDirectory
+        )
+        let messages = Set(diagnostics.map(\.message))
+
+        #expect(messages.contains("Padding always contains top, right, bottom and left values; remove count."))
+        #expect(messages.contains("Use none, custom, a standard theme spacing ID."))
+        #expect(messages.contains("Padding custom values cannot be negative."))
+        #expect(messages.contains("Every customValue must be within the control's 0.0…64.0 range."))
+    }
+
+    @Test
     func sliderUsesContinuousDefaultStepVisualTicksAndOptionalUnits() throws {
         let sliderItem = """
         <dict>
@@ -747,10 +873,7 @@ struct ComponentPackageTests {
             <key>responsive</key><false/>
         </dict>
         """
-        let manifestText = validManifest.replacingOccurrences(
-            of: "<key>customItems</key>",
-            with: "<key>customItems</key>\n            <array>\n                \(sliderItem)\n            </array>\n            <key>unusedItems</key>"
-        )
+        let manifestText = manifest(withCustomItems: sliderItem)
         let packageURL = try makePackage(
             manifest: manifestText,
             template: "<output {{ component.attributes }}>{{ control.opacity }}{{ slot id=\"content\" }}</output>"
@@ -787,10 +910,7 @@ struct ComponentPackageTests {
             <key>responsive</key><false/>
         </dict>
         """
-        let manifestText = validManifest.replacingOccurrences(
-            of: "<key>customItems</key>",
-            with: "<key>customItems</key>\n            <array>\n                \(item)\n            </array>\n            <key>unusedItems</key>"
-        )
+        let manifestText = manifest(withCustomItems: item)
         let packageURL = try makePackage(
             manifest: manifestText,
             template: "<output {{ component.attributes }}>{{ control.dimensions[0] }}{{ slot id=\"content\" }}</output>"
@@ -827,10 +947,7 @@ struct ComponentPackageTests {
                 <key>responsive</key><false/>
             </dict>
             """
-            let manifestText = validManifest.replacingOccurrences(
-                of: "<key>customItems</key>",
-                with: "<key>customItems</key>\n            <array>\n                \(item)\n            </array>\n            <key>unusedItems</key>"
-            )
+            let manifestText = manifest(withCustomItems: item)
             let manifest = try PropertyListDecoder().decode(
                 ComponentPackageManifest.self,
                 from: Data(manifestText.utf8)
@@ -851,10 +968,7 @@ struct ComponentPackageTests {
             <key>responsive</key><false/>
         </dict>
         """
-        let manifestText = validManifest.replacingOccurrences(
-            of: "<key>customItems</key>",
-            with: "<key>customItems</key>\n            <array>\n                \(item)\n            </array>\n            <key>unusedItems</key>"
-        )
+        let manifestText = manifest(withCustomItems: item)
         let packageURL = try makePackage(
             manifest: manifestText,
             template: "<output {{ component.attributes }}>{{ control.slider }}{{ slot id=\"content\" }}</output>"
@@ -895,10 +1009,7 @@ struct ComponentPackageTests {
             <key>responsive</key><false/>
         </dict>
         """
-        let manifestText = validManifest.replacingOccurrences(
-            of: "<key>customItems</key>",
-            with: "<key>customItems</key>\n            <array>\n                \(item)\n            </array>\n            <key>unusedItems</key>"
-        )
+        let manifestText = manifest(withCustomItems: item)
         let manifest = try PropertyListDecoder().decode(
             ComponentPackageManifest.self,
             from: Data(manifestText.utf8)
@@ -924,10 +1035,7 @@ struct ComponentPackageTests {
             <key>type</key><string>divider</string>
         </dict>
         """
-        let manifestText = validManifest.replacingOccurrences(
-            of: "<key>customItems</key>",
-            with: "<key>customItems</key>\n            <array>\n                \(item)\n            </array>\n            <key>unusedItems</key>"
-        )
+        let manifestText = manifest(withCustomItems: item)
         let packageURL = try makePackage(
             manifest: manifestText,
             template: "<section {{ component.attributes }}>{{ slot id=\"content\" }}</section>"
@@ -1074,6 +1182,39 @@ struct ComponentPackageTests {
         #expect(builtIns.allSatisfy { $0.package?.rootURL.pathExtension == "foundrypack" })
         #expect(Set(builtIns.compactMap { $0.package?.manifest.identifier }).count == builtIns.count)
         #expect(ComponentType.image.definition.package?.manifest.identifier == ComponentType.image.rawValue)
+        #expect(ComponentType.section.definition.package?.manifest.identifier == ComponentType.section.rawValue)
+        #expect(ComponentType.section.definition.allowsChildren)
+        #expect(!ComponentType.section.definition.properties.contains { $0.key.rawValue == "contentWidth" })
+        let sectionPadding = try #require(ComponentType.section.definition.properties.first {
+            $0.key.rawValue == "padding"
+        })
+        #expect(sectionPadding.defaultValue == .array([
+            .choice("2xl"), .choice("none"), .choice("2xl"), .choice("none")
+        ]))
+        #expect(sectionPadding.isResponsive)
+        if case .packageSpacing(let kind, let customValueKey, let range, let step) = sectionPadding.control {
+            #expect(kind == .padding)
+            #expect(customValueKey.rawValue == "paddingCustom")
+            #expect(range == 0...320)
+            #expect(step == 4)
+        } else {
+            Issue.record("Section should use the specialised padding control")
+        }
+        let sectionMargin = try #require(ComponentType.section.definition.properties.first {
+            $0.key.rawValue == "margin"
+        })
+        #expect(sectionMargin.defaultValue == .array([
+            .choice("none"), .choice("none"), .choice("none"), .choice("none")
+        ]))
+        #expect(sectionMargin.isResponsive)
+        if case .packageSpacing(let kind, let customValueKey, let range, let step) = sectionMargin.control {
+            #expect(kind == .margin)
+            #expect(customValueKey.rawValue == "marginCustom")
+            #expect(range == -320...320)
+            #expect(step == 4)
+        } else {
+            Issue.record("Section should use the specialised margin control")
+        }
         #expect(ComponentType.image.definition.properties.contains { $0.key == .source && !$0.isInspectorVisible })
         #expect(ComponentType.image.definition.properties.contains {
             $0.key.rawValue == "maxWidth" && $0.defaultValue == .number(1200) && $0.isResponsive
@@ -1098,6 +1239,45 @@ struct ComponentPackageTests {
         let html = try #require(catalog.packages["foundry.content.html"])
         let htmlDefinition = ComponentPackageAdapter.definition(from: html)
         #expect(htmlDefinition.properties.contains { $0.key.rawValue == "html1" && !$0.isInspectorVisible })
+    }
+
+    @Test @MainActor
+    func spacingControlsResolveThemeCustomAndAutomaticValuesAsCSSShorthand() {
+        _ = ComponentPackageCatalog.shared
+        let paddingKey = ComponentProperty.Key(rawValue: "padding")
+        let paddingCustomKey = ComponentProperty.Key(rawValue: "paddingCustom")
+        var node = ComponentNode.make(.section)
+        node.setProperty(paddingKey, value: .array([
+            .choice("lg"), .choice("custom"), .choice("none"), .choice("3xs")
+        ]))
+        node.setProperty(paddingCustomKey, value: .array([
+            .number(0), .number(24), .number(0), .number(0)
+        ]))
+
+        #expect(ComponentPackageSpacingResolver.resolve(
+            node: node,
+            key: paddingKey,
+            theme: .standard,
+            customValueKey: paddingCustomKey,
+            kind: .padding
+        ) == "var(--foundry-space-lg) 24px 0 var(--foundry-space-3xs)")
+
+        let marginKey = ComponentProperty.Key(rawValue: "margin")
+        let marginCustomKey = ComponentProperty.Key(rawValue: "marginCustom")
+        node.setProperty(marginKey, value: .array([
+            .choice("custom"), .choice("auto"), .choice("sm"), .choice("auto")
+        ]))
+        node.setProperty(marginCustomKey, value: .array([
+            .number(-12), .number(0), .number(0), .number(0)
+        ]))
+
+        #expect(ComponentPackageSpacingResolver.resolve(
+            node: node,
+            key: marginKey,
+            theme: .standard,
+            customValueKey: marginCustomKey,
+            kind: .margin
+        ) == "-12px auto var(--foundry-space-sm) auto")
     }
 
     @Test @MainActor
@@ -1164,14 +1344,15 @@ struct ComponentPackageTests {
         let deeplyNested = nested.appending(path: "Deep.foundrypack", directoryHint: .isDirectory)
         defer { try? FileManager.default.removeItem(at: root) }
 
-        try writePackHeader(type: .collection, identifier: "com.example.collection", at: root)
-        try writePackHeader(type: .component, identifier: "com.example.nested", at: nested)
-        try writePackHeader(type: .component, identifier: "com.example.deep", at: deeplyNested)
+        try writePackHeader(isCollection: true, at: root)
+        try writePackHeader(identifier: "com.example.nested", at: nested)
+        try writePackHeader(identifier: "com.example.deep", at: deeplyNested)
 
         let urls = FoundryPackLoader.packURLs(in: root, includingRoot: true)
 
         #expect(urls.map(\.standardizedFileURL) == [root, deeplyNested, nested].map(\.standardizedFileURL).sorted { $0.path < $1.path })
-        #expect(try FoundryPackLoader.load(from: urls[0]).rootURL.standardizedFileURL == urls[0].standardizedFileURL)
+        #expect(try FoundryPackLoader.load(from: root).isCollection)
+        #expect(!(try FoundryPackLoader.load(from: nested).isCollection))
         #expect(deeplyNested.path.hasPrefix(nested.path))
     }
 
@@ -1181,13 +1362,201 @@ struct ComponentPackageTests {
             .appending(path: "\(UUID().uuidString).foundrydevpack", directoryHint: .isDirectory)
         let nested = root.appending(path: "Nested.foundrypack", directoryHint: .isDirectory)
         defer { try? FileManager.default.removeItem(at: root) }
-        try writePackHeader(type: .collection, identifier: "com.example.development", at: root)
-        try writePackHeader(type: .component, identifier: "com.example.development.child", at: nested)
+        try writePackHeader(isCollection: true, at: root)
+        try writePackHeader(identifier: "com.example.development.child", at: nested)
 
         let urls = FoundryPackLoader.packURLs(in: root, includingRoot: true)
 
         #expect(urls.map(\.standardizedFileURL) == [root, nested].map(\.standardizedFileURL).sorted { $0.path < $1.path })
-        #expect(try FoundryPackLoader.load(from: root).identifier == "com.example.development")
+        #expect(try FoundryPackLoader.load(from: root).identifier == nil)
+    }
+
+    @Test
+    func packIdentityUsesOnlyThePublicIDKey() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appending(path: "\(UUID().uuidString).foundrypack", directoryHint: .isDirectory)
+        let contents = root.appending(path: "Contents", directoryHint: .isDirectory)
+        defer { try? FileManager.default.removeItem(at: root) }
+        try FileManager.default.createDirectory(at: contents, withIntermediateDirectories: true)
+        let legacyManifest: [String: Any] = ["CFBundleIdentifier": "com.example.legacy"]
+        let data = try PropertyListSerialization.data(fromPropertyList: legacyManifest, format: .xml, options: 0)
+        try data.write(to: contents.appending(path: "Info.plist"))
+
+        #expect(throws: FoundryPackLoadingError.self) {
+            try FoundryPackLoader.load(from: root)
+        }
+    }
+
+    @Test
+    func manifestSchemaRejectsUnknownKeysUnsupportedAPIsAndInvalidVersions() throws {
+        let cases: [(manifest: String, expected: String)] = [
+            (
+                validManifest.replacingOccurrences(
+                    of: "<key>title</key>",
+                    with: "<key>titel</key><string>Typo</string><key>title</key>"
+                ),
+                "Unknown key 'titel'"
+            ),
+            (
+                validManifest.replacingOccurrences(
+                    of: "<key>minimumAPIVersion</key><integer>1</integer>",
+                    with: "<key>minimumAPIVersion</key><integer>999</integer>"
+                ),
+                "requires Foundry component API 999"
+            ),
+            (
+                validManifest.replacingOccurrences(
+                    of: "<key>version</key><string>1.0.0</string>",
+                    with: "<key>version</key><string>1.0</string>"
+                ),
+                "MAJOR.MINOR.PATCH"
+            ),
+            (
+                validManifest.replacingOccurrences(
+                    of: "<key>version</key><string>1.0.0</string>",
+                    with: "<key>version</key><string>1.0.0-01</string>"
+                ),
+                "MAJOR.MINOR.PATCH"
+            )
+        ]
+
+        for testCase in cases {
+            let packageURL = try makePackage(
+                manifest: testCase.manifest,
+                template: "<section {{ component.attributes }}>{{ slot id=\"content\" }}</section>"
+            )
+            defer { try? FileManager.default.removeItem(at: packageURL) }
+            do {
+                _ = try ComponentPackageLoader.load(from: packageURL)
+                Issue.record("The invalid manifest unexpectedly loaded.")
+            } catch {
+                #expect(error.localizedDescription.contains(testCase.expected))
+            }
+        }
+    }
+
+    @Test
+    func collectionManifestIsOnlyTheCollectionFlag() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appending(path: "\(UUID().uuidString).foundrypack", directoryHint: .isDirectory)
+        defer { try? FileManager.default.removeItem(at: root) }
+        try writePackHeader(isCollection: true, at: root)
+        #expect(try FoundryPackLoader.load(from: root).isCollection)
+
+        let invalid: [String: Any] = ["collection": true, "title": "Collection"]
+        let data = try PropertyListSerialization.data(fromPropertyList: invalid, format: .xml, options: 0)
+        try data.write(to: root.appending(path: "Contents/Info.plist"))
+        #expect(throws: FoundryPackLoadingError.self) {
+            try FoundryPackLoader.load(from: root)
+        }
+    }
+
+    @Test
+    func declaredBuiltInIconLibraryIsInjectedOnlyWhenRequested() throws {
+        let identifier = "com.example.icons\(UUID().uuidString.replacingOccurrences(of: "-", with: "").lowercased())"
+        let manifest = validManifest
+            .replacingOccurrences(of: "com.example.card", with: identifier)
+            .replacingOccurrences(
+                of: "<key>templates</key>",
+                with: """
+                <key>libraries</key>
+                <array><dict>
+                    <key>id</key><string>com.foundry.icons</string>
+                    <key>majorVersion</key><integer>1</integer>
+                </dict></array>
+                <key>templates</key>
+                """
+            )
+        let packageURL = try makePackage(
+            manifest: manifest,
+            template: "<section {{ component.attributes }}><i class=\"bi bi-alarm\"></i>{{ slot id=\"content\" }}</section>"
+        )
+        defer { try? FileManager.default.removeItem(at: packageURL) }
+        let package = try ComponentPackageLoader.load(from: packageURL)
+        ComponentRegistry.register(package)
+
+        let site = Site(
+            name: "Icons",
+            pages: [Page(title: "Home", slug: "index", components: [
+                ComponentNode(type: ComponentType(rawValue: identifier))
+            ])]
+        )
+        let bundle = StaticSiteRenderer().render(site: site)
+
+        #expect(bundle.file(at: "files/site.css")?.contents.contains("bootstrap-icons") == true)
+        #expect(bundle.file(at: "files/libraries/com.foundry.icons/bootstrap-icons.woff2") != nil)
+    }
+
+    @Test
+    func iconControlUsesTheBuiltInIconCatalogue() throws {
+        let item = """
+        <dict>
+            <key>id</key><string>symbol</string>
+            <key>labels</key><string>Icon</string>
+            <key>group</key><string>Content</string>
+            <key>type</key><string>icon</string>
+            <key>default</key><string>stars</string>
+            <key>responsive</key><false/>
+        </dict>
+        """
+        let manifest = manifest(withCustomItems: item).replacingOccurrences(
+            of: "<key>templates</key>",
+            with: """
+            <key>libraries</key>
+            <array><dict>
+                <key>id</key><string>com.foundry.icons</string>
+                <key>majorVersion</key><integer>1</integer>
+            </dict></array>
+            <key>templates</key>
+            """
+        )
+        let packageURL = try makePackage(
+            manifest: manifest,
+            template: "<span {{ component.attributes }}><i class=\"bi bi-{{ control.symbol }}\"></i>{{ slot id=\"content\" }}</span>"
+        )
+        defer { try? FileManager.default.removeItem(at: packageURL) }
+
+        let package = try ComponentPackageLoader.load(from: packageURL)
+        let property = try #require(
+            ComponentPackageAdapter.definition(from: package).properties.first {
+                $0.key.rawValue == "symbol"
+            }
+        )
+
+        if case .icon = property.control {} else { Issue.record("Expected an icon control") }
+        #expect(property.defaultValue == .choice("stars"))
+        #expect(FoundryWebLibraryRegistry.icons.count > 2_000)
+        #expect(FoundryWebLibraryRegistry.icon(named: "stars")?.cssClass == "bi-stars")
+        #expect(FoundryWebLibraryRegistry.icon(named: "bi-stars")?.name == "stars")
+    }
+
+    @Test
+    func iconControlRequiresItsLibraryAndAValidDefault() throws {
+        let item = """
+        <dict>
+            <key>id</key><string>symbol</string>
+            <key>labels</key><string>Icon</string>
+            <key>type</key><string>icon</string>
+            <key>default</key><string>not-a-real-foundry-icon</string>
+            <key>responsive</key><false/>
+        </dict>
+        """
+        let manifestText = manifest(withCustomItems: item)
+        let manifest = try PropertyListDecoder().decode(
+            ComponentPackageManifest.self,
+            from: Data(manifestText.utf8)
+        )
+        let diagnostics = ComponentPackageValidator.validate(
+            manifest,
+            rootURL: FileManager.default.temporaryDirectory
+        )
+
+        #expect(diagnostics.contains {
+            $0.message == "An icon control requires com.foundry.icons major version 1 in libraries."
+        })
+        #expect(diagnostics.contains {
+            $0.message == "An icon default must be a valid Foundry icon name, for example stars."
+        })
     }
 
     @Test
@@ -1235,12 +1604,12 @@ struct ComponentPackageTests {
         <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
         <plist version="1.0">
         <dict>
-            <key>type</key><string>component</string>
-            <key>CFBundleIdentifier</key><string>com.example.card</string>
+            <key>minimumAPIVersion</key><integer>1</integer>
+            <key>id</key><string>com.example.card</string>
             <key>title</key><string>Card</string>
+            <key>version</key><string>1.0.0</string>
             <key>description</key><string>A test card.</string>
             <key>group</key><string>Content component</string>
-            <key>icon</key><string>icon.svg</string>
             <key>slots</key>
             <array>
                 <dict>
@@ -1250,17 +1619,7 @@ struct ComponentPackageTests {
                     <key>minimum</key><integer>0</integer>
                 </dict>
             </array>
-            <key>customItems</key>
-            <array>
-                <dict>
-                    <key>id</key><string>title</string>
-                    <key>labels</key><string>Title</string>
-                    <key>group</key><string>Content</string>
-                    <key>type</key><string>text</string>
-                    <key>default</key><string>Hello</string>
-                    <key>responsive</key><false/>
-                </dict>
-            </array>
+            \(defaultCustomItemsDeclaration)
             <key>templates</key>
             <dict>
                 <key>html</key><string>component.html</string>
@@ -1270,6 +1629,32 @@ struct ComponentPackageTests {
         </dict>
         </plist>
         """
+    }
+
+    private var defaultCustomItemsDeclaration: String {
+        """
+        <key>customItems</key>
+        <array>
+            <dict>
+                <key>id</key><string>title</string>
+                <key>labels</key><string>Title</string>
+                <key>group</key><string>Content</string>
+                <key>type</key><string>text</string>
+                <key>default</key><string>Hello</string>
+                <key>responsive</key><false/>
+            </dict>
+        </array>
+        """
+    }
+
+    private func manifest(withCustomItems items: String) -> String {
+        let replacement = """
+        <key>customItems</key>
+        <array>
+            \(items)
+        </array>
+        """
+        return validManifest.replacingOccurrences(of: defaultCustomItemsDeclaration, with: replacement)
     }
 
     private var instanceCSSDeclaration: String {
@@ -1305,15 +1690,26 @@ struct ComponentPackageTests {
         ].merging(additionalFiles) { _, additional in additional }
         try Data(manifest.utf8).write(to: rootURL.appending(path: "Contents/Info.plist"))
         for (path, contents) in files {
-            try Data(contents.utf8).write(to: resourcesURL.appending(path: path))
+            let fileURL = resourcesURL.appending(path: path)
+            try FileManager.default.createDirectory(
+                at: fileURL.deletingLastPathComponent(),
+                withIntermediateDirectories: true
+            )
+            try Data(contents.utf8).write(to: fileURL)
         }
         return rootURL
     }
 
-    private func writePackHeader(type: FoundryPackType, identifier: String, at rootURL: URL) throws {
+    private func writePackHeader(
+        isCollection: Bool = false,
+        identifier: String = "com.example.component",
+        at rootURL: URL
+    ) throws {
         let contentsURL = rootURL.appending(path: "Contents", directoryHint: .isDirectory)
         try FileManager.default.createDirectory(at: contentsURL, withIntermediateDirectories: true)
-        let plist: [String: Any] = ["type": type.rawValue, "CFBundleIdentifier": identifier]
+        let plist: [String: Any] = isCollection
+            ? ["collection": true]
+            : ["id": identifier]
         let data = try PropertyListSerialization.data(fromPropertyList: plist, format: .xml, options: 0)
         try data.write(to: contentsURL.appending(path: "Info.plist"))
     }

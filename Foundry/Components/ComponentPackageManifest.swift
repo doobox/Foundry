@@ -1,12 +1,12 @@
 import Foundation
 
 nonisolated struct ComponentPackageManifest: Codable, Equatable, Sendable {
-    let type: FoundryPackType
+    let minimumAPIVersion: Int
     let identifier: String
     let name: String
     let description: String
     let author: String?
-    let version: String?
+    let version: String
     let category: String
     let tags: [String]
     let slots: [ComponentPackageSlot]
@@ -16,10 +16,11 @@ nonisolated struct ComponentPackageManifest: Codable, Equatable, Sendable {
     let helpURL: URL?
     let missingComponent: ComponentPackageMissingComponent?
     let requiresPhp: Bool
+    let libraries: [ComponentPackageLibraryRequirement]
 
     enum CodingKeys: String, CodingKey {
-        case type
-        case identifier = "CFBundleIdentifier"
+        case minimumAPIVersion
+        case identifier = "id"
         case name = "title"
         case description
         case author
@@ -33,15 +34,16 @@ nonisolated struct ComponentPackageManifest: Codable, Equatable, Sendable {
         case helpURL
         case missingComponent
         case requiresPhp
+        case libraries
     }
 
     init(
-        type: FoundryPackType = .component,
+        minimumAPIVersion: Int,
         identifier: String,
         name: String,
         description: String = "",
         author: String? = nil,
-        version: String? = nil,
+        version: String,
         category: String = "Other",
         tags: [String] = [],
         slots: [ComponentPackageSlot] = [],
@@ -50,9 +52,10 @@ nonisolated struct ComponentPackageManifest: Codable, Equatable, Sendable {
         assets: [String] = [],
         helpURL: URL? = nil,
         missingComponent: ComponentPackageMissingComponent? = nil,
-        requiresPhp: Bool = false
+        requiresPhp: Bool = false,
+        libraries: [ComponentPackageLibraryRequirement] = []
     ) {
-        self.type = type
+        self.minimumAPIVersion = minimumAPIVersion
         self.identifier = identifier
         self.name = name
         self.description = description
@@ -67,16 +70,17 @@ nonisolated struct ComponentPackageManifest: Codable, Equatable, Sendable {
         self.helpURL = helpURL
         self.missingComponent = missingComponent
         self.requiresPhp = requiresPhp
+        self.libraries = libraries
     }
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        type = try container.decode(FoundryPackType.self, forKey: .type)
+        minimumAPIVersion = try container.decode(Int.self, forKey: .minimumAPIVersion)
         identifier = try container.decode(String.self, forKey: .identifier)
         name = try container.decode(String.self, forKey: .name)
         description = try container.decodeIfPresent(String.self, forKey: .description) ?? ""
         author = try container.decodeIfPresent(String.self, forKey: .author)
-        version = try container.decodeIfPresent(String.self, forKey: .version)
+        version = try container.decode(String.self, forKey: .version)
         category = try container.decodeIfPresent(String.self, forKey: .category) ?? "Other"
         tags = try container.decodeIfPresent([String].self, forKey: .tags) ?? []
         slots = try container.decodeIfPresent([ComponentPackageSlot].self, forKey: .slots) ?? []
@@ -86,6 +90,20 @@ nonisolated struct ComponentPackageManifest: Codable, Equatable, Sendable {
         helpURL = try container.decodeIfPresent(URL.self, forKey: .helpURL)
         missingComponent = try container.decodeIfPresent(ComponentPackageMissingComponent.self, forKey: .missingComponent)
         requiresPhp = try container.decodeIfPresent(Bool.self, forKey: .requiresPhp) ?? false
+        libraries = try container.decodeIfPresent(
+            [ComponentPackageLibraryRequirement].self,
+            forKey: .libraries
+        ) ?? []
+    }
+}
+
+nonisolated struct ComponentPackageLibraryRequirement: Codable, Equatable, Hashable, Sendable {
+    let identifier: String
+    let majorVersion: Int
+
+    enum CodingKeys: String, CodingKey {
+        case identifier = "id"
+        case majorVersion
     }
 }
 
@@ -185,11 +203,14 @@ nonisolated struct ComponentPackageControl: Codable, Equatable, Sendable {
         case textArea
         case number
         case color
+        case icon
         case select
         case link
         case toggle
         case fontFamily
         case fontSize
+        case margin
+        case padding
         case lineHeight
         case textAlignment
         case divider
@@ -210,6 +231,7 @@ nonisolated struct ComponentPackageControl: Codable, Equatable, Sendable {
     let colorMath: Bool?
     let opacity: Bool?
     let customColor: String?
+    let customValue: [Double]?
     let count: Int?
     let ticks: Int?
     let showsValueField: Bool?

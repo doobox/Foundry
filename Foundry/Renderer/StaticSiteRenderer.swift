@@ -6,9 +6,6 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
     }
 
     func render(site: Site, assets: [UUID: ProjectAssetContent]) -> SiteExportBundle {
-        let includesSiteJavaScript = ComponentArtifactPlan.sitePackages(in: site).contains {
-            $0.declaresJavaScript(in: .site)
-        }
         var files = site.pages.flatMap { page -> [SiteExportFile] in
             let isHome = page.slug == "index"
             let directory = isHome
@@ -27,6 +24,16 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
                 repeating: "../",
                 count: directory.split(separator: "/").count + 1
             ) + "assets"
+            let pageStylesPackageAssetPrefix: String
+            if directory.isEmpty {
+                pageStylesPackageAssetPrefix = "components"
+            } else {
+                pageStylesPackageAssetPrefix = String(
+                    repeating: "../",
+                    count: directory.split(separator: "/").count + 1
+                ) + "files/components"
+            }
+            let documentPackageAssetPrefix = rootPrefix + "files/components"
             var pageFiles = [SiteExportFile(
                 path: Self.outputPath(for: page, in: site),
                 contents: render(
@@ -34,9 +41,9 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
                     language: site.language,
                     theme: site.theme,
                     stylesheetPaths: [rootPrefix + "files/site.css", "files/page.css"],
-                    scriptPaths: (includesSiteJavaScript ? [rootPrefix + "files/site.js"] : [])
-                        + (includesPageJavaScript ? ["files/page.js"] : []),
+                    scriptPaths: includesPageJavaScript ? ["files/page.js"] : [],
                     assetPrefix: rootPrefix + "assets",
+                    packageAssetPrefix: documentPackageAssetPrefix,
                     assets: assets,
                     site: site
                 )
@@ -46,6 +53,7 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
                     for: page,
                     site: site,
                     assetPrefix: pageStylesAssetPrefix,
+                    packageAssetPrefix: pageStylesPackageAssetPrefix,
                     assets: assets
                 )
             )]
@@ -56,6 +64,7 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
                         for: page,
                         theme: site.theme,
                         assetPrefix: rootPrefix + "assets",
+                        packageAssetPrefix: documentPackageAssetPrefix,
                         assets: assets,
                         site: site
                     )
@@ -64,9 +73,9 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
             return pageFiles
         }
         files.append(.init(path: "files/site.css", contents: stylesheet(for: site, assets: assets)))
-        if includesSiteJavaScript {
-            files.append(.init(path: "files/site.js", contents: siteScripts(for: site)))
-        }
+        let sitePackages = ComponentArtifactPlan.sitePackages(in: site)
+        files.append(contentsOf: FoundryWebLibraryRegistry.exportFiles(for: sitePackages))
+        files.append(contentsOf: componentAssetFiles(for: sitePackages))
         files.append(contentsOf: site.assets.compactMap { asset in
             assets[asset.id].map { SiteExportFile(path: site.publishedPath(for: asset), data: $0.data) }
         })
@@ -118,17 +127,17 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
         prefix.isEmpty ? suffix : prefix + "/" + suffix
     }
 
-    private func render(page: Page, language: String, theme: Theme, stylesheetPaths: [String], scriptPaths: [String], assetPrefix: String, assets: [UUID: ProjectAssetContent], site: Site) -> String {
-        let body = page.components.map { render($0, theme: theme, assetPrefix: assetPrefix, assets: assets, site: site) }.joined(separator: "\n")
+    private func render(page: Page, language: String, theme: Theme, stylesheetPaths: [String], scriptPaths: [String], assetPrefix: String, packageAssetPrefix: String, assets: [UUID: ProjectAssetContent], site: Site) -> String {
+        let body = page.components.map { render($0, theme: theme, assetPrefix: assetPrefix, packageAssetPrefix: packageAssetPrefix, assets: assets, site: site) }.joined(separator: "\n")
         let pageTitle = page.metadata.browserTitle.isEmpty ? page.title : page.metadata.browserTitle
         let browserTitle = pageTitle + site.titleSuffix
         let metadata = metadataHTML(for: page, browserTitle: browserTitle, assetPrefix: assetPrefix, assets: assets, site: site)
-        let headStart = placedHTML(for: page, placement: .headStart)
-        let headEnd = placedHTML(for: page, placement: .headEnd)
-        let bodyStart = placedHTML(for: page, placement: .bodyStart)
-        let bodyEnd = placedHTML(for: page, placement: .bodyEnd)
+        let headStart = placedHTML(for: page, placement: .headStart, packageAssetPrefix: packageAssetPrefix)
+        let headEnd = placedHTML(for: page, placement: .headEnd, packageAssetPrefix: packageAssetPrefix)
+        let bodyStart = placedHTML(for: page, placement: .bodyStart, packageAssetPrefix: packageAssetPrefix)
+        let bodyEnd = placedHTML(for: page, placement: .bodyEnd, packageAssetPrefix: packageAssetPrefix)
         let scripts = scriptPaths.map { "<script src=\"\($0)\"></script>" }.joined(separator: "\n")
-        let php = packagePHP(for: page, theme: theme, assetPrefix: assetPrefix, assets: assets, site: site)
+        let php = packagePHP(for: page, theme: theme, assetPrefix: assetPrefix, packageAssetPrefix: packageAssetPrefix, assets: assets, site: site)
         let customHeadCode = site.customCodeEnabled ? site.headCode : ""
         let customBodyStartCode = site.customCodeEnabled ? site.bodyStartCode : ""
         let customBodyEndCode = site.customCodeEnabled ? site.bodyEndCode : ""
@@ -156,7 +165,7 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
         return php.isEmpty ? document : php + "\n" + document
     }
 
-    private func packagePHP(for page: Page, theme: Theme, assetPrefix: String, assets: [UUID: ProjectAssetContent], site: Site) -> String {
+    private func packagePHP(for page: Page, theme: Theme, assetPrefix: String, packageAssetPrefix: String, assets: [UUID: ProjectAssetContent], site: Site) -> String {
         let nodes = page.components.flatMap(\.flattened)
         let instancePHP = nodes.compactMap { node -> String? in
             guard let package = node.type.definition.package else { return nil }
@@ -168,7 +177,8 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
                     instanceID: node.id,
                     packageIdentifier: package.manifest.identifier,
                     properties: packageProperties(node, theme: theme, assetPrefix: assetPrefix, assets: assets, site: site),
-                    slots: [:]
+                    slots: [:],
+                    assetBasePath: joinedPath(packageAssetPrefix, package.manifest.identifier)
                 )
             )
         }
@@ -176,7 +186,7 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
         let sharedPHP = nodes.compactMap { node -> String? in
             guard let package = node.type.definition.package,
                   seenPackages.insert(package.manifest.identifier).inserted else { return nil }
-            let source = [package.pagePHP, package.sitePHP].filter { !$0.isEmpty }.joined(separator: "\n")
+            let source = package.pagePHP
             guard !source.isEmpty else { return nil }
             return ComponentTemplateRenderer.render(
                 source,
@@ -184,14 +194,15 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
                     instanceID: UUID(uuid: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)),
                     packageIdentifier: package.manifest.identifier,
                     properties: [:],
-                    slots: [:]
+                    slots: [:],
+                    assetBasePath: joinedPath(packageAssetPrefix, package.manifest.identifier)
                 )
             )
         }
         return (instancePHP + sharedPHP).joined(separator: "\n")
     }
 
-    private func pageScripts(for page: Page, theme: Theme, assetPrefix: String, assets: [UUID: ProjectAssetContent], site: Site) -> String {
+    private func pageScripts(for page: Page, theme: Theme, assetPrefix: String, packageAssetPrefix: String, assets: [UUID: ProjectAssetContent], site: Site) -> String {
         let nodes = page.components.flatMap(\.flattened)
         let instanceScripts = nodes.compactMap { node -> String? in
             guard let package = node.type.definition.package else { return nil }
@@ -200,7 +211,7 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
             guard !source.isEmpty else { return nil }
             return ComponentTemplateRenderer.render(
                 source,
-                context: .init(instanceID: node.id, packageIdentifier: package.manifest.identifier, properties: packageProperties(node, theme: theme, assetPrefix: assetPrefix, assets: assets, site: site), slots: [:])
+                context: .init(instanceID: node.id, packageIdentifier: package.manifest.identifier, properties: packageProperties(node, theme: theme, assetPrefix: assetPrefix, assets: assets, site: site), slots: [:], assetBasePath: joinedPath(packageAssetPrefix, package.manifest.identifier))
             )
         }
         var seenPackages: Set<String> = []
@@ -209,27 +220,13 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
                   seenPackages.insert(package.manifest.identifier).inserted else { return nil }
             let source = package.pageJavaScript
             guard !source.isEmpty else { return nil }
-            return ComponentTemplateRenderer.render(source, context: .init(instanceID: UUID(uuid: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)), packageIdentifier: package.manifest.identifier, properties: [:], slots: [:]))
+            return ComponentTemplateRenderer.render(source, context: .init(instanceID: UUID(uuid: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)), packageIdentifier: package.manifest.identifier, properties: [:], slots: [:], assetBasePath: joinedPath(packageAssetPrefix, package.manifest.identifier)))
         }
         let source = (instanceScripts + sharedScripts).joined(separator: "\n")
         return source
     }
 
-    private func siteScripts(for site: Site) -> String {
-        ComponentArtifactPlan.sitePackages(in: site).compactMap { package -> String? in
-            guard !package.siteJavaScript.isEmpty else { return nil }
-            return ComponentTemplateRenderer.render(
-                package.siteJavaScript,
-                context: .init(
-                    instanceID: UUID(uuid: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)),
-                    packageIdentifier: package.manifest.identifier,
-                    properties: [:], slots: [:]
-                )
-            )
-        }.joined(separator: "\n")
-    }
-
-    private func placedHTML(for page: Page, placement: ComponentPackageTemplateFile.Placement) -> String {
+    private func placedHTML(for page: Page, placement: ComponentPackageTemplateFile.Placement, packageAssetPrefix: String) -> String {
         var seenPackages: Set<String> = []
         return page.components.flatMap(\.flattened).compactMap { node -> String? in
             guard let package = node.type.definition.package,
@@ -240,7 +237,8 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
                 instanceID: UUID(uuid: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)),
                 packageIdentifier: package.manifest.identifier,
                 properties: [:],
-                slots: [:]
+                slots: [:],
+                assetBasePath: joinedPath(packageAssetPrefix, package.manifest.identifier)
             )
             return templates.map { ComponentTemplateRenderer.render($0.contents, context: context) }.joined(separator: "\n")
         }.joined(separator: "\n")
@@ -332,15 +330,15 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
         return lines.joined(separator: "\n") + "\n"
     }
 
-    private func render(_ node: ComponentNode, theme: Theme, assetPrefix: String, assets: [UUID: ProjectAssetContent], site: Site) -> String {
+    private func render(_ node: ComponentNode, theme: Theme, assetPrefix: String, packageAssetPrefix: String, assets: [UUID: ProjectAssetContent], site: Site) -> String {
         let style = sharedStyles(for: node, theme: theme)
         switch node.type.definition.renderKind {
         case .section:
-            return element("section", "foundry-section", node, style, children(of: node, theme: theme, assetPrefix: assetPrefix, assets: assets, site: site))
+            return element("section", "foundry-section", node, style, children(of: node, theme: theme, assetPrefix: assetPrefix, packageAssetPrefix: packageAssetPrefix, assets: assets, site: site))
         case .columns:
             let columns = clamped(node.numberProperty(.columnCount), to: 1...6)
             let gap = clamped(node.numberProperty(.gap), to: 0...120)
-            return element("section", "foundry-columns", node, style + "grid-template-columns:repeat(\(columns),minmax(0,1fr));gap:\(gap)px;", children(of: node, theme: theme, assetPrefix: assetPrefix, assets: assets, site: site))
+            return element("section", "foundry-columns", node, style + "grid-template-columns:repeat(\(columns),minmax(0,1fr));gap:\(gap)px;", children(of: node, theme: theme, assetPrefix: assetPrefix, packageAssetPrefix: packageAssetPrefix, assets: assets, site: site))
         case .text:
             return element("div", "foundry-text", node, style + textStyles(node, theme: theme), escape(node.property(.text)))
         case .heading:
@@ -363,11 +361,18 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
             return "<div class=\"foundry-spacer \(componentClass(node))\" style=\"\(style)min-height:\(clamped(node.numberProperty(.height), to: 0...600))px;\"></div>"
         case .package:
             guard let package = node.type.definition.package else {
-                return missingPackageHTML(node, theme: theme, assetPrefix: assetPrefix, assets: assets, site: site)
+                return missingPackageHTML(
+                    node,
+                    theme: theme,
+                    assetPrefix: assetPrefix,
+                    packageAssetPrefix: packageAssetPrefix,
+                    assets: assets,
+                    site: site
+                )
             }
             let slots = Dictionary(uniqueKeysWithValues: package.manifest.slots.map { slot in
                 let children = node.children.filter { ($0.slotID ?? package.manifest.slots.first?.id) == slot.id }
-                return (slot.id, children.map { render($0, theme: theme, assetPrefix: assetPrefix, assets: assets, site: site) }.joined())
+                return (slot.id, children.map { render($0, theme: theme, assetPrefix: assetPrefix, packageAssetPrefix: packageAssetPrefix, assets: assets, site: site) }.joined())
             })
             let rendered = ComponentTemplateRenderer.render(
                 package.htmlTemplate,
@@ -378,19 +383,24 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
                     slots: slots,
                     componentClass: componentClass(node) + " " +
                         ComponentTemplateRenderer.packageClass(for: package.manifest.identifier),
-                    componentAttributes: packageRuntimeAttributes(
-                        for: node,
-                        packageIdentifier: package.manifest.identifier
-                    )
+                    componentAttributes: "id=\"foundry-\(node.id.uuidString.lowercased())\"",
+                    assetBasePath: joinedPath(packageAssetPrefix, package.manifest.identifier)
                 )
             )
             if package.htmlTemplate.contains("{{ component.attributes }}") ||
                 package.htmlTemplate.contains("{{component.attributes}}") {
                 return rendered
             }
-            return "<div class=\"\(componentClass(node))\" \(packageRuntimeAttributes(for: node, packageIdentifier: package.manifest.identifier))>\(rendered)</div>"
+            return "<div id=\"foundry-\(node.id.uuidString.lowercased())\" class=\"\(componentClass(node)) \(ComponentTemplateRenderer.packageClass(for: package.manifest.identifier))\">\(rendered)</div>"
         case .unavailable:
-            return missingPackageHTML(node, theme: theme, assetPrefix: assetPrefix, assets: assets, site: site)
+            return missingPackageHTML(
+                node,
+                theme: theme,
+                assetPrefix: assetPrefix,
+                packageAssetPrefix: packageAssetPrefix,
+                assets: assets,
+                site: site
+            )
         }
     }
 
@@ -409,8 +419,8 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
         )
     }
 
-    private func children(of node: ComponentNode, theme: Theme, assetPrefix: String, assets: [UUID: ProjectAssetContent], site: Site) -> String {
-        node.children.map { render($0, theme: theme, assetPrefix: assetPrefix, assets: assets, site: site) }.joined()
+    private func children(of node: ComponentNode, theme: Theme, assetPrefix: String, packageAssetPrefix: String, assets: [UUID: ProjectAssetContent], site: Site) -> String {
+        node.children.map { render($0, theme: theme, assetPrefix: assetPrefix, packageAssetPrefix: packageAssetPrefix, assets: assets, site: site) }.joined()
     }
 
     private func exportSource(
@@ -462,6 +472,7 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
 
     private func stylesheet(for site: Site, assets: [UUID: ProjectAssetContent]) -> String {
         let theme = site.theme
+        let sitePackages = ComponentArtifactPlan.sitePackages(in: site)
         return """
         \(theme.fontSourceCSS(
             assets: assets,
@@ -472,17 +483,34 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
         \(theme.screens.containerCSS)
         *,*::before,*::after{box-sizing:border-box}
         html,body{min-height:100%}
-        body{margin:0;background:var(--foundry-color-background);color:var(--foundry-color-text);font-family:var(--foundry-font-body);font-size:var(--foundry-font-size-base);line-height:var(--foundry-font-size-base-line-height)}
+        body{margin:0;background:var(--foundry-color-background);color:var(--foundry-color-text);font-family:var(--foundry-font-body);font-size:var(--foundry-font-size-base);line-height:var(--foundry-font-size-base-line-height);display:flex;flex-direction:column;align-items:stretch}
         h1,h2,h3,h4,h5,h6,.foundry-heading{font-family:var(--foundry-font-heading)}code,pre,kbd,samp{font-family:var(--foundry-font-monospace)}
         .foundry-container{width:100%;max-width:var(--foundry-container-width)!important}.foundry-button{display:block;width:fit-content;text-decoration:none;font-weight:600}.foundry-columns{display:grid}.foundry-image{display:block;width:100%;height:auto}.foundry-spacer{min-height:8px}
+        \(FoundryWebLibraryRegistry.exportCSS(for: sitePackages))
         \(sitePackageStyles(for: site))
         """
+    }
+
+    private func componentAssetFiles(for packages: [LoadedComponentPackage]) -> [SiteExportFile] {
+        packages.flatMap { package in
+            package.manifest.assets.compactMap { path in
+                guard isSafeRelativePath(path),
+                      let data = try? Data(contentsOf: package.resourceRootURL.appending(path: path)) else {
+                    return nil
+                }
+                return SiteExportFile(
+                    path: "files/components/\(package.manifest.identifier)/\(path)",
+                    data: data
+                )
+            }
+        }
     }
 
     private func responsiveStyles(
         for page: Page,
         in site: Site,
         assetPrefix: String,
+        packageAssetPrefix: String,
         assets: [UUID: ProjectAssetContent]
     ) -> String {
         let nodes = page.components.flatMap(\.flattened)
@@ -505,7 +533,8 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
                                 site: site
                             ),
                             slots: [:],
-                            componentClass: componentClass(resolved)
+                            componentClass: componentClass(resolved),
+                            assetBasePath: joinedPath(packageAssetPrefix, package.manifest.identifier)
                         )
                     )
                     let scopedCSS = ComponentTemplateRenderer.scopedCSS(
@@ -536,14 +565,11 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
         "c-" + node.id.uuidString.lowercased()
     }
 
-    private func packageRuntimeAttributes(for node: ComponentNode, packageIdentifier: String) -> String {
-        "data-foundry-id=\"\(node.id.uuidString)\" data-foundry-package=\"\(escapeAttribute(packageIdentifier))\""
-    }
-
     private func pageStyles(
         for page: Page,
         site: Site,
         assetPrefix: String,
+        packageAssetPrefix: String,
         assets: [UUID: ProjectAssetContent]
     ) -> String {
         let nodes = ComponentArtifactPlan(page: page).nodes
@@ -562,7 +588,8 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
                         site: site
                     ),
                     slots: [:],
-                    componentClass: componentClass(node)
+                    componentClass: componentClass(node),
+                    assetBasePath: joinedPath(packageAssetPrefix, package.manifest.identifier)
                 )
             )
             return ComponentTemplateRenderer.scopedCSS(css, packageIdentifier: package.manifest.identifier)
@@ -575,7 +602,8 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
                     instanceID: UUID(uuid: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)),
                     packageIdentifier: package.manifest.identifier,
                     properties: [:],
-                    slots: [:]
+                    slots: [:],
+                    assetBasePath: joinedPath(packageAssetPrefix, package.manifest.identifier)
                 )
             )
         }.joined(separator: "\n")
@@ -584,6 +612,7 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
             for: page,
             in: site,
             assetPrefix: assetPrefix,
+            packageAssetPrefix: packageAssetPrefix,
             assets: assets
         )
         return [instanceStyles, pagePackageStyles, themeStyles, responsiveStyles]
@@ -599,7 +628,9 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
                 context: .init(
                     instanceID: UUID(uuid: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)),
                     packageIdentifier: package.manifest.identifier,
-                    properties: [:], slots: [:]
+                    properties: [:],
+                    slots: [:],
+                    assetBasePath: "components/\(package.manifest.identifier)"
                 )
             )
         }.joined(separator: "\n")
@@ -677,6 +708,18 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
                     ? node.property(customValueKey) : theme.fontSizeCSSVariable(for: source)
                 return (definition.key.rawValue, .string(resolved))
             }
+            if case .packageSpacing(let kind, let customValueKey, _, _) = definition.control {
+                return (
+                    definition.key.rawValue,
+                    .string(ComponentPackageSpacingResolver.resolve(
+                        node: node,
+                        key: definition.key,
+                        theme: theme,
+                        customValueKey: customValueKey,
+                        kind: kind
+                    ))
+                )
+            }
             if case .lineHeight(let fontSizeKey) = definition.control {
                 return (
                     definition.key.rawValue,
@@ -730,9 +773,32 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
         return raw.filter { !";{}<>".contains($0) }
     }
 
-    private func missingPackageHTML(_ node: ComponentNode, theme: Theme, assetPrefix: String, assets: [UUID: ProjectAssetContent], site: Site) -> String {
+    private func missingPackageHTML(
+        _ node: ComponentNode,
+        theme: Theme,
+        assetPrefix: String,
+        packageAssetPrefix: String,
+        assets: [UUID: ProjectAssetContent],
+        site: Site
+    ) -> String {
         if let preview = node.missingPackageSnapshot?.previewHTML { return preview }
-        return children(of: node, theme: theme, assetPrefix: assetPrefix, assets: assets, site: site)
+        return children(
+            of: node,
+            theme: theme,
+            assetPrefix: assetPrefix,
+            packageAssetPrefix: packageAssetPrefix,
+            assets: assets,
+            site: site
+        )
+    }
+
+    private func isSafeRelativePath(_ path: String) -> Bool {
+        let components = path.split(separator: "/", omittingEmptySubsequences: false)
+        return !path.isEmpty
+            && !path.hasPrefix("/")
+            && !components.contains("")
+            && !components.contains(".")
+            && !components.contains("..")
     }
 
     private func alignment(_ value: String) -> String {
