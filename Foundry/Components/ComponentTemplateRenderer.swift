@@ -1,5 +1,11 @@
 import Foundation
 
+nonisolated enum ComponentTemplateEnvironment: String, Equatable, Sendable {
+    case canvas
+    case preview
+    case published
+}
+
 nonisolated struct ComponentTemplateContext: Sendable {
     let instanceID: UUID
     let packageIdentifier: String
@@ -8,8 +14,13 @@ nonisolated struct ComponentTemplateContext: Sendable {
     let componentClass: String
     let componentAttributes: String
     let assetBasePath: String
+    let assetPaths: [String: String]
+    let siteBaseURL: String
+    let pageURL: String
+    let siteRootPath: String
+    let siteAssetsPath: String
     let enablesEditorMarkup: Bool
-    let isCanvas: Bool
+    let environment: ComponentTemplateEnvironment
     let richTextLinkContext: FoundryRichTextCodec.LinkContext?
 
     init(
@@ -20,8 +31,13 @@ nonisolated struct ComponentTemplateContext: Sendable {
         componentClass: String = "",
         componentAttributes: String = "",
         assetBasePath: String = "",
+        assetPaths: [String: String] = [:],
+        siteBaseURL: String = "",
+        pageURL: String = "",
+        siteRootPath: String = "",
+        siteAssetsPath: String = "",
         enablesEditorMarkup: Bool = false,
-        isCanvas: Bool = false,
+        environment: ComponentTemplateEnvironment = .published,
         richTextLinkContext: FoundryRichTextCodec.LinkContext? = nil
     ) {
         self.instanceID = instanceID
@@ -31,8 +47,13 @@ nonisolated struct ComponentTemplateContext: Sendable {
         self.componentClass = componentClass
         self.componentAttributes = componentAttributes
         self.assetBasePath = assetBasePath
+        self.assetPaths = assetPaths
+        self.siteBaseURL = siteBaseURL
+        self.pageURL = pageURL
+        self.siteRootPath = siteRootPath
+        self.siteAssetsPath = siteAssetsPath
         self.enablesEditorMarkup = enablesEditorMarkup
-        self.isCanvas = isCanvas
+        self.environment = environment
         self.richTextLinkContext = richTextLinkContext
     }
 }
@@ -237,7 +258,7 @@ nonisolated enum ComponentTemplateRenderer {
     private static func value(forExpression expression: String, context: ComponentTemplateContext) -> String {
         let parts = ComponentTemplateExpression.templateParts(expression)
         guard let key = parts.first else { return "" }
-        let simpleValue = #"^(?:id|instance\.(?:id|uuid)|package\.id|component\.(?:class|attributes)|asset\.[^\s]+|control\.[A-Za-z][A-Za-z0-9_.-]*(?:\[[0-9]+\])?)$"#
+        let simpleValue = #"^(?:id|instance\.(?:id|uuid)|package\.id|site\.baseURL|page\.url|path\.(?:siteRoot|siteAssets)|component\.(?:class|attributes)|asset\.[^\s]+|control\.[A-Za-z][A-Za-z0-9_.-]*(?:\[[0-9]+\])?)$"#
         var result: String
         if key.range(of: simpleValue, options: .regularExpression) != nil {
             result = value(for: key, context: context)
@@ -245,7 +266,7 @@ nonisolated enum ComponentTemplateRenderer {
                   let evaluated = try? ComponentTemplateExpression.evaluate(
                     node,
                     properties: context.properties,
-                    isCanvas: context.isCanvas
+                    environment: context.environment
                   ) {
             result = escape(evaluated.output)
         } else {
@@ -265,6 +286,10 @@ nonisolated enum ComponentTemplateRenderer {
             return context.instanceID.uuidString
         }
         if key == "package.id" { return escape(context.packageIdentifier) }
+        if key == "site.baseURL" { return escapeAttribute(context.siteBaseURL) }
+        if key == "page.url" { return escapeAttribute(context.pageURL) }
+        if key == "path.siteRoot" { return escapeAttribute(context.siteRootPath) }
+        if key == "path.siteAssets" { return escapeAttribute(context.siteAssetsPath) }
         if key == "component.class" {
             return context.componentClass.isEmpty ? "" : " " + escapeAttribute(context.componentClass)
         }
@@ -272,6 +297,16 @@ nonisolated enum ComponentTemplateRenderer {
         if key.hasPrefix("asset.") {
             let path = String(key.dropFirst("asset.".count))
             guard isSafeRelativePath(path) else { return "" }
+            if let resolvedPath = context.assetPaths[path] {
+                return escapeAttribute(resolvedPath)
+            }
+            if let declarationPath = context.assetPaths.keys
+                .filter({ path.hasPrefix($0 + "/") })
+                .max(by: { $0.count < $1.count }),
+               let resolvedBasePath = context.assetPaths[declarationPath] {
+                let suffix = String(path.dropFirst(declarationPath.count + 1))
+                return escapeAttribute(join(resolvedBasePath, suffix))
+            }
             return escapeAttribute(join(context.assetBasePath, path))
         }
         guard key.hasPrefix("control.") else { return "" }
@@ -391,7 +426,7 @@ nonisolated enum ComponentTemplateRenderer {
               let value = try? ComponentTemplateExpression.evaluate(
                 node,
                 properties: context.properties,
-                isCanvas: context.isCanvas
+                environment: context.environment
               ) else { return false }
         return value.isTruthy
     }

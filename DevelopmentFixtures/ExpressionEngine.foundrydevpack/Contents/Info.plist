@@ -14,7 +14,7 @@
         <string>Development</string>
         <string>Expressions</string>
     </array>
-    <key>assets</key><array><string>icon.svg</string></array>
+    <key>assets</key><array><dict><key>path</key><string>icon.svg</string></dict></array>
     <key>slots</key><array/>
     <key>customItems</key>
     <array>

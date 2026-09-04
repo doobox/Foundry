@@ -186,7 +186,7 @@ struct HTMLPageRenderer: PageRendering {
                     properties: packageProperties(node, theme: theme, assets: assets),
                     slots: [:],
                     assetBasePath: package.resourceRootURL.absoluteString,
-                    isCanvas: true
+                    environment: .canvas
                 )
             )
         }
@@ -198,7 +198,7 @@ struct HTMLPageRenderer: PageRendering {
             guard !source.isEmpty else { return nil }
             return ComponentTemplateRenderer.render(
                 source,
-                context: .init(instanceID: UUID(uuid: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)), packageIdentifier: package.manifest.identifier, properties: [:], slots: [:], assetBasePath: package.resourceRootURL.absoluteString, isCanvas: true)
+                context: .init(instanceID: UUID(uuid: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)), packageIdentifier: package.manifest.identifier, properties: [:], slots: [:], assetBasePath: package.resourceRootURL.absoluteString, environment: .canvas)
             )
         }
         let htmlScripts = nodes.map {
@@ -222,7 +222,7 @@ struct HTMLPageRenderer: PageRendering {
                 properties: [:],
                 slots: [:],
                 assetBasePath: package.resourceRootURL.absoluteString,
-                isCanvas: true
+                environment: .canvas
             )
             return templates.map { ComponentTemplateRenderer.render($0.contents, context: context) }.joined(separator: "\n")
         }.joined(separator: "\n")
@@ -328,7 +328,7 @@ struct HTMLPageRenderer: PageRendering {
                     componentAttributes: canvasAttributes,
                     assetBasePath: package.resourceRootURL.absoluteString,
                     enablesEditorMarkup: true,
-                    isCanvas: true,
+                    environment: .canvas,
                     richTextLinkContext: richTextLinkContext
                 )
             )
@@ -371,7 +371,7 @@ struct HTMLPageRenderer: PageRendering {
                     properties: packageProperties(node, theme: theme, assets: assets),
                     slots: [:],
                     assetBasePath: package.resourceRootURL.absoluteString,
-                    isCanvas: true
+                    environment: .canvas
                 )
             )
             return ComponentTemplateRenderer.scopedCSS(css, packageIdentifier: package.manifest.identifier)
@@ -394,7 +394,7 @@ struct HTMLPageRenderer: PageRendering {
                     properties: [:],
                     slots: [:],
                     assetBasePath: package.resourceRootURL.absoluteString,
-                    isCanvas: true
+                    environment: .canvas
                 )
             )
         }.joined(separator: "\n")

@@ -1,0 +1,46 @@
+#{{ id }} {
+    border: 1px solid #d8dee9;
+    border-radius: 16px;
+    padding: 24px;
+}
+
+#{{ id }} header,
+#{{ id }} .asset-examples {
+    display: flex;
+    gap: 20px;
+    align-items: center;
+}
+
+#{{ id }} header > img {
+    width: 64px;
+    height: 64px;
+}
+
+#{{ id }} .asset-examples {
+    margin-block: 24px;
+}
+
+#{{ id }} figure {
+    margin: 0;
+}
+
+#{{ id }} figure img {
+    display: block;
+    width: 160px;
+    height: 96px;
+    margin-bottom: 8px;
+}
+
+#{{ id }} dl {
+    display: grid;
+    grid-template-columns: max-content 1fr;
+    gap: 8px 16px;
+}
+
+#{{ id }} dt {
+    font-weight: 700;
+}
+
+#{{ id }} dd {
+    margin: 0;
+}

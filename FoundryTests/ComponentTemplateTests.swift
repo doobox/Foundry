@@ -70,7 +70,7 @@ struct ComponentTemplateTests {
     }
 
     @Test
-    func rendersCanvasAndElseIfConditions() {
+    func rendersMutuallyExclusiveEnvironmentAndElseIfConditions() {
         let properties: [String: ComponentPackageValue] = ["variant": .string("compact")]
         let template = """
         {{ if control.variant == "wide" }}Wide
@@ -80,17 +80,25 @@ struct ComponentTemplateTests {
         """
         let canvasContext = ComponentTemplateContext(
             instanceID: UUID(), packageIdentifier: "com.example.conditions",
-            properties: properties, slots: [:], isCanvas: true
+            properties: properties, slots: [:], environment: .canvas
         )
         let publishedContext = ComponentTemplateContext(
             instanceID: UUID(), packageIdentifier: "com.example.conditions",
             properties: [:], slots: [:]
+        )
+        let previewContext = ComponentTemplateContext(
+            instanceID: UUID(), packageIdentifier: "com.example.conditions",
+            properties: [:], slots: [:], environment: .preview
         )
 
         #expect(ComponentTemplateRenderer.render(template, context: canvasContext).trimmingCharacters(in: .whitespacesAndNewlines) == "Compact")
         #expect(ComponentTemplateRenderer.render(template, context: publishedContext).trimmingCharacters(in: .whitespacesAndNewlines) == "Published")
         #expect(ComponentTemplateRenderer.render("{{ if canvas }}Canvas{{ else }}Published{{ endif }}", context: canvasContext) == "Canvas")
         #expect(ComponentTemplateRenderer.render("{{ if canvas }}Canvas{{ else }}Published{{ endif }}", context: publishedContext) == "Published")
+        let environmentTemplate = "{{ if canvas }}Canvas{{ elseif preview }}Preview{{ elseif published }}Published{{ endif }}"
+        #expect(ComponentTemplateRenderer.render(environmentTemplate, context: canvasContext) == "Canvas")
+        #expect(ComponentTemplateRenderer.render(environmentTemplate, context: previewContext) == "Preview")
+        #expect(ComponentTemplateRenderer.render(environmentTemplate, context: publishedContext) == "Published")
     }
 
     @Test
@@ -116,5 +124,30 @@ struct ComponentTemplateTests {
         let condition = #"{{ if control.text == "xxxx" && control.number == control.otherNumber + 32 && !control.disabled }}Matched{{ else }}Missed{{ endif }}"#
         #expect(ComponentTemplateRenderer.render(condition, context: context) == "Matched")
         #expect(ComponentTemplateRenderer.render("{{ if control.number < 10 || control.number >= 42 }}Matched{{ endif }}", context: context) == "Matched")
+    }
+
+    @Test
+    func rendersSitePageAndScopedAssetPaths() {
+        let context = ComponentTemplateContext(
+            instanceID: UUID(),
+            packageIdentifier: "com.example.paths",
+            properties: [:],
+            slots: [:],
+            assetPaths: [
+                "images/badge.svg": "files/badge.svg",
+                "shared/icons": "../assets/shared/icons"
+            ],
+            siteBaseURL: "https://example.com",
+            pageURL: "https://example.com/about/",
+            siteRootPath: "..",
+            siteAssetsPath: "../assets"
+        )
+
+        let rendered = ComponentTemplateRenderer.render(
+            "{{ site.baseURL }}|{{ page.url }}|{{ path.siteRoot }}|{{ path.siteAssets }}|{{ asset.images/badge.svg }}|{{ asset.shared/icons/star.svg }}",
+            context: context
+        )
+
+        #expect(rendered == "https://example.com|https://example.com/about/|..|../assets|files/badge.svg|../assets/shared/icons/star.svg")
     }
 }

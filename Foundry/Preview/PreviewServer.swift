@@ -22,6 +22,7 @@ actor PreviewServer {
     private var navigationAcknowledgements: Set<UUID> = []
 
     func publish(_ bundle: SiteExportBundle, notifyingClients: Bool = true) async throws -> URL {
+        try bundle.validate()
         let nextRoot = FileManager.default.temporaryDirectory
             .appending(path: "FoundryPreview-\(UUID().uuidString)", directoryHint: .isDirectory)
         try SiteExportWriter().write(bundle, to: nextRoot)

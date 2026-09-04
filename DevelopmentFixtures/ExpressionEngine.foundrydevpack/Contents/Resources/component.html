@@ -53,5 +53,9 @@
 
     {{ if canvas }}
     <p class="canvas-note">The <code>canvas</code> value is true. This note is editor-only.</p>
+    {{ elseif preview }}
+    <p class="canvas-note">The <code>preview</code> value is true. This page is on Foundry’s local preview server.</p>
+    {{ elseif published }}
+    <p class="canvas-note">The <code>published</code> value is true. This is final export or publishing output.</p>
     {{ endif }}
 </section>

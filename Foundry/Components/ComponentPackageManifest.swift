@@ -12,7 +12,7 @@ nonisolated struct ComponentPackageManifest: Codable, Equatable, Sendable {
     let slots: [ComponentPackageSlot]
     let properties: [ComponentPackageProperty]
     let render: ComponentPackageRender
-    let assets: [String]
+    let assets: [ComponentPackageAsset]
     let helpURL: URL?
     let missingComponent: ComponentPackageMissingComponent?
     let requiresPhp: Bool
@@ -49,7 +49,7 @@ nonisolated struct ComponentPackageManifest: Codable, Equatable, Sendable {
         slots: [ComponentPackageSlot] = [],
         properties: [ComponentPackageProperty] = [],
         render: ComponentPackageRender,
-        assets: [String] = [],
+        assets: [ComponentPackageAsset] = [],
         helpURL: URL? = nil,
         missingComponent: ComponentPackageMissingComponent? = nil,
         requiresPhp: Bool = false,
@@ -86,7 +86,7 @@ nonisolated struct ComponentPackageManifest: Codable, Equatable, Sendable {
         slots = try container.decodeIfPresent([ComponentPackageSlot].self, forKey: .slots) ?? []
         properties = try container.decodeIfPresent([ComponentPackageProperty].self, forKey: .properties) ?? []
         render = try container.decode(ComponentPackageRender.self, forKey: .render)
-        assets = try container.decodeIfPresent([String].self, forKey: .assets) ?? []
+        assets = try container.decodeIfPresent([ComponentPackageAsset].self, forKey: .assets) ?? []
         helpURL = try container.decodeIfPresent(URL.self, forKey: .helpURL)
         missingComponent = try container.decodeIfPresent(ComponentPackageMissingComponent.self, forKey: .missingComponent)
         requiresPhp = try container.decodeIfPresent(Bool.self, forKey: .requiresPhp) ?? false
@@ -94,6 +94,50 @@ nonisolated struct ComponentPackageManifest: Codable, Equatable, Sendable {
             [ComponentPackageLibraryRequirement].self,
             forKey: .libraries
         ) ?? []
+    }
+}
+
+nonisolated struct ComponentPackageAsset: Codable, Equatable, Hashable, Sendable {
+    enum Scope: String, Codable, Sendable {
+        case page
+        case site
+    }
+
+    let path: String
+    let scope: Scope
+
+    init(path: String, scope: Scope = .page) {
+        self.path = path
+        self.scope = scope
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case path
+        case scope
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.init(
+            path: try container.decode(String.self, forKey: .path),
+            scope: try container.decodeIfPresent(Scope.self, forKey: .scope) ?? .page
+        )
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(path, forKey: .path)
+        if scope != .page {
+            try container.encode(scope, forKey: .scope)
+        }
+    }
+}
+
+extension ComponentPackageManifest {
+    nonisolated func assetDeclaration(containing path: String) -> ComponentPackageAsset? {
+        assets.first { asset in
+            path == asset.path || path.hasPrefix(asset.path + "/")
+        }
     }
 }
 

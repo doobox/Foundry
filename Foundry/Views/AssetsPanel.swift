@@ -1,7 +1,18 @@
 import SwiftUI
 
+struct PackageSiteAsset: Identifiable, Equatable {
+    let packageIdentifier: String
+    let packageTitle: String
+    let declaredPath: String
+    let pageCount: Int
+
+    var id: String { packageIdentifier + ":" + declaredPath }
+    var publishedPath: String { "assets/" + declaredPath }
+}
+
 struct AssetsPanel: View {
     let library: [ProjectAssetNode]
+    let packageSiteAssets: [PackageSiteAsset]
     @Binding var selectedNodeID: UUID?
     let importFiles: () -> Void
     let importURLs: ([URL], AssetPlacement) -> Void
@@ -13,12 +24,19 @@ struct AssetsPanel: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            AssetsOutlineView(
-                nodes: library,
-                selectedNodeID: $selectedNodeID,
-                moveNode: moveNode,
-                importURLs: importURLs
-            )
+            VStack(spacing: 0) {
+                AssetsOutlineView(
+                    nodes: library,
+                    selectedNodeID: $selectedNodeID,
+                    moveNode: moveNode,
+                    importURLs: importURLs
+                )
+                if !packageSiteAssets.isEmpty {
+                    Divider()
+                    packageAssetsSection
+                        .frame(maxHeight: 180)
+                }
+            }
             .overlay {
                 if library.isEmpty {
                     ContentUnavailableView(
@@ -58,5 +76,25 @@ struct AssetsPanel: View {
             }
             .disabled(folderName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
         }
+    }
+
+    private var packageAssetsSection: some View {
+        List {
+            Section("Package Site Assets") {
+                ForEach(packageSiteAssets) { asset in
+                    VStack(alignment: .leading, spacing: 2) {
+                        Label(asset.declaredPath, systemImage: "shippingbox")
+                        Text(asset.publishedPath)
+                            .font(.caption.monospaced())
+                            .foregroundStyle(.secondary)
+                        Text("\(asset.packageTitle) · used on \(asset.pageCount) page\(asset.pageCount == 1 ? "" : "s")")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    .help("Read-only site asset from \(asset.packageIdentifier)")
+                }
+            }
+        }
+        .listStyle(.sidebar)
     }
 }

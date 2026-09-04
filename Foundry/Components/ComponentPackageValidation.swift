@@ -111,7 +111,7 @@ nonisolated enum ComponentPackageValidator {
 
         let declaredFiles = ["icon.svg", manifest.render.html, manifest.render.editorCSS]
             .compactMap { $0 }
-            .filter { !$0.isEmpty } + manifest.assets + manifest.render.files.map(\.path)
+            .filter { !$0.isEmpty } + manifest.assets.map(\.path) + manifest.render.files.map(\.path)
         for path in declaredFiles {
             if !isSafeRelativePath(path) {
                 diagnostics.append(.init(severity: .error, location: path, message: "Package paths must be relative and cannot contain '..'."))
@@ -172,7 +172,7 @@ nonisolated enum ComponentPackageValidator {
             }
         }
         let declaresPHP = manifest.render.files.contains { $0.path.lowercased().hasSuffix(".php") }
-            || manifest.assets.contains { $0.lowercased().hasSuffix(".php") }
+            || manifest.assets.contains { $0.path.lowercased().hasSuffix(".php") }
         if !manifest.requiresPhp, declaresPHP {
             diagnostics.append(.init(
                 severity: .error,
@@ -205,13 +205,32 @@ nonisolated enum ComponentPackageValidator {
                   let template = try? String(contentsOf: rootURL.appending(path: file.path), encoding: .utf8) else {
                 continue
             }
-            if template.matches(#"\{\{\s*(?:id|instance\.id|component\.|control\.|slot\.)"#) ||
-                template.matches(#"\{\{\s*(?:slot\s+id|(?:if|elseif)\s+(?:control\.|canvas)|text(?:\s*=|\s*\}\})|html(?:\s*=|\s*\}\})|image\s*\}\})"#) {
+            if template.matches(#"\{\{\s*(?:id|instance\.|component\.|control\.|slot\.)"#) ||
+                template.matches(#"\{\{\s*(?:slot\s+id|text(?:\s*=|\s*\}\})|html(?:\s*=|\s*\}\})|image\s*\}\})"#) {
                 diagnostics.append(.init(
                     severity: .error,
                     location: file.path,
-                    message: "Page- and site-scoped templates cannot use instance, component, control, slot, condition, or editable-content macros."
+                    message: "Page- and site-scoped templates cannot use instance, component, control, slot, or editable-content macros."
                 ))
+            }
+            if file.scope == .site, template.matches(#"\{\{\s*page\."#) {
+                diagnostics.append(.init(
+                    severity: .error,
+                    location: file.path,
+                    message: "Site-scoped templates cannot use page macros."
+                ))
+            }
+            if file.scope == .site {
+                for reference in template.references(matching: #"\{\{\s*asset\.([^\s}]+)\s*\}\}"#) {
+                    if let asset = manifest.assetDeclaration(containing: reference.value), asset.scope != .site {
+                        diagnostics.append(templateDiagnostic(
+                            file.path,
+                            template: template,
+                            offset: reference.offset,
+                            message: "Site-scoped templates can reference only site-scoped assets."
+                        ))
+                    }
+                }
             }
         }
         return diagnostics
@@ -226,7 +245,6 @@ nonisolated enum ComponentPackageValidator {
     ) {
         let propertyIDs = Set(manifest.properties.filter { $0.control.type != .divider }.map(\.id))
         let slotIDs = Set(manifest.slots.map(\.id))
-        let declaredAssets = Set(manifest.assets)
 
         if requiresEditorAttributes && !template.matches(#"\{\{\s*component\.attributes\s*\}\}"#) {
             diagnostics.append(.init(
@@ -298,7 +316,7 @@ nonisolated enum ComponentPackageValidator {
                     offset: reference.offset,
                     message: "Asset paths must be relative and cannot contain '..'."
                 ))
-            } else if !declaredAssets.contains(reference.value) {
+            } else if manifest.assetDeclaration(containing: reference.value) == nil {
                 diagnostics.append(templateDiagnostic(
                     templateLocation,
                     template: template,
@@ -350,7 +368,7 @@ nonisolated enum ComponentPackageValidator {
             if source.hasPrefix("if ") || source.hasPrefix("elseif ") || source == "else" || source == "endif" ||
                 source.hasPrefix("slot ") || source.hasPrefix("text ") || source.hasPrefix("text=") ||
                 source.hasPrefix("html ") || source.hasPrefix("html=") ||
-                ["text", "html", "image", "id", "instance.id", "instance.uuid", "package.id", "component.class", "component.attributes"].contains(source) ||
+                ["text", "html", "image", "id", "instance.id", "instance.uuid", "package.id", "site.baseURL", "page.url", "path.siteRoot", "path.siteAssets", "component.class", "component.attributes"].contains(source) ||
                 source.hasPrefix("asset.") {
                 continue
             }
@@ -377,8 +395,8 @@ nonisolated enum ComponentPackageValidator {
         }
 
         let supportedMacroNames: Set<String> = [
-            "id", "instance", "package", "component", "control", "asset", "slot",
-            "if", "elseif", "else", "endif", "text", "html", "image", "canvas"
+            "id", "instance", "package", "site", "page", "path", "component", "control", "asset", "slot",
+            "if", "elseif", "else", "endif", "text", "html", "image", "canvas", "preview", "published"
         ]
         for reference in template.references(matching: #"\{\{\s*([A-Za-z]+)(?:\.|\s|\}\})"#)
             where !supportedMacroNames.contains(reference.value) {

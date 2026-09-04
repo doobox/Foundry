@@ -40,6 +40,14 @@ struct ComponentPackageTests {
         #expect(themePackage.manifest.properties.contains { $0.id == "topBorder" && $0.control.themeValueDefault == "accent" })
         #expect(themePackage.manifest.properties.contains { $0.id == "bottomBorder" && $0.control.themeValueDefault == "links" })
 
+        let scopedAssetsPackage = try ComponentPackageLoader.load(
+            from: repositoryURL.appending(path: "DevelopmentFixtures/ScopedAssets.foundrydevpack")
+        )
+        #expect(scopedAssetsPackage.manifest.identifier == "dev.foundry.scoped_assets")
+        #expect(scopedAssetsPackage.manifest.assets.count == 3)
+        #expect(scopedAssetsPackage.manifest.assets.filter { $0.scope == .page }.count == 2)
+        #expect(scopedAssetsPackage.manifest.assets.filter { $0.scope == .site }.count == 1)
+
         let expressionPackage = try ComponentPackageLoader.load(
             from: repositoryURL.appending(path: "DevelopmentFixtures/ExpressionEngine.foundrydevpack")
         )
@@ -60,7 +68,7 @@ struct ComponentPackageTests {
                     "labels": .array([.string("Alpha"), .string("Beta")])
                 ],
                 slots: [:],
-                isCanvas: true
+                environment: .canvas
             )
         )
         #expect(expressionHTML.contains("<strong>28</strong>"))
@@ -288,8 +296,8 @@ struct ComponentPackageTests {
         let manifest = validManifest
             .replacingOccurrences(of: "com.example.card", with: identifier)
             .replacingOccurrences(
-                of: "<key>assets</key><array><string>images/icon.svg</string></array>",
-                with: "<key>assets</key><array><string>images/icon.svg</string><string>server/endpoint.php</string></array>"
+                of: "<key>assets</key><array><dict><key>path</key><string>images/icon.svg</string></dict></array>",
+                with: "<key>assets</key><array><dict><key>path</key><string>images/icon.svg</string></dict><dict><key>path</key><string>server/endpoint.php</string></dict></array>"
             )
             .replacingOccurrences(
                 of: "<key>templates</key>",
@@ -311,7 +319,52 @@ struct ComponentPackageTests {
         #expect(package.manifest.requiresPhp)
         #expect(bundle.file(at: "index.html") == nil)
         #expect(bundle.file(at: "index.php") != nil)
-        #expect(bundle.file(at: "files/components/\(identifier)/server/endpoint.php") != nil)
+        #expect(bundle.file(at: "files/endpoint.php") != nil)
+    }
+
+    @Test
+    func scopedAssetsPublishOnceAtTheirPageAndSiteDestinations() throws {
+        let identifier = "com.example.scoped\(UUID().uuidString.replacingOccurrences(of: "-", with: "").lowercased())"
+        let manifest = validManifest
+            .replacingOccurrences(of: "com.example.card", with: identifier)
+            .replacingOccurrences(
+                of: "<key>assets</key><array><dict><key>path</key><string>images/icon.svg</string></dict></array>",
+                with: """
+                <key>assets</key><array>
+                    <dict><key>path</key><string>images/icon.svg</string></dict>
+                    <dict><key>path</key><string>shared/icons</string><key>scope</key><string>site</string></dict>
+                </array>
+                """
+            )
+        let template = """
+        <div {{ component.attributes }}>{{ asset.images/icon.svg }}|{{ asset.shared/icons/star.svg }}|{{ path.siteAssets }}|{{ site.baseURL }}|{{ page.url }}|{{ if preview }}preview{{ elseif published }}published{{ endif }}{{ slot id="content" }}</div>
+        """
+        let packageURL = try makePackage(
+            manifest: manifest,
+            template: template,
+            additionalFiles: ["shared/icons/star.svg": "<svg>star</svg>"]
+        )
+        defer { try? FileManager.default.removeItem(at: packageURL) }
+        let package = try ComponentPackageLoader.load(from: packageURL)
+        ComponentRegistry.register(package)
+
+        let homeComponent = ComponentNode(type: ComponentType(rawValue: identifier))
+        let aboutComponent = ComponentNode(type: ComponentType(rawValue: identifier))
+        var site = Site(name: "Scoped", pages: [
+            Page(title: "Home", slug: "index", components: [homeComponent]),
+            Page(title: "About", slug: "about", components: [aboutComponent])
+        ])
+        site.publicURL = "https://example.com"
+        let bundle = StaticSiteRenderer().render(site: site)
+        let previewBundle = StaticSiteRenderer(environment: .preview).render(site: site)
+
+        #expect(bundle.errors.isEmpty)
+        #expect(bundle.file(at: "files/icon.svg") != nil)
+        #expect(bundle.file(at: "about/files/icon.svg") != nil)
+        #expect(bundle.files.filter { $0.path == "assets/shared/icons/star.svg" }.count == 1)
+        #expect(bundle.file(at: "index.html")?.contents.contains("files/icon.svg|assets/shared/icons/star.svg|assets|https://example.com|https://example.com/|published") == true)
+        #expect(bundle.file(at: "about/index.html")?.contents.contains("files/icon.svg|../assets/shared/icons/star.svg|../assets|https://example.com|https://example.com/about/|published") == true)
+        #expect(previewBundle.file(at: "index.html")?.contents.contains("|preview") == true)
     }
 
     @Test
@@ -1778,7 +1831,7 @@ struct ComponentPackageTests {
                 <key>html</key><string>component.html</string>
                 \(instanceCSSDeclaration)
             </dict>
-            <key>assets</key><array><string>images/icon.svg</string></array>
+            <key>assets</key><array><dict><key>path</key><string>images/icon.svg</string></dict></array>
         </dict>
         </plist>
         """

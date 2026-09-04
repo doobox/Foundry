@@ -10,7 +10,7 @@
     <key>version</key><string>1.0.0</string>
     <key>group</key><string>Other</string>
     <key>tags</key><array><string>Development</string><string>Conditional</string></array>
-    <key>assets</key><array><string>icon.svg</string></array>
+    <key>assets</key><array><dict><key>path</key><string>icon.svg</string></dict></array>
     <key>slots</key><array/>
     <key>customItems</key>
     <array>

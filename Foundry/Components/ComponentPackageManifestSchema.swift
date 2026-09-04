@@ -3,6 +3,7 @@ import CoreFoundation
 
 nonisolated enum FoundryComponentAPI {
     static let supportedVersions = 1...1
+    static let currentVersion = supportedVersions.upperBound
 }
 
 nonisolated enum ComponentPackageManifestSchema {
@@ -54,6 +55,7 @@ nonisolated enum ComponentPackageManifestSchema {
     private static let templateFileKeys: Set<String> = ["path", "scope", "placement", "closure"]
     private static let missingComponentKeys: Set<String> = ["message", "preview"]
     private static let libraryKeys: Set<String> = ["id", "majorVersion"]
+    private static let assetKeys: Set<String> = ["path", "scope"]
 
     static func inspect(_ data: Data) throws -> Inspection {
         let dictionary = try rootDictionary(from: data)
@@ -134,6 +136,43 @@ nonisolated enum ComponentPackageManifestSchema {
                     location: "Info.plist:templates.files[\(index)]",
                     into: &diagnostics
                 )
+            }
+        }
+        if let rawAssets = dictionary["assets"], !(rawAssets is [Any]) {
+            diagnostics.append(.init(
+                severity: .error,
+                location: "Info.plist:assets",
+                message: "assets must be an array of asset dictionaries."
+            ))
+        }
+        if let assets = dictionary["assets"] as? [Any] {
+            for (index, asset) in assets.enumerated() {
+                let location = "Info.plist:assets[\(index)]"
+                guard let dictionary = asset as? [String: Any] else {
+                    diagnostics.append(.init(
+                        severity: .error,
+                        location: location,
+                        message: "Each asset must be a dictionary containing path and an optional scope."
+                    ))
+                    continue
+                }
+                unknownKeys(
+                    in: dictionary,
+                    allowed: assetKeys,
+                    location: location,
+                    into: &diagnostics
+                )
+                guard let path = dictionary["path"] as? String,
+                      !path.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                    diagnostics.append(.init(severity: .error, location: "\(location):path", message: "A non-empty path string is required."))
+                    continue
+                }
+                if let scope = dictionary["scope"] {
+                    guard let value = scope as? String, value == "page" || value == "site" else {
+                        diagnostics.append(.init(severity: .error, location: "\(location):scope", message: "scope must be 'page' or 'site'."))
+                        continue
+                    }
+                }
             }
         }
         if let missingComponent = dictionary["missingComponent"] as? [String: Any] {

@@ -21,6 +21,7 @@ nonisolated struct SiteExportWriter: SiteExportWriting {
     }
 
     func write(_ bundle: SiteExportBundle, to directory: URL, cleaningObsoleteFiles: Bool) throws {
+        try bundle.validate()
         let fileManager = FileManager.default
         let root = try Self.preparedRoot(directory, fileManager: fileManager)
         let previous = Self.loadOwnershipManifest(from: root, fileManager: fileManager)
@@ -54,6 +55,7 @@ nonisolated struct SiteExportWriter: SiteExportWriting {
         bundle: SiteExportBundle,
         to directory: URL
     ) throws -> Int {
+        try bundle.validate()
         let fileManager = FileManager.default
         let root = try Self.preparedRoot(directory, fileManager: fileManager)
         let removedCount = try Self.removeOwnedFiles(

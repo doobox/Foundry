@@ -366,6 +366,7 @@ struct ContentView: View {
         case .assets:
             AssetsPanel(
                 library: document.site.assetLibrary.resourcesOnly,
+                packageSiteAssets: packageSiteAssets,
                 selectedNodeID: inspectableAssetLibrarySelection,
                 importFiles: importAssets,
                 importURLs: importAssetURLs,
@@ -536,6 +537,32 @@ struct ContentView: View {
             get: { exportErrorMessage != nil },
             set: { if !$0 { exportErrorMessage = nil } }
         )
+    }
+
+    private var packageSiteAssets: [PackageSiteAsset] {
+        let packages = ComponentArtifactPlan.sitePackages(in: document.site)
+        return packages.flatMap { package in
+            let pageCount = document.site.pages.reduce(into: 0) { count, page in
+                if ComponentArtifactPlan(page: page).packages.contains(where: {
+                    $0.manifest.identifier == package.manifest.identifier
+                }) {
+                    count += 1
+                }
+            }
+            let assets: [PackageSiteAsset] = package.manifest.assets.compactMap { asset -> PackageSiteAsset? in
+                guard asset.scope == .site else { return nil }
+                return PackageSiteAsset(
+                    packageIdentifier: package.manifest.identifier,
+                    packageTitle: package.manifest.name,
+                    declaredPath: asset.path,
+                    pageCount: pageCount
+                )
+            }
+            return assets
+        }
+        .sorted {
+            ($0.publishedPath, $0.packageIdentifier) < ($1.publishedPath, $1.packageIdentifier)
+        }
     }
 
     private var selectedPage: Page? {
@@ -1165,7 +1192,10 @@ struct ContentView: View {
 
     private func previewSite() {
         previewRefreshTask?.cancel()
-        let bundle = StaticSiteRenderer().render(site: document.site, assets: document.assetContents)
+        let bundle = StaticSiteRenderer(environment: .preview).render(
+            site: document.site,
+            assets: document.assetContents
+        )
         let selectedPageOutputPath = selectedPage.map {
             StaticSiteRenderer.outputPath(for: $0, in: document.site)
         }
@@ -1204,7 +1234,10 @@ struct ContentView: View {
         previewRefreshTask = Task { @MainActor in
             try? await Task.sleep(for: .milliseconds(250))
             guard !Task.isCancelled else { return }
-            let bundle = StaticSiteRenderer().render(site: document.site, assets: document.assetContents)
+            let bundle = StaticSiteRenderer(environment: .preview).render(
+                site: document.site,
+                assets: document.assetContents
+            )
             do {
                 _ = try await PreviewServer.shared.publish(bundle)
             } catch {

@@ -104,7 +104,7 @@ nonisolated enum ComponentTemplateExpression {
         case .number, .string, .boolean:
             return
         case .variable(let name):
-            guard name == "canvas" || name.hasPrefix("control.") else {
+            guard ["canvas", "preview", "published"].contains(name) || name.hasPrefix("control.") else {
                 throw ExpressionError(description: "Unknown value '\(name)'.")
             }
         case .unary(_, let value):
@@ -127,32 +127,34 @@ nonisolated enum ComponentTemplateExpression {
     static func evaluate(
         _ node: Node,
         properties: [String: ComponentPackageValue],
-        isCanvas: Bool
+        environment: ComponentTemplateEnvironment
     ) throws -> Value {
         switch node {
         case .number(let value): return .number(value)
         case .string(let value): return .string(value)
         case .boolean(let value): return .boolean(value)
-        case .variable("canvas"): return .boolean(isCanvas)
+        case .variable("canvas"): return .boolean(environment == .canvas)
+        case .variable("preview"): return .boolean(environment == .preview)
+        case .variable("published"): return .boolean(environment == .published)
         case .variable(let name): return resolve(name, properties: properties)
         case .unary("!", let expression):
-            return .boolean(!(try evaluate(expression, properties: properties, isCanvas: isCanvas)).isTruthy)
+            return .boolean(!(try evaluate(expression, properties: properties, environment: environment)).isTruthy)
         case .unary("-", let expression):
-            return .number(-(try number(evaluate(expression, properties: properties, isCanvas: isCanvas))))
+            return .number(-(try number(evaluate(expression, properties: properties, environment: environment))))
         case .unary:
             throw ExpressionError(description: "Unknown unary operator.")
         case .binary("&&", let lhs, let rhs):
-            let left = try evaluate(lhs, properties: properties, isCanvas: isCanvas)
-            return left.isTruthy ? .boolean(try evaluate(rhs, properties: properties, isCanvas: isCanvas).isTruthy) : .boolean(false)
+            let left = try evaluate(lhs, properties: properties, environment: environment)
+            return left.isTruthy ? .boolean(try evaluate(rhs, properties: properties, environment: environment).isTruthy) : .boolean(false)
         case .binary("||", let lhs, let rhs):
-            let left = try evaluate(lhs, properties: properties, isCanvas: isCanvas)
-            return left.isTruthy ? .boolean(true) : .boolean(try evaluate(rhs, properties: properties, isCanvas: isCanvas).isTruthy)
+            let left = try evaluate(lhs, properties: properties, environment: environment)
+            return left.isTruthy ? .boolean(true) : .boolean(try evaluate(rhs, properties: properties, environment: environment).isTruthy)
         case .binary(let operation, let lhs, let rhs):
-            let left = try evaluate(lhs, properties: properties, isCanvas: isCanvas)
-            let right = try evaluate(rhs, properties: properties, isCanvas: isCanvas)
+            let left = try evaluate(lhs, properties: properties, environment: environment)
+            let right = try evaluate(rhs, properties: properties, environment: environment)
             return try binary(operation, left, right)
         case .call(let name, let arguments):
-            return try call(name, arguments: arguments.map { try evaluate($0, properties: properties, isCanvas: isCanvas) })
+            return try call(name, arguments: arguments.map { try evaluate($0, properties: properties, environment: environment) })
         }
     }
 

@@ -284,6 +284,7 @@ nonisolated struct SitePublisher: Sendable {
         forceAllFiles: Bool = false,
         progress: @escaping @Sendable (PublishingProgress) -> Void
     ) async throws -> PublishingResult {
+        try bundle.validate()
         if site.publishingDestination == .local {
             guard let localDirectory else { throw PublishingError.missingLocalDestination }
             let manifestStore = PublishingManifestStore()
