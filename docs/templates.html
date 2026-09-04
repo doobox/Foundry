@@ -57,7 +57,7 @@
 <dt><code>page</code></dt><dd>Once per component pack on each page that uses it, regardless of how many instances appear. Values belonging to one particular instance are unavailable.</dd>
 <dt><code>site</code></dt><dd>Once per component pack for the entire website. This scope is supported only by CSS.</dd>
 </dl>
-<div class="callout warning"><strong>Shared template files cannot use instance values.</strong> Page- and site-scoped files cannot use instance, component, control, property, slot, condition, or editable-content macros because no single component instance owns their output.</div>
+<div class="callout warning"><strong>Shared template files cannot use instance values.</strong> Page- and site-scoped files cannot use instance, component, control, slot, condition, or editable-content macros because no single component instance owns their output.</div>
 
 <h2 id="css">CSS template files</h2>
 <p>Declare a <code>.css</code> file in <code>files</code>. CSS supports all three scopes and does not use <code>placement</code> or <code>closure</code>.</p>

@@ -16,7 +16,9 @@ struct CanvasView: View {
     let selectedComponentIDs: Set<UUID>
     let editorOptions: CanvasEditorOptions
     let renderer: any PageRendering
+    let canPasteComponent: Bool
     let handleMessage: (CanvasMessage) -> Void
+    let handleContextMenuAction: (CanvasContextMenuAction, UUID) -> Void
     @Binding var viewportWidth: Double
     @AppStorage(AppPreferenceKey.overridesCanvasBackground)
     private var overridesCanvasBackground = false
@@ -61,7 +63,9 @@ struct CanvasView: View {
                                         selectedComponentIDs: selectedComponentIDs,
                                         editorOptions: editorOptions,
                                         enablesWebInspector: enablesCanvasWebInspector,
-                                        handleMessage: handleMessage
+                                        canPasteComponent: canPasteComponent,
+                                        handleMessage: handleMessage,
+                                        handleContextMenuAction: handleContextMenuAction
                                     )
                                     .id(enablesCanvasWebInspector)
                                     .frame(width: viewportWidth, height: logicalHeight)

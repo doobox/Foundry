@@ -2,15 +2,32 @@ import AppKit
 import SwiftUI
 import WebKit
 
+nonisolated enum CanvasContextMenuAction: String, Sendable {
+    case duplicate
+    case copy
+    case paste
+    case saveReusable
+    case saveGlobal
+    case moveUp
+    case moveDown
+    case outdent
+    case delete
+}
+
 struct WebCanvasView: NSViewRepresentable {
     let html: String
     let selectedComponentIDs: Set<UUID>
     let editorOptions: CanvasEditorOptions
     let enablesWebInspector: Bool
+    let canPasteComponent: Bool
     let handleMessage: (CanvasMessage) -> Void
+    let handleContextMenuAction: (CanvasContextMenuAction, UUID) -> Void
 
     func makeCoordinator() -> Coordinator {
-        Coordinator(handleMessage: handleMessage)
+        Coordinator(
+            handleMessage: handleMessage,
+            handleContextMenuAction: handleContextMenuAction
+        )
     }
 
     func makeNSView(context: Context) -> WKWebView {
@@ -49,6 +66,8 @@ struct WebCanvasView: NSViewRepresentable {
 
     func updateNSView(_ webView: WKWebView, context: Context) {
         context.coordinator.handleMessage = handleMessage
+        context.coordinator.handleContextMenuAction = handleContextMenuAction
+        context.coordinator.canPasteComponent = canPasteComponent
         context.coordinator.selectedComponentIDs = selectedComponentIDs
         context.coordinator.editorOptions = editorOptions
         if context.coordinator.lastHTML != html {
@@ -508,6 +527,35 @@ struct WebCanvasView: NSViewRepresentable {
             });
           }, true);
 
+          window.foundryEditComponent = componentID => {
+            const component = document.querySelector('[data-foundry-id="' + CSS.escape(componentID) + '"]');
+            const editable = component?.matches('[data-foundry-inline-property]')
+              ? component
+              : component?.querySelector('[data-foundry-inline-property]');
+            if (!editable) return;
+            editable.dispatchEvent(new MouseEvent('dblclick', { bubbles: true, cancelable: true }));
+          };
+
+          document.addEventListener('contextmenu', event => {
+            const component = event.target.closest(selector);
+            event.preventDefault();
+            event.stopPropagation();
+            if (!component) return;
+            const editable = component.matches('[data-foundry-inline-property]')
+              || component.querySelector('[data-foundry-inline-property]') !== null;
+            window.webkit.messageHandlers.foundryCanvas.postMessage({
+              version: 1,
+              event: 'contextMenu',
+              componentID: component.dataset.foundryId,
+              componentTypeID: component.dataset.foundryComponentType,
+              componentType: component.dataset.foundryType,
+              componentAuthor: component.dataset.foundryAuthor,
+              componentVersion: component.dataset.foundryVersion,
+              canEdit: editable,
+              preservesSelection: selectedComponentIDs.includes(component.dataset.foundryId)
+            });
+          }, true);
+
           document.addEventListener('click', event => {
             const element = event.target.closest(selector);
             if (element?.isContentEditable) return;
@@ -528,10 +576,17 @@ struct WebCanvasView: NSViewRepresentable {
         var lastHTML: String?
         var selectedComponentIDs: Set<UUID> = []
         var editorOptions = CanvasEditorOptions()
+        var canPasteComponent = false
         var handleMessage: (CanvasMessage) -> Void
+        var handleContextMenuAction: (CanvasContextMenuAction, UUID) -> Void
+        private var contextMenuComponentID: UUID?
 
-        init(handleMessage: @escaping (CanvasMessage) -> Void) {
+        init(
+            handleMessage: @escaping (CanvasMessage) -> Void,
+            handleContextMenuAction: @escaping (CanvasContextMenuAction, UUID) -> Void
+        ) {
             self.handleMessage = handleMessage
+            self.handleContextMenuAction = handleContextMenuAction
             super.init()
             NotificationCenter.default.addObserver(
                 self,
@@ -550,10 +605,130 @@ struct WebCanvasView: NSViewRepresentable {
         }
 
         func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage) {
+            if let request = message.body as? [String: Any],
+               request["event"] as? String == "contextMenu" {
+                presentContextMenu(request)
+                return
+            }
             guard message.name == Self.handlerName,
                   message.frameInfo.isMainFrame,
                   let canvasMessage = CanvasMessage.decode(message.body) else { return }
             handleMessage(canvasMessage)
+        }
+
+        private func presentContextMenu(_ request: [String: Any]) {
+            guard let webView,
+                  let value = request["componentID"] as? String,
+                  let componentID = UUID(uuidString: value) else { return }
+            contextMenuComponentID = componentID
+            if request["preservesSelection"] as? Bool != true {
+                handleMessage(.init(event: .selectComponent, componentID: componentID, extendsSelection: false))
+            }
+
+            let menu = NSMenu()
+            menu.addItem(contextMenuHeader(for: request))
+            menu.addItem(.separator())
+            let edit = menuItem("Edit", action: #selector(editComponent), key: "\r", modifiers: [])
+            edit.isEnabled = request["canEdit"] as? Bool == true
+            menu.addItem(edit)
+            menu.addItem(.separator())
+            menu.addItem(menuItem("Duplicate", action: #selector(performContextAction(_:)), representedAction: .duplicate, key: "d"))
+            menu.addItem(menuItem("Copy", action: #selector(performContextAction(_:)), representedAction: .copy, key: "c"))
+            let paste = menuItem("Paste", action: #selector(performContextAction(_:)), representedAction: .paste, key: "v")
+            paste.isEnabled = canPasteComponent
+            menu.addItem(paste)
+            menu.addItem(.separator())
+            menu.addItem(menuItem("Save as Reusable Component…", action: #selector(performContextAction(_:)), representedAction: .saveReusable))
+            menu.addItem(menuItem("Save as Global Component…", action: #selector(performContextAction(_:)), representedAction: .saveGlobal))
+            menu.addItem(.separator())
+            menu.addItem(menuItem("Move Up", action: #selector(performContextAction(_:)), representedAction: .moveUp))
+            menu.addItem(menuItem("Move Down", action: #selector(performContextAction(_:)), representedAction: .moveDown))
+            menu.addItem(menuItem("Move Out of Container", action: #selector(performContextAction(_:)), representedAction: .outdent))
+            menu.addItem(.separator())
+            menu.addItem(menuItem("Delete", action: #selector(performContextAction(_:)), representedAction: .delete, key: String(Character(UnicodeScalar(NSDeleteCharacter)!)), modifiers: []))
+            let windowPoint = webView.window?.mouseLocationOutsideOfEventStream ?? .zero
+            let webViewPoint = webView.convert(windowPoint, from: nil)
+            menu.popUp(positioning: nil, at: webViewPoint, in: webView)
+        }
+
+        private func contextMenuHeader(for request: [String: Any]) -> NSMenuItem {
+            let title = request["componentType"] as? String ?? "Component"
+            let author = request["componentAuthor"] as? String ?? "Foundry"
+            let version = request["componentVersion"] as? String ?? ""
+            let subtitle = version.isEmpty ? author : "\(author)  v\(version)"
+            let typeID = request["componentTypeID"] as? String
+            let image = typeID
+                .map(ComponentType.init(rawValue:))?
+                .definition.package
+                .flatMap { NSImage(contentsOf: $0.iconURL) }
+                ?? NSImage(size: NSSize(width: 36, height: 36))
+            let icon = NSImageView(image: image)
+            icon.imageScaling = .scaleProportionallyUpOrDown
+            icon.setAccessibilityLabel(title)
+            icon.translatesAutoresizingMaskIntoConstraints = false
+
+            let titleField = NSTextField(labelWithString: title)
+            titleField.font = .systemFont(ofSize: 15, weight: .semibold)
+            titleField.lineBreakMode = .byTruncatingTail
+            let subtitleField = NSTextField(labelWithString: subtitle)
+            subtitleField.font = .systemFont(ofSize: 12)
+            subtitleField.textColor = .secondaryLabelColor
+            subtitleField.lineBreakMode = .byTruncatingTail
+
+            let labels = NSStackView(views: [titleField, subtitleField])
+            labels.orientation = .vertical
+            labels.alignment = .leading
+            labels.spacing = 2
+
+            let content = NSStackView(views: [icon, labels])
+            content.orientation = .horizontal
+            content.alignment = .centerY
+            content.spacing = 12
+            content.edgeInsets = .init(top: 9, left: 10, bottom: 9, right: 10)
+            content.translatesAutoresizingMaskIntoConstraints = false
+            NSLayoutConstraint.activate([
+                icon.widthAnchor.constraint(equalToConstant: 36),
+                icon.heightAnchor.constraint(equalToConstant: 36),
+                content.widthAnchor.constraint(greaterThanOrEqualToConstant: 300),
+                content.heightAnchor.constraint(equalToConstant: 58)
+            ])
+
+            let item = NSMenuItem()
+            item.view = content
+            return item
+        }
+
+        private func menuItem(
+            _ title: String,
+            action: Selector,
+            representedAction: CanvasContextMenuAction? = nil,
+            key: String = "",
+            modifiers: NSEvent.ModifierFlags = .command
+        ) -> NSMenuItem {
+            let item = NSMenuItem(title: title, action: action, keyEquivalent: key)
+            item.target = self
+            item.representedObject = representedAction?.rawValue
+            item.keyEquivalentModifierMask = modifiers
+            return item
+        }
+
+        @objc private func editComponent() {
+            guard let webView, let contextMenuComponentID else { return }
+            Task {
+                _ = try? await webView.callAsyncJavaScript(
+                    "window.foundryEditComponent(componentID)",
+                    arguments: ["componentID": contextMenuComponentID.uuidString],
+                    in: nil,
+                    contentWorld: .defaultClient
+                )
+            }
+        }
+
+        @objc private func performContextAction(_ sender: NSMenuItem) {
+            guard let contextMenuComponentID,
+                  let rawValue = sender.representedObject as? String,
+                  let action = CanvasContextMenuAction(rawValue: rawValue) else { return }
+            handleContextMenuAction(action, contextMenuComponentID)
         }
 
         func webView(_ webView: WKWebView, didFinish navigation: WKNavigation?) {

@@ -439,12 +439,8 @@ struct ProjectEditor {
         }
     }
 
-    func setThemeBodySize(_ value: Double) {
+    func setThemeFontSizeLineHeight(id: String, value: Double) {
         guard value.isFinite, value > 0 else { return }
-        mutate(actionName: "Edit Theme Body Size") { $0.theme.typography.bodySize = value }
-    }
-
-    func setThemeFontSizeLineHeight(id: String, value: ThemeLineHeight) {
         mutate(actionName: "Edit Theme Line Height") { site in
             if let index = site.theme.typography.predefinedFontSizes.firstIndex(where: { $0.id == id }) {
                 site.theme.typography.predefinedFontSizes[index].lineHeight = value
@@ -464,23 +460,16 @@ struct ProjectEditor {
     func resetThemeFontSizeScale() {
         mutate(actionName: "Reset Theme Font Size Scale") { site in
             guard let source = ThemeLibrary.shared.themes.first(where: { $0.id == site.themeSourceID }) else { return }
-            site.theme.typography.bodySize = source.theme.typography.bodySize
             site.theme.typography.predefinedFontSizes = source.theme.typography.predefinedFontSizes
         }
     }
 
     @discardableResult
     func addThemeFontSize() -> String {
-        var newID = ""
+        let newID = "user-\(UUID().uuidString.lowercased())"
         mutate(actionName: "Add Theme Font Size") { site in
-            let existingIDs = Set(site.theme.typography.fontSizes.map(\.id))
-            var suffix = 1
-            repeat {
-                newID = suffix == 1 ? "custom" : "custom-\(suffix)"
-                suffix += 1
-            } while existingIDs.contains(newID)
             site.theme.typography.customFontSizes.insert(
-                .init(id: newID, title: "Custom", size: 1, lineHeight: .normal),
+                .init(id: newID, title: "Custom", size: 1, lineHeight: 1.5),
                 at: 0
             )
         }

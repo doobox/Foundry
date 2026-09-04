@@ -32,6 +32,38 @@ struct ThemeEditingTests {
     }
 
     @Test
+    func customFontSizeIDsCannotCollideWithManualControlSelection() {
+        let document = FoundryDocument()
+        let editor = ProjectEditor(document: document, undoManager: UndoManager())
+
+        let firstID = editor.addThemeFontSize()
+        let secondID = editor.addThemeFontSize()
+
+        #expect(firstID != ComponentThemeValueSelection.manualCustom)
+        #expect(firstID != ComponentThemeValueSelection.legacyManualCustom)
+        #expect(secondID != firstID)
+        #expect(document.site.theme.typography.customFontSizes.contains { $0.id == firstID })
+        #expect(ComponentThemeValueSelection.isManualCustom(
+            ComponentThemeValueSelection.manualCustom,
+            themeChoices: document.site.theme.fontSizeChoices
+        ))
+    }
+
+    @Test
+    func legacyCustomFontSizeIDIsTreatedAsAThemeChoiceWhenPresent() {
+        var theme = Theme.standard
+        theme.typography.customFontSizes.append(
+            .init(id: "custom", title: "Legacy Custom", size: 2, lineHeight: 1.5)
+        )
+
+        #expect(!ComponentThemeValueSelection.isManualCustom(
+            "custom",
+            themeChoices: theme.fontSizeChoices
+        ))
+        #expect(theme.fontSizeCSSVariable(for: "custom") == "var(--foundry-font-size-custom)")
+    }
+
+    @Test
     func designTokenReferencesRoundTripThroughProjectJSON() throws {
         var site = Site.starter()
         let componentID = try #require(site.pages.first?.components.first?.id)

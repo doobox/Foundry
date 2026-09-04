@@ -66,28 +66,30 @@
 </section>
 <section class="reference-entry">
 <h3>{{ control.&lt;id&gt;[&lt;index&gt;] }}</h3>
-<p>Resolves one member of a control array using a zero-based index. The equivalent <code>property</code> spelling is also accepted.</p>
+<p>Resolves one member of a control array using a zero-based index.</p>
 <pre>
 <code>#{{ id }} {
     --primary: {{ control.palette[0] }};
-    --secondary: {{ property.palette[1] }};
+    --secondary: {{ control.palette[1] }};
     padding: {{ control.insets[0] }}px {{ control.insets[1] }}px;
 }</code>
 </pre>
 <p>The index must refer to an item declared by the control’s <code>count</code>. See <a href="control-arrays.html">Control arrays</a>.</p>
 </section>
 <h2>Conditions</h2>
-<p>Conditionals use property values, not arbitrary expressions. A Boolean, non-zero number, non-empty String or non-empty array is truthy; an optional String comparison is also supported.</p>
+<p>Conditionals use control values or the canvas environment flag. A Boolean, non-zero number, non-empty String or non-empty array is truthy. A control value may also be compared with a String.</p>
 <pre>
-<code>{{ if property.featured }}
+<code>{{ if control.featured }}
     &lt;span class="badge"&gt;Featured&lt;/span&gt;
+{{ elseif control.status == "draft" }}
+    &lt;span class="badge draft"&gt;Draft&lt;/span&gt;
 {{ else }}
     &lt;span class="badge muted"&gt;Standard&lt;/span&gt;
 {{ endif }}
 
-{{ if property.alignment == "center" }}centered{{ endif }}</code>
+{{ if canvas }}Shown only inside Foundry’s canvas{{ endif }}</code>
 </pre>
-<p>Each <code>if</code> requires one <code>endif</code> and accepts at most one <code>else</code>.</p>
+<p><code>canvas</code> is true in Foundry’s editing canvas and false in published output. Each <code>if</code> requires one <code>endif</code>, may contain any number of <code>elseif</code> branches, and accepts at most one final <code>else</code>.</p>
 <h2>Component hooks</h2>
 <dl class="syntax-list">
 <dt>

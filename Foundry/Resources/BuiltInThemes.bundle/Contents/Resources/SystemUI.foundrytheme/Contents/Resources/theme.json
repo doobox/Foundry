@@ -24,12 +24,11 @@
       { "container" : { "unit" : "auto", "value" : 576 }, "id" : "small", "isEnabled" : true, "minimumWidth" : 576 },
       { "container" : { "unit" : "auto", "value" : 768 }, "id" : "medium", "isEnabled" : true, "minimumWidth" : 768 },
       { "container" : { "unit" : "auto", "value" : 992 }, "id" : "large", "isEnabled" : true, "minimumWidth" : 992 },
-      { "container" : { "unit" : "auto", "value" : 1200 }, "id" : "extraLarge", "isEnabled" : true, "minimumWidth" : 1200 },
-      { "container" : { "unit" : "auto", "value" : 1400 }, "id" : "doubleExtraLarge", "isEnabled" : true, "minimumWidth" : 1400 }
+      { "container" : { "unit" : "auto", "value" : 1200 }, "id" : "extraLarge", "isEnabled" : false, "minimumWidth" : 1200 },
+      { "container" : { "unit" : "auto", "value" : 1400 }, "id" : "doubleExtraLarge", "isEnabled" : false, "minimumWidth" : 1400 }
     ]
   },
   "typography" : {
-    "bodySize" : 16,
     "bodyFont" : {
       "fallbacks" : [],
       "family" : "system-ui",
@@ -57,19 +56,19 @@
       "weights" : [ 400, 500, 600, 700 ]
     },
     "predefinedFontSizes" : [
-      { "id" : "xs", "lineHeight" : "snug", "size" : 0.75, "title" : "Fine" },
-      { "id" : "sm", "lineHeight" : "normal", "size" : 0.875, "title" : "Small" },
-      { "id" : "base", "lineHeight" : "normal", "size" : 1, "title" : "Body (Root Size)" },
-      { "id" : "lg", "lineHeight" : "relaxed", "size" : 1.125, "title" : "Lead" },
-      { "id" : "xl", "lineHeight" : "normal", "size" : 1.25, "title" : "Large" },
-      { "id" : "2xl", "lineHeight" : "snug", "size" : 1.5, "title" : "Subtitle" },
-      { "id" : "3xl", "lineHeight" : "tight", "size" : 1.75, "title" : "Title" },
-      { "id" : "4xl", "lineHeight" : "tight", "size" : 2, "title" : "Heading" },
-      { "id" : "5xl", "lineHeight" : "none", "size" : 2.5, "title" : "Display Small" },
-      { "id" : "6xl", "lineHeight" : "none", "size" : 3, "title" : "Display" },
-      { "id" : "7xl", "lineHeight" : "none", "size" : 4, "title" : "Display Large" },
-      { "id" : "8xl", "lineHeight" : "none", "size" : 5, "title" : "Hero" },
-      { "id" : "9xl", "lineHeight" : "none", "size" : 6, "title" : "Hero Large" }
+      { "id" : "xs", "lineHeight" : 1.3333333333333333, "size" : 0.75, "title" : "xs" },
+      { "id" : "sm", "lineHeight" : 1.4285714285714286, "size" : 0.875, "title" : "sm" },
+      { "id" : "base", "lineHeight" : 1.5, "size" : 1, "title" : "base" },
+      { "id" : "lg", "lineHeight" : 1.5555555555555556, "size" : 1.125, "title" : "lg" },
+      { "id" : "xl", "lineHeight" : 1.4, "size" : 1.25, "title" : "xl" },
+      { "id" : "2xl", "lineHeight" : 1.3333333333333333, "size" : 1.5, "title" : "2xl" },
+      { "id" : "3xl", "lineHeight" : 1.2, "size" : 1.875, "title" : "3xl" },
+      { "id" : "4xl", "lineHeight" : 1.1111111111111112, "size" : 2.25, "title" : "4xl" },
+      { "id" : "5xl", "lineHeight" : 1, "size" : 3, "title" : "5xl" },
+      { "id" : "6xl", "lineHeight" : 1, "size" : 3.75, "title" : "6xl" },
+      { "id" : "7xl", "lineHeight" : 1, "size" : 4.5, "title" : "7xl" },
+      { "id" : "8xl", "lineHeight" : 1, "size" : 6, "title" : "8xl" },
+      { "id" : "9xl", "lineHeight" : 1, "size" : 8, "title" : "9xl" }
     ]
   }
 }

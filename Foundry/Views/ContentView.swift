@@ -60,6 +60,8 @@ struct ContentView: View {
     @State private var htmlSourceEditRequest: HTMLSourceEditRequest?
     @State private var pageTextEditRequest: PageTextEditRequest?
     @State private var pageDeletionRequest: PageDeletionRequest?
+    @State private var canvasReusableComponentName: String?
+    @State private var canvasGlobalComponentName: String?
     @AppStorage(AppPreferenceKey.appearance)
     private var appearance: AppAppearance = .system
     @AppStorage(AppPreferenceKey.externalPreviewAutoReload)
@@ -278,6 +280,30 @@ struct ContentView: View {
                     : "This page contains \(count) subpages. Keeping them will move its direct subpages up one level."
             )
         }
+        .alert("Save Reusable Component", isPresented: canvasReusableAlertBinding) {
+            TextField("Name", text: canvasReusableNameBinding)
+            Button("Cancel", role: .cancel) { canvasReusableComponentName = nil }
+            Button("Save") {
+                guard let name = canvasReusableComponentName else { return }
+                saveReusableComponent(name)
+                canvasReusableComponentName = nil
+            }
+            .disabled(canvasReusableComponentName?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty != false)
+        } message: {
+            Text("The selected component and its children will be available in the Project library.")
+        }
+        .alert("Save Global Component", isPresented: canvasGlobalAlertBinding) {
+            TextField("Name", text: canvasGlobalNameBinding)
+            Button("Cancel", role: .cancel) { canvasGlobalComponentName = nil }
+            Button("Save") {
+                guard let name = canvasGlobalComponentName else { return }
+                saveGlobalComponent(name)
+                canvasGlobalComponentName = nil
+            }
+            .disabled(canvasGlobalComponentName?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty != false)
+        } message: {
+            Text("Every linked instance will update when this global component is edited.")
+        }
     }
 
     @ViewBuilder
@@ -366,7 +392,9 @@ struct ContentView: View {
                 selectedComponentIDs: selectedComponentIDs,
                 editorOptions: canvasEditorOptions,
                 renderer: renderer,
+                canPasteComponent: !copiedComponents.isEmpty,
                 handleMessage: handleCanvasMessage,
+                handleContextMenuAction: handleCanvasContextMenuAction,
                 viewportWidth: $canvasViewportWidth
             )
         case .inspector:
@@ -747,6 +775,63 @@ struct ContentView: View {
             selectedComponentID = componentID
             workspaceLayout.activate(.structure)
         }
+    }
+
+    private func handleCanvasContextMenuAction(_ action: CanvasContextMenuAction, componentID: UUID) {
+        guard let component = selectedPage?.components.node(withID: componentID) else { return }
+        if !selectedComponentIDs.contains(componentID) {
+            selectedComponentIDs = [componentID]
+        }
+        selectedComponentID = componentID
+
+        switch action {
+        case .duplicate:
+            duplicateComponent()
+        case .copy:
+            copyComponent()
+        case .paste:
+            pasteComponent()
+        case .saveReusable:
+            canvasReusableComponentName = component.name
+        case .saveGlobal:
+            canvasGlobalComponentName = component.name
+        case .moveUp:
+            moveComponent(-1)
+        case .moveDown:
+            moveComponent(1)
+        case .outdent:
+            outdentComponent()
+        case .delete:
+            deleteComponent()
+        }
+    }
+
+    private var canvasReusableAlertBinding: Binding<Bool> {
+        Binding(
+            get: { canvasReusableComponentName != nil },
+            set: { if !$0 { canvasReusableComponentName = nil } }
+        )
+    }
+
+    private var canvasGlobalAlertBinding: Binding<Bool> {
+        Binding(
+            get: { canvasGlobalComponentName != nil },
+            set: { if !$0 { canvasGlobalComponentName = nil } }
+        )
+    }
+
+    private var canvasReusableNameBinding: Binding<String> {
+        Binding(
+            get: { canvasReusableComponentName ?? "" },
+            set: { canvasReusableComponentName = $0 }
+        )
+    }
+
+    private var canvasGlobalNameBinding: Binding<String> {
+        Binding(
+            get: { canvasGlobalComponentName ?? "" },
+            set: { canvasGlobalComponentName = $0 }
+        )
     }
 
     private func saveHTMLSource(_ source: HTMLComponentSource, request: HTMLSourceEditRequest) {

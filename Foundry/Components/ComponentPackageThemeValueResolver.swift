@@ -9,7 +9,6 @@ nonisolated enum ComponentPackageThemeValueResolver {
         case .colors: theme.colorChoices
         case .fontFamilies: theme.fontFamilyChoices
         case .fontSizes: theme.fontSizeChoices
-        case .lineHeights: theme.lineHeightChoices
         case .spacing: theme.spacingChoices
         }
     }
@@ -29,21 +28,34 @@ nonisolated enum ComponentPackageThemeValueResolver {
         case .fontSizes:
             guard theme.fontSizeChoices.contains(where: { $0.value == reference }) else { return nil }
             return theme.fontSizeCSSVariable(for: reference)
-        case .lineHeights:
-            guard let lineHeight = ThemeLineHeight(rawValue: reference) else { return nil }
-            return lineHeight.value.formatted(.number.precision(.fractionLength(0...3)))
         case .spacing:
             return theme.spacingCSSVariable(for: reference)
         }
     }
 
-    static func resolveLineHeight(
-        _ value: ComponentPackageLineHeightValue,
+    static func resolveFontSizeLineHeight(
+        _ value: ComponentPackageFontSizeValue,
+        usesThemeValues: Bool,
         theme: Theme
     ) -> String {
-        if value.source == "custom" {
-            return value.customValue.formatted(.number.precision(.fractionLength(0...3)))
+        guard usesThemeValues,
+              !ComponentThemeValueSelection.isManualCustom(
+                value.source,
+                themeChoices: theme.fontSizeChoices
+              ) else {
+            return validCustomLineHeight(value.customLineHeight) ?? "1.5"
         }
-        return resolve(value.source, from: .lineHeights, theme: theme) ?? "1.5"
+        return theme.lineHeightCSSVariable(for: value.source)
+    }
+
+    private static func validCustomLineHeight(_ value: String) -> String? {
+        let trimmedValue = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedValue.isEmpty else { return nil }
+
+        let pattern = #"^(normal|(?:\d+(?:\.\d*)?|\.\d+)(?:px|rem|em|%|vw|vh|vmin|vmax|ch|ex)?)$"#
+        guard trimmedValue.range(of: pattern, options: [.regularExpression, .caseInsensitive]) != nil else {
+            return nil
+        }
+        return trimmedValue
     }
 }

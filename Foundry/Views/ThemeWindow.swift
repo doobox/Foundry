@@ -182,6 +182,7 @@ private struct ThemeSettingsDetail: View {
     let theme: Theme
     let assets: [ProjectAsset]
     let session: ThemeEditorSession
+    @State private var selectedFontSizeID: String?
     private var editor: ProjectEditor { session.editor }
 
     var body: some View {
@@ -240,42 +241,123 @@ private struct ThemeSettingsDetail: View {
     }
 
     private var fontSizeSettings: some View {
-        List {
-            Section {
-                ForEach(theme.typography.predefinedFontSizes) { token in
-                    fontSizeEditor(token, isCustom: false)
-                }
-            } header: {
-                HStack {
-                    Text("Predefined Scale")
-                    Spacer()
-                    Button("Reset", systemImage: "arrow.counterclockwise") {
-                        editor.resetThemeFontSizeScale()
-                    }
-                    .labelStyle(.iconOnly)
-                    .buttonStyle(.borderless)
-                    .help("Reset Predefined Font Size Scale")
+        HStack(spacing: 0) {
+            fontSizeStyleList
+                .frame(width: 250)
+
+            Divider()
+
+            Group {
+                if let selectedFontSize {
+                    fontSizeEditor(
+                        selectedFontSize,
+                        isCustom: theme.typography.customFontSizes.contains { $0.id == selectedFontSize.id }
+                    )
+                } else {
+                    ContentUnavailableView(
+                        "Select a Text Style",
+                        systemImage: "textformat.size",
+                        description: Text("Choose a theme or custom text style to edit its size.")
+                    )
                 }
             }
-            Section {
-                ForEach(theme.typography.customFontSizes) { token in
-                    fontSizeEditor(token, isCustom: true)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .onAppear(perform: selectInitialFontSizeIfNeeded)
+        .onChange(of: theme.typography.fontSizes.map(\.id)) { _, _ in
+            selectInitialFontSizeIfNeeded()
+        }
+    }
+
+    private var fontSizeStyleList: some View {
+        ScrollView {
+            VStack(spacing: 0) {
+                fontSizeListHeader("Custom Text Styles") {
+                    let id = editor.addThemeFontSize()
+                    selectedFontSizeID = id
                 }
-                .onMove(perform: editor.moveThemeFontSizes)
-            } header: {
-                HStack {
-                    Text("Custom Sizes")
-                    Spacer()
-                    Button("Add Size", systemImage: "plus") {
-                        editor.addThemeFontSize()
-                    }
-                    .labelStyle(.iconOnly)
-                    .buttonStyle(.borderless)
-                    .help("Add Custom Font Size")
+                fontSizeRows(theme.typography.customFontSizes, allowsDeletion: true)
+
+                fontSizeListHeader("Theme Text Styles") {
+                    editor.resetThemeFontSizeScale()
+                } actionLabel: {
+                    Label("Reset Theme Text Styles", systemImage: "arrow.counterclockwise")
                 }
+                fontSizeRows(theme.typography.predefinedFontSizes, allowsDeletion: false)
             }
         }
-        .listStyle(.inset)
+        .background(.background)
+    }
+
+    private func fontSizeListHeader(
+        _ title: LocalizedStringKey,
+        action: @escaping () -> Void,
+        @ViewBuilder actionLabel: () -> some View = {
+            Label("Add Custom Text Style", systemImage: "plus")
+        }
+    ) -> some View {
+        HStack {
+            Text(title)
+                .font(.headline)
+            Spacer()
+            Button(action: action, label: actionLabel)
+                .labelStyle(.iconOnly)
+                .buttonStyle(.borderless)
+        }
+        .padding(.horizontal, 14)
+        .frame(height: 44)
+        .overlay(alignment: .bottom) { Divider() }
+    }
+
+    private func fontSizeRows(
+        _ tokens: [ThemeFontSize],
+        allowsDeletion: Bool
+    ) -> some View {
+        ForEach(tokens) { token in
+            HStack(spacing: 4) {
+                Button {
+                    selectedFontSizeID = token.id
+                } label: {
+                    Text(token.title)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .contentShape(.rect)
+                }
+                .buttonStyle(.plain)
+
+                if allowsDeletion {
+                    Button(role: .destructive) {
+                        editor.removeThemeFontSize(id: token.id)
+                    } label: {
+                        Label("Delete Custom Text Style", systemImage: "trash")
+                    }
+                    .labelStyle(.iconOnly)
+                    .buttonStyle(.borderless)
+                }
+            }
+            .padding(.horizontal, 6)
+            .frame(height: 38)
+            .background(
+                selectedFontSizeID == token.id ? Color.accentColor : Color.clear,
+                in: RoundedRectangle(cornerRadius: 7)
+            )
+            .foregroundStyle(selectedFontSizeID == token.id ? .white : .primary)
+            .padding(.horizontal, 8)
+
+            Divider()
+                .padding(.leading, 14)
+        }
+    }
+
+    private var selectedFontSize: ThemeFontSize? {
+        guard let selectedFontSizeID else { return nil }
+        return theme.typography.fontSizes.first { $0.id == selectedFontSizeID }
+    }
+
+    private func selectInitialFontSizeIfNeeded() {
+        guard theme.typography.fontSizes.contains(where: { $0.id == selectedFontSizeID }) == false else { return }
+        selectedFontSizeID = theme.typography.customFontSizes.first?.id
+            ?? theme.typography.predefinedFontSizes.first?.id
     }
 
     @ViewBuilder
@@ -304,21 +386,14 @@ private struct ThemeSettingsDetail: View {
     private func pixelSizeBinding(for id: String) -> Binding<Double> {
         Binding(
             get: {
-                if id == "base" {
-                    return theme.typography.bodySize
-                }
                 let rem = theme.typography.fontSizes.first(where: { $0.id == id })?.size ?? 1
-                return rem * theme.typography.bodySize
+                return rem * TypographyTokens.rootSize
             },
             set: { pixels in
-                if id == "base" {
-                    editor.setThemeBodySize(pixels)
-                } else {
-                    editor.setThemeFontSize(
-                        id: id,
-                        value: pixels / max(theme.typography.bodySize, 1)
-                    )
-                }
+                editor.setThemeFontSize(
+                    id: id,
+                    value: pixels / TypographyTokens.rootSize
+                )
             }
         )
     }
@@ -330,40 +405,90 @@ private struct ThemeSettingsDetail: View {
         )
     }
 
+    private func fontSizeLineHeightBinding(for id: String) -> Binding<Double> {
+        Binding(
+            get: { theme.typography.fontSizes.first(where: { $0.id == id })?.lineHeight ?? 1.5 },
+            set: { editor.setThemeFontSizeLineHeight(id: id, value: $0) }
+        )
+    }
+
     @ViewBuilder
     private func fontSizeEditor(_ token: ThemeFontSize, isCustom: Bool) -> some View {
-        HStack(spacing: 12) {
-            if isCustom {
-                TextField("Size Name", text: fontSizeTitleBinding(for: token.id))
-                    .textFieldStyle(.roundedBorder)
-                    .frame(width: 150)
-            } else {
-                Text(token.title)
-                    .frame(width: 150, alignment: .leading)
-            }
-            Slider(value: pixelSizeBinding(for: token.id), in: 8...160, step: 1)
-                .frame(minWidth: 180)
-            TextField(
-                "Pixels",
-                value: pixelSizeBinding(for: token.id),
-                format: .number.precision(.fractionLength(0...1))
-            )
-            .labelsHidden()
-            .textFieldStyle(.roundedBorder)
-            .multilineTextAlignment(.trailing)
-            .frame(width: 90)
-            Text("px · \(token.size.formatted(.number.precision(.fractionLength(0...3)))) rem")
-                .foregroundStyle(.secondary)
-                .frame(width: 140, alignment: .leading)
-            if isCustom {
-                Button("Delete Size", systemImage: "trash", role: .destructive) {
-                    editor.removeThemeFontSize(id: token.id)
+        VStack(alignment: .leading, spacing: 0) {
+            LazyVGrid(columns: fontSizeEditorColumns, alignment: .leading, spacing: 16) {
+                fontSizeGridLabel("Name")
+                Group {
+                    if isCustom {
+                        TextField("Text Style Name", text: fontSizeTitleBinding(for: token.id))
+                            .frame(maxWidth: 200)
+                    } else {
+                        Text(token.title)
+                            .frame(maxWidth: 200, alignment: .leading)
+                    }
                 }
-                .labelStyle(.iconOnly)
-                .buttonStyle(.borderless)
-                .help("Delete Custom Size")
+                .frame(maxWidth: .infinity, alignment: .leading)
+                Color.clear.frame(height: 1)
+
+                fontSizeGridLabel("Size")
+                Slider(value: pixelSizeBinding(for: token.id), in: 8...160, step: 1)
+                    .frame(maxWidth: .infinity)
+                HStack(spacing: 8) {
+                    TextField(
+                        "Pixels",
+                        value: pixelSizeBinding(for: token.id),
+                        format: .number.precision(.fractionLength(0))
+                    )
+                    .labelsHidden()
+                    .multilineTextAlignment(.trailing)
+                    .frame(width: 82)
+                    Text("px · \(token.size.formatted(.number.precision(.fractionLength(0...3)))) rem")
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+
+                fontSizeGridLabel("Line Height")
+                Slider(
+                    value: fontSizeLineHeightBinding(for: token.id),
+                    in: 0.8...2.5,
+                    step: 0.01
+                )
+                .frame(maxWidth: .infinity)
+                HStack(spacing: 8) {
+                    TextField(
+                        "Multiplier",
+                        value: fontSizeLineHeightBinding(for: token.id),
+                        format: .number.precision(.fractionLength(0...3))
+                    )
+                    .labelsHidden()
+                    .multilineTextAlignment(.trailing)
+                    .frame(width: 82)
+                    Text("× · \(lineHeightPixels(for: token).formatted(.number.precision(.fractionLength(0...1)))) px")
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
             }
+            .padding(.horizontal, 32)
+            .padding(.top, 42)
+
+            Spacer(minLength: 24)
         }
+    }
+
+    private var fontSizeEditorColumns: [GridItem] {
+        [
+            GridItem(.fixed(92), spacing: 14, alignment: .trailing),
+            GridItem(.flexible(minimum: 0), spacing: 14, alignment: .leading),
+            GridItem(.fixed(205), spacing: 0, alignment: .leading)
+        ]
+    }
+
+    private func fontSizeGridLabel(_ title: LocalizedStringKey) -> some View {
+        Text(title)
+            .frame(width: 92, alignment: .trailing)
+    }
+
+    private func lineHeightPixels(for token: ThemeFontSize) -> Double {
+        token.size * TypographyTokens.rootSize * token.lineHeight
     }
 }
 

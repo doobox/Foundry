@@ -8,7 +8,7 @@ nonisolated enum ComponentPackageColorResolver {
         opacity: Bool
     ) -> String {
         let baseColor: String
-        if value.source == "custom" {
+        if ComponentThemeValueSelection.isManualCustom(value.source, themeChoices: theme.colorChoices) {
             baseColor = value.customColor
         } else if let role = ThemeColorRole(rawValue: value.source) {
             baseColor = theme.color(for: role)
@@ -26,7 +26,10 @@ nonisolated enum ComponentPackageColorResolver {
         } else {
             adjustedColor = baseColor
         }
-        guard opacity, value.source == "custom" else { return adjustedColor }
+        guard opacity, ComponentThemeValueSelection.isManualCustom(
+            value.source,
+            themeChoices: theme.colorChoices
+        ) else { return adjustedColor }
         return ComponentTemplateRenderer.colorWithAlpha(
             adjustedColor,
             alpha: min(max(value.opacity, 0), 1)

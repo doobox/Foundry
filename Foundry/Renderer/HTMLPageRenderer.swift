@@ -41,7 +41,7 @@ struct HTMLPageRenderer: PageRendering {
           <style>
             \(theme.fontSourceCSS(assets: assets, destination: .canvas))
             :root {
-              font-size: \(theme.typography.bodySize)px;
+              font-size: 16px;
               --foundry-color-background: \(theme.colors.background);
               --foundry-color-surface: \(theme.colors.surface);
               --foundry-color-text: \(theme.colors.text);
@@ -185,7 +185,8 @@ struct HTMLPageRenderer: PageRendering {
                     packageIdentifier: package.manifest.identifier,
                     properties: packageProperties(node, theme: theme, assets: assets),
                     slots: [:],
-                    assetBasePath: package.resourceRootURL.absoluteString
+                    assetBasePath: package.resourceRootURL.absoluteString,
+                    isCanvas: true
                 )
             )
         }
@@ -197,7 +198,7 @@ struct HTMLPageRenderer: PageRendering {
             guard !source.isEmpty else { return nil }
             return ComponentTemplateRenderer.render(
                 source,
-                context: .init(instanceID: UUID(uuid: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)), packageIdentifier: package.manifest.identifier, properties: [:], slots: [:], assetBasePath: package.resourceRootURL.absoluteString)
+                context: .init(instanceID: UUID(uuid: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)), packageIdentifier: package.manifest.identifier, properties: [:], slots: [:], assetBasePath: package.resourceRootURL.absoluteString, isCanvas: true)
             )
         }
         let htmlScripts = nodes.map {
@@ -220,7 +221,8 @@ struct HTMLPageRenderer: PageRendering {
                 packageIdentifier: package.manifest.identifier,
                 properties: [:],
                 slots: [:],
-                assetBasePath: package.resourceRootURL.absoluteString
+                assetBasePath: package.resourceRootURL.absoluteString,
+                isCanvas: true
             )
             return templates.map { ComponentTemplateRenderer.render($0.contents, context: context) }.joined(separator: "\n")
         }.joined(separator: "\n")
@@ -326,6 +328,7 @@ struct HTMLPageRenderer: PageRendering {
                     componentAttributes: canvasAttributes,
                     assetBasePath: package.resourceRootURL.absoluteString,
                     enablesEditorMarkup: true,
+                    isCanvas: true,
                     richTextLinkContext: richTextLinkContext
                 )
             )
@@ -367,7 +370,8 @@ struct HTMLPageRenderer: PageRendering {
                     packageIdentifier: package.manifest.identifier,
                     properties: packageProperties(node, theme: theme, assets: assets),
                     slots: [:],
-                    assetBasePath: package.resourceRootURL.absoluteString
+                    assetBasePath: package.resourceRootURL.absoluteString,
+                    isCanvas: true
                 )
             )
             return ComponentTemplateRenderer.scopedCSS(css, packageIdentifier: package.manifest.identifier)
@@ -389,7 +393,8 @@ struct HTMLPageRenderer: PageRendering {
                     packageIdentifier: package.manifest.identifier,
                     properties: [:],
                     slots: [:],
-                    assetBasePath: package.resourceRootURL.absoluteString
+                    assetBasePath: package.resourceRootURL.absoluteString,
+                    isCanvas: true
                 )
             )
         }.joined(separator: "\n")
@@ -410,8 +415,6 @@ struct HTMLPageRenderer: PageRendering {
                     let reference: String
                     switch item {
                     case .choice(let value), .string(let value): reference = value
-                    case .packageLineHeight(let value):
-                        return .string(ComponentPackageThemeValueResolver.resolveLineHeight(value, theme: theme))
                     default: return packageValue(item)
                     }
                     guard
@@ -446,13 +449,11 @@ struct HTMLPageRenderer: PageRendering {
             }
             if case .packageFontSize(let themeValues) = definition.control,
                case .packageFontSize(let fontSizeValue) = value {
-                let resolved = !themeValues || fontSizeValue.source == "custom"
+                let resolved = !themeValues || ComponentThemeValueSelection.isManualCustom(
+                    fontSizeValue.source,
+                    themeChoices: theme.fontSizeChoices
+                )
                     ? fontSizeValue.customValue : theme.fontSizeCSSVariable(for: fontSizeValue.source)
-                return (definition.key.rawValue, .string(resolved))
-            }
-            if case .packageLineHeight = definition.control,
-               case .packageLineHeight(let lineHeightValue) = value {
-                let resolved = ComponentPackageThemeValueResolver.resolveLineHeight(lineHeightValue, theme: theme)
                 return (definition.key.rawValue, .string(resolved))
             }
             if case .packageSpacing(let kind, _, _) = definition.control,
@@ -471,6 +472,17 @@ struct HTMLPageRenderer: PageRendering {
             }
             return (definition.key.rawValue, packageValue(value))
         })
+        for definition in node.type.definition.properties {
+            guard case .packageFontSize(let usesThemeValues) = definition.control,
+                  case .packageFontSize(let fontSizeValue) = node.propertyValue(definition.key) else { continue }
+            values[definition.key.rawValue + ".lineHeight"] = .string(
+                ComponentPackageThemeValueResolver.resolveFontSizeLineHeight(
+                    fontSizeValue,
+                    usesThemeValues: usesThemeValues,
+                    theme: theme
+                )
+            )
+        }
         if let site {
             for definition in node.type.definition.properties {
                 guard case .link(let absoluteURL) = definition.control,
@@ -504,7 +516,6 @@ struct HTMLPageRenderer: PageRendering {
         case .link: .string("")
         case .packageColor(let value): .string(value.source)
         case .packageFontSize(let value): .string(value.source)
-        case .packageLineHeight(let value): .string(value.source)
         case .packageSpacing(let value): .array(value.sources.map(ComponentPackageValue.string))
         }
     }
@@ -552,11 +563,16 @@ struct HTMLPageRenderer: PageRendering {
     }
 
     private func attributes(for node: ComponentNode, globalDefinitionID: UUID?) -> String {
-        let acceptsChildren = node.type.definition.allowsChildren ? "true" : "false"
+        let definition = node.type.definition
+        let acceptsChildren = definition.allowsChildren ? "true" : "false"
+        let manifest = definition.package?.manifest
+        let author = manifest?.author?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let attribution = author?.isEmpty == false ? author! : "Foundry"
+        let version = manifest?.version ?? ""
         let globalAttributes = globalDefinitionID.map {
             " data-foundry-global=\"\($0.uuidString)\" data-foundry-global-override=\"\(node.overridesGlobalDefinition == true)\""
         } ?? ""
-        return "id=\"foundry-\(node.id.uuidString.lowercased())\" data-foundry-id=\"\(node.id.uuidString)\" data-foundry-type=\"\(escapeAttribute(node.type.displayName))\" data-foundry-name=\"\(escapeAttribute(node.name))\" data-foundry-accepts-children=\"\(acceptsChildren)\"\(globalAttributes)"
+        return "id=\"foundry-\(node.id.uuidString.lowercased())\" data-foundry-id=\"\(node.id.uuidString)\" data-foundry-component-type=\"\(escapeAttribute(node.type.rawValue))\" data-foundry-type=\"\(escapeAttribute(node.type.displayName))\" data-foundry-name=\"\(escapeAttribute(node.name))\" data-foundry-author=\"\(escapeAttribute(attribution))\" data-foundry-version=\"\(escapeAttribute(version))\" data-foundry-accepts-children=\"\(acceptsChildren)\"\(globalAttributes)"
     }
 
     private func escape(_ value: String) -> String {

@@ -44,7 +44,6 @@ nonisolated struct Theme: Codable, Equatable, Sendable {
             headingFont: .system(family: "system-ui", weights: [500, 600, 700, 800]),
             monospacedFont: .system(family: "ui-monospace", weights: [400, 500, 600, 700]),
             customFonts: [],
-            bodySize: TypographyTokens.standardBodySize,
             customFontSizes: []
         )
     )
@@ -325,30 +324,29 @@ nonisolated struct ThemeSpacing: Codable, Equatable, Identifiable, Sendable {
 }
 
 nonisolated struct TypographyTokens: Codable, Equatable, Sendable {
-    static let standardBodySize = 16.0
+    static let rootSize = 16.0
 
     var bodyFont: ThemeFontDefinition
     var headingFont: ThemeFontDefinition
     var monospacedFont: ThemeFontDefinition
     var customFonts: [ThemeCustomFont]
-    var bodySize: Double
     var predefinedFontSizes: [ThemeFontSize]
     var customFontSizes: [ThemeFontSize]
 
     static let standardFontSizes: [ThemeFontSize] = [
-        .init(id: "xs", title: "Fine", size: 0.75, lineHeight: .snug),
-        .init(id: "sm", title: "Small", size: 0.875, lineHeight: .normal),
-        .init(id: "base", title: "Body (Root Size)", size: 1, lineHeight: .normal),
-        .init(id: "lg", title: "Lead", size: 1.125, lineHeight: .relaxed),
-        .init(id: "xl", title: "Large", size: 1.25, lineHeight: .normal),
-        .init(id: "2xl", title: "Subtitle", size: 1.5, lineHeight: .snug),
-        .init(id: "3xl", title: "Title", size: 1.75, lineHeight: .tight),
-        .init(id: "4xl", title: "Heading", size: 2, lineHeight: .tight),
-        .init(id: "5xl", title: "Display Small", size: 2.5, lineHeight: .none),
-        .init(id: "6xl", title: "Display", size: 3, lineHeight: .none),
-        .init(id: "7xl", title: "Display Large", size: 4, lineHeight: .none),
-        .init(id: "8xl", title: "Hero", size: 5, lineHeight: .none),
-        .init(id: "9xl", title: "Hero Large", size: 6, lineHeight: .none)
+        .init(id: "xs", title: "xs", size: 0.75, lineHeight: 4 / 3),
+        .init(id: "sm", title: "sm", size: 0.875, lineHeight: 10 / 7),
+        .init(id: "base", title: "base", size: 1, lineHeight: 1.5),
+        .init(id: "lg", title: "lg", size: 1.125, lineHeight: 14 / 9),
+        .init(id: "xl", title: "xl", size: 1.25, lineHeight: 1.4),
+        .init(id: "2xl", title: "2xl", size: 1.5, lineHeight: 4 / 3),
+        .init(id: "3xl", title: "3xl", size: 1.875, lineHeight: 1.2),
+        .init(id: "4xl", title: "4xl", size: 2.25, lineHeight: 10 / 9),
+        .init(id: "5xl", title: "5xl", size: 3, lineHeight: 1),
+        .init(id: "6xl", title: "6xl", size: 3.75, lineHeight: 1),
+        .init(id: "7xl", title: "7xl", size: 4.5, lineHeight: 1),
+        .init(id: "8xl", title: "8xl", size: 6, lineHeight: 1),
+        .init(id: "9xl", title: "9xl", size: 8, lineHeight: 1)
     ]
 
     init(
@@ -356,7 +354,6 @@ nonisolated struct TypographyTokens: Codable, Equatable, Sendable {
         headingFont: ThemeFontDefinition,
         monospacedFont: ThemeFontDefinition,
         customFonts: [ThemeCustomFont],
-        bodySize: Double,
         predefinedFontSizes: [ThemeFontSize] = Self.standardFontSizes,
         customFontSizes: [ThemeFontSize]
     ) {
@@ -364,13 +361,12 @@ nonisolated struct TypographyTokens: Codable, Equatable, Sendable {
         self.headingFont = headingFont
         self.monospacedFont = monospacedFont
         self.customFonts = customFonts
-        self.bodySize = bodySize
         self.predefinedFontSizes = predefinedFontSizes
         self.customFontSizes = customFontSizes
     }
 
     enum CodingKeys: String, CodingKey {
-        case bodyFont, headingFont, monospacedFont, customFonts, bodySize, predefinedFontSizes, customFontSizes
+        case bodyFont, headingFont, monospacedFont, customFonts, predefinedFontSizes, customFontSizes
     }
 
     init(from decoder: Decoder) throws {
@@ -379,7 +375,6 @@ nonisolated struct TypographyTokens: Codable, Equatable, Sendable {
         headingFont = try container.decode(ThemeFontDefinition.self, forKey: .headingFont)
         monospacedFont = try container.decode(ThemeFontDefinition.self, forKey: .monospacedFont)
         customFonts = try container.decode([ThemeCustomFont].self, forKey: .customFonts)
-        bodySize = try container.decode(Double.self, forKey: .bodySize)
         predefinedFontSizes = try container.decode([ThemeFontSize].self, forKey: .predefinedFontSizes)
         customFontSizes = try container.decode([ThemeFontSize].self, forKey: .customFontSizes)
     }
@@ -390,7 +385,7 @@ nonisolated struct TypographyTokens: Codable, Equatable, Sendable {
     }
 
     var usesStandardPredefinedFontSizes: Bool {
-        bodySize == Self.standardBodySize && predefinedFontSizes == Self.standardFontSizes
+        predefinedFontSizes == Self.standardFontSizes
     }
 }
 
@@ -398,7 +393,7 @@ nonisolated struct ThemeFontSize: Codable, Equatable, Identifiable, Sendable {
     let id: String
     var title: String
     var size: Double
-    var lineHeight: ThemeLineHeight
+    var lineHeight: Double
 }
 
 nonisolated enum ThemeLineHeight: String, Codable, CaseIterable, Identifiable, Sendable {
@@ -541,7 +536,7 @@ nonisolated extension Theme {
 
     var fontSizeChoices: [ComponentPropertyChoice] {
         typography.fontSizes.enumerated().map { index, size in
-            let pixels = (size.size * typography.bodySize).formatted(
+            let pixels = (size.size * TypographyTokens.rootSize).formatted(
                 .number.precision(.fractionLength(0...1))
             )
             return .init(
@@ -575,14 +570,14 @@ nonisolated extension Theme {
         ]
         return predefined.map { id, title, multiplier in
             let rem = multiplier * SpacingTokens.baseRem
-            let pixels = rem * typography.bodySize
+            let pixels = rem * TypographyTokens.rootSize
             return .init(
                 value: id,
                 label: "\(title) — \(rem.cssNumber) rem (\(pixels.cssNumber) px)"
             )
         } + spacing.custom.enumerated().map { index, item in
             let rem = item.value * SpacingTokens.baseRem
-            let pixels = rem * typography.bodySize
+            let pixels = rem * TypographyTokens.rootSize
             return .init(
                 value: "custom:\(item.id.uuidString.lowercased())",
                 label: "\(item.name) — \(rem.cssNumber) rem (\(pixels.cssNumber) px)",
@@ -616,7 +611,7 @@ nonisolated extension Theme {
 
     var fontSizeCSSVariables: String {
         typography.fontSizes.map {
-            "--foundry-font-size-\($0.id):\($0.size)rem;--foundry-font-size-\($0.id)-line-height:\($0.lineHeight.value);"
+            "--foundry-font-size-\($0.id):\($0.size)rem;--foundry-font-size-\($0.id)-line-height:\($0.lineHeight);"
         }.joined()
     }
 

@@ -4,7 +4,7 @@ import Observation
 import UniformTypeIdentifiers
 
 nonisolated struct ThemeBundleMetadata: Codable, Equatable, Sendable {
-    static let currentFormatVersion = 3
+    static let currentFormatVersion = 4
 
     let id: UUID
     var name: String

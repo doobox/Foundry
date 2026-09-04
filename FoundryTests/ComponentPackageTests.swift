@@ -119,7 +119,8 @@ struct ComponentPackageTests {
             instanceID: UUID(), packageIdentifier: "com.example.arrays",
             properties: ["palette": value], slots: [:]
         )
-        #expect(ComponentTemplateRenderer.render("{{ property.palette[1] }}", context: context) == "green")
+        #expect(ComponentTemplateRenderer.render("{{ control.palette[1] }}", context: context) == "green")
+        #expect(ComponentTemplateRenderer.render("{{ property.palette[1] }}", context: context).isEmpty)
     }
 
     @Test
@@ -558,9 +559,9 @@ struct ComponentPackageTests {
         )
         let template = """
         <article class="card{{ component.class }}" {{ component.attributes }}>
-          <h2>{{ property.title }}</h2>
-          {{ if property.visible }}<span>Shown</span>{{ else }}<span>Hidden</span>{{ endif }}
-          {{ if property.alignment == "center" }}<b>Centered</b>{{ endif }}
+          <h2>{{ control.title }}</h2>
+          {{ if control.visible }}<span>Shown</span>{{ else }}<span>Hidden</span>{{ endif }}
+          {{ if control.alignment == "center" }}<b>Centered</b>{{ endif }}
           <img src="{{ asset.images/icon.svg }}">
           {{ slot id="content" }}
         </article>
@@ -576,6 +577,30 @@ struct ComponentPackageTests {
         #expect(html.contains("<b>Centered</b>"))
         #expect(html.contains("assets/components/com.example.card/images/icon.svg"))
         #expect(html.contains("<strong>Child</strong>"))
+    }
+
+    @Test
+    func templateRendersCanvasAndElseIfConditions() {
+        let properties: [String: ComponentPackageValue] = ["variant": .string("compact")]
+        let template = """
+        {{ if control.variant == "wide" }}Wide
+        {{ elseif control.variant == "compact" }}Compact
+        {{ elseif canvas }}Canvas
+        {{ else }}Published{{ endif }}
+        """
+        let canvasContext = ComponentTemplateContext(
+            instanceID: UUID(), packageIdentifier: "com.example.conditions",
+            properties: properties, slots: [:], isCanvas: true
+        )
+        let publishedContext = ComponentTemplateContext(
+            instanceID: UUID(), packageIdentifier: "com.example.conditions",
+            properties: [:], slots: [:]
+        )
+
+        #expect(ComponentTemplateRenderer.render(template, context: canvasContext).trimmingCharacters(in: .whitespacesAndNewlines) == "Compact")
+        #expect(ComponentTemplateRenderer.render(template, context: publishedContext).trimmingCharacters(in: .whitespacesAndNewlines) == "Published")
+        #expect(ComponentTemplateRenderer.render("{{ if canvas }}Canvas{{ else }}Published{{ endif }}", context: canvasContext) == "Canvas")
+        #expect(ComponentTemplateRenderer.render("{{ if canvas }}Canvas{{ else }}Published{{ endif }}", context: publishedContext) == "Published")
     }
 
     @Test
@@ -612,11 +637,11 @@ struct ComponentPackageTests {
             manifest: validManifest,
             template: """
             <section>
-              {{ property.missing }}
+              {{ control.missing }}
               {{ slot id="unknown" }}
               {{ asset.../secret.txt }}
               {{ mystery }}
-              {{ if property.title }}
+              {{ if control.title }}
             </section>
             """
         )
@@ -982,6 +1007,34 @@ struct ComponentPackageTests {
         )
 
         #expect(manifest.properties.first?.group == "Settings")
+    }
+
+    @Test
+    func selectUsingThemeValuesCannotBeAMultiControl() throws {
+        let item = """
+        <dict>
+            <key>id</key><string>sizes</string>
+            <key>labels</key><array><string>First</string><string>Second</string></array>
+            <key>type</key><string>select</string>
+            <key>themeValues</key><string>fontSizes</string>
+            <key>count</key><integer>2</integer>
+            <key>default</key><array><string>base</string><string>base</string></array>
+            <key>responsive</key><false/>
+        </dict>
+        """
+        let manifest = try PropertyListDecoder().decode(
+            ComponentPackageManifest.self,
+            from: Data(manifest(withCustomItems: item).utf8)
+        )
+        let diagnostics = ComponentPackageValidator.validate(
+            manifest,
+            rootURL: FileManager.default.temporaryDirectory
+        )
+
+        #expect(diagnostics.contains {
+            $0.location == "Info.plist:customItems.sizes.count" &&
+                $0.message == "A select control using themeValues cannot be a multi control; remove count."
+        })
     }
 
     @Test
@@ -1455,7 +1508,7 @@ struct ComponentPackageTests {
         let properties = ComponentType.paragraph.definition.properties
         let color = try #require(properties.first(where: { $0.key.rawValue == "textColor" }))
         let alignment = try #require(properties.first(where: { $0.key.rawValue == "textAlignment" }))
-        let lineHeight = try #require(properties.first(where: { $0.key.rawValue == "lineHeight" }))
+        let textSize = try #require(properties.first(where: { $0.key.rawValue == "textSize" }))
         let textDecoration = try #require(properties.first(where: { $0.key.rawValue == "textDecoration" }))
 
         #expect(color.defaultValue == .packageColor(.init(
@@ -1484,12 +1537,12 @@ struct ComponentPackageTests {
         } else {
             Issue.record("Paragraph should use a select control for text decoration")
         }
-        #expect(lineHeight.defaultValue == .choice("normal"))
-        #expect(lineHeight.isResponsive)
-        if case .packageLineHeight = lineHeight.control {
-            #expect(lineHeight.themeValueSource == .lineHeights)
+        #expect(textSize.defaultValue == .packageFontSize(.init(source: "base", customValue: "1rem")))
+        if case .packageFontSize(let themeValues) = textSize.control {
+            #expect(themeValues)
+            #expect(textSize.themeValueSource == .fontSizes)
         } else {
-            Issue.record("Paragraph should use a select populated with theme line heights")
+            Issue.record("Paragraph should use a font-size theme Select")
         }
         #expect(
             ComponentType.paragraph.definition.package?.css.contains(
@@ -1498,7 +1551,7 @@ struct ComponentPackageTests {
         )
         #expect(
             ComponentType.paragraph.definition.package?.css.contains(
-                "line-height: {{ control.lineHeight }}"
+                "line-height: {{ control.textSize.lineHeight }}"
             ) == true
         )
         #expect(
@@ -1513,16 +1566,8 @@ struct ComponentPackageTests {
         #expect(themedHTML.contains("line-height: 1.5"))
 
         paragraph.setProperty(
-            .init(rawValue: "lineHeight"),
-            value: .packageLineHeight(.init(source: "loose", customValue: 1.5))
-        )
-        site.pages[0].components = [paragraph]
-        let overriddenHTML = HTMLPageRenderer(site: site).render(page: site.pages[0], theme: site.theme)
-        #expect(overriddenHTML.contains("line-height: 2"))
-
-        paragraph.setProperty(
-            .init(rawValue: "lineHeight"),
-            value: .packageLineHeight(.init(source: "custom", customValue: 1.7))
+            .init(rawValue: "textSize"),
+            value: .packageFontSize(.init(source: "custom", customValue: "1rem", customLineHeight: "1.7"))
         )
         site.pages[0].components = [paragraph]
         let customHTML = HTMLPageRenderer(site: site).render(page: site.pages[0], theme: site.theme)

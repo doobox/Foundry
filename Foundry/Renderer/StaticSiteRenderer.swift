@@ -411,7 +411,7 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
             destination: .export,
             exportedSource: { "../" + site.publishedPath(for: $0) }
         ))
-        :root{font-size:\(theme.typography.bodySize)px;--foundry-color-background:\(theme.colors.background);--foundry-color-surface:\(theme.colors.surface);--foundry-color-text:\(theme.colors.text);--foundry-color-accent:\(theme.colors.accent);--foundry-color-links:\(theme.colors.links);--foundry-font-body:\(theme.typography.bodyFont.cssFamily);--foundry-font-heading:\(theme.typography.headingFont.cssFamily);--foundry-font-monospace:\(theme.typography.monospacedFont.cssFamily);\(theme.customFontCSSVariables)\(theme.fontSizeCSSVariables)\(theme.spacingCSSVariables)}
+        :root{font-size:16px;--foundry-color-background:\(theme.colors.background);--foundry-color-surface:\(theme.colors.surface);--foundry-color-text:\(theme.colors.text);--foundry-color-accent:\(theme.colors.accent);--foundry-color-links:\(theme.colors.links);--foundry-font-body:\(theme.typography.bodyFont.cssFamily);--foundry-font-heading:\(theme.typography.headingFont.cssFamily);--foundry-font-monospace:\(theme.typography.monospacedFont.cssFamily);\(theme.customFontCSSVariables)\(theme.fontSizeCSSVariables)\(theme.spacingCSSVariables)}
         \(theme.screens.containerCSS)
         *,*::before,*::after{box-sizing:border-box}
         html,body{min-height:100%}
@@ -566,7 +566,6 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
         case .link: .string("")
         case .packageColor(let value): .string(value.source)
         case .packageFontSize(let value): .string(value.source)
-        case .packageLineHeight(let value): .string(value.source)
         case .packageSpacing(let value): .array(value.sources.map(ComponentPackageValue.string))
         }
     }
@@ -591,8 +590,6 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
                     let reference: String
                     switch item {
                     case .choice(let value), .string(let value): reference = value
-                    case .packageLineHeight(let value):
-                        return .string(ComponentPackageThemeValueResolver.resolveLineHeight(value, theme: theme))
                     default: return packageValue(item)
                     }
                     guard
@@ -630,13 +627,11 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
             }
             if case .packageFontSize(let themeValues) = definition.control,
                case .packageFontSize(let fontSizeValue) = value {
-                let resolved = !themeValues || fontSizeValue.source == "custom"
+                let resolved = !themeValues || ComponentThemeValueSelection.isManualCustom(
+                    fontSizeValue.source,
+                    themeChoices: theme.fontSizeChoices
+                )
                     ? fontSizeValue.customValue : theme.fontSizeCSSVariable(for: fontSizeValue.source)
-                return (definition.key.rawValue, .string(resolved))
-            }
-            if case .packageLineHeight = definition.control,
-               case .packageLineHeight(let lineHeightValue) = value {
-                let resolved = ComponentPackageThemeValueResolver.resolveLineHeight(lineHeightValue, theme: theme)
                 return (definition.key.rawValue, .string(resolved))
             }
             if case .packageSpacing(let kind, _, _) = definition.control,
@@ -655,6 +650,17 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
             }
             return (definition.key.rawValue, packageValue(value))
         })
+        for definition in node.type.definition.properties {
+            guard case .packageFontSize(let usesThemeValues) = definition.control,
+                  case .packageFontSize(let fontSizeValue) = node.propertyValue(definition.key) else { continue }
+            values[definition.key.rawValue + ".lineHeight"] = .string(
+                ComponentPackageThemeValueResolver.resolveFontSizeLineHeight(
+                    fontSizeValue,
+                    usesThemeValues: usesThemeValues,
+                    theme: theme
+                )
+            )
+        }
         for definition in node.type.definition.properties {
             guard case .link(let absoluteURL) = definition.control,
                   case .link(let link) = node.propertyValue(definition.key) else { continue }
@@ -691,8 +697,6 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
         case .packageColor(let value):
             raw = value.source
         case .packageFontSize(let value):
-            raw = value.source
-        case .packageLineHeight(let value):
             raw = value.source
         case .packageSpacing(let value):
             raw = value.sources.joined(separator: " ")

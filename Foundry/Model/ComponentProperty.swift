@@ -1,5 +1,23 @@
 import Foundation
 
+nonisolated enum ComponentThemeValueSelection {
+    static let manualCustom = "foundry:manual-custom"
+    static let legacyManualCustom = "custom"
+
+    static func isManualCustom(
+        _ source: String,
+        themeChoices: [ComponentPropertyChoice] = []
+    ) -> Bool {
+        source == manualCustom || (
+            source == legacyManualCustom && !themeChoices.contains { $0.value == source }
+        )
+    }
+
+    static func normalizedManifestSource(_ source: String) -> String {
+        source == legacyManualCustom ? manualCustom : source
+    }
+}
+
 nonisolated struct ComponentPackageColorValue: Codable, Equatable, Sendable {
     var source: String
     var customColor: String
@@ -10,11 +28,39 @@ nonisolated struct ComponentPackageColorValue: Codable, Equatable, Sendable {
 nonisolated struct ComponentPackageFontSizeValue: Codable, Equatable, Sendable {
     var source: String
     var customValue: String
-}
+    var customLineHeight: String
 
-nonisolated struct ComponentPackageLineHeightValue: Codable, Equatable, Sendable {
-    var source: String
-    var customValue: Double
+    init(source: String, customValue: String, customLineHeight: String = "1.5") {
+        self.source = source
+        self.customValue = customValue
+        self.customLineHeight = customLineHeight
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case source, customValue, customLineHeight
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        source = try container.decode(String.self, forKey: .source)
+        customValue = try container.decode(String.self, forKey: .customValue)
+        if let stringValue = try? container.decode(String.self, forKey: .customLineHeight) {
+            customLineHeight = stringValue
+        } else if let numberValue = try? container.decode(Double.self, forKey: .customLineHeight) {
+            customLineHeight = numberValue.formatted(
+                .number.locale(Locale(identifier: "en_US_POSIX")).precision(.fractionLength(0...3))
+            )
+        } else {
+            customLineHeight = "1.5"
+        }
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(source, forKey: .source)
+        try container.encode(customValue, forKey: .customValue)
+        try container.encode(customLineHeight, forKey: .customLineHeight)
+    }
 }
 
 nonisolated struct ComponentPackageSpacingValue: Codable, Equatable, Sendable {
@@ -88,7 +134,6 @@ nonisolated struct ComponentProperty: Codable, Equatable, Identifiable, Sendable
         case link(ComponentLink)
         case packageColor(ComponentPackageColorValue)
         case packageFontSize(ComponentPackageFontSizeValue)
-        case packageLineHeight(ComponentPackageLineHeightValue)
         case packageSpacing(ComponentPackageSpacingValue)
 
         var stringValue: String {
@@ -108,8 +153,6 @@ nonisolated struct ComponentProperty: Codable, Equatable, Identifiable, Sendable
             case .packageColor(let value):
                 value.source
             case .packageFontSize(let value):
-                value.source
-            case .packageLineHeight(let value):
                 value.source
             case .packageSpacing(let value):
                 value.sources.joined(separator: ", ")

@@ -57,14 +57,12 @@ nonisolated enum ComponentPackageAdapter {
                 defaults = Array(repeating: property.defaultValue, count: count)
             }
             let paddedDefaults = defaults + Array(repeating: defaults.last ?? .string(""), count: max(0, count - defaults.count))
-            let isLineHeight = property.control.type == .select &&
-                property.control.themeValueSource == .lineHeights
             return [ComponentPropertyDefinition(
                 key: .init(rawValue: property.id),
                 label: property.label,
                 section: .init(rawValue: property.group),
                 control: .array(
-                    element: isLineHeight ? .packageLineHeight : control(property.control, unit: ""),
+                    element: control(property.control, unit: ""),
                     count: count,
                     labels: Array(property.labels.prefix(count)),
                     subtitles: Array(property.subtitles.prefix(count)),
@@ -72,14 +70,12 @@ nonisolated enum ComponentPackageAdapter {
                     help: property.toolTip
                 ),
                 defaultValue: .array(paddedDefaults.prefix(count).map {
-                    isLineHeight
-                        ? .packageLineHeight(.init(source: $0.stringValue, customValue: ThemeLineHeight.normal.value))
-                        : value($0, control: property.control.type)
+                    value($0, control: property.control.type)
                 }),
                 isResponsive: property.responsive,
                 enable: property.enable,
                 themeValueSource: property.control.themeValueSource,
-                allowsCustomThemeValue: isLineHeight || property.control.allowsCustom == true
+                allowsCustomThemeValue: property.control.allowsCustom == true
             )]
         }
         if property.control.type == .color { return colorProperties(for: property) }
@@ -96,10 +92,10 @@ nonisolated enum ComponentPackageAdapter {
                 allowsCustomThemeValue: property.control.allowsCustom == true
             )]
         }
-        if property.control.type == .fontSize { return fontSizeProperties(for: property) }
         if property.control.type == .select,
-           property.control.themeValueSource == .lineHeights {
-            return lineHeightProperties(for: property)
+           property.control.themeValueSource == .fontSizes,
+           property.control.allowsCustom == true {
+            return fontSizeProperties(for: property)
         }
         return [ComponentPropertyDefinition(
             key: .init(rawValue: property.id),
@@ -171,20 +167,14 @@ nonisolated enum ComponentPackageAdapter {
     private static func fontSizeProperties(for property: ComponentPackageProperty) -> [ComponentPropertyDefinition] {
         let key = ComponentProperty.Key(rawValue: property.id)
         let section = ComponentPropertySection(rawValue: property.group)
-        let source = property.defaultValue.stringValue
-        let customValue: String
-        if case .string(let value) = property.control.customValue {
-            customValue = value
-        } else {
-            customValue = "1rem"
-        }
+        let source = ComponentThemeValueSelection.normalizedManifestSource(property.defaultValue.stringValue)
         return [
             .init(
                 key: key, label: property.label, section: section,
                 control: .packageFontSize(
                     themeValues: property.control.themeValueSource == .fontSizes
                 ),
-                defaultValue: .packageFontSize(.init(source: source, customValue: customValue)),
+                defaultValue: .packageFontSize(.init(source: source, customValue: "1rem")),
                 isResponsive: property.responsive,
                 enable: property.enable,
                 themeValueSource: property.control.themeValueSource,
@@ -205,7 +195,9 @@ nonisolated enum ComponentPackageAdapter {
                     opacity: property.control.opacity ?? false
                 ),
                 defaultValue: .packageColor(.init(
-                    source: property.control.themeValueDefault ?? property.defaultValue.stringValue,
+                    source: ComponentThemeValueSelection.normalizedManifestSource(
+                        property.control.themeValueDefault ?? property.defaultValue.stringValue
+                    ),
                     customColor: property.control.customColor ?? "#000000",
                     adjustment: 0,
                     opacity: 1
@@ -214,25 +206,6 @@ nonisolated enum ComponentPackageAdapter {
                 enable: property.enable,
                 themeValueSource: property.control.themeValueSource,
                 allowsCustomThemeValue: property.control.allowsCustom == true
-            )
-        ]
-    }
-
-    private static func lineHeightProperties(for property: ComponentPackageProperty) -> [ComponentPropertyDefinition] {
-        [
-            ComponentPropertyDefinition(
-                key: .init(rawValue: property.id),
-                label: property.label,
-                section: .init(rawValue: property.group),
-                control: .packageLineHeight,
-                defaultValue: .packageLineHeight(.init(
-                    source: property.defaultValue.stringValue,
-                    customValue: ThemeLineHeight.normal.value
-                )),
-                isResponsive: property.responsive,
-                enable: property.enable,
-                themeValueSource: .lineHeights,
-                allowsCustomThemeValue: true
             )
         ]
     }
@@ -253,7 +226,6 @@ nonisolated enum ComponentPackageAdapter {
         case .link: .link(absoluteURL: control.absoluteURL ?? false)
         case .toggle: .toggle
         case .fontFamily: .themeFontFamily
-        case .fontSize: .themeFontSize
         case .margin, .padding: .derived
         case .textAlignment: .textAlignment
         case .divider: .divider
@@ -284,7 +256,7 @@ nonisolated enum ComponentPackageAdapter {
             switch control {
             case .link: .link(.init(destination: value.isEmpty ? .none : .url(value)))
             case .color: .color(value)
-            case .icon, .select, .fontFamily, .fontSize, .margin, .padding, .textAlignment: .choice(value)
+            case .icon, .select, .fontFamily, .margin, .padding, .textAlignment: .choice(value)
             case .date: .string(value)
             default: .string(value)
             }

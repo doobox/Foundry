@@ -39,24 +39,10 @@
 			<false/>
 			<key>themeValues</key>
 			<string>fontSizes</string>
-			<key>type</key>
-			<string>fontSize</string>
-		</dict>
-		<dict>
-			<key>default</key>
-			<string>normal</string>
-			<key>group</key>
-			<string>Typography</string>
-			<key>id</key>
-			<string>lineHeight</string>
-			<key>labels</key>
-			<string>Line Height</string>
-			<key>responsive</key>
+			<key>allowsCustom</key>
 			<true/>
 			<key>type</key>
 			<string>select</string>
-			<key>themeValues</key>
-			<string>lineHeights</string>
 		</dict>
 		<dict>
 			<key>default</key>

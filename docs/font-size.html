@@ -1,16 +1,1 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Font size · Foundry Developer</title><link rel="stylesheet" href="styles.css"><script src="app.js" defer></script></head><body><div class="shell"><nav data-doc-nav></nav><main><div class="breadcrumbs"><a href="index.html">Foundry Developer</a><span>›</span><a href="custom-controls.html">Custom controls</a></div><p class="eyebrow">Theme-aware custom control</p><h1>Font size</h1><p class="lede">A <code>fontSize</code> custom item provides a size editor. Enable <code>themeValues</code> to add the project’s type scale alongside custom sizes.</p>
-<h2>Example</h2><pre><code>&lt;key&gt;customItems&lt;/key&gt;
-&lt;array&gt;
-    &lt;dict&gt;
-        &lt;key&gt;id&lt;/key&gt;&lt;string&gt;textSize&lt;/string&gt;
-        &lt;key&gt;labels&lt;/key&gt;&lt;string&gt;Text size&lt;/string&gt;
-        &lt;key&gt;group&lt;/key&gt;&lt;string&gt;Typography&lt;/string&gt;
-    &lt;key&gt;type&lt;/key&gt;&lt;string&gt;fontSize&lt;/string&gt;
-            &lt;key&gt;themeValues&lt;/key&gt;&lt;string&gt;fontSizes&lt;/string&gt;
-        &lt;key&gt;default&lt;/key&gt;&lt;string&gt;base&lt;/string&gt;
-        &lt;key&gt;responsive&lt;/key&gt;&lt;true/&gt;
-    &lt;/dict&gt;
-&lt;/array&gt;</code></pre><pre><code>#{{ id }} { font-size: {{ control.textSize }}; }</code></pre>
-<h2>Theme choices</h2><p>The portable scale names are <code>xs</code>, <code>sm</code>, <code>base</code>, <code>lg</code>, <code>xl</code>, and <code>2xl</code> through <code>9xl</code>. The project theme resolves each name to its configured measurement. Custom values remain available because this is still a custom control.</p>
-<h2>Custom size</h2><p>Use the optional <code>customValue</code> String to set the initial custom CSS length. It defaults to <code>1rem</code> and must be non-negative, for example <code>18px</code>, <code>1.125rem</code>, or <code>5vw</code>.</p>
-<div class="note"><strong>One value, one target.</strong> Foundry stores the selected source and custom CSS length together under the declared ID. Templates receive the resolved CSS length; Foundry does not create a hidden sibling property or force typography onto the component root.</div></main></div></body></html>
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="refresh" content="0; url=select-control.html#themevalues"><title>Font size moved · Foundry Developer</title><link rel="canonical" href="select-control.html#themevalues"></head><body><p>Font sizes now use the <a href="select-control.html#themevalues">Select control with themeValues</a>.</p></body></html>

@@ -237,7 +237,6 @@ nonisolated struct ComponentPackageControl: Codable, Equatable, Sendable {
         case link
         case toggle
         case fontFamily
-        case fontSize
         case margin
         case padding
         case textAlignment
@@ -278,7 +277,6 @@ nonisolated enum ComponentPackageThemeValueSource: String, Codable, CaseIterable
     case colors
     case fontFamilies
     case fontSizes
-    case lineHeights
     case spacing
 }
 

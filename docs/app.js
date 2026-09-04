@@ -8,26 +8,25 @@ document.head.append(favicon);
 
 const controlLinks = [
     ["Overview", "custom-controls.html"],
-    ["Text", "text-control.html"],
-    ["Text area", "text-area-control.html"],
+    ["Button", "button-control.html"],
+    ["Colour", "colour.html"],
+    ["Date", "date-control.html"],
+    ["Details", "details-control.html"],
+    ["Divider", "divider-control.html"],
+    ["Font family", "font-family.html"],
+    ["Icon", "icon-control.html"],
+    ["Info", "info-control.html"],
     ["Link", "link-control.html"],
+    ["Margin", "margin-control.html"],
+    ["Math", "math-control.html"],
     ["Number", "number-control.html"],
     ["Padding", "padding-control.html"],
-    ["Margin", "margin-control.html"],
-    ["Slider", "slider-control.html"],
-    ["Date", "date-control.html"],
-    ["Colour", "colour.html"],
-    ["Icon", "icon-control.html"],
     ["Select", "select-control.html"],
-    ["Toggle", "toggle-control.html"],
-    ["Details", "details-control.html"],
-    ["Button", "button-control.html"],
-    ["Math", "math-control.html"],
+    ["Slider", "slider-control.html"],
+    ["Text", "text-control.html"],
     ["Text alignment", "text-alignment.html"],
-    ["Font family", "font-family.html"],
-    ["Font size", "font-size.html"],
-    ["Info", "info-control.html"],
-    ["Divider", "divider-control.html"],
+    ["Text area", "text-area-control.html"],
+    ["Toggle", "toggle-control.html"],
     ["Control arrays", "control-arrays.html"],
     ["Conditional visibility", "enable-control.html"]
 ];
@@ -121,8 +120,7 @@ const referenceTypeByPage = {
     "icon-control.html": "icon",
     "link-control.html": "link",
     "text-alignment.html": "textAlignment",
-    "font-family.html": "fontFamily",
-    "font-size.html": "fontSize"
+    "font-family.html": "fontFamily"
 };
 const referenceType = referenceTypeByPage[window.location.pathname.split("/").pop()];
 if (referenceType) {

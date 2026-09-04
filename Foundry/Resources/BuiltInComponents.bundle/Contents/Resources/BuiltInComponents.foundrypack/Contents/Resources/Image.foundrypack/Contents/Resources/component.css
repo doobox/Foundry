@@ -1,8 +1,8 @@
 #{{ id }} {
     margin-block: 0;
     margin-inline: auto;
-    {{ if property.alignment == "start" }}margin-inline: 0 auto;{{ endif }}
-    {{ if property.alignment == "end" }}margin-inline: auto 0;{{ endif }}
+    {{ if control.alignment == "start" }}margin-inline: 0 auto;{{ endif }}
+    {{ if control.alignment == "end" }}margin-inline: auto 0;{{ endif }}
     width: 100%;
     max-width: {{ control.maxWidth }}px;
 }

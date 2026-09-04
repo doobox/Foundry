@@ -2,7 +2,7 @@
     color: {{ control.textColor }};
     font-family: {{ control.typeface }};
     font-size: {{ control.textSize }};
-    line-height: {{ control.lineHeight }};
+    line-height: {{ control.textSize.lineHeight }};
     text-align: {{ control.textAlignment }};
     text-decoration-line: {{ control.textDecoration }};
 }

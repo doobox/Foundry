@@ -205,12 +205,12 @@ nonisolated enum ComponentPackageValidator {
                   let template = try? String(contentsOf: rootURL.appending(path: file.path), encoding: .utf8) else {
                 continue
             }
-            if template.matches(#"\{\{\s*(?:id|instance\.id|component\.|control\.|property\.|slot\.)"#) ||
-                template.matches(#"\{\{\s*(?:slot\s+id|if\s+property|text(?:\s*=|\s*\}\})|html(?:\s*=|\s*\}\})|image\s*\}\})"#) {
+            if template.matches(#"\{\{\s*(?:id|instance\.id|component\.|control\.|slot\.)"#) ||
+                template.matches(#"\{\{\s*(?:slot\s+id|(?:if|elseif)\s+(?:control\.|canvas)|text(?:\s*=|\s*\}\})|html(?:\s*=|\s*\}\})|image\s*\}\})"#) {
                 diagnostics.append(.init(
                     severity: .error,
                     location: file.path,
-                    message: "Page- and site-scoped templates cannot use instance, component, control, property, slot, condition, or editable-content macros."
+                    message: "Page- and site-scoped templates cannot use instance, component, control, slot, condition, or editable-content macros."
                 ))
             }
         }
@@ -236,8 +236,8 @@ nonisolated enum ComponentPackageValidator {
             ))
         }
 
-        for reference in template.references(matching: #"\{\{\s*(?:control|property)\.([A-Za-z][A-Za-z0-9_-]*)"#) +
-            template.references(matching: #"\{\{\s*if\s+property\.([A-Za-z][A-Za-z0-9_-]*)"#) {
+        for reference in template.references(matching: #"\{\{\s*control\.([A-Za-z][A-Za-z0-9_-]*)"#) +
+            template.references(matching: #"\{\{\s*(?:if|elseif)\s+control\.([A-Za-z][A-Za-z0-9_-]*)"#) {
             if !propertyIDs.contains(reference.value) {
                 diagnostics.append(templateDiagnostic(
                     templateLocation,
@@ -321,9 +321,10 @@ nonisolated enum ComponentPackageValidator {
         }
 
         let ifCount = template.matchCount(#"\{\{\s*if\b"#)
+        let elseIfCount = template.matchCount(#"\{\{\s*elseif\b"#)
         let endIfCount = template.matchCount(#"\{\{\s*endif\s*\}\}"#)
         let elseCount = template.matchCount(#"\{\{\s*else\s*\}\}"#)
-        if ifCount != endIfCount || elseCount > ifCount {
+        if ifCount != endIfCount || elseCount > ifCount || (elseIfCount > 0 && ifCount == 0) {
             diagnostics.append(.init(
                 severity: .error,
                 location: templateLocation,
@@ -331,9 +332,21 @@ nonisolated enum ComponentPackageValidator {
             ))
         }
 
+        for reference in template.references(matching: #"\{\{\s*(?:if|elseif)\s+([^{}]+?)\s*\}\}"#) {
+            let condition = reference.value.trimmingCharacters(in: .whitespacesAndNewlines)
+            if condition != "canvas" && !condition.matches(#"^control\.[A-Za-z][A-Za-z0-9_.-]*(?:\s*==\s*[\"'][^\"']*[\"'])?$"#) {
+                diagnostics.append(templateDiagnostic(
+                    templateLocation,
+                    template: template,
+                    offset: reference.offset,
+                    message: "A condition must be canvas or a control value, optionally compared with a String."
+                ))
+            }
+        }
+
         let supportedMacroNames: Set<String> = [
-            "id", "instance", "package", "component", "control", "property", "asset", "slot",
-            "if", "else", "endif", "text", "html", "image"
+            "id", "instance", "package", "component", "control", "asset", "slot",
+            "if", "elseif", "else", "endif", "text", "html", "image"
         ]
         for reference in template.references(matching: #"\{\{\s*([A-Za-z]+)(?:\.|\s|\}\})"#)
             where !supportedMacroNames.contains(reference.value) {
@@ -394,6 +407,15 @@ nonisolated enum ComponentPackageValidator {
         location: String,
         into diagnostics: inout [ComponentPackageDiagnostic]
     ) {
+        if property.control.type == .select,
+           property.control.themeValueSource != nil,
+           property.control.count != nil {
+            diagnostics.append(.init(
+                severity: .error,
+                location: "\(location).count",
+                message: "A select control using themeValues cannot be a multi control; remove count."
+            ))
+        }
         if property.control.allowsCustom.orFalse,
            property.control.type != .select || property.control.themeValueSource == nil {
             diagnostics.append(.init(
@@ -429,9 +451,9 @@ nonisolated enum ComponentPackageValidator {
         guard let source = property.control.themeValueSource else { return }
         let supported: Bool
         switch (property.control.type, source) {
-        case (.select, .fontFamilies), (.select, .fontSizes), (.select, .lineHeights), (.select, .spacing),
+        case (.select, .fontFamilies), (.select, .fontSizes), (.select, .spacing),
              (.fontFamily, .fontFamilies),
-             (.fontSize, .fontSizes), (.margin, .spacing), (.padding, .spacing):
+             (.margin, .spacing), (.padding, .spacing):
             supported = true
         default:
             supported = false
@@ -620,9 +642,7 @@ nonisolated enum ComponentPackageValidator {
             let themeMatch = property.control.themeValueSource.map {
                 ComponentPackageThemeValueResolver.choices(for: $0, theme: .standard).contains(where: { $0.value == value })
             } ?? false
-            let customMatch = value == "custom" && (
-                property.control.allowsCustom.orFalse || property.control.themeValueSource == .lineHeights
-            )
+            let customMatch = value == "custom" && property.control.allowsCustom.orFalse
             if !declaredMatch && !themeMatch && !customMatch {
                 diagnostics.append(.init(severity: .error, location: location, message: "A select default must match one of its declared or requested theme values."))
             }
@@ -657,26 +677,6 @@ nonisolated enum ComponentPackageValidator {
                 }
             } else {
                 diagnostics.append(.init(severity: .error, location: location, message: "A fontFamily control requires a string default value."))
-            }
-        case .fontSize:
-            if case .string(let value) = defaultValue {
-                let sizes = Set(Theme.standard.typography.fontSizes.map(\.id))
-                if value != "custom" && (property.control.themeValueSource != .fontSizes || !sizes.contains(value)) {
-                    diagnostics.append(.init(severity: .error, location: location, message: "A fontSize default must be custom, or a known theme size when themeValues is enabled."))
-                }
-            } else {
-                diagnostics.append(.init(severity: .error, location: location, message: "A fontSize control requires a string default value."))
-            }
-            if let customValue = property.control.customValue {
-                guard case .string(let value) = customValue,
-                      value.matches(#"^(?:\d+(?:\.\d+)?|\.\d+)(?:px|rem|em|%|vw|vh|vmin|vmax|ch|ex)$"#) else {
-                    diagnostics.append(.init(
-                        severity: .error,
-                        location: "\(location).customValue",
-                        message: "A fontSize customValue must be a CSS length such as 1rem or 18px."
-                    ))
-                    return
-                }
             }
         case .textAlignment:
             if case .string(let value) = defaultValue,

@@ -239,14 +239,7 @@ struct ComponentPropertyEditor: View {
                 choices: themeValues ? theme.fontSizeChoices : [],
                 source: packageFontSizeSourceBinding,
                 customValue: packageFontSizeCustomBinding,
-                indicator: responsiveIndicator
-            )
-        case .packageLineHeight:
-            PackageLineHeightControlEditor(
-                label: definition.label,
-                choices: theme.lineHeightChoices,
-                source: packageLineHeightSourceBinding,
-                customValue: packageLineHeightCustomBinding,
+                customLineHeight: packageFontSizeCustomLineHeightBinding,
                 indicator: responsiveIndicator
             )
         case .packageSpacing(let kind, let range, let step):
@@ -403,7 +396,7 @@ struct ComponentPropertyEditor: View {
     private var packageColorValue: ComponentPackageColorValue {
         if case .packageColor(let value) = displayComponent.propertyValue(definition.key) { return value }
         if case .packageColor(let value) = definition.defaultValue { return value }
-        return .init(source: "custom", customColor: "#000000", adjustment: 0, opacity: 1)
+        return .init(source: ComponentThemeValueSelection.manualCustom, customColor: "#000000", adjustment: 0, opacity: 1)
     }
 
     private var packageColorSourceBinding: Binding<String> {
@@ -446,7 +439,7 @@ struct ComponentPropertyEditor: View {
     private var packageFontSizeValue: ComponentPackageFontSizeValue {
         if case .packageFontSize(let value) = displayComponent.propertyValue(definition.key) { return value }
         if case .packageFontSize(let value) = definition.defaultValue { return value }
-        return .init(source: "custom", customValue: "1rem")
+        return .init(source: ComponentThemeValueSelection.manualCustom, customValue: "1rem")
     }
 
     private var packageFontSizeSourceBinding: Binding<String> {
@@ -471,30 +464,13 @@ struct ComponentPropertyEditor: View {
         )
     }
 
-    private var packageLineHeightValue: ComponentPackageLineHeightValue {
-        if case .packageLineHeight(let value) = displayComponent.propertyValue(definition.key) { return value }
-        if case .packageLineHeight(let value) = definition.defaultValue { return value }
-        return .init(source: "normal", customValue: ThemeLineHeight.normal.value)
-    }
-
-    private var packageLineHeightSourceBinding: Binding<String> {
+    private var packageFontSizeCustomLineHeightBinding: Binding<String> {
         Binding(
-            get: { packageLineHeightValue.source },
-            set: { source in
-                var value = packageLineHeightValue
-                value.source = source
-                setProperty(.packageLineHeight(value))
-            }
-        )
-    }
-
-    private var packageLineHeightCustomBinding: Binding<Double> {
-        Binding(
-            get: { packageLineHeightValue.customValue },
-            set: { customValue in
-                var value = packageLineHeightValue
-                value.customValue = customValue
-                setProperty(.packageLineHeight(value))
+            get: { packageFontSizeValue.customLineHeight },
+            set: { customLineHeight in
+                var value = packageFontSizeValue
+                value.customLineHeight = customLineHeight
+                setProperty(.packageFontSize(value))
             }
         )
     }
@@ -1076,37 +1052,6 @@ private struct InspectorControlArrayItem: View {
                 accessibilityLabel: subtitle ?? "Choice",
                 help: help
             )
-        case .packageLineHeight:
-            VStack(spacing: 4) {
-                InspectorPopup(
-                    selection: lineHeightSourceBinding,
-                    options: ThemeLineHeight.allCases.map {
-                        .init(
-                            title: "\($0.title) — \($0.value.formatted(.number.precision(.fractionLength(0...3))))",
-                            value: $0.rawValue
-                        )
-                    } + [.init(title: "Custom", value: "custom", separatorBefore: true)],
-                    accessibilityLabel: subtitle ?? title,
-                    help: help
-                )
-                if lineHeightValue.source == "custom" {
-                    HStack(spacing: 4) {
-                        InspectorNumberField(
-                            value: lineHeightCustomBinding,
-                            range: 0...10,
-                            step: 0.05,
-                            accessibilityLabel: "Custom line height",
-                            help: "A unitless CSS line-height value"
-                        )
-                        InspectorStepper(
-                            value: lineHeightCustomBinding,
-                            range: 0...10,
-                            increment: 0.05,
-                            accessibilityLabel: "Custom line height"
-                        )
-                    }
-                }
-            }
         case .asset:
             InspectorPopup(selection: assetBinding, options: [InspectorPopupOption(title: "None", value: nil)] + assets.map { .init(title: $0.filename, value: $0.id as UUID?) }, accessibilityLabel: subtitle ?? "Image", help: help)
         default:
@@ -1124,33 +1069,6 @@ private struct InspectorControlArrayItem: View {
                 } else {
                     value = .string(newValue)
                 }
-            }
-        )
-    }
-
-    private var lineHeightValue: ComponentPackageLineHeightValue {
-        if case .packageLineHeight(let lineHeight) = value { return lineHeight }
-        return .init(source: "normal", customValue: ThemeLineHeight.normal.value)
-    }
-
-    private var lineHeightSourceBinding: Binding<String> {
-        Binding(
-            get: { lineHeightValue.source },
-            set: { source in
-                var lineHeight = lineHeightValue
-                lineHeight.source = source
-                value = .packageLineHeight(lineHeight)
-            }
-        )
-    }
-
-    private var lineHeightCustomBinding: Binding<Double> {
-        Binding(
-            get: { lineHeightValue.customValue },
-            set: { customValue in
-                var lineHeight = lineHeightValue
-                lineHeight.customValue = customValue
-                value = .packageLineHeight(lineHeight)
             }
         )
     }
@@ -1197,6 +1115,7 @@ private struct PackageThemeValueGridEditor: View {
     let choices: [ComponentPropertyChoice]
     @Binding var source: String
     @Binding var customValue: String
+    @Binding var customLineHeight: String
     let indicator: InspectorRowIndicator
 
     var body: some View {
@@ -1211,12 +1130,15 @@ private struct PackageThemeValueGridEditor: View {
             }
         }
 
-        if source == "custom" || choices.isEmpty {
+        if ComponentThemeValueSelection.isManualCustom(source, themeChoices: choices) || choices.isEmpty {
             InspectorRow(
-                title: choices.isEmpty ? label : "Custom value",
+                title: "Size",
                 indicator: choices.isEmpty ? indicator : nil
             ) {
-                InspectorTextField(text: $customValue, accessibilityLabel: choices.isEmpty ? label : "Custom value")
+                InspectorTextField(text: $customValue, accessibilityLabel: "Size")
+            }
+            InspectorRow(title: "Line Height") {
+                InspectorTextField(text: $customLineHeight, accessibilityLabel: "Line Height")
             }
         }
     }
@@ -1224,7 +1146,11 @@ private struct PackageThemeValueGridEditor: View {
     private var popupOptions: [InspectorPopupOption<String>] {
         choices.map {
             InspectorPopupOption(title: $0.label, value: $0.value, separatorBefore: $0.separatorBefore)
-        } + [InspectorPopupOption(title: "Custom", value: "custom", separatorBefore: !choices.isEmpty)]
+        } + [InspectorPopupOption(
+            title: "Custom",
+            value: ComponentThemeValueSelection.manualCustom,
+            separatorBefore: !choices.isEmpty
+        )]
     }
 }
 
@@ -1294,53 +1220,15 @@ private struct PackageSpacingControlEditor: View {
         if kind.permitsAuto {
             options.append(.init(title: "Auto", value: "auto"))
         }
-        options.append(.init(title: "Custom", value: "custom", separatorBefore: true))
+        options.append(.init(
+            title: "Custom",
+            value: ComponentThemeValueSelection.manualCustom,
+            separatorBefore: true
+        ))
         if !options.contains(where: { $0.value == source }) {
             options.insert(.init(title: "Missing Theme Spacing", value: source), at: 0)
         }
         return options
-    }
-}
-
-private struct PackageLineHeightControlEditor: View {
-    let label: String
-    let choices: [ComponentPropertyChoice]
-    @Binding var source: String
-    @Binding var customValue: Double
-    let indicator: InspectorRowIndicator
-
-    var body: some View {
-        Group {
-            InspectorRow(title: label, indicator: indicator) {
-                InspectorPopup(
-                    selection: $source,
-                    options: choices.map {
-                        .init(title: $0.label, value: $0.value, separatorBefore: $0.separatorBefore)
-                    } + [.init(title: "Custom", value: "custom", separatorBefore: true)],
-                    accessibilityLabel: label,
-                    help: label
-                )
-            }
-            if source == "custom" {
-                InspectorRow(title: "Line height") {
-                    HStack(spacing: 4) {
-                        InspectorNumberField(
-                            value: $customValue,
-                            range: 0...10,
-                            step: 0.05,
-                            accessibilityLabel: "Custom line height",
-                            help: "A unitless CSS line-height value"
-                        )
-                        InspectorStepper(
-                            value: $customValue,
-                            range: 0...10,
-                            increment: 0.05,
-                            accessibilityLabel: "Custom line height"
-                        )
-                    }
-                }
-            }
-        }
     }
 }
 
@@ -1362,13 +1250,17 @@ private struct PackageColorControlEditor: View {
                         selection: $source,
                         options: choices.map {
                             .init(title: $0.label, value: $0.value, separatorBefore: $0.separatorBefore)
-                        } + [InspectorPopupOption(title: "Custom", value: "custom", separatorBefore: !choices.isEmpty)],
+                        } + [InspectorPopupOption(
+                            title: "Custom",
+                            value: ComponentThemeValueSelection.manualCustom,
+                            separatorBefore: !choices.isEmpty
+                        )],
                         accessibilityLabel: label,
                         help: label
                     )
                 }
             }
-            if source == "custom" || choices.isEmpty {
+            if ComponentThemeValueSelection.isManualCustom(source, themeChoices: choices) || choices.isEmpty {
                 InspectorRow(
                     title: choices.isEmpty ? label : "Colour",
                     alignment: .center,

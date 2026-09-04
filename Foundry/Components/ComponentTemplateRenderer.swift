@@ -9,6 +9,7 @@ nonisolated struct ComponentTemplateContext: Sendable {
     let componentAttributes: String
     let assetBasePath: String
     let enablesEditorMarkup: Bool
+    let isCanvas: Bool
     let richTextLinkContext: FoundryRichTextCodec.LinkContext?
 
     init(
@@ -20,6 +21,7 @@ nonisolated struct ComponentTemplateContext: Sendable {
         componentAttributes: String = "",
         assetBasePath: String = "",
         enablesEditorMarkup: Bool = false,
+        isCanvas: Bool = false,
         richTextLinkContext: FoundryRichTextCodec.LinkContext? = nil
     ) {
         self.instanceID = instanceID
@@ -30,6 +32,7 @@ nonisolated struct ComponentTemplateContext: Sendable {
         self.componentAttributes = componentAttributes
         self.assetBasePath = assetBasePath
         self.enablesEditorMarkup = enablesEditorMarkup
+        self.isCanvas = isCanvas
         self.richTextLinkContext = richTextLinkContext
     }
 }
@@ -258,9 +261,8 @@ nonisolated enum ComponentTemplateRenderer {
             guard isSafeRelativePath(path) else { return "" }
             return escapeAttribute(join(context.assetBasePath, path))
         }
-        let prefix = key.hasPrefix("control.") ? "control." : "property."
-        guard key.hasPrefix(prefix) else { return "" }
-        let reference = String(key.dropFirst(prefix.count))
+        guard key.hasPrefix("control.") else { return "" }
+        let reference = String(key.dropFirst("control.".count))
         let value: ComponentPackageValue
         if let bracket = reference.lastIndex(of: "["), reference.hasSuffix("]"),
            let index = Int(reference[reference.index(after: bracket)..<reference.index(before: reference.endIndex)]),
@@ -335,29 +337,55 @@ nonisolated enum ComponentTemplateRenderer {
     }
 
     private static func renderConditions(in template: String, context: ComponentTemplateContext) -> String {
-        let expression = try! NSRegularExpression(
-            pattern: #"\{\{\s*if\s+property\.([A-Za-z][A-Za-z0-9_.-]*)(?:\s*==\s*[\"']([^\"']*)[\"'])?\s*\}\}([\s\S]*?)(?:\{\{\s*else\s*\}\}([\s\S]*?))?\{\{\s*endif\s*\}\}"#
+        let blockExpression = try! NSRegularExpression(
+            pattern: #"\{\{\s*if\s+([^{}]+?)\s*\}\}([\s\S]*?)\{\{\s*endif\s*\}\}"#
+        )
+        let branchExpression = try! NSRegularExpression(
+            pattern: #"\{\{\s*(elseif\s+([^{}]+?)|else)\s*\}\}"#
         )
         var result = template
         var remainingPasses = 100
-        while let match = expression.firstMatch(in: result, range: NSRange(result.startIndex..., in: result)),
+        while let match = blockExpression.firstMatch(in: result, range: NSRange(result.startIndex..., in: result)),
               let wholeRange = Range(match.range(at: 0), in: result),
-              let keyRange = Range(match.range(at: 1), in: result),
-              let bodyRange = Range(match.range(at: 3), in: result),
+              let conditionRange = Range(match.range(at: 1), in: result),
+              let bodyRange = Range(match.range(at: 2), in: result),
               remainingPasses > 0 {
             remainingPasses -= 1
-            let key = String(result[keyRange])
-            let truthyBody = String(result[bodyRange])
-            let falseyBody = Range(match.range(at: 4), in: result).map { String(result[$0]) } ?? ""
-            let condition: Bool
-            if let expectedRange = Range(match.range(at: 2), in: result) {
-                condition = stringValue(context.properties[key]) == String(result[expectedRange])
-            } else {
-                condition = isTruthy(context.properties[key])
+            let firstCondition = String(result[conditionRange])
+            let body = String(result[bodyRange])
+            let matches = branchExpression.matches(in: body, range: NSRange(body.startIndex..., in: body))
+            var branches: [(condition: String?, body: String)] = []
+            var condition: String? = firstCondition
+            var start = body.startIndex
+            for branchMatch in matches {
+                guard let tagRange = Range(branchMatch.range(at: 0), in: body) else { continue }
+                branches.append((condition, String(body[start..<tagRange.lowerBound])))
+                condition = Range(branchMatch.range(at: 2), in: body).map { String(body[$0]) }
+                start = tagRange.upperBound
             }
-            result.replaceSubrange(wholeRange, with: condition ? truthyBody : falseyBody)
+            branches.append((condition, String(body[start...])))
+            let replacement = branches.first { branch in
+                guard let condition = branch.condition else { return true }
+                return conditionIsTrue(condition, context: context)
+            }?.body ?? ""
+            result.replaceSubrange(wholeRange, with: replacement)
         }
         return result
+    }
+
+    private static func conditionIsTrue(_ expression: String, context: ComponentTemplateContext) -> Bool {
+        let expression = expression.trimmingCharacters(in: .whitespacesAndNewlines)
+        if expression == "canvas" { return context.isCanvas }
+        let pattern = try! NSRegularExpression(
+            pattern: #"^control\.([A-Za-z][A-Za-z0-9_.-]*)(?:\s*==\s*[\"']([^\"']*)[\"'])?$"#
+        )
+        guard let match = pattern.firstMatch(in: expression, range: NSRange(expression.startIndex..., in: expression)),
+              let keyRange = Range(match.range(at: 1), in: expression) else { return false }
+        let value = context.properties[String(expression[keyRange])]
+        if let expectedRange = Range(match.range(at: 2), in: expression) {
+            return stringValue(value) == String(expression[expectedRange])
+        }
+        return isTruthy(value)
     }
 
     private static func renderSlots(in template: String, context: ComponentTemplateContext) -> String {
