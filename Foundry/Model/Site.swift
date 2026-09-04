@@ -255,45 +255,39 @@ nonisolated struct Site: Codable, Equatable, Identifiable, Sendable {
         id = try container.decode(UUID.self, forKey: .id)
         schemaVersion = try container.decode(Int.self, forKey: .schemaVersion)
         name = try container.decode(String.self, forKey: .name)
-        language = try container.decodeIfPresent(String.self, forKey: .language) ?? "en"
-        publicURL = try container.decodeIfPresent(String.self, forKey: .publicURL) ?? ""
-        titleSuffix = try container.decodeIfPresent(String.self, forKey: .titleSuffix) ?? ""
-        defaultDescription = try container.decodeIfPresent(String.self, forKey: .defaultDescription) ?? ""
-        favicon = try container.decodeIfPresent(String.self, forKey: .favicon) ?? ""
-        defaultSocialImage = try container.decodeIfPresent(String.self, forKey: .defaultSocialImage) ?? ""
-        generatesCanonicalURLs = try container.decodeIfPresent(Bool.self, forKey: .generatesCanonicalURLs) ?? true
-        generatesSitemap = try container.decodeIfPresent(Bool.self, forKey: .generatesSitemap) ?? true
-        generatesRobotsTXT = try container.decodeIfPresent(Bool.self, forKey: .generatesRobotsTXT) ?? true
-        allowsSearchIndexing = try container.decodeIfPresent(Bool.self, forKey: .allowsSearchIndexing) ?? true
-        customCodeEnabled = try container.decodeIfPresent(Bool.self, forKey: .customCodeEnabled) ?? true
-        headCode = try container.decodeIfPresent(String.self, forKey: .headCode) ?? ""
-        bodyStartCode = try container.decodeIfPresent(String.self, forKey: .bodyStartCode) ?? ""
-        bodyEndCode = try container.decodeIfPresent(String.self, forKey: .bodyEndCode) ?? ""
-        analyticsCode = try container.decodeIfPresent(String.self, forKey: .analyticsCode) ?? ""
-        cleansObsoleteExportFiles = try container.decodeIfPresent(Bool.self, forKey: .cleansObsoleteExportFiles) ?? true
-        publishingDestination = try container.decodeIfPresent(PublishingDestinationKind.self, forKey: .publishingDestination) ?? .local
-        publishingHost = try container.decodeIfPresent(String.self, forKey: .publishingHost) ?? ""
-        publishingPort = try container.decodeIfPresent(Int.self, forKey: .publishingPort) ?? 0
-        publishingUsername = try container.decodeIfPresent(String.self, forKey: .publishingUsername) ?? ""
-        publishingRemotePath = try container.decodeIfPresent(String.self, forKey: .publishingRemotePath) ?? "/"
-        publishingS3Bucket = try container.decodeIfPresent(String.self, forKey: .publishingS3Bucket) ?? ""
-        publishingS3Region = try container.decodeIfPresent(String.self, forKey: .publishingS3Region) ?? "us-east-1"
+        language = try container.decode(String.self, forKey: .language)
+        publicURL = try container.decode(String.self, forKey: .publicURL)
+        titleSuffix = try container.decode(String.self, forKey: .titleSuffix)
+        defaultDescription = try container.decode(String.self, forKey: .defaultDescription)
+        favicon = try container.decode(String.self, forKey: .favicon)
+        defaultSocialImage = try container.decode(String.self, forKey: .defaultSocialImage)
+        generatesCanonicalURLs = try container.decode(Bool.self, forKey: .generatesCanonicalURLs)
+        generatesSitemap = try container.decode(Bool.self, forKey: .generatesSitemap)
+        generatesRobotsTXT = try container.decode(Bool.self, forKey: .generatesRobotsTXT)
+        allowsSearchIndexing = try container.decode(Bool.self, forKey: .allowsSearchIndexing)
+        customCodeEnabled = try container.decode(Bool.self, forKey: .customCodeEnabled)
+        headCode = try container.decode(String.self, forKey: .headCode)
+        bodyStartCode = try container.decode(String.self, forKey: .bodyStartCode)
+        bodyEndCode = try container.decode(String.self, forKey: .bodyEndCode)
+        analyticsCode = try container.decode(String.self, forKey: .analyticsCode)
+        cleansObsoleteExportFiles = try container.decode(Bool.self, forKey: .cleansObsoleteExportFiles)
+        publishingDestination = try container.decode(PublishingDestinationKind.self, forKey: .publishingDestination)
+        publishingHost = try container.decode(String.self, forKey: .publishingHost)
+        publishingPort = try container.decode(Int.self, forKey: .publishingPort)
+        publishingUsername = try container.decode(String.self, forKey: .publishingUsername)
+        publishingRemotePath = try container.decode(String.self, forKey: .publishingRemotePath)
+        publishingS3Bucket = try container.decode(String.self, forKey: .publishingS3Bucket)
+        publishingS3Region = try container.decode(String.self, forKey: .publishingS3Region)
         pages = try container.decode([Page].self, forKey: .pages)
-        pageFolders = try container.decodeIfPresent([PageFolder].self, forKey: .pageFolders) ?? []
+        pageFolders = try container.decode([PageFolder].self, forKey: .pageFolders)
         theme = try container.decode(Theme.self, forKey: .theme)
         themeSourceID = try container.decode(UUID.self, forKey: .themeSourceID)
         projectThemeValues = try container.decode(ProjectThemeValues.self, forKey: .projectThemeValues)
         themeStates = try container.decode([ProjectThemeState].self, forKey: .themeStates)
-        reusableComponents = try container.decodeIfPresent(
-            [ReusableComponentDefinition].self,
-            forKey: .reusableComponents
-        ) ?? []
-        globalComponents = try container.decodeIfPresent(
-            [ReusableComponentDefinition].self,
-            forKey: .globalComponents
-        ) ?? []
-        assetLibrary = try container.decodeIfPresent([ProjectAssetNode].self, forKey: .assetLibrary) ?? []
-        componentPackages = try container.decodeIfPresent([ComponentPackageLock].self, forKey: .componentPackages) ?? []
+        reusableComponents = try container.decode([ReusableComponentDefinition].self, forKey: .reusableComponents)
+        globalComponents = try container.decode([ReusableComponentDefinition].self, forKey: .globalComponents)
+        assetLibrary = try container.decode([ProjectAssetNode].self, forKey: .assetLibrary)
+        componentPackages = try container.decode([ComponentPackageLock].self, forKey: .componentPackages)
     }
 
     static func starter() -> Site {

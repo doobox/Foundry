@@ -102,12 +102,12 @@ struct ComponentDefinitionTests {
         var text = ComponentNode.make(.paragraph)
         var button = ComponentNode.make(.button)
         container.setProperty(.padding, value: .packageSpacing(.init(
-            sources: ["custom", "custom", "custom", "custom"],
+            sources: Array(repeating: ComponentThemeValueSelection.manualCustom, count: 4),
             customValues: [24, 24, 24, 24]
         )))
         container.setProperty(.borderWidth, value: .number(2))
         container.setProperty(.borderColor, value: .packageColor(.init(
-            source: "custom",
+            source: ComponentThemeValueSelection.manualCustom,
             customColor: "#ABCDEF",
             adjustment: 0,
             opacity: 1
@@ -172,7 +172,7 @@ struct ComponentDefinitionTests {
 
     @Test
     func styleEditParticipatesInUndoAndRedo() throws {
-        let document = FoundryDocument()
+        let document = TestSiteFixtures.populatedDocument()
         let undoManager = UndoManager()
         let editor = ProjectEditor(document: document, undoManager: undoManager)
         let component = try #require(document.site.pages.first?.components.first)

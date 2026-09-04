@@ -2,19 +2,14 @@ import Foundation
 
 nonisolated enum ComponentThemeValueSelection {
     static let manualCustom = "foundry:manual-custom"
-    static let legacyManualCustom = "custom"
+    static let manifestCustom = "custom"
 
-    static func isManualCustom(
-        _ source: String,
-        themeChoices: [ComponentPropertyChoice] = []
-    ) -> Bool {
-        source == manualCustom || (
-            source == legacyManualCustom && !themeChoices.contains { $0.value == source }
-        )
+    static func isManualCustom(_ source: String) -> Bool {
+        source == manualCustom
     }
 
-    static func normalizedManifestSource(_ source: String) -> String {
-        source == legacyManualCustom ? manualCustom : source
+    static func storedSource(forManifestValue source: String) -> String {
+        source == manifestCustom ? manualCustom : source
     }
 }
 

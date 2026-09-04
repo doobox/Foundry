@@ -77,11 +77,11 @@
 <p>The index must refer to an item declared by the control’s <code>count</code>. See <a href="control-arrays.html">Control arrays</a>.</p>
 </section>
 <h2>Conditions</h2>
-<p>Conditionals use control values or the canvas environment flag. A Boolean, non-zero number, non-empty String or non-empty array is truthy. A control value may also be compared with a String.</p>
+<p>Use an expression after <code>if</code> or <code>elseif</code>. Expressions can combine control values, numbers, quoted Strings, Booleans and the <code>canvas</code> environment value.</p>
 <pre>
 <code>{{ if control.featured }}
     &lt;span class="badge"&gt;Featured&lt;/span&gt;
-{{ elseif control.status == "draft" }}
+{{ elseif control.status == "draft" &amp;&amp; control.score &gt;= 10 }}
     &lt;span class="badge draft"&gt;Draft&lt;/span&gt;
 {{ else }}
     &lt;span class="badge muted"&gt;Standard&lt;/span&gt;
@@ -90,6 +90,26 @@
 {{ if canvas }}Shown only inside Foundry’s canvas{{ endif }}</code>
 </pre>
 <p><code>canvas</code> is true in Foundry’s editing canvas and false in published output. Each <code>if</code> requires one <code>endif</code>, may contain any number of <code>elseif</code> branches, and accepts at most one final <code>else</code>.</p>
+<section class="reference-entry">
+<h3>Expression operators</h3>
+<p>Use <code>!</code> for not, <code>&amp;&amp;</code> for and, and <code>||</code> for or. Foundry does not accept word aliases such as <code>and</code>, <code>or</code> or <code>not</code>.</p>
+<pre>
+<code>{{ if control.text == "xxxx" &amp;&amp; control.number == (control.otherNumber + 32) }}
+    ...
+{{ endif }}</code>
+</pre>
+<p>Operators are evaluated in this order: parentheses; unary <code>!</code> and <code>-</code>; <code>*</code>, <code>/</code> and <code>%</code>; <code>+</code> and <code>-</code>; <code>&lt;</code>, <code>&lt;=</code>, <code>&gt;</code> and <code>&gt;=</code>; <code>==</code> and <code>!=</code>; <code>&amp;&amp;</code>; then <code>||</code>. Operators at the same level run from left to right.</p>
+<p>Arithmetic and ordered comparisons require numbers. Equality compares like-for-like values. A Boolean, non-zero number, non-empty String or non-empty array is truthy. An invalid expression, including division or remainder by zero, produces no output and is false when used as a condition.</p>
+</section>
+<section class="reference-entry">
+<h3>Inline calculations</h3>
+<p>The same expression syntax works directly inside an output tag.</p>
+<pre>
+<code>width: {{ control.columns * control.columnWidth }}px;
+padding: {{ max(control.minimumPadding, control.padding) }}px;</code>
+</pre>
+<p>Available numeric functions are <code>abs(value)</code>, <code>round(value)</code>, <code>floor(value)</code>, <code>ceil(value)</code>, <code>min(a, b)</code>, <code>max(a, b)</code> and <code>clamp(value, minimum, maximum)</code>.</p>
+</section>
 <h2>Component hooks</h2>
 <dl class="syntax-list">
 <dt>

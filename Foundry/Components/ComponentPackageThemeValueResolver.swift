@@ -39,10 +39,7 @@ nonisolated enum ComponentPackageThemeValueResolver {
         theme: Theme
     ) -> String {
         guard usesThemeValues,
-              !ComponentThemeValueSelection.isManualCustom(
-                value.source,
-                themeChoices: theme.fontSizeChoices
-              ) else {
+              !ComponentThemeValueSelection.isManualCustom(value.source) else {
             return validCustomLineHeight(value.customLineHeight) ?? "1.5"
         }
         return theme.lineHeightCSSVariable(for: value.source)

@@ -4,11 +4,6 @@ import Testing
 struct AppPreferencesTests {
     @Test
     func previewDefaultsToTheUsersDefaultBrowser() {
-        #expect(PreviewApplicationSelection.systemDefault == "defaultBrowser")
-    }
-
-    @Test
-    func preferenceKeyRemainsStableAcrossThePickerUpgrade() {
-        #expect(AppPreferenceKey.previewApplication == "preview.destination")
+        #expect(PreviewApplicationSelection.systemDefault == "systemDefault")
     }
 }

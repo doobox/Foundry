@@ -87,7 +87,7 @@ struct PageEditingTests {
 
     @Test
     func duplicatesPageWithFreshTreeIdentifiers() throws {
-        let document = FoundryDocument()
+        let document = TestSiteFixtures.populatedDocument()
         let editor = ProjectEditor(document: document, undoManager: nil)
         let source = try #require(document.site.pages.first)
         let sourceComponent = try #require(source.components.first)

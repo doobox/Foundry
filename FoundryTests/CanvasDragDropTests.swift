@@ -143,7 +143,7 @@ struct CanvasInsertionEditingTests {
 
     @Test
     func libraryInsertionSupportsInsideAfterAndRootPlacements() throws {
-        let document = FoundryDocument()
+        let document = TestSiteFixtures.populatedDocument()
         let editor = ProjectEditor(document: document, undoManager: nil)
         let page = try #require(document.site.pages.first)
         let container = try #require(page.components.first)

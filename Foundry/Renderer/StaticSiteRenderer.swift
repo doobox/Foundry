@@ -627,10 +627,7 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
             }
             if case .packageFontSize(let themeValues) = definition.control,
                case .packageFontSize(let fontSizeValue) = value {
-                let resolved = !themeValues || ComponentThemeValueSelection.isManualCustom(
-                    fontSizeValue.source,
-                    themeChoices: theme.fontSizeChoices
-                )
+                let resolved = !themeValues || ComponentThemeValueSelection.isManualCustom(fontSizeValue.source)
                     ? fontSizeValue.customValue : theme.fontSizeCSSVariable(for: fontSizeValue.source)
                 return (definition.key.rawValue, .string(resolved))
             }

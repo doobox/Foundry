@@ -45,8 +45,7 @@ nonisolated enum CanvasBackgroundPreference {
 }
 
 nonisolated enum PreviewApplicationSelection {
-    // Retain the original stored value so existing preferences migrate without work.
-    static let systemDefault = "defaultBrowser"
+    static let systemDefault = "systemDefault"
 }
 
 @MainActor

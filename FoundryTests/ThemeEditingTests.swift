@@ -40,32 +40,15 @@ struct ThemeEditingTests {
         let secondID = editor.addThemeFontSize()
 
         #expect(firstID != ComponentThemeValueSelection.manualCustom)
-        #expect(firstID != ComponentThemeValueSelection.legacyManualCustom)
+        #expect(firstID != ComponentThemeValueSelection.manifestCustom)
         #expect(secondID != firstID)
         #expect(document.site.theme.typography.customFontSizes.contains { $0.id == firstID })
-        #expect(ComponentThemeValueSelection.isManualCustom(
-            ComponentThemeValueSelection.manualCustom,
-            themeChoices: document.site.theme.fontSizeChoices
-        ))
-    }
-
-    @Test
-    func legacyCustomFontSizeIDIsTreatedAsAThemeChoiceWhenPresent() {
-        var theme = Theme.standard
-        theme.typography.customFontSizes.append(
-            .init(id: "custom", title: "Legacy Custom", size: 2, lineHeight: 1.5)
-        )
-
-        #expect(!ComponentThemeValueSelection.isManualCustom(
-            "custom",
-            themeChoices: theme.fontSizeChoices
-        ))
-        #expect(theme.fontSizeCSSVariable(for: "custom") == "var(--foundry-font-size-custom)")
+        #expect(ComponentThemeValueSelection.isManualCustom(ComponentThemeValueSelection.manualCustom))
     }
 
     @Test
     func designTokenReferencesRoundTripThroughProjectJSON() throws {
-        var site = Site.starter()
+        var site = TestSiteFixtures.populatedSite()
         let componentID = try #require(site.pages.first?.components.first?.id)
         site.updateComponent(id: componentID) {
             $0.setProperty(.backgroundColor, value: .token(.accentColor))
@@ -104,14 +87,6 @@ struct ThemeEditingTests {
         #expect(html.contains("padding: var(--foundry-space-lg) var(--foundry-space-lg) var(--foundry-space-lg) var(--foundry-space-lg)"))
     }
 
-    @Test
-    func legacyThemeColorsUseAccentForLinks() throws {
-        let data = Data("{\"background\":\"#FFFFFF\",\"surface\":\"#EEEEEE\",\"text\":\"#111111\",\"accent\":\"#123ABC\"}".utf8)
-        let colors = try JSONDecoder().decode(ColorTokens.self, from: data)
-
-        #expect(colors.links == "#123ABC")
-    }
-
     @Test @MainActor
     func paragraphColorAppliesPickerOpacityOnlyToCustomColors() {
         _ = ComponentPackageCatalog.shared
@@ -131,7 +106,7 @@ struct ThemeEditingTests {
         #expect(!themedHTML.contains("color: rgb("))
 
         paragraph.setProperty(.init(rawValue: "textColor"), value: .packageColor(.init(
-            source: "custom",
+            source: ComponentThemeValueSelection.manualCustom,
             customColor: "#123456",
             adjustment: 0,
             opacity: 0.5
@@ -182,23 +157,6 @@ struct ThemeEditingTests {
         #expect(document.site.theme.spacing.custom.isEmpty)
         undoManager.undo()
         #expect(document.site.theme.spacing.custom == [spacing])
-    }
-
-    @Test
-    func incompleteSpacingScaleGetsNewPredefinedDefaults() throws {
-        let data = Data(#"{"large":32}"#.utf8)
-        let spacing = try JSONDecoder().decode(SpacingTokens.self, from: data)
-
-        #expect(spacing.threeExtraSmall == 1)
-        #expect(spacing.doubleExtraSmall == 2)
-        #expect(spacing.extraSmall == 3)
-        #expect(spacing.small == 4)
-        #expect(spacing.medium == 6)
-        #expect(spacing.large == 32)
-        #expect(spacing.extraLarge == 12)
-        #expect(spacing.doubleExtraLarge == 16)
-        #expect(spacing.threeExtraLarge == 24)
-        #expect(spacing.custom.isEmpty)
     }
 
     @Test
@@ -260,9 +218,9 @@ struct ThemeEditingTests {
         #expect(screens.canvasWidth(for: screens.screen(.medium)) == 800)
         #expect(screens.activeScreen(for: 799).id == .mobile)
         #expect(screens.activeScreen(for: 800).id == .medium)
-        #expect(screens.enabledScreens.map(\.id).contains(.extraLarge) == false)
-        #expect(screens.enabledScreens.map(\.id).contains(.doubleExtraLarge) == false)
-        #expect(screens.activeScreen(for: 1_600).id == .large)
+        #expect(screens.enabledScreens.map(\.id).contains(.extraLarge))
+        #expect(screens.enabledScreens.map(\.id).contains(.doubleExtraLarge))
+        #expect(screens.activeScreen(for: 1_600).id == .doubleExtraLarge)
     }
 
     @Test
@@ -310,9 +268,8 @@ struct ThemeEditingTests {
 
         #expect(systemTheme.isBuiltIn)
         #expect(systemTheme.metadata.name == "System UI")
-        #expect(systemTheme.theme == Theme.standard)
+        #expect(systemTheme.theme == ThemeBundleStore.systemTheme)
         #expect(systemTheme.metadata.previewFilename == "preview.png")
-        #expect(ThemeBundleStore.systemTheme == Theme.standard)
     }
 
     @Test

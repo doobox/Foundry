@@ -396,29 +396,6 @@ nonisolated struct ThemeFontSize: Codable, Equatable, Identifiable, Sendable {
     var lineHeight: Double
 }
 
-nonisolated enum ThemeLineHeight: String, Codable, CaseIterable, Identifiable, Sendable {
-    case none
-    case tight
-    case snug
-    case normal
-    case relaxed
-    case loose
-
-    var id: String { rawValue }
-    var title: String { rawValue.capitalized }
-
-    var value: Double {
-        switch self {
-        case .none: 1
-        case .tight: 1.25
-        case .snug: 1.375
-        case .normal: 1.5
-        case .relaxed: 1.625
-        case .loose: 2
-        }
-    }
-}
-
 nonisolated struct ThemeCustomFont: Codable, Equatable, Identifiable, Sendable {
     let id: UUID
     var name: String
@@ -543,15 +520,6 @@ nonisolated extension Theme {
                 value: size.id,
                 label: "\(size.title) — \(size.size.formatted()) rem (\(pixels) px)",
                 separatorBefore: index == TypographyTokens.standardFontSizes.count && !typography.customFontSizes.isEmpty
-            )
-        }
-    }
-
-    var lineHeightChoices: [ComponentPropertyChoice] {
-        ThemeLineHeight.allCases.map {
-            .init(
-                value: $0.rawValue,
-                label: "\($0.title) — \($0.value.formatted(.number.precision(.fractionLength(0...3))))"
             )
         }
     }

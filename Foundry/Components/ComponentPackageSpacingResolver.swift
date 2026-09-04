@@ -23,8 +23,7 @@ nonisolated enum ComponentPackageSpacingResolver {
                 return "0"
             case "auto" where kind.permitsAuto:
                 return "auto"
-            case ComponentThemeValueSelection.manualCustom,
-                 ComponentThemeValueSelection.legacyManualCustom:
+            case ComponentThemeValueSelection.manualCustom:
                 let lowerBound = kind == .padding ? 0 : -10_000
                 let value = min(max(customValue, Double(lowerBound)), 10_000)
                 return "\(cssNumber(value))px"

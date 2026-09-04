@@ -1130,7 +1130,7 @@ private struct PackageThemeValueGridEditor: View {
             }
         }
 
-        if ComponentThemeValueSelection.isManualCustom(source, themeChoices: choices) || choices.isEmpty {
+        if ComponentThemeValueSelection.isManualCustom(source) || choices.isEmpty {
             InspectorRow(
                 title: "Size",
                 indicator: choices.isEmpty ? indicator : nil
@@ -1260,7 +1260,7 @@ private struct PackageColorControlEditor: View {
                     )
                 }
             }
-            if ComponentThemeValueSelection.isManualCustom(source, themeChoices: choices) || choices.isEmpty {
+            if ComponentThemeValueSelection.isManualCustom(source) || choices.isEmpty {
                 InspectorRow(
                     title: choices.isEmpty ? label : "Colour",
                     alignment: .center,

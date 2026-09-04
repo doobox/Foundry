@@ -6,7 +6,7 @@ import Testing
 struct DocumentCodingTests {
     @Test
     func responsiveOverridesRoundTripWithoutDuplicatingBaseProperties() throws {
-        var site = Site.starter()
+        var site = TestSiteFixtures.populatedSite()
         let componentID = try #require(site.pages.first?.components.first?.id)
         site.updateComponent(id: componentID) {
             $0.setResponsiveProperty(.padding, value: .number(6), at: .mobile)
@@ -32,48 +32,6 @@ struct DocumentCodingTests {
         #expect(decoded == original)
         #expect(decoded.pages.first?.components.first?.id ==
                 original.pages.first?.components.first?.id)
-    }
-
-    @Test
-    func olderProjectsDecodeWithMetadataDefaults() throws {
-        let encoded = try FoundryDocument.encoder.encode(Site.starter())
-        var object = try #require(JSONSerialization.jsonObject(with: encoded) as? [String: Any])
-        object.removeValue(forKey: "language")
-        object.removeValue(forKey: "titleSuffix")
-        object.removeValue(forKey: "defaultDescription")
-        object.removeValue(forKey: "favicon")
-        object.removeValue(forKey: "defaultSocialImage")
-        object.removeValue(forKey: "generatesCanonicalURLs")
-        object.removeValue(forKey: "generatesSitemap")
-        object.removeValue(forKey: "generatesRobotsTXT")
-        object.removeValue(forKey: "allowsSearchIndexing")
-        object.removeValue(forKey: "customCodeEnabled")
-        object.removeValue(forKey: "headCode")
-        object.removeValue(forKey: "bodyStartCode")
-        object.removeValue(forKey: "bodyEndCode")
-        object.removeValue(forKey: "analyticsCode")
-        var pages = try #require(object["pages"] as? [[String: Any]])
-        pages[0].removeValue(forKey: "metadata")
-        object["pages"] = pages
-
-        let data = try JSONSerialization.data(withJSONObject: object)
-        let decoded = try FoundryDocument.decoder.decode(Site.self, from: data)
-
-        #expect(decoded.language == "en")
-        #expect(decoded.titleSuffix.isEmpty)
-        #expect(decoded.defaultDescription.isEmpty)
-        #expect(decoded.favicon.isEmpty)
-        #expect(decoded.defaultSocialImage.isEmpty)
-        #expect(decoded.generatesCanonicalURLs)
-        #expect(decoded.generatesSitemap)
-        #expect(decoded.generatesRobotsTXT)
-        #expect(decoded.allowsSearchIndexing)
-        #expect(decoded.customCodeEnabled)
-        #expect(decoded.headCode.isEmpty)
-        #expect(decoded.bodyStartCode.isEmpty)
-        #expect(decoded.bodyEndCode.isEmpty)
-        #expect(decoded.analyticsCode.isEmpty)
-        #expect(decoded.pages.first?.metadata == PageMetadata())
     }
 
     @Test

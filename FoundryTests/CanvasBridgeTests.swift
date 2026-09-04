@@ -72,7 +72,7 @@ struct CanvasBridgeTests {
 
     @Test @MainActor
     func rendererEmitsStableIdentityForEveryComponent() {
-        let page = Site.starter().pages[0]
+        let page = TestSiteFixtures.populatedSite().pages[0]
         let html = HTMLPageRenderer().render(page: page, theme: .standard)
         let componentIDs = flattened(page.components).map(\.id.uuidString)
 

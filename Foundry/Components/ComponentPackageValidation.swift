@@ -236,18 +236,6 @@ nonisolated enum ComponentPackageValidator {
             ))
         }
 
-        for reference in template.references(matching: #"\{\{\s*control\.([A-Za-z][A-Za-z0-9_-]*)"#) +
-            template.references(matching: #"\{\{\s*(?:if|elseif)\s+control\.([A-Za-z][A-Za-z0-9_-]*)"#) {
-            if !propertyIDs.contains(reference.value) {
-                diagnostics.append(templateDiagnostic(
-                    templateLocation,
-                    template: template,
-                    offset: reference.offset,
-                    message: "Unknown property '\(reference.value)'. Declare it in Info.plist customItems."
-                ))
-            }
-        }
-
         let supportedFilters: Set<String> = ["lighten", "darken"]
         for reference in template.references(matching: #"\|\s*([A-Za-z][A-Za-z0-9_-]*)\s*\("#)
             where !supportedFilters.contains(reference.value) {
@@ -334,19 +322,63 @@ nonisolated enum ComponentPackageValidator {
 
         for reference in template.references(matching: #"\{\{\s*(?:if|elseif)\s+([^{}]+?)\s*\}\}"#) {
             let condition = reference.value.trimmingCharacters(in: .whitespacesAndNewlines)
-            if condition != "canvas" && !condition.matches(#"^control\.[A-Za-z][A-Za-z0-9_.-]*(?:\s*==\s*[\"'][^\"']*[\"'])?$"#) {
+            do {
+                let expression = try ComponentTemplateExpression.parse(condition)
+                try ComponentTemplateExpression.validate(expression)
+                for propertyID in Set(ComponentTemplateExpression.references(in: expression)) where !propertyIDs.contains(propertyID) {
+                    diagnostics.append(templateDiagnostic(
+                        templateLocation,
+                        template: template,
+                        offset: reference.offset,
+                        message: "Unknown property '\(propertyID)'. Declare it in Info.plist customItems."
+                    ))
+                }
+            } catch {
                 diagnostics.append(templateDiagnostic(
                     templateLocation,
                     template: template,
                     offset: reference.offset,
-                    message: "A condition must be canvas or a control value, optionally compared with a String."
+                    message: "Invalid condition: \(error)"
+                ))
+            }
+        }
+
+        let interpolationExpression = try! NSRegularExpression(pattern: #"\{\{\s*([^{}]+?)\s*\}\}"#)
+        for match in interpolationExpression.matches(in: template, range: NSRange(template.startIndex..., in: template)) {
+            guard let sourceRange = Range(match.range(at: 1), in: template) else { continue }
+            let source = String(template[sourceRange]).trimmingCharacters(in: .whitespacesAndNewlines)
+            if source.hasPrefix("if ") || source.hasPrefix("elseif ") || source == "else" || source == "endif" ||
+                source.hasPrefix("slot ") || source.hasPrefix("text ") || source.hasPrefix("text=") ||
+                source.hasPrefix("html ") || source.hasPrefix("html=") ||
+                ["text", "html", "image", "id", "instance.id", "instance.uuid", "package.id", "component.class", "component.attributes"].contains(source) ||
+                source.hasPrefix("asset.") {
+                continue
+            }
+            let expressionSource = ComponentTemplateExpression.templateParts(source).first ?? source
+            do {
+                let expression = try ComponentTemplateExpression.parse(expressionSource)
+                try ComponentTemplateExpression.validate(expression)
+                for propertyID in Set(ComponentTemplateExpression.references(in: expression)) where !propertyIDs.contains(propertyID) {
+                    diagnostics.append(templateDiagnostic(
+                        templateLocation,
+                        template: template,
+                        offset: match.range.location,
+                        message: "Unknown property '\(propertyID)'. Declare it in Info.plist customItems."
+                    ))
+                }
+            } catch {
+                diagnostics.append(templateDiagnostic(
+                    templateLocation,
+                    template: template,
+                    offset: match.range.location,
+                    message: "Invalid template expression: \(error)"
                 ))
             }
         }
 
         let supportedMacroNames: Set<String> = [
             "id", "instance", "package", "component", "control", "asset", "slot",
-            "if", "elseif", "else", "endif", "text", "html", "image"
+            "if", "elseif", "else", "endif", "text", "html", "image", "canvas"
         ]
         for reference in template.references(matching: #"\{\{\s*([A-Za-z]+)(?:\.|\s|\}\})"#)
             where !supportedMacroNames.contains(reference.value) {
@@ -642,7 +674,8 @@ nonisolated enum ComponentPackageValidator {
             let themeMatch = property.control.themeValueSource.map {
                 ComponentPackageThemeValueResolver.choices(for: $0, theme: .standard).contains(where: { $0.value == value })
             } ?? false
-            let customMatch = value == "custom" && property.control.allowsCustom.orFalse
+            let customMatch = value == ComponentThemeValueSelection.manifestCustom
+                && property.control.allowsCustom.orFalse
             if !declaredMatch && !themeMatch && !customMatch {
                 diagnostics.append(.init(severity: .error, location: location, message: "A select default must match one of its declared or requested theme values."))
             }

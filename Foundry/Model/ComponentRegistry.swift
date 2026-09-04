@@ -2,25 +2,13 @@ import Foundation
 import Synchronization
 
 nonisolated enum ComponentRegistry {
-    static let builtInTypes: [ComponentType] = [
-        .section,
-        .container,
-        .columns,
-        .paragraph,
-        .heading,
-        .button,
-        .image,
-        .divider,
-        .spacer
-    ]
-
     static func definition(for type: ComponentType) -> ComponentDefinition {
         packageDefinitions.withLock { $0[type] } ?? unavailableDefinition(for: type)
     }
 
     static var availableTypes: [ComponentType] {
-        builtInTypes + packageDefinitions.withLock { definitions in
-            definitions.keys.filter { !builtInTypes.contains($0) }.sorted { $0.rawValue < $1.rawValue }
+        packageDefinitions.withLock { definitions in
+            definitions.keys.sorted { $0.rawValue < $1.rawValue }
         }
     }
 

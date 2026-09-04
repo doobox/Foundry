@@ -128,7 +128,7 @@ nonisolated enum ComponentPackageAdapter {
         }
         let paddedSources = Array(
             (defaultSources + Array(repeating: "none", count: 4)).prefix(4)
-        )
+        ).map(ComponentThemeValueSelection.storedSource)
         let declaredCustomValues: [Double]
         if case .array(let values) = property.control.customValue {
             declaredCustomValues = values.compactMap(\.numberValue)
@@ -167,7 +167,7 @@ nonisolated enum ComponentPackageAdapter {
     private static func fontSizeProperties(for property: ComponentPackageProperty) -> [ComponentPropertyDefinition] {
         let key = ComponentProperty.Key(rawValue: property.id)
         let section = ComponentPropertySection(rawValue: property.group)
-        let source = ComponentThemeValueSelection.normalizedManifestSource(property.defaultValue.stringValue)
+        let source = ComponentThemeValueSelection.storedSource(forManifestValue: property.defaultValue.stringValue)
         return [
             .init(
                 key: key, label: property.label, section: section,
@@ -195,8 +195,8 @@ nonisolated enum ComponentPackageAdapter {
                     opacity: property.control.opacity ?? false
                 ),
                 defaultValue: .packageColor(.init(
-                    source: ComponentThemeValueSelection.normalizedManifestSource(
-                        property.control.themeValueDefault ?? property.defaultValue.stringValue
+                    source: ComponentThemeValueSelection.storedSource(
+                        forManifestValue: property.control.themeValueDefault ?? property.defaultValue.stringValue
                     ),
                     customColor: property.control.customColor ?? "#000000",
                     adjustment: 0,

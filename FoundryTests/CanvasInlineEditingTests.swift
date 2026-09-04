@@ -52,7 +52,7 @@ struct CanvasInlineEditingMessageTests {
 struct CanvasInlineEditingUndoTests {
     @Test
     func committedEditIsOneUndoableMutation() throws {
-        let document = FoundryDocument()
+        let document = TestSiteFixtures.populatedDocument()
         let undoManager = UndoManager()
         let editor = ProjectEditor(document: document, undoManager: undoManager)
         let page = try #require(document.site.pages.first)

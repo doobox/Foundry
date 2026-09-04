@@ -235,9 +235,22 @@ nonisolated enum ComponentTemplateRenderer {
     }
 
     private static func value(forExpression expression: String, context: ComponentTemplateContext) -> String {
-        let parts = expression.split(separator: "|").map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+        let parts = ComponentTemplateExpression.templateParts(expression)
         guard let key = parts.first else { return "" }
-        var result = value(for: key, context: context)
+        let simpleValue = #"^(?:id|instance\.(?:id|uuid)|package\.id|component\.(?:class|attributes)|asset\.[^\s]+|control\.[A-Za-z][A-Za-z0-9_.-]*(?:\[[0-9]+\])?)$"#
+        var result: String
+        if key.range(of: simpleValue, options: .regularExpression) != nil {
+            result = value(for: key, context: context)
+        } else if let node = try? ComponentTemplateExpression.parse(key),
+                  let evaluated = try? ComponentTemplateExpression.evaluate(
+                    node,
+                    properties: context.properties,
+                    isCanvas: context.isCanvas
+                  ) {
+            result = escape(evaluated.output)
+        } else {
+            result = ""
+        }
         for filter in parts.dropFirst() {
             result = apply(filter: filter, to: result)
         }
@@ -374,18 +387,13 @@ nonisolated enum ComponentTemplateRenderer {
     }
 
     private static func conditionIsTrue(_ expression: String, context: ComponentTemplateContext) -> Bool {
-        let expression = expression.trimmingCharacters(in: .whitespacesAndNewlines)
-        if expression == "canvas" { return context.isCanvas }
-        let pattern = try! NSRegularExpression(
-            pattern: #"^control\.([A-Za-z][A-Za-z0-9_.-]*)(?:\s*==\s*[\"']([^\"']*)[\"'])?$"#
-        )
-        guard let match = pattern.firstMatch(in: expression, range: NSRange(expression.startIndex..., in: expression)),
-              let keyRange = Range(match.range(at: 1), in: expression) else { return false }
-        let value = context.properties[String(expression[keyRange])]
-        if let expectedRange = Range(match.range(at: 2), in: expression) {
-            return stringValue(value) == String(expression[expectedRange])
-        }
-        return isTruthy(value)
+        guard let node = try? ComponentTemplateExpression.parse(expression),
+              let value = try? ComponentTemplateExpression.evaluate(
+                node,
+                properties: context.properties,
+                isCanvas: context.isCanvas
+              ) else { return false }
+        return value.isTruthy
     }
 
     private static func renderSlots(in template: String, context: ComponentTemplateContext) -> String {

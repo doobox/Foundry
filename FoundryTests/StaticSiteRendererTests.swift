@@ -61,13 +61,13 @@ struct StaticSiteRendererTests {
 
     @Test
     func responsiveOverridesExportAsMediaQueriesWithoutCanvasMetadata() throws {
-        var site = Site.starter()
+        var site = TestSiteFixtures.populatedSite()
         let componentID = try #require(site.pages.first?.components.first?.id)
         site.updateComponent(id: componentID) {
             $0.setResponsiveProperty(
                 .padding,
                 value: .packageSpacing(.init(
-                    sources: Array(repeating: "custom", count: 4),
+                    sources: Array(repeating: ComponentThemeValueSelection.manualCustom, count: 4),
                     customValues: Array(repeating: 8, count: 4)
                 )),
                 at: .mobile
@@ -75,7 +75,7 @@ struct StaticSiteRendererTests {
             $0.setResponsiveProperty(
                 .padding,
                 value: .packageSpacing(.init(
-                    sources: Array(repeating: "custom", count: 4),
+                    sources: Array(repeating: ComponentThemeValueSelection.manualCustom, count: 4),
                     customValues: Array(repeating: 18, count: 4)
                 )),
                 at: .medium
@@ -83,7 +83,7 @@ struct StaticSiteRendererTests {
             $0.setResponsiveProperty(
                 .padding,
                 value: .packageSpacing(.init(
-                    sources: Array(repeating: "custom", count: 4),
+                    sources: Array(repeating: ComponentThemeValueSelection.manualCustom, count: 4),
                     customValues: Array(repeating: 24, count: 4)
                 )),
                 at: .large

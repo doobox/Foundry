@@ -78,13 +78,7 @@ nonisolated enum WorkspacePresetStore {
               let presets = try? JSONDecoder().decode([WorkspacePreset].self, from: data) else {
             return []
         }
-        return presets.map { preset in
-            var migrated = preset
-            migrated.layout.addMissingUtilityPanels(
-                includingDeveloperPanel: defaults.bool(forKey: AppPreferenceKey.showsDeveloperPanel)
-            )
-            return migrated
-        }
+        return presets
     }
 
     static func persist(_ presets: [WorkspacePreset], to defaults: UserDefaults = .standard) {

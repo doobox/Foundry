@@ -102,7 +102,7 @@ private struct PagesPanelHeader: View {
 
 struct ComponentLibraryPanel: View {
     let addToPageEnd: (ComponentType) -> Void
-    @State private var selectedType: ComponentType? = .container
+    @State private var selectedType: ComponentType?
     @State private var catalog = ComponentPackageCatalog.shared
 
     var body: some View {
@@ -163,6 +163,13 @@ struct ComponentLibraryPanel: View {
             if let selectedType {
                 ComponentLibraryDetail(type: selectedType)
             }
+        }
+        .onChange(of: catalog.revision, initial: true) {
+            let availableTypes = ComponentType.allCases
+            if let selectedType, availableTypes.contains(selectedType) {
+                return
+            }
+            selectedType = availableTypes.first
         }
     }
 

@@ -39,6 +39,7 @@ struct FoundryApp: App {
                     maxHeight: .infinity
                 )
         }
+        .handlesExternalEvents(matching: [])
         .commandsRemoved()
         .defaultSize(width: 1_104, height: 661)
         .windowResizability(.contentMinSize)

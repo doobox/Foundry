@@ -8,6 +8,33 @@ nonisolated struct CanvasEditorOptions: Equatable, Sendable {
     var scrollsToSelection = true
 }
 
+nonisolated enum CanvasSizing {
+    static func scale(availableWidth: Double, viewportWidth: Double, horizontalChromeWidth: Double) -> Double {
+        min(1, max((availableWidth - horizontalChromeWidth) / viewportWidth, 0.1))
+    }
+
+    static func maximumViewportWidth(
+        availableWidth: Double,
+        scale: Double,
+        minimumViewportWidth: Double,
+        horizontalChromeWidth: Double
+    ) -> Double {
+        max(minimumViewportWidth, (availableWidth - horizontalChromeWidth) / scale)
+    }
+
+    static func resizedViewportWidth(
+        startingWidth: Double,
+        translation: Double,
+        direction: Double,
+        scale: Double,
+        minimum: Double,
+        maximum: Double
+    ) -> Double {
+        let logicalTranslation = translation / scale
+        return min(max(startingWidth + (logicalTranslation * direction * 2), minimum), maximum)
+    }
+}
+
 struct CanvasView: View {
     let page: Page?
     let language: String
@@ -40,9 +67,11 @@ struct CanvasView: View {
                     ? min(geometry.size.width, visibleCanvasWidth)
                     : geometry.size.width
                 let scale = resizeStartScale ?? canvasScale(availableWidth: availableWidth)
-                let maximumViewportWidth = max(
-                    minimumViewportWidth,
-                    (availableWidth - canvasHorizontalChromeWidth) / scale
+                let maximumViewportWidth = CanvasSizing.maximumViewportWidth(
+                    availableWidth: availableWidth,
+                    scale: scale,
+                    minimumViewportWidth: minimumViewportWidth,
+                    horizontalChromeWidth: canvasHorizontalChromeWidth
                 )
                 let logicalHeight = max((geometry.size.height - 29) / scale, 600)
 
@@ -143,7 +172,11 @@ struct CanvasView: View {
     }
 
     private func canvasScale(availableWidth: Double) -> Double {
-        min(1, max((availableWidth - canvasHorizontalChromeWidth) / viewportWidth, 0.1))
+        CanvasSizing.scale(
+            availableWidth: availableWidth,
+            viewportWidth: viewportWidth,
+            horizontalChromeWidth: canvasHorizontalChromeWidth
+        )
     }
 
     private func resizeEdge(
@@ -158,10 +191,13 @@ struct CanvasView: View {
                 let startingScale = resizeStartScale ?? scale
                 resizeStartWidth = startingWidth
                 resizeStartScale = startingScale
-                let logicalTranslation = Double(translation) / startingScale
-                viewportWidth = min(
-                    max(startingWidth + (logicalTranslation * direction * 2), minimumViewportWidth),
-                    maximumViewportWidth
+                viewportWidth = CanvasSizing.resizedViewportWidth(
+                    startingWidth: startingWidth,
+                    translation: Double(translation),
+                    direction: direction,
+                    scale: startingScale,
+                    minimum: minimumViewportWidth,
+                    maximum: maximumViewportWidth
                 )
             },
             onEnded: {

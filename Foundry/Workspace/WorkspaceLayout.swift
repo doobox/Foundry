@@ -108,7 +108,7 @@ nonisolated struct WorkspaceColumn: Codable, Equatable, Identifiable, Sendable {
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         id = try container.decode(UUID.self, forKey: .id)
-        role = try container.decodeIfPresent(WorkspaceColumnRole.self, forKey: .role) ?? .workspace
+        role = try container.decode(WorkspaceColumnRole.self, forKey: .role)
         panels = try container.decode([WorkspacePanel].self, forKey: .panels)
         selectedPanel = try container.decodeIfPresent(WorkspacePanel.self, forKey: .selectedPanel)
             ?? panels.first
@@ -276,9 +276,7 @@ nonisolated struct WorkspaceLayout: Codable, Equatable, Sendable {
             layout.setDeveloperPanelVisible(includesDeveloperPanel)
             return layout
         }
-        layout.addMissingUtilityPanels(
-            includingDeveloperPanel: includesDeveloperPanel
-        )
+        layout.setDeveloperPanelVisible(includesDeveloperPanel)
         guard layout.isValid else {
             var fallback = WorkspaceLayout.standard
             fallback.setDeveloperPanelVisible(includesDeveloperPanel)
@@ -370,10 +368,9 @@ nonisolated struct WorkspaceLayout: Codable, Equatable, Sendable {
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         columns = try container.decode([WorkspaceColumn].self, forKey: .columns)
-        detachedPanels = try container.decodeIfPresent([DetachedWorkspacePanel].self, forKey: .detachedPanels) ?? []
+        detachedPanels = try container.decode([DetachedWorkspacePanel].self, forKey: .detachedPanels)
         showsSidebar = try container.decode(Bool.self, forKey: .showsSidebar)
         showsInspector = try container.decode(Bool.self, forKey: .showsInspector)
-        normalizeColumnRoles()
     }
 
     private mutating func insertWorkspaceColumn(_ column: WorkspaceColumn, at proposedIndex: Int) {

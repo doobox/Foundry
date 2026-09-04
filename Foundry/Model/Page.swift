@@ -77,11 +77,11 @@ nonisolated struct Page: Codable, Equatable, Identifiable, Sendable {
         id = try container.decode(UUID.self, forKey: .id)
         title = try container.decode(String.self, forKey: .title)
         slug = try container.decode(String.self, forKey: .slug)
-        metadata = try container.decodeIfPresent(PageMetadata.self, forKey: .metadata) ?? .init()
+        metadata = try container.decode(PageMetadata.self, forKey: .metadata)
         components = try container.decode([ComponentNode].self, forKey: .components)
         folderID = try container.decodeIfPresent(UUID.self, forKey: .folderID)
         parentPageID = try container.decodeIfPresent(UUID.self, forKey: .parentPageID)
-        order = try container.decodeIfPresent(Int.self, forKey: .order) ?? 0
+        order = try container.decode(Int.self, forKey: .order)
     }
 
     static func slugify(_ value: String) -> String {

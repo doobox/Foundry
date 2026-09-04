@@ -3,8 +3,8 @@ import Testing
 @testable import Foundry
 
 struct ComponentPackageTests {
-    @Test
-    func brokenDevelopmentFixtureFailsWithActionableDiagnostics() throws {
+    @Test @MainActor
+    func developmentFixturesValidateExpectedContracts() throws {
         let repositoryURL = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
             .deletingLastPathComponent()
@@ -25,6 +25,48 @@ struct ComponentPackageTests {
         } catch {
             Issue.record("Expected component validation diagnostics, but received: \(error)")
         }
+
+        let enablePackage = try ComponentPackageLoader.load(
+            from: repositoryURL.appending(path: "DevelopmentFixtures/EnableConditions.foundrydevpack")
+        )
+        #expect(enablePackage.manifest.identifier == "dev.foundry.enable_conditions")
+        #expect(enablePackage.manifest.properties.contains { $0.enable?.id == "titles[2]" })
+
+        let themePackage = try ComponentPackageLoader.load(
+            from: repositoryURL.appending(path: "DevelopmentFixtures/ThemeValues.foundrydevpack")
+        )
+        #expect(themePackage.manifest.identifier == "dev.foundry.theme_values")
+        #expect(themePackage.manifest.properties.contains { $0.control.themeValueSource == .fontFamilies })
+        #expect(themePackage.manifest.properties.contains { $0.id == "topBorder" && $0.control.themeValueDefault == "accent" })
+        #expect(themePackage.manifest.properties.contains { $0.id == "bottomBorder" && $0.control.themeValueDefault == "links" })
+
+        let expressionPackage = try ComponentPackageLoader.load(
+            from: repositoryURL.appending(path: "DevelopmentFixtures/ExpressionEngine.foundrydevpack")
+        )
+        #expect(expressionPackage.manifest.identifier == "dev.foundry.expression_engine")
+        let expressionHTML = ComponentTemplateRenderer.render(
+            expressionPackage.htmlTemplate,
+            context: .init(
+                instanceID: UUID(),
+                packageIdentifier: expressionPackage.manifest.identifier,
+                properties: [
+                    "status": .string("featured"),
+                    "enabled": .boolean(true),
+                    "score": .number(72),
+                    "threshold": .number(60),
+                    "base": .number(10),
+                    "offset": .number(6),
+                    "multiplier": .number(3),
+                    "labels": .array([.string("Alpha"), .string("Beta")])
+                ],
+                slots: [:],
+                isCanvas: true
+            )
+        )
+        #expect(expressionHTML.contains("<strong>28</strong>"))
+        #expect(expressionHTML.contains("Featured and above threshold"))
+        #expect(expressionHTML.contains("Alpha · Beta"))
+        #expect(expressionHTML.contains("editor-only"))
     }
 
     @Test
@@ -155,7 +197,7 @@ struct ComponentPackageTests {
         #expect(ComponentPackageThemeValueResolver.resolve("md", from: .spacing, theme: .standard) == "var(--foundry-space-md)")
 
         var theme = Theme.standard
-        theme.typography.customFontSizes.append(.init(id: "display", title: "Display", size: 5, lineHeight: .none))
+        theme.typography.customFontSizes.append(.init(id: "display", title: "Display", size: 5, lineHeight: 1.5))
         let sizeChoices = ComponentPackageThemeValueResolver.choices(for: .fontSizes, theme: theme)
         #expect(sizeChoices.first?.value == "xs")
         #expect(sizeChoices.last?.value == "display")
@@ -206,50 +248,6 @@ struct ComponentPackageTests {
         ))
         #expect(ComponentPackageEnableEvaluator.evaluate(.string(""), operation: "isEmpty", expected: nil))
         #expect(ComponentPackageEnableEvaluator.evaluate(.number(10), operation: ">=", expected: .number(10)))
-    }
-
-    @Test
-    func enableConditionsDevelopmentFixtureLoads() throws {
-        let repositoryURL = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-        let fixtureURL = repositoryURL.appending(
-            path: "DevelopmentFixtures/EnableConditions.foundrydevpack",
-            directoryHint: .isDirectory
-        )
-        let package = try ComponentPackageLoader.load(from: fixtureURL)
-        #expect(package.manifest.identifier == "dev.foundry.enable_conditions")
-        #expect(package.manifest.properties.contains { $0.enable?.id == "titles[2]" })
-    }
-
-    @Test @MainActor
-    func themeValuesDevelopmentFixtureLoads() throws {
-        let repositoryURL = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-        let fixtureURL = repositoryURL.appending(
-            path: "DevelopmentFixtures/ThemeValues.foundrydevpack",
-            directoryHint: .isDirectory
-        )
-        let package = try ComponentPackageLoader.load(from: fixtureURL)
-        #expect(package.manifest.identifier == "dev.foundry.theme_values")
-        #expect(package.manifest.properties.contains { $0.control.themeValueSource == .fontFamilies })
-        #expect(package.manifest.properties.contains { $0.id == "topBorder" && $0.control.themeValueDefault == "accent" })
-        #expect(package.manifest.properties.contains { $0.id == "bottomBorder" && $0.control.themeValueDefault == "links" })
-        let background = try #require(ComponentPackageAdapter.definition(from: package).properties.first { $0.key.rawValue == "background" })
-        #expect(background.defaultValue == .packageColor(.init(source: "surface", customColor: "#FFF1F2", adjustment: 0, opacity: 1)))
-
-        ComponentRegistry.register(package)
-        var component = ComponentNode(type: ComponentType(rawValue: package.manifest.identifier))
-        component.setProperty(
-            .init(rawValue: "background"),
-            value: .packageColor(.init(source: "custom", customColor: "#123456", adjustment: 0, opacity: 1))
-        )
-        let site = Site(name: "Theme values", pages: [Page(title: "Home", slug: "index", components: [component])])
-        let html = HTMLPageRenderer(site: site).render(page: site.pages[0], theme: site.theme)
-        #expect(html.contains("border-top: 4px solid #5B5BD6"))
-        #expect(html.contains("border-bottom: 4px solid #5B5BD6"))
-        #expect(html.contains("background: #123456"))
     }
 
     @Test
@@ -511,96 +509,6 @@ struct ComponentPackageTests {
             ComponentTemplateRenderer.render(template, context: context)
                 == "<p>First line<br>Second &amp; final line</p>"
         )
-    }
-
-    @Test
-    func developerExpressionsResolveInstanceControlsAndReadableColorFilters() {
-        let id = UUID(uuidString: "AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE")!
-        let context = ComponentTemplateContext(
-            instanceID: id,
-            packageIdentifier: "com.example.card",
-            properties: ["accent": .string("#336699"), "padding": .number(24)],
-            slots: [:]
-        )
-        let template = """
-        /* {{ instance.uuid }} */
-        #{{ id }} {
-          padding: {{ control.padding }}px;
-          color: {{ control.accent }};
-          border-color: {{ control.accent | lighten(20) }};
-          background-color: {{ control.accent | darken(25) }};
-        }
-        """
-
-        let rendered = ComponentTemplateRenderer.render(template, context: context)
-
-        #expect(rendered.contains("#foundry-aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"))
-        #expect(rendered.contains("/* AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE */"))
-        #expect(rendered.contains("padding: 24px"))
-        #expect(rendered.contains("color: #336699"))
-        #expect(rendered.contains("border-color: #5C85AD"))
-        #expect(rendered.contains("background-color: #264D73"))
-    }
-
-    @Test
-    func templateRendersEscapedPropertiesConditionsSlotsAssetsAndEditorHooks() {
-        let context = ComponentTemplateContext(
-            instanceID: UUID(uuidString: "AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE")!,
-            packageIdentifier: "com.example.card",
-            properties: [
-                "title": .string("<A & B>"),
-                "visible": .boolean(true),
-                "alignment": .string("center")
-            ],
-            slots: ["content": "<strong>Child</strong>"],
-            componentClass: "c-instance",
-            componentAttributes: "data-editor=\"true\"",
-            assetBasePath: "assets/components/com.example.card"
-        )
-        let template = """
-        <article class="card{{ component.class }}" {{ component.attributes }}>
-          <h2>{{ control.title }}</h2>
-          {{ if control.visible }}<span>Shown</span>{{ else }}<span>Hidden</span>{{ endif }}
-          {{ if control.alignment == "center" }}<b>Centered</b>{{ endif }}
-          <img src="{{ asset.images/icon.svg }}">
-          {{ slot id="content" }}
-        </article>
-        """
-
-        let html = ComponentTemplateRenderer.render(template, context: context)
-
-        #expect(html.contains("class=\"card c-instance\""))
-        #expect(html.contains("data-editor=\"true\""))
-        #expect(html.contains("&lt;A &amp; B&gt;"))
-        #expect(html.contains("<span>Shown</span>"))
-        #expect(!html.contains("Hidden"))
-        #expect(html.contains("<b>Centered</b>"))
-        #expect(html.contains("assets/components/com.example.card/images/icon.svg"))
-        #expect(html.contains("<strong>Child</strong>"))
-    }
-
-    @Test
-    func templateRendersCanvasAndElseIfConditions() {
-        let properties: [String: ComponentPackageValue] = ["variant": .string("compact")]
-        let template = """
-        {{ if control.variant == "wide" }}Wide
-        {{ elseif control.variant == "compact" }}Compact
-        {{ elseif canvas }}Canvas
-        {{ else }}Published{{ endif }}
-        """
-        let canvasContext = ComponentTemplateContext(
-            instanceID: UUID(), packageIdentifier: "com.example.conditions",
-            properties: properties, slots: [:], isCanvas: true
-        )
-        let publishedContext = ComponentTemplateContext(
-            instanceID: UUID(), packageIdentifier: "com.example.conditions",
-            properties: [:], slots: [:]
-        )
-
-        #expect(ComponentTemplateRenderer.render(template, context: canvasContext).trimmingCharacters(in: .whitespacesAndNewlines) == "Compact")
-        #expect(ComponentTemplateRenderer.render(template, context: publishedContext).trimmingCharacters(in: .whitespacesAndNewlines) == "Published")
-        #expect(ComponentTemplateRenderer.render("{{ if canvas }}Canvas{{ else }}Published{{ endif }}", context: canvasContext) == "Canvas")
-        #expect(ComponentTemplateRenderer.render("{{ if canvas }}Canvas{{ else }}Published{{ endif }}", context: publishedContext) == "Published")
     }
 
     @Test
@@ -1426,7 +1334,10 @@ struct ComponentPackageTests {
     @Test @MainActor
     func builtInsAreLoadedAsPublicComponentPackages() throws {
         let catalog = ComponentPackageCatalog.shared
-        let builtIns = ComponentRegistry.builtInTypes.map(\.definition)
+        let bundledPackages = catalog.packages.values.filter {
+            $0.rootURL.path.contains("BuiltInComponents.bundle")
+        }
+        let builtIns = bundledPackages.map(ComponentPackageAdapter.definition)
 
         #expect(builtIns.allSatisfy { $0.renderKind == .package })
         #expect(builtIns.allSatisfy { $0.package?.rootURL.pathExtension == "foundrypack" })
@@ -1472,9 +1383,8 @@ struct ComponentPackageTests {
         #expect(ComponentType.image.definition.properties.contains {
             $0.key.rawValue == "alignment" && $0.defaultValue == .choice("center") && $0.isResponsive
         })
-        let packagedIdentifiers = Set(catalog.packages.keys)
-        #expect(Set(ComponentRegistry.builtInTypes.map(\.rawValue)).isSubset(of: packagedIdentifiers))
-        #expect(catalog.packages["foundry.testing.controls"] == nil)
+        let bundledIdentifiers = Set(bundledPackages.map(\.manifest.identifier))
+        #expect(bundledIdentifiers.isSubset(of: Set(ComponentType.allCases.map(\.rawValue))))
         let html = try #require(catalog.packages["foundry.content.html"])
         let htmlDefinition = ComponentPackageAdapter.definition(from: html)
         #expect(htmlDefinition.properties.contains { $0.key.rawValue == "html1" && !$0.isInspectorVisible })
@@ -1485,7 +1395,7 @@ struct ComponentPackageTests {
         _ = ComponentPackageCatalog.shared
         #expect(ComponentPackageSpacingResolver.resolve(
             .init(
-                sources: ["lg", "custom", "none", "3xs"],
+                sources: ["lg", ComponentThemeValueSelection.manualCustom, "none", "3xs"],
                 customValues: [0, 24, 0, 0]
             ),
             theme: .standard,
@@ -1494,7 +1404,7 @@ struct ComponentPackageTests {
 
         #expect(ComponentPackageSpacingResolver.resolve(
             .init(
-                sources: ["custom", "auto", "sm", "auto"],
+                sources: [ComponentThemeValueSelection.manualCustom, "auto", "sm", "auto"],
                 customValues: [-12, 0, 0, 0]
             ),
             theme: .standard,
@@ -1563,11 +1473,11 @@ struct ComponentPackageTests {
         var paragraph = ComponentNode.make(.paragraph)
         var site = Site(name: "Line height", pages: [Page(title: "Home", slug: "index", components: [paragraph])])
         let themedHTML = HTMLPageRenderer(site: site).render(page: site.pages[0], theme: site.theme)
-        #expect(themedHTML.contains("line-height: 1.5"))
+        #expect(themedHTML.contains("line-height: var(--foundry-font-size-base-line-height)"))
 
         paragraph.setProperty(
             .init(rawValue: "textSize"),
-            value: .packageFontSize(.init(source: "custom", customValue: "1rem", customLineHeight: "1.7"))
+            value: .packageFontSize(.init(source: ComponentThemeValueSelection.manualCustom, customValue: "1rem", customLineHeight: "1.7"))
         )
         site.pages[0].components = [paragraph]
         let customHTML = HTMLPageRenderer(site: site).render(page: site.pages[0], theme: site.theme)

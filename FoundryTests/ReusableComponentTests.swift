@@ -24,20 +24,8 @@ struct ReusableComponentTests {
     }
 
     @Test
-    func olderDocumentsDecodeWithAnEmptyProjectLibrary() throws {
-        let data = try FoundryDocument.encoder.encode(Site.starter())
-        var object = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
-        object.removeValue(forKey: "reusableComponents")
-        let legacyData = try JSONSerialization.data(withJSONObject: object)
-
-        let decoded = try FoundryDocument.decoder.decode(Site.self, from: legacyData)
-
-        #expect(decoded.reusableComponents.isEmpty)
-    }
-
-    @Test
     func savingAndInsertingReusableComponentCreatesFreshTreeIdentifiers() throws {
-        let site = Site.starter()
+        let site = TestSiteFixtures.populatedSite()
         let source = try #require(site.pages.first?.components.first)
         let document = FoundryDocument(site: site)
         let editor = ProjectEditor(document: document, undoManager: UndoManager())
@@ -63,7 +51,7 @@ struct ReusableComponentTests {
 
     @Test
     func detachKeepsLocalContentAndRemovesOnlyTheLink() throws {
-        let site = Site.starter()
+        let site = TestSiteFixtures.populatedSite()
         let source = try #require(site.pages.first?.components.first)
         let document = FoundryDocument(site: site)
         let editor = ProjectEditor(document: document, undoManager: nil)
@@ -80,7 +68,7 @@ struct ReusableComponentTests {
 
     @Test
     func reusableInstancesRemainIndependentAfterInsertion() throws {
-        let site = Site.starter()
+        let site = TestSiteFixtures.populatedSite()
         let source = try #require(site.pages.first?.components.first)
         let document = FoundryDocument(site: site)
         let editor = ProjectEditor(document: document, undoManager: nil)
@@ -103,7 +91,7 @@ struct ReusableComponentTests {
 
     @Test
     func deletingDefinitionDetachesInstancesWithoutDeletingContent() throws {
-        let site = Site.starter()
+        let site = TestSiteFixtures.populatedSite()
         let source = try #require(site.pages.first?.components.first)
         let document = FoundryDocument(site: site)
         let editor = ProjectEditor(document: document, undoManager: nil)
@@ -120,7 +108,7 @@ struct ReusableComponentTests {
 
     @Test
     func globalEditingUpdatesEveryInstanceInOneMutation() throws {
-        let site = Site.starter()
+        let site = TestSiteFixtures.populatedSite()
         let source = try #require(site.pages.first?.components.first)
         let document = FoundryDocument(site: site)
         let editor = ProjectEditor(document: document, undoManager: nil)
@@ -153,7 +141,7 @@ struct ReusableComponentTests {
 
     @Test
     func editingNestedGlobalContentUpdatesEveryInstanceAndPreservesSelectionIdentity() throws {
-        let site = Site.starter()
+        let site = TestSiteFixtures.populatedSite()
         let source = try #require(site.pages.first?.components.first)
         let sourceText = try #require(source.children.first)
         let document = FoundryDocument(site: site)
@@ -174,7 +162,7 @@ struct ReusableComponentTests {
 
     @Test
     func editingGlobalTextUpdatesAnInstanceOnAnotherPage() throws {
-        let site = Site.starter()
+        let site = TestSiteFixtures.populatedSite()
         let source = try #require(site.pages.first?.components.first)
         let sourceText = try #require(source.children.first)
         let document = FoundryDocument(site: site)
@@ -194,7 +182,7 @@ struct ReusableComponentTests {
 
     @Test
     func unlockedGlobalChildKeepsLocalContentUntilRelinked() throws {
-        let site = Site.starter()
+        let site = TestSiteFixtures.populatedSite()
         let firstRoot = try #require(site.pages.first?.components.first)
         let firstText = try #require(firstRoot.children.first)
         let document = FoundryDocument(site: site)

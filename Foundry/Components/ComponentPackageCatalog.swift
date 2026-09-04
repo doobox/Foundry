@@ -37,20 +37,32 @@ final class ComponentPackageCatalog {
             path: "BuiltInComponents.foundrypack",
             directoryHint: .isDirectory
         )
-        for url in FoundryPackLoader.packURLs(in: containerURL, includingRoot: true) {
+        let packageURLs = FoundryPackLoader.packURLs(in: containerURL, includingRoot: true)
+        for url in packageURLs {
             loadComponentPack(at: url)
         }
+        reconcileRegisteredPackages(under: containerURL, discoveredAt: packageURLs)
     }
 
     private func loadInstalledComponents() {
         guard let root = try? FoundryPackLoader.installedPacksURL() else { return }
-        for url in FoundryPackLoader.packURLs(in: root) {
+        let installedURLs = FoundryPackLoader.packURLs(in: root)
+        var discoveredURLs = Set(installedURLs.map(\.standardizedFileURL))
+        var developmentRoots = Set<URL>()
+        for url in installedURLs {
             if url.pathExtension.lowercased() == "foundrydevpack" {
+                let rootURL = url.standardizedFileURL
+                developmentRoots.insert(rootURL)
+                discoveredURLs.formUnion(
+                    FoundryPackLoader.packURLs(in: rootURL, includingRoot: true).map(\.standardizedFileURL)
+                )
                 openDevelopmentPack(at: url)
                 continue
             }
             loadComponentPack(at: url)
         }
+        reconcileRegisteredPackages(under: root, discoveredAt: Array(discoveredURLs))
+        removeMissingDevelopmentWatchers(under: root, discoveredRoots: developmentRoots)
     }
 
     private func loadComponentPack(at url: URL, allowsReplacement: Bool = false) {
@@ -126,6 +138,37 @@ final class ComponentPackageCatalog {
         }
     }
 
+    private func reconcileRegisteredPackages(under rootURL: URL, discoveredAt urls: [URL]) {
+        let rootURL = rootURL.standardizedFileURL
+        let discoveredURLs = Set(urls.map(\.standardizedFileURL))
+        let removedIdentifiers = packages.compactMap { identifier, package in
+            let packageURL = package.rootURL.standardizedFileURL
+            return packageURL.isContained(in: rootURL) && !discoveredURLs.contains(packageURL)
+                ? identifier
+                : nil
+        }
+        guard !removedIdentifiers.isEmpty else { return }
+        for identifier in removedIdentifiers {
+            packages.removeValue(forKey: identifier)
+            ComponentRegistry.unregisterPackage(identifier: identifier)
+        }
+        diagnostics = diagnostics.filter { url, _ in
+            !url.isContained(in: rootURL) || discoveredURLs.contains(url)
+        }
+        revision += 1
+    }
+
+    private func removeMissingDevelopmentWatchers(under rootURL: URL, discoveredRoots: Set<URL>) {
+        let rootURL = rootURL.standardizedFileURL
+        let removedRoots = developmentWatchers.keys.filter {
+            $0.isContained(in: rootURL) && !discoveredRoots.contains($0)
+        }
+        for removedRoot in removedRoots {
+            developmentWatchers.removeValue(forKey: removedRoot)
+            dirtyDevelopmentRoots.remove(removedRoot)
+        }
+    }
+
     func reloadInstalledPacks() {
         loadInstalledComponents()
     }
@@ -162,5 +205,13 @@ final class ComponentPackageCatalog {
         for url in FoundryPackLoader.packURLs(in: rootURL, includingRoot: true) {
             loadComponentPack(at: url, allowsReplacement: true)
         }
+    }
+}
+
+private extension URL {
+    func isContained(in directoryURL: URL) -> Bool {
+        let directoryPath = directoryURL.standardizedFileURL.path
+        let candidatePath = standardizedFileURL.path
+        return candidatePath == directoryPath || candidatePath.hasPrefix(directoryPath + "/")
     }
 }

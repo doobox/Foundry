@@ -82,7 +82,7 @@ struct ComponentPlacementTests {
 struct ComponentEditingTests {
     @Test
     func duplicateCreatesFreshIdentifiers() throws {
-        let document = FoundryDocument()
+        let document = TestSiteFixtures.populatedDocument()
         let editor = ProjectEditor(document: document, undoManager: nil)
         let page = try #require(document.site.pages.first)
         let source = try #require(page.components.first)
@@ -102,7 +102,7 @@ struct ComponentEditingTests {
 
     @Test
     func moveParticipatesInUndoAndRedo() throws {
-        let document = FoundryDocument()
+        let document = TestSiteFixtures.populatedDocument()
         let undoManager = UndoManager()
         let editor = ProjectEditor(document: document, undoManager: undoManager)
         let page = try #require(document.site.pages.first)
