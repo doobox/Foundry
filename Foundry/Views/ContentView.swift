@@ -94,7 +94,10 @@ struct ContentView: View {
                 openWindow(id: "theme-editor", value: themeWindowID)
             },
             previewSite: previewSite,
-            publishSite: { publishSite() }
+            publishSite: { publishSite() },
+            showComponentUpdates: {
+                openWindow(id: "available-component-updates")
+            }
         ) { panel in
             workspacePanel(panel)
         }
@@ -108,9 +111,7 @@ struct ContentView: View {
         )
         .task {
             guard automaticallyChecksComponentUpdates else { return }
-            if await ComponentUpdateManager.shared.automaticCheckIfNeeded() {
-                openWindow(id: "available-component-updates")
-            }
+            _ = await ComponentUpdateManager.shared.automaticCheckIfNeeded()
         }
         .onChange(of: workspaceLayout) {
             workspaceLayout.persist()

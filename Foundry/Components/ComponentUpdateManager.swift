@@ -31,6 +31,13 @@ final class ComponentUpdateManager {
         items.contains { if case .updating = $0.state { true } else { false } }
     }
 
+    var hasActionableUpdates: Bool {
+        items.contains { item in
+            if case .installed = item.state { return false }
+            return true
+        }
+    }
+
     func checkAll() async {
         guard !isChecking, !isUpdating else { return }
         isChecking = true

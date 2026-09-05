@@ -10,6 +10,7 @@ struct DockingWorkspaceView<PanelContent: View>: View {
     let openThemeEditor: () -> Void
     let previewSite: () -> Void
     let publishSite: () -> Void
+    let showComponentUpdates: () -> Void
     @ViewBuilder let panelContent: (WorkspacePanel) -> PanelContent
     @Environment(WorkspacePresetLibrary.self) private var workspaceLibrary
     @SceneStorage("foundry.workspace.selectedPresetID") private var selectedWorkspaceIDValue = ""
@@ -19,6 +20,7 @@ struct DockingWorkspaceView<PanelContent: View>: View {
     @State private var presetName = ""
     @State private var inspectorIsTransitioning = false
     @State private var workspacePresentationID = UUID()
+    @State private var componentUpdateManager = ComponentUpdateManager.shared
 
     var body: some View {
         AppKitWorkspaceSplitView(
@@ -27,6 +29,9 @@ struct DockingWorkspaceView<PanelContent: View>: View {
             showsInspector: layout.showsInspector,
             toolbarContent: WorkspaceToolbarContent(
                 sidebarToggle: AnyView(sidebarToggleButton),
+                componentUpdates: componentUpdateManager.hasActionableUpdates
+                    ? AnyView(componentUpdatesButton)
+                    : nil,
                 workspaces: AnyView(workspacePresetsMenu),
                 preview: AnyView(previewSiteButton),
                 settings: AnyView(projectSettingsButton),
@@ -179,6 +184,18 @@ struct DockingWorkspaceView<PanelContent: View>: View {
                 .labelStyle(.iconOnly)
         }
         .help(layout.showsSidebar ? "Hide Sidebar" : "Show Sidebar")
+    }
+
+    private var componentUpdatesButton: some View {
+        Button(action: showComponentUpdates) {
+            Label(
+                "Component Updates",
+                systemImage: "exclamationmark.arrow.trianglehead.2.clockwise.rotate.90"
+            )
+            .labelStyle(.iconOnly)
+            .foregroundStyle(.red)
+        }
+        .help("Component Updates Available")
     }
 
     private var previewSiteButton: some View {
@@ -385,6 +402,7 @@ private struct WorkspaceManagementRow: View {
 
 private struct WorkspaceToolbarContent {
     let sidebarToggle: AnyView
+    let componentUpdates: AnyView?
     let workspaces: AnyView
     let preview: AnyView
     let settings: AnyView
@@ -473,6 +491,7 @@ private final class AppKitWorkspaceSplitViewController: NSSplitViewController, N
     private enum ToolbarIdentifier {
         static let toolbar = NSToolbar.Identifier("foundry.editor.toolbar")
         static let sidebarToggle = NSToolbarItem.Identifier("foundry.toolbar.sidebar-toggle")
+        static let componentUpdates = NSToolbarItem.Identifier("foundry.toolbar.component-updates")
         static let leadingSeparator = NSToolbarItem.Identifier("foundry.toolbar.sidebar-separator")
         static let workspaces = NSToolbarItem.Identifier("foundry.toolbar.workspaces")
         static let preview = NSToolbarItem.Identifier("foundry.toolbar.preview")
@@ -881,9 +900,24 @@ private final class AppKitWorkspaceSplitViewController: NSSplitViewController, N
     }
 
     private func updateToolbarHostingViews() {
+        updateComponentUpdatesToolbarItem()
         for (identifier, hostingView) in toolbarHostingViews {
             guard let content = toolbarView(for: identifier) else { continue }
             hostingView.rootView = content
+        }
+    }
+
+    private func updateComponentUpdatesToolbarItem() {
+        let identifier = ToolbarIdentifier.componentUpdates
+        let existingIndex = editorToolbar.items.firstIndex { $0.itemIdentifier == identifier }
+        if toolbarContent?.componentUpdates != nil, existingIndex == nil {
+            let sidebarIndex = editorToolbar.items.firstIndex {
+                $0.itemIdentifier == ToolbarIdentifier.sidebarToggle
+            } ?? -1
+            editorToolbar.insertItem(withItemIdentifier: identifier, at: sidebarIndex + 1)
+        } else if toolbarContent?.componentUpdates == nil, let existingIndex {
+            editorToolbar.removeItem(at: existingIndex)
+            toolbarHostingViews.removeValue(forKey: identifier)
         }
     }
 
@@ -891,6 +925,7 @@ private final class AppKitWorkspaceSplitViewController: NSSplitViewController, N
         guard let toolbarContent else { return nil }
         switch identifier {
         case ToolbarIdentifier.sidebarToggle: return toolbarContent.sidebarToggle
+        case ToolbarIdentifier.componentUpdates: return toolbarContent.componentUpdates
         case ToolbarIdentifier.workspaces: return toolbarContent.workspaces
         case ToolbarIdentifier.preview: return toolbarContent.preview
         case ToolbarIdentifier.settings: return toolbarContent.settings
@@ -905,7 +940,7 @@ private final class AppKitWorkspaceSplitViewController: NSSplitViewController, N
     }
 
     func toolbarDefaultItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
-        [
+        var identifiers = [
             ToolbarIdentifier.sidebarToggle,
             ToolbarIdentifier.leadingSeparator,
             ToolbarIdentifier.workspaces,
@@ -917,6 +952,10 @@ private final class AppKitWorkspaceSplitViewController: NSSplitViewController, N
             ToolbarIdentifier.publish,
             ToolbarIdentifier.inspectorToggle
         ]
+        if toolbarContent?.componentUpdates != nil {
+            identifiers.insert(ToolbarIdentifier.componentUpdates, at: 1)
+        }
+        return identifiers
     }
 
     func toolbar(
