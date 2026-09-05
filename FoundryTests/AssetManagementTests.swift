@@ -204,4 +204,83 @@ struct AssetManagementTests {
         #expect(file.mediaType == "text/plain")
         #expect(document.assetContents[assetID]?.data == data)
     }
+
+    @Test @MainActor
+    func reusesIdenticalAssetContentWhenRequested() {
+        let document = FoundryDocument()
+        let data = Data("same image bytes".utf8)
+
+        let firstID = document.importAsset(
+            data: data,
+            filename: "first.png",
+            mediaType: "image/png",
+            reuseIdenticalContent: true,
+            undoManager: nil
+        )
+        let secondID = document.importAsset(
+            data: data,
+            filename: "second.png",
+            mediaType: "image/png",
+            reuseIdenticalContent: true,
+            undoManager: nil
+        )
+
+        #expect(secondID == firstID)
+        #expect(document.site.assets.count == 1)
+    }
+
+    @Test @MainActor
+    func removesDeletedAssetsFromIdenticalContentIndex() {
+        let document = FoundryDocument()
+        let data = Data("reusable image bytes".utf8)
+        let firstID = document.importAsset(
+            data: data,
+            filename: "first.png",
+            mediaType: "image/png",
+            reuseIdenticalContent: true,
+            undoManager: nil
+        )
+
+        document.removeAsset(id: firstID, undoManager: nil)
+        let replacementID = document.importAsset(
+            data: data,
+            filename: "replacement.png",
+            mediaType: "image/png",
+            reuseIdenticalContent: true,
+            undoManager: nil
+        )
+
+        #expect(replacementID != firstID)
+        #expect(document.site.assets.map(\.id) == [replacementID])
+    }
+
+    @Test @MainActor
+    func retainsOtherIdenticalAssetAfterDeletingOneDuplicate() {
+        let document = FoundryDocument()
+        let data = Data("duplicate image bytes".utf8)
+        let firstID = document.importAsset(
+            data: data,
+            filename: "first.png",
+            mediaType: "image/png",
+            undoManager: nil
+        )
+        let secondID = document.importAsset(
+            data: data,
+            filename: "second.png",
+            mediaType: "image/png",
+            undoManager: nil
+        )
+
+        document.removeAsset(id: firstID, undoManager: nil)
+        let reusedID = document.importAsset(
+            data: data,
+            filename: "third.png",
+            mediaType: "image/png",
+            reuseIdenticalContent: true,
+            undoManager: nil
+        )
+
+        #expect(reusedID == secondID)
+        #expect(document.site.assets.map(\.id) == [secondID])
+    }
 }

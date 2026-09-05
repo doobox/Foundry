@@ -381,7 +381,6 @@ struct ContentView: View {
         case .assets:
             AssetsPanel(
                 library: document.site.assetLibrary.resourcesOnly,
-                packageSiteAssets: packageSiteAssets,
                 selectedNodeID: inspectableAssetLibrarySelection,
                 importFiles: importAssets,
                 importURLs: importAssetURLs,
@@ -577,32 +576,6 @@ struct ContentView: View {
         )
     }
 
-    private var packageSiteAssets: [PackageSiteAsset] {
-        let packages = ComponentArtifactPlan.sitePackages(in: document.site)
-        return packages.flatMap { package in
-            let pageCount = document.site.pages.reduce(into: 0) { count, page in
-                if ComponentArtifactPlan(page: page).packages.contains(where: {
-                    $0.manifest.identifier == package.manifest.identifier
-                }) {
-                    count += 1
-                }
-            }
-            let assets: [PackageSiteAsset] = package.manifest.assets.compactMap { asset -> PackageSiteAsset? in
-                guard asset.scope == .site else { return nil }
-                return PackageSiteAsset(
-                    packageIdentifier: package.manifest.identifier,
-                    packageTitle: package.manifest.name,
-                    declaredPath: asset.path,
-                    pageCount: pageCount
-                )
-            }
-            return assets
-        }
-        .sorted {
-            ($0.publishedPath, $0.packageIdentifier) < ($1.publishedPath, $1.packageIdentifier)
-        }
-    }
-
     private var selectedPage: Page? {
         document.site.pages.first(where: { $0.id == selectedPageID })
             ?? document.site.pages.first
@@ -782,6 +755,7 @@ struct ContentView: View {
                 data: data,
                 filename: filename,
                 mediaType: type.preferredMIMEType ?? mediaType,
+                reuseIdenticalContent: true,
                 undoManager: undoManager
             )
             if let asset = document.site.assets.first(where: { $0.id == assetID }) {
@@ -822,6 +796,7 @@ struct ContentView: View {
                     data: data,
                     filename: filename,
                     mediaType: type.preferredMIMEType ?? mediaType,
+                    reuseIdenticalContent: true,
                     undoManager: undoManager
                 )
                 guard let importedAsset = document.site.assets.first(where: { $0.id == assetID }) else {

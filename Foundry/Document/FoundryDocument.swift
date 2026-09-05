@@ -1,4 +1,5 @@
 import Combine
+import CryptoKit
 import SwiftUI
 import Synchronization
 import UniformTypeIdentifiers
@@ -7,6 +8,50 @@ nonisolated struct FoundryDocumentSnapshot: Sendable {
     var site: Site
     var assetData: [UUID: Data]
     var assetRevision: UInt64 = 0
+    private(set) var assetDigestByID: [UUID: Data]
+    private(set) var assetIDsByDigest: [Data: Set<UUID>]
+
+    init(site: Site, assetData: [UUID: Data], assetRevision: UInt64 = 0) {
+        self.site = site
+        self.assetData = assetData
+        self.assetRevision = assetRevision
+
+        var digestByID: [UUID: Data] = [:]
+        var IDsByDigest: [Data: Set<UUID>] = [:]
+        for (assetID, data) in assetData {
+            let digest = Self.digest(for: data)
+            digestByID[assetID] = digest
+            IDsByDigest[digest, default: []].insert(assetID)
+        }
+        assetDigestByID = digestByID
+        assetIDsByDigest = IDsByDigest
+    }
+
+    func matchingAssetID(for data: Data, digest: Data) -> UUID? {
+        guard let candidates = assetIDsByDigest[digest] else { return nil }
+        return site.assets.first { asset in
+            candidates.contains(asset.id) && assetData[asset.id] == data
+        }?.id
+    }
+
+    mutating func insertAssetData(_ data: Data, id: UUID, digest: Data) {
+        assetData[id] = data
+        assetDigestByID[id] = digest
+        assetIDsByDigest[digest, default: []].insert(id)
+    }
+
+    mutating func removeAssetData(id: UUID) {
+        assetData.removeValue(forKey: id)
+        guard let digest = assetDigestByID.removeValue(forKey: id) else { return }
+        assetIDsByDigest[digest]?.remove(id)
+        if assetIDsByDigest[digest]?.isEmpty == true {
+            assetIDsByDigest.removeValue(forKey: digest)
+        }
+    }
+
+    static func digest(for data: Data) -> Data {
+        Data(SHA256.hash(data: data))
+    }
 }
 
 final class FoundryDocument: ReferenceFileDocument {
@@ -112,12 +157,19 @@ final class FoundryDocument: ReferenceFileDocument {
         filename: String,
         mediaType: String,
         placement: AssetPlacement = .end,
+        reuseIdenticalContent: Bool = false,
         undoManager: UndoManager?
     ) -> UUID {
+        let digest = FoundryDocumentSnapshot.digest(for: data)
+        var next = storage.withLock { $0 }
+        if reuseIdenticalContent,
+           let existingID = next.matchingAssetID(for: data, digest: digest) {
+            return existingID
+        }
         let asset = ProjectAsset(filename: filename, mediaType: mediaType, byteCount: data.count)
-        var nextSite = site
-        guard nextSite.assetLibrary.insert(.asset(asset), at: placement) else { return asset.id }
-        replaceContents(site: nextSite, assetData: storage.withLock { $0.assetData }.merging([asset.id: data]) { _, new in new }, undoManager: undoManager, actionName: "Import Asset")
+        guard next.site.assetLibrary.insert(.asset(asset), at: placement) else { return asset.id }
+        next.insertAssetData(data, id: asset.id, digest: digest)
+        replaceContents(with: next, undoManager: undoManager, actionName: "Import Asset")
         return asset.id
     }
 
@@ -148,11 +200,10 @@ final class FoundryDocument: ReferenceFileDocument {
 
     @MainActor
     func removeAssetFolder(id: UUID, undoManager: UndoManager?) {
-        var nextSite = site
-        guard let node = nextSite.assetLibrary.removeNode(id: id) else { return }
-        var nextData = storage.withLock { $0.assetData }
-        for assetID in node.assetIDs { nextData.removeValue(forKey: assetID) }
-        replaceContents(site: nextSite, assetData: nextData, undoManager: undoManager, actionName: "Delete Asset Folder")
+        var next = storage.withLock { $0 }
+        guard let node = next.site.assetLibrary.removeNode(id: id) else { return }
+        for assetID in node.assetIDs { next.removeAssetData(id: assetID) }
+        replaceContents(with: next, undoManager: undoManager, actionName: "Delete Asset Folder")
     }
 
     @MainActor
@@ -174,27 +225,28 @@ final class FoundryDocument: ReferenceFileDocument {
 
     @MainActor
     func removeAsset(id: UUID, undoManager: UndoManager?) {
-        var nextSite = site
-        guard nextSite.assetLibrary.removeNode(id: id) != nil else { return }
-        var nextData = storage.withLock { $0.assetData }
-        nextData.removeValue(forKey: id)
-        replaceContents(site: nextSite, assetData: nextData, undoManager: undoManager, actionName: "Delete Asset")
+        var next = storage.withLock { $0 }
+        guard next.site.assetLibrary.removeNode(id: id) != nil else { return }
+        next.removeAssetData(id: id)
+        replaceContents(with: next, undoManager: undoManager, actionName: "Delete Asset")
     }
 
     @MainActor
-    private func replaceContents(site newSite: Site, assetData: [UUID: Data], undoManager: UndoManager?, actionName: String) {
+    private func replaceContents(
+        with newSnapshot: FoundryDocumentSnapshot,
+        undoManager: UndoManager?,
+        actionName: String
+    ) {
         let previous = storage.withLock { $0 }
         undoManager?.registerUndo(withTarget: self) { document in
-            document.replaceContents(site: previous.site, assetData: previous.assetData, undoManager: undoManager, actionName: actionName)
+            document.replaceContents(with: previous, undoManager: undoManager, actionName: actionName)
         }
         undoManager?.setActionName(actionName)
         objectWillChange.send()
         storage.withLock {
-            $0 = .init(
-                site: newSite,
-                assetData: assetData,
-                assetRevision: $0.assetRevision &+ 1
-            )
+            var replacement = newSnapshot
+            replacement.assetRevision = $0.assetRevision &+ 1
+            $0 = replacement
         }
     }
 
