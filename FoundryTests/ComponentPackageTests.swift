@@ -1,8 +1,29 @@
 import Foundation
+import CryptoKit
 import Testing
 @testable import Foundry
 
 struct ComponentPackageTests {
+    @Test
+    func removedFontFamilyControlIsRejected() {
+        let plist = """
+        <?xml version="1.0" encoding="UTF-8"?>
+        <plist version="1.0"><dict>
+        <key>type</key><string>fontFamily</string>
+        </dict></plist>
+        """
+
+        do {
+            _ = try PropertyListDecoder().decode(
+                ComponentPackageControl.self,
+                from: Data(plist.utf8)
+            )
+            Issue.record("The removed fontFamily control unexpectedly decoded.")
+        } catch {
+            // Unknown control types must fail package decoding.
+        }
+    }
+
     @Test @MainActor
     func developmentFixturesValidateExpectedContracts() throws {
         let repositoryURL = URL(fileURLWithPath: #filePath)
@@ -203,6 +224,11 @@ struct ComponentPackageTests {
         #expect(!diagnostics.contains { $0.location.contains("themeValues") || $0.message.contains("select default") })
         #expect(ComponentPackageThemeValueResolver.choices(for: .spacing, theme: .standard).contains { $0.value == "md" })
         #expect(ComponentPackageThemeValueResolver.resolve("md", from: .spacing, theme: .standard) == "var(--foundry-space-md)")
+        for source in ComponentPackageThemeValueSource.allCases {
+            #expect(ComponentPackageThemeValueResolver.choices(for: source, theme: .standard).allSatisfy {
+                !$0.label.contains("—")
+            })
+        }
 
         var theme = Theme.standard
         theme.typography.customFontSizes.append(.init(id: "display", title: "Display", size: 5, lineHeight: 1.5))
@@ -210,6 +236,46 @@ struct ComponentPackageTests {
         #expect(sizeChoices.first?.value == "xs")
         #expect(sizeChoices.last?.value == "display")
         #expect(sizeChoices.last?.separatorBefore == true)
+
+        let countedThemeSelect = plist
+            .replacingOccurrences(
+                of: "<key>themeValues</key><string>spacing</string>",
+                with: "<key>themeValues</key><string>fontSizes</string>"
+            )
+            .replacingOccurrences(
+                of: "<key>default</key><string>md</string><key>responsive</key><false/>",
+                with: "<key>default</key><string>base</string><key>responsive</key><false/><key>count</key><integer>2</integer>"
+            )
+        let schemaDiagnostics = try ComponentPackageManifestSchema.diagnostics(
+            for: Data(countedThemeSelect.utf8)
+        )
+        #expect(schemaDiagnostics.contains {
+            $0.location.hasSuffix(".count")
+                && $0.message == "A select control using themeValues cannot be a multi control; remove count."
+        })
+
+        let countedThemeColor = countedThemeSelect
+            .replacingOccurrences(
+                of: "<key>type</key><string>select</string>",
+                with: "<key>type</key><string>color</string>"
+            )
+        let colorSchemaDiagnostics = try ComponentPackageManifestSchema.diagnostics(
+            for: Data(countedThemeColor.utf8)
+        )
+        #expect(colorSchemaDiagnostics.contains {
+            $0.location.hasSuffix(".count")
+                && $0.message == "A color control using themeValues cannot be a multi control; remove count."
+        })
+
+        let booleanThemeValues = Data(
+            plist.replacingOccurrences(
+                of: "<key>themeValues</key><string>spacing</string>",
+                with: "<key>themeValues</key><true/>"
+            ).utf8
+        )
+        #expect(try ComponentPackageManifestSchema.diagnostics(for: booleanThemeValues).contains {
+            $0.location.hasSuffix(".themeValues") && $0.message == "themeValues must be a string."
+        })
 
         do {
             _ = try PropertyListDecoder().decode(
@@ -220,6 +286,96 @@ struct ComponentPackageTests {
         } catch {
             // String-only decoding intentionally rejects the removed API.
         }
+    }
+
+    @Test
+    func fontFamilyThemeSelectRejectsCustomValues() throws {
+        let item = """
+        <dict>
+            <key>id</key><string>typeface</string>
+            <key>labels</key><string>Typeface</string>
+            <key>group</key><string>Typography</string>
+            <key>type</key><string>select</string>
+            <key>themeValues</key><string>fontFamilies</string>
+            <key>allowsCustom</key><true/>
+            <key>default</key><string>body</string>
+            <key>responsive</key><true/>
+        </dict>
+        """
+        let manifest = try PropertyListDecoder().decode(
+            ComponentPackageManifest.self,
+            from: Data(manifest(withCustomItems: item).utf8)
+        )
+        let diagnostics = ComponentPackageValidator.validate(
+            manifest,
+            rootURL: FileManager.default.temporaryDirectory
+        )
+        #expect(diagnostics.contains {
+            $0.location.hasSuffix("allowsCustom")
+                && $0.message.contains("add fonts in the Theme Editor")
+        })
+    }
+
+    @Test
+    func malformedControlFieldsProduceActionableSchemaDiagnostics() throws {
+        let validItem = """
+        <dict>
+            <key>id</key><string>example</string>
+            <key>labels</key><string>Example</string>
+            <key>type</key><string>text</string>
+            <key>default</key><string>Hello</string>
+            <key>responsive</key><false/>
+        </dict>
+        """
+        let cases: [(replacement: String, locationSuffix: String, message: String)] = [
+            (
+                validItem.replacingOccurrences(of: "<key>type</key><string>text</string>", with: "<key>type</key><integer>1</integer>"),
+                ":type", "type must be a string."
+            ),
+            (
+                validItem.replacingOccurrences(of: "<string>text</string>", with: "<string>fontFamily</string>"),
+                ":type", "Unknown control type 'fontFamily'."
+            ),
+            (
+                validItem.replacingOccurrences(of: "<key>labels</key><string>Example</string>", with: "<key>labels</key><array><string>Example</string></array>"),
+                ":labels", "labels must be a string."
+            ),
+            (
+                validItem.replacingOccurrences(of: "<key>responsive</key><false/>", with: "<key>responsive</key><string>false</string>"),
+                ":responsive", "responsive must be a Boolean."
+            ),
+            (
+                validItem.replacingOccurrences(of: "<key>default</key><string>Hello</string>", with: "<key>default</key><dict/>"),
+                ":default", "default must be a string, number, Boolean, or array of those values."
+            ),
+            (
+                validItem.replacingOccurrences(of: "<key>responsive</key><false/>", with: "<key>responsive</key><false/><key>minimum</key><string>zero</string>"),
+                ":minimum", "minimum must be a number."
+            ),
+            (
+                validItem.replacingOccurrences(of: "<key>responsive</key><false/>", with: "<key>responsive</key><false/><key>count</key><string>two</string>"),
+                ":count", "count must be an integer."
+            )
+        ]
+
+        for testCase in cases {
+            let diagnostics = try ComponentPackageManifestSchema.diagnostics(
+                for: Data(manifest(withCustomItems: testCase.replacement).utf8)
+            )
+            #expect(diagnostics.contains {
+                $0.location.hasSuffix(testCase.locationSuffix) && $0.message == testCase.message
+            })
+        }
+
+        let malformedOptions = validItem.replacingOccurrences(
+            of: "<key>responsive</key><false/>",
+            with: "<key>responsive</key><false/><key>options</key><array><string>bad</string></array>"
+        )
+        #expect(try ComponentPackageManifestSchema.diagnostics(
+            for: Data(manifest(withCustomItems: malformedOptions).utf8)
+        ).contains {
+            $0.location.hasSuffix(":options[0]") && $0.message == "Each options entry must be a dictionary."
+        })
     }
 
     @Test
@@ -914,48 +1070,6 @@ struct ComponentPackageTests {
     }
 
     @Test
-    func fontFamilyUsesThemeFontsWithoutGeneratingACustomValueProperty() throws {
-        let item = """
-        <dict>
-            <key>id</key><string>typeface</string>
-            <key>labels</key><string>Typeface</string>
-            <key>group</key><string>Typography</string>
-            <key>type</key><string>fontFamily</string>
-            <key>default</key><string>body</string>
-            <key>responsive</key><true/>
-        </dict>
-        """
-        let manifestText = manifest(withCustomItems: item)
-        let packageURL = try makePackage(
-            manifest: manifestText,
-            template: "<section {{ component.attributes }} style=\"font-family: {{ control.typeface }}\">{{ slot id=\"content\" }}</section>"
-        )
-        defer { try? FileManager.default.removeItem(at: packageURL) }
-
-        let package = try ComponentPackageLoader.load(from: packageURL)
-        let definition = ComponentPackageAdapter.definition(from: package)
-        let property = try #require(definition.properties.first { $0.key.rawValue == "typeface" })
-
-        if case .themeFontFamily = property.control {} else { Issue.record("Expected the theme font-family control") }
-        #expect(property.defaultValue == .choice("body"))
-        #expect(!definition.properties.contains { $0.key.rawValue == "typefaceCustom" })
-
-        let invalidText = manifestText.replacingOccurrences(
-            of: "<key>default</key><string>body</string>",
-            with: "<key>default</key><string>custom</string>"
-        )
-        let invalidManifest = try PropertyListDecoder().decode(
-            ComponentPackageManifest.self,
-            from: Data(invalidText.utf8)
-        )
-        let diagnostics = ComponentPackageValidator.validate(
-            invalidManifest,
-            rootURL: packageURL.appending(path: "Contents/Resources", directoryHint: .isDirectory)
-        )
-        #expect(diagnostics.contains { $0.message == "A fontFamily default must be a known theme font role." })
-    }
-
-    @Test
     func customItemsDefaultToTheSettingsGroup() throws {
         let manifestText = validManifest.replacingOccurrences(
             of: "<key>group</key><string>Content</string>",
@@ -1393,7 +1507,9 @@ struct ComponentPackageTests {
         let builtIns = bundledPackages.map(ComponentPackageAdapter.definition)
 
         #expect(builtIns.allSatisfy { $0.renderKind == .package })
-        #expect(builtIns.allSatisfy { $0.package?.rootURL.pathExtension == "foundrypack" })
+        #expect(builtIns.allSatisfy { definition in
+            definition.package.map { FoundryPackLoader.isPackURL($0.rootURL) } == true
+        })
         #expect(Set(builtIns.compactMap { $0.package?.manifest.identifier }).count == builtIns.count)
         #expect(ComponentType.image.definition.package?.manifest.identifier == ComponentType.image.rawValue)
         #expect(ComponentType.section.definition.package?.manifest.identifier == ComponentType.section.rawValue)
@@ -1578,6 +1694,20 @@ struct ComponentPackageTests {
     }
 
     @Test
+    func loadedComponentsKnowWhenTheyBelongToADevelopmentPack() throws {
+        let packageURL = try makePackage(
+            manifest: validManifest,
+            template: "<section {{ component.attributes }}>Development{{ slot id=\"content\" }}</section>",
+            pathExtension: "foundrydevpack"
+        )
+        defer { try? FileManager.default.removeItem(at: packageURL) }
+
+        let package = try ComponentPackageLoader.load(from: packageURL)
+
+        #expect(package.isDevelopmentPack)
+    }
+
+    @Test
     func packIdentityUsesOnlyThePublicIDKey() throws {
         let root = FileManager.default.temporaryDirectory
             .appending(path: "\(UUID().uuidString).foundrypack", directoryHint: .isDirectory)
@@ -1642,18 +1772,99 @@ struct ComponentPackageTests {
     }
 
     @Test
-    func collectionManifestIsOnlyTheCollectionFlag() throws {
+    func collectionManifestSupportsOptionalUpdateMetadata() throws {
         let root = FileManager.default.temporaryDirectory
             .appending(path: "\(UUID().uuidString).foundrypack", directoryHint: .isDirectory)
         defer { try? FileManager.default.removeItem(at: root) }
         try writePackHeader(isCollection: true, at: root)
         #expect(try FoundryPackLoader.load(from: root).isCollection)
 
-        let invalid: [String: Any] = ["collection": true, "title": "Collection"]
+        let updateEnabled: [String: Any] = [
+            "collection": true,
+            "minimumAPIVersion": 1,
+            "id": "com.example.collection",
+            "title": "Collection",
+            "author": "Example Developer",
+            "version": "1.2.3",
+            "updates": [
+                "appcastURL": "https://example.com/appcast.json",
+                "publicKey": Data(repeating: 1, count: 32).base64EncodedString()
+            ]
+        ]
+        let updateData = try PropertyListSerialization.data(fromPropertyList: updateEnabled, format: .xml, options: 0)
+        try updateData.write(to: root.appending(path: "Contents/Info.plist"))
+        let updatePack = try FoundryPackLoader.load(from: root)
+        #expect(updatePack.identifier == "com.example.collection")
+        #expect(updatePack.metadata.version == "1.2.3")
+        #expect(updatePack.metadata.updates?.appcastURL.absoluteString == "https://example.com/appcast.json")
+
+        let invalid: [String: Any] = ["collection": true, "unexpected": "value"]
         let data = try PropertyListSerialization.data(fromPropertyList: invalid, format: .xml, options: 0)
         try data.write(to: root.appending(path: "Contents/Info.plist"))
         #expect(throws: FoundryPackLoadingError.self) {
             try FoundryPackLoader.load(from: root)
+        }
+    }
+
+    @Test
+    func appcastSelectsNewestCompatibleSemanticRelease() throws {
+        let releases = [
+            FoundryPackAppcast.Release(
+                version: "1.1.0",
+                publishedAt: Date(),
+                minimumAPIVersion: 1,
+                downloadURL: URL(string: "https://example.com/1.1.zip")!,
+                releaseNotesURL: nil,
+                fileSize: 1,
+                sha256: "00",
+                signature: "signature"
+            ),
+            FoundryPackAppcast.Release(
+                version: "2.0.0",
+                publishedAt: Date(),
+                minimumAPIVersion: 2,
+                downloadURL: URL(string: "https://example.com/2.0.zip")!,
+                releaseNotesURL: nil,
+                fileSize: 1,
+                sha256: "00",
+                signature: "signature"
+            )
+        ]
+        let appcast = FoundryPackAppcast(formatVersion: 1, packID: "com.example.pack", releases: releases)
+        let release = try FoundryPackUpdateVerifier.newestRelease(
+            in: appcast,
+            packID: "com.example.pack",
+            currentVersion: "1.0.0"
+        )
+        #expect(release.version == "1.1.0")
+    }
+
+    @Test
+    func updateVerifierRejectsTampering() throws {
+        let data = Data("release archive".utf8)
+        let key = Curve25519.Signing.PrivateKey()
+        let digest = SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
+        let release = FoundryPackAppcast.Release(
+            version: "1.1.0",
+            publishedAt: Date(),
+            minimumAPIVersion: 1,
+            downloadURL: URL(string: "https://example.com/release.zip")!,
+            releaseNotesURL: nil,
+            fileSize: Int64(data.count),
+            sha256: digest,
+            signature: try key.signature(for: data).base64EncodedString()
+        )
+        try FoundryPackUpdateVerifier.verify(
+            data,
+            release: release,
+            publicKey: key.publicKey.rawRepresentation.base64EncodedString()
+        )
+        #expect(throws: FoundryPackUpdateError.self) {
+            try FoundryPackUpdateVerifier.verify(
+                Data("tampered archive".utf8),
+                release: release,
+                publicKey: key.publicKey.rawRepresentation.base64EncodedString()
+            )
         }
     }
 
@@ -1878,10 +2089,11 @@ struct ComponentPackageTests {
     private func makePackage(
         manifest: String,
         template: String,
-        additionalFiles: [String: String] = [:]
+        additionalFiles: [String: String] = [:],
+        pathExtension: String = "foundrypack"
     ) throws -> URL {
         let rootURL = FileManager.default.temporaryDirectory
-            .appending(path: "\(UUID().uuidString).foundrypack", directoryHint: .isDirectory)
+            .appending(path: "\(UUID().uuidString).\(pathExtension)", directoryHint: .isDirectory)
         let resourcesURL = rootURL.appending(path: "Contents/Resources", directoryHint: .isDirectory)
         try FileManager.default.createDirectory(at: resourcesURL, withIntermediateDirectories: true)
         try FileManager.default.createDirectory(

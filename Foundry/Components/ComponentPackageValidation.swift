@@ -474,7 +474,23 @@ nonisolated enum ComponentPackageValidator {
                 message: "allowsCustom requires a select control with a named themeValues source."
             ))
         }
+        if property.control.allowsCustom.orFalse,
+           property.control.themeValueSource == .fontFamilies {
+            diagnostics.append(.init(
+                severity: .error,
+                location: "\(location).allowsCustom",
+                message: "A fontFamilies theme select does not support allowsCustom; add fonts in the Theme Editor."
+            ))
+        }
         if property.control.type == .color {
+            if property.control.themeValues != nil,
+               property.control.count != nil {
+                diagnostics.append(.init(
+                    severity: .error,
+                    location: "\(location).count",
+                    message: "A color control using themeValues cannot be a multi control; remove count."
+                ))
+            }
             if let themeDefault = property.control.themeValueDefault,
                ThemeColorRole(rawValue: themeDefault) == nil {
                 diagnostics.append(.init(
@@ -502,7 +518,6 @@ nonisolated enum ComponentPackageValidator {
         let supported: Bool
         switch (property.control.type, source) {
         case (.select, .fontFamilies), (.select, .fontSizes), (.select, .spacing),
-             (.fontFamily, .fontFamilies),
              (.margin, .spacing), (.padding, .spacing):
             supported = true
         default:
@@ -719,15 +734,6 @@ nonisolated enum ComponentPackageValidator {
             if let customColor = property.control.customColor,
                !customColor.matches(#"^#[0-9A-Fa-f]{6}$"#) {
                 diagnostics.append(.init(severity: .error, location: location, message: "customColor must be a six-digit hexadecimal colour."))
-            }
-        case .fontFamily:
-            if case .string(let value) = defaultValue {
-                let roles = Set(ThemeFontRole.allCases.map(\.rawValue))
-                if !roles.contains(value) {
-                    diagnostics.append(.init(severity: .error, location: location, message: "A fontFamily default must be a known theme font role."))
-                }
-            } else {
-                diagnostics.append(.init(severity: .error, location: location, message: "A fontFamily control requires a string default value."))
             }
         case .textAlignment:
             if case .string(let value) = defaultValue,

@@ -147,7 +147,6 @@ nonisolated enum ComponentPropertyControl: Sendable {
         opacity: Bool
     )
     case choice([ComponentPropertyChoice])
-    case themeFontFamily
     case themeFontSize
     case packageFontSize(themeValues: Bool)
     case packageSpacing(
@@ -159,10 +158,6 @@ nonisolated enum ComponentPropertyControl: Sendable {
     case divider
     case toggle
     case asset
-
-    var isThemeFontFamily: Bool {
-        if case .themeFontFamily = self { true } else { false }
-    }
 
     var isThemeFontSize: Bool {
         if case .themeFontSize = self { true } else { false }

@@ -17,6 +17,7 @@ nonisolated struct ComponentPackageManifest: Codable, Equatable, Sendable {
     let missingComponent: ComponentPackageMissingComponent?
     let requiresPhp: Bool
     let libraries: [ComponentPackageLibraryRequirement]
+    let updates: FoundryPackUpdateConfiguration?
 
     enum CodingKeys: String, CodingKey {
         case minimumAPIVersion
@@ -35,6 +36,7 @@ nonisolated struct ComponentPackageManifest: Codable, Equatable, Sendable {
         case missingComponent
         case requiresPhp
         case libraries
+        case updates
     }
 
     init(
@@ -53,7 +55,8 @@ nonisolated struct ComponentPackageManifest: Codable, Equatable, Sendable {
         helpURL: URL? = nil,
         missingComponent: ComponentPackageMissingComponent? = nil,
         requiresPhp: Bool = false,
-        libraries: [ComponentPackageLibraryRequirement] = []
+        libraries: [ComponentPackageLibraryRequirement] = [],
+        updates: FoundryPackUpdateConfiguration? = nil
     ) {
         self.minimumAPIVersion = minimumAPIVersion
         self.identifier = identifier
@@ -71,6 +74,7 @@ nonisolated struct ComponentPackageManifest: Codable, Equatable, Sendable {
         self.missingComponent = missingComponent
         self.requiresPhp = requiresPhp
         self.libraries = libraries
+        self.updates = updates
     }
 
     init(from decoder: Decoder) throws {
@@ -94,6 +98,7 @@ nonisolated struct ComponentPackageManifest: Codable, Equatable, Sendable {
             [ComponentPackageLibraryRequirement].self,
             forKey: .libraries
         ) ?? []
+        updates = try container.decodeIfPresent(FoundryPackUpdateConfiguration.self, forKey: .updates)
     }
 }
 
@@ -280,7 +285,6 @@ nonisolated struct ComponentPackageControl: Codable, Equatable, Sendable {
         case select
         case link
         case toggle
-        case fontFamily
         case margin
         case padding
         case textAlignment

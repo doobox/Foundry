@@ -114,6 +114,7 @@ struct InspectorPopupOption<Value: Hashable>: Identifiable, Equatable {
     let title: String
     let value: Value
     var separatorBefore: Bool = false
+    var swatchHex: String? = nil
 
     var id: Value { value }
 }
@@ -194,8 +195,26 @@ struct InspectorPopup<Value: Hashable>: NSViewRepresentable {
             }
             let item = NSMenuItem(title: option.title, action: nil, keyEquivalent: "")
             item.tag = index
+            if let swatchHex = option.swatchHex {
+                item.image = Self.swatchImage(hex: swatchHex)
+            }
             popup.menu?.addItem(item)
         }
+    }
+
+    private static func swatchImage(hex: String) -> NSImage? {
+        guard let color = Color(hex: hex) else { return nil }
+        let image = NSImage(size: NSSize(width: 16, height: 12))
+        image.lockFocus()
+        let dot = NSBezierPath(ovalIn: NSRect(x: 1, y: 1, width: 10, height: 10))
+        NSColor(color).setFill()
+        dot.fill()
+        NSColor.separatorColor.withAlphaComponent(0.7).setStroke()
+        dot.lineWidth = 0.75
+        dot.stroke()
+        image.unlockFocus()
+        image.isTemplate = false
+        return image
     }
 
     private func updateSelection(of popup: NSPopUpButton) {

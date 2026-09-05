@@ -88,7 +88,6 @@ nonisolated struct ComponentProperty: Codable, Equatable, Identifiable, Sendable
         static let backgroundColor = Key(rawValue: "backgroundColor")
         static let textColor = Key(rawValue: "textColor")
         static let fontSize = Key(rawValue: "fontSize")
-        static let themeFontFamily = Key(rawValue: "themeFontFamily")
         static let themeFontSize = Key(rawValue: "themeFontSize")
         static let themeColor = Key(rawValue: "themeColor")
         static let themeColorShade = Key(rawValue: "themeColorShade")

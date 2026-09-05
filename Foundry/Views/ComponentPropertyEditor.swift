@@ -225,10 +225,6 @@ struct ComponentPropertyEditor: View {
                     help: definition.label
                 )
             }
-        case .themeFontFamily:
-            InspectorRow(title: definition.label, indicator: responsiveIndicator) {
-                InspectorPopup(selection: stringBinding(as: .choice), options: theme.fontFamilyChoices.map { .init(title: $0.label, value: $0.value) }, accessibilityLabel: definition.label, help: definition.label)
-            }
         case .themeFontSize:
             InspectorRow(title: definition.label, indicator: responsiveIndicator) {
                 InspectorPopup(selection: stringBinding(as: .choice), options: theme.fontSizeChoices.map { .init(title: $0.label, value: $0.value) }, accessibilityLabel: definition.label, help: definition.label)
@@ -441,6 +437,7 @@ struct ComponentPropertyEditor: View {
         if case .packageFontSize(let value) = definition.defaultValue { return value }
         return .init(source: ComponentThemeValueSelection.manualCustom, customValue: "1rem")
     }
+
 
     private var packageFontSizeSourceBinding: Binding<String> {
         Binding(
@@ -1249,11 +1246,17 @@ private struct PackageColorControlEditor: View {
                     InspectorPopup(
                         selection: $source,
                         options: choices.map {
-                            .init(title: $0.label, value: $0.value, separatorBefore: $0.separatorBefore)
+                            .init(
+                                title: $0.label,
+                                value: $0.value,
+                                separatorBefore: $0.separatorBefore,
+                                swatchHex: previewColorHex(for: $0.value)
+                            )
                         } + [InspectorPopupOption(
                             title: "Custom",
                             value: ComponentThemeValueSelection.manualCustom,
-                            separatorBefore: !choices.isEmpty
+                            separatorBefore: !choices.isEmpty,
+                            swatchHex: customColor.hexString
                         )],
                         accessibilityLabel: label,
                         help: label
@@ -1262,7 +1265,7 @@ private struct PackageColorControlEditor: View {
             }
             if ComponentThemeValueSelection.isManualCustom(source) || choices.isEmpty {
                 InspectorRow(
-                    title: choices.isEmpty ? label : "Colour",
+                    title: choices.isEmpty ? label : "",
                     alignment: .center,
                     indicator: choices.isEmpty ? indicator : nil
                 ) {
@@ -1280,34 +1283,8 @@ private struct PackageColorControlEditor: View {
         }
     }
 
-    private func colorChoiceLabel(_ title: String, color: Color) -> some View {
-        Label {
-            Text(title)
-        } icon: {
-            Image(nsImage: colorDotImage(color))
-                .renderingMode(.original)
-        }
-    }
-
-    private func colorDotImage(_ color: Color) -> NSImage {
-        let image = NSImage(size: NSSize(width: 15, height: 11))
-        image.lockFocus()
-
-        let dotRect = NSRect(x: 0.5, y: 0.5, width: 10, height: 10)
-        let dot = NSBezierPath(ovalIn: dotRect)
-        NSColor(color).setFill()
-        dot.fill()
-        NSColor.separatorColor.withAlphaComponent(0.6).setStroke()
-        dot.lineWidth = 0.75
-        dot.stroke()
-
-        image.unlockFocus()
-        image.isTemplate = false
-        return image
-    }
-
-    private func previewColor(for value: String) -> Color {
-        guard let role = ThemeColorRole(rawValue: value) else { return .clear }
-        return Color(hex: theme.color(for: role)) ?? .clear
+    private func previewColorHex(for value: String) -> String? {
+        guard let role = ThemeColorRole(rawValue: value) else { return nil }
+        return theme.color(for: role)
     }
 }

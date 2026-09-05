@@ -24,7 +24,9 @@
 			<key>responsive</key>
 			<true/>
 			<key>type</key>
-			<string>fontFamily</string>
+			<string>select</string>
+			<key>themeValues</key>
+			<string>fontFamilies</string>
 		</dict>
 		<dict>
 			<key>default</key>

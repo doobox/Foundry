@@ -79,19 +79,6 @@ nonisolated enum ComponentPackageAdapter {
             )]
         }
         if property.control.type == .color { return colorProperties(for: property) }
-        if property.control.type == .fontFamily {
-            return [ComponentPropertyDefinition(
-                key: .init(rawValue: property.id),
-                label: property.label,
-                section: .init(rawValue: property.group),
-                control: .themeFontFamily,
-                defaultValue: value(property.defaultValue, control: .select),
-                isResponsive: property.responsive,
-                enable: property.enable,
-                themeValueSource: property.control.themeValueSource,
-                allowsCustomThemeValue: property.control.allowsCustom == true
-            )]
-        }
         if property.control.type == .select,
            property.control.themeValueSource == .fontSizes,
            property.control.allowsCustom == true {
@@ -111,6 +98,7 @@ nonisolated enum ComponentPackageAdapter {
             enable: property.enable,
             themeValueSource: property.control.themeValueSource,
             allowsCustomThemeValue: property.control.allowsCustom == true
+                && property.control.themeValueSource != .fontFamilies
         )]
     }
 
@@ -225,7 +213,6 @@ nonisolated enum ComponentPackageAdapter {
             .choice((control.options ?? []).map { .init(value: $0.value, label: $0.title) })
         case .link: .link(absoluteURL: control.absoluteURL ?? false)
         case .toggle: .toggle
-        case .fontFamily: .themeFontFamily
         case .margin, .padding: .derived
         case .textAlignment: .textAlignment
         case .divider: .divider
@@ -256,7 +243,7 @@ nonisolated enum ComponentPackageAdapter {
             switch control {
             case .link: .link(.init(destination: value.isEmpty ? .none : .url(value)))
             case .color: .color(value)
-            case .icon, .select, .fontFamily, .margin, .padding, .textAlignment: .choice(value)
+            case .icon, .select, .margin, .padding, .textAlignment: .choice(value)
             case .date: .string(value)
             default: .string(value)
             }

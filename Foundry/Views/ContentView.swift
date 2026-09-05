@@ -36,6 +36,7 @@ struct ContentView: View {
     @State private var selectedAssetLibraryNodeID: UUID?
     @State private var selectedComponentIDs: Set<UUID> = []
     @State private var selectedComponentID: UUID?
+    @State private var selectedLibraryComponentType: ComponentType?
     @State private var copiedComponents: [ComponentNode] = []
     @State private var editsSharedReusableDefinition = false
     @State private var workspaceLayout = WorkspacePresetStore.initialLayoutForNewDocument()
@@ -68,6 +69,8 @@ struct ContentView: View {
     private var externalPreviewAutoReload = false
     @AppStorage(AppPreferenceKey.previewApplication)
     private var previewApplicationIdentifier = PreviewApplicationSelection.systemDefault
+    @AppStorage(AppPreferenceKey.automaticallyChecksComponentUpdates)
+    private var automaticallyChecksComponentUpdates = false
 
     private var renderer: any PageRendering { HTMLPageRenderer(site: document.site) }
 
@@ -103,6 +106,12 @@ struct ContentView: View {
             idealHeight: EditorWindowSize.idealHeight,
             maxHeight: .infinity
         )
+        .task {
+            guard automaticallyChecksComponentUpdates else { return }
+            if await ComponentUpdateManager.shared.automaticCheckIfNeeded() {
+                openWindow(id: "available-component-updates")
+            }
+        }
         .onChange(of: workspaceLayout) {
             workspaceLayout.persist()
         }
@@ -148,6 +157,7 @@ struct ContentView: View {
             if !selectedComponentIDs.contains(componentID) {
                 selectedComponentIDs = [componentID]
             }
+            selectedLibraryComponentType = nil
             inspectedPageID = nil
             selectedPageFolderID = nil
             selectedPageAssetID = nil
@@ -160,6 +170,7 @@ struct ContentView: View {
                 selectedComponentID = componentIDs.first
             }
             guard !componentIDs.isEmpty else { return }
+            selectedLibraryComponentType = nil
             inspectedPageID = nil
             selectedPageFolderID = nil
             selectedPageAssetID = nil
@@ -329,7 +340,10 @@ struct ContentView: View {
                 importURLs: importPageTreeURLs
             )
         case .components:
-            ComponentLibraryPanel(addToPageEnd: addComponentToPageEnd)
+            ComponentLibraryPanel(
+                selectedType: inspectableLibraryComponentSelection,
+                addToPageEnd: addComponentToPageEnd
+            )
         case .reusableComponents:
             ReusableComponentLibraryPanel(
                 definitions: document.site.reusableComponents,
@@ -411,6 +425,7 @@ struct ContentView: View {
                 publicURL: document.site.publicURL,
                 component: selectedComponent,
                 componentSelectionCount: selectedComponentIDs.count,
+                libraryComponentType: selectedLibraryComponentType,
                 theme: document.site.theme,
                 assets: document.site.assets,
                 editor: editor,
@@ -472,6 +487,7 @@ struct ContentView: View {
                 selectedPageAssetID = nil
                 selectedAssetLibraryNodeID = nil
                 selectedComponentID = nil
+                selectedLibraryComponentType = nil
             }
         )
     }
@@ -486,6 +502,7 @@ struct ContentView: View {
                 selectedPageAssetID = nil
                 selectedAssetLibraryNodeID = nil
                 selectedComponentID = nil
+                selectedLibraryComponentType = nil
             }
         )
     }
@@ -500,6 +517,7 @@ struct ContentView: View {
                 selectedPageFolderID = nil
                 selectedAssetLibraryNodeID = nil
                 selectedComponentID = nil
+                selectedLibraryComponentType = nil
             }
         )
     }
@@ -514,6 +532,7 @@ struct ContentView: View {
                 selectedPageFolderID = nil
                 selectedPageAssetID = nil
                 selectedComponentID = nil
+                selectedLibraryComponentType = nil
             }
         )
     }
@@ -528,6 +547,22 @@ struct ContentView: View {
                 selectedPageFolderID = nil
                 selectedPageAssetID = nil
                 selectedAssetLibraryNodeID = nil
+                selectedLibraryComponentType = nil
+            }
+        )
+    }
+
+    private var inspectableLibraryComponentSelection: Binding<ComponentType?> {
+        Binding(
+            get: { selectedLibraryComponentType },
+            set: { type in
+                selectedLibraryComponentType = type
+                guard type != nil else { return }
+                inspectedPageID = nil
+                selectedPageFolderID = nil
+                selectedPageAssetID = nil
+                selectedAssetLibraryNodeID = nil
+                selectedComponentID = nil
             }
         )
     }
@@ -638,6 +673,7 @@ struct ContentView: View {
         case .selectComponent:
             guard let componentID = message.componentID,
                   page.components.node(withID: componentID) != nil else { return }
+            selectedLibraryComponentType = nil
             if message.extendsSelection == true {
                 if selectedComponentIDs.contains(componentID) {
                     selectedComponentIDs.remove(componentID)
@@ -806,6 +842,7 @@ struct ContentView: View {
 
     private func handleCanvasContextMenuAction(_ action: CanvasContextMenuAction, componentID: UUID) {
         guard let component = selectedPage?.components.node(withID: componentID) else { return }
+        selectedLibraryComponentType = nil
         if !selectedComponentIDs.contains(componentID) {
             selectedComponentIDs = [componentID]
         }

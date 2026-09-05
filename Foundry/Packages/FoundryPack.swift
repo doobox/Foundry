@@ -4,6 +4,7 @@ nonisolated struct FoundryPack: Sendable {
     let isCollection: Bool
     let identifier: String?
     let rootURL: URL
+    let metadata: FoundryPackMetadata
 }
 
 nonisolated enum FoundryPackLoadingError: Error, LocalizedError {
@@ -33,11 +34,14 @@ nonisolated enum FoundryPackLoader {
             throw FoundryPackLoadingError.missingManifest
         }
         do {
-            let inspection = try ComponentPackageManifestSchema.inspect(Data(contentsOf: manifestURL))
+            let data = try Data(contentsOf: manifestURL)
+            let inspection = try ComponentPackageManifestSchema.inspect(data)
+            let metadata = try PropertyListDecoder().decode(FoundryPackMetadata.self, from: data)
             return FoundryPack(
                 isCollection: inspection.kind == .collection,
                 identifier: inspection.identifier,
-                rootURL: rootURL
+                rootURL: rootURL,
+                metadata: metadata
             )
         } catch {
             throw FoundryPackLoadingError.invalidManifest(error)

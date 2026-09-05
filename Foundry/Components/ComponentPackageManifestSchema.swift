@@ -40,8 +40,12 @@ nonisolated enum ComponentPackageManifestSchema {
     private static let componentKeys: Set<String> = [
         "minimumAPIVersion", "id", "title", "description", "author", "version", "group",
         "tags", "slots", "customItems", "templates", "assets", "helpURL", "missingComponent",
-        "requiresPhp", "libraries", "collection"
+        "requiresPhp", "libraries", "collection", "updates"
     ]
+    private static let collectionKeys: Set<String> = [
+        "collection", "minimumAPIVersion", "id", "title", "author", "version", "updates"
+    ]
+    private static let updateKeys: Set<String> = ["appcastURL", "publicKey"]
     private static let slotKeys: Set<String> = ["id", "title", "accepts", "minimum", "maximum"]
     private static let propertyKeys: Set<String> = [
         "id", "labels", "group", "default", "responsive", "subtitles", "units", "toolTip",
@@ -70,11 +74,17 @@ nonisolated enum ComponentPackageManifestSchema {
         }
 
         if collection {
-            let unknownKeys = dictionary.keys.filter { $0 != "collection" }.sorted()
+            let unknownKeys = dictionary.keys.filter { !collectionKeys.contains($0) }.sorted()
             guard unknownKeys.isEmpty else {
                 throw SchemaError.invalidCollectionKeys(unknownKeys)
             }
-            return Inspection(kind: .collection, identifier: nil)
+            let identifier = dictionary["id"] as? String
+            if dictionary["updates"] != nil,
+               (identifier?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty != false
+                || SemanticVersion(dictionary["version"] as? String ?? "") == nil) {
+                throw SchemaError.invalidCollectionKeys(["An update-enabled collection requires id and semantic version"])
+            }
+            return Inspection(kind: .collection, identifier: identifier)
         }
 
         guard let identifier = dictionary["id"] as? String,
@@ -88,6 +98,7 @@ nonisolated enum ComponentPackageManifestSchema {
         let dictionary = try rootDictionary(from: data)
         var diagnostics: [ComponentPackageDiagnostic] = []
         unknownKeys(in: dictionary, allowed: componentKeys, location: "Info.plist", into: &diagnostics)
+        validateComponentFields(in: dictionary, into: &diagnostics)
 
         if let collection = dictionary["collection"], !isBoolean(collection) {
             diagnostics.append(.init(
@@ -98,29 +109,71 @@ nonisolated enum ComponentPackageManifestSchema {
         }
         validateAPIVersion(in: dictionary, into: &diagnostics)
         validateReleaseVersion(in: dictionary, into: &diagnostics)
+        validateUpdates(in: dictionary, into: &diagnostics)
 
+        validateDictionaryArray(dictionary["slots"], key: "slots", parent: "Info.plist", into: &diagnostics)
         dictionaries(in: dictionary["slots"]).enumerated().forEach { index, slot in
+            let location = "Info.plist:slots[\(index)]"
             unknownKeys(
                 in: slot,
                 allowed: slotKeys,
-                location: "Info.plist:slots[\(index)]",
+                location: location,
                 into: &diagnostics
             )
+            validateSlot(slot, location: location, into: &diagnostics)
         }
+        validateDictionaryArray(dictionary["customItems"], key: "customItems", parent: "Info.plist", into: &diagnostics)
         dictionaries(in: dictionary["customItems"]).enumerated().forEach { index, property in
             let location = "Info.plist:customItems[\(index)]"
             unknownKeys(in: property, allowed: propertyKeys, location: location, into: &diagnostics)
+            validateProperty(property, location: location, into: &diagnostics)
+            if let themeValues = property["themeValues"], !(themeValues is String) {
+                diagnostics.append(.init(
+                    severity: .error,
+                    location: "\(location).themeValues",
+                    message: "themeValues must be a string."
+                ))
+            }
+            if property["type"] as? String == ComponentPackageControl.Kind.select.rawValue,
+               property["themeValues"] is String,
+               property["count"] != nil {
+                diagnostics.append(.init(
+                    severity: .error,
+                    location: "\(location).count",
+                    message: "A select control using themeValues cannot be a multi control; remove count."
+                ))
+            }
+            if property["type"] as? String == ComponentPackageControl.Kind.color.rawValue,
+               property["themeValues"] is String,
+               property["count"] != nil {
+                diagnostics.append(.init(
+                    severity: .error,
+                    location: "\(location).count",
+                    message: "A color control using themeValues cannot be a multi control; remove count."
+                ))
+            }
             if let enable = property["enable"] as? [String: Any] {
                 unknownKeys(in: enable, allowed: enableKeys, location: "\(location).enable", into: &diagnostics)
+                validateEnable(enable, location: "\(location).enable", into: &diagnostics)
             }
+            if let enable = property["enable"], !(enable is [String: Any]) {
+                appendTypeError(key: "enable", expected: "a dictionary", location: location, into: &diagnostics)
+            }
+            validateDictionaryArray(property["options"], key: "options", parent: location, into: &diagnostics)
             dictionaries(in: property["options"]).enumerated().forEach { optionIndex, option in
+                let optionLocation = "\(location):options[\(optionIndex)]"
                 unknownKeys(
                     in: option,
                     allowed: optionKeys,
-                    location: "\(location):options[\(optionIndex)]",
+                    location: optionLocation,
                     into: &diagnostics
                 )
+                requireString("value", in: option, location: optionLocation, into: &diagnostics)
+                requireString("title", in: option, location: optionLocation, into: &diagnostics)
             }
+        }
+        if let templates = dictionary["templates"], !(templates is [String: Any]) {
+            appendTypeError(key: "templates", expected: "a dictionary", location: "Info.plist", into: &diagnostics)
         }
         if let templates = dictionary["templates"] as? [String: Any] {
             unknownKeys(
@@ -129,13 +182,18 @@ nonisolated enum ComponentPackageManifestSchema {
                 location: "Info.plist:templates",
                 into: &diagnostics
             )
+            requireString("html", in: templates, location: "Info.plist:templates", into: &diagnostics)
+            optionalString("editorCSS", in: templates, location: "Info.plist:templates", into: &diagnostics)
+            validateDictionaryArray(templates["files"], key: "files", parent: "Info.plist:templates", into: &diagnostics)
             dictionaries(in: templates["files"]).enumerated().forEach { index, file in
+                let fileLocation = "Info.plist:templates.files[\(index)]"
                 unknownKeys(
                     in: file,
                     allowed: templateFileKeys,
-                    location: "Info.plist:templates.files[\(index)]",
+                    location: fileLocation,
                     into: &diagnostics
                 )
+                validateTemplateFile(file, location: fileLocation, into: &diagnostics)
             }
         }
         if let rawAssets = dictionary["assets"], !(rawAssets is [Any]) {
@@ -182,16 +240,115 @@ nonisolated enum ComponentPackageManifestSchema {
                 location: "Info.plist:missingComponent",
                 into: &diagnostics
             )
+            optionalString("message", in: missingComponent, location: "Info.plist:missingComponent", into: &diagnostics)
+            optionalString("preview", in: missingComponent, location: "Info.plist:missingComponent", into: &diagnostics)
+        } else if dictionary["missingComponent"] != nil {
+            appendTypeError(key: "missingComponent", expected: "a dictionary", location: "Info.plist", into: &diagnostics)
         }
+        validateDictionaryArray(dictionary["libraries"], key: "libraries", parent: "Info.plist", into: &diagnostics)
         dictionaries(in: dictionary["libraries"]).enumerated().forEach { index, library in
+            let location = "Info.plist:libraries[\(index)]"
             unknownKeys(
                 in: library,
                 allowed: libraryKeys,
-                location: "Info.plist:libraries[\(index)]",
+                location: location,
                 into: &diagnostics
             )
+            requireString("id", in: library, location: location, into: &diagnostics)
+            requireInteger("majorVersion", in: library, location: location, into: &diagnostics)
         }
         return diagnostics
+    }
+
+    private static func validateComponentFields(in dictionary: [String: Any], into diagnostics: inout [ComponentPackageDiagnostic]) {
+        requireString("id", in: dictionary, location: "Info.plist", into: &diagnostics)
+        requireString("title", in: dictionary, location: "Info.plist", into: &diagnostics)
+        optionalString("description", in: dictionary, location: "Info.plist", into: &diagnostics)
+        optionalString("author", in: dictionary, location: "Info.plist", into: &diagnostics)
+        optionalString("group", in: dictionary, location: "Info.plist", into: &diagnostics)
+        optionalString("helpURL", in: dictionary, location: "Info.plist", into: &diagnostics)
+        optionalBoolean("requiresPhp", in: dictionary, location: "Info.plist", into: &diagnostics)
+        optionalStringArray("tags", in: dictionary, location: "Info.plist", into: &diagnostics)
+        if dictionary["templates"] == nil {
+            appendMissing("templates", expected: "dictionary", location: "Info.plist", into: &diagnostics)
+        }
+    }
+
+    private static func validateSlot(_ slot: [String: Any], location: String, into diagnostics: inout [ComponentPackageDiagnostic]) {
+        requireString("id", in: slot, location: location, into: &diagnostics)
+        requireString("title", in: slot, location: location, into: &diagnostics)
+        requireStringArray("accepts", in: slot, location: location, into: &diagnostics)
+        requireInteger("minimum", in: slot, location: location, into: &diagnostics)
+        optionalInteger("maximum", in: slot, location: location, into: &diagnostics)
+    }
+
+    private static func validateProperty(_ property: [String: Any], location: String, into diagnostics: inout [ComponentPackageDiagnostic]) {
+        requireString("id", in: property, location: location, into: &diagnostics)
+        optionalString("group", in: property, location: location, into: &diagnostics)
+        optionalString("toolTip", in: property, location: location, into: &diagnostics)
+
+        guard let rawType = property["type"] else {
+            appendMissing("type", expected: "control type string", location: location, into: &diagnostics)
+            return
+        }
+        guard let typeName = rawType as? String else {
+            appendTypeError(key: "type", expected: "a string", location: location, into: &diagnostics)
+            return
+        }
+        guard let type = ComponentPackageControl.Kind(rawValue: typeName) else {
+            diagnostics.append(.init(severity: .error, location: "\(location):type", message: "Unknown control type '\(typeName)'."))
+            return
+        }
+
+        let count = property["count"].flatMap(integer)
+        if property["count"] != nil && count == nil {
+            appendTypeError(key: "count", expected: "an integer", location: location, into: &diagnostics)
+        }
+        if property["count"] != nil {
+            requireStringArray("labels", in: property, location: location, into: &diagnostics)
+            optionalStringArray("subtitles", in: property, location: location, into: &diagnostics)
+            optionalStringArray("units", in: property, location: location, into: &diagnostics)
+        } else {
+            optionalString("labels", in: property, location: location, into: &diagnostics)
+            if property["subtitles"] != nil {
+                optionalStringArray("subtitles", in: property, location: location, into: &diagnostics)
+            }
+            optionalString("units", in: property, location: location, into: &diagnostics)
+        }
+
+        for key in ["minimum", "maximum", "step"] { optionalNumber(key, in: property, location: location, into: &diagnostics) }
+        for key in ["allowsCustom", "colorMath", "opacity", "showsValueField", "round", "absoluteURL"] {
+            optionalBoolean(key, in: property, location: location, into: &diagnostics)
+        }
+        for key in ["ticks"] { optionalInteger(key, in: property, location: location, into: &diagnostics) }
+        for key in ["customColor", "systemImage", "operation"] { optionalString(key, in: property, location: location, into: &diagnostics) }
+        for key in ["default", "customValue", "trueValue", "falseValue", "argument1", "argument2"] {
+            optionalComponentValue(key, in: property, location: location, into: &diagnostics)
+        }
+
+        let permitsMissingDefault = type == .divider || type == .info || type == .math || type == .slider
+        if !permitsMissingDefault && property["default"] == nil {
+            appendMissing("default", expected: "value", location: location, into: &diagnostics)
+        }
+        let permitsMissingResponsive = type == .divider || type == .info || type == .math
+        if !permitsMissingResponsive && property["responsive"] == nil {
+            appendMissing("responsive", expected: "Boolean", location: location, into: &diagnostics)
+        } else {
+            optionalBoolean("responsive", in: property, location: location, into: &diagnostics)
+        }
+    }
+
+    private static func validateEnable(_ enable: [String: Any], location: String, into diagnostics: inout [ComponentPackageDiagnostic]) {
+        requireString("id", in: enable, location: location, into: &diagnostics)
+        optionalString("operation", in: enable, location: location, into: &diagnostics)
+        optionalComponentValue("value", in: enable, location: location, into: &diagnostics)
+    }
+
+    private static func validateTemplateFile(_ file: [String: Any], location: String, into diagnostics: inout [ComponentPackageDiagnostic]) {
+        requireString("path", in: file, location: location, into: &diagnostics)
+        optionalEnumString("scope", values: ["instance", "page", "site"], in: file, location: location, into: &diagnostics)
+        optionalEnumString("placement", values: ["headStart", "headEnd", "bodyStart", "bodyEnd"], in: file, location: location, into: &diagnostics)
+        optionalBoolean("closure", in: file, location: location, into: &diagnostics)
     }
 
     private static func validateAPIVersion(
@@ -251,12 +408,135 @@ nonisolated enum ComponentPackageManifestSchema {
         }
     }
 
+    private static func validateUpdates(
+        in dictionary: [String: Any],
+        into diagnostics: inout [ComponentPackageDiagnostic]
+    ) {
+        guard let value = dictionary["updates"] else { return }
+        guard let updates = value as? [String: Any] else {
+            appendTypeError(key: "updates", expected: "a dictionary", location: "Info.plist", into: &diagnostics)
+            return
+        }
+        unknownKeys(in: updates, allowed: updateKeys, location: "Info.plist:updates", into: &diagnostics)
+        requireString("appcastURL", in: updates, location: "Info.plist:updates", into: &diagnostics)
+        requireString("publicKey", in: updates, location: "Info.plist:updates", into: &diagnostics)
+        if let value = updates["appcastURL"] as? String,
+           URL(string: value)?.scheme?.lowercased() != "https" {
+            diagnostics.append(.init(severity: .error, location: "Info.plist:updates:appcastURL", message: "appcastURL must use HTTPS."))
+        }
+        if let value = updates["publicKey"] as? String,
+           Data(base64Encoded: value)?.count != 32 {
+            diagnostics.append(.init(severity: .error, location: "Info.plist:updates:publicKey", message: "publicKey must be a Base64-encoded Ed25519 public key."))
+        }
+    }
+
     private static func rootDictionary(from data: Data) throws -> [String: Any] {
         let value = try PropertyListSerialization.propertyList(from: data, options: [], format: nil)
         guard let dictionary = value as? [String: Any] else {
             throw SchemaError.rootIsNotDictionary
         }
         return dictionary
+    }
+
+    private static func validateDictionaryArray(
+        _ value: Any?, key: String, parent: String,
+        into diagnostics: inout [ComponentPackageDiagnostic]
+    ) {
+        guard let value else { return }
+        guard let array = value as? [Any] else {
+            appendTypeError(key: key, expected: "an array of dictionaries", location: parent, into: &diagnostics)
+            return
+        }
+        for (index, entry) in array.enumerated() where !(entry is [String: Any]) {
+            diagnostics.append(.init(
+                severity: .error,
+                location: "\(parent):\(key)[\(index)]",
+                message: "Each \(key) entry must be a dictionary."
+            ))
+        }
+    }
+
+    private static func requireString(_ key: String, in dictionary: [String: Any], location: String, into diagnostics: inout [ComponentPackageDiagnostic]) {
+        guard let value = dictionary[key] else {
+            appendMissing(key, expected: "string", location: location, into: &diagnostics)
+            return
+        }
+        guard value is String else { appendTypeError(key: key, expected: "a string", location: location, into: &diagnostics); return }
+    }
+
+    private static func optionalString(_ key: String, in dictionary: [String: Any], location: String, into diagnostics: inout [ComponentPackageDiagnostic]) {
+        if let value = dictionary[key], !(value is String) {
+            appendTypeError(key: key, expected: "a string", location: location, into: &diagnostics)
+        }
+    }
+
+    private static func requireInteger(_ key: String, in dictionary: [String: Any], location: String, into diagnostics: inout [ComponentPackageDiagnostic]) {
+        guard let value = dictionary[key] else {
+            appendMissing(key, expected: "integer", location: location, into: &diagnostics)
+            return
+        }
+        if integer(value) == nil { appendTypeError(key: key, expected: "an integer", location: location, into: &diagnostics) }
+    }
+
+    private static func optionalInteger(_ key: String, in dictionary: [String: Any], location: String, into diagnostics: inout [ComponentPackageDiagnostic]) {
+        if let value = dictionary[key], integer(value) == nil {
+            appendTypeError(key: key, expected: "an integer", location: location, into: &diagnostics)
+        }
+    }
+
+    private static func optionalNumber(_ key: String, in dictionary: [String: Any], location: String, into diagnostics: inout [ComponentPackageDiagnostic]) {
+        if let value = dictionary[key], !isNumber(value) {
+            appendTypeError(key: key, expected: "a number", location: location, into: &diagnostics)
+        }
+    }
+
+    private static func optionalBoolean(_ key: String, in dictionary: [String: Any], location: String, into diagnostics: inout [ComponentPackageDiagnostic]) {
+        if let value = dictionary[key], !isBoolean(value) {
+            appendTypeError(key: key, expected: "a Boolean", location: location, into: &diagnostics)
+        }
+    }
+
+    private static func requireStringArray(_ key: String, in dictionary: [String: Any], location: String, into diagnostics: inout [ComponentPackageDiagnostic]) {
+        guard dictionary[key] != nil else {
+            appendMissing(key, expected: "array of strings", location: location, into: &diagnostics)
+            return
+        }
+        optionalStringArray(key, in: dictionary, location: location, into: &diagnostics)
+    }
+
+    private static func optionalStringArray(_ key: String, in dictionary: [String: Any], location: String, into diagnostics: inout [ComponentPackageDiagnostic]) {
+        guard let value = dictionary[key] else { return }
+        guard let array = value as? [Any], array.allSatisfy({ $0 is String }) else {
+            appendTypeError(key: key, expected: "an array of strings", location: location, into: &diagnostics)
+            return
+        }
+    }
+
+    private static func optionalEnumString(
+        _ key: String, values: Set<String>, in dictionary: [String: Any], location: String,
+        into diagnostics: inout [ComponentPackageDiagnostic]
+    ) {
+        guard let value = dictionary[key] else { return }
+        guard let string = value as? String else {
+            appendTypeError(key: key, expected: "a string", location: location, into: &diagnostics)
+            return
+        }
+        if !values.contains(string) {
+            diagnostics.append(.init(severity: .error, location: "\(location):\(key)", message: "\(key) must be one of: \(values.sorted().joined(separator: ", "))."))
+        }
+    }
+
+    private static func optionalComponentValue(_ key: String, in dictionary: [String: Any], location: String, into diagnostics: inout [ComponentPackageDiagnostic]) {
+        guard let value = dictionary[key], !isComponentValue(value) else { return }
+        appendTypeError(key: key, expected: "a string, number, Boolean, or array of those values", location: location, into: &diagnostics)
+    }
+
+    private static func appendMissing(_ key: String, expected: String, location: String, into diagnostics: inout [ComponentPackageDiagnostic]) {
+        diagnostics.append(.init(severity: .error, location: "\(location):\(key)", message: "A \(key) \(expected) is required."))
+    }
+
+    private static func appendTypeError(key: String, expected: String, location: String, into diagnostics: inout [ComponentPackageDiagnostic]) {
+        diagnostics.append(.init(severity: .error, location: "\(location):\(key)", message: "\(key) must be \(expected)."))
     }
 
     private static func dictionaries(in value: Any?) -> [[String: Any]] {
@@ -283,6 +563,17 @@ nonisolated enum ComponentPackageManifestSchema {
         return CFGetTypeID(number) == CFBooleanGetTypeID()
     }
 
+    private static func isNumber(_ value: Any) -> Bool {
+        guard let number = value as? NSNumber else { return false }
+        return CFGetTypeID(number) != CFBooleanGetTypeID()
+    }
+
+    private static func isComponentValue(_ value: Any) -> Bool {
+        if value is String || isBoolean(value) || isNumber(value) { return true }
+        guard let array = value as? [Any] else { return false }
+        return array.allSatisfy(isComponentValue)
+    }
+
     private static func integer(_ value: Any) -> Int? {
         guard let number = value as? NSNumber,
               CFGetTypeID(number) != CFBooleanGetTypeID() else { return nil }
@@ -292,16 +583,35 @@ nonisolated enum ComponentPackageManifestSchema {
     }
 }
 
-nonisolated struct SemanticVersion: Equatable, Sendable {
+nonisolated struct SemanticVersion: Comparable, Sendable {
     private static let expression = try! NSRegularExpression(
         pattern: #"^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(?:-((?:0|[1-9][0-9]*|[0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*)(?:\.(?:0|[1-9][0-9]*|[0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*))*))?(?:\+([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?$"#
     )
 
     let rawValue: String
+    private let core: [Int]
+    private let prerelease: [String]
 
     init?(_ rawValue: String) {
         let range = NSRange(rawValue.startIndex..., in: rawValue)
         guard Self.expression.firstMatch(in: rawValue, range: range)?.range == range else { return nil }
         self.rawValue = rawValue
+        let versionAndBuild = rawValue.split(separator: "+", maxSplits: 1)[0]
+        let parts = versionAndBuild.split(separator: "-", maxSplits: 1)
+        core = parts[0].split(separator: ".").compactMap { Int($0) }
+        prerelease = parts.count > 1 ? parts[1].split(separator: ".").map(String.init) : []
+    }
+
+    static func < (lhs: Self, rhs: Self) -> Bool {
+        if lhs.core != rhs.core { return lhs.core.lexicographicallyPrecedes(rhs.core) }
+        if lhs.prerelease.isEmpty { return false }
+        if rhs.prerelease.isEmpty { return true }
+        for (left, right) in zip(lhs.prerelease, rhs.prerelease) where left != right {
+            if let leftNumber = Int(left), let rightNumber = Int(right) { return leftNumber < rightNumber }
+            if Int(left) != nil { return true }
+            if Int(right) != nil { return false }
+            return left < right
+        }
+        return lhs.prerelease.count < rhs.prerelease.count
     }
 }

@@ -101,13 +101,19 @@ private struct PagesPanelHeader: View {
 }
 
 struct ComponentLibraryPanel: View {
+    @Binding var selectedType: ComponentType?
     let addToPageEnd: (ComponentType) -> Void
-    @State private var selectedType: ComponentType?
     @State private var catalog = ComponentPackageCatalog.shared
+    @Environment(\.openWindow) private var openWindow
 
     var body: some View {
         let _ = catalog.revision
         VStack(spacing: 0) {
+            ComponentLibraryPanelHeader {
+                openWindow(id: "available-component-updates")
+                Task { await ComponentUpdateManager.shared.checkAll() }
+            }
+            Divider()
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 18) {
                     ForEach(componentSections, id: \.category) { section in
@@ -158,11 +164,6 @@ struct ComponentLibraryPanel: View {
             }
             .frame(maxHeight: .infinity)
 
-            Divider()
-
-            if let selectedType {
-                ComponentLibraryDetail(type: selectedType)
-            }
         }
         .onChange(of: catalog.revision, initial: true) {
             let availableTypes = ComponentType.allCases
@@ -193,50 +194,60 @@ struct ComponentLibraryPanel: View {
     }
 }
 
+private struct ComponentLibraryPanelHeader: View {
+    let checkForUpdates: () -> Void
+
+    var body: some View {
+        HStack {
+            Text("Components")
+                .font(.headline)
+            Spacer()
+            Button(action: checkForUpdates) {
+                Image(systemName: "arrow.clockwise")
+                    .frame(width: 22, height: 22)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.borderless)
+            .accessibilityLabel("Check for Component Updates")
+            .help("Check for Component Updates")
+        }
+        .padding(.horizontal, 12)
+        .frame(height: 38)
+    }
+}
+
 struct DeveloperPanel: View {
     @State private var catalog = ComponentPackageCatalog.shared
+    @State private var selection = DeveloperPanelSection.issues
+    @Environment(\.openWindow) private var openWindow
 
     var body: some View {
         let _ = catalog.revision
         VStack(spacing: 0) {
-            HStack(spacing: 10) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(summaryTitle)
-                        .font(.headline)
-                    Text(summaryDescription)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+            Picker("Developer tools", selection: $selection) {
+                ForEach(DeveloperPanelSection.allCases) { section in
+                    Text(section.title).tag(section)
                 }
-
-                Spacer(minLength: 8)
-
-                Button("Reload Components", systemImage: "arrow.clockwise") {
-                    catalog.reloadAllPacks()
-                }
-                .labelStyle(.iconOnly)
-                .help("Reload component packages")
             }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .tint(.accentColor)
+            .frame(maxWidth: .infinity)
             .padding(12)
+            .onChange(of: selection) { _, newSelection in
+                guard newSelection == .updater else { return }
+                openWindow(id: "component-updates")
+                selection = .issues
+            }
 
             Divider()
 
-            if issues.isEmpty {
-                ContentUnavailableView(
-                    "No Component Issues",
-                    systemImage: "checkmark.circle",
-                    description: Text("Package validation and loading issues will appear here.")
-                )
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else {
-                ScrollView {
-                    LazyVStack(alignment: .leading, spacing: 12) {
-                        ForEach(issues) { issue in
-                            DeveloperPackageIssueCard(issue: issue)
-                        }
-                    }
-                    .padding(12)
-                }
-            }
+            DeveloperIssuesView(
+                issues: issues,
+                summaryTitle: summaryTitle,
+                summaryDescription: summaryDescription,
+                reload: catalog.reloadAllPacks
+            )
         }
     }
 
@@ -277,6 +288,519 @@ struct DeveloperPanel: View {
             parts.append(warningCount == 1 ? "1 warning" : "\(warningCount) warnings")
         }
         return parts.joined(separator: ", ")
+    }
+}
+
+private enum DeveloperPanelSection: String, CaseIterable, Identifiable {
+    case issues
+    case updater
+
+    var id: Self { self }
+    var title: String { rawValue.capitalized }
+}
+
+private struct DeveloperIssuesView: View {
+    let issues: [DeveloperPackageIssue]
+    let summaryTitle: String
+    let summaryDescription: String
+    let reload: () -> Void
+
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack(spacing: 10) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(summaryTitle)
+                        .font(.headline)
+                    Text(summaryDescription)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer(minLength: 8)
+                Button("Reload Components", systemImage: "arrow.clockwise", action: reload)
+                    .labelStyle(.iconOnly)
+                    .help("Reload component packages")
+            }
+            .padding(12)
+            Divider()
+            if issues.isEmpty {
+                ContentUnavailableView(
+                    "No Component Issues",
+                    systemImage: "checkmark.circle",
+                    description: Text("Package validation and loading issues will appear here.")
+                )
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                ScrollView {
+                    LazyVStack(alignment: .leading, spacing: 12) {
+                        ForEach(issues) { issue in
+                            DeveloperPackageIssueCard(issue: issue)
+                        }
+                    }
+                    .padding(12)
+                }
+            }
+        }
+    }
+}
+
+private struct ReleaseNoteDraft: Identifiable {
+    let id = UUID()
+    var text = ""
+}
+
+struct DeveloperReleasesView: View {
+    let developmentPacks: [URL]
+    @State private var selectedPackURL: URL?
+    @State private var publishingDirectoryURL = ""
+    @State private var releaseVersion = ""
+    @State private var releaseNotes = [ReleaseNoteDraft()]
+    @State private var isWorking = false
+    @State private var operationProgress = 0.0
+    @State private var resultMessage: String?
+    @State private var errorMessage: String?
+    @State private var workingTask: Task<Void, Never>?
+
+    var body: some View {
+        content
+            .onAppear {
+                if selectedPackURL == nil { selectedPackURL = developmentPacks.first }
+                resetReleaseVersion(for: selectedPack)
+            }
+            .onChange(of: developmentPacks) { _, packs in
+                if selectedPackURL.map({ packs.contains($0) }) != true {
+                    selectedPackURL = packs.first
+                }
+            }
+            .onChange(of: selectedPackURL) {
+                workingTask?.cancel()
+                publishingDirectoryURL = publishingURL(for: selectedPackURL) ?? ""
+                resetReleaseVersion(for: selectedPack)
+                releaseNotes = [ReleaseNoteDraft()]
+                resultMessage = nil
+                errorMessage = nil
+            }
+    }
+
+    @ViewBuilder
+    private var content: some View {
+        if developmentPacks.isEmpty {
+            ContentUnavailableView(
+                "No Development Pack",
+                systemImage: "shippingbox",
+                description: Text("Convert a component pack to .foundrydevpack before issuing updates.")
+            )
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else {
+            Form {
+                Section {
+                    Picker("Development Pack", selection: $selectedPackURL) {
+                        ForEach(developmentPacks, id: \.self) { url in
+                            Text(url.deletingPathExtension().lastPathComponent).tag(Optional(url))
+                        }
+                    }
+                }
+
+                if let selectedPackURL {
+                    if let configuration = selectedPack?.metadata.updates,
+                       configuration.appcastURL.lastPathComponent == "appcast.php" {
+                        issueUpdateView(
+                            sourceURL: selectedPackURL,
+                            configuration: configuration
+                        )
+                    } else {
+                        prepareForUpdatesView(sourceURL: selectedPackURL)
+                    }
+                }
+
+                if isWorking || resultMessage != nil || errorMessage != nil {
+                    Section {
+                        DeveloperReleaseStatus(
+                            isWorking: isWorking,
+                            progress: operationProgress,
+                            resultMessage: resultMessage,
+                            errorMessage: errorMessage
+                        )
+                        if isWorking {
+                            Button("Cancel", role: .cancel) { workingTask?.cancel() }
+                        }
+                    }
+                }
+            }
+            .formStyle(.grouped)
+        }
+    }
+
+    private var selectedPack: FoundryPack? {
+        selectedPackURL.flatMap { try? FoundryPackLoader.load(from: $0) }
+    }
+
+    private func prepareForUpdatesView(sourceURL: URL) -> some View {
+        Section("Prepare for Updates") {
+            Text("Foundry uses the publishing settings to derive the appcast and archive URLs and creates a signing identity in Keychain.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            LabeledContent("Publishing URL", value: publishingDirectoryURL.isEmpty ? "Configure Publishing Settings" : publishingDirectoryURL)
+            Button("Prepare and Publish Endpoint", systemImage: "checkmark.seal") {
+                prepareForUpdates(sourceURL: sourceURL)
+            }
+            .disabled(!isValidPublishingDirectoryURL(publishingDirectoryURL) || !publisherIsConfigured || isWorking)
+        }
+    }
+
+    @ViewBuilder
+    private func issueUpdateView(
+        sourceURL: URL,
+        configuration: FoundryPackUpdateConfiguration
+    ) -> some View {
+        Section {
+            if let currentVersion = selectedPack?.metadata.version {
+                LabeledContent("Current Version", value: currentVersion)
+                LabeledContent("Release Version") {
+                    HStack(spacing: 10) {
+                        TextField("Release Version", text: $releaseVersion, prompt: Text("1.0.1"))
+                            .labelsHidden()
+                            .frame(width: 110)
+                            .textFieldStyle(.roundedBorder)
+                        ControlGroup {
+                            Button("Major") { incrementVersion(.major, from: currentVersion) }
+                            Button("Minor") { incrementVersion(.minor, from: currentVersion) }
+                            Button("Patch") { incrementVersion(.patch, from: currentVersion) }
+                        }
+                    }
+                }
+                if !releaseVersion.isEmpty && !isValidReleaseVersion {
+                    Label("Enter a semantic version greater than \(currentVersion).", systemImage: "exclamationmark.triangle.fill")
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                }
+            }
+            VStack(alignment: .leading, spacing: 5) {
+                Text("Publishing Directory")
+                    .font(.subheadline.weight(.semibold))
+                Text(configuration.appcastURL.deletingLastPathComponent().absoluteString)
+                    .font(.caption.monospaced())
+                    .textSelection(.enabled)
+            }
+        } header: {
+            Text("Release")
+        }
+
+        Section {
+            ForEach($releaseNotes) { $note in
+                HStack(alignment: .top, spacing: 10) {
+                    Image(systemName: "circle.fill")
+                        .font(.system(size: 5))
+                        .foregroundStyle(.secondary)
+                        .padding(.top, 10)
+                    TextField(
+                        "Describe a change",
+                        text: $note.text,
+                        axis: .vertical
+                    )
+                    .textFieldStyle(.roundedBorder)
+                    .lineLimit(1...4)
+                    if releaseNotes.count > 1 {
+                        Button("Remove Note", systemImage: "minus.circle") {
+                            releaseNotes.removeAll { $0.id == note.id }
+                        }
+                        .labelStyle(.iconOnly)
+                        .buttonStyle(.borderless)
+                    }
+                }
+            }
+            Button("Add Another Note", systemImage: "plus") {
+                releaseNotes.append(ReleaseNoteDraft())
+            }
+        } header: {
+            Text("Release Notes")
+        }
+
+        Section {
+            Button("Publish Update") {
+                issueUpdate(sourceURL: sourceURL)
+            }
+            .buttonStyle(.borderedProminent)
+            .disabled(
+                isWorking
+                    || !isValidReleaseVersion
+                    || releaseNotes.contains { $0.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+            )
+        }
+    }
+
+    private func prepareForUpdates(sourceURL: URL) {
+        guard let url = URL(string: publishingDirectoryURL),
+              let packID = try? FoundryPackLoader.load(from: sourceURL).identifier else { return }
+        let site = ComponentUpdatePublisherConfiguration.site
+        let credential = PublishingCredentialStore.credential(site: site)
+        let outputDirectoryURL = FileManager.default.temporaryDirectory.appending(
+            path: "Foundry-Update-Setup-\(UUID().uuidString)",
+            directoryHint: .isDirectory
+        )
+
+        isWorking = true
+        operationProgress = 0
+        resultMessage = nil
+        errorMessage = nil
+        workingTask?.cancel()
+        workingTask = Task {
+            defer { try? FileManager.default.removeItem(at: outputDirectoryURL) }
+            do {
+                let setupDirectory = try FoundryPackReleaseBuilder.prepareForUpdates(
+                    sourceURL: sourceURL,
+                    publishingDirectoryURL: url,
+                    outputDirectoryURL: outputDirectoryURL
+                )
+                try Task.checkCancellation()
+                try await ComponentUpdatePublisher.publishSetup(
+                    directory: setupDirectory,
+                    packID: packID,
+                    site: site,
+                    credential: credential,
+                    progress: { progress in
+                        Task { @MainActor in
+                            operationProgress = progress
+                        }
+                    }
+                )
+                try await verifyPublishedEndpoint(appcastURL: url.appending(path: "appcast.php"))
+                try Task.checkCancellation()
+                try FoundryPackReleaseBuilder.finalizeUpdatePreparation(
+                    sourceURL: sourceURL,
+                    publishingDirectoryURL: url
+                )
+                ComponentPackageCatalog.shared.reloadAllPacks()
+                resetReleaseVersion(for: try? FoundryPackLoader.load(from: sourceURL))
+                resultMessage = "Published the update endpoint successfully."
+            } catch is CancellationError {
+                errorMessage = "Preparation was cancelled."
+            } catch {
+                errorMessage = error.localizedDescription
+            }
+            isWorking = false
+        }
+    }
+
+    private func issueUpdate(sourceURL: URL) {
+        guard let pack = try? FoundryPackLoader.load(from: sourceURL),
+              let packID = pack.identifier else { return }
+        let version = releaseVersion.trimmingCharacters(in: .whitespacesAndNewlines)
+        let site = ComponentUpdatePublisherConfiguration.site
+        let credential = PublishingCredentialStore.credential(site: site)
+        let outputDirectoryURL = FileManager.default.temporaryDirectory.appending(
+            path: "Foundry-Release-Output-\(UUID().uuidString)",
+            directoryHint: .isDirectory
+        )
+        let notes = releaseNotes.map { $0.text.trimmingCharacters(in: .whitespacesAndNewlines) }
+        let request = FoundryPackReleaseBuilder.Request(
+            sourceURL: sourceURL,
+            outputDirectoryURL: outputDirectoryURL,
+            version: version,
+            releaseNotes: notes
+        )
+        isWorking = true
+        operationProgress = 0
+        resultMessage = nil
+        errorMessage = nil
+        workingTask?.cancel()
+        workingTask = Task {
+            defer { try? FileManager.default.removeItem(at: outputDirectoryURL) }
+            do {
+                guard let configuration = pack.metadata.updates else {
+                    throw FoundryPackUpdateError.invalidMetadata("Prepare this pack for updates before issuing a release.")
+                }
+                try validatePublishingDestination(site: site, configuration: configuration, packID: packID)
+                let result = try await FoundryPackReleaseBuilder.create(request)
+                try Task.checkCancellation()
+                try await ComponentUpdatePublisher.publish(
+                    directory: result.outputDirectoryURL,
+                    packID: packID,
+                    site: site,
+                    credential: credential,
+                    progress: { progress in
+                        Task { @MainActor in
+                            operationProgress = progress
+                        }
+                    }
+                )
+                try await verifyPublishedRelease(
+                    appcastURL: configuration.appcastURL,
+                    packID: packID,
+                    version: version
+                )
+                resultMessage = "Published and verified version \(version)."
+                releaseNotes = [ReleaseNoteDraft()]
+                releaseVersion = version
+                incrementVersion(.patch, from: version)
+            } catch is CancellationError {
+                errorMessage = "Publishing was cancelled."
+            } catch {
+                errorMessage = error.localizedDescription
+            }
+            isWorking = false
+        }
+    }
+
+    private enum VersionComponent {
+        case major
+        case minor
+        case patch
+    }
+
+    private var isValidReleaseVersion: Bool {
+        guard let source = selectedPack?.metadata.version.flatMap(SemanticVersion.init),
+              let release = SemanticVersion(releaseVersion.trimmingCharacters(in: .whitespacesAndNewlines)) else {
+            return false
+        }
+        return release > source
+    }
+
+    private func incrementVersion(_ component: VersionComponent, from fallback: String) {
+        let value = SemanticVersion(releaseVersion) == nil ? fallback : releaseVersion
+        let core = value.split(separator: "+", maxSplits: 1)[0]
+            .split(separator: "-", maxSplits: 1)[0]
+            .split(separator: ".")
+            .compactMap { Int($0) }
+        guard core.count == 3 else { return }
+
+        switch component {
+        case .major:
+            releaseVersion = "\(core[0] + 1).0.0"
+        case .minor:
+            releaseVersion = "\(core[0]).\(core[1] + 1).0"
+        case .patch:
+            releaseVersion = "\(core[0]).\(core[1]).\(core[2] + 1)"
+        }
+    }
+
+    private func resetReleaseVersion(for pack: FoundryPack?) {
+        guard let currentVersion = pack?.metadata.version else {
+            releaseVersion = ""
+            return
+        }
+        releaseVersion = currentVersion
+        if pack?.metadata.updates != nil {
+            incrementVersion(.patch, from: currentVersion)
+        }
+    }
+
+    private var publisherIsConfigured: Bool {
+        let site = ComponentUpdatePublisherConfiguration.site
+        return [.ftp, .ftps, .sftp].contains(site.publishingDestination)
+            && !site.publishingHost.isEmpty
+            && !site.publishingUsername.isEmpty
+            && !site.publishingRemotePath.isEmpty
+            && URL(string: site.publicURL)?.scheme == "https"
+    }
+
+    private func publishingURL(for sourceURL: URL?) -> String? {
+        guard let sourceURL,
+              let identifier = try? FoundryPackLoader.load(from: sourceURL).identifier else { return nil }
+        return URL(string: ComponentUpdatePublisherConfiguration.site.publicURL)?
+            .appending(path: identifier)
+            .absoluteString
+    }
+
+    private func verifyPublishedRelease(appcastURL: URL, packID: String, version: String) async throws {
+        var request = URLRequest(url: appcastURL, cachePolicy: .reloadIgnoringLocalAndRemoteCacheData)
+        request.setValue("no-cache", forHTTPHeaderField: "Cache-Control")
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let response = response as? HTTPURLResponse,
+              (200...299).contains(response.statusCode) else {
+            throw FoundryPackUpdateError.invalidMetadata("The published appcast could not be reached.")
+        }
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let appcast = try decoder.decode(FoundryPackAppcast.self, from: data)
+        guard appcast.packID == packID else {
+            throw FoundryPackUpdateError.wrongPack(appcast.packID)
+        }
+        let matches = appcast.releases.filter { $0.version == version }
+        guard matches.count == 1 else {
+            throw FoundryPackUpdateError.invalidMetadata("The published appcast does not contain version \(version).")
+        }
+        let releaseDirectoryURL = appcastURL
+            .deletingLastPathComponent()
+            .appending(path: "\(packID) \(version)", directoryHint: .isDirectory)
+        let expectedDownloadURL = releaseDirectoryURL
+            .appending(path: "\(packID) \(version).foundrypack.zip")
+        let expectedReleaseNotesURL = releaseDirectoryURL.appending(path: "release-notes.html")
+        guard matches[0].downloadURL == expectedDownloadURL,
+              matches[0].releaseNotesURL == expectedReleaseNotesURL else {
+            throw FoundryPackUpdateError.invalidMetadata(
+                "The published release URLs do not match the configured publishing directory."
+            )
+        }
+    }
+
+    private func verifyPublishedEndpoint(appcastURL: URL) async throws {
+        var request = URLRequest(url: appcastURL, cachePolicy: .reloadIgnoringLocalAndRemoteCacheData)
+        request.setValue("no-cache", forHTTPHeaderField: "Cache-Control")
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let response = response as? HTTPURLResponse,
+              (200...299).contains(response.statusCode) else {
+            throw FoundryPackUpdateError.invalidMetadata("The published update endpoint could not be reached.")
+        }
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let appcast = try decoder.decode(FoundryPackAppcast.self, from: data)
+        guard appcast.formatVersion == FoundryPackAppcast.currentFormatVersion else {
+            throw FoundryPackUpdateError.unsupportedAppcast(appcast.formatVersion)
+        }
+    }
+
+    private func validatePublishingDestination(
+        site: Site,
+        configuration: FoundryPackUpdateConfiguration,
+        packID: String
+    ) throws {
+        guard let configuredAppcastURL = URL(string: site.publicURL)?
+            .appending(path: packID)
+            .appending(path: "appcast.php"),
+              configuredAppcastURL == configuration.appcastURL else {
+            throw FoundryPackUpdateError.invalidMetadata(
+                "Publishing settings have changed since this pack was prepared. Restore those settings or prepare the pack again before publishing."
+            )
+        }
+    }
+
+    private func isValidPublishingDirectoryURL(_ value: String) -> Bool {
+        guard let url = URL(string: value) else { return false }
+        return url.scheme?.lowercased() == "https"
+            && url.host != nil
+            && url.query == nil
+            && url.fragment == nil
+    }
+}
+
+private struct DeveloperReleaseStatus: View {
+    let isWorking: Bool
+    let progress: Double
+    let resultMessage: String?
+    let errorMessage: String?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            if isWorking {
+                ProgressView("Uploading…", value: progress, total: 1)
+            }
+            if let resultMessage {
+                Label(resultMessage, systemImage: "checkmark.circle.fill")
+                    .foregroundStyle(.green)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(14)
+                    .background(.green.opacity(0.1), in: RoundedRectangle(cornerRadius: 10))
+            }
+            if let errorMessage {
+                Label(errorMessage, systemImage: "exclamationmark.triangle.fill")
+                    .foregroundStyle(.red)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(14)
+                    .background(.red.opacity(0.1), in: RoundedRectangle(cornerRadius: 10))
+                    .textSelection(.enabled)
+            }
+        }
     }
 }
 
@@ -460,11 +984,19 @@ private struct ComponentLibraryTile: View {
         Button(action: select) {
             VStack(spacing: 6) {
                 ComponentLibraryIcon(type: type, size: 54)
-                Text(type.displayName)
-                    .font(.caption)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.75)
-                    .frame(maxWidth: .infinity)
+                HStack(spacing: 4) {
+                    if type.definition.package?.isDevelopmentPack == true {
+                        Circle()
+                            .fill(.red)
+                            .frame(width: 6, height: 6)
+                            .accessibilityHidden(true)
+                    }
+                    Text(type.displayName)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.75)
+                }
+                .font(.caption)
+                .frame(maxWidth: .infinity)
             }
             .padding(6)
             .frame(maxWidth: .infinity)
@@ -481,97 +1013,7 @@ private struct ComponentLibraryTile: View {
     }
 }
 
-private struct ComponentLibraryDetail: View {
-    let type: ComponentType
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(alignment: .center, spacing: 10) {
-                ComponentLibraryIcon(type: type, size: 32)
-
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(type.displayName)
-                        .font(.headline)
-                    Text(type.libraryDescription)
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(2)
-                }
-            }
-
-            Divider()
-
-            Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 7) {
-                GridRow {
-                    Text("Developer")
-                        .foregroundStyle(.secondary)
-                    HStack(spacing: 5) {
-                        Text(componentDeveloper)
-                        if let helpURL = componentPackage?.manifest.helpURL {
-                            Link(destination: helpURL) {
-                                Image(systemName: "link")
-                            }
-                            .buttonStyle(.plain)
-                            .help("Open component documentation")
-                        }
-                    }
-                }
-                GridRow {
-                    Text("Version")
-                        .foregroundStyle(.secondary)
-                    Text(componentVersion)
-                }
-            }
-            .font(.caption)
-
-            if !componentTags.isEmpty {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("Tags")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    LazyVGrid(
-                        columns: [GridItem(.adaptive(minimum: 58), spacing: 5)],
-                        alignment: .leading,
-                        spacing: 5
-                    ) {
-                        ForEach(componentTags, id: \.self) { tag in
-                            Text(tag)
-                                .font(.caption2)
-                                .lineLimit(1)
-                                .padding(.horizontal, 7)
-                                .padding(.vertical, 3)
-                                .frame(maxWidth: .infinity)
-                                .background(.quaternary, in: Capsule())
-                        }
-                    }
-                }
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(12)
-        .accessibilityElement(children: .combine)
-    }
-
-    private var componentDeveloper: String {
-        componentPackage?.manifest.author.flatMap { author in
-            author.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : author
-        } ?? "Unknown Developer"
-    }
-
-    private var componentVersion: String {
-        componentPackage?.manifest.version ?? "—"
-    }
-
-    private var componentTags: [String] {
-        componentPackage?.manifest.tags ?? []
-    }
-
-    private var componentPackage: LoadedComponentPackage? {
-        type.definition.package
-    }
-}
-
-private struct ComponentLibraryIcon: View {
+struct ComponentLibraryIcon: View {
     let type: ComponentType
     let size: CGFloat
 

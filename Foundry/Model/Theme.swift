@@ -499,13 +499,13 @@ nonisolated extension Theme {
 
     var fontFamilyChoices: [ComponentPropertyChoice] {
         [
-            .init(value: ThemeFontRole.body.rawValue, label: "Body — \(typography.bodyFont.family)"),
-            .init(value: ThemeFontRole.heading.rawValue, label: "Heading — \(typography.headingFont.family)"),
-            .init(value: ThemeFontRole.monospaced.rawValue, label: "Monospaced — \(typography.monospacedFont.family)")
+            .init(value: ThemeFontRole.body.rawValue, label: ThemeFontRole.body.title),
+            .init(value: ThemeFontRole.heading.rawValue, label: ThemeFontRole.heading.title),
+            .init(value: ThemeFontRole.monospaced.rawValue, label: ThemeFontRole.monospaced.title)
         ] + typography.customFonts.enumerated().map { index, font in
             .init(
                 value: "custom:\(font.id.uuidString.lowercased())",
-                label: "\(font.name) — \(font.font.family)",
+                label: font.name,
                 separatorBefore: index == 0
             )
         }
@@ -513,12 +513,9 @@ nonisolated extension Theme {
 
     var fontSizeChoices: [ComponentPropertyChoice] {
         typography.fontSizes.enumerated().map { index, size in
-            let pixels = (size.size * TypographyTokens.rootSize).formatted(
-                .number.precision(.fractionLength(0...1))
-            )
             return .init(
                 value: size.id,
-                label: "\(size.title) — \(size.size.formatted()) rem (\(pixels) px)",
+                label: size.title,
                 separatorBefore: index == TypographyTokens.standardFontSizes.count && !typography.customFontSizes.isEmpty
             )
         }
@@ -536,19 +533,15 @@ nonisolated extension Theme {
             ("2xl", "2XL", spacing.doubleExtraLarge),
             ("3xl", "3XL", spacing.threeExtraLarge)
         ]
-        return predefined.map { id, title, multiplier in
-            let rem = multiplier * SpacingTokens.baseRem
-            let pixels = rem * TypographyTokens.rootSize
+        return predefined.map { id, title, _ in
             return .init(
                 value: id,
-                label: "\(title) — \(rem.cssNumber) rem (\(pixels.cssNumber) px)"
+                label: title
             )
         } + spacing.custom.enumerated().map { index, item in
-            let rem = item.value * SpacingTokens.baseRem
-            let pixels = rem * TypographyTokens.rootSize
             return .init(
                 value: "custom:\(item.id.uuidString.lowercased())",
-                label: "\(item.name) — \(rem.cssNumber) rem (\(pixels.cssNumber) px)",
+                label: item.name,
                 separatorBefore: index == 0
             )
         }

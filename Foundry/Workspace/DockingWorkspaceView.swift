@@ -2019,7 +2019,7 @@ private struct WorkspaceColumnView<PanelContent: View>: View {
             if column.panels.isEmpty {
                 emptyDockContent
             } else {
-                if column.selectedPanel != .pages {
+                if column.selectedPanel != .pages && column.selectedPanel != .components {
                     HStack {
                         Text(column.selectedPanel.title)
                             .font(.headline)

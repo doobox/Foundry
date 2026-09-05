@@ -47,6 +47,22 @@ struct FoundryApp: App {
         .windowToolbarStyle(.unified)
         .restorationBehavior(.disabled)
 
+        Window("Component Updates", id: "component-updates") {
+            ComponentUpdatesWindow()
+                .frame(minWidth: 760, minHeight: 560)
+        }
+        .defaultSize(width: 900, height: 680)
+        .windowResizability(.contentMinSize)
+        .windowToolbarStyle(.unified)
+        .restorationBehavior(.disabled)
+
+        Window("Available Component Updates", id: "available-component-updates") {
+            AvailableComponentUpdatesWindow()
+        }
+        .defaultSize(width: 720, height: 560)
+        .windowResizability(.contentMinSize)
+        .restorationBehavior(.disabled)
+
         Settings {
             SettingsView()
         }

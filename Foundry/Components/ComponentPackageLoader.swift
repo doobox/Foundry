@@ -13,6 +13,7 @@ nonisolated struct LoadedComponentPackage: Sendable {
     let instancePHP: String
     let pagePHP: String
     let editorCSS: String
+    let updateSourceURL: URL?
 
     var lock: ComponentPackageLock {
         .init(identifier: manifest.identifier)
@@ -20,6 +21,32 @@ nonisolated struct LoadedComponentPackage: Sendable {
 
     var iconURL: URL {
         resourceRootURL.appending(path: "icon.svg")
+    }
+
+    var isDevelopmentPack: Bool {
+        rootURL.pathComponents.contains {
+            ($0 as NSString).pathExtension.caseInsensitiveCompare("foundrydevpack") == .orderedSame
+        }
+    }
+
+    var isBuiltIn: Bool {
+        guard let bundleURL = Bundle.main.url(forResource: "BuiltInComponents", withExtension: "bundle") else {
+            return false
+        }
+        let bundlePath = bundleURL.standardizedFileURL.path
+        let packagePath = rootURL.standardizedFileURL.path
+        return packagePath == bundlePath || packagePath.hasPrefix(bundlePath + "/")
+    }
+
+    var developmentPackRootURL: URL? {
+        var candidate = rootURL.standardizedFileURL
+        while candidate.path != "/" {
+            if candidate.pathExtension.caseInsensitiveCompare("foundrydevpack") == .orderedSame {
+                return candidate
+            }
+            candidate.deleteLastPathComponent()
+        }
+        return nil
     }
 
     var resourceRootURL: URL {
@@ -137,12 +164,30 @@ nonisolated enum ComponentPackageLoader {
             instancePHP: try php(scope: .instance),
             pagePHP: try php(scope: .page),
             editorCSS: try readIfPresent(manifest.render.editorCSS, from: resourceRootURL),
+            updateSourceURL: updateSourceURL(containing: rootURL),
         )
     }
 
     private static func readIfPresent(_ path: String?, from rootURL: URL) throws -> String {
         guard let path else { return "" }
         return try read(path, from: rootURL)
+    }
+
+    private static func updateSourceURL(containing componentURL: URL) -> URL? {
+        guard componentURL.pathComponents.allSatisfy({
+            ($0 as NSString).pathExtension.caseInsensitiveCompare("foundrydevpack") != .orderedSame
+        }) else { return nil }
+        var candidate = componentURL.standardizedFileURL
+        var result: URL?
+        while candidate.path != "/" {
+            if candidate.pathExtension.caseInsensitiveCompare("foundrypack") == .orderedSame,
+               let pack = try? FoundryPackLoader.load(from: candidate),
+               pack.metadata.updates != nil {
+                result = candidate
+            }
+            candidate.deleteLastPathComponent()
+        }
+        return result
     }
 
     private static func read(_ path: String, from rootURL: URL) throws -> String {

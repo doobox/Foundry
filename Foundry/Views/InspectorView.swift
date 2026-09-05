@@ -13,6 +13,7 @@ struct InspectorView: View {
     let publicURL: String
     let component: ComponentNode?
     let componentSelectionCount: Int
+    let libraryComponentType: ComponentType?
     let theme: Theme
     let assets: [ProjectAsset]
     let editor: ProjectEditor
@@ -42,6 +43,13 @@ struct InspectorView: View {
                     breakpoint: breakpoint,
                     editsSharedDefinition: $editsSharedDefinition
                 )
+            } else if componentSelectionCount == 0,
+                      page == nil,
+                      folder == nil,
+                      asset == nil,
+                      assetLibraryNode == nil,
+                      let libraryComponentType {
+                ComponentLibraryInspector(type: libraryComponentType)
             } else {
                 Form {
                     inspectorFormContent
@@ -82,6 +90,243 @@ struct InspectorView: View {
                 systemImage: "slider.horizontal.3",
                 description: Text("Select a page, folder, or component to edit it.")
             )
+        }
+    }
+}
+
+private struct ComponentLibraryInspector: View {
+    let type: ComponentType
+    @AppStorage(AppPreferenceKey.showsDeveloperPanel) private var enablesDeveloperTools = false
+
+    var body: some View {
+        let package = type.definition.package
+        ScrollView {
+            LazyVStack(spacing: 14) {
+                InspectorCard {
+                    ComponentLibraryInspectorHeader(
+                        type: type,
+                        description: type.libraryDescription,
+                        isDevelopmentPack: package?.isDevelopmentPack == true
+                    )
+                }
+
+                InspectorCard(title: "Component") {
+                    ComponentLibraryInspectorMetadata(
+                        identifier: type.rawValue,
+                        developer: package?.manifest.author,
+                        version: package.flatMap(displayVersion),
+                        category: type.definition.category.rawValue,
+                        helpURL: package?.manifest.helpURL
+                    )
+                }
+
+                if let tags = package?.manifest.tags, !tags.isEmpty {
+                    InspectorCard(title: "Tags") {
+                        ComponentLibraryInspectorTags(tags: tags)
+                    }
+                }
+
+                if let updateSourceURL = package?.updateSourceURL {
+                    InspectorCard(title: "Updates") {
+                        ComponentLibraryUpdateControls(sourceURL: updateSourceURL)
+                    }
+                }
+
+                if enablesDeveloperTools, let package, !package.isBuiltIn {
+                    ComponentPackConversionControls(package: package)
+                }
+            }
+            .padding(16)
+        }
+        .controlSize(.small)
+        .font(.callout)
+    }
+
+    private func displayVersion(for package: LoadedComponentPackage) -> String? {
+        let metadataSourceURL = package.developmentPackRootURL ?? package.updateSourceURL
+        guard let metadataSourceURL,
+              let metadataPack = try? FoundryPackLoader.load(from: metadataSourceURL) else {
+            return package.manifest.version
+        }
+        return metadataPack.metadata.version ?? package.manifest.version
+    }
+}
+
+private struct ComponentPackConversionControls: View {
+    let package: LoadedComponentPackage
+    @State private var convertedURL: URL?
+    @State private var errorMessage: String?
+
+    var body: some View {
+        InspectorCard(title: conversionTitle) {
+            Button("Click to Convert", systemImage: "arrow.triangle.2.circlepath") {
+                convert()
+            }
+            if let errorMessage {
+                Label(errorMessage, systemImage: "exclamationmark.triangle.fill")
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+
+    private var packURL: URL {
+        convertedURL ?? ComponentPackageCatalog.shared.conversionRootURL(for: package)
+    }
+
+    private var isDevelopmentPack: Bool {
+        packURL.pathExtension.caseInsensitiveCompare("foundrydevpack") == .orderedSame
+    }
+
+    private var conversionTitle: String {
+        isDevelopmentPack ? "Convert to .foundrypack" : "Convert to .foundrydevpack"
+    }
+
+    private func convert() {
+        errorMessage = nil
+        let destinationExtension = isDevelopmentPack ? "foundrypack" : "foundrydevpack"
+        do {
+            convertedURL = try ComponentPackageCatalog.shared.convertPack(
+                at: packURL,
+                toExtension: destinationExtension
+            )
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+}
+
+private struct ComponentLibraryUpdateControls: View {
+    let sourceURL: URL
+    @State private var isChecking = false
+    @State private var status: String?
+    @State private var errorMessage: String?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Button("Check for Updates", systemImage: "arrow.triangle.2.circlepath") {
+                checkForUpdates()
+            }
+            .disabled(isChecking)
+            if isChecking {
+                ProgressView("Checking…")
+                    .controlSize(.small)
+            }
+            if let status {
+                Label(status, systemImage: "checkmark.circle.fill")
+                    .font(.caption)
+                    .foregroundStyle(.green)
+            }
+            if let errorMessage {
+                Label(errorMessage, systemImage: "exclamationmark.triangle.fill")
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func checkForUpdates() {
+        isChecking = true
+        status = nil
+        errorMessage = nil
+        Task {
+            do {
+                let version = try await FoundryPackUpdater.checkAndInstallUpdate(for: sourceURL)
+                status = "Updated to version \(version)."
+            } catch FoundryPackUpdateError.noCompatibleRelease {
+                status = "This pack is up to date."
+            } catch {
+                errorMessage = error.localizedDescription
+            }
+            isChecking = false
+        }
+    }
+}
+
+private struct ComponentLibraryInspectorHeader: View {
+    let type: ComponentType
+    let description: String
+    let isDevelopmentPack: Bool
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            ComponentLibraryIcon(type: type, size: 48)
+
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 6) {
+                    if isDevelopmentPack {
+                        Circle()
+                            .fill(.red)
+                            .frame(width: 7, height: 7)
+                            .accessibilityHidden(true)
+                    }
+                    Text(type.displayName)
+                        .font(.headline)
+                }
+                Text(description)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Spacer(minLength: 0)
+        }
+        .padding(.vertical, 2)
+    }
+}
+
+private struct ComponentLibraryInspectorMetadata: View {
+    let identifier: String
+    let developer: String?
+    let version: String?
+    let category: String
+    let helpURL: URL?
+
+    var body: some View {
+        LabeledContent("Developer", value: normalizedDeveloper)
+        LabeledContent("Version", value: version ?? "—")
+        LabeledContent("Category", value: category)
+        LabeledContent("Identifier") {
+            Text(identifier)
+                .font(.caption.monospaced())
+                .foregroundStyle(.secondary)
+                .textSelection(.enabled)
+        }
+        if let helpURL {
+            LabeledContent("Help") {
+                Link("Open Documentation", destination: helpURL)
+                    .help(helpURL.absoluteString)
+            }
+        }
+    }
+
+    private var normalizedDeveloper: String {
+        developer.flatMap { value in
+            value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : value
+        } ?? "Unknown Developer"
+    }
+}
+
+private struct ComponentLibraryInspectorTags: View {
+    let tags: [String]
+
+    var body: some View {
+        LazyVGrid(
+            columns: [GridItem(.adaptive(minimum: 64), spacing: 6)],
+            alignment: .leading,
+            spacing: 6
+        ) {
+            ForEach(tags, id: \.self) { tag in
+                Text(tag)
+                    .font(.caption)
+                    .lineLimit(1)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .frame(maxWidth: .infinity)
+                    .background(.quaternary, in: Capsule())
+            }
         }
     }
 }

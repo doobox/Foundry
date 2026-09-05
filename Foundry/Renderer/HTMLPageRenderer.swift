@@ -441,9 +441,6 @@ struct HTMLPageRenderer: PageRendering {
                     ))
                 )
             }
-            if case .themeFontFamily = definition.control {
-                return (definition.key.rawValue, .string(theme.fontCSSVariable(for: node.property(definition.key))))
-            }
             if case .themeFontSize = definition.control {
                 return (definition.key.rawValue, .string(theme.fontSizeCSSVariable(for: node.property(definition.key))))
             }

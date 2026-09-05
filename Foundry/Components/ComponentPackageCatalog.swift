@@ -181,6 +181,65 @@ final class ComponentPackageCatalog {
         }
     }
 
+    func conversionRootURL(for package: LoadedComponentPackage) -> URL {
+        guard let installedRoot = try? FoundryPackLoader.installedPacksURL() else {
+            return package.developmentPackRootURL ?? package.rootURL
+        }
+
+        let standardizedInstalledRoot = installedRoot.standardizedFileURL
+        var candidate = package.rootURL.standardizedFileURL
+        var conversionRoot = package.developmentPackRootURL ?? package.rootURL
+
+        while candidate.isContained(in: standardizedInstalledRoot), candidate != standardizedInstalledRoot {
+            if FoundryPackLoader.isPackURL(candidate) {
+                conversionRoot = candidate
+            }
+            candidate.deleteLastPathComponent()
+        }
+        return conversionRoot
+    }
+
+    func convertPack(at sourceURL: URL, toExtension destinationExtension: String) throws -> URL {
+        let sourceURL = sourceURL.standardizedFileURL
+        let destinationURL = sourceURL
+            .deletingPathExtension()
+            .appendingPathExtension(destinationExtension)
+            .standardizedFileURL
+        let fileManager = FileManager.default
+
+        guard !fileManager.fileExists(atPath: destinationURL.path) else {
+            throw CocoaError(.fileWriteFileExists)
+        }
+
+        unregisterPackages(under: sourceURL)
+        do {
+            try fileManager.moveItem(at: sourceURL, to: destinationURL)
+        } catch {
+            reloadAllPacks()
+            throw error
+        }
+
+        reloadAllPacks()
+        return destinationURL
+    }
+
+    private func unregisterPackages(under rootURL: URL) {
+        let rootURL = rootURL.standardizedFileURL
+        let identifiers = packages.compactMap { identifier, package in
+            package.rootURL.standardizedFileURL.isContained(in: rootURL) ? identifier : nil
+        }
+        for identifier in identifiers {
+            packages.removeValue(forKey: identifier)
+            ComponentRegistry.unregisterPackage(identifier: identifier)
+        }
+        diagnostics = diagnostics.filter { url, _ in
+            !url.standardizedFileURL.isContained(in: rootURL)
+        }
+        developmentWatchers.removeValue(forKey: rootURL)
+        dirtyDevelopmentRoots.remove(rootURL)
+        revision += 1
+    }
+
     func openDevelopmentPack(at rootURL: URL) {
         let rootURL = rootURL.standardizedFileURL
         reloadDevelopmentPack(at: rootURL)

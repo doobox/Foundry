@@ -37,6 +37,8 @@ private struct GeneralSettingsView: View {
     private var overridesCanvasBackground = false
     @AppStorage(AppPreferenceKey.canvasBackgroundColor)
     private var canvasBackgroundHex = CanvasBackgroundPreference.defaultColor
+    @AppStorage(AppPreferenceKey.automaticallyChecksComponentUpdates)
+    private var automaticallyChecksComponentUpdates = false
     var body: some View {
         Form {
             Section("Appearance") {
@@ -68,9 +70,16 @@ private struct GeneralSettingsView: View {
                     .foregroundStyle(.secondary)
 
             }
+
+            Section("Component Updates") {
+                Toggle("Automatically Check for Component Updates", isOn: $automaticallyChecksComponentUpdates)
+                Text("Checks 30 seconds to 2 minutes after Foundry opens and shows the updates window only when updates are available.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
         }
         .formStyle(.grouped)
-        .frame(width: 560, height: 310)
+        .frame(width: 560, height: 390)
     }
 
     private var canvasBackgroundColor: Binding<Color> {
@@ -91,15 +100,15 @@ private struct GeneralSettingsView: View {
 
 private struct DeveloperSettingsView: View {
     @AppStorage(AppPreferenceKey.showsDeveloperPanel)
-    private var showsDeveloperPanel = false
+    private var enablesDeveloperTools = false
     @AppStorage(AppPreferenceKey.enablesCanvasWebInspector)
     private var enablesCanvasWebInspector = false
 
     var body: some View {
         Form {
             Section("Components") {
-                Toggle("Show Developer Panel", isOn: $showsDeveloperPanel)
-                Text("Adds a workspace panel containing component loading errors and warnings.")
+                Toggle("Enable Developer Tools", isOn: $enablesDeveloperTools)
+                Text("Adds component development tools, including the developer panel and pack conversion controls.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

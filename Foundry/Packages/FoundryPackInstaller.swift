@@ -17,10 +17,33 @@ enum FoundryPackInstaller {
             .appending(path: sourceURL.lastPathComponent, directoryHint: .isDirectory)
         let fileManager = FileManager.default
         if destination.standardizedFileURL != sourceURL.standardizedFileURL {
-            if fileManager.fileExists(atPath: destination.path) {
-                try fileManager.removeItem(at: destination)
+            let staging = destination.deletingLastPathComponent().appending(
+                path: ".\(destination.lastPathComponent).staging-\(UUID().uuidString)",
+                directoryHint: .isDirectory
+            )
+            let backup = destination.deletingLastPathComponent().appending(
+                path: ".\(destination.lastPathComponent).backup-\(UUID().uuidString)",
+                directoryHint: .isDirectory
+            )
+            try fileManager.copyItem(at: sourceURL, to: staging)
+            do {
+                if fileManager.fileExists(atPath: destination.path) {
+                    try fileManager.moveItem(at: destination, to: backup)
+                }
+                try fileManager.moveItem(at: staging, to: destination)
+                if fileManager.fileExists(atPath: backup.path) {
+                    try fileManager.removeItem(at: backup)
+                }
+            } catch {
+                if fileManager.fileExists(atPath: staging.path) {
+                    try? fileManager.removeItem(at: staging)
+                }
+                if !fileManager.fileExists(atPath: destination.path),
+                   fileManager.fileExists(atPath: backup.path) {
+                    try? fileManager.moveItem(at: backup, to: destination)
+                }
+                throw error
             }
-            try fileManager.copyItem(at: sourceURL, to: destination)
         }
 
         ComponentPackageCatalog.shared.reloadInstalledPacks()
