@@ -401,10 +401,12 @@ struct ContentView: View {
             DeveloperPanel()
         case .canvas:
             CanvasView(
+                site: document.site,
                 page: selectedPage,
                 language: document.site.language,
                 theme: document.site.theme,
                 assets: document.assetContents,
+                assetRevision: document.assetRevision,
                 selectedComponentIDs: selectedComponentIDs,
                 editorOptions: canvasEditorOptions,
                 renderer: renderer,

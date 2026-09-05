@@ -1,6 +1,75 @@
 import AppKit
+import ImageIO
 import SwiftUI
+import UniformTypeIdentifiers
 import WebKit
+
+@MainActor
+final class CanvasAssetSchemeHandler: NSObject, WKURLSchemeHandler {
+    static let scheme = "foundry-asset"
+
+    private var assets: [UUID: ProjectAssetContent]
+    private var gifPreviews: [UUID: Data] = [:]
+
+    init(assets: [UUID: ProjectAssetContent]) {
+        self.assets = assets
+    }
+
+    func update(assets: [UUID: ProjectAssetContent]) {
+        gifPreviews.removeAll(keepingCapacity: true)
+        self.assets = assets
+    }
+
+    func webView(_ webView: WKWebView, start urlSchemeTask: any WKURLSchemeTask) {
+        guard let url = urlSchemeTask.request.url,
+              let resource = resource(for: url) else {
+            urlSchemeTask.didFailWithError(URLError(.fileDoesNotExist))
+            return
+        }
+
+        let response = URLResponse(
+            url: url,
+            mimeType: resource.mediaType,
+            expectedContentLength: resource.data.count,
+            textEncodingName: nil
+        )
+        urlSchemeTask.didReceive(response)
+        urlSchemeTask.didReceive(resource.data)
+        urlSchemeTask.didFinish()
+    }
+
+    func webView(_ webView: WKWebView, stop urlSchemeTask: any WKURLSchemeTask) {}
+
+    func resource(for url: URL) -> (data: Data, mediaType: String)? {
+        guard let id = url.absoluteString.foundryAssetID,
+              let content = assets[id] else { return nil }
+        if content.asset.mediaType.caseInsensitiveCompare("image/gif") == .orderedSame,
+           let preview = gifPreview(for: id, data: content.data) {
+            return (preview, UTType.png.preferredMIMEType ?? "image/png")
+        }
+        return (content.data, content.asset.mediaType)
+    }
+
+    private func gifPreview(for id: UUID, data: Data) -> Data? {
+        if let preview = gifPreviews[id] {
+            return preview
+        }
+        guard let source = CGImageSourceCreateWithData(data as CFData, nil),
+              let image = CGImageSourceCreateImageAtIndex(source, 0, nil) else { return nil }
+        let output = NSMutableData()
+        guard let destination = CGImageDestinationCreateWithData(
+            output,
+            UTType.png.identifier as CFString,
+            1,
+            nil
+        ) else { return nil }
+        CGImageDestinationAddImage(destination, image, nil)
+        guard CGImageDestinationFinalize(destination) else { return nil }
+        let preview = output as Data
+        gifPreviews[id] = preview
+        return preview
+    }
+}
 
 nonisolated enum CanvasContextMenuAction: String, Sendable {
     case duplicate
@@ -16,6 +85,8 @@ nonisolated enum CanvasContextMenuAction: String, Sendable {
 
 struct WebCanvasView: NSViewRepresentable {
     let html: String
+    let assets: [UUID: ProjectAssetContent]
+    let assetRevision: UInt64
     let selectedComponentIDs: Set<UUID>
     let editorOptions: CanvasEditorOptions
     let enablesWebInspector: Bool
@@ -25,6 +96,7 @@ struct WebCanvasView: NSViewRepresentable {
 
     func makeCoordinator() -> Coordinator {
         Coordinator(
+            assets: assets,
             handleMessage: handleMessage,
             handleContextMenuAction: handleContextMenuAction
         )
@@ -32,6 +104,10 @@ struct WebCanvasView: NSViewRepresentable {
 
     func makeNSView(context: Context) -> WKWebView {
         let configuration = WKWebViewConfiguration()
+        configuration.setURLSchemeHandler(
+            context.coordinator.assetSchemeHandler,
+            forURLScheme: CanvasAssetSchemeHandler.scheme
+        )
         configuration.defaultWebpagePreferences.allowsContentJavaScript = false
         if enablesWebInspector {
             configuration.preferences.setValue(true, forKey: "developerExtrasEnabled")
@@ -65,6 +141,10 @@ struct WebCanvasView: NSViewRepresentable {
     }
 
     func updateNSView(_ webView: WKWebView, context: Context) {
+        if context.coordinator.assetRevision != assetRevision {
+            context.coordinator.assetSchemeHandler.update(assets: assets)
+            context.coordinator.assetRevision = assetRevision
+        }
         context.coordinator.handleMessage = handleMessage
         context.coordinator.handleContextMenuAction = handleContextMenuAction
         context.coordinator.canPasteComponent = canPasteComponent
@@ -81,6 +161,7 @@ struct WebCanvasView: NSViewRepresentable {
     @MainActor
     final class Coordinator: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
         static let handlerName = "foundryCanvas"
+        let assetSchemeHandler: CanvasAssetSchemeHandler
         static let interactionScript = """
         (() => {
           if (window.foundryCanvasInstalled) return;
@@ -323,7 +404,7 @@ struct WebCanvasView: NSViewRepresentable {
             scheduleChromeTitleUpdate();
           };
 
-          window.foundrySetSelection = ids => {
+          window.foundrySetSelection = (ids, shouldScroll = true) => {
             selectedComponentIDs = Array.isArray(ids) ? ids : [];
             document.querySelectorAll('.foundry-selected').forEach(e => e.classList.remove('foundry-selected'));
             if (!Array.isArray(selectedComponentIDs)) return;
@@ -334,7 +415,7 @@ struct WebCanvasView: NSViewRepresentable {
               if (!firstElement) firstElement = element;
               if (editorOptions.showsSelection) element.classList.add('foundry-selected');
             });
-            if (firstElement && editorOptions.scrollsToSelection) {
+            if (firstElement && editorOptions.scrollsToSelection && shouldScroll) {
               firstElement.scrollIntoView({ block: 'nearest', inline: 'nearest' });
             }
           };
@@ -574,17 +655,21 @@ struct WebCanvasView: NSViewRepresentable {
 
         weak var webView: WKWebView?
         var lastHTML: String?
+        var assetRevision: UInt64?
         var selectedComponentIDs: Set<UUID> = []
         var editorOptions = CanvasEditorOptions()
         var canPasteComponent = false
         var handleMessage: (CanvasMessage) -> Void
         var handleContextMenuAction: (CanvasContextMenuAction, UUID) -> Void
         private var contextMenuComponentID: UUID?
+        private var pendingCanvasSelection: Set<UUID>?
 
         init(
+            assets: [UUID: ProjectAssetContent],
             handleMessage: @escaping (CanvasMessage) -> Void,
             handleContextMenuAction: @escaping (CanvasContextMenuAction, UUID) -> Void
         ) {
+            assetSchemeHandler = CanvasAssetSchemeHandler(assets: assets)
             self.handleMessage = handleMessage
             self.handleContextMenuAction = handleContextMenuAction
             super.init()
@@ -613,6 +698,20 @@ struct WebCanvasView: NSViewRepresentable {
             guard message.name == Self.handlerName,
                   message.frameInfo.isMainFrame,
                   let canvasMessage = CanvasMessage.decode(message.body) else { return }
+            if canvasMessage.event == .selectComponent,
+               let componentID = canvasMessage.componentID {
+                if canvasMessage.extendsSelection == true {
+                    var selection = selectedComponentIDs
+                    if selection.contains(componentID) {
+                        selection.remove(componentID)
+                    } else {
+                        selection.insert(componentID)
+                    }
+                    pendingCanvasSelection = selection
+                } else {
+                    pendingCanvasSelection = [componentID]
+                }
+            }
             handleMessage(canvasMessage)
         }
 
@@ -622,6 +721,7 @@ struct WebCanvasView: NSViewRepresentable {
                   let componentID = UUID(uuidString: value) else { return }
             contextMenuComponentID = componentID
             if request["preservesSelection"] as? Bool != true {
+                pendingCanvasSelection = [componentID]
                 handleMessage(.init(event: .selectComponent, componentID: componentID, extendsSelection: false))
             }
 
@@ -738,6 +838,8 @@ struct WebCanvasView: NSViewRepresentable {
         func applyCanvasState() {
             guard let webView else { return }
             let componentIDs = selectedComponentIDs.map(\.uuidString)
+            let shouldScrollToSelection = pendingCanvasSelection != selectedComponentIDs
+            pendingCanvasSelection = nil
             let options: [String: Any] = [
                 "showsTitles": editorOptions.showsTitles,
                 "showsOutlines": editorOptions.showsOutlines,
@@ -747,8 +849,13 @@ struct WebCanvasView: NSViewRepresentable {
             let accentColor = cssAccentColor
             Task {
                 _ = try? await webView.callAsyncJavaScript(
-                    "document.documentElement.style.setProperty('--foundry-editor-accent', accentColor); window.foundrySetEditorOptions?.(options); window.foundrySetSelection?.(componentIDs)",
-                    arguments: ["options": options, "componentIDs": componentIDs, "accentColor": accentColor],
+                    "document.documentElement.style.setProperty('--foundry-editor-accent', accentColor); window.foundrySetEditorOptions?.(options); window.foundrySetSelection?.(componentIDs, shouldScrollToSelection)",
+                    arguments: [
+                        "options": options,
+                        "componentIDs": componentIDs,
+                        "accentColor": accentColor,
+                        "shouldScrollToSelection": shouldScrollToSelection
+                    ],
                     in: nil,
                     contentWorld: .defaultClient
                 )

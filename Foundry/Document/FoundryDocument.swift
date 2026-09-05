@@ -6,6 +6,7 @@ import UniformTypeIdentifiers
 nonisolated struct FoundryDocumentSnapshot: Sendable {
     var site: Site
     var assetData: [UUID: Data]
+    var assetRevision: UInt64 = 0
 }
 
 final class FoundryDocument: ReferenceFileDocument {
@@ -21,7 +22,12 @@ final class FoundryDocument: ReferenceFileDocument {
         get { storage.withLock { $0.site } }
         set {
             objectWillChange.send()
-            storage.withLock { $0.site = newValue }
+            storage.withLock {
+                if $0.site.assets != newValue.assets {
+                    $0.assetRevision &+= 1
+                }
+                $0.site = newValue
+            }
         }
     }
 
@@ -93,6 +99,11 @@ final class FoundryDocument: ReferenceFileDocument {
         return Dictionary(uniqueKeysWithValues: snapshot.site.assets.compactMap { asset in
             snapshot.assetData[asset.id].map { (asset.id, ProjectAssetContent(asset: asset, data: $0)) }
         })
+    }
+
+    @MainActor
+    var assetRevision: UInt64 {
+        storage.withLock { $0.assetRevision }
     }
 
     @MainActor
@@ -178,7 +189,13 @@ final class FoundryDocument: ReferenceFileDocument {
         }
         undoManager?.setActionName(actionName)
         objectWillChange.send()
-        storage.withLock { $0 = .init(site: newSite, assetData: assetData) }
+        storage.withLock {
+            $0 = .init(
+                site: newSite,
+                assetData: assetData,
+                assetRevision: $0.assetRevision &+ 1
+            )
+        }
     }
 
     nonisolated static func decodeProject(from data: Data) throws -> Site {

@@ -24,6 +24,7 @@ final class ComponentUpdateManager {
     private(set) var completedMessage: String?
     private(set) var checkMessage: String?
     private var hasAutomaticallyChecked = false
+    private var automaticCheckGeneration: UInt64 = 0
 
     private init() {}
 
@@ -88,9 +89,16 @@ final class ComponentUpdateManager {
         }
     }
 
+    func checkAllManually() async {
+        hasAutomaticallyChecked = true
+        automaticCheckGeneration &+= 1
+        await checkAll()
+    }
+
     func automaticCheckIfNeeded() async -> Bool {
         guard !hasAutomaticallyChecked else { return false }
         hasAutomaticallyChecked = true
+        let generation = automaticCheckGeneration
         let delaySeconds = Int.random(in: 30...120)
         do {
             try await Task.sleep(for: .seconds(delaySeconds))
@@ -98,6 +106,7 @@ final class ComponentUpdateManager {
             hasAutomaticallyChecked = false
             return false
         }
+        guard generation == automaticCheckGeneration else { return false }
         await checkAll()
         return !items.isEmpty
     }

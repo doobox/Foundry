@@ -17,7 +17,7 @@
     <key>group</key>
     <string>Content</string>
     <key>tags</key>
-    <array><string>built-in</string></array>
+    <array><string>Foundry</string><string>built-in</string></array>
     <key>customItems</key>
     <array/>
     <key>slots</key>

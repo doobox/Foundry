@@ -36,10 +36,12 @@ nonisolated enum CanvasSizing {
 }
 
 struct CanvasView: View {
+    let site: Site
     let page: Page?
     let language: String
     let theme: Theme
     let assets: [UUID: ProjectAssetContent]
+    let assetRevision: UInt64
     let selectedComponentIDs: Set<UUID>
     let editorOptions: CanvasEditorOptions
     let renderer: any PageRendering
@@ -56,6 +58,7 @@ struct CanvasView: View {
     @State private var resizeStartWidth: Double?
     @State private var resizeStartScale: Double?
     @State private var visibleCanvasWidth = 0.0
+    @State private var htmlCache = CanvasHTMLCache()
     private let resizeEdgeHitTargetWidth = 12.0
     private let canvasHorizontalPadding = 24.0
     private let minimumViewportWidth = 320.0
@@ -82,13 +85,9 @@ struct CanvasView: View {
                             ZStack(alignment: .top) {
                                 ZStack(alignment: .top) {
                                     WebCanvasView(
-                                        html: renderer.render(
-                                            page: page,
-                                            language: language,
-                                            theme: theme,
-                                            assets: assets,
-                                            breakpoint: ResponsiveBreakpoint.forViewportWidth(viewportWidth, screens: theme.screens)
-                                        ),
+                                        html: renderedHTML(for: page),
+                                        assets: assets,
+                                        assetRevision: assetRevision,
                                         selectedComponentIDs: selectedComponentIDs,
                                         editorOptions: editorOptions,
                                         enablesWebInspector: enablesCanvasWebInspector,
@@ -167,6 +166,25 @@ struct CanvasView: View {
         return AnyShapeStyle(color)
     }
 
+    private func renderedHTML(for page: Page) -> String {
+        let breakpoint = ResponsiveBreakpoint.forViewportWidth(viewportWidth, screens: theme.screens)
+        let input = CanvasHTMLRenderInput(
+            site: site,
+            pageID: page.id,
+            assetRevision: assetRevision,
+            breakpoint: breakpoint
+        )
+        return htmlCache.html(for: input) {
+            renderer.render(
+                page: page,
+                language: language,
+                theme: theme,
+                assets: assets,
+                breakpoint: breakpoint
+            )
+        }
+    }
+
     private var canvasHorizontalChromeWidth: Double {
         canvasHorizontalPadding * 2
     }
@@ -210,6 +228,26 @@ struct CanvasView: View {
             .frame(width: resizeEdgeHitTargetWidth)
             .frame(maxHeight: .infinity)
             .zIndex(2)
+    }
+}
+
+private struct CanvasHTMLRenderInput: Equatable {
+    let site: Site
+    let pageID: UUID
+    let assetRevision: UInt64
+    let breakpoint: ResponsiveBreakpoint
+}
+
+@MainActor
+private final class CanvasHTMLCache {
+    private var input: CanvasHTMLRenderInput?
+    private var renderedHTML = ""
+
+    func html(for input: CanvasHTMLRenderInput, render: () -> String) -> String {
+        guard self.input != input else { return renderedHTML }
+        renderedHTML = render()
+        self.input = input
+        return renderedHTML
     }
 }
 

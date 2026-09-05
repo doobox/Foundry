@@ -18,6 +18,7 @@
 	<string>Layout</string>
 	<key>tags</key>
 	<array>
+		<string>Foundry</string>
 		<string>built-in</string>
 		<string>layout</string>
 		<string>region</string>

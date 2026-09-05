@@ -432,27 +432,35 @@ struct StructureOutlineView: NSViewRepresentable {
             isRestoringSelection = true
             defer { isRestoringSelection = false }
             for id in selectedIDs {
-                expandAncestors(of: id, in: roots)
+                for ancestor in ancestorPath(of: id, in: roots) ?? [] {
+                    outlineView.expandItem(ancestor)
+                }
             }
             let rows = IndexSet(selectedIDs.compactMap { id in
                 guard let item = itemsByID[id] else { return nil }
                 let row = outlineView.row(forItem: item)
                 return row >= 0 ? row : nil
             })
-            guard outlineView.selectedRowIndexes != rows else { return }
-            outlineView.selectRowIndexes(rows, byExtendingSelection: false)
-        }
-
-        @discardableResult
-        private func expandAncestors(of id: UUID, in items: [Item]) -> Bool {
-            for item in items {
-                if item.id == id { return true }
-                if expandAncestors(of: id, in: item.children) {
-                    outlineView?.expandItem(item)
-                    return true
+            if outlineView.selectedRowIndexes != rows {
+                outlineView.selectRowIndexes(rows, byExtendingSelection: false)
+            }
+            if let primaryID = parent.primarySelectedComponentID,
+               let primaryItem = itemsByID[primaryID] {
+                let row = outlineView.row(forItem: primaryItem)
+                if row >= 0 {
+                    outlineView.scrollRowToVisible(row)
                 }
             }
-            return false
+        }
+
+        private func ancestorPath(of id: UUID, in items: [Item]) -> [Item]? {
+            for item in items {
+                if item.id == id { return [] }
+                if let descendantPath = ancestorPath(of: id, in: item.children) {
+                    return [item] + descendantPath
+                }
+            }
+            return nil
         }
 
         private func flattenedSignature(_ components: [ComponentNode]) -> [String] {

@@ -132,6 +132,7 @@
 	<array/>
 	<key>tags</key>
 	<array>
+		<string>Foundry</string>
 		<string>built-in</string>
 	</array>
 	<key>templates</key>

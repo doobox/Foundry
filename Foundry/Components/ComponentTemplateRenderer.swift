@@ -70,14 +70,21 @@ nonisolated struct ComponentHTMLPrimitive: Equatable, Sendable {
 
 nonisolated enum ComponentTemplateRenderer {
     private static let loremParagraph = "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum."
+    private static let templateExpression = try! NSRegularExpression(pattern: #"\{\{\s*([^{}]+?)\s*\}\}"#)
+    private static let imageExpression = try! NSRegularExpression(pattern: #"\{\{\s*image\s*\}\}"#)
+    private static let textExpression = try! NSRegularExpression(pattern: #"\{\{\s*text(?:\s*=\s*"([^"]*)")?\s*\}\}"#)
+    private static let htmlExpression = try! NSRegularExpression(pattern: #"\{\{\s*html(?:\s*=\s*"([^"]*)")?\s*\}\}"#)
+    private static let colorFilterExpression = try! NSRegularExpression(pattern: #"^(lighten|darken)\(\s*([0-9]+(?:\.[0-9]+)?)\s*\)$"#)
+    private static let conditionBlockExpression = try! NSRegularExpression(pattern: #"\{\{\s*if\s+([^{}]+?)\s*\}\}([\s\S]*?)\{\{\s*endif\s*\}\}"#)
+    private static let conditionBranchExpression = try! NSRegularExpression(pattern: #"\{\{\s*(elseif\s+([^{}]+?)|else)\s*\}\}"#)
+    private static let slotExpression = try! NSRegularExpression(pattern: #"\{\{\s*slot\s+id\s*=\s*[\"']([A-Za-z][A-Za-z0-9_.-]*)[\"'](?:\s+[^}]*?)?\s*\}\}"#)
 
     static func render(_ template: String, context: ComponentTemplateContext) -> String {
         var result = renderText(in: template, context: context)
         result = renderImage(in: result, context: context)
         result = renderConditions(in: result, context: context)
         result = renderSlots(in: result, context: context)
-        let expression = try! NSRegularExpression(pattern: #"\{\{\s*([^{}]+?)\s*\}\}"#)
-        let matches = expression.matches(in: result, range: NSRange(result.startIndex..., in: result)).reversed()
+        let matches = templateExpression.matches(in: result, range: NSRange(result.startIndex..., in: result)).reversed()
         for match in matches {
             guard let wholeRange = Range(match.range(at: 0), in: result),
                   let expressionRange = Range(match.range(at: 1), in: result) else { continue }
@@ -166,8 +173,7 @@ nonisolated enum ComponentTemplateRenderer {
             let editorAttribute = context.enablesEditorMarkup ? " data-foundry-image-drop-zone" : ""
             image = "<img class=\"foundry-image\"\(editorAttribute) src=\"\(escapeAttribute(source))\" alt=\"\">"
         }
-        let expression = try! NSRegularExpression(pattern: #"\{\{\s*image\s*\}\}"#)
-        return expression.stringByReplacingMatches(
+        return imageExpression.stringByReplacingMatches(
             in: template,
             range: NSRange(template.startIndex..., in: template),
             withTemplate: NSRegularExpression.escapedTemplate(for: image)
@@ -196,10 +202,7 @@ nonisolated enum ComponentTemplateRenderer {
     }
 
     private static func primitiveMatches(in template: String) -> [NSTextCheckingResult] {
-        let expression = try! NSRegularExpression(
-            pattern: #"\{\{\s*text(?:\s*=\s*"([^"]*)")?\s*\}\}"#
-        )
-        return expression.matches(in: template, range: NSRange(template.startIndex..., in: template))
+        textExpression.matches(in: template, range: NSRange(template.startIndex..., in: template))
     }
 
     private static func primitiveDefault(match: NSTextCheckingResult, in template: String) -> String {
@@ -210,10 +213,7 @@ nonisolated enum ComponentTemplateRenderer {
     }
 
     private static func htmlPrimitiveMatches(in template: String) -> [NSTextCheckingResult] {
-        let expression = try! NSRegularExpression(
-            pattern: #"\{\{\s*html(?:\s*=\s*"([^"]*)")?\s*\}\}"#
-        )
-        return expression.matches(in: template, range: NSRange(template.startIndex..., in: template))
+        htmlExpression.matches(in: template, range: NSRange(template.startIndex..., in: template))
     }
 
     private static func htmlPrimitiveDefault(match: NSTextCheckingResult, in template: String) -> String {
@@ -343,10 +343,7 @@ nonisolated enum ComponentTemplateRenderer {
     }
 
     private static func apply(filter: String, to value: String) -> String {
-        let expression = try! NSRegularExpression(
-            pattern: #"^(lighten|darken)\(\s*([0-9]+(?:\.[0-9]+)?)\s*\)$"#
-        )
-        guard let match = expression.firstMatch(in: filter, range: NSRange(filter.startIndex..., in: filter)),
+        guard let match = colorFilterExpression.firstMatch(in: filter, range: NSRange(filter.startIndex..., in: filter)),
               let nameRange = Range(match.range(at: 1), in: filter),
               let argumentRange = Range(match.range(at: 2), in: filter),
               let argument = Double(filter[argumentRange]) else { return value }
@@ -385,15 +382,9 @@ nonisolated enum ComponentTemplateRenderer {
     }
 
     private static func renderConditions(in template: String, context: ComponentTemplateContext) -> String {
-        let blockExpression = try! NSRegularExpression(
-            pattern: #"\{\{\s*if\s+([^{}]+?)\s*\}\}([\s\S]*?)\{\{\s*endif\s*\}\}"#
-        )
-        let branchExpression = try! NSRegularExpression(
-            pattern: #"\{\{\s*(elseif\s+([^{}]+?)|else)\s*\}\}"#
-        )
         var result = template
         var remainingPasses = 100
-        while let match = blockExpression.firstMatch(in: result, range: NSRange(result.startIndex..., in: result)),
+        while let match = conditionBlockExpression.firstMatch(in: result, range: NSRange(result.startIndex..., in: result)),
               let wholeRange = Range(match.range(at: 0), in: result),
               let conditionRange = Range(match.range(at: 1), in: result),
               let bodyRange = Range(match.range(at: 2), in: result),
@@ -401,7 +392,7 @@ nonisolated enum ComponentTemplateRenderer {
             remainingPasses -= 1
             let firstCondition = String(result[conditionRange])
             let body = String(result[bodyRange])
-            let matches = branchExpression.matches(in: body, range: NSRange(body.startIndex..., in: body))
+            let matches = conditionBranchExpression.matches(in: body, range: NSRange(body.startIndex..., in: body))
             var branches: [(condition: String?, body: String)] = []
             var condition: String? = firstCondition
             var start = body.startIndex
@@ -432,11 +423,8 @@ nonisolated enum ComponentTemplateRenderer {
     }
 
     private static func renderSlots(in template: String, context: ComponentTemplateContext) -> String {
-        let expression = try! NSRegularExpression(
-            pattern: #"\{\{\s*slot\s+id\s*=\s*[\"']([A-Za-z][A-Za-z0-9_.-]*)[\"'](?:\s+[^}]*?)?\s*\}\}"#
-        )
         var result = template
-        let matches = expression.matches(in: result, range: NSRange(result.startIndex..., in: result)).reversed()
+        let matches = slotExpression.matches(in: result, range: NSRange(result.startIndex..., in: result)).reversed()
         for match in matches {
             guard let wholeRange = Range(match.range(at: 0), in: result),
                   let keyRange = Range(match.range(at: 1), in: result) else { continue }

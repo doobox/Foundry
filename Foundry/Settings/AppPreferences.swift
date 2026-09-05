@@ -11,6 +11,8 @@ nonisolated enum AppPreferenceKey {
     static let enablesCanvasWebInspector = "canvas.webInspector.enabled"
     static let showsDeveloperPanel = "developer.panel.visible"
     static let automaticallyChecksComponentUpdates = "components.updates.automatic"
+    static let componentLibraryIconSize = "components.library.iconSize"
+    static let componentLibraryArrangement = "components.library.arrangement"
 }
 
 nonisolated enum AppAppearance: String, CaseIterable, Identifiable {

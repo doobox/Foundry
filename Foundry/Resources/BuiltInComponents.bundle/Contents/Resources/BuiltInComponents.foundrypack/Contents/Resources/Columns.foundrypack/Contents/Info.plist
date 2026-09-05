@@ -9,7 +9,7 @@
     <key>author</key><string>Foundry</string>
     <key>version</key><string>1.0.0</string>
     <key>group</key><string>Layout</string>
-    <key>tags</key><array><string>built-in</string><string>grid</string></array>
+    <key>tags</key><array><string>Foundry</string><string>built-in</string><string>grid</string></array>
     <key>slots</key>
     <array>
         <dict>

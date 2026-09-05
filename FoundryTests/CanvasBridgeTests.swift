@@ -112,7 +112,7 @@ struct CanvasBridgeTests {
     }
 
     @Test @MainActor
-    func canvasUsesAStillFirstFrameForManagedGIFs() throws {
+    func canvasServesAStillFirstFrameForManagedGIFsWithoutInliningIt() throws {
         let gifData = try #require(Data(base64Encoded: "R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw=="))
         let asset = ProjectAsset(filename: "animation.gif", mediaType: "image/gif", byteCount: gifData.count)
         var image = ComponentNode.make(.image)
@@ -127,8 +127,16 @@ struct CanvasBridgeTests {
             breakpoint: .extraLarge
         )
 
-        #expect(html.contains("data:image/png;base64,"))
-        #expect(!html.contains("data:image/gif;base64,"))
+        #expect(html.contains(asset.reference))
+        #expect(!html.contains("base64,"))
+
+        let handler = CanvasAssetSchemeHandler(
+            assets: [asset.id: ProjectAssetContent(asset: asset, data: gifData)]
+        )
+        let assetURL = try #require(URL(string: asset.reference))
+        let resource = try #require(handler.resource(for: assetURL))
+        #expect(resource.mediaType == "image/png")
+        #expect(resource.data.starts(with: [0x89, 0x50, 0x4E, 0x47]))
     }
 
     @Test @MainActor
@@ -140,6 +148,7 @@ struct CanvasBridgeTests {
         #expect(html.contains("foundry-show-outlines"))
         #expect(WebCanvasView.Coordinator.interactionScript.contains("foundrySetEditorOptions"))
         #expect(WebCanvasView.Coordinator.interactionScript.contains("scrollsToSelection"))
+        #expect(WebCanvasView.Coordinator.interactionScript.contains("shouldScroll"))
         #expect(!WebCanvasView.Coordinator.interactionScript.contains("attachShadow"))
         #expect(WebCanvasView.Coordinator.interactionScript.contains("data-foundry-editor-chrome"))
         #expect(WebCanvasView.Coordinator.interactionScript.contains("'left', Math.max(0, rect.left)"))

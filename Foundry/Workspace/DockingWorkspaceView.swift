@@ -29,9 +29,7 @@ struct DockingWorkspaceView<PanelContent: View>: View {
             showsInspector: layout.showsInspector,
             toolbarContent: WorkspaceToolbarContent(
                 sidebarToggle: AnyView(sidebarToggleButton),
-                componentUpdates: componentUpdateManager.hasActionableUpdates
-                    ? AnyView(componentUpdatesButton)
-                    : nil,
+                componentUpdates: AnyView(componentUpdatesButton),
                 workspaces: AnyView(workspacePresetsMenu),
                 preview: AnyView(previewSiteButton),
                 settings: AnyView(projectSettingsButton),
@@ -190,12 +188,18 @@ struct DockingWorkspaceView<PanelContent: View>: View {
         Button(action: showComponentUpdates) {
             Label(
                 "Component Updates",
-                systemImage: "exclamationmark.arrow.trianglehead.2.clockwise.rotate.90"
+                systemImage: componentUpdateManager.hasActionableUpdates
+                    ? "exclamationmark.arrow.trianglehead.2.clockwise.rotate.90"
+                    : "arrow.trianglehead.2.clockwise.rotate.90"
             )
             .labelStyle(.iconOnly)
-            .foregroundStyle(.red)
+            .foregroundStyle(componentUpdateManager.hasActionableUpdates ? Color.red : Color.primary)
         }
-        .help("Component Updates Available")
+        .help(
+            componentUpdateManager.hasActionableUpdates
+                ? "Component Updates Available"
+                : "Check for Component Updates"
+        )
     }
 
     private var previewSiteButton: some View {
@@ -481,7 +485,7 @@ private struct AppKitWorkspaceSplitView: NSViewControllerRepresentable {
 private final class AppKitWorkspaceSplitViewController: NSSplitViewController, NSToolbarDelegate {
     private struct OuterEntry {
         let id: UUID
-        let role: WorkspaceColumnRole
+        var column: WorkspaceColumn
         let hostingController: NSHostingController<AnyView>
         let splitViewItem: NSSplitViewItem
         var sizing: PanelSizing
@@ -520,6 +524,7 @@ private final class AppKitWorkspaceSplitViewController: NSSplitViewController, N
     private var isApplyingInitialWidths = false
     private var lastShowsSidebar: Bool?
     private var lastShowsInspector: Bool?
+    private var lastColumns: [WorkspaceColumn]?
 
     private lazy var editorToolbar: NSToolbar = {
         let toolbar = NSToolbar(identifier: ToolbarIdentifier.toolbar)
@@ -569,6 +574,8 @@ private final class AppKitWorkspaceSplitViewController: NSSplitViewController, N
         self.inspectorTransitionCompleted = inspectorTransitionCompleted
         self.toolbarContent = toolbarContent
         updateToolbarHostingViews()
+        let refreshOnlyChangedColumns = lastColumns.map { $0 != columns } ?? false
+        lastColumns = columns
 
         guard let sidebar = columns.first(where: { $0.role == .sidebarDock }),
               let inspector = columns.first(where: { $0.role == .inspectorDock }) else {
@@ -590,6 +597,7 @@ private final class AppKitWorkspaceSplitViewController: NSSplitViewController, N
                 sidebar: sidebar,
                 inspector: inspector,
                 detailColumns: detailColumns,
+                refreshOnlyChangedColumns: refreshOnlyChangedColumns,
                 content: content
             )
             scheduleVisibilityUpdate(
@@ -603,6 +611,7 @@ private final class AppKitWorkspaceSplitViewController: NSSplitViewController, N
             showsSidebar: true,
             showsInspector: true,
             content: content,
+            refreshOnlyChangedColumns: refreshOnlyChangedColumns,
             preferredWidthChanged: preferredWidthChanged,
             inspectorTransitionCompleted: {}
         )
@@ -633,7 +642,7 @@ private final class AppKitWorkspaceSplitViewController: NSSplitViewController, N
         let sidebarItem = NSSplitViewItem(sidebarWithViewController: sidebarHostingController)
         sidebarEntry = OuterEntry(
             id: sidebar.id,
-            role: .sidebarDock,
+            column: sidebar,
             hostingController: sidebarHostingController,
             splitViewItem: sidebarItem,
             sizing: sidebarSizing,
@@ -651,7 +660,7 @@ private final class AppKitWorkspaceSplitViewController: NSSplitViewController, N
         let inspectorItem = NSSplitViewItem(inspectorWithViewController: inspectorHostingController)
         inspectorEntry = OuterEntry(
             id: inspector.id,
-            role: .inspectorDock,
+            column: inspector,
             hostingController: inspectorHostingController,
             splitViewItem: inspectorItem,
             sizing: inspectorSizing,
@@ -678,21 +687,34 @@ private final class AppKitWorkspaceSplitViewController: NSSplitViewController, N
         sidebar: WorkspaceColumn,
         inspector: WorkspaceColumn,
         detailColumns: [WorkspaceColumn],
+        refreshOnlyChangedColumns: Bool,
         content: (UUID) -> AnyView
     ) {
         if var entry = sidebarEntry {
             entry.sizing = sizing(for: sidebar)
             entry.preferredWidth = preferredWidth(for: sidebar, sizing: entry.sizing)
-            entry.hostingController.rootView = hostedRootView(content(sidebar.id))
+            if !refreshOnlyChangedColumns || contentChanged(from: entry.column, to: sidebar) {
+                entry.hostingController.rootView = hostedRootView(content(sidebar.id))
+            }
+            entry.column = sidebar
             sidebarEntry = entry
         }
         if var entry = inspectorEntry {
             entry.sizing = sizing(for: inspector)
             entry.preferredWidth = preferredWidth(for: inspector, sizing: entry.sizing)
-            entry.hostingController.rootView = hostedRootView(content(inspector.id))
+            if !refreshOnlyChangedColumns || contentChanged(from: entry.column, to: inspector) {
+                entry.hostingController.rootView = hostedRootView(content(inspector.id))
+            }
+            entry.column = inspector
             inspectorEntry = entry
         }
         configureOuterItems(detailColumns: detailColumns)
+    }
+
+    private func contentChanged(from previous: WorkspaceColumn, to current: WorkspaceColumn) -> Bool {
+        previous.role != current.role
+            || previous.panels != current.panels
+            || previous.selectedPanel != current.selectedPanel
     }
 
     private func configureOuterItems(detailColumns: [WorkspaceColumn]) {
@@ -1049,7 +1071,7 @@ private final class AppKitDetailContainerViewController: NSViewController {
 private final class AppKitDetailSplitViewController: NSSplitViewController {
     private struct Entry {
         let id: UUID
-        var role: WorkspaceColumnRole
+        var column: WorkspaceColumn
         let hostingController: NSHostingController<AnyView>
         let splitViewItem: NSSplitViewItem
         var sizing: PanelSizing
@@ -1092,6 +1114,7 @@ private final class AppKitDetailSplitViewController: NSSplitViewController {
         showsSidebar: Bool,
         showsInspector: Bool,
         content: (UUID) -> AnyView,
+        refreshOnlyChangedColumns: Bool,
         preferredWidthChanged: @escaping (UUID, CGFloat) -> Void,
         inspectorTransitionCompleted: @escaping () -> Void
     ) {
@@ -1112,10 +1135,12 @@ private final class AppKitDetailSplitViewController: NSSplitViewController {
 
         for index in entries.indices {
             let column = columns[index]
-            entries[index].role = column.role
             entries[index].sizing = sizing(for: column)
             entries[index].preferredWidth = preferredWidth(for: column, sizing: entries[index].sizing)
-            entries[index].hostingController.rootView = hostedRootView(content(column.id))
+            if !refreshOnlyChangedColumns || contentChanged(from: entries[index].column, to: column) {
+                entries[index].hostingController.rootView = hostedRootView(content(column.id))
+            }
+            entries[index].column = column
             configureSplitViewItem(at: index)
         }
 
@@ -1159,7 +1184,7 @@ private final class AppKitDetailSplitViewController: NSSplitViewController {
             entries.append(
                 Entry(
                     id: column.id,
-                    role: column.role,
+                    column: column,
                     hostingController: hostingController,
                     splitViewItem: item,
                     sizing: panelSizing,
@@ -1188,12 +1213,12 @@ private final class AppKitDetailSplitViewController: NSSplitViewController {
         item.maximumThickness = entry.sizing.maximum.isFinite
             ? entry.sizing.maximum
             : NSSplitViewItem.unspecifiedDimension
-        item.holdingPriority = entry.role == .canvas
+        item.holdingPriority = entry.column.role == .canvas
             ? .defaultLow
             : NSLayoutConstraint.Priority(rawValue: 489)
         item.automaticMaximumThickness = NSSplitViewItem.unspecifiedDimension
 
-        if entry.role == .sidebarDock || entry.role == .inspectorDock {
+        if entry.column.role == .sidebarDock || entry.column.role == .inspectorDock {
             item.canCollapse = true
             item.canCollapseFromWindowResize = false
             item.collapseBehavior = .preferResizingSiblingsWithFixedSplitView
@@ -1201,7 +1226,7 @@ private final class AppKitDetailSplitViewController: NSSplitViewController {
     }
 
     private func updateSidebarVisibility(_ showsSidebar: Bool, animated: Bool) {
-        guard let sidebar = entries.first(where: { $0.role == .sidebarDock }) else {
+        guard let sidebar = entries.first(where: { $0.column.role == .sidebarDock }) else {
             lastShowsSidebar = showsSidebar
             return
         }
@@ -1233,7 +1258,7 @@ private final class AppKitDetailSplitViewController: NSSplitViewController {
     }
 
     private func updateInspectorVisibility(_ showsInspector: Bool, animated: Bool) {
-        guard let inspector = entries.first(where: { $0.role == .inspectorDock }) else {
+        guard let inspector = entries.first(where: { $0.column.role == .inspectorDock }) else {
             lastShowsInspector = showsInspector
             return
         }
@@ -1271,7 +1296,7 @@ private final class AppKitDetailSplitViewController: NSSplitViewController {
 
     private func applyInitialWidths() {
         guard entries.count == splitView.arrangedSubviews.count,
-              let canvasIndex = entries.firstIndex(where: { $0.role == .canvas }) else {
+              let canvasIndex = entries.firstIndex(where: { $0.column.role == .canvas }) else {
             return
         }
         let totalPaneWidth = splitView.arrangedSubviews.reduce(CGFloat.zero) { $0 + $1.frame.width }
@@ -1322,6 +1347,12 @@ private final class AppKitDetailSplitViewController: NSSplitViewController {
         }
     }
 
+    private func contentChanged(from previous: WorkspaceColumn, to current: WorkspaceColumn) -> Bool {
+        previous.role != current.role
+            || previous.panels != current.panels
+            || previous.selectedPanel != current.selectedPanel
+    }
+
     override func splitView(
         _ splitView: NSSplitView,
         constrainSplitPosition proposedPosition: CGFloat,
@@ -1357,7 +1388,7 @@ private final class AppKitDetailSplitViewController: NSSplitViewController {
         guard let dividerIndex = activeDividerIndex else { return }
 
         for index in [dividerIndex, dividerIndex + 1] where entries.indices.contains(index) {
-            guard entries[index].role != .canvas,
+            guard entries[index].column.role != .canvas,
                   !entries[index].splitViewItem.isCollapsed else {
                 continue
             }

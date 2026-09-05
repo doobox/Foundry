@@ -104,19 +104,39 @@ struct ComponentLibraryPanel: View {
     @Binding var selectedType: ComponentType?
     let addToPageEnd: (ComponentType) -> Void
     @State private var catalog = ComponentPackageCatalog.shared
-    @Environment(\.openWindow) private var openWindow
+    @State private var componentSource = ComponentLibrarySource.components
+    @AppStorage(AppPreferenceKey.componentLibraryIconSize)
+    private var iconSizeValue = ComponentLibraryIconSize.small.rawValue
+    @AppStorage(AppPreferenceKey.componentLibraryArrangement)
+    private var arrangementValue = ComponentLibraryArrangement.group.rawValue
 
     var body: some View {
         let _ = catalog.revision
         VStack(spacing: 0) {
-            ComponentLibraryPanelHeader {
-                openWindow(id: "available-component-updates")
-                Task { await ComponentUpdateManager.shared.checkAll() }
-            }
+            ComponentLibraryPanelHeader(
+                iconSize: iconSize,
+                setIconSize: { iconSizeValue = $0.rawValue },
+                arrangement: arrangement,
+                setArrangement: { arrangementValue = $0.rawValue }
+            )
             Divider()
+            if hasDevelopmentComponents {
+                Picker("Component source", selection: $componentSource) {
+                    ForEach(ComponentLibrarySource.allCases) { source in
+                        Text(source.title).tag(source)
+                    }
+                }
+                .buttonSizing(.flexible)
+                .pickerStyle(.palette)
+                .controlSize(.small)
+                .labelsHidden()
+                .padding(12)
+
+                Divider()
+            }
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 18) {
-                    ForEach(componentSections, id: \.category) { section in
+                    ForEach(componentSections) { section in
                         VStack(alignment: .leading, spacing: 8) {
                             Text(section.title)
                                 .font(.subheadline.weight(.semibold))
@@ -125,18 +145,26 @@ struct ComponentLibraryPanel: View {
                             Divider()
 
                             LazyVGrid(
-                                columns: [GridItem(.adaptive(minimum: 74, maximum: 108), spacing: 10)],
-                                alignment: .leading,
+                                columns: [GridItem(
+                                    .adaptive(
+                                        minimum: iconSize.gridMinimumWidth,
+                                        maximum: .infinity
+                                    ),
+                                    spacing: 0,
+                                    alignment: .center
+                                )],
+                                alignment: .center,
                                 spacing: 10
                             ) {
                                 ForEach(section.types) { type in
                                     ComponentLibraryTile(
                                         type: type,
+                                        iconSize: iconSize,
                                         isSelected: selectedType == type,
                                         select: { selectedType = type }
                                     )
                                     .draggable(ComponentDragPayload.library(type).stringValue) {
-                                        ComponentDragPreview(name: type.displayName, systemImage: type.systemImage)
+                                        ComponentLibraryIcon(type: type, size: 54)
                                     }
                                     .contextMenu {
                                         Button("Add to Page End", systemImage: "plus") {
@@ -166,16 +194,50 @@ struct ComponentLibraryPanel: View {
 
         }
         .onChange(of: catalog.revision, initial: true) {
-            let availableTypes = ComponentType.allCases
+            if !hasDevelopmentComponents {
+                componentSource = .components
+            }
             if let selectedType, availableTypes.contains(selectedType) {
                 return
             }
             selectedType = availableTypes.first
         }
+        .onChange(of: componentSource) {
+            selectedType = availableTypes.first
+        }
     }
 
     private var componentSections: [ComponentLibrarySection] {
-        let types = ComponentType.allCases
+        let types = availableTypes
+        switch arrangement {
+        case .group:
+            return groupSections(for: types)
+        case .author:
+            return metadataSections(for: types) { type in
+                type.definition.package?.manifest.author
+            }
+        case .tag:
+            return metadataSections(for: types) { type in
+                type.definition.package?.manifest.tags.first
+            }
+        case .title:
+            return [
+                makeSection(
+                    id: "title-foundry",
+                    title: "Foundry",
+                    types: types.filter { $0.definition.package?.isBuiltIn == true }
+                ),
+                makeSection(
+                    id: "title-third-party",
+                    title: "Third Party",
+                    types: types.filter { $0.definition.package?.isBuiltIn != true }
+                )
+            ]
+            .filter { !$0.types.isEmpty }
+        }
+    }
+
+    private func groupSections(for types: [ComponentType]) -> [ComponentLibrarySection] {
         let preferredCategories: [ComponentCategory] = [
             .layout, .content, .media, .navigation, .forms, .interactive, .other
         ]
@@ -186,33 +248,209 @@ struct ComponentLibraryPanel: View {
             let categoryTypes = types.filter { $0.definition.category == category }
             guard !categoryTypes.isEmpty else { return nil }
             return ComponentLibrarySection(
-                category: category,
+                id: "group-\(category.rawValue)",
                 title: category.rawValue,
                 types: categoryTypes
             )
         }
     }
+
+    private func metadataSections(
+        for types: [ComponentType],
+        value: (ComponentType) -> String?
+    ) -> [ComponentLibrarySection] {
+        var grouped: [String: [ComponentType]] = [:]
+        var titles: [String: String] = [:]
+        for type in types {
+            let title = normalizedSectionTitle(value(type))
+            let key = title.folding(
+                options: [.caseInsensitive, .diacriticInsensitive],
+                locale: .current
+            ).lowercased()
+            titles[key] = key == "other" ? "Other" : (titles[key] ?? title)
+            grouped[key, default: []].append(type)
+        }
+        return grouped.map { key, groupedTypes in
+            let title = titles[key] ?? "Other"
+            return makeSection(
+                id: "metadata-\(key)",
+                title: title,
+                types: groupedTypes
+            )
+        }
+        .sorted { left, right in
+            if left.title == "Other" { return false }
+            if right.title == "Other" { return true }
+            return left.title.localizedStandardCompare(right.title) == .orderedAscending
+        }
+    }
+
+    private func normalizedSectionTitle(_ value: String?) -> String {
+        let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return trimmed.isEmpty ? "Other" : trimmed
+    }
+
+    private func makeSection(
+        id: String,
+        title: String,
+        types: [ComponentType]
+    ) -> ComponentLibrarySection {
+        ComponentLibrarySection(
+            id: id,
+            title: title,
+            types: types.sorted {
+                let comparison = $0.displayName.localizedStandardCompare($1.displayName)
+                if comparison == .orderedSame { return $0.rawValue < $1.rawValue }
+                return comparison == .orderedAscending
+            }
+        )
+    }
+
+    private var availableTypes: [ComponentType] {
+        ComponentType.allCases.filter { type in
+            let isDevelopmentPack = type.definition.package?.isDevelopmentPack == true
+            return componentSource == .development ? isDevelopmentPack : !isDevelopmentPack
+        }
+    }
+
+    private var hasDevelopmentComponents: Bool {
+        ComponentType.allCases.contains { $0.definition.package?.isDevelopmentPack == true }
+    }
+
+    private var iconSize: ComponentLibraryIconSize {
+        ComponentLibraryIconSize(rawValue: iconSizeValue) ?? .medium
+    }
+
+    private var arrangement: ComponentLibraryArrangement {
+        ComponentLibraryArrangement(rawValue: arrangementValue) ?? .group
+    }
+}
+
+nonisolated private enum ComponentLibrarySource: String, CaseIterable, Identifiable {
+    case components
+    case development
+
+    var id: String { rawValue }
+
+    var title: LocalizedStringResource {
+        switch self {
+        case .components: "Components"
+        case .development: "Dev Components"
+        }
+    }
 }
 
 private struct ComponentLibraryPanelHeader: View {
-    let checkForUpdates: () -> Void
+    let iconSize: ComponentLibraryIconSize
+    let setIconSize: (ComponentLibraryIconSize) -> Void
+    let arrangement: ComponentLibraryArrangement
+    let setArrangement: (ComponentLibraryArrangement) -> Void
 
     var body: some View {
         HStack {
             Text("Components")
                 .font(.headline)
             Spacer()
-            Button(action: checkForUpdates) {
-                Image(systemName: "arrow.clockwise")
+            Menu {
+                Menu("Icon Size") {
+                    ForEach(ComponentLibraryIconSize.allCases) { size in
+                        Toggle(
+                            size.title,
+                            isOn: Binding(
+                                get: { iconSize == size },
+                                set: { isSelected in
+                                    if isSelected {
+                                        setIconSize(size)
+                                    }
+                                }
+                            )
+                        )
+                    }
+                }
+                Menu("Arrange By") {
+                    ForEach(ComponentLibraryArrangement.allCases) { option in
+                        Toggle(
+                            option.title,
+                            isOn: Binding(
+                                get: { arrangement == option },
+                                set: { isSelected in
+                                    if isSelected {
+                                        setArrangement(option)
+                                    }
+                                }
+                            )
+                        )
+                    }
+                }
+            } label: {
+                Image(systemName: "gearshape")
                     .frame(width: 22, height: 22)
                     .contentShape(Rectangle())
             }
-            .buttonStyle(.borderless)
-            .accessibilityLabel("Check for Component Updates")
-            .help("Check for Component Updates")
+            .menuStyle(.borderlessButton)
+            .menuIndicator(.hidden)
+            .fixedSize()
+            .help("Component view options")
         }
         .padding(.horizontal, 12)
         .frame(height: 38)
+    }
+}
+
+nonisolated private enum ComponentLibraryArrangement: String, CaseIterable, Identifiable {
+    case group
+    case author
+    case tag
+    case title
+
+    var id: String { rawValue }
+
+    var title: LocalizedStringResource {
+        switch self {
+        case .group: "Group"
+        case .author: "Author"
+        case .tag: "Tag"
+        case .title: "Title"
+        }
+    }
+}
+
+nonisolated private enum ComponentLibraryIconSize: String, CaseIterable, Identifiable {
+    case list
+    case small
+    case medium
+
+    var id: String { rawValue }
+
+    var title: LocalizedStringResource {
+        switch self {
+        case .list: "List"
+        case .small: "Default"
+        case .medium: "Large"
+        }
+    }
+
+    var iconSize: CGFloat {
+        switch self {
+        case .list: 28
+        case .small: 42
+        case .medium: 60
+        }
+    }
+
+    var tileSize: CGFloat {
+        switch self {
+        case .list: 44
+        case .small: 72
+        case .medium: 90
+        }
+    }
+
+    var gridMinimumWidth: CGFloat {
+        switch self {
+        case .list: 140
+        case .small, .medium: tileSize
+        }
     }
 }
 
@@ -229,10 +467,10 @@ struct DeveloperPanel: View {
                     Text(section.title).tag(section)
                 }
             }
-            .pickerStyle(.segmented)
+            .buttonSizing(.flexible)
+            .pickerStyle(.palette)
+            .controlSize(.small)
             .labelsHidden()
-            .tint(.accentColor)
-            .frame(maxWidth: .infinity)
             .padding(12)
             .onChange(of: selection) { _, newSelection in
                 guard newSelection == .updater else { return }
@@ -897,8 +1135,8 @@ private struct DeveloperPackageIssueCard: View {
     }
 }
 
-private struct ComponentLibrarySection {
-    let category: ComponentCategory
+private struct ComponentLibrarySection: Identifiable {
+    let id: String
     let title: String
     let types: [ComponentType]
 }
@@ -977,31 +1215,33 @@ struct ReusableComponentLibraryPanel: View {
 
 private struct ComponentLibraryTile: View {
     let type: ComponentType
+    let iconSize: ComponentLibraryIconSize
     let isSelected: Bool
     let select: () -> Void
 
     var body: some View {
         Button(action: select) {
-            VStack(spacing: 6) {
-                ComponentLibraryIcon(type: type, size: 54)
-                HStack(spacing: 4) {
-                    if type.definition.package?.isDevelopmentPack == true {
-                        Circle()
-                            .fill(.red)
-                            .frame(width: 6, height: 6)
-                            .accessibilityHidden(true)
+            Group {
+                if iconSize == .list {
+                    HStack(spacing: 8) {
+                        componentIcon
+                        componentTitle
+                        Spacer(minLength: 0)
                     }
-                    Text(type.displayName)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.75)
+                    .padding(6)
+                    .frame(maxWidth: .infinity, minHeight: iconSize.tileSize, maxHeight: iconSize.tileSize)
+                } else {
+                    VStack(spacing: 6) {
+                        componentIcon
+                        componentTitle
+                            .frame(maxWidth: .infinity)
+                    }
+                    .padding(6)
+                    .frame(width: iconSize.tileSize, height: iconSize.tileSize)
                 }
-                .font(.caption)
-                .frame(maxWidth: .infinity)
             }
-            .padding(6)
-            .frame(maxWidth: .infinity)
             .background(
-                isSelected ? Color.primary.opacity(0.16) : Color.clear,
+                isSelected ? AnyShapeStyle(.selection) : AnyShapeStyle(.clear),
                 in: RoundedRectangle(cornerRadius: 8)
             )
             .contentShape(RoundedRectangle(cornerRadius: 8))
@@ -1011,11 +1251,28 @@ private struct ComponentLibraryTile: View {
         .accessibilityIdentifier("component-library-\(type.rawValue)")
         .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
+
+    private var componentIcon: some View {
+        ComponentLibraryIcon(
+            type: type,
+            size: iconSize.iconSize,
+            symbolColor: isSelected ? .white : .accentColor
+        )
+    }
+
+    private var componentTitle: some View {
+        Text(type.displayName)
+            .lineLimit(1)
+            .minimumScaleFactor(0.75)
+            .font(.caption)
+            .foregroundStyle(isSelected ? Color.white : Color.primary)
+    }
 }
 
 struct ComponentLibraryIcon: View {
     let type: ComponentType
     let size: CGFloat
+    var symbolColor: Color = .accentColor
 
     var body: some View {
         Group {
@@ -1027,7 +1284,7 @@ struct ComponentLibraryIcon: View {
             } else {
                 Image(systemName: type.systemImage)
                     .font(.system(size: size * 0.5, weight: .medium))
-                    .foregroundStyle(Color.accentColor)
+                    .foregroundStyle(symbolColor)
             }
         }
         .frame(width: size, height: size)

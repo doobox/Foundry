@@ -21,7 +21,7 @@ struct AvailableComponentUpdatesWindow: View {
         }
         .frame(minWidth: 620, minHeight: 430)
         .task {
-            if manager.items.isEmpty { await manager.checkAll() }
+            if manager.items.isEmpty { await manager.checkAllManually() }
         }
     }
 
@@ -34,7 +34,7 @@ struct AvailableComponentUpdatesWindow: View {
             }
             Spacer()
             Button("Check Again", systemImage: "arrow.clockwise") {
-                start { await manager.checkAll() }
+                start { await manager.checkAllManually() }
             }
             .disabled(manager.isChecking || manager.isUpdating)
             Button("Update All", systemImage: "arrow.down.circle") {
