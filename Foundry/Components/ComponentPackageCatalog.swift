@@ -143,6 +143,7 @@ final class ComponentPackageCatalog {
                     .map(\.standardizedFileURL)
                 let outcomes = await ComponentCatalogSnapshot.loadOutcomes(urls)
                 ComponentPackagePreparedIndex.flush()
+                ComponentPackageValidationCache.flush()
                 return (urls, outcomes)
             }.value
             guard !Task.isCancelled,
@@ -394,6 +395,7 @@ private struct ComponentCatalogSnapshot: Sendable {
         }
         await progress(.savingIndex, standardizedURLs.count, standardizedURLs.count)
         ComponentPackagePreparedIndex.flush(retaining: standardizedURLs)
+        ComponentPackageValidationCache.flush(retaining: standardizedURLs)
         var packages: [String: LoadedComponentPackage] = [:]
         var definitions: [ComponentType: ComponentDefinition] = [:]
         var diagnostics: [URL: [ComponentPackageDiagnostic]] = [:]

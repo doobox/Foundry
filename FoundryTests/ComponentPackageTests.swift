@@ -18,6 +18,31 @@ struct ComponentPackageTests {
     }
 
     @Test
+    func successfulValidationIsCachedButTemplateChangesAreStillValidated() throws {
+        let packageURL = try makePackage(
+            manifest: validManifest,
+            template: "<section {{ component.attributes }}>{{ slot id=\"content\" }}</section>"
+        )
+        defer { try? FileManager.default.removeItem(at: packageURL) }
+
+        let first = try ComponentPackageLoader.loadForCatalog(from: packageURL, validates: true)
+        #expect(first.timings.semanticValidation > .zero)
+
+        let second = try ComponentPackageLoader.loadForCatalog(from: packageURL, validates: true)
+        #expect(second.timings.semanticValidation == .zero)
+
+        let templateURL = packageURL.appending(
+            path: "Contents/Resources/\(first.package.manifest.render.html)"
+        )
+        try "<section {{ component.attributes }}>{{ slot id=\"missing\" }}</section>"
+            .write(to: templateURL, atomically: true, encoding: .utf8)
+
+        #expect(throws: ComponentPackageLoadingError.self) {
+            try ComponentPackageLoader.loadForCatalog(from: packageURL, validates: true)
+        }
+    }
+
+    @Test
     func componentIdentifiersAllowInternalHyphensButRejectInvalidDNSLabels() throws {
         let validURL = try makePackage(
             manifest: validManifest.replacingOccurrences(

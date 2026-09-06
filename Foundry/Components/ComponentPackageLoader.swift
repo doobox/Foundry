@@ -391,8 +391,16 @@ nonisolated enum ComponentPackageLoader {
         }
 
         let resourceRootURL = rootURL.appending(path: "Contents/Resources", directoryHint: .isDirectory)
+        let validationFingerprint = validates ? ComponentPackageValidationCache.fingerprint(
+            manifestData: data,
+            manifest: manifest,
+            rootURL: resourceRootURL
+        ) : nil
         let semanticDiagnostics: [ComponentPackageDiagnostic]
-        if validates {
+        if let validationFingerprint,
+           ComponentPackageValidationCache.contains(validationFingerprint, for: rootURL) {
+            semanticDiagnostics = []
+        } else if validates {
             let validationStart = clock.now
             semanticDiagnostics = ComponentPackageValidator.validate(manifest, rootURL: resourceRootURL)
             timings.semanticValidation = validationStart.duration(to: clock.now)
@@ -402,6 +410,15 @@ nonisolated enum ComponentPackageLoader {
         let diagnostics = schemaDiagnostics + semanticDiagnostics
         guard !diagnostics.contains(where: { $0.severity == .error }) else {
             throw ComponentPackageLoadingError.invalid(diagnostics)
+        }
+        if diagnostics.isEmpty,
+           let validationFingerprint,
+           ComponentPackageValidationCache.fingerprint(
+               manifestData: data,
+               manifest: manifest,
+               rootURL: resourceRootURL
+           ) == validationFingerprint {
+            ComponentPackageValidationCache.storeSuccessful(validationFingerprint, for: rootURL)
         }
 
         let preparationStart = clock.now
@@ -438,11 +455,12 @@ nonisolated enum ComponentPackageLoader {
             throw ComponentPackageLoadingError.missingManifest
         }
 
+        let data: Data
         let manifest: ComponentPackageManifest
         let schemaDiagnostics: [ComponentPackageDiagnostic]
         do {
             let readStart = clock.now
-            let data = try Data(contentsOf: manifestURL)
+            data = try Data(contentsOf: manifestURL)
             timings.manifestRead = readStart.duration(to: clock.now)
             if validates {
                 let schemaStart = clock.now
@@ -464,8 +482,16 @@ nonisolated enum ComponentPackageLoader {
         }
 
         let resourceRootURL = rootURL.appending(path: "Contents/Resources", directoryHint: .isDirectory)
+        let validationFingerprint = validates ? ComponentPackageValidationCache.fingerprint(
+            manifestData: data,
+            manifest: manifest,
+            rootURL: resourceRootURL
+        ) : nil
         let semanticDiagnostics: [ComponentPackageDiagnostic]
-        if validates {
+        if let validationFingerprint,
+           ComponentPackageValidationCache.contains(validationFingerprint, for: rootURL) {
+            semanticDiagnostics = []
+        } else if validates {
             let validationStart = clock.now
             semanticDiagnostics = ComponentPackageValidator.validate(manifest, rootURL: resourceRootURL)
             timings.semanticValidation = validationStart.duration(to: clock.now)
@@ -476,6 +502,15 @@ nonisolated enum ComponentPackageLoader {
         let errors = diagnostics.filter { $0.severity == .error }
         guard errors.isEmpty else {
             throw ComponentPackageLoadingError.invalid(diagnostics)
+        }
+        if diagnostics.isEmpty,
+           let validationFingerprint,
+           ComponentPackageValidationCache.fingerprint(
+               manifestData: data,
+               manifest: manifest,
+               rootURL: resourceRootURL
+           ) == validationFingerprint {
+            ComponentPackageValidationCache.storeSuccessful(validationFingerprint, for: rootURL)
         }
         let resourceLoadingStart = clock.now
         let payload = try loadPayload(manifest: manifest, rootURL: rootURL)

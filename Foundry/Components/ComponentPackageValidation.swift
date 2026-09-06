@@ -196,10 +196,18 @@ nonisolated enum ComponentPackageValidator {
         ] + manifest.render.files
             .filter { $0.path.lowercased().hasSuffix(".css") || $0.path.lowercased().hasSuffix(".html") || $0.path.lowercased().hasSuffix(".js") || $0.path.lowercased().hasSuffix(".php") }
             .map { ($0.path as String?, false) }
+        let templateContents: [String: String] = Dictionary(
+            uniqueKeysWithValues: Set(templates.compactMap(\.path)).compactMap { path -> (String, String)? in
+            guard isSafeRelativePath(path),
+                  let contents = try? String(contentsOf: rootURL.appending(path: path), encoding: .utf8) else {
+                return nil
+            }
+            return (path, contents)
+            }
+        )
         for declaredTemplate in templates {
             guard let path = declaredTemplate.path,
-                  isSafeRelativePath(path),
-                  let template = try? String(contentsOf: rootURL.appending(path: path), encoding: .utf8) else {
+                  let template = templateContents[path] else {
                 continue
             }
             validateTemplate(
@@ -211,8 +219,7 @@ nonisolated enum ComponentPackageValidator {
             )
         }
         for file in manifest.render.files where file.scope != .instance {
-            guard isSafeRelativePath(file.path),
-                  let template = try? String(contentsOf: rootURL.appending(path: file.path), encoding: .utf8) else {
+            guard let template = templateContents[file.path] else {
                 continue
             }
             if template.matches(#"\{\{\s*(?:id|instance\.|component\.|control\.|slot\.)"#) ||
