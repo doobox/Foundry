@@ -104,8 +104,12 @@ struct AssetsOutlineView: NSViewRepresentable {
             let pasteboardItem = NSPasteboardItem()
             pasteboardItem.setString("foundry-asset-node:\(item.id.uuidString)", forType: .assetNode)
             if case .asset(let asset) = item.node {
-                let prefix = asset.mediaType.hasPrefix("image/") ? "foundry-image-asset:" : "foundry-asset:"
+                let isImage = asset.mediaType.hasPrefix("image/")
+                let prefix = isImage ? "foundry-image-asset:" : "foundry-asset:"
                 pasteboardItem.setString(prefix + asset.id.uuidString, forType: .string)
+                if isImage {
+                    pasteboardItem.setString(asset.id.uuidString, forType: .imageAsset)
+                }
             }
             return pasteboardItem
         }
@@ -273,6 +277,7 @@ private final class AssetOutlineItem: NSObject {
 
 extension NSPasteboard.PasteboardType {
     static let assetNode = NSPasteboard.PasteboardType("uk.co.garysimpson.foundry.asset-node")
+    static let imageAsset = NSPasteboard.PasteboardType("uk.co.garysimpson.foundry.image-asset")
 }
 
 private extension NSUserInterfaceItemIdentifier {

@@ -153,6 +153,13 @@ struct HTMLPageRenderer: PageRendering {
             }
             .foundry-columns { display: grid; }
             .foundry-image { display: block; width: 100%; height: auto; }
+            .foundry-image-drop-zone {
+              display: grid; width: 100%; min-height: 180px; padding: 16px; place-items: center;
+              border: 2px dashed color-mix(in srgb, var(--foundry-editor-chrome) 42%, transparent);
+              border-radius: 10px; color: color-mix(in srgb, var(--foundry-color-text) 58%, transparent);
+              background: color-mix(in srgb, var(--foundry-color-surface) 72%, transparent);
+              font: 600 13px system-ui; text-align: center;
+            }
             .foundry-spacer { min-height: 8px; }
             .unavailable { padding: 16px; border: 2px dashed #C33; color: #922; background: #FFF5F5; }
             \(FoundryWebLibraryRegistry.canvasCSS(for: ComponentArtifactPlan(page: page).packages))
@@ -183,8 +190,10 @@ struct HTMLPageRenderer: PageRendering {
                     packageIdentifier: package.manifest.identifier,
                     properties: packageProperties(node, theme: theme, assets: assets),
                     slots: [:],
-                    assetBasePath: package.resourceRootURL.absoluteString,
-                    environment: .canvas
+                    assetBasePath: canvasAssetBasePath(for: package),
+                    assetPaths: canvasAssetPaths(for: package),
+                    environment: .canvas,
+                    repeatMaximums: package.repeatMaximums
                 )
             )
         }
@@ -196,7 +205,7 @@ struct HTMLPageRenderer: PageRendering {
             guard !source.isEmpty else { return nil }
             return ComponentTemplateRenderer.render(
                 source,
-                context: .init(instanceID: UUID(uuid: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)), packageIdentifier: package.manifest.identifier, properties: [:], slots: [:], assetBasePath: package.resourceRootURL.absoluteString, environment: .canvas)
+                context: .init(instanceID: UUID(uuid: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)), packageIdentifier: package.manifest.identifier, properties: [:], slots: [:], assetBasePath: canvasAssetBasePath(for: package), assetPaths: canvasAssetPaths(for: package), environment: .canvas, repeatMaximums: package.repeatMaximums)
             )
         }
         let htmlScripts = nodes.map {
@@ -219,8 +228,10 @@ struct HTMLPageRenderer: PageRendering {
                 packageIdentifier: package.manifest.identifier,
                 properties: [:],
                 slots: [:],
-                assetBasePath: package.resourceRootURL.absoluteString,
-                environment: .canvas
+                assetBasePath: canvasAssetBasePath(for: package),
+                assetPaths: canvasAssetPaths(for: package),
+                environment: .canvas,
+                repeatMaximums: package.repeatMaximums
             )
             return templates.map { ComponentTemplateRenderer.render($0.contents, context: context) }.joined(separator: "\n")
         }.joined(separator: "\n")
@@ -324,10 +335,12 @@ struct HTMLPageRenderer: PageRendering {
                     properties: packageProperties(node, theme: theme, assets: assets),
                     slots: slots,
                     componentAttributes: canvasAttributes,
-                    assetBasePath: package.resourceRootURL.absoluteString,
+                    assetBasePath: canvasAssetBasePath(for: package),
+                    assetPaths: canvasAssetPaths(for: package),
                     enablesEditorMarkup: true,
                     environment: .canvas,
-                    richTextLinkContext: richTextLinkContext
+                    richTextLinkContext: richTextLinkContext,
+                    repeatMaximums: package.repeatMaximums
                 )
             )
             if package.htmlTemplate.contains("{{ component.attributes }}") ||
@@ -368,8 +381,10 @@ struct HTMLPageRenderer: PageRendering {
                     packageIdentifier: package.manifest.identifier,
                     properties: packageProperties(node, theme: theme, assets: assets),
                     slots: [:],
-                    assetBasePath: package.resourceRootURL.absoluteString,
-                    environment: .canvas
+                    assetBasePath: canvasAssetBasePath(for: package),
+                    assetPaths: canvasAssetPaths(for: package),
+                    environment: .canvas,
+                    repeatMaximums: package.repeatMaximums
                 )
             )
             return ComponentTemplateRenderer.scopedCSS(css, packageIdentifier: package.manifest.identifier)
@@ -391,12 +406,25 @@ struct HTMLPageRenderer: PageRendering {
                     packageIdentifier: package.manifest.identifier,
                     properties: [:],
                     slots: [:],
-                    assetBasePath: package.resourceRootURL.absoluteString,
-                    environment: .canvas
+                    assetBasePath: canvasAssetBasePath(for: package),
+                    assetPaths: canvasAssetPaths(for: package),
+                    environment: .canvas,
+                    repeatMaximums: package.repeatMaximums
                 )
             )
         }.joined(separator: "\n")
         return [instanceStyles, htmlStyles, pageStyles].filter { !$0.isEmpty }.joined(separator: "\n")
+    }
+
+    private func canvasAssetBasePath(for package: LoadedComponentPackage) -> String {
+        "\(CanvasAssetSchemeHandler.packageScheme)://\(package.manifest.identifier)"
+    }
+
+    private func canvasAssetPaths(for package: LoadedComponentPackage) -> [String: String] {
+        let basePath = canvasAssetBasePath(for: package)
+        return Dictionary(uniqueKeysWithValues: package.manifest.assets.map { asset in
+            (asset.path, basePath + "/" + asset.path)
+        })
     }
 
     private func packageProperties(_ node: ComponentNode, theme: Theme, assets: [UUID: ProjectAssetContent]) -> [String: ComponentPackageValue] {

@@ -523,6 +523,167 @@ struct ComponentPackageTests {
         #expect(previewBundle.file(at: "index.html")?.contents.contains("|preview") == true)
     }
 
+    @Test @MainActor
+    func canvasResolvesAndServesDeclaredPackageAssetsAtEitherScope() throws {
+        let identifier = "com.example.canvasassets\(UUID().uuidString.replacingOccurrences(of: "-", with: "").lowercased())"
+        let manifest = validManifest
+            .replacingOccurrences(of: "com.example.card", with: identifier)
+            .replacingOccurrences(
+                of: "<key>assets</key><array><dict><key>path</key><string>images/icon.svg</string></dict></array>",
+                with: """
+                <key>assets</key><array>
+                    <dict><key>path</key><string>images/icon.svg</string></dict>
+                    <dict><key>path</key><string>shared/icons</string><key>scope</key><string>site</string></dict>
+                </array>
+                """
+            )
+        let packageURL = try makePackage(
+            manifest: manifest,
+            template: "<div {{ component.attributes }}><img src=\"{{ asset.images/icon.svg }}\"><img src=\"{{ asset.shared/icons/star.svg }}\">{{ slot id=\"content\" }}</div>",
+            additionalFiles: ["shared/icons/star.svg": "<svg>star</svg>"]
+        )
+        defer { try? FileManager.default.removeItem(at: packageURL) }
+        let package = try ComponentPackageLoader.load(from: packageURL)
+        ComponentRegistry.register(package)
+        let component = ComponentNode(type: ComponentType(rawValue: identifier))
+        let page = Page(title: "Canvas assets", slug: "index", components: [component])
+
+        let html = HTMLPageRenderer().render(page: page, theme: .standard)
+        let pageAssetReference = "\(CanvasAssetSchemeHandler.packageScheme)://\(identifier)/images/icon.svg"
+        let siteAssetReference = "\(CanvasAssetSchemeHandler.packageScheme)://\(identifier)/shared/icons/star.svg"
+        #expect(html.contains(pageAssetReference))
+        #expect(html.contains(siteAssetReference))
+
+        let handler = CanvasAssetSchemeHandler(assets: [:], packages: [identifier: package])
+        let pageAssetURL = try #require(URL(string: pageAssetReference))
+        let siteAssetURL = try #require(URL(string: siteAssetReference))
+        #expect(handler.resource(for: pageAssetURL)?.mediaType == "image/svg+xml")
+        #expect(handler.resource(for: siteAssetURL)?.data == Data("<svg>star</svg>".utf8))
+
+        let undeclaredURL = try #require(URL(string: "\(CanvasAssetSchemeHandler.packageScheme)://\(identifier)/private.txt"))
+        #expect(handler.resource(for: undeclaredURL) == nil)
+    }
+
+    @Test
+    func repeatRendersArbitraryMarkupAndPositionMetadata() {
+        let template = """
+        {{ repeat 3 }}
+        <span data-index="{{ repeat.index }}">{{ repeat.position }}/{{ repeat.count }} {{ if repeat.first }}first{{ elseif repeat.last }}last{{ endif }}</span>
+        {{ endrepeat }}
+        """
+        let context = ComponentTemplateContext(
+            instanceID: UUID(),
+            packageIdentifier: "com.example.repeat",
+            properties: [:],
+            slots: [:]
+        )
+
+        let rendered = ComponentTemplateRenderer.render(template, context: context)
+
+        #expect(rendered.contains("data-index=\"0\">1/3 first"))
+        #expect(rendered.contains("data-index=\"1\">2/3 "))
+        #expect(rendered.contains("data-index=\"2\">3/3 last"))
+        #expect(rendered.components(separatedBy: "<span").count - 1 == 3)
+    }
+
+    @Test
+    func nestedRepeatExposesParentMetadata() {
+        let template = "{{ repeat 2 }}{{ repeat 2 }}{{ repeat.parent.position }}.{{ repeat.position }};{{ endrepeat }}{{ endrepeat }}"
+        let rendered = ComponentTemplateRenderer.render(
+            template,
+            context: .init(instanceID: UUID(), packageIdentifier: "com.example.repeat", properties: [:], slots: [:])
+        )
+
+        #expect(rendered == "1.1;1.2;2.1;2.2;")
+    }
+
+    @Test
+    func controlRepeatKeepsPrimitiveKeysStableAcrossCountChanges() {
+        let template = """
+        {{ repeat control.itemCount }}<article>{{ text="Card" }}{{ image }}</article>{{ endrepeat }}
+        <footer>{{ text="Footer" }}</footer>
+        """
+        let maximums = ["itemCount": 4]
+        let textPrimitives = ComponentTemplateRenderer.textPrimitives(in: template, repeatMaximums: maximums)
+        let imageKeys = ComponentTemplateRenderer.repeatedImageKeys(in: template, repeatMaximums: maximums)
+        #expect(textPrimitives.map(\.key) == ["content1", "content2", "content3", "content4", "content5"])
+        #expect(imageKeys == ["sourceRepeat1", "sourceRepeat2", "sourceRepeat3", "sourceRepeat4"])
+
+        let context = ComponentTemplateContext(
+            instanceID: UUID(),
+            packageIdentifier: "com.example.repeat",
+            properties: [
+                "itemCount": .number(2),
+                "content1": .string("One"),
+                "content2": .string("Two"),
+                "content5": .string("Footer value"),
+                "sourceRepeat1": .string("one.jpg"),
+                "sourceRepeat2": .string("two.jpg")
+            ],
+            slots: [:],
+            repeatMaximums: maximums
+        )
+        let rendered = ComponentTemplateRenderer.render(template, context: context)
+
+        #expect(rendered.components(separatedBy: "<article>").count - 1 == 2)
+        #expect(rendered.contains("One<img class=\"foundry-image\" src=\"one.jpg\""))
+        #expect(rendered.contains("Two<img class=\"foundry-image\" src=\"two.jpg\""))
+        #expect(rendered.contains("<footer>Footer value</footer>"))
+        #expect(!rendered.contains("content3"))
+    }
+
+    @Test
+    func repeatValidationRequiresBalancedBlocksAndBoundedNumericControls() throws {
+        let item = """
+        <dict>
+            <key>id</key><string>itemCount</string>
+            <key>labels</key><string>Items</string>
+            <key>type</key><string>number</string>
+            <key>minimum</key><real>0</real>
+            <key>maximum</key><real>12</real>
+            <key>default</key><real>4</real>
+            <key>responsive</key><false/>
+        </dict>
+        """
+        let manifestText = manifest(withCustomItems: item)
+        let validURL = try makePackage(
+            manifest: manifestText,
+            template: "<section {{ component.attributes }}>{{ repeat control.itemCount }}<b>{{ repeat.position }}</b>{{ endrepeat }}{{ slot id=\"content\" }}</section>"
+        )
+        defer { try? FileManager.default.removeItem(at: validURL) }
+        let package = try ComponentPackageLoader.load(from: validURL)
+        #expect(package.repeatMaximums == ["itemCount": 12])
+
+        let invalidURL = try makePackage(
+            manifest: manifestText.replacingOccurrences(of: "<key>maximum</key><real>12</real>", with: ""),
+            template: "<section {{ component.attributes }}>{{ repeat control.itemCount }}<b></b>{{ slot id=\"content\" }}</section>"
+        )
+        defer { try? FileManager.default.removeItem(at: invalidURL) }
+        #expect(throws: ComponentPackageLoadingError.self) {
+            try ComponentPackageLoader.load(from: invalidURL)
+        }
+    }
+
+    @Test
+    func repeatAcceptsDirectiveWhitespaceAndLimitsNestedExpansion() throws {
+        let whitespaceTemplate = "{{\n repeat\t2 }}item{{ endrepeat }}"
+        let expanded = try ComponentTemplateRepeater.expand(
+            whitespaceTemplate,
+            properties: [:],
+            maximums: [:]
+        )
+        #expect(expanded.template == "itemitem")
+
+        let excessiveTemplate = "{{ repeat 100 }}{{ repeat 100 }}{{ repeat 2 }}item{{ endrepeat }}{{ endrepeat }}{{ endrepeat }}"
+        #expect(throws: ComponentTemplateRepeater.RepeatError.self) {
+            try ComponentTemplateRepeater.expand(
+                excessiveTemplate,
+                properties: [:],
+                maximums: [:]
+            )
+        }
+    }
+
     @Test
     func textPrimitivesUseAutomaticUniqueKeysAndStoredValues() throws {
         let template = #"<h2>{{ text="Start here" }}</h2><p>{{ text }}</p><small>{{ text="Note" }}</small>"#
@@ -1513,6 +1674,14 @@ struct ComponentPackageTests {
         #expect(Set(builtIns.compactMap { $0.package?.manifest.identifier }).count == builtIns.count)
         #expect(ComponentType.image.definition.package?.manifest.identifier == ComponentType.image.rawValue)
         #expect(ComponentType.section.definition.package?.manifest.identifier == ComponentType.section.rawValue)
+        let imageSlider = try #require(builtIns.first {
+            $0.type.rawValue == "foundry.media.imageslider"
+        })
+        #expect(imageSlider.package?.repeatMaximums["slideCount"] == 8)
+        #expect(imageSlider.properties.filter {
+            if case .asset = $0.control { return true }
+            return false
+        }.map(\.key.rawValue) == (1...8).map { "sourceRepeat\($0)" })
         #expect(ComponentType.section.definition.allowsChildren)
         #expect(!ComponentType.section.definition.properties.contains { $0.key.rawValue == "contentWidth" })
         let sectionPadding = try #require(ComponentType.section.definition.properties.first {

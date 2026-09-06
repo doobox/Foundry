@@ -146,7 +146,10 @@ nonisolated struct CanvasMessage: Codable, Equatable, Sendable {
                 propertyKey != nil && propertyValue != nil && hasNoAssetPayload
         case .importImageAsset:
             componentID != nil && componentType == nil && reusableDefinitionID == nil && globalDefinitionID == nil && placement == nil &&
-                propertyKey == nil && propertyValue == nil && assetFilename != nil && assetMediaType != nil && assetData != nil && assetID == nil
+                propertyValue == nil && (
+                    (assetID != nil && assetFilename == nil && assetMediaType == nil && assetData == nil) ||
+                    (assetID == nil && assetFilename != nil && assetMediaType != nil && assetData != nil)
+                )
         case .insertImageComponent:
             componentID == nil && componentType == nil && reusableDefinitionID == nil && globalDefinitionID == nil && placement?.componentPlacement != nil &&
                 propertyKey == nil && propertyValue == nil && (

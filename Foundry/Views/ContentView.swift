@@ -406,6 +406,7 @@ struct ContentView: View {
                 theme: document.site.theme,
                 assets: document.assetContents,
                 assetRevision: document.assetRevision,
+                componentPackageRevision: componentCatalog.revision,
                 selectedComponentIDs: selectedComponentIDs,
                 editorOptions: canvasEditorOptions,
                 renderer: renderer,
@@ -741,29 +742,52 @@ struct ContentView: View {
                 value: value
             )
         case .importImageAsset:
+            let propertyKey = message.propertyKey ?? .source
             guard let componentID = message.componentID,
-                  page.components.node(withID: componentID)?.type == .image,
-                  let filename = message.assetFilename,
-                  let mediaType = message.assetMediaType,
-                  let type = imageType(filename: filename, mediaType: mediaType),
-                  type.conforms(to: .image),
-                  let encoded = message.assetData,
-                  let data = Data(base64Encoded: encoded),
-                  data.count <= 25_000_000 else { return }
+                  let component = page.components.node(withID: componentID),
+                  component.type.definition.properties.contains(where: {
+                      guard $0.key == propertyKey else { return false }
+                      if case .asset = $0.control { return true }
+                      return false
+                  }) else { return }
             undoManager?.beginUndoGrouping()
-            let assetID = document.importAsset(
-                data: data,
-                filename: filename,
-                mediaType: type.preferredMIMEType ?? mediaType,
-                reuseIdenticalContent: true,
-                undoManager: undoManager
-            )
-            if let asset = document.site.assets.first(where: { $0.id == assetID }) {
-                if let context = document.site.globalComponentContext(containing: componentID), !context.isOverridden {
-                    editor.setSharedReusableProperty(componentID: componentID, key: .source, value: .url(asset.reference))
-                } else {
-                    editor.setProperty(id: componentID, key: .source, value: .url(asset.reference))
+            let asset: ProjectAsset
+            if let assetID = message.assetID {
+                guard let existingAsset = document.site.assets.first(where: {
+                    $0.id == assetID && UTType(mimeType: $0.mediaType)?.conforms(to: .image) == true
+                }) else {
+                    undoManager?.endUndoGrouping()
+                    return
                 }
+                asset = existingAsset
+            } else {
+                guard let filename = message.assetFilename,
+                      let mediaType = message.assetMediaType,
+                      let type = imageType(filename: filename, mediaType: mediaType),
+                      type.conforms(to: .image),
+                      let encoded = message.assetData,
+                      let data = Data(base64Encoded: encoded),
+                      data.count <= 25_000_000 else {
+                    undoManager?.endUndoGrouping()
+                    return
+                }
+                let assetID = document.importAsset(
+                    data: data,
+                    filename: filename,
+                    mediaType: type.preferredMIMEType ?? mediaType,
+                    reuseIdenticalContent: true,
+                    undoManager: undoManager
+                )
+                guard let importedAsset = document.site.assets.first(where: { $0.id == assetID }) else {
+                    undoManager?.endUndoGrouping()
+                    return
+                }
+                asset = importedAsset
+            }
+            if let context = document.site.globalComponentContext(containing: componentID), !context.isOverridden {
+                editor.setSharedReusableProperty(componentID: componentID, key: propertyKey, value: .url(asset.reference))
+            } else {
+                editor.setProperty(id: componentID, key: propertyKey, value: .url(asset.reference))
             }
             undoManager?.endUndoGrouping()
             undoManager?.setActionName("Import Image")

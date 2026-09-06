@@ -3,21 +3,22 @@ import Foundation
 nonisolated enum ComponentPackageAdapter {
     static func definition(from package: LoadedComponentPackage) -> ComponentDefinition {
         let manifest = package.manifest
-        let implicitTextProperties = ComponentTemplateRenderer.textPrimitives(in: package.htmlTemplate).map { primitive in
+        let repeatMaximums = package.repeatMaximums
+        let implicitTextProperties = ComponentTemplateRenderer.textPrimitives(in: package.htmlTemplate, repeatMaximums: repeatMaximums).map { primitive in
             ComponentPropertyDefinition(
                 key: .init(rawValue: primitive.key), label: "Text", section: .content,
                 control: .multilineText, defaultValue: .string(primitive.defaultValue),
                 isResponsive: false, isInspectorVisible: false
             )
         }
-        let implicitHTMLProperties = ComponentTemplateRenderer.htmlPrimitives(in: package.htmlTemplate).map { primitive in
+        let implicitHTMLProperties = ComponentTemplateRenderer.htmlPrimitives(in: package.htmlTemplate, repeatMaximums: repeatMaximums).map { primitive in
             ComponentPropertyDefinition(
                 key: .init(rawValue: primitive.key), label: "HTML", section: .content,
                 control: .multilineText, defaultValue: .string(primitive.defaultValue),
                 isResponsive: false, isInspectorVisible: false
             )
         }
-        let implicitHTMLArtifactProperties = ComponentTemplateRenderer.htmlPrimitives(in: package.htmlTemplate).flatMap { primitive in
+        let implicitHTMLArtifactProperties = ComponentTemplateRenderer.htmlPrimitives(in: package.htmlTemplate, repeatMaximums: repeatMaximums).flatMap { primitive in
             ["CSS", "JavaScript"].map { suffix in
                 ComponentPropertyDefinition(
                     key: .init(rawValue: primitive.key + suffix), label: suffix, section: .content,
@@ -26,13 +27,20 @@ nonisolated enum ComponentPackageAdapter {
                 )
             }
         }
-        let implicitImageProperties: [ComponentPropertyDefinition] = ComponentTemplateRenderer.hasImagePrimitive(in: package.htmlTemplate) ? [
-            ComponentPropertyDefinition(
+        let repeatedImageKeys = ComponentTemplateRenderer.repeatedImageKeys(in: package.htmlTemplate, repeatMaximums: repeatMaximums)
+        let implicitImageProperties: [ComponentPropertyDefinition] = repeatedImageKeys.isEmpty
+            ? (ComponentTemplateRenderer.hasImagePrimitive(in: package.htmlTemplate) ? [ComponentPropertyDefinition(
                 key: .source, label: "Image", section: .content,
                 control: .asset, defaultValue: .url(""),
                 isResponsive: false, isInspectorVisible: false
-            )
-        ] : []
+            )] : [])
+            : repeatedImageKeys.map { key in
+                ComponentPropertyDefinition(
+                    key: .init(rawValue: key), label: "Image", section: .content,
+                    control: .asset, defaultValue: .url(""),
+                    isResponsive: false, isInspectorVisible: false
+                )
+            }
         return ComponentDefinition(
             type: ComponentType(rawValue: manifest.identifier),
             displayName: manifest.name,

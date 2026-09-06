@@ -38,10 +38,12 @@ struct CanvasBridgeTests {
     @Test
     func decodesCanvasImageImportMessage() {
         let id = UUID()
+        let propertyKey = ComponentProperty.Key(rawValue: "sourceRepeat1")
         let message = CanvasMessage.decode([
             "version": CanvasMessage.currentVersion,
             "event": "importImageAsset",
             "componentID": id.uuidString,
+            "propertyKey": propertyKey.rawValue,
             "assetFilename": "hero.png",
             "assetMediaType": "image/png",
             "assetData": Data([1, 2, 3]).base64EncodedString()
@@ -49,7 +51,19 @@ struct CanvasBridgeTests {
 
         #expect(message?.event == .importImageAsset)
         #expect(message?.componentID == id)
+        #expect(message?.propertyKey == propertyKey)
         #expect(message?.assetFilename == "hero.png")
+
+        let assetID = UUID()
+        let existingAssetMessage = CanvasMessage.decode([
+            "version": CanvasMessage.currentVersion,
+            "event": "importImageAsset",
+            "componentID": id.uuidString,
+            "propertyKey": propertyKey.rawValue,
+            "assetID": assetID.uuidString
+        ])
+        #expect(existingAssetMessage?.assetID == assetID)
+        #expect(existingAssetMessage?.propertyKey == propertyKey)
     }
 
     @Test

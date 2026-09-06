@@ -53,6 +53,17 @@ nonisolated struct LoadedComponentPackage: Sendable {
         rootURL.appending(path: "Contents/Resources", directoryHint: .isDirectory)
     }
 
+    var repeatMaximums: [String: Int] {
+        Dictionary(uniqueKeysWithValues: manifest.properties.compactMap { property in
+            guard property.control.type == .number || property.control.type == .slider,
+                  let maximum = property.control.maximum,
+                  maximum.isFinite,
+                  maximum >= 0,
+                  maximum <= Double(ComponentTemplateRepeater.maximumIterationCount) else { return nil }
+            return (property.id, Int(maximum.rounded(.down)))
+        })
+    }
+
     func declaresJavaScript(in scopes: ComponentPackageTemplateFile.Scope...) -> Bool {
         manifest.render.files.contains { file in
             scopes.contains { $0.rawValue == file.scope.rawValue }

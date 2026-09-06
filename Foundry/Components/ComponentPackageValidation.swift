@@ -338,8 +338,87 @@ nonisolated enum ComponentPackageValidator {
             ))
         }
 
+        let repeatCount = template.matchCount(#"\{\{\s*repeat\s+"#)
+        let endRepeatCount = template.matchCount(#"\{\{\s*endrepeat\s*\}\}"#)
+        if repeatCount != endRepeatCount {
+            diagnostics.append(.init(
+                severity: .error,
+                location: templateLocation,
+                message: "Repeat directives are unbalanced; every repeat requires one endrepeat."
+            ))
+        } else if repeatCount > 0 {
+            let maximums = Dictionary(uniqueKeysWithValues: manifest.properties.compactMap { property -> (String, Int)? in
+                guard property.control.type == .number || property.control.type == .slider,
+                      let maximum = property.control.maximum,
+                      maximum.isFinite,
+                      maximum >= 0,
+                      maximum <= Double(ComponentTemplateRepeater.maximumIterationCount) else { return nil }
+                return (property.id, Int(maximum.rounded(.down)))
+            })
+            do {
+                _ = try ComponentTemplateRepeater.expand(
+                    template,
+                    properties: Dictionary(uniqueKeysWithValues: manifest.properties.map { ($0.id, $0.defaultValue) }),
+                    maximums: maximums,
+                    usingMaximumCounts: true
+                )
+            } catch {
+                diagnostics.append(.init(
+                    severity: .error,
+                    location: templateLocation,
+                    message: "Invalid repeat structure: \(error)"
+                ))
+            }
+        }
+        for reference in template.references(matching: #"\{\{\s*repeat\s+([^{}]+?)\s*\}\}"#) {
+            let count = reference.value.trimmingCharacters(in: .whitespacesAndNewlines)
+            if let literal = Int(count) {
+                if !(0...ComponentTemplateRepeater.maximumIterationCount).contains(literal) {
+                    diagnostics.append(templateDiagnostic(
+                        templateLocation,
+                        template: template,
+                        offset: reference.offset,
+                        message: "A literal repeat count must be between 0 and \(ComponentTemplateRepeater.maximumIterationCount)."
+                    ))
+                }
+                continue
+            }
+            guard count.hasPrefix("control.") else {
+                diagnostics.append(templateDiagnostic(
+                    templateLocation,
+                    template: template,
+                    offset: reference.offset,
+                    message: "A repeat count must be an integer or a control reference."
+                ))
+                continue
+            }
+            let propertyID = String(count.dropFirst("control.".count))
+            guard let property = manifest.properties.first(where: { $0.id == propertyID }) else {
+                diagnostics.append(templateDiagnostic(
+                    templateLocation,
+                    template: template,
+                    offset: reference.offset,
+                    message: "Unknown property '\(propertyID)'. Declare it in Info.plist customItems."
+                ))
+                continue
+            }
+            guard property.control.type == .number || property.control.type == .slider,
+                  let maximum = property.control.maximum,
+                  maximum.isFinite,
+                  maximum >= 0,
+                  maximum <= Double(ComponentTemplateRepeater.maximumIterationCount) else {
+                diagnostics.append(templateDiagnostic(
+                    templateLocation,
+                    template: template,
+                    offset: reference.offset,
+                    message: "A repeat control must be numeric and declare a maximum from 0 through \(ComponentTemplateRepeater.maximumIterationCount)."
+                ))
+                continue
+            }
+        }
+
         for reference in template.references(matching: #"\{\{\s*(?:if|elseif)\s+([^{}]+?)\s*\}\}"#) {
-            let condition = reference.value.trimmingCharacters(in: .whitespacesAndNewlines)
+            let condition = replacingRepeatMetadata(in: reference.value.trimmingCharacters(in: .whitespacesAndNewlines))
             do {
                 let expression = try ComponentTemplateExpression.parse(condition)
                 try ComponentTemplateExpression.validate(expression)
@@ -366,6 +445,7 @@ nonisolated enum ComponentPackageValidator {
             guard let sourceRange = Range(match.range(at: 1), in: template) else { continue }
             let source = String(template[sourceRange]).trimmingCharacters(in: .whitespacesAndNewlines)
             if source.hasPrefix("if ") || source.hasPrefix("elseif ") || source == "else" || source == "endif" ||
+                source.hasPrefix("repeat ") || source == "endrepeat" || source.hasPrefix("repeat.") ||
                 source.hasPrefix("slot ") || source.hasPrefix("text ") || source.hasPrefix("text=") ||
                 source.hasPrefix("html ") || source.hasPrefix("html=") ||
                 ["text", "html", "image", "id", "instance.id", "instance.uuid", "package.id", "site.baseURL", "page.url", "path.siteRoot", "path.siteAssets", "component.class", "component.attributes"].contains(source) ||
@@ -396,7 +476,7 @@ nonisolated enum ComponentPackageValidator {
 
         let supportedMacroNames: Set<String> = [
             "id", "instance", "package", "site", "page", "path", "component", "control", "asset", "slot",
-            "if", "elseif", "else", "endif", "text", "html", "image", "canvas", "preview", "published"
+            "if", "elseif", "else", "endif", "repeat", "endrepeat", "text", "html", "image", "canvas", "preview", "published"
         ]
         for reference in template.references(matching: #"\{\{\s*([A-Za-z]+)(?:\.|\s|\}\})"#)
             where !supportedMacroNames.contains(reference.value) {
@@ -407,6 +487,17 @@ nonisolated enum ComponentPackageValidator {
                 message: "Unknown template macro '\(reference.value)'."
             ))
         }
+    }
+
+    private static func replacingRepeatMetadata(in source: String) -> String {
+        var result = source
+        for key in ["repeat.parent.first", "repeat.parent.last", "repeat.first", "repeat.last"] {
+            result = result.replacingOccurrences(of: key, with: "true")
+        }
+        for key in ["repeat.parent.position", "repeat.parent.index", "repeat.parent.count", "repeat.position", "repeat.index", "repeat.count"] {
+            result = result.replacingOccurrences(of: key, with: "1")
+        }
+        return result
     }
 
     private static func templateDiagnostic(

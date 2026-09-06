@@ -42,6 +42,7 @@ struct CanvasView: View {
     let theme: Theme
     let assets: [UUID: ProjectAssetContent]
     let assetRevision: UInt64
+    let componentPackageRevision: Int
     let selectedComponentIDs: Set<UUID>
     let editorOptions: CanvasEditorOptions
     let renderer: any PageRendering
@@ -87,6 +88,7 @@ struct CanvasView: View {
                                     WebCanvasView(
                                         html: renderedHTML(for: page),
                                         assets: assets,
+                                        packages: canvasPackages(for: page),
                                         assetRevision: assetRevision,
                                         selectedComponentIDs: selectedComponentIDs,
                                         editorOptions: editorOptions,
@@ -172,6 +174,7 @@ struct CanvasView: View {
             site: site,
             pageID: page.id,
             assetRevision: assetRevision,
+            componentPackageRevision: componentPackageRevision,
             breakpoint: breakpoint
         )
         return htmlCache.html(for: input) {
@@ -183,6 +186,20 @@ struct CanvasView: View {
                 breakpoint: breakpoint
             )
         }
+    }
+
+    private func canvasPackages(for page: Page) -> [String: LoadedComponentPackage] {
+        Dictionary(
+            page.components
+                .flatMap(flattened)
+                .compactMap(\.type.definition.package)
+                .map { ($0.manifest.identifier, $0) },
+            uniquingKeysWith: { _, latest in latest }
+        )
+    }
+
+    private func flattened(_ node: ComponentNode) -> [ComponentNode] {
+        [node] + node.children.flatMap(flattened)
     }
 
     private var canvasHorizontalChromeWidth: Double {
@@ -235,6 +252,7 @@ private struct CanvasHTMLRenderInput: Equatable {
     let site: Site
     let pageID: UUID
     let assetRevision: UInt64
+    let componentPackageRevision: Int
     let breakpoint: ResponsiveBreakpoint
 }
 

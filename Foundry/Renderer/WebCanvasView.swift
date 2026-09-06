@@ -7,17 +7,27 @@ import WebKit
 @MainActor
 final class CanvasAssetSchemeHandler: NSObject, WKURLSchemeHandler {
     static let scheme = "foundry-asset"
+    static let packageScheme = "foundry-package-asset"
 
     private var assets: [UUID: ProjectAssetContent]
+    private var packages: [String: LoadedComponentPackage]
     private var gifPreviews: [UUID: Data] = [:]
 
-    init(assets: [UUID: ProjectAssetContent]) {
+    init(
+        assets: [UUID: ProjectAssetContent],
+        packages: [String: LoadedComponentPackage] = [:]
+    ) {
         self.assets = assets
+        self.packages = packages
     }
 
     func update(assets: [UUID: ProjectAssetContent]) {
         gifPreviews.removeAll(keepingCapacity: true)
         self.assets = assets
+    }
+
+    func update(packages: [String: LoadedComponentPackage]) {
+        self.packages = packages
     }
 
     func webView(_ webView: WKWebView, start urlSchemeTask: any WKURLSchemeTask) {
@@ -41,6 +51,9 @@ final class CanvasAssetSchemeHandler: NSObject, WKURLSchemeHandler {
     func webView(_ webView: WKWebView, stop urlSchemeTask: any WKURLSchemeTask) {}
 
     func resource(for url: URL) -> (data: Data, mediaType: String)? {
+        if url.scheme == Self.packageScheme {
+            return packageResource(for: url)
+        }
         guard let id = url.absoluteString.foundryAssetID,
               let content = assets[id] else { return nil }
         if content.asset.mediaType.caseInsensitiveCompare("image/gif") == .orderedSame,
@@ -48,6 +61,27 @@ final class CanvasAssetSchemeHandler: NSObject, WKURLSchemeHandler {
             return (preview, UTType.png.preferredMIMEType ?? "image/png")
         }
         return (content.data, content.asset.mediaType)
+    }
+
+    private func packageResource(for url: URL) -> (data: Data, mediaType: String)? {
+        guard let packageIdentifier = url.host,
+              let package = packages[packageIdentifier] else { return nil }
+        let path = url.path.removingPercentEncoding?.drop(while: { $0 == "/" }) ?? ""
+        let relativePath = String(path)
+        guard !relativePath.isEmpty,
+              !relativePath.split(separator: "/").contains(".."),
+              package.manifest.assetDeclaration(containing: relativePath) != nil else { return nil }
+
+        let resourceRoot = package.resourceRootURL.resolvingSymlinksInPath().standardizedFileURL
+        let resourceURL = resourceRoot
+            .appending(path: relativePath)
+            .resolvingSymlinksInPath()
+            .standardizedFileURL
+        guard resourceURL.path.hasPrefix(resourceRoot.path + "/"),
+              let data = try? Data(contentsOf: resourceURL) else { return nil }
+        let mediaType = UTType(filenameExtension: resourceURL.pathExtension)?.preferredMIMEType
+            ?? "application/octet-stream"
+        return (data, mediaType)
     }
 
     private func gifPreview(for id: UUID, data: Data) -> Data? {
@@ -86,6 +120,7 @@ nonisolated enum CanvasContextMenuAction: String, Sendable {
 struct WebCanvasView: NSViewRepresentable {
     let html: String
     let assets: [UUID: ProjectAssetContent]
+    let packages: [String: LoadedComponentPackage]
     let assetRevision: UInt64
     let selectedComponentIDs: Set<UUID>
     let editorOptions: CanvasEditorOptions
@@ -97,6 +132,7 @@ struct WebCanvasView: NSViewRepresentable {
     func makeCoordinator() -> Coordinator {
         Coordinator(
             assets: assets,
+            packages: packages,
             handleMessage: handleMessage,
             handleContextMenuAction: handleContextMenuAction
         )
@@ -107,6 +143,10 @@ struct WebCanvasView: NSViewRepresentable {
         configuration.setURLSchemeHandler(
             context.coordinator.assetSchemeHandler,
             forURLScheme: CanvasAssetSchemeHandler.scheme
+        )
+        configuration.setURLSchemeHandler(
+            context.coordinator.assetSchemeHandler,
+            forURLScheme: CanvasAssetSchemeHandler.packageScheme
         )
         configuration.defaultWebpagePreferences.allowsContentJavaScript = false
         if enablesWebInspector {
@@ -141,6 +181,7 @@ struct WebCanvasView: NSViewRepresentable {
     }
 
     func updateNSView(_ webView: WKWebView, context: Context) {
+        context.coordinator.assetSchemeHandler.update(packages: packages)
         if context.coordinator.assetRevision != assetRevision {
             context.coordinator.assetSchemeHandler.update(assets: assets)
             context.coordinator.assetRevision = assetRevision
@@ -341,38 +382,17 @@ struct WebCanvasView: NSViewRepresentable {
                 element: adjacentZone
               };
             }
-            const edgeCandidates = [];
-            let edgeElement = event.target.closest(selector);
-            let depth = 0;
-            while (edgeElement) {
-              const edgeRect = edgeElement.getBoundingClientRect();
-              if (event.clientX >= edgeRect.left && event.clientX <= edgeRect.right) {
-                const topDistance = Math.abs(event.clientY - edgeRect.top);
-                const bottomDistance = Math.abs(event.clientY - edgeRect.bottom);
-                if (topDistance <= 18) {
-                  edgeCandidates.push({ kind: 'before', distance: topDistance, depth, element: edgeElement });
-                }
-                if (bottomDistance <= 18) {
-                  edgeCandidates.push({ kind: 'after', distance: bottomDistance, depth, element: edgeElement });
-                }
-              }
-              edgeElement = edgeElement.parentElement?.closest(selector);
-              depth += 1;
-            }
-            edgeCandidates.sort((left, right) => left.distance - right.distance || right.depth - left.depth);
-            const edge = edgeCandidates[0];
-            if (edge) {
-              return {
-                kind: edge.kind,
-                targetID: edge.element.dataset.foundryId,
-                element: edge.element
-              };
-            }
-
             const element = event.target.closest(selector);
             if (!element) return { kind: 'end' };
             const rect = element.getBoundingClientRect();
             const distanceFromTop = event.clientY - rect.top;
+            const distanceFromBottom = rect.bottom - event.clientY;
+            if (distanceFromTop <= 18) {
+              return { kind: 'before', targetID: element.dataset.foundryId, element };
+            }
+            if (distanceFromBottom <= 18) {
+              return { kind: 'after', targetID: element.dataset.foundryId, element };
+            }
             const edgeTargetHeight = Math.min(Math.max(rect.height * 0.25, 18), rect.height / 2);
             if (distanceFromTop <= edgeTargetHeight) {
               return { kind: 'before', targetID: element.dataset.foundryId, element };
@@ -481,7 +501,7 @@ struct WebCanvasView: NSViewRepresentable {
               const imageZone = event.target.closest('[data-foundry-image-drop-zone]');
               const image = imageZone?.closest(selector);
               if (image) {
-                image.classList.add('foundry-drop-inside');
+                imageZone.classList.add('foundry-drop-inside');
               } else {
                 placement = intendedPlacement(event);
                 if (placement.element) placement.element.classList.add('foundry-drop-' + placement.kind);
@@ -497,6 +517,18 @@ struct WebCanvasView: NSViewRepresentable {
               return;
             }
             event.preventDefault();
+            const draggedValue = event.dataTransfer.getData('text/plain');
+            const carriesImageAsset = event.dataTransfer.types.includes('uk.co.garysimpson.foundry.image-asset')
+              || draggedValue.startsWith('foundry-image-asset:');
+            const imageZone = carriesImageAsset
+              ? event.target.closest('[data-foundry-image-drop-zone]')
+              : null;
+            const image = imageZone?.closest(selector);
+            if (image) {
+              imageZone.classList.add('foundry-drop-inside');
+              event.dataTransfer.dropEffect = 'copy';
+              return;
+            }
             placement = intendedPlacement(event);
             if (placement.element) placement.element.classList.add('foundry-drop-' + placement.kind);
             const allowedEffect = event.dataTransfer.effectAllowed;
@@ -530,6 +562,7 @@ struct WebCanvasView: NSViewRepresentable {
                 };
                 if (image) {
                   message.componentID = image.dataset.foundryId;
+                  message.propertyKey = imageZone.dataset.foundryImageProperty || 'source';
                 } else {
                   message.placement = { kind: target.kind, targetID: target.targetID, slotID: target.slotID };
                 }
@@ -539,6 +572,8 @@ struct WebCanvasView: NSViewRepresentable {
               return;
             }
             const value = event.dataTransfer.getData('text/plain');
+            const imageZone = event.target.closest('[data-foundry-image-drop-zone]');
+            const image = imageZone?.closest(selector);
             const target = placement || intendedPlacement(event);
             clearDrop();
             const message = {
@@ -561,8 +596,13 @@ struct WebCanvasView: NSViewRepresentable {
               message.event = 'moveComponent';
               message.componentID = value.substring('foundry-node:'.length);
             } else if (value.startsWith('foundry-image-asset:')) {
-              message.event = 'insertImageComponent';
+              message.event = image ? 'importImageAsset' : 'insertImageComponent';
               message.assetID = value.substring('foundry-image-asset:'.length);
+              if (image) {
+                delete message.placement;
+                message.componentID = image.dataset.foundryId;
+                message.propertyKey = imageZone.dataset.foundryImageProperty || 'source';
+              }
             } else {
               return;
             }
@@ -666,10 +706,11 @@ struct WebCanvasView: NSViewRepresentable {
 
         init(
             assets: [UUID: ProjectAssetContent],
+            packages: [String: LoadedComponentPackage],
             handleMessage: @escaping (CanvasMessage) -> Void,
             handleContextMenuAction: @escaping (CanvasContextMenuAction, UUID) -> Void
         ) {
-            assetSchemeHandler = CanvasAssetSchemeHandler(assets: assets)
+            assetSchemeHandler = CanvasAssetSchemeHandler(assets: assets, packages: packages)
             self.handleMessage = handleMessage
             self.handleContextMenuAction = handleContextMenuAction
             super.init()
