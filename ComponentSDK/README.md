@@ -61,6 +61,20 @@ Example.foundrydevpack/
 </plist>
 ```
 
+### Component identifiers
+
+The top-level `id` must be a lowercase reverse-DNS identifier with at least two dot-separated segments. Each segment may contain lowercase letters, numbers, and internal hyphens. A segment cannot begin or end with a hyphen.
+
+Valid identifiers include:
+
+```text
+com.example.hero
+com.example.focal-point-hero
+uk.co.example.image-slider
+```
+
+Uppercase letters, underscores, spaces, empty segments, and leading or trailing hyphens are invalid. For example, `com.example.focal_point`, `com.example.-hero`, and `Com.example.hero` are rejected.
+
 `Contents/Resources/component.html`:
 
 ```html
@@ -93,6 +107,13 @@ To expose an image in the Inspector, declare a normal image control:
         <key>type</key><string>image</string>
         <key>alt</key><string>Default image description</string>
         <key>focalPoint</key><true/>
+        <key>renditions</key>
+        <array>
+            <dict>
+                <key>id</key><string>thumbnail</string>
+                <key>maximumDimension</key><integer>480</integer>
+            </dict>
+        </array>
     </dict>
 </array>
 ```
@@ -124,6 +145,14 @@ Focal-point editing is opt-in. Add `<key>focalPoint</key><true/>` to let the use
 object-position: {{ control.source.position }};
 background-position: {{ control.source.position }};
 ```
+
+Image controls may declare fixed, developer-authored renditions. Each rendition has a unique `id` and a positive `maximumDimension`, which constrains the longest side without upscaling:
+
+```html
+<img src="{{ control.source.rendition.thumbnail.href }}" alt="{{ control.source.alt }}">
+```
+
+Rendition sizes are part of the pack manifest, not user-editable controls. Requests above Foundry's 3,840 px import limit are clamped to 3,840 px. Foundry stores imported still raster images at no more than 3,840 px on their longest side, preserves SVGs and animated images unchanged, and generates requested smaller renditions only when needed. A source asset and effective size produce one shared file in the published site's global `assets/renditions/` directory, even when many component instances or pages use it. If the source is already small enough, the rendition URL resolves to the source instead and no duplicate file is written.
 
 Unavailable intrinsic values render as an empty string. Foundry reads dimensions when an image is imported (or once when opening an older document) and reads packaged defaults when the pack loads, so these values do not decode images during page rendering.
 

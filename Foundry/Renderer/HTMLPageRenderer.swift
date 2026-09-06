@@ -513,6 +513,12 @@ struct HTMLPageRenderer: PageRendering {
                     metadata: metadata,
                     into: &values
                 )
+                for rendition in property.renditions {
+                    let key = property.id + ".rendition." + rendition.id
+                    let href = values[property.id]?.stringValue ?? ""
+                    values[key] = .string(href)
+                    values[key + ".href"] = .string(href)
+                }
             }
         }
         if let site {

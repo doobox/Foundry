@@ -3,7 +3,7 @@
 <plist version="1.0">
 <dict>
     <key>minimumAPIVersion</key><integer>1</integer>
-    <key>id</key><string>dev.foundry.enable_conditions</string>
+    <key>id</key><string>dev.foundry.enable-conditions</string>
     <key>title</key><string>Enable Conditions Demo</string>
     <key>description</key><string>Demonstrates conditional control visibility.</string>
     <key>author</key><string>Foundry Development</string>

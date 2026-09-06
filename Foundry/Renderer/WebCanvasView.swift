@@ -235,6 +235,19 @@ struct WebCanvasView: NSViewRepresentable {
           globalMenu.appendChild(globalMenuAction);
           document.body.appendChild(globalMenu);
 
+          const chromeLayer = document.createElement('div');
+          chromeLayer.setAttribute('popover', 'manual');
+          chromeLayer.setAttribute('data-foundry-editor-chrome', 'layer');
+          const chromeLayerStyles = {
+            all: 'initial', position: 'fixed', inset: '0', width: '0', height: '0',
+            margin: '0', padding: '0', border: '0', overflow: 'visible', pointerEvents: 'none'
+          };
+          Object.entries(chromeLayerStyles).forEach(([property, value]) => {
+            chromeLayer.style.setProperty(property.replace(/[A-Z]/g, match => '-' + match.toLowerCase()), value, 'important');
+          });
+          document.documentElement.appendChild(chromeLayer);
+          if (typeof chromeLayer.showPopover === 'function') chromeLayer.showPopover();
+
           const chromeTitle = document.createElement('div');
           chromeTitle.setAttribute('data-foundry-editor-chrome', 'title');
           const chromeTitleStyles = {
@@ -261,7 +274,7 @@ struct WebCanvasView: NSViewRepresentable {
               'important'
             );
           });
-          document.documentElement.appendChild(chromeTitle);
+          chromeLayer.appendChild(chromeTitle);
           let hoveredComponent = null;
           let hoveredPrimitive = null;
           let selectedChromeTargets = [];
@@ -278,7 +291,7 @@ struct WebCanvasView: NSViewRepresentable {
             });
           };
           applyOutlineBaseStyles(hoverChrome);
-          document.documentElement.appendChild(hoverChrome);
+          chromeLayer.appendChild(hoverChrome);
           let chromeFrame = null;
 
           const componentChromeColor = element => {
@@ -286,12 +299,25 @@ struct WebCanvasView: NSViewRepresentable {
             return element.dataset.foundryGlobal && !overrideOwner ? '#34C759' : '#0A84FF';
           };
 
+          const chromeRect = target => {
+            const elementRect = target.getBoundingClientRect();
+            if (elementRect.width > 0 && elementRect.height > 0) return elementRect;
+
+            // Components whose root uses `display: contents` have no box of their own.
+            // Frame their rendered contents so nested overlay text still gets canvas chrome.
+            const range = document.createRange();
+            range.selectNodeContents(target);
+            const contentRect = range.getBoundingClientRect();
+            range.detach();
+            return contentRect;
+          };
+
           const positionOutline = (outline, target, color, isPrimitive, isSelected) => {
             if (!target?.isConnected) {
               outline.style.setProperty('display', 'none', 'important');
               return;
             }
-            const rect = target.getBoundingClientRect();
+            const rect = chromeRect(target);
             if (rect.width <= 0 || rect.height <= 0 || rect.bottom < 0 || rect.top > window.innerHeight) {
               outline.style.setProperty('display', 'none', 'important');
               return;
@@ -313,7 +339,7 @@ struct WebCanvasView: NSViewRepresentable {
               const outline = document.createElement('div');
               outline.setAttribute('data-foundry-editor-chrome', 'selection');
               applyOutlineBaseStyles(outline);
-              document.documentElement.appendChild(outline);
+              chromeLayer.appendChild(outline);
               selectedChrome.push(outline);
             }
             selectedChrome.forEach((outline, index) => {
@@ -366,7 +392,7 @@ struct WebCanvasView: NSViewRepresentable {
               chromeTitle.style.setProperty('display', 'none', 'important');
               return;
             }
-            const rect = hoveredComponent.getBoundingClientRect();
+            const rect = chromeRect(hoveredComponent);
             if (rect.width <= 0 || rect.height <= 0 || rect.bottom < 0 || rect.top > window.innerHeight) {
               chromeTitle.style.setProperty('display', 'none', 'important');
               return;

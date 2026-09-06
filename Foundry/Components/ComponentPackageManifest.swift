@@ -164,6 +164,15 @@ nonisolated struct ComponentPackageSlot: Codable, Equatable, Identifiable, Senda
     let maximum: Int?
 }
 
+nonisolated struct ComponentPackageImageRendition: Codable, Equatable, Identifiable, Sendable {
+    let id: String
+    let maximumDimension: Int
+
+    var effectiveMaximumDimension: Int {
+        min(maximumDimension, ComponentImageProcessor.canonicalMaximumDimension)
+    }
+}
+
 nonisolated struct ComponentPackageProperty: Codable, Equatable, Identifiable, Sendable {
     let id: String
     let label: String
@@ -178,6 +187,7 @@ nonisolated struct ComponentPackageProperty: Codable, Equatable, Identifiable, S
     let enable: ComponentPackageEnable?
     let alt: String
     let focalPoint: Bool
+    let renditions: [ComponentPackageImageRendition]
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -191,6 +201,7 @@ nonisolated struct ComponentPackageProperty: Codable, Equatable, Identifiable, S
         case enable
         case alt
         case focalPoint
+        case renditions
     }
 
     init(from decoder: Decoder) throws {
@@ -203,6 +214,7 @@ nonisolated struct ComponentPackageProperty: Codable, Equatable, Identifiable, S
         enable = try container.decodeIfPresent(ComponentPackageEnable.self, forKey: .enable)
         alt = try container.decodeIfPresent(String.self, forKey: .alt) ?? ""
         focalPoint = try container.decodeIfPresent(Bool.self, forKey: .focalPoint) ?? false
+        renditions = try container.decodeIfPresent([ComponentPackageImageRendition].self, forKey: .renditions) ?? []
 
         if control.count != nil {
             labels = try container.decode([String].self, forKey: .labels)
@@ -258,6 +270,9 @@ nonisolated struct ComponentPackageProperty: Codable, Equatable, Identifiable, S
         }
         if control.type == .image, focalPoint {
             try container.encode(true, forKey: .focalPoint)
+        }
+        if control.type == .image, !renditions.isEmpty {
+            try container.encode(renditions, forKey: .renditions)
         }
     }
 }

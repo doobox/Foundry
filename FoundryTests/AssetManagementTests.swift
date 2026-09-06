@@ -1,8 +1,37 @@
 import Foundation
+import CoreGraphics
+import ImageIO
 import Testing
+import UniformTypeIdentifiers
 @testable import Foundry
 
 struct AssetManagementTests {
+    @Test
+    func canonicalizesOversizedStillImagesAndCreatesSmallerRenditionsWithoutUpscaling() throws {
+        let data = try testPNG(width: 5_000, height: 2)
+        let canonical = ComponentImageProcessor.canonicalize(
+            data: data,
+            filename: "wide.png",
+            mimeType: "image/png"
+        )
+        #expect(canonical.metadata.width == 3_840)
+        #expect(canonical.metadata.height == 2)
+
+        let rendition = try #require(ComponentImageProcessor.rendition(
+            data: canonical.data,
+            filename: "wide.png",
+            mimeType: "image/png",
+            maximumDimension: 1_000
+        ))
+        #expect(rendition.metadata.width == 1_000)
+        #expect(ComponentImageProcessor.rendition(
+            data: rendition.data,
+            filename: "wide.png",
+            mimeType: "image/png",
+            maximumDimension: 2_000
+        ) == nil)
+    }
+
     @Test
     func assetLibrarySupportsNestedOrderedFolders() {
         let hero = ProjectAsset(filename: "hero.png", mediaType: "image/png", byteCount: 4)
@@ -283,4 +312,32 @@ struct AssetManagementTests {
         #expect(reusedID == secondID)
         #expect(document.site.assets.map(\.id) == [secondID])
     }
+}
+
+func testPNG(width: Int, height: Int) throws -> Data {
+    let bytes = Data(repeating: 0x7f, count: width * height * 4)
+    let provider = try #require(CGDataProvider(data: bytes as CFData))
+    let image = try #require(CGImage(
+        width: width,
+        height: height,
+        bitsPerComponent: 8,
+        bitsPerPixel: 32,
+        bytesPerRow: width * 4,
+        space: CGColorSpaceCreateDeviceRGB(),
+        bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedLast.rawValue),
+        provider: provider,
+        decode: nil,
+        shouldInterpolate: false,
+        intent: .defaultIntent
+    ))
+    let output = NSMutableData()
+    let destination = try #require(CGImageDestinationCreateWithData(
+        output,
+        UTType.png.identifier as CFString,
+        1,
+        nil
+    ))
+    CGImageDestinationAddImage(destination, image, nil)
+    #expect(CGImageDestinationFinalize(destination))
+    return output as Data
 }

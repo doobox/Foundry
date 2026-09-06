@@ -129,7 +129,7 @@ nonisolated enum ComponentTemplateRenderer {
     private static let keyedHTMLExpression = try! NSRegularExpression(pattern: #"\{\{\s*__foundry_html\s+key=\"([^\"]+)\"\s+default=\"([^\"]*)\"(?:\s+repeated=\"(true)\"\s+path=\"([0-9,]+)\")?\s*\}\}"#)
     private static let keyedImageExpression = try! NSRegularExpression(pattern: #"\{\{\s*__foundry_image\s+key=\"([^\"]+)\"(?:\s+repeated=\"(true)\"\s+path=\"([0-9,]+)\")?\s*\}\}"#)
     private static let controlledImageElementExpression = try! NSRegularExpression(
-        pattern: #"<img\b([^>]*?)\bsrc\s*=\s*([\"'])\{\{\s*control\.([A-Za-z][A-Za-z0-9_-]*)(?:\.href)?\s*\}\}\2([^>]*)>"#,
+        pattern: #"<img\b([^>]*?)\bsrc\s*=\s*([\"'])\{\{\s*control\.([A-Za-z][A-Za-z0-9_-]*)(\.rendition\.[A-Za-z][A-Za-z0-9_-]*(?:\.href)?|\.href)?\s*\}\}\2([^>]*)>"#,
         options: [.caseInsensitive]
     )
 
@@ -288,9 +288,12 @@ nonisolated enum ComponentTemplateRenderer {
             guard let wholeRange = Range(match.range(at: 0), in: result),
                   let beforeRange = Range(match.range(at: 1), in: result),
                   let keyRange = Range(match.range(at: 3), in: result),
-                  let afterRange = Range(match.range(at: 4), in: result) else { continue }
+                  let afterRange = Range(match.range(at: 5), in: result) else { continue }
             let key = String(result[keyRange])
-            let source = stringValue(context.properties[key]) ?? ""
+            let suffix = Range(match.range(at: 4), in: result).map { String(result[$0]) } ?? ""
+            let renditionSuffix = suffix.hasSuffix(".href") ? String(suffix.dropLast(5)) : suffix
+            let valueKey = suffix == ".href" ? key : key + renditionSuffix
+            let source = stringValue(context.properties[valueKey]) ?? ""
             let resolvedSource = context.assetPaths[source] ?? source
             let before = String(result[beforeRange])
             let after = String(result[afterRange])
@@ -558,7 +561,9 @@ nonisolated enum ComponentTemplateRenderer {
             return attributes
         }
         switch value {
-        case .string(let value): return escape(value)
+        case .string(let value):
+            let resolved = reference.hasSuffix(".href") ? context.assetPaths[value] ?? value : value
+            return escape(resolved)
         case .number(let value): return value.formatted(.number.locale(Locale(identifier: "en_US_POSIX")))
         case .boolean(let value): return value ? "true" : "false"
         case .array(let values): return values.map(packageValueString).joined(separator: ", ")

@@ -3,7 +3,7 @@
 <plist version="1.0">
 <dict>
     <key>minimumAPIVersion</key><integer>1</integer>
-    <key>id</key><string>dev.foundry.theme_values</string>
+    <key>id</key><string>dev.foundry.theme-values</string>
     <key>title</key><string>Theme Values Demo</string>
     <key>description</key><string>Demonstrates basic select controls populated from named theme sources.</string>
     <key>author</key><string>Foundry Development</string>

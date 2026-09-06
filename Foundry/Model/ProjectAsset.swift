@@ -1,5 +1,70 @@
 import Foundation
 import ImageIO
+import UniformTypeIdentifiers
+
+nonisolated enum ComponentImageProcessor {
+    static let canonicalMaximumDimension = 3_840
+
+    struct Result: Sendable {
+        let data: Data
+        let metadata: ComponentImageMetadata
+    }
+
+    static func canonicalize(data: Data, filename: String, mimeType: String) -> Result {
+        resized(data: data, filename: filename, mimeType: mimeType, maximumDimension: canonicalMaximumDimension)
+            ?? Result(data: data, metadata: .inspect(data: data, filename: filename, mimeType: mimeType))
+    }
+
+    static func rendition(data: Data, filename: String, mimeType: String, maximumDimension: Int) -> Result? {
+        let dimension = min(max(maximumDimension, 1), canonicalMaximumDimension)
+        let metadata = ComponentImageMetadata.inspect(data: data, filename: filename, mimeType: mimeType)
+        guard let width = metadata.width, let height = metadata.height, max(width, height) > dimension else { return nil }
+        return resized(data: data, filename: filename, mimeType: mimeType, maximumDimension: dimension)
+    }
+
+    static func renditionFileExtension(data: Data, fallback: String) -> String {
+        guard let source = CGImageSourceCreateWithData(data as CFData, nil),
+              let sourceType = CGImageSourceGetType(source),
+              !(CGImageDestinationCopyTypeIdentifiers() as NSArray).contains(sourceType) else {
+            return fallback
+        }
+        return "png"
+    }
+
+    private static func resized(data: Data, filename: String, mimeType: String, maximumDimension: Int) -> Result? {
+        guard mimeType.hasPrefix("image/"), mimeType != "image/svg+xml",
+              let source = CGImageSourceCreateWithData(data as CFData, nil),
+              CGImageSourceGetCount(source) == 1,
+              let sourceType = CGImageSourceGetType(source),
+              let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any],
+              let width = (properties[kCGImagePropertyPixelWidth] as? NSNumber)?.intValue,
+              let height = (properties[kCGImagePropertyPixelHeight] as? NSNumber)?.intValue,
+              max(width, height) > maximumDimension else { return nil }
+        let options: [CFString: Any] = [
+            kCGImageSourceCreateThumbnailFromImageAlways: true,
+            kCGImageSourceCreateThumbnailWithTransform: true,
+            kCGImageSourceThumbnailMaxPixelSize: maximumDimension,
+            kCGImageSourceShouldCacheImmediately: true
+        ]
+        guard let image = CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary) else { return nil }
+        let canPreserveType = (CGImageDestinationCopyTypeIdentifiers() as NSArray).contains(sourceType)
+        let destinationType = canPreserveType ? sourceType : UTType.png.identifier as CFString
+        let outputFilename = canPreserveType
+            ? filename
+            : (filename as NSString).deletingPathExtension + ".png"
+        let outputMIMEType = UTType(String(destinationType))?.preferredMIMEType
+            ?? (canPreserveType ? mimeType : "image/png")
+        let output = NSMutableData()
+        guard let destination = CGImageDestinationCreateWithData(output, destinationType, 1, nil) else { return nil }
+        CGImageDestinationAddImage(destination, image, nil)
+        guard CGImageDestinationFinalize(destination) else { return nil }
+        let processed = output as Data
+        return Result(
+            data: processed,
+            metadata: .inspect(data: processed, filename: outputFilename, mimeType: outputMIMEType)
+        )
+    }
+}
 
 nonisolated struct ComponentImageMetadata: Equatable, Sendable {
     let width: Int?

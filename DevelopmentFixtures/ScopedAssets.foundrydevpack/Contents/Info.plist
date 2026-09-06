@@ -3,7 +3,7 @@
 <plist version="1.0">
 <dict>
     <key>minimumAPIVersion</key><integer>1</integer>
-    <key>id</key><string>dev.foundry.scoped_assets</string>
+    <key>id</key><string>dev.foundry.scoped-assets</string>
     <key>title</key><string>Scoped Assets Demo</string>
     <key>description</key><string>Demonstrates page- and site-scoped files, folders, asset URLs, and site path values.</string>
     <key>author</key><string>Foundry Development</string>

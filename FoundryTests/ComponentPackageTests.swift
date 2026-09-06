@@ -5,6 +5,30 @@ import Testing
 
 struct ComponentPackageTests {
     @Test
+    func componentIdentifiersAllowInternalHyphensButRejectInvalidDNSLabels() throws {
+        let validURL = try makePackage(
+            manifest: validManifest.replacingOccurrences(
+                of: "com.example.card",
+                with: "com.example.focal-point-hero"
+            ),
+            template: "<section {{ component.attributes }}>{{ slot id=\"content\" }}</section>"
+        )
+        defer { try? FileManager.default.removeItem(at: validURL) }
+        #expect(try ComponentPackageLoader.load(from: validURL).manifest.identifier == "com.example.focal-point-hero")
+
+        for identifier in ["com.example.focal_point", "com.example.-hero", "com.example.hero-", "Com.example.hero"] {
+            let invalidURL = try makePackage(
+                manifest: validManifest.replacingOccurrences(of: "com.example.card", with: identifier),
+                template: "<section {{ component.attributes }}>{{ slot id=\"content\" }}</section>"
+            )
+            defer { try? FileManager.default.removeItem(at: invalidURL) }
+            #expect(throws: ComponentPackageLoadingError.self) {
+                try ComponentPackageLoader.load(from: invalidURL)
+            }
+        }
+    }
+
+    @Test
     func removedFontFamilyControlIsRejected() {
         let plist = """
         <?xml version="1.0" encoding="UTF-8"?>
@@ -50,13 +74,13 @@ struct ComponentPackageTests {
         let enablePackage = try ComponentPackageLoader.load(
             from: repositoryURL.appending(path: "DevelopmentFixtures/EnableConditions.foundrydevpack")
         )
-        #expect(enablePackage.manifest.identifier == "dev.foundry.enable_conditions")
+        #expect(enablePackage.manifest.identifier == "dev.foundry.enable-conditions")
         #expect(enablePackage.manifest.properties.contains { $0.enable?.id == "titles[2]" })
 
         let themePackage = try ComponentPackageLoader.load(
             from: repositoryURL.appending(path: "DevelopmentFixtures/ThemeValues.foundrydevpack")
         )
-        #expect(themePackage.manifest.identifier == "dev.foundry.theme_values")
+        #expect(themePackage.manifest.identifier == "dev.foundry.theme-values")
         #expect(themePackage.manifest.properties.contains { $0.control.themeValueSource == .fontFamilies })
         #expect(themePackage.manifest.properties.contains { $0.id == "topBorder" && $0.control.themeValueDefault == "accent" })
         #expect(themePackage.manifest.properties.contains { $0.id == "bottomBorder" && $0.control.themeValueDefault == "links" })
@@ -64,7 +88,7 @@ struct ComponentPackageTests {
         let scopedAssetsPackage = try ComponentPackageLoader.load(
             from: repositoryURL.appending(path: "DevelopmentFixtures/ScopedAssets.foundrydevpack")
         )
-        #expect(scopedAssetsPackage.manifest.identifier == "dev.foundry.scoped_assets")
+        #expect(scopedAssetsPackage.manifest.identifier == "dev.foundry.scoped-assets")
         #expect(scopedAssetsPackage.manifest.assets.count == 3)
         #expect(scopedAssetsPackage.manifest.assets.filter { $0.scope == .page }.count == 2)
         #expect(scopedAssetsPackage.manifest.assets.filter { $0.scope == .site }.count == 1)
@@ -72,7 +96,7 @@ struct ComponentPackageTests {
         let expressionPackage = try ComponentPackageLoader.load(
             from: repositoryURL.appending(path: "DevelopmentFixtures/ExpressionEngine.foundrydevpack")
         )
-        #expect(expressionPackage.manifest.identifier == "dev.foundry.expression_engine")
+        #expect(expressionPackage.manifest.identifier == "dev.foundry.expression-engine")
         let expressionHTML = ComponentTemplateRenderer.render(
             expressionPackage.htmlTemplate,
             context: .init(
@@ -907,6 +931,114 @@ struct ComponentPackageTests {
         #expect(!image.responsive)
         #expect(image.alt.isEmpty)
         #expect(!image.focalPoint)
+        #expect(image.renditions.isEmpty)
+    }
+
+    @Test
+    func imageControlSupportsStaticClampedRenditions() throws {
+        let manifest = try PropertyListDecoder().decode(
+            ComponentPackageManifest.self,
+            from: Data(manifest(withCustomItems: """
+                <dict>
+                    <key>id</key><string>source</string>
+                    <key>labels</key><string>Image</string>
+                    <key>type</key><string>image</string>
+                    <key>renditions</key>
+                    <array>
+                        <dict><key>id</key><string>thumbnail</string><key>maximumDimension</key><integer>480</integer></dict>
+                        <dict><key>id</key><string>hero</string><key>maximumDimension</key><integer>5000</integer></dict>
+                    </array>
+                </dict>
+                """).utf8)
+        )
+        let image = try #require(manifest.properties.first)
+        #expect(image.renditions.map(\.id) == ["thumbnail", "hero"])
+        #expect(image.renditions.map(\.effectiveMaximumDimension) == [480, 3_840])
+
+        let rendered = ComponentTemplateRenderer.render(
+            #"<img src="{{ control.source.rendition.thumbnail.href }}">"#,
+            context: .init(
+                instanceID: UUID(),
+                packageIdentifier: "com.example.image",
+                properties: [
+                    "source": .string("assets/original.png"),
+                    "source.rendition.thumbnail": .string("assets/renditions/thumb.png")
+                ],
+                slots: [:]
+            )
+        )
+        #expect(rendered.contains(#"src="assets/renditions/thumb.png""#))
+    }
+
+    @Test
+    func imageControlHrefResolvesDeclaredPackageAssetPaths() {
+        let rendered = ComponentTemplateRenderer.render(
+            #"<section style="background-image: url('{{ control.background.href }}')"></section>"#,
+            context: .init(
+                instanceID: UUID(),
+                packageIdentifier: "com.example.hero",
+                properties: [
+                    "background.href": .string("images/default.svg")
+                ],
+                slots: [:],
+                assetPaths: [
+                    "images/default.svg": "foundry-package-asset://com.example.hero/images/default.svg"
+                ]
+            )
+        )
+        #expect(rendered.contains("foundry-package-asset://com.example.hero/images/default.svg"))
+    }
+
+    @Test
+    func staticExportPublishesOneSharedRenditionForRepeatedComponentUse() throws {
+        let identifier = "com.example.rendition\(UUID().uuidString.replacingOccurrences(of: "-", with: "").lowercased())"
+        let packageURL = try makePackage(
+            manifest: manifest(withCustomItems: """
+                <dict>
+                    <key>id</key><string>source</string>
+                    <key>labels</key><string>Image</string>
+                    <key>type</key><string>image</string>
+                    <key>renditions</key><array>
+                        <dict><key>id</key><string>thumbnail</string><key>maximumDimension</key><integer>20</integer></dict>
+                    </array>
+                </dict>
+                """).replacingOccurrences(of: "com.example.card", with: identifier),
+            template: #"<img src="{{ control.source.rendition.thumbnail.href }}">"#
+        )
+        defer { try? FileManager.default.removeItem(at: packageURL) }
+        let package = try ComponentPackageLoader.load(from: packageURL)
+        ComponentRegistry.register(package)
+
+        let data = try testPNG(width: 100, height: 50)
+        let asset = ProjectAsset(
+            filename: "hero.png",
+            mediaType: "image/png",
+            byteCount: data.count,
+            pixelWidth: 100,
+            pixelHeight: 50
+        )
+        var first = ComponentNode(type: .init(rawValue: identifier))
+        first.setProperty(.init(rawValue: "source"), value: .url(asset.reference))
+        var second = ComponentNode(type: .init(rawValue: identifier))
+        second.setProperty(.init(rawValue: "source"), value: .url(asset.reference))
+        let site = Site(
+            name: "Renditions",
+            pages: [
+                Page(title: "Home", slug: "index", components: [first]),
+                Page(title: "About", slug: "about", components: [second])
+            ],
+            assets: [asset]
+        )
+        let bundle = StaticSiteRenderer().render(
+            site: site,
+            assets: [asset.id: .init(asset: asset, data: data)]
+        )
+        let renditionPath = "assets/renditions/\(asset.id.uuidString.lowercased())-20.png"
+        let rendition = try #require(bundle.file(at: renditionPath))
+        #expect(ComponentImageMetadata.inspect(data: rendition.data, filename: "hero.png", mimeType: "image/png").width == 20)
+        #expect(bundle.files.filter { $0.path == renditionPath }.count == 1)
+        #expect(bundle.file(at: "index.html")?.contents.contains(renditionPath) == true)
+        #expect(bundle.file(at: "about/index.html")?.contents.contains("../" + renditionPath) == true)
     }
 
     @Test

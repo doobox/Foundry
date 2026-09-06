@@ -87,6 +87,7 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
         files.append(contentsOf: site.assets.compactMap { asset in
             assets[asset.id].map { SiteExportFile(path: site.publishedPath(for: asset), data: $0.data) }
         })
+        files.append(contentsOf: imageRenditionFiles(site: site, assets: assets))
         if site.generatesSitemap, let baseURL = validPublicURL(site.publicURL) {
             files.append(.init(path: "sitemap.xml", contents: sitemap(for: site, baseURL: baseURL)))
         }
@@ -826,6 +827,25 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
                     metadata: metadata,
                     into: &values
                 )
+                for rendition in property.renditions {
+                    let suffix = ".rendition.\(rendition.id)"
+                    let href: String
+                    if let assetID = source.foundryAssetID, let content = assets[assetID],
+                       max(content.asset.pixelWidth ?? 0, content.asset.pixelHeight ?? 0) > rendition.effectiveMaximumDimension {
+                        href = siteRootPrefix(from: assetPrefix) + imageRenditionPath(
+                            assetID: assetID,
+                            maximumDimension: rendition.effectiveMaximumDimension,
+                            fileExtension: ComponentImageProcessor.renditionFileExtension(
+                                data: content.data,
+                                fallback: content.asset.imageMetadata.fileExtension
+                            )
+                        )
+                    } else {
+                        href = values[property.id]?.stringValue ?? ""
+                    }
+                    values[property.id + suffix] = .string(href)
+                    values[property.id + suffix + ".href"] = .string(href)
+                }
             }
         }
         for definition in node.type.definition.properties {
@@ -844,6 +864,51 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
             values,
             properties: node.type.definition.package?.manifest.properties ?? []
         )
+    }
+
+    private func imageRenditionFiles(
+        site: Site,
+        assets: [UUID: ProjectAssetContent]
+    ) -> [SiteExportFile] {
+        var requests = Set<ImageRenditionRequest>()
+        for page in site.pages {
+            for node in page.components.flatMap(\.flattened) {
+                guard let package = node.type.definition.package else { continue }
+                for property in package.manifest.properties where property.control.type == .image {
+                    guard case .url(let source) = node.propertyValue(.init(rawValue: property.id)),
+                          let assetID = source.foundryAssetID else { continue }
+                    for rendition in property.renditions {
+                        requests.insert(.init(assetID: assetID, maximumDimension: rendition.effectiveMaximumDimension))
+                    }
+                }
+            }
+        }
+        return requests.compactMap { request in
+            guard let content = assets[request.assetID],
+                  let output = ComponentImageProcessor.rendition(
+                    data: content.data,
+                    filename: content.asset.filename,
+                    mimeType: content.asset.mediaType,
+                    maximumDimension: request.maximumDimension
+                  ) else { return nil }
+            return SiteExportFile(
+                path: imageRenditionPath(
+                    assetID: request.assetID,
+                    maximumDimension: request.maximumDimension,
+                    fileExtension: output.metadata.fileExtension
+                ),
+                data: output.data
+            )
+        }
+    }
+
+    private func imageRenditionPath(assetID: UUID, maximumDimension: Int, fileExtension: String) -> String {
+        "assets/renditions/\(assetID.uuidString.lowercased())-\(maximumDimension).\(fileExtension)"
+    }
+
+    private struct ImageRenditionRequest: Hashable {
+        let assetID: UUID
+        let maximumDimension: Int
     }
 
     private func safeCSSValue(_ value: ComponentProperty.Value) -> String {

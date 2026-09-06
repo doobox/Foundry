@@ -51,7 +51,7 @@ nonisolated enum ComponentPackageManifestSchema {
         "id", "labels", "group", "default", "responsive", "subtitles", "units", "toolTip",
         "type", "minimum", "maximum", "step", "options", "themeValues", "allowsCustom", "colorMath", "opacity",
         "customColor", "customValue", "count", "ticks", "showsValueField", "trueValue", "falseValue",
-        "systemImage", "fontSize", "argument1", "argument2", "operation", "round", "absoluteURL", "enable", "alt", "focalPoint"
+        "systemImage", "fontSize", "argument1", "argument2", "operation", "round", "absoluteURL", "enable", "alt", "focalPoint", "renditions"
     ]
     private static let enableKeys: Set<String> = ["id", "operation", "value"]
     private static let optionKeys: Set<String> = ["value", "title"]
@@ -60,6 +60,7 @@ nonisolated enum ComponentPackageManifestSchema {
     private static let missingComponentKeys: Set<String> = ["message", "preview"]
     private static let libraryKeys: Set<String> = ["id", "majorVersion"]
     private static let assetKeys: Set<String> = ["path", "scope"]
+    private static let renditionKeys: Set<String> = ["id", "maximumDimension"]
 
     static func inspect(_ data: Data) throws -> Inspection {
         let dictionary = try rootDictionary(from: data)
@@ -288,6 +289,34 @@ nonisolated enum ComponentPackageManifestSchema {
         optionalString("toolTip", in: property, location: location, into: &diagnostics)
         optionalString("alt", in: property, location: location, into: &diagnostics)
         optionalBoolean("focalPoint", in: property, location: location, into: &diagnostics)
+        if let rawRenditions = property["renditions"] {
+            guard let renditions = rawRenditions as? [[String: Any]] else {
+                appendTypeError(key: "renditions", expected: "an array of dictionaries", location: location, into: &diagnostics)
+                return
+            }
+            var identifiers = Set<String>()
+            for (index, rendition) in renditions.enumerated() {
+                let renditionLocation = "\(location):renditions[\(index)]"
+                unknownKeys(in: rendition, allowed: renditionKeys, location: renditionLocation, into: &diagnostics)
+                requireString("id", in: rendition, location: renditionLocation, into: &diagnostics)
+                requireInteger("maximumDimension", in: rendition, location: renditionLocation, into: &diagnostics)
+                if let id = rendition["id"] as? String {
+                    if id.range(of: #"^[A-Za-z][A-Za-z0-9_-]*$"#, options: .regularExpression) == nil {
+                        diagnostics.append(.init(
+                            severity: .error,
+                            location: "\(renditionLocation):id",
+                            message: "A rendition id must start with a letter and contain only letters, numbers, underscores, or hyphens."
+                        ))
+                    }
+                    if !identifiers.insert(id).inserted {
+                        diagnostics.append(.init(severity: .error, location: "\(renditionLocation):id", message: "Rendition ids must be unique within an image control."))
+                    }
+                }
+                if let maximumDimension = rendition["maximumDimension"].flatMap(integer), maximumDimension < 1 {
+                    diagnostics.append(.init(severity: .error, location: "\(renditionLocation):maximumDimension", message: "maximumDimension must be greater than zero."))
+                }
+            }
+        }
 
         guard let rawType = property["type"] else {
             appendMissing("type", expected: "control type string", location: location, into: &diagnostics)
@@ -313,6 +342,13 @@ nonisolated enum ComponentPackageManifestSchema {
                 severity: .error,
                 location: "\(location):focalPoint",
                 message: "focalPoint is supported only by image controls."
+            ))
+        }
+        if type != .image, property["renditions"] != nil {
+            diagnostics.append(.init(
+                severity: .error,
+                location: "\(location):renditions",
+                message: "renditions are supported only by image controls."
             ))
         }
 

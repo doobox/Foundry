@@ -14,7 +14,7 @@ nonisolated struct ComponentPackageDiagnostic: Equatable, Sendable {
 nonisolated enum ComponentPackageValidator {
     private static let maximumTagCount = 5
     private static let identifierExpression = try! NSRegularExpression(
-        pattern: #"^[a-z][a-z0-9_]*(\.[a-z0-9_]+)+$"#
+        pattern: #"^[a-z](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)+$"#
     )
     private static let propertyExpression = try! NSRegularExpression(
         pattern: #"^[A-Za-z][A-Za-z0-9_-]*$"#
@@ -35,7 +35,7 @@ nonisolated enum ComponentPackageValidator {
                 message: "This component requires an unsupported Foundry component API."
             ))
         }
-        validate(manifest.identifier, expression: identifierExpression, location: "Info.plist:id", message: "Use a lowercase reverse-DNS identifier, for example com.example.hero.", into: &diagnostics)
+        validate(manifest.identifier, expression: identifierExpression, location: "Info.plist:id", message: "Use a lowercase reverse-DNS identifier, for example com.example.focal-point-hero.", into: &diagnostics)
         if manifest.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             diagnostics.append(.init(severity: .error, location: "Info.plist:title", message: "A component title is required."))
         }
@@ -338,7 +338,7 @@ nonisolated enum ComponentPackageValidator {
         }
 
         for reference in template.references(
-            matching: #"<img\b[^>]*\bsrc\s*=\s*[\"']\{\{\s*control\.([A-Za-z][A-Za-z0-9_.-]*?)(?:\.href)?\s*\}\}[\"']"#
+            matching: #"<img\b[^>]*\bsrc\s*=\s*[\"']\{\{\s*control\.([A-Za-z][A-Za-z0-9_-]*)(?:\.href|\.rendition\.[A-Za-z][A-Za-z0-9_-]*(?:\.href)?)?\s*\}\}[\"']"#
         ) {
             let propertyID = replacingRepeatMetadata(in: reference.value)
             guard let property = manifest.properties.first(where: { $0.id == propertyID }),
@@ -348,6 +348,23 @@ nonisolated enum ComponentPackageValidator {
                     template: template,
                     offset: reference.offset,
                     message: "An img src control binding must reference an image control."
+                ))
+                continue
+            }
+        }
+        for reference in template.references(
+            matching: #"control\.([A-Za-z][A-Za-z0-9_-]*\.rendition\.[A-Za-z][A-Za-z0-9_-]*)"#
+        ) {
+            let parts = reference.value.split(separator: ".").map(String.init)
+            guard parts.count == 3,
+                  let property = manifest.properties.first(where: { $0.id == parts[0] }),
+                  property.control.type == .image,
+                  property.renditions.contains(where: { $0.id == parts[2] }) else {
+                diagnostics.append(templateDiagnostic(
+                    templateLocation,
+                    template: template,
+                    offset: reference.offset,
+                    message: "An image rendition binding must reference a rendition declared by that image control."
                 ))
                 continue
             }

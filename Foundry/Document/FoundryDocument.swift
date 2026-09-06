@@ -162,22 +162,23 @@ final class FoundryDocument: ReferenceFileDocument {
         reuseIdenticalContent: Bool = false,
         undoManager: UndoManager?
     ) -> UUID {
-        let digest = FoundryDocumentSnapshot.digest(for: data)
+        let processed = ComponentImageProcessor.canonicalize(data: data, filename: filename, mimeType: mediaType)
+        let digest = FoundryDocumentSnapshot.digest(for: processed.data)
         var next = storage.withLock { $0 }
         if reuseIdenticalContent,
-           let existingID = next.matchingAssetID(for: data, digest: digest) {
+           let existingID = next.matchingAssetID(for: processed.data, digest: digest) {
             return existingID
         }
-        let metadata = ComponentImageMetadata.inspect(data: data, filename: filename, mimeType: mediaType)
+        let metadata = processed.metadata
         let asset = ProjectAsset(
-            filename: filename,
-            mediaType: mediaType,
-            byteCount: data.count,
+            filename: metadata.filename,
+            mediaType: metadata.mimeType,
+            byteCount: processed.data.count,
             pixelWidth: metadata.width,
             pixelHeight: metadata.height
         )
         guard next.site.assetLibrary.insert(.asset(asset), at: placement) else { return asset.id }
-        next.insertAssetData(data, id: asset.id, digest: digest)
+        next.insertAssetData(processed.data, id: asset.id, digest: digest)
         replaceContents(with: next, undoManager: undoManager, actionName: "Import Asset")
         return asset.id
     }
