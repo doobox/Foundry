@@ -1007,7 +1007,7 @@ struct ComponentPackageTests {
                     </array>
                 </dict>
                 """).replacingOccurrences(of: "com.example.card", with: identifier),
-            template: #"<img src="{{ control.source.rendition.thumbnail.href }}">"#
+            template: #"<figure {{ component.attributes }}><img src="{{ control.source.rendition.thumbnail.href }}">{{ slot id="content" }}</figure>"#
         )
         defer { try? FileManager.default.removeItem(at: packageURL) }
         let package = try ComponentPackageLoader.load(from: packageURL)
@@ -2586,6 +2586,30 @@ struct ComponentPackageTests {
             </dict>
         </array>
         """
+    }
+
+    @Test
+    func componentIconCannotExceedMaximumFileSize() throws {
+        let oversizedIcon = "<svg>" + String(
+            repeating: " ",
+            count: ComponentPackageValidator.maximumIconByteCount
+        ) + "</svg>"
+        let packageURL = try makePackage(
+            manifest: validManifest,
+            template: "<div {{ component.attributes }}>{{ slot id=\"content\" }}</div>",
+            additionalFiles: ["icon.svg": oversizedIcon]
+        )
+        defer { try? FileManager.default.removeItem(at: packageURL) }
+        let manifest = try PropertyListDecoder().decode(
+            ComponentPackageManifest.self,
+            from: Data(validManifest.utf8)
+        )
+        let diagnostics = ComponentPackageValidator.validate(
+            manifest,
+            rootURL: packageURL.appending(path: "Contents/Resources", directoryHint: .isDirectory)
+        )
+
+        #expect(diagnostics.contains { $0.location == "icon.svg" && $0.message.contains("64 KiB") })
     }
 
     private func makePackage(

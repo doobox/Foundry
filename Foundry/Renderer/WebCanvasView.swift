@@ -1014,15 +1014,20 @@ struct WebCanvasView: NSViewRepresentable {
             let version = request["componentVersion"] as? String ?? ""
             let subtitle = version.isEmpty ? author : "\(author)  v\(version)"
             let typeID = request["componentTypeID"] as? String
-            let image = typeID
+            let iconURL = typeID
                 .map(ComponentType.init(rawValue:))?
                 .definition.package
-                .flatMap { NSImage(contentsOf: $0.iconURL) }
-                ?? NSImage(size: NSSize(width: 36, height: 36))
-            let icon = NSImageView(image: image)
+                .map(\.iconURL)
+            let icon = NSImageView(image: NSImage(size: NSSize(width: 36, height: 36)))
             icon.imageScaling = .scaleProportionallyUpOrDown
             icon.setAccessibilityLabel(title)
             icon.translatesAutoresizingMaskIntoConstraints = false
+            if let iconURL {
+                Task { [weak icon] in
+                    guard let image = await ComponentIconLoader.shared.icon(at: iconURL)?.image else { return }
+                    icon?.image = image
+                }
+            }
 
             let titleField = NSTextField(labelWithString: title)
             titleField.font = .systemFont(ofSize: 15, weight: .semibold)

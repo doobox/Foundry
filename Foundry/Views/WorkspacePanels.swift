@@ -1270,14 +1270,14 @@ private struct ComponentLibraryTile: View {
 }
 
 struct ComponentLibraryIcon: View {
+    @State private var loadedIcon: NSImage?
     let type: ComponentType
     let size: CGFloat
     var symbolColor: Color = .accentColor
 
     var body: some View {
         Group {
-            if let url = type.definition.package?.iconURL,
-               let image = NSImage(contentsOf: url) {
+            if let image = loadedIcon {
                 Image(nsImage: image)
                     .resizable()
                     .scaledToFit()
@@ -1290,6 +1290,13 @@ struct ComponentLibraryIcon: View {
         .frame(width: size, height: size)
         .clipShape(RoundedRectangle(cornerRadius: size * 0.16))
         .accessibilityHidden(true)
+        .task(id: type.definition.package?.iconURL) {
+            guard let url = type.definition.package?.iconURL else {
+                loadedIcon = nil
+                return
+            }
+            loadedIcon = await ComponentIconLoader.shared.icon(at: url)?.image
+        }
     }
 }
 

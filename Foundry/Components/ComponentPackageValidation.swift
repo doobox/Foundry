@@ -12,6 +12,7 @@ nonisolated struct ComponentPackageDiagnostic: Equatable, Sendable {
 }
 
 nonisolated enum ComponentPackageValidator {
+    static let maximumIconByteCount = 64 * 1024
     private static let maximumTagCount = 5
     private static let identifierExpression = try! NSRegularExpression(
         pattern: #"^[a-z](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)+$"#
@@ -118,6 +119,15 @@ nonisolated enum ComponentPackageValidator {
             } else if !FileManager.default.fileExists(atPath: rootURL.appending(path: path).path) {
                 diagnostics.append(.init(severity: .error, location: path, message: "The declared package file does not exist."))
             }
+        }
+        let iconURL = rootURL.appending(path: "icon.svg")
+        if let byteCount = try? iconURL.resourceValues(forKeys: [.fileSizeKey]).fileSize,
+           byteCount > maximumIconByteCount {
+            diagnostics.append(.init(
+                severity: .error,
+                location: "icon.svg",
+                message: "Component icons cannot exceed 64 KiB."
+            ))
         }
         for file in manifest.render.files {
             let fileExtension = URL(fileURLWithPath: file.path).pathExtension.lowercased()

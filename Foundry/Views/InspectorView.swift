@@ -595,6 +595,7 @@ private struct PageInspector: View {
 }
 
 private struct ComponentInspector: View {
+    @State private var loadedComponentIcon: NSImage?
     let component: ComponentNode
     let theme: Theme
     let assets: [ProjectAsset]
@@ -684,7 +685,7 @@ private struct ComponentInspector: View {
     private var componentIdentityHeader: some View {
         HStack(spacing: 12) {
             Group {
-                if let icon = componentIcon {
+                if let icon = loadedComponentIcon {
                     Image(nsImage: icon)
                         .resizable()
                         .scaledToFit()
@@ -709,11 +710,13 @@ private struct ComponentInspector: View {
             Spacer(minLength: 0)
         }
         .padding(.vertical, 4)
-    }
-
-    private var componentIcon: NSImage? {
-        guard let package = component.type.definition.package else { return nil }
-        return NSImage(contentsOf: package.iconURL)
+        .task(id: component.type.definition.package?.iconURL) {
+            guard let url = component.type.definition.package?.iconURL else {
+                loadedComponentIcon = nil
+                return
+            }
+            loadedComponentIcon = await ComponentIconLoader.shared.icon(at: url)?.image
+        }
     }
 
     private var componentDeveloper: String {

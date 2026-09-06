@@ -13,6 +13,8 @@ final class ComponentPackageCatalog {
     private var developmentWatchers: [URL: FoundryDevelopmentPackWatcher] = [:]
     private var dirtyDevelopmentRoots: Set<URL> = []
     private var applicationActiveObserver: NSObjectProtocol?
+    private var loadingTask: Task<Void, Never>?
+    private(set) var isLoading = false
 
     private init() {
         loadBundledComponents()
@@ -38,9 +40,7 @@ final class ComponentPackageCatalog {
             directoryHint: .isDirectory
         )
         let packageURLs = FoundryPackLoader.packURLs(in: containerURL, includingRoot: true)
-        for url in packageURLs {
-            loadComponentPack(at: url)
-        }
+        loadComponentPacks(at: packageURLs)
         reconcileRegisteredPackages(under: containerURL, discoveredAt: packageURLs)
     }
 
@@ -49,6 +49,7 @@ final class ComponentPackageCatalog {
         let installedURLs = FoundryPackLoader.packURLs(in: root)
         var discoveredURLs = Set(installedURLs.map(\.standardizedFileURL))
         var developmentRoots = Set<URL>()
+        var componentURLs: [URL] = []
         for url in installedURLs {
             if url.pathExtension.lowercased() == "foundrydevpack" {
                 let rootURL = url.standardizedFileURL
@@ -59,39 +60,40 @@ final class ComponentPackageCatalog {
                 openDevelopmentPack(at: url)
                 continue
             }
-            loadComponentPack(at: url)
+            componentURLs.append(url)
         }
+        loadComponentPacks(at: componentURLs)
         reconcileRegisteredPackages(under: root, discoveredAt: Array(discoveredURLs))
         removeMissingDevelopmentWatchers(under: root, discoveredRoots: developmentRoots)
     }
 
-    private func loadComponentPack(at url: URL, allowsReplacement: Bool = false) {
-        do {
-            let pack = try FoundryPackLoader.load(from: url)
-            guard !pack.isCollection else {
-                if diagnostics.removeValue(forKey: url.standardizedFileURL) != nil {
-                    revision += 1
-                }
-                return
+    private func loadComponentPacks(at urls: [URL], allowsReplacement: Bool = false) {
+        guard !urls.isEmpty else { return }
+        let urls = urls.map(\.standardizedFileURL)
+        let previousTask = loadingTask
+        isLoading = true
+        loadingTask = Task { [weak self] in
+            _ = await previousTask?.value
+            guard !Task.isCancelled else { return }
+            let outcomes = await Task.detached(priority: .utility) {
+                urls.map(ComponentPackageLoadOutcome.load)
+            }.value
+            guard !Task.isCancelled, let self else { return }
+            for outcome in outcomes {
+                apply(outcome, allowsReplacement: allowsReplacement)
             }
-            reload(url, allowsReplacement: allowsReplacement)
-        } catch {
-            removeRegisteredPackages(at: url)
-            diagnostics[url.standardizedFileURL] = [
-                .init(
-                    severity: .error,
-                    location: "Info.plist",
-                    message: error.localizedDescription
-                )
-            ]
-            revision += 1
+            isLoading = false
         }
     }
 
-    private func reload(_ url: URL, allowsReplacement: Bool = false) {
-        let url = url.standardizedFileURL
-        do {
-            let package = try ComponentPackageLoader.load(from: url)
+    private func apply(_ outcome: ComponentPackageLoadOutcome, allowsReplacement: Bool) {
+        let url = outcome.url
+        Task {
+            await ComponentIconLoader.shared.removeIcon(
+                at: url.appending(path: "Contents/Resources/icon.svg")
+            )
+        }
+        if let package = outcome.package {
             if !allowsReplacement,
                let previous = packages[package.manifest.identifier],
                previous.rootURL.standardizedFileURL != url {
@@ -114,15 +116,11 @@ final class ComponentPackageCatalog {
             )
             ComponentRegistry.register(package)
             revision += 1
-        } catch ComponentPackageLoadingError.invalid(let packageDiagnostics) {
+        } else if !outcome.diagnostics.isEmpty {
             removeRegisteredPackages(at: url)
-            diagnostics[url] = packageDiagnostics
+            diagnostics[url] = outcome.diagnostics
             revision += 1
-        } catch {
-            removeRegisteredPackages(at: url)
-            diagnostics[url] = [
-                .init(severity: .error, location: url.lastPathComponent, message: error.localizedDescription)
-            ]
+        } else if diagnostics.removeValue(forKey: url) != nil {
             revision += 1
         }
     }
@@ -179,6 +177,10 @@ final class ComponentPackageCatalog {
         for rootURL in Array(developmentWatchers.keys) {
             reloadDevelopmentPack(at: rootURL)
         }
+    }
+
+    func waitUntilLoaded() async {
+        await loadingTask?.value
     }
 
     func conversionRootURL(for package: LoadedComponentPackage) -> URL {
@@ -261,8 +263,37 @@ final class ComponentPackageCatalog {
     }
 
     private func reloadDevelopmentPack(at rootURL: URL) {
-        for url in FoundryPackLoader.packURLs(in: rootURL, includingRoot: true) {
-            loadComponentPack(at: url, allowsReplacement: true)
+        loadComponentPacks(
+            at: FoundryPackLoader.packURLs(in: rootURL, includingRoot: true),
+            allowsReplacement: true
+        )
+    }
+}
+
+private struct ComponentPackageLoadOutcome: Sendable {
+    let url: URL
+    let package: LoadedComponentPackage?
+    let diagnostics: [ComponentPackageDiagnostic]
+
+    nonisolated static func load(from url: URL) -> ComponentPackageLoadOutcome {
+        do {
+            let pack = try FoundryPackLoader.load(from: url)
+            guard !pack.isCollection else {
+                return .init(url: url, package: nil, diagnostics: [])
+            }
+            return .init(url: url, package: try ComponentPackageLoader.load(from: url), diagnostics: [])
+        } catch ComponentPackageLoadingError.invalid(let diagnostics) {
+            return .init(url: url, package: nil, diagnostics: diagnostics)
+        } catch {
+            return .init(
+                url: url,
+                package: nil,
+                diagnostics: [.init(
+                    severity: .error,
+                    location: url.lastPathComponent,
+                    message: error.localizedDescription
+                )]
+            )
         }
     }
 }
