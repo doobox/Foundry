@@ -72,6 +72,7 @@ nonisolated enum ComponentPackageAdapter {
                     control: .singleLineText,
                     defaultValue: .string(property.alt),
                     isResponsive: false,
+                    isInspectorVisible: false,
                     enable: property.enable
                 )
             ]
@@ -82,7 +83,7 @@ nonisolated enum ComponentPackageAdapter {
                     section: .init(rawValue: property.group),
                     control: .derived,
                     defaultValue: .array([.number(50), .number(50)]),
-                    isResponsive: false,
+                    isResponsive: property.responsive,
                     isInspectorVisible: false,
                     enable: property.enable
                 ))

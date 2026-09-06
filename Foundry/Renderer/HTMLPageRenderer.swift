@@ -51,8 +51,8 @@ struct HTMLPageRenderer: PageRendering {
               \(theme.customFontCSSVariables)
               \(theme.fontSizeCSSVariables)
               --foundry-editor-component: #0A84FF;
-              --foundry-editor-global: #34C759;
-              --foundry-editor-primitive: #AF52DE;
+              --foundry-editor-global: #0A84FF;
+              --foundry-editor-primitive: #0A84FF;
               \(theme.spacingCSSVariables)
             }
             *, *::before, *::after { box-sizing: border-box; }

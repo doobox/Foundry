@@ -775,6 +775,10 @@ struct ComponentPackageTests {
         #expect(editorHTML.contains("data-foundry-inline-property=\"content1\""))
         #expect(editorHTML.contains("data-foundry-inline-property=\"content2\""))
         #expect(editorHTML.contains("data-foundry-inline-property=\"content3\""))
+        #expect(editorHTML.components(separatedBy: "data-foundry-primitive-property=").count - 1 == 3)
+        #expect(editorHTML.contains("data-foundry-primitive-property=\"content1\""))
+        #expect(editorHTML.contains("data-foundry-primitive-property=\"content2\""))
+        #expect(editorHTML.contains("data-foundry-primitive-property=\"content3\""))
     }
 
     @Test
@@ -1060,19 +1064,24 @@ struct ComponentPackageTests {
         )
         defer { try? FileManager.default.removeItem(at: packageURL) }
         let package = try ComponentPackageLoader.load(from: packageURL)
+        #expect(package.manifest.properties.first?.responsive == true)
         let definitions = ComponentPackageAdapter.definition(from: package).properties
         let altDefinition = try #require(definitions.first {
             $0.key == ComponentPackageAdapter.imageAltKey(for: "source")
         })
         #expect(altDefinition.label == "Alt")
         #expect(altDefinition.defaultValue == .string("Default description"))
+        #expect(!altDefinition.isResponsive)
+        #expect(!altDefinition.isInspectorVisible)
         let imageDefinition = try #require(definitions.first { $0.key.rawValue == "source" })
         #expect(imageDefinition.supportsImageFocalPoint)
+        #expect(!imageDefinition.isResponsive)
         let focalPointDefinition = try #require(definitions.first {
             $0.key == ComponentPackageAdapter.imageFocalPointKey(for: "source")
         })
         #expect(!focalPointDefinition.isInspectorVisible)
         #expect(focalPointDefinition.defaultValue == .array([.number(50), .number(50)]))
+        #expect(focalPointDefinition.isResponsive)
 
         var values: [String: ComponentPackageValue] = ["source": .string("files/photo.png")]
         ComponentImageTemplateValues.insert(

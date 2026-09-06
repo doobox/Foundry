@@ -294,10 +294,8 @@ struct WebCanvasView: NSViewRepresentable {
           chromeLayer.appendChild(hoverChrome);
           let chromeFrame = null;
 
-          const componentChromeColor = element => {
-            const overrideOwner = element.closest('[data-foundry-global-override="true"]');
-            return element.dataset.foundryGlobal && !overrideOwner ? '#34C759' : '#0A84FF';
-          };
+          const editorChromeColor = '#0A84FF';
+          const componentChromeColor = _ => editorChromeColor;
 
           const chromeRect = target => {
             const elementRect = target.getBoundingClientRect();
@@ -328,7 +326,7 @@ struct WebCanvasView: NSViewRepresentable {
             outline.style.setProperty('height', rect.height + 'px', 'important');
             outline.style.setProperty(
               'border',
-              isSelected ? '3px solid ' + color : (isPrimitive ? '3px solid rgba(175,82,222,.72)' : '3px solid ' + color + '8C'),
+              isSelected ? '3px solid ' + color : '3px solid ' + color + '8C',
               'important'
             );
             outline.style.setProperty('display', 'block', 'important');
@@ -378,7 +376,7 @@ struct WebCanvasView: NSViewRepresentable {
             positionOutline(
               hoverChrome,
               target,
-              isPrimitive ? '#AF52DE' : componentChromeColor(target),
+              editorChromeColor,
               isPrimitive,
               false
             );
@@ -578,7 +576,7 @@ struct WebCanvasView: NSViewRepresentable {
               if (!firstElement) firstElement = selectedElement;
               selectedChromeTargets.push({
                 element: selectedElement,
-                color: primitive ? '#AF52DE' : componentChromeColor(element),
+                color: editorChromeColor,
                 isPrimitive: Boolean(primitive)
               });
             });

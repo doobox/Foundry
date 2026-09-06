@@ -275,45 +275,56 @@ struct ComponentPropertyEditor: View {
         }
     }
 
+    @ViewBuilder
     private var assetPicker: some View {
         GridRow(alignment: .top) {
-            VStack(alignment: .trailing, spacing: 6) {
-                HStack(spacing: 3) {
-                    InspectorResponsiveIndicator(
-                        isVisible: responsiveIndicator.isVisible,
-                        isOverridden: responsiveIndicator.isOverridden,
-                        breakpointName: responsiveIndicator.breakpointName,
-                        toggle: responsiveIndicator.toggle
-                    )
-                    .frame(width: 8)
+            HStack(alignment: .top, spacing: 3) {
+                InspectorResponsiveIndicator(
+                    isVisible: imageFocalPointResponsiveIndicator.isVisible,
+                    isOverridden: imageFocalPointResponsiveIndicator.isOverridden,
+                    breakpointName: imageFocalPointResponsiveIndicator.breakpointName,
+                    toggle: imageFocalPointResponsiveIndicator.toggle
+                )
+                .frame(width: 8)
 
+                VStack(alignment: .trailing, spacing: 6) {
                     Text(definition.label)
                         .lineLimit(1)
                         .truncationMode(.tail)
+                        .frame(maxWidth: .infinity, alignment: .trailing)
                         .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.trailing)
                         .help(definition.label)
-                }
 
-                Button("Pick") {
-                    chooseImageFromFinder()
-                }
-                .buttonStyle(.bordered)
-                .buttonSizing(.flexible)
-                .frame(maxWidth: .infinity)
+                    Button("Pick") {
+                        chooseImageFromFinder()
+                    }
+                    .buttonStyle(.bordered)
+                    .buttonSizing(.flexible)
+                    .frame(maxWidth: .infinity)
 
-                Button("Clear") {
-                    setProperty(definition.defaultValue)
+                    Button("Clear") {
+                        setProperty(definition.defaultValue)
+                    }
+                    .buttonStyle(.bordered)
+                    .buttonSizing(.flexible)
+                    .frame(maxWidth: .infinity)
+                    .disabled(displayComponent.propertyValue(definition.key) == definition.defaultValue)
                 }
-                .buttonStyle(.bordered)
-                .buttonSizing(.flexible)
-                .frame(maxWidth: .infinity)
-                .disabled(displayComponent.propertyValue(definition.key) == definition.defaultValue)
             }
             .frame(width: InspectorMetrics.labelWidth)
             .gridColumnAlignment(.trailing)
 
             imageWell
                 .gridColumnAlignment(.leading)
+        }
+
+        InspectorRow(title: "Alt") {
+            InspectorTextField(
+                text: imageAltBinding,
+                accessibilityLabel: "Alt",
+                help: "Alt"
+            )
         }
     }
 
@@ -370,9 +381,7 @@ struct ComponentPropertyEditor: View {
 
     private var imageFocalPoint: CGPoint {
         let point = ComponentImageTemplateValues.focalPoint(
-            from: displayComponent.propertyValue(
-                ComponentPackageAdapter.imageFocalPointKey(for: definition.key.rawValue)
-            )
+            from: component.propertyValue(imageFocalPointKey, at: effectiveBreakpoint(for: imageFocalPointKey))
         )
         return CGPoint(x: point.x / 100, y: point.y / 100)
     }
@@ -383,7 +392,22 @@ struct ComponentPropertyEditor: View {
                 .number(min(max(point.x * 100, 0), 100)),
                 .number(min(max(point.y * 100, 0), 100))
             ]),
-            key: ComponentPackageAdapter.imageFocalPointKey(for: definition.key.rawValue)
+            key: imageFocalPointKey
+        )
+    }
+
+    private var imageFocalPointKey: ComponentProperty.Key {
+        ComponentPackageAdapter.imageFocalPointKey(for: definition.key.rawValue)
+    }
+
+    private var imageAltKey: ComponentProperty.Key {
+        ComponentPackageAdapter.imageAltKey(for: definition.key.rawValue)
+    }
+
+    private var imageAltBinding: Binding<String> {
+        Binding(
+            get: { displayComponent.property(imageAltKey) },
+            set: { setProperty(.string($0), key: imageAltKey) }
         )
     }
 
@@ -674,6 +698,16 @@ struct ComponentPropertyEditor: View {
         )
     }
 
+    private var imageFocalPointResponsiveIndicator: InspectorRowIndicator {
+        let focalPointDefinition = component.type.definition.properties.first { $0.key == imageFocalPointKey }
+        return InspectorRowIndicator(
+            isVisible: breakpoint != .mobile && focalPointDefinition?.isResponsive == true,
+            isOverridden: component.hasResponsiveOverride(imageFocalPointKey, at: breakpoint),
+            breakpointName: breakpoint.displayName,
+            toggle: { toggleResponsiveOverride(for: imageFocalPointKey) }
+        )
+    }
+
 
     private var selectedToken: DesignToken? {
         displayComponent.propertyValue(definition.key).tokenValue
@@ -725,6 +759,7 @@ struct ComponentPropertyEditor: View {
         key: ComponentProperty.Key? = nil
     ) {
         let key = key ?? definition.key
+        let effectiveBreakpoint = effectiveBreakpoint(for: key)
         if effectiveBreakpoint == .mobile {
             if editsSharedDefinition {
                 editor.setSharedReusableProperty(componentID: component.id, key: key, value: value)
@@ -743,23 +778,27 @@ struct ComponentPropertyEditor: View {
         }
     }
 
-    private func removeOverride() {
+    private func removeOverride(for key: ComponentProperty.Key) {
         if editsSharedDefinition {
             editor.removeSharedReusableResponsiveOverride(
                 componentID: component.id,
-                key: definition.key,
+                key: key,
                 breakpoint: breakpoint
             )
         } else {
-            editor.removeResponsiveOverride(id: component.id, key: definition.key, breakpoint: breakpoint)
+            editor.removeResponsiveOverride(id: component.id, key: key, breakpoint: breakpoint)
         }
     }
 
     private func toggleResponsiveOverride() {
-        if component.hasResponsiveOverride(definition.key, at: breakpoint) {
-            removeOverride()
+        toggleResponsiveOverride(for: definition.key)
+    }
+
+    private func toggleResponsiveOverride(for key: ComponentProperty.Key) {
+        if component.hasResponsiveOverride(key, at: breakpoint) {
+            removeOverride(for: key)
         } else {
-            setProperty(displayComponent.propertyValue(definition.key))
+            setProperty(component.propertyValue(key, at: breakpoint), key: key)
         }
     }
 
@@ -768,7 +807,12 @@ struct ComponentPropertyEditor: View {
     }
 
     private var effectiveBreakpoint: ResponsiveBreakpoint {
-        definition.isResponsive ? breakpoint : .mobile
+        effectiveBreakpoint(for: definition.key)
+    }
+
+    private func effectiveBreakpoint(for key: ComponentProperty.Key) -> ResponsiveBreakpoint {
+        let propertyDefinition = component.type.definition.properties.first { $0.key == key }
+        return propertyDefinition?.isResponsive == true ? breakpoint : .mobile
     }
 
     private enum StringValueKind {

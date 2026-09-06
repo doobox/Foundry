@@ -228,7 +228,9 @@ nonisolated struct ComponentPackageProperty: Codable, Equatable, Identifiable, S
 
         if control.type == .divider || control.type == .info || control.type == .image || control.type == .math {
             defaultValue = try container.decodeIfPresent(ComponentPackageValue.self, forKey: .defaultValue) ?? .string("")
-            responsive = try container.decodeIfPresent(Bool.self, forKey: .responsive) ?? false
+            responsive = control.type == .image && focalPoint
+                ? true
+                : try container.decodeIfPresent(Bool.self, forKey: .responsive) ?? false
         } else if control.type == .slider {
             let lowerBound = control.minimum ?? 0
             let upperBound = control.maximum ?? 100

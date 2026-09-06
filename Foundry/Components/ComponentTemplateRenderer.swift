@@ -227,7 +227,7 @@ nonisolated enum ComponentTemplateRenderer {
                     for: key,
                     atUTF16Offset: match.range.location,
                     inlineSource: currentValue,
-                    marksSelectablePrimitive: !path.isEmpty,
+                    marksSelectablePrimitive: true,
                     indexPath: path,
                     to: &result
                 )
@@ -246,6 +246,7 @@ nonisolated enum ComponentTemplateRenderer {
                     for: key,
                     atUTF16Offset: match.range.location,
                     inlineSource: currentValue,
+                    marksSelectablePrimitive: true,
                     to: &result
                 )
             }
