@@ -10,6 +10,7 @@ final class ComponentPackageCatalog {
     nonisolated enum LoadingStage: Equatable, Sendable {
         case finding
         case loading
+        case savingIndex
         case preparing
         case publishing
         case ready
@@ -27,6 +28,7 @@ final class ComponentPackageCatalog {
     private var developmentWatchers: [URL: FoundryDevelopmentPackWatcher] = [:]
     private var dirtyDevelopmentRoots: Set<URL> = []
     private var applicationActiveObserver: NSObjectProtocol?
+    private var payloadFailureObserver: NSObjectProtocol?
     private var loadingTask: Task<Void, Never>?
     private var loadGeneration: UInt64 = 0
     private var reloadGenerations: [URL: UInt64] = [:]
@@ -41,15 +43,19 @@ final class ComponentPackageCatalog {
 
     var loadingProgress: Double {
         guard totalPackageCount > 0 else { return 0 }
-        let totalWork = Double(totalPackageCount * 2)
+        let packageProgress = Double(completedPackageCount) / Double(totalPackageCount)
         switch loadingStage {
         case .finding:
             return 0
         case .loading:
-            return Double(completedPackageCount) / totalWork
+            return packageProgress * 0.88
+        case .savingIndex:
+            return 0.88
         case .preparing:
-            return Double(totalPackageCount + completedPackageCount) / totalWork
-        case .publishing, .ready:
+            return 0.88 + (packageProgress * 0.11)
+        case .publishing:
+            return 0.99
+        case .ready:
             return 1
         }
     }
@@ -62,6 +68,26 @@ final class ComponentPackageCatalog {
             queue: .main
         ) { [weak self] _ in
             MainActor.assumeIsolated { self?.reloadDirtyDevelopmentPacks() }
+        }
+        payloadFailureObserver = NotificationCenter.default.addObserver(
+            forName: .componentPackagePayloadDidFail,
+            object: nil,
+            queue: .main
+        ) { [weak self] notification in
+            guard let url = notification.userInfo?["url"] as? URL,
+                  let failure = notification.userInfo?["failure"] as? ComponentPackagePayloadFailure else { return }
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                let diagnostic = ComponentPackageDiagnostic(
+                    severity: .error,
+                    location: failure.location,
+                    message: "Runtime files could not be loaded: \(failure.message)"
+                )
+                if self.diagnostics[url.standardizedFileURL]?.contains(diagnostic) != true {
+                    self.diagnostics[url.standardizedFileURL, default: []].append(diagnostic)
+                    self.revision += 1
+                }
+            }
         }
     }
 
@@ -115,7 +141,9 @@ final class ComponentPackageCatalog {
             let result = await Task.detached(priority: .utility) {
                 let urls = FoundryPackLoader.packURLs(in: rootURL, includingRoot: true)
                     .map(\.standardizedFileURL)
-                return (urls, await ComponentCatalogSnapshot.loadOutcomes(urls))
+                let outcomes = await ComponentCatalogSnapshot.loadOutcomes(urls)
+                ComponentPackagePreparedIndex.flush()
+                return (urls, outcomes)
             }.value
             guard !Task.isCancelled,
                   let self,
@@ -358,12 +386,13 @@ private struct ComponentCatalogSnapshot: Sendable {
         let progressUpdateInterval = max(1, standardizedURLs.count / 100)
         let outcomes = await loadOutcomes(
             standardizedURLs,
-            validates: ComponentValidationPreference.isEnabled
+            validationMode: ComponentValidationPreference.mode
         ) { completed in
             if completed == standardizedURLs.count || completed.isMultiple(of: progressUpdateInterval) {
                 await progress(.loading, completed, standardizedURLs.count)
             }
         }
+        await progress(.savingIndex, standardizedURLs.count, standardizedURLs.count)
         ComponentPackagePreparedIndex.flush(retaining: standardizedURLs)
         var packages: [String: LoadedComponentPackage] = [:]
         var definitions: [ComponentType: ComponentDefinition] = [:]
@@ -404,7 +433,7 @@ private struct ComponentCatalogSnapshot: Sendable {
 
     fileprivate nonisolated static func loadOutcomes(
         _ urls: [URL],
-        validates: Bool = ComponentValidationPreference.isEnabled,
+        validationMode: ComponentValidationMode = ComponentValidationPreference.mode,
         progress: @escaping @Sendable (Int) async -> Void = { _ in }
     ) async -> [ComponentPackageLoadOutcome] {
         guard !urls.isEmpty else { return [] }
@@ -413,7 +442,8 @@ private struct ComponentCatalogSnapshot: Sendable {
             let concurrentLoadCount = min(4, urls.count)
             for index in 0..<concurrentLoadCount {
                 group.addTask {
-                    (index, ComponentPackageLoadOutcome.load(from: urls[index], validates: validates))
+                    let url = urls[index]
+                    return (index, ComponentPackageLoadOutcome.load(from: url, validates: validationMode.validates(url)))
                 }
             }
             var nextIndex = concurrentLoadCount
@@ -426,12 +456,12 @@ private struct ComponentCatalogSnapshot: Sendable {
                     let index = nextIndex
                     nextIndex += 1
                     group.addTask {
-                        (index, ComponentPackageLoadOutcome.load(from: urls[index], validates: validates))
+                        let url = urls[index]
+                        return (index, ComponentPackageLoadOutcome.load(from: url, validates: validationMode.validates(url)))
                     }
                 }
             }
         }
-        ComponentPackagePreparedIndex.flush()
         return results.compactMap { $0 }
     }
 }
@@ -448,7 +478,20 @@ private struct ComponentPackageLoadOutcome: Sendable {
                 return .init(url: url, package: nil, diagnostics: [])
             }
             let result = try ComponentPackageLoader.loadForCatalog(from: url, validates: validates)
+            if result.package.isDevelopmentPack {
+                try result.package.preparePayload()
+            }
             return .init(url: url, package: result.package, diagnostics: result.diagnostics)
+        } catch let failure as ComponentPackagePayloadFailure {
+            return .init(
+                url: url,
+                package: nil,
+                diagnostics: [.init(
+                    severity: .error,
+                    location: failure.location,
+                    message: "Runtime files could not be loaded: \(failure.message)"
+                )]
+            )
         } catch ComponentPackageLoadingError.invalid(let diagnostics) {
             return .init(url: url, package: nil, diagnostics: diagnostics)
         } catch {

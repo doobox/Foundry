@@ -278,6 +278,8 @@ struct ComponentCatalogLoadingView: View {
             return "Finding components…"
         case .loading:
             return "Loading component files… \(catalog.completedPackageCount) of \(catalog.totalPackageCount)"
+        case .savingIndex:
+            return "Saving component index…"
         case .preparing:
             return "Preparing component library… \(catalog.completedPackageCount) of \(catalog.totalPackageCount)"
         case .publishing:

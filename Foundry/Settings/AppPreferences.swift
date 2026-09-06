@@ -14,11 +14,47 @@ nonisolated enum AppPreferenceKey {
     static let componentLibraryIconSize = "components.library.iconSize"
     static let componentLibraryArrangement = "components.library.arrangement"
     static let validatesComponentsOnLoad = "components.validation.onLoad"
+    static let componentValidationMode = "components.validation.mode"
+}
+
+nonisolated enum ComponentValidationMode: String, CaseIterable, Identifiable {
+    case off
+    case developmentPacks
+    case allPacks
+
+    var id: String { rawValue }
+
+    var title: LocalizedStringResource {
+        switch self {
+        case .off: "Off"
+        case .developmentPacks: "Dev Packs"
+        case .allPacks: "All Packs"
+        }
+    }
+
+    func validates(_ url: URL) -> Bool {
+        switch self {
+        case .off:
+            return false
+        case .developmentPacks:
+            return url.pathComponents.contains {
+                ($0 as NSString).pathExtension.caseInsensitiveCompare("foundrydevpack") == .orderedSame
+            }
+        case .allPacks:
+            return true
+        }
+    }
 }
 
 nonisolated enum ComponentValidationPreference {
-    static var isEnabled: Bool {
-        UserDefaults.standard.bool(forKey: AppPreferenceKey.validatesComponentsOnLoad)
+    static var mode: ComponentValidationMode {
+        let defaults = UserDefaults.standard
+        if let rawValue = defaults.string(forKey: AppPreferenceKey.componentValidationMode),
+           let mode = ComponentValidationMode(rawValue: rawValue) {
+            return mode
+        }
+        // Preserve the former Boolean preference when upgrading.
+        return defaults.bool(forKey: AppPreferenceKey.validatesComponentsOnLoad) ? .allPacks : .off
     }
 }
 

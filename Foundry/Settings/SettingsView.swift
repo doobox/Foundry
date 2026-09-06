@@ -103,8 +103,8 @@ private struct DeveloperSettingsView: View {
     private var enablesDeveloperTools = false
     @AppStorage(AppPreferenceKey.enablesCanvasWebInspector)
     private var enablesCanvasWebInspector = false
-    @AppStorage(AppPreferenceKey.validatesComponentsOnLoad)
-    private var validatesComponentsOnLoad = false
+    @AppStorage(AppPreferenceKey.componentValidationMode)
+    private var componentValidationMode = ComponentValidationPreference.mode
 
     var body: some View {
         Form {
@@ -114,8 +114,14 @@ private struct DeveloperSettingsView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
 
-                Toggle("Validate Components When Loading", isOn: $validatesComponentsOnLoad)
-                Text("Checks component manifests, API usage, properties, templates, and resources whenever the component library loads. Disable this to trust installed components and improve loading speed.")
+                Picker("Component Validation", selection: $componentValidationMode) {
+                    ForEach(ComponentValidationMode.allCases) { mode in
+                        Text(mode.title)
+                            .tag(mode)
+                    }
+                }
+                .pickerStyle(.segmented)
+                Text("Dev Packs validates components being actively developed. All Packs also validates built-in and installed release packs, which increases loading time.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -129,7 +135,7 @@ private struct DeveloperSettingsView: View {
         }
         .formStyle(.grouped)
         .frame(width: 560, height: 340)
-        .onChange(of: validatesComponentsOnLoad) {
+        .onChange(of: componentValidationMode) {
             ComponentPackageCatalog.shared.reloadAllPacks()
         }
     }

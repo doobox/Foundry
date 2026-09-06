@@ -372,6 +372,17 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
                     site: site
                 )
             }
+            guard (try? package.preparePayload()) != nil else {
+                return missingPackageHTML(
+                    node,
+                    page: page,
+                    theme: theme,
+                    assetPrefix: assetPrefix,
+                    packageAssetPrefix: packageAssetPrefix,
+                    assets: assets,
+                    site: site
+                )
+            }
             let slots = Dictionary(uniqueKeysWithValues: package.manifest.slots.map { slot in
                 let children = node.children.filter { ($0.slotID ?? package.manifest.slots.first?.id) == slot.id }
                 return (slot.id, children.map { render($0, page: page, theme: theme, assetPrefix: assetPrefix, packageAssetPrefix: packageAssetPrefix, assets: assets, site: site) }.joined())

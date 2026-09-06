@@ -5,6 +5,19 @@ import Testing
 
 struct ComponentPackageTests {
     @Test
+    func componentValidationModesSelectTheIntendedPackKinds() {
+        let releaseComponent = URL(filePath: "/Packs/Example.foundrypack/Components/Card.foundrycomponent")
+        let developmentComponent = URL(filePath: "/Packs/Example.foundrydevpack/Components/Card.foundrycomponent")
+
+        #expect(!ComponentValidationMode.off.validates(releaseComponent))
+        #expect(!ComponentValidationMode.off.validates(developmentComponent))
+        #expect(!ComponentValidationMode.developmentPacks.validates(releaseComponent))
+        #expect(ComponentValidationMode.developmentPacks.validates(developmentComponent))
+        #expect(ComponentValidationMode.allPacks.validates(releaseComponent))
+        #expect(ComponentValidationMode.allPacks.validates(developmentComponent))
+    }
+
+    @Test
     func componentIdentifiersAllowInternalHyphensButRejectInvalidDNSLabels() throws {
         let validURL = try makePackage(
             manifest: validManifest.replacingOccurrences(
@@ -2128,7 +2141,7 @@ struct ComponentPackageTests {
 
         let clock = ContinuousClock()
         let start = clock.now
-        let validationEnabled = ComponentValidationPreference.isEnabled
+        let validationMode = ComponentValidationPreference.mode
         catalog.reloadAllPacks()
         await catalog.waitUntilLoaded()
         let elapsed = start.duration(to: clock.now)
@@ -2138,8 +2151,8 @@ struct ComponentPackageTests {
         }.count
 
         print("Loaded and published \(loadedCount) stress components in \(elapsed).")
-        print("Catalog validation enabled: \(validationEnabled).")
-        if validationEnabled {
+        print("Catalog validation mode: \(validationMode.rawValue).")
+        if validationMode == .allPacks {
             let validationShare = estimatedValidationWallTime / seconds(elapsed) * 100
             print("Estimated validation share of this catalog load: \(validationShare)% (\(estimatedValidationWallTime)s).")
         } else {
@@ -2172,6 +2185,31 @@ struct ComponentPackageTests {
         #expect(!cached.package.isPayloadLoaded)
         #expect(cached.package.htmlTemplate.contains("Cached text"))
         #expect(cached.package.isPayloadLoaded)
+    }
+
+    @Test
+    func lazyPayloadFailureIsTransactionalAndRecoversAfterReload() throws {
+        let packageURL = try makePackage(
+            manifest: validManifest,
+            template: "<div {{ component.attributes }}>Recoverable</div>"
+        )
+        defer { try? FileManager.default.removeItem(at: packageURL) }
+        let cssURL = packageURL.appending(path: "Contents/Resources/component.css")
+        let originalCSS = try Data(contentsOf: cssURL)
+        let package = try ComponentPackageLoader.loadForCatalog(from: packageURL, validates: false).package
+        try FileManager.default.removeItem(at: cssURL)
+
+        #expect(throws: ComponentPackagePayloadFailure.self) {
+            try package.preparePayload()
+        }
+        #expect(!package.isPayloadLoaded)
+        #expect(package.payloadFailure?.location == "Contents/Resources/component.css")
+
+        try originalCSS.write(to: cssURL)
+        let reloaded = try ComponentPackageLoader.loadForCatalog(from: packageURL, validates: false).package
+        try reloaded.preparePayload()
+        #expect(reloaded.isPayloadLoaded)
+        #expect(reloaded.css.contains("display: block"))
     }
 
     @Test @MainActor

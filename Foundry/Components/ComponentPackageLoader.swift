@@ -2,6 +2,15 @@ import Foundation
 import Synchronization
 import UniformTypeIdentifiers
 
+nonisolated struct ComponentPackagePayloadFailure: Error, Equatable, Sendable {
+    let location: String
+    let message: String
+}
+
+extension Notification.Name {
+    nonisolated static let componentPackagePayloadDidFail = Notification.Name("componentPackagePayloadDidFail")
+}
+
 nonisolated struct LoadedComponentPackage: Sendable {
     let manifest: ComponentPackageManifest
     let rootURL: URL
@@ -21,6 +30,11 @@ nonisolated struct LoadedComponentPackage: Sendable {
     var editorCSS: String { payloadStorage.payload.editorCSS }
     var imageMetadata: [String: ComponentImageMetadata] { payloadStorage.payload.imageMetadata }
     var isPayloadLoaded: Bool { payloadStorage.isLoaded }
+    var payloadFailure: ComponentPackagePayloadFailure? { payloadStorage.failure }
+
+    func preparePayload() throws {
+        try payloadStorage.prepare()
+    }
 
     init(
         manifest: ComponentPackageManifest,
@@ -176,6 +190,8 @@ nonisolated fileprivate struct ComponentPackagePayload: Sendable {
 nonisolated private final class ComponentPackagePayloadStorage: Sendable {
     private struct State: Sendable {
         var payload: ComponentPackagePayload?
+        var failure: ComponentPackagePayloadFailure?
+        var reportedFailure = false
     }
 
     private let manifest: ComponentPackageManifest?
@@ -185,29 +201,78 @@ nonisolated private final class ComponentPackagePayloadStorage: Sendable {
     init(payload: ComponentPackagePayload) {
         manifest = nil
         rootURL = nil
-        state = Mutex(.init(payload: payload))
+        state = Mutex(.init(payload: payload, failure: nil))
     }
 
     init(manifest: ComponentPackageManifest, rootURL: URL) {
         self.manifest = manifest
         self.rootURL = rootURL
-        state = Mutex(.init(payload: nil))
+        state = Mutex(.init(payload: nil, failure: nil))
     }
 
     var payload: ComponentPackagePayload {
-        state.withLock { state in
-            if let payload = state.payload { return payload }
-            guard let manifest, let rootURL,
-                  let payload = try? ComponentPackageLoader.loadPayload(manifest: manifest, rootURL: rootURL) else {
-                return .empty
-            }
-            state.payload = payload
-            return payload
+        do {
+            try prepare()
+            return state.withLock { $0.payload ?? .empty }
+        } catch {
+            reportFailureIfNeeded()
+            return .empty
         }
     }
 
     var isLoaded: Bool {
         state.withLock { $0.payload != nil }
+    }
+
+    var failure: ComponentPackagePayloadFailure? {
+        state.withLock { $0.failure }
+    }
+
+    func prepare() throws {
+        if let result: Result<ComponentPackagePayload, ComponentPackagePayloadFailure> = state.withLock({ state in
+            if let payload = state.payload { return .success(payload) }
+            if let failure = state.failure { return .failure(failure) }
+            return nil
+        }) {
+            _ = try result.get()
+            return
+        }
+        guard let manifest, let rootURL else { return }
+        do {
+            let payload = try ComponentPackageLoader.loadPayload(manifest: manifest, rootURL: rootURL)
+            state.withLock {
+                $0.payload = payload
+                $0.failure = nil
+                $0.reportedFailure = false
+            }
+        } catch {
+            let failure = Self.failure(from: error)
+            state.withLock { $0.failure = failure }
+            reportFailureIfNeeded()
+            throw failure
+        }
+    }
+
+    private func reportFailureIfNeeded() {
+        guard let rootURL else { return }
+        let failure: ComponentPackagePayloadFailure? = state.withLock { state in
+            guard !state.reportedFailure, let failure = state.failure else { return nil }
+            state.reportedFailure = true
+            return failure
+        }
+        guard let failure else { return }
+        NotificationCenter.default.post(
+            name: .componentPackagePayloadDidFail,
+            object: nil,
+            userInfo: ["url": rootURL, "failure": failure]
+        )
+    }
+
+    private static func failure(from error: Error) -> ComponentPackagePayloadFailure {
+        if case ComponentPackageLoadingError.unreadableResource(let path, let underlying) = error {
+            return .init(location: "Contents/Resources/\(path)", message: underlying.localizedDescription)
+        }
+        return .init(location: "Contents/Resources", message: error.localizedDescription)
     }
 }
 

@@ -306,6 +306,11 @@ struct HTMLPageRenderer: PageRendering {
             guard let package = node.type.definition.package else {
                 return unavailableComponent(node, theme: theme, assets: assets, globalDefinitionID: globalDefinitionID, breakpoint: breakpoint)
             }
+            do {
+                try package.preparePayload()
+            } catch {
+                return failedComponent(node, package: package, theme: theme, assets: assets, globalDefinitionID: globalDefinitionID, breakpoint: breakpoint)
+            }
             let slots = Dictionary(uniqueKeysWithValues: package.manifest.slots.map { slot in
                 let children = node.children.filter { ($0.slotID ?? package.manifest.slots.first?.id) == slot.id }
                 let html = children.map {
@@ -562,6 +567,11 @@ struct HTMLPageRenderer: PageRendering {
         let children = node.children.map { render($0, theme: theme, assets: assets, globalDefinitionID: globalDefinitionID, breakpoint: breakpoint) }.joined()
         let name = node.missingPackageSnapshot?.name ?? node.type.rawValue
         return "<div class=\"unavailable\" \(attributes(for: node, globalDefinitionID: globalDefinitionID))>Missing component: \(escape(name))\(children)</div>"
+    }
+
+    private func failedComponent(_ node: ComponentNode, package: LoadedComponentPackage, theme: Theme, assets: [UUID: ProjectAssetContent], globalDefinitionID: UUID?, breakpoint: ResponsiveBreakpoint) -> String {
+        let children = node.children.map { render($0, theme: theme, assets: assets, globalDefinitionID: globalDefinitionID, breakpoint: breakpoint) }.joined()
+        return "<div class=\"unavailable\" \(attributes(for: node, globalDefinitionID: globalDefinitionID))>Component files could not be loaded: \(escape(package.manifest.name))\(children)</div>"
     }
 
     private var rootDropZone: String {
