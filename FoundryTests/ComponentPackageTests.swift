@@ -2065,6 +2065,33 @@ struct ComponentPackageTests {
     }
 
     @Test @MainActor
+    func realisticFiveHundredComponentCatalogLoadTime() async throws {
+        let installedRoot = try FoundryPackLoader.installedPacksURL()
+        let stressPackURL = installedRoot.appending(
+            path: "FoundryStressTest.foundrypack",
+            directoryHint: .isDirectory
+        )
+        guard FileManager.default.fileExists(atPath: stressPackURL.path) else {
+            print("Stress benchmark skipped because FoundryStressTest.foundrypack is not installed.")
+            return
+        }
+
+        let clock = ContinuousClock()
+        let start = clock.now
+        let catalog = ComponentPackageCatalog.shared
+        catalog.reloadAllPacks()
+        await catalog.waitUntilLoaded()
+        let elapsed = start.duration(to: clock.now)
+        let loadedCount = catalog.packages.keys.filter {
+            $0.hasPrefix("foundry.stress.component")
+        }.count
+
+        print("Loaded and published \(loadedCount) stress components in \(elapsed).")
+        #expect(loadedCount == 500)
+        #expect(elapsed < .seconds(10), "A 500-component catalog reload should complete within 10 seconds.")
+    }
+
+    @Test @MainActor
     func spacingControlsResolveThemeCustomAndAutomaticValuesAsCSSShorthand() {
         _ = ComponentPackageCatalog.shared
         #expect(ComponentPackageSpacingResolver.resolve(
