@@ -104,11 +104,11 @@ nonisolated struct ThemeScreen: Codable, Equatable, Identifiable, Sendable {
 nonisolated struct ScreenTokens: Codable, Equatable, Sendable {
     static let standard = ScreenTokens(screens: [
         .init(id: .mobile, isEnabled: true, minimumWidth: 0, container: .init(value: 0, unit: .auto)),
-        .init(id: .small, isEnabled: true, minimumWidth: 576, container: .init(value: 576, unit: .auto)),
+        .init(id: .small, isEnabled: true, minimumWidth: 640, container: .init(value: 640, unit: .auto)),
         .init(id: .medium, isEnabled: true, minimumWidth: 768, container: .init(value: 768, unit: .auto)),
-        .init(id: .large, isEnabled: true, minimumWidth: 992, container: .init(value: 992, unit: .auto)),
-        .init(id: .extraLarge, isEnabled: true, minimumWidth: 1200, container: .init(value: 1200, unit: .auto)),
-        .init(id: .doubleExtraLarge, isEnabled: true, minimumWidth: 1400, container: .init(value: 1400, unit: .auto))
+        .init(id: .large, isEnabled: true, minimumWidth: 1024, container: .init(value: 1024, unit: .auto)),
+        .init(id: .extraLarge, isEnabled: true, minimumWidth: 1280, container: .init(value: 1280, unit: .auto)),
+        .init(id: .doubleExtraLarge, isEnabled: true, minimumWidth: 1536, container: .init(value: 1536, unit: .auto))
     ])
 
     var screens: [ThemeScreen]
@@ -129,7 +129,7 @@ nonisolated struct ScreenTokens: Codable, Equatable, Sendable {
 
     func canvasWidth(for screen: ThemeScreen) -> Double {
         guard screen.id == .mobile else { return screen.minimumWidth }
-        let nextMinimum = enabledScreens.first(where: { $0.id != .mobile })?.minimumWidth ?? 576
+        let nextMinimum = enabledScreens.first(where: { $0.id != .mobile })?.minimumWidth ?? 640
         return max(320, min(390, nextMinimum - 1))
     }
 

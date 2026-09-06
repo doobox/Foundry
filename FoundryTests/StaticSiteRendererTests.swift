@@ -95,7 +95,7 @@ struct StaticSiteRendererTests {
         let html = try #require(bundle.files.first(where: { $0.path == "index.html" })?.contents)
 
         #expect(css.contains("@media(min-width:768px)"))
-        #expect(css.contains("@media(min-width:992px)"))
+        #expect(css.contains("@media(min-width:1024px)"))
         #expect(!css.contains("@media(max-width:"))
         #expect(css.contains("padding: 8px 8px 8px 8px"))
         #expect(css.contains("padding: 18px 18px 18px 18px"))

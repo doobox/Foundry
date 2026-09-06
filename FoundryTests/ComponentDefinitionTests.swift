@@ -132,7 +132,7 @@ struct ComponentDefinitionTests {
         #expect(html.contains("font-family: var(--foundry-font-heading)"))
         #expect(html.contains("font-size: var(--foundry-font-size-xl)"))
         #expect(html.contains("aria-label=\"Open &quot;details&quot;\""))
-        #expect(html.contains("[data-foundry-id]:hover:not(:has([data-foundry-id]:hover))"))
+        #expect(html.contains("--foundry-editor-component: #0A84FF"))
     }
 
     @Test

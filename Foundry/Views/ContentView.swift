@@ -185,7 +185,11 @@ struct ContentView: View {
             selectedAssetLibraryNodeID = nil
         }
         .onDeleteCommand {
-            guard selectedPrimitive == nil, !selectedComponentIDs.isEmpty else { return }
+            if let selectedPrimitive {
+                removeImage(componentID: selectedPrimitive.componentID, propertyKey: selectedPrimitive.propertyKey)
+                return
+            }
+            guard !selectedComponentIDs.isEmpty else { return }
             deleteComponent()
         }
         .focusedSceneValue(\.publishingCommandDispatcher, publishingCommandDispatcher)
@@ -653,6 +657,25 @@ struct ContentView: View {
         editor.setGlobalComponentLinked(componentID: selectedComponentID, isLinked: !isOverridden)
     }
 
+    private func removeImage(componentID: UUID, propertyKey: ComponentProperty.Key) {
+        guard let page = selectedPage,
+              let component = page.components.node(withID: componentID),
+              component.type.definition.properties.contains(where: {
+                  guard $0.key == propertyKey else { return false }
+                  if case .asset = $0.control { return true }
+                  return false
+              }) else { return }
+        if let context = document.site.globalComponentContext(containing: componentID), !context.isOverridden {
+            editor.setSharedReusableProperty(componentID: componentID, key: propertyKey, value: .url(""))
+        } else {
+            editor.setProperty(id: componentID, key: propertyKey, value: .url(""))
+        }
+        undoManager?.setActionName("Remove Image")
+        selectedComponentIDs = [componentID]
+        selectedComponentID = componentID
+        selectedPrimitive = nil
+    }
+
     private func handleCanvasMessage(_ message: CanvasMessage) {
         guard let page = selectedPage else { return }
 
@@ -678,13 +701,15 @@ struct ContentView: View {
             guard let componentID = message.componentID,
                   let propertyKey = message.propertyKey,
                   let component = page.components.node(withID: componentID),
-                  component.type.definition.properties.contains(where: {
-                      $0.key == propertyKey && !$0.isInspectorVisible
-                  }) else { return }
+                  component.type.definition.properties.contains(where: { $0.key == propertyKey }) else { return }
             selectedComponentIDs = [componentID]
             selectedComponentID = componentID
             selectedPrimitive = .init(componentID: componentID, propertyKey: propertyKey)
             workspaceLayout.activate(.structure)
+        case .removeImage:
+            guard let componentID = message.componentID,
+                  let propertyKey = message.propertyKey else { return }
+            removeImage(componentID: componentID, propertyKey: propertyKey)
         case .deleteComponents:
             deleteComponents(message.componentIDs ?? [])
         case .insertComponent:

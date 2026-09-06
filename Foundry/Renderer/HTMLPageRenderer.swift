@@ -68,27 +68,6 @@ struct HTMLPageRenderer: PageRendering {
             [data-foundry-global-override="true"] [data-foundry-global] {
               --foundry-editor-chrome: var(--foundry-editor-component);
             }
-            [data-foundry-id]:hover:not(:has([data-foundry-id]:hover)):not(:has([data-foundry-primitive-property]:hover)) {
-              outline: 3px solid color-mix(in srgb, var(--foundry-editor-chrome) 55%, transparent); outline-offset: -3px;
-              border-radius: 2px !important;
-            }
-            [data-foundry-global]:hover:not(:has([data-foundry-id]:hover)) {
-              outline-color: var(--foundry-editor-chrome);
-            }
-            [data-foundry-global-override="true"]:hover:not(:has([data-foundry-id]:hover)),
-            [data-foundry-global-override="true"] [data-foundry-global]:hover:not(:has([data-foundry-id]:hover)) {
-              outline-color: color-mix(in srgb, var(--foundry-editor-chrome) 55%, transparent);
-            }
-            html:not(.foundry-show-outlines) [data-foundry-id]:hover:not(:has([data-foundry-id]:hover)) {
-              outline: none !important;
-            }
-            [data-foundry-primitive-property]:hover:not(.foundry-primitive-selected):not(:has([data-foundry-primitive-property]:hover)) {
-              outline: 2px dashed color-mix(in srgb, var(--foundry-editor-primitive) 72%, transparent) !important;
-              outline-offset: -2px; border-radius: 2px !important;
-            }
-            html:not(.foundry-show-outlines) [data-foundry-primitive-property]:hover {
-              outline: none !important;
-            }
             .foundry-multi-drag-image {
               position: fixed; left: -1000px; top: -1000px; z-index: 2000;
               min-width: 132px; padding: 9px 13px; border: 2px solid var(--foundry-drag-color);
@@ -109,23 +88,10 @@ struct HTMLPageRenderer: PageRendering {
               background: transparent; color: inherit; font: 13px system-ui; text-align: left; cursor: default;
             }
             .foundry-global-menu button:hover { background: rgba(0,0,0,.08); }
-            .foundry-selected {
-              outline: 3px solid var(--foundry-editor-chrome) !important; outline-offset: -3px;
-              border-radius: 2px !important;
-            }
-            .foundry-primitive-selected {
-              outline: 3px solid var(--foundry-editor-primitive) !important; outline-offset: -3px;
-              border-radius: 2px !important;
-            }
-            [contenteditable="true"]:focus:not(.foundry-selected) {
+            [contenteditable="true"]:focus {
               outline: none !important;
             }
             .foundry-drag-source { opacity: 0.4 !important; }
-            [data-foundry-global].foundry-selected { outline-color: var(--foundry-editor-chrome) !important; }
-            [data-foundry-global-override="true"].foundry-selected,
-            [data-foundry-global-override="true"] [data-foundry-global].foundry-selected {
-              outline-color: var(--foundry-editor-chrome) !important;
-            }
             .foundry-drop-before { box-shadow: inset 0 4px 0 var(--foundry-editor-chrome) !important; }
             .foundry-drop-after { box-shadow: inset 0 -4px 0 var(--foundry-editor-chrome) !important; }
             .foundry-drop-inside { outline: 4px dashed var(--foundry-editor-chrome) !important; outline-offset: -8px; }
@@ -140,9 +106,13 @@ struct HTMLPageRenderer: PageRendering {
             .foundry-empty-drop-zone {
               display: grid; place-items: center; min-height: 64px; padding: 16px;
               border: 2px dashed color-mix(in srgb, var(--foundry-editor-chrome) 42%, transparent);
-              border-radius: 10px; color: color-mix(in srgb, var(--foundry-color-text) 58%, transparent);
+              border-radius: 6px; color: color-mix(in srgb, var(--foundry-color-text) 58%, transparent);
               background: color-mix(in srgb, var(--foundry-color-surface) 72%, transparent);
               font: 600 13px system-ui; text-align: center;
+            }
+            .foundry-empty-drop-zone.foundry-drop-inside {
+              border-color: transparent !important;
+              outline-offset: -2px;
             }
             .foundry-empty-page { min-height: 100vh; }
             .foundry-contentless-drop-zone { min-height: 32px; padding: 6px 12px; }
@@ -168,12 +138,19 @@ struct HTMLPageRenderer: PageRendering {
             .foundry-image-drop-zone {
               display: grid; width: 100%; min-height: 180px; padding: 16px; place-items: center;
               border: 2px dashed color-mix(in srgb, var(--foundry-editor-chrome) 42%, transparent);
-              border-radius: 10px; color: color-mix(in srgb, var(--foundry-color-text) 58%, transparent);
+              border-radius: 6px; color: color-mix(in srgb, var(--foundry-color-text) 58%, transparent);
               background: color-mix(in srgb, var(--foundry-color-surface) 72%, transparent);
               font: 600 13px system-ui; text-align: center;
             }
             .foundry-image-drop-zone[data-foundry-primitive-property] {
               border-color: color-mix(in srgb, var(--foundry-editor-primitive) 55%, transparent);
+            }
+            .foundry-image-drop-zone.foundry-drop-inside {
+              border-color: transparent !important;
+              outline-offset: -2px;
+            }
+            [data-foundry-image-drop-zone][data-foundry-primitive-property].foundry-drop-inside {
+              outline-color: var(--foundry-editor-primitive) !important;
             }
             .foundry-spacer { min-height: 8px; }
             .unavailable { padding: 16px; border: 2px dashed #C33; color: #922; background: #FFF5F5; }
@@ -334,7 +311,7 @@ struct HTMLPageRenderer: PageRendering {
                 let html = children.map {
                     render($0, theme: theme, assets: assets, globalDefinitionID: globalDefinitionID, breakpoint: breakpoint)
                 }.joined()
-                return (slot.id, html.isEmpty ? "<div class=\"foundry-empty-drop-zone\" data-foundry-empty-parent=\"\(node.id.uuidString)\" data-foundry-slot-id=\"\(escapeAttribute(slot.id))\">Drop a component into \(escape(slot.title))</div>" : html)
+                return (slot.id, html.isEmpty ? "<div class=\"foundry-empty-drop-zone\" data-foundry-empty-parent=\"\(node.id.uuidString)\" data-foundry-slot-id=\"\(escapeAttribute(slot.id))\">Drop component here</div>" : html)
             })
             let adjacentDropAttribute = package.manifest.slots.isEmpty
                 ? " data-foundry-adjacent-target=\"\(node.id.uuidString)\""
@@ -562,14 +539,14 @@ struct HTMLPageRenderer: PageRendering {
     }
 
     private var rootDropZone: String {
-        "<div class=\"foundry-empty-drop-zone foundry-empty-page\" data-foundry-root-drop-zone>Drop a component onto this page</div>"
+        "<div class=\"foundry-empty-drop-zone foundry-empty-page\" data-foundry-root-drop-zone>Drop component here</div>"
     }
 
     private func renderedChildren(of node: ComponentNode, theme: Theme, assets: [UUID: ProjectAssetContent], globalDefinitionID: UUID?, breakpoint: ResponsiveBreakpoint) -> String {
         guard node.children.isEmpty else {
             return node.children.map { render($0, theme: theme, assets: assets, globalDefinitionID: globalDefinitionID, breakpoint: breakpoint) }.joined()
         }
-        return "<div class=\"foundry-empty-drop-zone\" data-foundry-empty-parent=\"\(node.id.uuidString)\">Drop a component inside \(escape(node.type.displayName))</div>"
+        return "<div class=\"foundry-empty-drop-zone\" data-foundry-empty-parent=\"\(node.id.uuidString)\">Drop component here</div>"
     }
 
     private func canvasSource(_ source: String, assets: [UUID: ProjectAssetContent]) -> String {

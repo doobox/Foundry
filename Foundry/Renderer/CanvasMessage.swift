@@ -64,6 +64,7 @@ nonisolated struct CanvasMessage: Codable, Equatable, Sendable {
     nonisolated enum Event: String, Codable, Sendable {
         case selectComponent
         case selectPrimitive
+        case removeImage
         case deleteComponents
         case insertComponent
         case insertReusableComponent
@@ -129,6 +130,10 @@ nonisolated struct CanvasMessage: Codable, Equatable, Sendable {
             componentID != nil && componentType == nil && reusableDefinitionID == nil && globalDefinitionID == nil && placement == nil &&
                 propertyKey == nil && propertyValue == nil && hasNoAssetPayload
         case .selectPrimitive:
+            componentID != nil && componentIDs == nil && extendsSelection == nil && componentType == nil &&
+                reusableDefinitionID == nil && globalDefinitionID == nil && isGlobalLinked == nil && placement == nil &&
+                propertyKey != nil && propertyValue == nil && hasNoAssetPayload
+        case .removeImage:
             componentID != nil && componentIDs == nil && extendsSelection == nil && componentType == nil &&
                 reusableDefinitionID == nil && globalDefinitionID == nil && isGlobalLinked == nil && placement == nil &&
                 propertyKey != nil && propertyValue == nil && hasNoAssetPayload

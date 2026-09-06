@@ -213,6 +213,7 @@ struct WebCanvasView: NSViewRepresentable {
           let placement = null;
           let selectedComponentIDs = [];
           let selectedPrimitiveSelection = null;
+          let isDragging = false;
           let activeDragSources = [];
           let globalMenuTarget = null;
           let globalMenuRelinks = false;
@@ -253,6 +254,22 @@ struct WebCanvasView: NSViewRepresentable {
           });
           document.documentElement.appendChild(chromeTitle);
           let hoveredComponent = null;
+          let hoveredPrimitive = null;
+          let selectedChromeTargets = [];
+          let selectedChrome = [];
+          const hoverChrome = document.createElement('div');
+          hoverChrome.setAttribute('data-foundry-editor-chrome', 'hover');
+          const applyOutlineBaseStyles = element => {
+            const styles = {
+              all: 'initial', position: 'fixed', display: 'none', boxSizing: 'border-box',
+              borderRadius: '0', pointerEvents: 'none', zIndex: '2147483646'
+            };
+            Object.entries(styles).forEach(([property, value]) => {
+              element.style.setProperty(property.replace(/[A-Z]/g, match => '-' + match.toLowerCase()), value, 'important');
+            });
+          };
+          applyOutlineBaseStyles(hoverChrome);
+          document.documentElement.appendChild(hoverChrome);
           let chromeFrame = null;
 
           const componentChromeColor = element => {
@@ -260,8 +277,68 @@ struct WebCanvasView: NSViewRepresentable {
             return element.dataset.foundryGlobal && !overrideOwner ? '#34C759' : '#0A84FF';
           };
 
+          const positionOutline = (outline, target, color, isPrimitive, isSelected) => {
+            if (!target?.isConnected) {
+              outline.style.setProperty('display', 'none', 'important');
+              return;
+            }
+            const rect = target.getBoundingClientRect();
+            if (rect.width <= 0 || rect.height <= 0 || rect.bottom < 0 || rect.top > window.innerHeight) {
+              outline.style.setProperty('display', 'none', 'important');
+              return;
+            }
+            outline.style.setProperty('left', rect.left + 'px', 'important');
+            outline.style.setProperty('top', rect.top + 'px', 'important');
+            outline.style.setProperty('width', rect.width + 'px', 'important');
+            outline.style.setProperty('height', rect.height + 'px', 'important');
+            outline.style.setProperty(
+              'border',
+              isSelected ? '3px solid ' + color : (isPrimitive ? '2px dashed rgba(175,82,222,.72)' : '3px solid ' + color + '8C'),
+              'important'
+            );
+            outline.style.setProperty('display', 'block', 'important');
+          };
+
+          const updateSelectionChrome = () => {
+            while (selectedChrome.length < selectedChromeTargets.length) {
+              const outline = document.createElement('div');
+              outline.setAttribute('data-foundry-editor-chrome', 'selection');
+              applyOutlineBaseStyles(outline);
+              document.documentElement.appendChild(outline);
+              selectedChrome.push(outline);
+            }
+            selectedChrome.forEach((outline, index) => {
+              const entry = selectedChromeTargets[index];
+              if (!entry || !editorOptions.showsSelection) {
+                outline.style.setProperty('display', 'none', 'important');
+              } else {
+                positionOutline(outline, entry.element, entry.color, entry.isPrimitive, true);
+              }
+            });
+          };
+
+          const updateHoverChrome = () => {
+            const target = hoveredPrimitive || hoveredComponent;
+            const isSelected = selectedChromeTargets.some(entry => entry.element === target);
+            if (!target || isSelected || isDragging || !editorOptions.showsOutlines) {
+              hoverChrome.style.setProperty('display', 'none', 'important');
+              return;
+            }
+            const isPrimitive = Boolean(hoveredPrimitive);
+            const isImage = hoveredPrimitive?.hasAttribute('data-foundry-image-property') ?? false;
+            positionOutline(
+              hoverChrome,
+              target,
+              isImage ? '#FF9F0A' : (isPrimitive ? '#AF52DE' : componentChromeColor(target)),
+              isPrimitive,
+              false
+            );
+          };
+
           const updateChromeTitle = () => {
             chromeFrame = null;
+            updateSelectionChrome();
+            updateHoverChrome();
             if (!hoveredComponent || !hoveredComponent.isConnected || !editorOptions.showsTitles) {
               chromeTitle.style.setProperty('display', 'none', 'important');
               return;
@@ -289,12 +366,15 @@ struct WebCanvasView: NSViewRepresentable {
 
           document.addEventListener('pointermove', event => {
             const component = event.target.closest?.(selector) ?? null;
-            if (component === hoveredComponent) return;
+            const primitive = event.target.closest?.('[data-foundry-primitive-property]') ?? null;
+            if (component === hoveredComponent && primitive === hoveredPrimitive) return;
             hoveredComponent = component;
+            hoveredPrimitive = primitive;
             scheduleChromeTitleUpdate();
           }, true);
           document.addEventListener('pointerleave', () => {
             hoveredComponent = null;
+            hoveredPrimitive = null;
             scheduleChromeTitleUpdate();
           }, true);
           document.addEventListener('scroll', scheduleChromeTitleUpdate, true);
@@ -430,8 +510,7 @@ struct WebCanvasView: NSViewRepresentable {
           window.foundrySetSelection = (ids, primitiveSelection = {}, shouldScroll = true) => {
             selectedComponentIDs = Array.isArray(ids) ? ids : [];
             selectedPrimitiveSelection = primitiveSelection?.componentID ? primitiveSelection : null;
-            document.querySelectorAll('.foundry-selected').forEach(e => e.classList.remove('foundry-selected'));
-            document.querySelectorAll('.foundry-primitive-selected').forEach(e => e.classList.remove('foundry-primitive-selected'));
+            selectedChromeTargets.length = 0;
             if (!Array.isArray(selectedComponentIDs)) return;
             let firstElement = null;
             selectedComponentIDs.forEach(componentID => {
@@ -442,12 +521,20 @@ struct WebCanvasView: NSViewRepresentable {
               const primitive = selectsPrimitive
                 ? element.querySelector('[data-foundry-primitive-property="' + CSS.escape(primitiveSelection.propertyKey) + '"]')
                 : null;
-              const selectedElement = primitive || element;
+              const selectedImage = selectsPrimitive
+                ? element.querySelector('[data-foundry-image-property="' + CSS.escape(primitiveSelection.propertyKey) + '"]')
+                : null;
+              const selectedElement = primitive || selectedImage || element;
+              const isImage = Boolean(selectedImage);
               if (!firstElement) firstElement = selectedElement;
-              if (editorOptions.showsSelection) {
-                selectedElement.classList.add(primitive ? 'foundry-primitive-selected' : 'foundry-selected');
-              }
+              selectedChromeTargets.push({
+                element: selectedElement,
+                color: isImage ? '#FF9F0A' : (primitive ? '#AF52DE' : componentChromeColor(element)),
+                isPrimitive: Boolean(primitive || selectedImage),
+                isImage: isImage
+              });
             });
+            scheduleChromeTitleUpdate();
             if (firstElement && editorOptions.scrollsToSelection && shouldScroll) {
               firstElement.scrollIntoView({ block: 'nearest', inline: 'nearest' });
             }
@@ -456,7 +543,19 @@ struct WebCanvasView: NSViewRepresentable {
           document.addEventListener('keydown', event => {
             if (event.key !== 'Backspace' && event.key !== 'Delete') return;
             if (selectedComponentIDs.length === 0) return;
-            if (selectedPrimitiveSelection) return;
+            if (selectedPrimitiveSelection) {
+              const selectedImage = selectedChromeTargets.find(entry => entry.isImage);
+              if (!selectedImage) return;
+              event.preventDefault();
+              event.stopPropagation();
+              window.webkit.messageHandlers.foundryCanvas.postMessage({
+                version: 1,
+                event: 'removeImage',
+                componentID: selectedPrimitiveSelection.componentID,
+                propertyKey: selectedPrimitiveSelection.propertyKey
+              });
+              return;
+            }
             const target = event.target;
             if (target?.isContentEditable || target?.closest?.('input, textarea, select, [contenteditable="true"]')) return;
             event.preventDefault();
@@ -480,6 +579,7 @@ struct WebCanvasView: NSViewRepresentable {
                 return;
               }
               const draggedID = element.dataset.foundryId;
+              isDragging = true;
               const isGroupDrag = selectedComponentIDs.length > 1 && selectedComponentIDs.includes(draggedID);
               const value = isGroupDrag
                 ? 'foundry-nodes:' + selectedComponentIDs.join(',')
@@ -507,13 +607,17 @@ struct WebCanvasView: NSViewRepresentable {
               event.stopPropagation();
             });
             element.addEventListener('dragend', () => {
+              isDragging = false;
               clearDrop();
               clearDragSources();
+              scheduleChromeTitleUpdate();
             });
           });
 
           document.addEventListener('dragover', event => {
+            isDragging = true;
             clearDrop();
+            hoverChrome.style.setProperty('display', 'none', 'important');
             if (event.dataTransfer.types.includes('Files')) {
               event.preventDefault();
               const imageZone = event.target.closest('[data-foundry-image-drop-zone]');
@@ -554,11 +658,17 @@ struct WebCanvasView: NSViewRepresentable {
           });
 
           document.addEventListener('dragleave', event => {
-            if (!document.documentElement.contains(event.relatedTarget)) clearDrop();
+            if (!document.documentElement.contains(event.relatedTarget)) {
+              isDragging = false;
+              clearDrop();
+              scheduleChromeTitleUpdate();
+            }
           });
 
           document.addEventListener('drop', event => {
+            isDragging = false;
             event.preventDefault();
+            scheduleChromeTitleUpdate();
             clearDragSources();
             const file = event.dataTransfer.files[0];
             if (file) {
@@ -628,6 +738,19 @@ struct WebCanvasView: NSViewRepresentable {
           });
 
           document.addEventListener('dblclick', event => {
+            const imageElement = event.target.closest('[data-foundry-image-property]');
+            const imageComponent = imageElement?.closest(selector);
+            if (imageElement && imageComponent) {
+              event.preventDefault();
+              event.stopPropagation();
+              window.webkit.messageHandlers.foundryCanvas.postMessage({
+                version: 1,
+                event: 'selectPrimitive',
+                componentID: imageComponent.dataset.foundryId,
+                propertyKey: imageElement.dataset.foundryImageProperty
+              });
+              return;
+            }
             const editableElement = event.target.closest('[data-foundry-inline-property]');
             const componentElement = editableElement?.closest(selector);
             const element = editableElement ?? event.target.closest(selector);

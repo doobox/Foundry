@@ -21,11 +21,11 @@
   "screens" : {
     "screens" : [
       { "container" : { "unit" : "auto", "value" : 0 }, "id" : "mobile", "isEnabled" : true, "minimumWidth" : 0 },
-      { "container" : { "unit" : "auto", "value" : 576 }, "id" : "small", "isEnabled" : true, "minimumWidth" : 576 },
+      { "container" : { "unit" : "auto", "value" : 640 }, "id" : "small", "isEnabled" : true, "minimumWidth" : 640 },
       { "container" : { "unit" : "auto", "value" : 768 }, "id" : "medium", "isEnabled" : true, "minimumWidth" : 768 },
-      { "container" : { "unit" : "auto", "value" : 992 }, "id" : "large", "isEnabled" : true, "minimumWidth" : 992 },
-      { "container" : { "unit" : "auto", "value" : 1200 }, "id" : "extraLarge", "isEnabled" : false, "minimumWidth" : 1200 },
-      { "container" : { "unit" : "auto", "value" : 1400 }, "id" : "doubleExtraLarge", "isEnabled" : false, "minimumWidth" : 1400 }
+      { "container" : { "unit" : "auto", "value" : 1024 }, "id" : "large", "isEnabled" : true, "minimumWidth" : 1024 },
+      { "container" : { "unit" : "auto", "value" : 1280 }, "id" : "extraLarge", "isEnabled" : false, "minimumWidth" : 1280 },
+      { "container" : { "unit" : "auto", "value" : 1536 }, "id" : "doubleExtraLarge", "isEnabled" : false, "minimumWidth" : 1536 }
     ]
   },
   "typography" : {

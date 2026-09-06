@@ -182,8 +182,8 @@ struct ThemeEditingTests {
         editor.setThemeScreenContainerUnit(.large, value: .viewportWidth)
         editor.setThemeScreenContainerWidth(.large, value: 92)
 
-        #expect(ResponsiveBreakpoint.forViewportWidth(575, screens: document.site.theme.screens) == .mobile)
-        #expect(ResponsiveBreakpoint.forViewportWidth(576, screens: document.site.theme.screens) == .small)
+        #expect(ResponsiveBreakpoint.forViewportWidth(639, screens: document.site.theme.screens) == .mobile)
+        #expect(ResponsiveBreakpoint.forViewportWidth(640, screens: document.site.theme.screens) == .small)
         #expect(ResponsiveBreakpoint.forViewportWidth(819, screens: document.site.theme.screens) == .small)
         #expect(ResponsiveBreakpoint.forViewportWidth(820, screens: document.site.theme.screens) == .medium)
         #expect(document.site.theme.screens.containerCSS.contains("92vw"))
@@ -205,7 +205,7 @@ struct ThemeEditingTests {
         #expect(screens.containerCSS.contains("700px"))
         #expect(screens.containerCSS.contains("88vw"))
         #expect(screens.containerCSS.contains("94%"))
-        #expect(screens.containerCSS.contains("1200px"))
+        #expect(screens.containerCSS.contains("1280px"))
     }
 
     @Test

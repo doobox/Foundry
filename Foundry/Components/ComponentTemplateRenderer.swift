@@ -394,7 +394,7 @@ nonisolated enum ComponentTemplateRenderer {
             ? " data-foundry-primitive-property=\"\(escapeAttribute(key))\""
             : ""
         if source.isEmpty && context.enablesEditorMarkup {
-            return "<span class=\"foundry-image-drop-zone\" data-foundry-image-drop-zone\(propertyAttribute)\(primitiveAttribute)>Drop an image here</span>"
+            return "<span class=\"foundry-image-drop-zone\" data-foundry-image-drop-zone\(propertyAttribute)\(primitiveAttribute)>Drop image here</span>"
         }
         let editorAttribute = context.enablesEditorMarkup ? " data-foundry-image-drop-zone\(propertyAttribute)" : ""
         return "<img class=\"foundry-image\"\(editorAttribute)\(primitiveAttribute) src=\"\(escapeAttribute(source))\" alt=\"\">"

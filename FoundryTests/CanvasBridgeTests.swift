@@ -41,6 +41,23 @@ struct CanvasBridgeTests {
     }
 
     @Test
+    func decodesImageRemovalMessage() {
+        let componentID = UUID()
+        let propertyKey = ComponentProperty.Key(rawValue: "source")
+
+        let message = CanvasMessage.decode([
+            "version": CanvasMessage.currentVersion,
+            "event": "removeImage",
+            "componentID": componentID.uuidString,
+            "propertyKey": propertyKey.rawValue
+        ])
+
+        #expect(message?.event == .removeImage)
+        #expect(message?.componentID == componentID)
+        #expect(message?.propertyKey == propertyKey)
+    }
+
+    @Test
     func rejectsUnsupportedAndMalformedMessages() {
         let id = UUID().uuidString
 
@@ -143,7 +160,7 @@ struct CanvasBridgeTests {
 
         let html = HTMLPageRenderer().render(page: page, theme: .standard)
 
-        #expect(html.contains("Drop an image here"))
+        #expect(html.contains("Drop image here"))
         #expect(html.contains("data-foundry-id=\"\(image.id.uuidString)\""))
     }
 
@@ -181,14 +198,16 @@ struct CanvasBridgeTests {
         let html = HTMLPageRenderer().render(page: page, theme: .standard)
 
         #expect(WebCanvasView.Coordinator.interactionScript.contains("foundry-show-titles"))
-        #expect(html.contains("foundry-show-outlines"))
         #expect(WebCanvasView.Coordinator.interactionScript.contains("foundrySetEditorOptions"))
         #expect(WebCanvasView.Coordinator.interactionScript.contains("scrollsToSelection"))
         #expect(WebCanvasView.Coordinator.interactionScript.contains("shouldScroll"))
         #expect(!WebCanvasView.Coordinator.interactionScript.contains("attachShadow"))
         #expect(WebCanvasView.Coordinator.interactionScript.contains("data-foundry-editor-chrome"))
+        #expect(WebCanvasView.Coordinator.interactionScript.contains("data-foundry-editor-chrome', 'selection"))
+        #expect(WebCanvasView.Coordinator.interactionScript.contains("position: 'fixed'"))
         #expect(WebCanvasView.Coordinator.interactionScript.contains("'left', Math.max(0, rect.left)"))
         #expect(WebCanvasView.Coordinator.interactionScript.contains("pointerEvents: 'none'"))
+        #expect(!html.contains("[data-foundry-id]:hover:not(:has([data-foundry-id]:hover))"))
         #expect(!html.contains("data-foundry-name); position: absolute"))
     }
 
