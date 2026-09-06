@@ -35,7 +35,11 @@ nonisolated enum ComponentTemplateRepeater {
             in: template,
             range: NSRange(template.startIndex..., in: template)
         ) != nil else {
-            return .init(template: template, imageKeys: [])
+            var state = ExpansionState()
+            return .init(
+                template: replaceImages(in: template, isRepeated: false, state: &state),
+                imageKeys: state.imageKeys
+            )
         }
         var parser = Parser(template)
         let nodes = try parser.nodes(expectsEnd: false)
@@ -65,7 +69,6 @@ nonisolated enum ComponentTemplateRepeater {
     private struct ExpansionState {
         var textIndex = 0
         var htmlIndex = 0
-        var imageIndex = 0
         var imageKeys: [String] = []
         var expandedIterationCount = 0
     }
@@ -149,14 +152,23 @@ nonisolated enum ComponentTemplateRepeater {
             state.htmlIndex += 1
             return token(name: "__foundry_html", key: "html\(state.htmlIndex)", value: defaultValue, isRepeated: !repeatStack.isEmpty)
         }
+        return replaceImages(in: result, isRepeated: !repeatStack.isEmpty, state: &state)
+    }
+
+    private static func replaceImages(
+        in source: String,
+        isRepeated: Bool,
+        state: inout ExpansionState
+    ) -> String {
+        var result = source
         let imageReplacements = imageExpression
             .matches(in: result, range: NSRange(result.startIndex..., in: result))
             .compactMap { match -> (Range<String.Index>, String)? in
-                guard let range = Range(match.range, in: result) else { return nil }
-                state.imageIndex += 1
-                let key = "sourceRepeat\(state.imageIndex)"
+                guard let range = Range(match.range, in: result),
+                      let keyRange = Range(match.range(at: 1), in: result) else { return nil }
+                let key = String(result[keyRange])
                 state.imageKeys.append(key)
-                let repeatedMarker = repeatStack.isEmpty ? "" : " repeated=\"true\""
+                let repeatedMarker = isRepeated ? " repeated=\"true\"" : ""
                 return (range, "{{ __foundry_image key=\"\(key)\"\(repeatedMarker) }}")
             }
         for (range, replacement) in imageReplacements.reversed() {
@@ -219,7 +231,7 @@ nonisolated enum ComponentTemplateRepeater {
         pattern: #"\{\{\s*(repeat\s+([^{}]+?)|endrepeat)\s*\}\}"#
     )
     private static let repeatStartExpression = try! NSRegularExpression(pattern: #"\{\{\s*repeat\s+"#)
-    private static let imageExpression = try! NSRegularExpression(pattern: #"\{\{\s*image\s*\}\}"#)
+    private static let imageExpression = try! NSRegularExpression(pattern: #"\{\{\s*image\s+([A-Za-z][A-Za-z0-9_.-]*)\s*\}\}"#)
     private static let textExpression = try! NSRegularExpression(pattern: #"\{\{\s*text(?:\s*=\s*\"([^\"]*)\")?\s*\}\}"#)
     private static let htmlExpression = try! NSRegularExpression(pattern: #"\{\{\s*html(?:\s*=\s*\"([^\"]*)\")?\s*\}\}"#)
 

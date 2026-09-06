@@ -69,6 +69,32 @@ Example.foundrydevpack/
 </section>
 ```
 
+## Image controls
+
+Images are explicit named controls. Declare an image property and reference the same ID in the template:
+
+```xml
+<key>customItems</key>
+<array>
+    <dict>
+        <key>id</key><string>source</string>
+        <key>labels</key><string>Image</string>
+        <key>group</key><string>Content</string>
+        <key>type</key><string>image</string>
+    </dict>
+</array>
+```
+
+```html
+<figure {{ component.attributes }}>
+    {{ image source }}
+</figure>
+```
+
+Omitting `default` starts with no image. A non-empty default must be a path covered by the pack’s top-level `assets` declarations. Clear restores the declared default; without one it restores the empty image drop zone. Authors can replace the image from Finder, the Assets panel, or the Inspector image well.
+
+Inside a repeat, use repeat metadata to address explicitly declared controls, for example `{{ image slide-repeat.position }}` with image controls named `slide-1`, `slide-2`, and so on up to the repeat control’s maximum.
+
 ## Loading and distribution
 
 Open a `.foundrydevpack` directly or put it in

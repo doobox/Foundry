@@ -157,7 +157,7 @@ nonisolated enum ComponentPropertyControl: Sendable {
     case textAlignment
     case divider
     case toggle
-    case asset
+    case image
 
     var isThemeFontSize: Bool {
         if case .themeFontSize = self { true } else { false }

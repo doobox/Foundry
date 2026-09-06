@@ -304,6 +304,13 @@ nonisolated enum ComponentPackageManifestSchema {
         if property["count"] != nil && count == nil {
             appendTypeError(key: "count", expected: "an integer", location: location, into: &diagnostics)
         }
+        if type == .image, property["count"] != nil {
+            diagnostics.append(.init(
+                severity: .error,
+                location: "\(location).count",
+                message: "An image control represents one named image; remove count and declare each image property explicitly."
+            ))
+        }
         if property["count"] != nil {
             requireStringArray("labels", in: property, location: location, into: &diagnostics)
             optionalStringArray("subtitles", in: property, location: location, into: &diagnostics)
@@ -326,15 +333,18 @@ nonisolated enum ComponentPackageManifestSchema {
             optionalComponentValue(key, in: property, location: location, into: &diagnostics)
         }
 
-        let permitsMissingDefault = type == .divider || type == .info || type == .math || type == .slider
+        let permitsMissingDefault = type == .divider || type == .image || type == .info || type == .math || type == .slider
         if !permitsMissingDefault && property["default"] == nil {
             appendMissing("default", expected: "value", location: location, into: &diagnostics)
         }
-        let permitsMissingResponsive = type == .divider || type == .info || type == .math
+        let permitsMissingResponsive = type == .divider || type == .image || type == .info || type == .math
         if !permitsMissingResponsive && property["responsive"] == nil {
             appendMissing("responsive", expected: "Boolean", location: location, into: &diagnostics)
         } else {
             optionalBoolean("responsive", in: property, location: location, into: &diagnostics)
+        }
+        if type == .image, let value = property["default"], !(value is String) {
+            appendTypeError(key: "default", expected: "an asset path string", location: location, into: &diagnostics)
         }
     }
 

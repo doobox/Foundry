@@ -111,7 +111,7 @@ nonisolated struct ComponentHTMLPrimitive: Equatable, Sendable {
 nonisolated enum ComponentTemplateRenderer {
     private static let loremParagraph = "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum."
     private static let templateExpression = try! NSRegularExpression(pattern: #"\{\{\s*([^{}]+?)\s*\}\}"#)
-    private static let imageExpression = try! NSRegularExpression(pattern: #"\{\{\s*image\s*\}\}"#)
+    private static let imageExpression = try! NSRegularExpression(pattern: #"\{\{\s*image\s+([A-Za-z][A-Za-z0-9_.-]*)\s*\}\}"#)
     private static let textExpression = try! NSRegularExpression(pattern: #"\{\{\s*text(?:\s*=\s*"([^"]*)")?\s*\}\}"#)
     private static let htmlExpression = try! NSRegularExpression(pattern: #"\{\{\s*html(?:\s*=\s*"([^"]*)")?\s*\}\}"#)
     private static let colorFilterExpression = try! NSRegularExpression(pattern: #"^(lighten|darken)\(\s*([0-9]+(?:\.[0-9]+)?)\s*\)$"#)
@@ -176,16 +176,7 @@ nonisolated enum ComponentTemplateRenderer {
     }
 
     static func hasImagePrimitive(in template: String) -> Bool {
-        template.range(of: #"\{\{\s*image\s*\}\}"#, options: .regularExpression) != nil
-    }
-
-    static func repeatedImageKeys(in template: String, repeatMaximums: [String: Int]) -> [String] {
-        (try? ComponentTemplateRepeater.expand(
-            template,
-            properties: [:],
-            maximums: repeatMaximums,
-            usingMaximumCounts: true
-        ).imageKeys) ?? []
+        imageExpression.firstMatch(in: template, range: NSRange(template.startIndex..., in: template)) != nil
     }
 
     static func htmlPrimitives(in template: String) -> [ComponentHTMLPrimitive] {
@@ -285,19 +276,7 @@ nonisolated enum ComponentTemplateRenderer {
                 )
             )
         }
-        guard hasImagePrimitive(in: result) else { return result }
-        let source = stringValue(context.properties["source"]) ?? ""
-        let image = renderedImage(
-            source: source,
-            key: "source",
-            marksSelectablePrimitive: false,
-            context: context
-        )
-        return imageExpression.stringByReplacingMatches(
-            in: result,
-            range: NSRange(result.startIndex..., in: result),
-            withTemplate: NSRegularExpression.escapedTemplate(for: image)
-        )
+        return result
     }
 
     private static func renderHTML(in template: String, context: ComponentTemplateContext) -> String {
@@ -389,15 +368,16 @@ nonisolated enum ComponentTemplateRenderer {
         marksSelectablePrimitive: Bool,
         context: ComponentTemplateContext
     ) -> String {
+        let resolvedSource = context.assetPaths[source] ?? source
         let propertyAttribute = context.enablesEditorMarkup ? " data-foundry-image-property=\"\(escapeAttribute(key))\"" : ""
         let primitiveAttribute = context.enablesEditorMarkup && marksSelectablePrimitive
             ? " data-foundry-primitive-property=\"\(escapeAttribute(key))\""
             : ""
-        if source.isEmpty && context.enablesEditorMarkup {
+        if resolvedSource.isEmpty && context.enablesEditorMarkup {
             return "<span class=\"foundry-image-drop-zone\" data-foundry-image-drop-zone\(propertyAttribute)\(primitiveAttribute)>Drop image here</span>"
         }
         let editorAttribute = context.enablesEditorMarkup ? " data-foundry-image-drop-zone\(propertyAttribute)" : ""
-        return "<img class=\"foundry-image\"\(editorAttribute)\(primitiveAttribute) src=\"\(escapeAttribute(source))\" alt=\"\">"
+        return "<img class=\"foundry-image\"\(editorAttribute)\(primitiveAttribute) src=\"\(escapeAttribute(resolvedSource))\" alt=\"\">"
     }
 
     private static func addInlineEditingAttribute(

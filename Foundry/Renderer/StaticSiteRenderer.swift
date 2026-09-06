@@ -752,7 +752,7 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
                     return .string(resolved)
                 }))
             }
-            if case .asset = definition.control,
+            if case .image = definition.control,
                case .url(let source) = value {
                 return (
                     definition.key.rawValue,

@@ -421,6 +421,7 @@ struct ContentView: View {
                 editorOptions: canvasEditorOptions,
                 renderer: renderer,
                 canPasteComponent: !copiedComponents.isEmpty,
+                canClearImage: canClearCanvasImage,
                 handleMessage: handleCanvasMessage,
                 handleContextMenuAction: handleCanvasContextMenuAction,
                 viewportWidth: $canvasViewportWidth
@@ -449,6 +450,7 @@ struct ContentView: View {
                 assetUsageCount: assetUsageCount,
                 renameAsset: { document.renameAsset(id: $0, filename: $1, undoManager: undoManager) },
                 renameAssetFolder: { document.renameAssetFolder(id: $0, name: $1, undoManager: undoManager) },
+                importImage: importImageAsset,
                 editsSharedDefinition: $editsSharedReusableDefinition
             )
         }
@@ -773,12 +775,12 @@ struct ContentView: View {
                 value: value
             )
         case .importImageAsset:
-            let propertyKey = message.propertyKey ?? .source
-            guard let componentID = message.componentID,
+            guard let propertyKey = message.propertyKey,
+                  let componentID = message.componentID,
                   let component = page.components.node(withID: componentID),
                   component.type.definition.properties.contains(where: {
                       guard $0.key == propertyKey else { return false }
-                      if case .asset = $0.control { return true }
+                      if case .image = $0.control { return true }
                       return false
                   }) else { return }
             undoManager?.beginUndoGrouping()
@@ -865,7 +867,14 @@ struct ContentView: View {
                 undoManager?.endUndoGrouping()
                 return
             }
-            editor.setProperty(id: componentID, key: .source, value: .url(asset.reference))
+            guard let imageProperty = ComponentType.image.definition.properties.first(where: {
+                      if case .image = $0.control { return true }
+                      return false
+                  }) else {
+                undoManager?.endUndoGrouping()
+                return
+            }
+            editor.setProperty(id: componentID, key: imageProperty.key, value: .url(asset.reference))
             undoManager?.endUndoGrouping()
             undoManager?.setActionName("Add Image")
             selectedComponentIDs = [componentID]
@@ -874,7 +883,11 @@ struct ContentView: View {
         }
     }
 
-    private func handleCanvasContextMenuAction(_ action: CanvasContextMenuAction, componentID: UUID) {
+    private func handleCanvasContextMenuAction(
+        _ action: CanvasContextMenuAction,
+        componentID: UUID,
+        imageProperty: ComponentProperty.Key?
+    ) {
         guard let component = selectedPage?.components.node(withID: componentID) else { return }
         selectedPrimitive = nil
         selectedLibraryComponentType = nil
@@ -885,11 +898,17 @@ struct ContentView: View {
 
         switch action {
         case .clearImage:
+            guard let imageProperty,
+                  let definition = component.type.definition.properties.first(where: {
+                      guard $0.key == imageProperty else { return false }
+                      if case .image = $0.control { return true }
+                      return false
+                  }) else { return }
             undoManager?.beginUndoGrouping()
             if let context = document.site.globalComponentContext(containing: componentID), !context.isOverridden {
-                editor.setSharedReusableProperty(componentID: componentID, key: .source, value: .url(""))
+                editor.setSharedReusableProperty(componentID: componentID, key: imageProperty, value: definition.defaultValue)
             } else {
-                editor.setProperty(id: componentID, key: .source, value: .url(""))
+                editor.setProperty(id: componentID, key: imageProperty, value: definition.defaultValue)
             }
             undoManager?.endUndoGrouping()
             undoManager?.setActionName("Clear Image")
@@ -912,6 +931,19 @@ struct ContentView: View {
         case .delete:
             deleteComponent()
         }
+    }
+
+    private func canClearCanvasImage(
+        componentID: UUID,
+        imageProperty: ComponentProperty.Key
+    ) -> Bool {
+        guard let component = selectedPage?.components.node(withID: componentID),
+              let definition = component.type.definition.properties.first(where: {
+                  guard $0.key == imageProperty else { return false }
+                  if case .image = $0.control { return true }
+                  return false
+              }) else { return false }
+        return component.propertyValue(imageProperty) != definition.defaultValue
     }
 
     private var canvasReusableAlertBinding: Binding<Bool> {
@@ -1619,6 +1651,33 @@ struct ContentView: View {
             placement: placement,
             undoManager: undoManager
         )
+    }
+
+    private func importImageAsset(_ url: URL) -> ProjectAsset? {
+        let filename = url.lastPathComponent
+        let dragPrefix = "foundry-image-asset-"
+        if filename.hasPrefix(dragPrefix),
+           let separator = filename.range(of: "--"),
+           let id = UUID(uuidString: String(filename[filename.index(filename.startIndex, offsetBy: dragPrefix.count)..<separator.lowerBound])),
+           let asset = document.site.assets.first(where: { $0.id == id && $0.mediaType.hasPrefix("image/") }) {
+            return asset
+        }
+
+        guard let values = try? url.resourceValues(forKeys: [.isRegularFileKey, .contentTypeKey]),
+              values.isRegularFile == true,
+              let type = values.contentType ?? UTType(filenameExtension: url.pathExtension),
+              type.conforms(to: .image),
+              let data = try? Data(contentsOf: url),
+              data.count <= 25_000_000 else { return nil }
+        let id = document.importAsset(
+            data: data,
+            filename: filename,
+            mediaType: type.preferredMIMEType ?? "application/octet-stream",
+            placement: .end,
+            reuseIdenticalContent: true,
+            undoManager: undoManager
+        )
+        return document.site.assets.first(where: { $0.id == id })
     }
 
     private func deleteAssetLibraryNode(_ id: UUID) {

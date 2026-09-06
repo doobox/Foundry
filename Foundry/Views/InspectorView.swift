@@ -24,6 +24,7 @@ struct InspectorView: View {
     let assetUsageCount: (UUID) -> Int
     let renameAsset: (UUID, String) -> Void
     let renameAssetFolder: (UUID, String) -> Void
+    let importImage: (URL) -> ProjectAsset?
     @Binding var editsSharedDefinition: Bool
 
     var body: some View {
@@ -33,6 +34,7 @@ struct InspectorView: View {
                     component: component,
                     theme: theme,
                     assets: assets,
+                    assetContents: assetContents,
                     pages: pages,
                     folders: folders,
                     publicURL: publicURL,
@@ -41,6 +43,7 @@ struct InspectorView: View {
                     isGlobalOverride: isGlobalOverride,
                     setGlobalOverride: setGlobalOverride,
                     breakpoint: breakpoint,
+                    importImage: importImage,
                     editsSharedDefinition: $editsSharedDefinition
                 )
             } else if componentSelectionCount == 0,
@@ -595,6 +598,7 @@ private struct ComponentInspector: View {
     let component: ComponentNode
     let theme: Theme
     let assets: [ProjectAsset]
+    let assetContents: [UUID: ProjectAssetContent]
     let pages: [Page]
     let folders: [PageFolder]
     let publicURL: String
@@ -603,6 +607,7 @@ private struct ComponentInspector: View {
     let isGlobalOverride: Bool
     let setGlobalOverride: (Bool) -> Void
     let breakpoint: ResponsiveBreakpoint
+    let importImage: (URL) -> ProjectAsset?
     @Binding var editsSharedDefinition: Bool
 
     var body: some View {
@@ -637,12 +642,14 @@ private struct ComponentInspector: View {
                         component: component,
                         theme: theme,
                         assets: assets,
+                        assetContents: assetContents,
                         pages: pages,
                         folders: folders,
                         publicURL: publicURL,
                         editor: editor,
                         editsSharedDefinition: reusableDefinition != nil && !isGlobalOverride,
-                        breakpoint: breakpoint
+                        breakpoint: breakpoint,
+                        importImage: importImage
                     )
                 }
             }
@@ -722,12 +729,14 @@ private struct ComponentInspectorGroup: View {
     let component: ComponentNode
     let theme: Theme
     let assets: [ProjectAsset]
+    let assetContents: [UUID: ProjectAssetContent]
     let pages: [Page]
     let folders: [PageFolder]
     let publicURL: String
     let editor: ProjectEditor
     let editsSharedDefinition: Bool
     let breakpoint: ResponsiveBreakpoint
+    let importImage: (URL) -> ProjectAsset?
     @State private var isExpanded = true
 
     var body: some View {
@@ -759,12 +768,14 @@ private struct ComponentInspectorGroup: View {
             component: component,
             theme: theme,
             assets: assets,
+            assetContents: assetContents,
             pages: pages,
             folders: folders,
             publicURL: publicURL,
             editor: editor,
             editsSharedDefinition: editsSharedDefinition,
-            breakpoint: breakpoint
+            breakpoint: breakpoint,
+            importImage: importImage
         )
     }
 }

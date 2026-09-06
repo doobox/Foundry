@@ -206,7 +206,7 @@ nonisolated enum ComponentPackageValidator {
                 continue
             }
             if template.matches(#"\{\{\s*(?:id|instance\.|component\.|control\.|slot\.)"#) ||
-                template.matches(#"\{\{\s*(?:slot\s+id|text(?:\s*=|\s*\}\})|html(?:\s*=|\s*\}\})|image\s*\}\})"#) {
+                template.matches(#"\{\{\s*(?:slot\s+id|text(?:\s*=|\s*\}\})|html(?:\s*=|\s*\}\})|image(?:\s+[^}]+)?\s*\}\})"#) {
                 diagnostics.append(.init(
                     severity: .error,
                     location: file.path,
@@ -326,6 +326,26 @@ nonisolated enum ComponentPackageValidator {
             }
         }
 
+        for (index, property) in manifest.properties.enumerated() where property.control.type == .image {
+            let defaultPath = property.defaultValue.stringValue
+            if !defaultPath.isEmpty && manifest.assetDeclaration(containing: defaultPath) == nil {
+                diagnostics.append(.init(
+                    severity: .error,
+                    location: "Info.plist:customItems[\(index)].default",
+                    message: "The default image '\(defaultPath)' must reference a declared package asset."
+                ))
+            }
+        }
+
+        for reference in template.references(matching: #"\{\{\s*(image)\s*\}\}"#) {
+            diagnostics.append(templateDiagnostic(
+                templateLocation,
+                template: template,
+                offset: reference.offset,
+                message: "Image macros require a declared image property, for example {{ image source }}."
+            ))
+        }
+
         let ifCount = template.matchCount(#"\{\{\s*if\b"#)
         let elseIfCount = template.matchCount(#"\{\{\s*elseif\b"#)
         let endIfCount = template.matchCount(#"\{\{\s*endif\s*\}\}"#)
@@ -417,6 +437,37 @@ nonisolated enum ComponentPackageValidator {
             }
         }
 
+        let maximums = Dictionary(uniqueKeysWithValues: manifest.properties.compactMap { property -> (String, Int)? in
+            guard property.control.type == .number || property.control.type == .slider,
+                  let maximum = property.control.maximum,
+                  maximum.isFinite else { return nil }
+            return (property.id, Int(maximum.rounded(.down)))
+        })
+        if let expansion = try? ComponentTemplateRepeater.expand(
+            template,
+            properties: Dictionary(uniqueKeysWithValues: manifest.properties.map { ($0.id, $0.defaultValue) }),
+            maximums: maximums,
+            usingMaximumCounts: true
+        ) {
+            for propertyID in Set(expansion.imageKeys).sorted() {
+                guard let property = manifest.properties.first(where: { $0.id == propertyID }) else {
+                    diagnostics.append(.init(
+                        severity: .error,
+                        location: templateLocation,
+                        message: "Unknown image property '\(propertyID)'. Declare it as an image in Info.plist customItems."
+                    ))
+                    continue
+                }
+                if property.control.type != .image {
+                    diagnostics.append(.init(
+                        severity: .error,
+                        location: templateLocation,
+                        message: "Property '\(propertyID)' must use the image control when referenced by an image macro."
+                    ))
+                }
+            }
+        }
+
         for reference in template.references(matching: #"\{\{\s*(?:if|elseif)\s+([^{}]+?)\s*\}\}"#) {
             let condition = replacingRepeatMetadata(in: reference.value.trimmingCharacters(in: .whitespacesAndNewlines))
             do {
@@ -447,8 +498,8 @@ nonisolated enum ComponentPackageValidator {
             if source.hasPrefix("if ") || source.hasPrefix("elseif ") || source == "else" || source == "endif" ||
                 source.hasPrefix("repeat ") || source == "endrepeat" || source.hasPrefix("repeat.") ||
                 source.hasPrefix("slot ") || source.hasPrefix("text ") || source.hasPrefix("text=") ||
-                source.hasPrefix("html ") || source.hasPrefix("html=") ||
-                ["text", "html", "image", "id", "instance.id", "instance.uuid", "package.id", "site.baseURL", "page.url", "path.siteRoot", "path.siteAssets", "component.class", "component.attributes"].contains(source) ||
+                source.hasPrefix("html ") || source.hasPrefix("html=") || source.hasPrefix("image ") ||
+                ["text", "html", "id", "instance.id", "instance.uuid", "package.id", "site.baseURL", "page.url", "path.siteRoot", "path.siteAssets", "component.class", "component.attributes"].contains(source) ||
                 source.hasPrefix("asset.") {
                 continue
             }

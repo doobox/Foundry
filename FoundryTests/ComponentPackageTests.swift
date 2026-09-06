@@ -600,14 +600,12 @@ struct ComponentPackageTests {
     @Test
     func controlRepeatKeepsPrimitiveKeysStableAcrossCountChanges() {
         let template = """
-        {{ repeat control.itemCount }}<article>{{ text="Card" }}{{ image }}</article>{{ endrepeat }}
+        {{ repeat control.itemCount }}<article>{{ text="Card" }}{{ image card-repeat.position }}</article>{{ endrepeat }}
         <footer>{{ text="Footer" }}</footer>
         """
         let maximums = ["itemCount": 4]
         let textPrimitives = ComponentTemplateRenderer.textPrimitives(in: template, repeatMaximums: maximums)
-        let imageKeys = ComponentTemplateRenderer.repeatedImageKeys(in: template, repeatMaximums: maximums)
         #expect(textPrimitives.map(\.key) == ["content1", "content2", "content3", "content4", "content5"])
-        #expect(imageKeys == ["sourceRepeat1", "sourceRepeat2", "sourceRepeat3", "sourceRepeat4"])
 
         let context = ComponentTemplateContext(
             instanceID: UUID(),
@@ -617,8 +615,8 @@ struct ComponentPackageTests {
                 "content1": .string("One"),
                 "content2": .string("Two"),
                 "content5": .string("Footer value"),
-                "sourceRepeat1": .string("one.jpg"),
-                "sourceRepeat2": .string("two.jpg")
+                "card-1": .string("one.jpg"),
+                "card-2": .string("two.jpg")
             ],
             slots: [:],
             repeatMaximums: maximums
@@ -641,7 +639,7 @@ struct ComponentPackageTests {
         )
         let editorHTML = ComponentTemplateRenderer.render(template, context: editorContext)
         #expect(editorHTML.contains("data-foundry-primitive-property=\"content1\""))
-        #expect(editorHTML.contains("data-foundry-primitive-property=\"sourceRepeat1\""))
+        #expect(editorHTML.contains("data-foundry-primitive-property=\"card-1\""))
         #expect(editorHTML.contains("data-foundry-primitive-property=\"content5\"") == false)
     }
 
@@ -859,8 +857,8 @@ struct ComponentPackageTests {
     }
 
     @Test
-    func imagePrimitiveCreatesAnImplicitResponsiveImageSource() {
-        let template = "<figure {{ component.attributes }}>{{ image }}</figure>"
+    func namedImagePrimitiveRendersItsDeclaredProperty() {
+        let template = "<figure {{ component.attributes }}>{{ image source }}</figure>"
         let editorContext = ComponentTemplateContext(
             instanceID: UUID(), packageIdentifier: "com.example.image",
             properties: [:], slots: [:], componentAttributes: "data-editor=\"true\"",
@@ -876,6 +874,106 @@ struct ComponentPackageTests {
         let exported = ComponentTemplateRenderer.render(template, context: exportContext)
         #expect(exported.contains("class=\"foundry-image\""))
         #expect(exported.contains("src=\"assets/hero &amp; wide.jpg\""))
+    }
+
+    @Test
+    func imageControlMayOmitItsDefaultAndResponsiveKeys() throws {
+        let manifest = try PropertyListDecoder().decode(
+            ComponentPackageManifest.self,
+            from: Data(manifest(withCustomItems: """
+                <dict>
+                    <key>id</key><string>source</string>
+                    <key>labels</key><string>Image</string>
+                    <key>group</key><string>Content</string>
+                    <key>type</key><string>image</string>
+                </dict>
+                """).utf8)
+        )
+        let image = try #require(manifest.properties.first)
+
+        #expect(image.defaultValue == .string(""))
+        #expect(!image.responsive)
+    }
+
+    @Test
+    func imageMacroRequiresANamedImageProperty() throws {
+        let manifestText = manifest(withCustomItems: """
+            <dict>
+                <key>id</key><string>title</string>
+                <key>labels</key><string>Title</string>
+                <key>group</key><string>Content</string>
+                <key>type</key><string>text</string>
+                <key>default</key><string>Hello</string>
+                <key>responsive</key><false/>
+            </dict>
+            """)
+        let barePackage = try makePackage(
+            manifest: manifestText,
+            template: "<figure {{ component.attributes }}>{{ image }}</figure>"
+        )
+        let wrongTypePackage = try makePackage(
+            manifest: manifestText,
+            template: "<figure {{ component.attributes }}>{{ image title }}</figure>"
+        )
+        defer {
+            try? FileManager.default.removeItem(at: barePackage)
+            try? FileManager.default.removeItem(at: wrongTypePackage)
+        }
+
+        #expect(throws: ComponentPackageLoadingError.self) {
+            try ComponentPackageLoader.load(from: barePackage)
+        }
+        do {
+            _ = try ComponentPackageLoader.load(from: wrongTypePackage)
+            Issue.record("A text property was accepted by an image macro.")
+        } catch ComponentPackageLoadingError.invalid(let diagnostics) {
+            #expect(diagnostics.contains { $0.message.contains("must use the image control") })
+        }
+    }
+
+    @Test
+    func imageDefaultMustBeDeclaredAndResolvesThroughAssetPaths() throws {
+        let validImageManifest = manifest(withCustomItems: """
+            <dict>
+                <key>id</key><string>source</string>
+                <key>labels</key><string>Image</string>
+                <key>group</key><string>Content</string>
+                <key>type</key><string>image</string>
+                <key>default</key><string>images/icon.svg</string>
+            </dict>
+            """)
+        let packageURL = try makePackage(
+            manifest: validImageManifest,
+            template: "<figure {{ component.attributes }}>{{ image source }}{{ slot id=\"content\" }}</figure>"
+        )
+        defer { try? FileManager.default.removeItem(at: packageURL) }
+        let package = try ComponentPackageLoader.load(from: packageURL)
+        #expect(package.manifest.properties.first?.defaultValue == .string("images/icon.svg"))
+
+        let rendered = ComponentTemplateRenderer.render(
+            package.htmlTemplate,
+            context: .init(
+                instanceID: UUID(),
+                packageIdentifier: package.manifest.identifier,
+                properties: ["source": .string("images/icon.svg")],
+                slots: [:],
+                assetPaths: ["images/icon.svg": "files/icon.svg"]
+            )
+        )
+        #expect(rendered.contains("src=\"files/icon.svg\""))
+
+        let invalidManifest = validImageManifest.replacingOccurrences(
+            of: "<key>default</key><string>images/icon.svg</string>",
+            with: "<key>default</key><string>images/missing.svg</string>"
+        )
+        let invalidPackage = try makePackage(
+            manifest: invalidManifest,
+            template: "<figure {{ component.attributes }}>{{ image source }}{{ slot id=\"content\" }}</figure>"
+        )
+        defer { try? FileManager.default.removeItem(at: invalidPackage) }
+        #expect(throws: ComponentPackageLoadingError.self) {
+            try ComponentPackageLoader.load(from: invalidPackage)
+        }
     }
 
     @Test
@@ -1692,9 +1790,9 @@ struct ComponentPackageTests {
         })
         #expect(imageSlider.package?.repeatMaximums["slideCount"] == 8)
         #expect(imageSlider.properties.filter {
-            if case .asset = $0.control { return true }
+            if case .image = $0.control { return true }
             return false
-        }.map(\.key.rawValue) == (1...8).map { "sourceRepeat\($0)" })
+        }.map(\.key.rawValue) == (1...8).map { "slide-\($0)" })
         #expect(ComponentType.section.definition.allowsChildren)
         #expect(!ComponentType.section.definition.properties.contains { $0.key.rawValue == "contentWidth" })
         let sectionPadding = try #require(ComponentType.section.definition.properties.first {
@@ -1727,7 +1825,7 @@ struct ComponentPackageTests {
         } else {
             Issue.record("Section should use the specialised margin control")
         }
-        #expect(ComponentType.image.definition.properties.contains { $0.key == .source && !$0.isInspectorVisible })
+        #expect(ComponentType.image.definition.properties.contains { $0.key == .source && $0.isInspectorVisible })
         #expect(ComponentType.image.definition.properties.contains {
             $0.key.rawValue == "maxWidth" && $0.defaultValue == .number(1200) && $0.isResponsive
         })

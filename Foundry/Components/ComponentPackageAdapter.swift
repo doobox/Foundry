@@ -27,20 +27,6 @@ nonisolated enum ComponentPackageAdapter {
                 )
             }
         }
-        let repeatedImageKeys = ComponentTemplateRenderer.repeatedImageKeys(in: package.htmlTemplate, repeatMaximums: repeatMaximums)
-        let implicitImageProperties: [ComponentPropertyDefinition] = repeatedImageKeys.isEmpty
-            ? (ComponentTemplateRenderer.hasImagePrimitive(in: package.htmlTemplate) ? [ComponentPropertyDefinition(
-                key: .source, label: "Image", section: .content,
-                control: .asset, defaultValue: .url(""),
-                isResponsive: false, isInspectorVisible: false
-            )] : [])
-            : repeatedImageKeys.map { key in
-                ComponentPropertyDefinition(
-                    key: .init(rawValue: key), label: "Image", section: .content,
-                    control: .asset, defaultValue: .url(""),
-                    isResponsive: false, isInspectorVisible: false
-                )
-            }
         return ComponentDefinition(
             type: ComponentType(rawValue: manifest.identifier),
             displayName: manifest.name,
@@ -48,7 +34,7 @@ nonisolated enum ComponentPackageAdapter {
             category: ComponentCategory(rawValue: ComponentPackageGroup.resolve(manifest.category).rawValue),
             allowsChildren: !manifest.slots.isEmpty,
             renderKind: .package,
-            properties: manifest.properties.flatMap(propertyDefinitions) + implicitTextProperties + implicitHTMLProperties + implicitHTMLArtifactProperties + implicitImageProperties,
+            properties: manifest.properties.flatMap(propertyDefinitions) + implicitTextProperties + implicitHTMLProperties + implicitHTMLArtifactProperties,
             package: package
         )
     }
@@ -236,6 +222,7 @@ nonisolated enum ComponentPackageAdapter {
         case .details: .details(help: nil)
         case .info: .info
         case .button: .button(systemImage: control.systemImage)
+        case .image: .image
         case .math: .derived
         }
     }
@@ -253,6 +240,7 @@ nonisolated enum ComponentPackageAdapter {
             case .color: .color(value)
             case .icon, .select, .margin, .padding, .textAlignment: .choice(value)
             case .date: .string(value)
+            case .image: .url(value)
             default: .string(value)
             }
         case .array(let values):

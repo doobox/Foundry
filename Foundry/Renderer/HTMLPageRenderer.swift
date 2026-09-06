@@ -442,7 +442,7 @@ struct HTMLPageRenderer: PageRendering {
                     return .string(resolved)
                 }))
             }
-            if case .asset = definition.control,
+            if case .image = definition.control,
                case .url(let source) = value {
                 return (definition.key.rawValue, .string(canvasSource(source, assets: assets)))
             }

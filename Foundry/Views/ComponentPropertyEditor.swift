@@ -1,42 +1,50 @@
 import AppKit
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct ComponentPropertyEditor: View {
     @State private var showsLinkEditor = false
     @State private var linkDraft = ComponentLink()
+    @State private var isImageDropTarget = false
     let definition: ComponentPropertyDefinition
     let component: ComponentNode
     let theme: Theme
     let assets: [ProjectAsset]
+    let assetContents: [UUID: ProjectAssetContent]
     let pages: [Page]
     let folders: [PageFolder]
     let publicURL: String
     let editor: ProjectEditor
     let editsSharedDefinition: Bool
     let breakpoint: ResponsiveBreakpoint
+    let importImage: (URL) -> ProjectAsset?
 
     init(
         definition: ComponentPropertyDefinition,
         component: ComponentNode,
         theme: Theme,
         assets: [ProjectAsset],
+        assetContents: [UUID: ProjectAssetContent],
         pages: [Page],
         folders: [PageFolder],
         publicURL: String,
         editor: ProjectEditor,
         editsSharedDefinition: Bool,
-        breakpoint: ResponsiveBreakpoint
+        breakpoint: ResponsiveBreakpoint,
+        importImage: @escaping (URL) -> ProjectAsset?
     ) {
         self.definition = definition
         self.component = component
         self.theme = theme
         self.assets = assets
+        self.assetContents = assetContents
         self.pages = pages
         self.folders = folders
         self.publicURL = publicURL
         self.editor = editor
         self.editsSharedDefinition = editsSharedDefinition
         self.breakpoint = breakpoint
+        self.importImage = importImage
     }
 
     @ViewBuilder
@@ -262,27 +270,106 @@ struct ComponentPropertyEditor: View {
                 Toggle("", isOn: booleanBinding)
                     .labelsHidden()
             }
-        case .asset:
+        case .image:
             assetPicker
         }
     }
 
     private var assetPicker: some View {
-        InspectorRow(title: definition.label, alignment: .top, indicator: responsiveIndicator) {
-            VStack(alignment: .leading, spacing: 6) {
-                Picker("", selection: assetBinding) {
-                    Text("No managed image").tag(nil as UUID?)
-                    ForEach(assets) { asset in Text(asset.filename).tag(asset.id as UUID?) }
+        GridRow(alignment: .top) {
+            VStack(alignment: .trailing, spacing: 6) {
+                HStack(spacing: 3) {
+                    InspectorResponsiveIndicator(
+                        isVisible: responsiveIndicator.isVisible,
+                        isOverridden: responsiveIndicator.isOverridden,
+                        breakpointName: responsiveIndicator.breakpointName,
+                        toggle: responsiveIndicator.toggle
+                    )
+                    .frame(width: 8)
+
+                    Text(definition.label)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                        .foregroundStyle(.secondary)
+                        .help(definition.label)
                 }
-                .labelsHidden()
-                if let id = component.property(definition.key).foundryAssetID,
-                   !assets.contains(where: { $0.id == id }) {
-                    Label("The selected image is missing.", systemImage: "exclamationmark.triangle")
-                        .font(.caption)
-                        .foregroundStyle(.orange)
+
+                Button("Pick") {
+                    chooseImageFromFinder()
                 }
+                .buttonStyle(.bordered)
+                .buttonSizing(.flexible)
+                .frame(maxWidth: .infinity)
+
+                Button("Clear") {
+                    setProperty(definition.defaultValue)
+                }
+                .buttonStyle(.bordered)
+                .buttonSizing(.flexible)
+                .frame(maxWidth: .infinity)
+                .disabled(displayComponent.propertyValue(definition.key) == definition.defaultValue)
             }
+            .frame(width: InspectorMetrics.labelWidth)
+            .gridColumnAlignment(.trailing)
+
+            imageWell
+                .gridColumnAlignment(.leading)
         }
+    }
+
+    private var imageWell: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 6)
+                .fill(.background)
+            if let previewImage {
+                Image(nsImage: previewImage)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .padding(6)
+            } else {
+                Image(systemName: "photo")
+                    .font(.title2)
+                    .foregroundStyle(.secondary)
+            }
+            RoundedRectangle(cornerRadius: 6)
+                .stroke(
+                    isImageDropTarget ? Color.accentColor : Color.secondary.opacity(0.35),
+                    lineWidth: isImageDropTarget ? 2 : 1
+                )
+        }
+        .frame(maxWidth: .infinity)
+        .frame(height: 120)
+        .contentShape(RoundedRectangle(cornerRadius: 6))
+        .dropDestination(for: URL.self) { urls, _ in
+            guard let asset = urls.lazy.compactMap(importImage).first else { return false }
+            setProperty(.url(asset.reference))
+            return true
+        } isTargeted: { isImageDropTarget = $0 }
+    }
+
+    private var previewImage: NSImage? {
+        let source = displayComponent.property(definition.key)
+        if let id = source.foundryAssetID,
+           let data = assetContents[id]?.data {
+            return NSImage(data: data)
+        }
+        guard !source.isEmpty,
+              let package = component.type.definition.package,
+              package.manifest.assetDeclaration(containing: source) != nil else { return nil }
+        return NSImage(contentsOf: package.resourceRootURL.appending(path: source))
+    }
+
+    private func chooseImageFromFinder() {
+        let panel = NSOpenPanel()
+        panel.title = "Choose Image"
+        panel.allowedContentTypes = [.image]
+        panel.canChooseDirectories = false
+        panel.allowsMultipleSelection = false
+        guard panel.runModal() == .OK,
+              let url = panel.url,
+              let asset = importImage(url) else { return }
+        setProperty(.url(asset.reference))
     }
 
     private func choiceOptions(_ declared: [ComponentPropertyChoice]) -> [ComponentPropertyChoice] {
@@ -1049,7 +1136,7 @@ private struct InspectorControlArrayItem: View {
                 accessibilityLabel: subtitle ?? "Choice",
                 help: help
             )
-        case .asset:
+        case .image:
             InspectorPopup(selection: assetBinding, options: [InspectorPopupOption(title: "None", value: nil)] + assets.map { .init(title: $0.filename, value: $0.id as UUID?) }, accessibilityLabel: subtitle ?? "Image", help: help)
         default:
             Text("Unsupported")

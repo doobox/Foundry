@@ -48,8 +48,9 @@ struct CanvasView: View {
     let editorOptions: CanvasEditorOptions
     let renderer: any PageRendering
     let canPasteComponent: Bool
+    let canClearImage: (UUID, ComponentProperty.Key) -> Bool
     let handleMessage: (CanvasMessage) -> Void
-    let handleContextMenuAction: (CanvasContextMenuAction, UUID) -> Void
+    let handleContextMenuAction: (CanvasContextMenuAction, UUID, ComponentProperty.Key?) -> Void
     @Binding var viewportWidth: Double
     @AppStorage(AppPreferenceKey.overridesCanvasBackground)
     private var overridesCanvasBackground = false
@@ -96,6 +97,7 @@ struct CanvasView: View {
                                         editorOptions: editorOptions,
                                         enablesWebInspector: enablesCanvasWebInspector,
                                         canPasteComponent: canPasteComponent,
+                                        canClearImage: canClearImage,
                                         handleMessage: handleMessage,
                                         handleContextMenuAction: handleContextMenuAction
                                     )

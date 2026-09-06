@@ -128,13 +128,15 @@ struct WebCanvasView: NSViewRepresentable {
     let editorOptions: CanvasEditorOptions
     let enablesWebInspector: Bool
     let canPasteComponent: Bool
+    let canClearImage: (UUID, ComponentProperty.Key) -> Bool
     let handleMessage: (CanvasMessage) -> Void
-    let handleContextMenuAction: (CanvasContextMenuAction, UUID) -> Void
+    let handleContextMenuAction: (CanvasContextMenuAction, UUID, ComponentProperty.Key?) -> Void
 
     func makeCoordinator() -> Coordinator {
         Coordinator(
             assets: assets,
             packages: packages,
+            canClearImage: canClearImage,
             handleMessage: handleMessage,
             handleContextMenuAction: handleContextMenuAction
         )
@@ -190,6 +192,7 @@ struct WebCanvasView: NSViewRepresentable {
         }
         context.coordinator.handleMessage = handleMessage
         context.coordinator.handleContextMenuAction = handleContextMenuAction
+        context.coordinator.canClearImage = canClearImage
         context.coordinator.canPasteComponent = canPasteComponent
         context.coordinator.selectedComponentIDs = selectedComponentIDs
         context.coordinator.selectedPrimitive = selectedPrimitive
@@ -688,7 +691,7 @@ struct WebCanvasView: NSViewRepresentable {
                 };
                 if (image) {
                   message.componentID = image.dataset.foundryId;
-                  message.propertyKey = imageZone.dataset.foundryImageProperty || 'source';
+                  message.propertyKey = imageZone.dataset.foundryImageProperty;
                 } else {
                   message.placement = { kind: target.kind, targetID: target.targetID, slotID: target.slotID };
                 }
@@ -707,7 +710,7 @@ struct WebCanvasView: NSViewRepresentable {
                 };
                 if (image) {
                   message.componentID = image.dataset.foundryId;
-                  message.propertyKey = imageZone.dataset.foundryImageProperty || 'source';
+                  message.propertyKey = imageZone.dataset.foundryImageProperty;
                 } else {
                   message.placement = { kind: target.kind, targetID: target.targetID, slotID: target.slotID };
                 }
@@ -746,7 +749,7 @@ struct WebCanvasView: NSViewRepresentable {
               if (image) {
                 delete message.placement;
                 message.componentID = image.dataset.foundryId;
-                message.propertyKey = imageZone.dataset.foundryImageProperty || 'source';
+                message.propertyKey = imageZone.dataset.foundryImageProperty;
               }
             } else {
               return;
@@ -809,9 +812,8 @@ struct WebCanvasView: NSViewRepresentable {
             if (!component) return;
             const editable = component.matches('[data-foundry-inline-property]')
               || component.querySelector('[data-foundry-inline-property]') !== null;
-            const imageZone = component.matches('[data-foundry-image-drop-zone]')
-              ? component
-              : component.querySelector('[data-foundry-image-drop-zone]');
+            const clickedImageZone = event.target.closest('[data-foundry-image-drop-zone]');
+            const imageZone = clickedImageZone?.closest(selector) === component ? clickedImageZone : null;
             window.webkit.messageHandlers.foundryCanvas.postMessage({
               version: 1,
               event: 'contextMenu',
@@ -822,6 +824,7 @@ struct WebCanvasView: NSViewRepresentable {
               componentVersion: component.dataset.foundryVersion,
               canEdit: editable,
               hasImage: imageZone?.tagName === 'IMG',
+              imageProperty: imageZone?.dataset.foundryImageProperty,
               preservesSelection: selectedComponentIDs.includes(component.dataset.foundryId)
             });
           }, true);
@@ -859,18 +862,22 @@ struct WebCanvasView: NSViewRepresentable {
         var selectedPrimitive: CanvasPrimitiveSelection?
         var editorOptions = CanvasEditorOptions()
         var canPasteComponent = false
+        var canClearImage: (UUID, ComponentProperty.Key) -> Bool
         var handleMessage: (CanvasMessage) -> Void
-        var handleContextMenuAction: (CanvasContextMenuAction, UUID) -> Void
+        var handleContextMenuAction: (CanvasContextMenuAction, UUID, ComponentProperty.Key?) -> Void
         private var contextMenuComponentID: UUID?
+        private var contextMenuImageProperty: ComponentProperty.Key?
         private var pendingCanvasSelection: Set<UUID>?
 
         init(
             assets: [UUID: ProjectAssetContent],
             packages: [String: LoadedComponentPackage],
+            canClearImage: @escaping (UUID, ComponentProperty.Key) -> Bool,
             handleMessage: @escaping (CanvasMessage) -> Void,
-            handleContextMenuAction: @escaping (CanvasContextMenuAction, UUID) -> Void
+            handleContextMenuAction: @escaping (CanvasContextMenuAction, UUID, ComponentProperty.Key?) -> Void
         ) {
             assetSchemeHandler = CanvasAssetSchemeHandler(assets: assets, packages: packages)
+            self.canClearImage = canClearImage
             self.handleMessage = handleMessage
             self.handleContextMenuAction = handleContextMenuAction
             super.init()
@@ -921,6 +928,7 @@ struct WebCanvasView: NSViewRepresentable {
                   let value = request["componentID"] as? String,
                   let componentID = UUID(uuidString: value) else { return }
             contextMenuComponentID = componentID
+            contextMenuImageProperty = (request["imageProperty"] as? String).map(ComponentProperty.Key.init(rawValue:))
             if request["preservesSelection"] as? Bool != true {
                 pendingCanvasSelection = [componentID]
                 handleMessage(.init(event: .selectComponent, componentID: componentID, extendsSelection: false))
@@ -930,13 +938,13 @@ struct WebCanvasView: NSViewRepresentable {
             menu.autoenablesItems = false
             menu.addItem(contextMenuHeader(for: request))
             menu.addItem(.separator())
-            if request["canEdit"] as? Bool == true {
-                menu.addItem(menuItem("Edit", action: #selector(editComponent), key: "\r", modifiers: []))
-                menu.addItem(.separator())
-            } else if request["componentTypeID"] as? String == ComponentType.image.rawValue {
+            if contextMenuImageProperty != nil {
                 let clear = menuItem("Clear", action: #selector(performContextAction(_:)), representedAction: .clearImage)
-                clear.isEnabled = request["hasImage"] as? Bool == true
+                clear.isEnabled = contextMenuImageProperty.map { canClearImage(componentID, $0) } ?? false
                 menu.addItem(clear)
+                menu.addItem(.separator())
+            } else if request["canEdit"] as? Bool == true {
+                menu.addItem(menuItem("Edit", action: #selector(editComponent), key: "\r", modifiers: []))
                 menu.addItem(.separator())
             }
             menu.addItem(menuItem("Duplicate", action: #selector(performContextAction(_:)), representedAction: .duplicate, key: "d"))
@@ -1035,7 +1043,7 @@ struct WebCanvasView: NSViewRepresentable {
             guard let contextMenuComponentID,
                   let rawValue = sender.representedObject as? String,
                   let action = CanvasContextMenuAction(rawValue: rawValue) else { return }
-            handleContextMenuAction(action, contextMenuComponentID)
+            handleContextMenuAction(action, contextMenuComponentID, contextMenuImageProperty)
         }
 
         func webView(_ webView: WKWebView, didFinish navigation: WKNavigation?) {

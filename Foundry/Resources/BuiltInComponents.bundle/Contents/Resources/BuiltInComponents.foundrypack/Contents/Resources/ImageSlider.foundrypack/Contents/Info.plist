@@ -9,6 +9,54 @@
     <key>customItems</key>
     <array>
         <dict>
+            <key>id</key><string>slide-1</string>
+            <key>labels</key><string>Slide 1 Image</string>
+            <key>group</key><string>Slides</string>
+            <key>type</key><string>image</string>
+        </dict>
+        <dict>
+            <key>id</key><string>slide-2</string>
+            <key>labels</key><string>Slide 2 Image</string>
+            <key>group</key><string>Slides</string>
+            <key>type</key><string>image</string>
+        </dict>
+        <dict>
+            <key>id</key><string>slide-3</string>
+            <key>labels</key><string>Slide 3 Image</string>
+            <key>group</key><string>Slides</string>
+            <key>type</key><string>image</string>
+        </dict>
+        <dict>
+            <key>id</key><string>slide-4</string>
+            <key>labels</key><string>Slide 4 Image</string>
+            <key>group</key><string>Slides</string>
+            <key>type</key><string>image</string>
+        </dict>
+        <dict>
+            <key>id</key><string>slide-5</string>
+            <key>labels</key><string>Slide 5 Image</string>
+            <key>group</key><string>Slides</string>
+            <key>type</key><string>image</string>
+        </dict>
+        <dict>
+            <key>id</key><string>slide-6</string>
+            <key>labels</key><string>Slide 6 Image</string>
+            <key>group</key><string>Slides</string>
+            <key>type</key><string>image</string>
+        </dict>
+        <dict>
+            <key>id</key><string>slide-7</string>
+            <key>labels</key><string>Slide 7 Image</string>
+            <key>group</key><string>Slides</string>
+            <key>type</key><string>image</string>
+        </dict>
+        <dict>
+            <key>id</key><string>slide-8</string>
+            <key>labels</key><string>Slide 8 Image</string>
+            <key>group</key><string>Slides</string>
+            <key>type</key><string>image</string>
+        </dict>
+        <dict>
             <key>id</key><string>slideCount</string>
             <key>labels</key><string>Number of Slides</string>
             <key>group</key><string>Slides</string>

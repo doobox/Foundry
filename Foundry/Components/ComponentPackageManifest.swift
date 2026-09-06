@@ -208,7 +208,7 @@ nonisolated struct ComponentPackageProperty: Codable, Equatable, Identifiable, S
             label = try container.decodeIfPresent(String.self, forKey: .labels) ?? ""
         }
 
-        if control.type == .divider || control.type == .info || control.type == .math {
+        if control.type == .divider || control.type == .info || control.type == .image || control.type == .math {
             defaultValue = try container.decodeIfPresent(ComponentPackageValue.self, forKey: .defaultValue) ?? .string("")
             responsive = try container.decodeIfPresent(Bool.self, forKey: .responsive) ?? false
         } else if control.type == .slider {
@@ -294,6 +294,7 @@ nonisolated struct ComponentPackageControl: Codable, Equatable, Sendable {
         case details
         case info
         case button
+        case image
         case math
     }
 
