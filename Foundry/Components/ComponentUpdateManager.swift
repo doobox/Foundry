@@ -45,20 +45,19 @@ final class ComponentUpdateManager {
         defer { isChecking = false }
         completedMessage = nil
         checkMessage = nil
-        let urls = updateablePackURLs()
+        let candidates = await Task.detached(priority: .utility) {
+            Self.updateablePacks()
+        }.value
         var found: [FoundryPackUpdater.AvailableUpdate] = []
         var failures: [String] = []
-        let urlsByPackID = Dictionary(grouping: urls) { url in
-            (try? FoundryPackLoader.load(from: url).identifier) ?? url.standardizedFileURL.path
-        }
+        let urlsByPackID = Dictionary(grouping: candidates, by: \.packID)
         let duplicatePackIDs = Set(urlsByPackID.compactMap { key, values in values.count > 1 ? key : nil })
         for packID in duplicatePackIDs.sorted() {
             failures.append("Multiple installed component packs use the id \(packID); none of them were checked.")
         }
-        let unambiguousURLs = urls.filter { url in
-            guard let packID = try? FoundryPackLoader.load(from: url).identifier else { return true }
-            return !duplicatePackIDs.contains(packID)
-        }
+        let unambiguousURLs = candidates
+            .filter { !duplicatePackIDs.contains($0.packID) }
+            .map(\.url)
         await withTaskGroup(of: CheckResult.self) { group in
             for url in unambiguousURLs {
                 group.addTask {
@@ -111,14 +110,15 @@ final class ComponentUpdateManager {
         return !items.isEmpty
     }
 
-    func install(id: String) async {
+    @discardableResult
+    func install(id: String, reloadCatalog: Bool = true) async -> Bool {
         guard !isChecking,
-              let item = items.first(where: { $0.id == id }) else { return }
+              let item = items.first(where: { $0.id == id }) else { return false }
         switch item.state {
         case .available, .failed:
             break
         case .updating, .installed:
-            return
+            return false
         }
         let update = item.update
         setState(.updating(0.1), for: id)
@@ -128,7 +128,9 @@ final class ComponentUpdateManager {
             }
             try Task.checkCancellation()
             setState(.installed, for: id)
-            ComponentPackageCatalog.shared.reloadAllPacks()
+            if reloadCatalog {
+                ComponentPackageCatalog.shared.reloadAllPacks()
+            }
         } catch is CancellationError {
             setState(.available, for: id)
             checkMessage = "The component update was cancelled."
@@ -136,6 +138,9 @@ final class ComponentUpdateManager {
             setState(.failed(error.localizedDescription), for: id)
         }
         updateCompletionMessage()
+        return items.first(where: { $0.id == id }).map {
+            if case .installed = $0.state { true } else { false }
+        } ?? false
     }
 
     func installAll() async {
@@ -144,8 +149,22 @@ final class ComponentUpdateManager {
             if case .failed = item.state { return item.id }
             return nil
         }
-        await withTaskGroup(of: Void.self) { group in
-            for id in ids { group.addTask { await self.install(id: id) } }
+        var installedAny = false
+        await withTaskGroup(of: Bool.self) { group in
+            var iterator = ids.makeIterator()
+            for _ in 0..<min(4, ids.count) {
+                guard let id = iterator.next() else { break }
+                group.addTask { await self.install(id: id, reloadCatalog: false) }
+            }
+            for await installed in group {
+                installedAny = installedAny || installed
+                if let id = iterator.next() {
+                    group.addTask { await self.install(id: id, reloadCatalog: false) }
+                }
+            }
+        }
+        if installedAny {
+            ComponentPackageCatalog.shared.reloadAllPacks()
         }
     }
 
@@ -173,9 +192,20 @@ final class ComponentUpdateManager {
         case cancelled
     }
 
-    private func updateablePackURLs() -> [URL] {
+    private nonisolated struct UpdateablePack: Sendable {
+        let url: URL
+        let packID: String
+    }
+
+    private nonisolated static func updateablePacks() -> [UpdateablePack] {
         guard let root = try? FoundryPackLoader.installedPacksURL() else { return [] }
-        return FoundryPackLoader.packURLs(in: root)
-            .filter { (try? FoundryPackLoader.load(from: $0).metadata.updates) != nil }
+        return FoundryPackLoader.packURLs(in: root).compactMap { url in
+            guard let pack = try? FoundryPackLoader.load(from: url),
+                  pack.metadata.updates != nil else { return nil }
+            return UpdateablePack(
+                url: url,
+                packID: pack.identifier ?? url.standardizedFileURL.path
+            )
+        }
     }
 }

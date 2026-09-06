@@ -17,6 +17,24 @@ nonisolated enum ComponentRegistry {
         packageDefinitions.withLock { $0[definition.type] = definition }
     }
 
+    static func replacePackages(_ packages: [LoadedComponentPackage]) {
+        let definitions = Dictionary(
+            packages.map(ComponentPackageAdapter.definition).map { ($0.type, $0) },
+            uniquingKeysWith: { _, latest in latest }
+        )
+        packageDefinitions.withLock { $0 = definitions }
+    }
+
+    static func replacePackage(_ package: LoadedComponentPackage, removing identifiers: [String]) {
+        let definition = ComponentPackageAdapter.definition(from: package)
+        packageDefinitions.withLock { definitions in
+            for identifier in identifiers {
+                definitions.removeValue(forKey: ComponentType(rawValue: identifier))
+            }
+            definitions[definition.type] = definition
+        }
+    }
+
     static func unregisterPackage(identifier: String) {
         _ = packageDefinitions.withLock { $0.removeValue(forKey: ComponentType(rawValue: identifier)) }
     }

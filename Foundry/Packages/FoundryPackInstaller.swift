@@ -3,7 +3,14 @@ import Foundation
 
 @MainActor
 enum FoundryPackInstaller {
-    static func install(from sourceURL: URL) throws {
+    static func install(from sourceURL: URL, reloadCatalog: Bool = true) throws {
+        try installFiles(from: sourceURL)
+        if reloadCatalog {
+            ComponentPackageCatalog.shared.reloadInstalledPacks()
+        }
+    }
+
+    nonisolated static func installFiles(from sourceURL: URL) throws {
         let packURLs = FoundryPackLoader.packURLs(in: sourceURL, includingRoot: true)
         guard !packURLs.isEmpty else { throw FoundryPackLoadingError.wrongExtension }
         for url in packURLs {
@@ -46,7 +53,6 @@ enum FoundryPackInstaller {
             }
         }
 
-        ComponentPackageCatalog.shared.reloadInstalledPacks()
     }
 }
 

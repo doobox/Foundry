@@ -7,6 +7,12 @@ import Observation
 final class ComponentPackageCatalog {
     static let shared = ComponentPackageCatalog()
 
+    enum Phase: Equatable {
+        case initialLoading
+        case ready
+        case reloading
+    }
+
     private(set) var revision = 0
     private(set) var diagnostics: [URL: [ComponentPackageDiagnostic]] = [:]
     private(set) var packages: [String: LoadedComponentPackage] = [:]
@@ -14,11 +20,16 @@ final class ComponentPackageCatalog {
     private var dirtyDevelopmentRoots: Set<URL> = []
     private var applicationActiveObserver: NSObjectProtocol?
     private var loadingTask: Task<Void, Never>?
-    private(set) var isLoading = false
+    private var loadGeneration: UInt64 = 0
+    private var reloadGenerations: [URL: UInt64] = [:]
+    private(set) var phase = Phase.initialLoading
+
+    var isInitialLoading: Bool { phase == .initialLoading }
+
+    var isLoading: Bool { phase != .ready }
 
     private init() {
-        loadBundledComponents()
-        loadInstalledComponents()
+        reloadCompleteCatalog(initial: true)
         applicationActiveObserver = NotificationCenter.default.addObserver(
             forName: NSApplication.didBecomeActiveNotification,
             object: nil,
@@ -28,61 +39,55 @@ final class ComponentPackageCatalog {
         }
     }
 
-    private func loadBundledComponents() {
-        guard let bundleURL = Bundle.main.url(forResource: "BuiltInComponents", withExtension: "bundle"),
-              let componentBundle = Bundle(url: bundleURL),
-              let resourcesURL = componentBundle.resourceURL else { return }
-        let containerURL = componentBundle.url(
-            forResource: "BuiltInComponents",
-            withExtension: "foundrypack"
-        ) ?? resourcesURL.appending(
-            path: "BuiltInComponents.foundrypack",
-            directoryHint: .isDirectory
-        )
-        let packageURLs = FoundryPackLoader.packURLs(in: containerURL, includingRoot: true)
-        loadComponentPacks(at: packageURLs)
-        reconcileRegisteredPackages(under: containerURL, discoveredAt: packageURLs)
-    }
-
-    private func loadInstalledComponents() {
-        guard let root = try? FoundryPackLoader.installedPacksURL() else { return }
-        let installedURLs = FoundryPackLoader.packURLs(in: root)
-        var discoveredURLs = Set(installedURLs.map(\.standardizedFileURL))
-        var developmentRoots = Set<URL>()
-        var componentURLs: [URL] = []
-        for url in installedURLs {
-            if url.pathExtension.lowercased() == "foundrydevpack" {
-                let rootURL = url.standardizedFileURL
-                developmentRoots.insert(rootURL)
-                discoveredURLs.formUnion(
-                    FoundryPackLoader.packURLs(in: rootURL, includingRoot: true).map(\.standardizedFileURL)
-                )
-                openDevelopmentPack(at: url)
-                continue
-            }
-            componentURLs.append(url)
-        }
-        loadComponentPacks(at: componentURLs)
-        reconcileRegisteredPackages(under: root, discoveredAt: Array(discoveredURLs))
-        removeMissingDevelopmentWatchers(under: root, discoveredRoots: developmentRoots)
-    }
-
-    private func loadComponentPacks(at urls: [URL], allowsReplacement: Bool = false) {
-        guard !urls.isEmpty else { return }
-        let urls = urls.map(\.standardizedFileURL)
-        let previousTask = loadingTask
-        isLoading = true
+    private func reloadCompleteCatalog(initial: Bool = false) {
+        loadGeneration &+= 1
+        let generation = loadGeneration
+        reloadGenerations.removeAll()
+        loadingTask?.cancel()
+        phase = initial ? .initialLoading : .reloading
         loadingTask = Task { [weak self] in
-            _ = await previousTask?.value
-            guard !Task.isCancelled else { return }
-            let outcomes = await Task.detached(priority: .utility) {
-                urls.map(ComponentPackageLoadOutcome.load)
+            let snapshot = await Task.detached(priority: .utility) {
+                await ComponentCatalogSnapshot.load()
             }.value
-            guard !Task.isCancelled, let self else { return }
-            for outcome in outcomes {
+            guard !Task.isCancelled, let self, generation == loadGeneration else { return }
+            publish(snapshot)
+        }
+    }
+
+    private func publish(_ snapshot: ComponentCatalogSnapshot) {
+        packages = snapshot.packages
+        diagnostics = snapshot.diagnostics
+        ComponentRegistry.replacePackages(Array(snapshot.packages.values))
+        Task { await ComponentIconLoader.shared.removeAll() }
+        configureDevelopmentWatchers(snapshot.developmentRoots, installedRoot: snapshot.installedRoot)
+        phase = .ready
+        revision += 1
+    }
+
+    private func reloadComponentPacks(under rootURL: URL, allowsReplacement: Bool = false) {
+        let rootURL = rootURL.standardizedFileURL
+        let initialLoadTask = phase == .initialLoading ? loadingTask : nil
+        if phase == .reloading {
+            loadingTask?.cancel()
+            loadGeneration &+= 1
+            phase = .ready
+        }
+        let generation = (reloadGenerations[rootURL] ?? 0) &+ 1
+        reloadGenerations[rootURL] = generation
+        Task { [weak self] in
+            _ = await initialLoadTask?.value
+            let result = await Task.detached(priority: .utility) {
+                let urls = FoundryPackLoader.packURLs(in: rootURL, includingRoot: true)
+                    .map(\.standardizedFileURL)
+                return (urls, await ComponentCatalogSnapshot.loadOutcomes(urls))
+            }.value
+            guard !Task.isCancelled,
+                  let self,
+                  reloadGenerations[rootURL] == generation else { return }
+            for outcome in result.1 {
                 apply(outcome, allowsReplacement: allowsReplacement)
             }
-            isLoading = false
+            reconcileRegisteredPackages(under: rootURL, discoveredAt: result.0)
         }
     }
 
@@ -108,16 +113,20 @@ final class ComponentPackageCatalog {
                 revision += 1
                 return
             }
-            removeRegisteredPackages(at: url)
+            let replacedIdentifiers = packages.compactMap { identifier, existingPackage in
+                existingPackage.rootURL.standardizedFileURL == url ? identifier : nil
+            }
+            for identifier in replacedIdentifiers {
+                packages.removeValue(forKey: identifier)
+            }
             packages[package.manifest.identifier] = package
             diagnostics[url] = ComponentPackageValidator.validate(
                 package.manifest,
                 rootURL: package.resourceRootURL
             )
-            ComponentRegistry.register(package)
+            ComponentRegistry.replacePackage(package, removing: replacedIdentifiers)
             revision += 1
         } else if !outcome.diagnostics.isEmpty {
-            removeRegisteredPackages(at: url)
             diagnostics[url] = outcome.diagnostics
             revision += 1
         } else if diagnostics.removeValue(forKey: url) != nil {
@@ -168,15 +177,11 @@ final class ComponentPackageCatalog {
     }
 
     func reloadInstalledPacks() {
-        loadInstalledComponents()
+        reloadCompleteCatalog()
     }
 
     func reloadAllPacks() {
-        loadBundledComponents()
-        loadInstalledComponents()
-        for rootURL in Array(developmentWatchers.keys) {
-            reloadDevelopmentPack(at: rootURL)
-        }
+        reloadCompleteCatalog()
     }
 
     func waitUntilLoaded() async {
@@ -245,11 +250,24 @@ final class ComponentPackageCatalog {
     func openDevelopmentPack(at rootURL: URL) {
         let rootURL = rootURL.standardizedFileURL
         reloadDevelopmentPack(at: rootURL)
+        watchDevelopmentPack(at: rootURL)
+    }
+
+    private func watchDevelopmentPack(at rootURL: URL) {
         guard developmentWatchers[rootURL] == nil else { return }
         developmentWatchers[rootURL] = FoundryDevelopmentPackWatcher(rootURL: rootURL) { [weak self] in
             Task { @MainActor [weak self] in
                 self?.dirtyDevelopmentRoots.insert(rootURL)
             }
+        }
+    }
+
+    private func configureDevelopmentWatchers(_ roots: Set<URL>, installedRoot: URL?) {
+        if let installedRoot {
+            removeMissingDevelopmentWatchers(under: installedRoot, discoveredRoots: roots)
+        }
+        for root in roots {
+            watchDevelopmentPack(at: root)
         }
     }
 
@@ -263,10 +281,91 @@ final class ComponentPackageCatalog {
     }
 
     private func reloadDevelopmentPack(at rootURL: URL) {
-        loadComponentPacks(
-            at: FoundryPackLoader.packURLs(in: rootURL, includingRoot: true),
-            allowsReplacement: true
+        reloadComponentPacks(under: rootURL, allowsReplacement: true)
+    }
+}
+
+private struct ComponentCatalogSnapshot: Sendable {
+    let packages: [String: LoadedComponentPackage]
+    let diagnostics: [URL: [ComponentPackageDiagnostic]]
+    let developmentRoots: Set<URL>
+    let installedRoot: URL?
+
+    nonisolated static func load() async -> ComponentCatalogSnapshot {
+        var urls: [URL] = []
+        if let bundleURL = Bundle.main.url(forResource: "BuiltInComponents", withExtension: "bundle"),
+           let componentBundle = Bundle(url: bundleURL),
+           let resourcesURL = componentBundle.resourceURL {
+            let containerURL = componentBundle.url(
+                forResource: "BuiltInComponents",
+                withExtension: "foundrypack"
+            ) ?? resourcesURL.appending(
+                path: "BuiltInComponents.foundrypack",
+                directoryHint: .isDirectory
+            )
+            urls.append(contentsOf: FoundryPackLoader.packURLs(in: containerURL, includingRoot: true))
+        }
+
+        let installedRoot = try? FoundryPackLoader.installedPacksURL()
+        let installedURLs = installedRoot.map { FoundryPackLoader.packURLs(in: $0) } ?? []
+        urls.append(contentsOf: installedURLs)
+        let developmentRoots = Set(installedURLs.compactMap { url in
+            url.pathExtension.lowercased() == "foundrydevpack" ? url.standardizedFileURL : nil
+        })
+
+        let outcomes = await loadOutcomes(urls.map(\.standardizedFileURL))
+        var packages: [String: LoadedComponentPackage] = [:]
+        var diagnostics: [URL: [ComponentPackageDiagnostic]] = [:]
+        for outcome in outcomes {
+            let url = outcome.url.standardizedFileURL
+            guard let package = outcome.package else {
+                if !outcome.diagnostics.isEmpty {
+                    diagnostics[url] = outcome.diagnostics
+                }
+                continue
+            }
+            let identifier = package.manifest.identifier
+            if let previous = packages[identifier], previous.rootURL.standardizedFileURL != url {
+                diagnostics[url] = [.init(
+                    severity: .error,
+                    location: "Info.plist:id",
+                    message: "Another installed package already uses '\(identifier)'."
+                )]
+                continue
+            }
+            packages[identifier] = package
+            diagnostics[url] = ComponentPackageValidator.validate(
+                package.manifest,
+                rootURL: package.resourceRootURL
+            )
+        }
+        return ComponentCatalogSnapshot(
+            packages: packages,
+            diagnostics: diagnostics,
+            developmentRoots: developmentRoots,
+            installedRoot: installedRoot
         )
+    }
+
+    fileprivate nonisolated static func loadOutcomes(_ urls: [URL]) async -> [ComponentPackageLoadOutcome] {
+        guard !urls.isEmpty else { return [] }
+        var results = Array<ComponentPackageLoadOutcome?>(repeating: nil, count: urls.count)
+        await withTaskGroup(of: (Int, ComponentPackageLoadOutcome).self) { group in
+            let concurrentLoadCount = min(4, urls.count)
+            for index in 0..<concurrentLoadCount {
+                group.addTask { (index, ComponentPackageLoadOutcome.load(from: urls[index])) }
+            }
+            var nextIndex = concurrentLoadCount
+            for await (index, outcome) in group {
+                results[index] = outcome
+                if nextIndex < urls.count {
+                    let index = nextIndex
+                    nextIndex += 1
+                    group.addTask { (index, ComponentPackageLoadOutcome.load(from: urls[index])) }
+                }
+            }
+        }
+        return results.compactMap { $0 }
     }
 }
 

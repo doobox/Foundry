@@ -43,6 +43,7 @@ struct CanvasView: View {
     let assets: [UUID: ProjectAssetContent]
     let assetRevision: UInt64
     let componentPackageRevision: Int
+    let isComponentCatalogReady: Bool
     let selectedComponentIDs: Set<UUID>
     let selectedPrimitive: CanvasPrimitiveSelection?
     let editorOptions: CanvasEditorOptions
@@ -68,7 +69,10 @@ struct CanvasView: View {
 
     var body: some View {
         GeometryReader { geometry in
-            if let page {
+            if !isComponentCatalogReady {
+                ComponentCatalogLoadingView()
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if let page {
                 let availableWidth = visibleCanvasWidth > 0
                     ? min(geometry.size.width, visibleCanvasWidth)
                     : geometry.size.width
@@ -249,6 +253,20 @@ struct CanvasView: View {
             .frame(width: resizeEdgeHitTargetWidth)
             .frame(maxHeight: .infinity)
             .zIndex(2)
+    }
+}
+
+struct ComponentCatalogLoadingView: View {
+    var body: some View {
+        VStack(spacing: 10) {
+            ProgressView()
+                .controlSize(.small)
+            Text("Loading components…")
+                .font(.callout)
+                .foregroundStyle(.secondary)
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Loading components")
     }
 }
 

@@ -120,77 +120,82 @@ struct ComponentLibraryPanel: View {
                 setArrangement: { arrangementValue = $0.rawValue }
             )
             Divider()
-            if hasDevelopmentComponents {
-                Picker("Component source", selection: $componentSource) {
-                    ForEach(ComponentLibrarySource.allCases) { source in
-                        Text(source.title).tag(source)
+            if catalog.isInitialLoading {
+                ComponentCatalogLoadingView()
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                if hasDevelopmentComponents {
+                    Picker("Component source", selection: $componentSource) {
+                        ForEach(ComponentLibrarySource.allCases) { source in
+                            Text(source.title).tag(source)
+                        }
                     }
+                    .buttonSizing(.flexible)
+                    .pickerStyle(.palette)
+                    .controlSize(.small)
+                    .labelsHidden()
+                    .padding(12)
+
+                    Divider()
                 }
-                .buttonSizing(.flexible)
-                .pickerStyle(.palette)
-                .controlSize(.small)
-                .labelsHidden()
-                .padding(12)
+                ScrollView {
+                    LazyVStack(alignment: .leading, spacing: 18) {
+                        ForEach(componentSections) { section in
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text(section.title)
+                                    .font(.subheadline.weight(.semibold))
+                                    .foregroundStyle(.secondary)
 
-                Divider()
-            }
-            ScrollView {
-                LazyVStack(alignment: .leading, spacing: 18) {
-                    ForEach(componentSections) { section in
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text(section.title)
-                                .font(.subheadline.weight(.semibold))
-                                .foregroundStyle(.secondary)
+                                Divider()
 
-                            Divider()
-
-                            LazyVGrid(
-                                columns: [GridItem(
-                                    .adaptive(
-                                        minimum: iconSize.gridMinimumWidth,
-                                        maximum: .infinity
-                                    ),
-                                    spacing: 0,
-                                    alignment: .center
-                                )],
-                                alignment: .center,
-                                spacing: 10
-                            ) {
-                                ForEach(section.types) { type in
-                                    ComponentLibraryTile(
-                                        type: type,
-                                        iconSize: iconSize,
-                                        isSelected: selectedType == type,
-                                        select: { selectedType = type }
-                                    )
-                                    .draggable(ComponentDragPayload.library(type).stringValue) {
-                                        ComponentLibraryIcon(type: type, size: 54)
-                                    }
-                                    .contextMenu {
-                                        Button("Add to Page End", systemImage: "plus") {
-                                            addToPageEnd(type)
+                                LazyVGrid(
+                                    columns: [GridItem(
+                                        .adaptive(
+                                            minimum: iconSize.gridMinimumWidth,
+                                            maximum: .infinity
+                                        ),
+                                        spacing: 0,
+                                        alignment: .center
+                                    )],
+                                    alignment: .center,
+                                    spacing: 10
+                                ) {
+                                    ForEach(section.types) { type in
+                                        ComponentLibraryTile(
+                                            type: type,
+                                            iconSize: iconSize,
+                                            isSelected: selectedType == type,
+                                            select: { selectedType = type }
+                                        )
+                                        .draggable(ComponentDragPayload.library(type).stringValue) {
+                                            ComponentLibraryIcon(type: type, size: 54)
                                         }
-                                        if let packageURL = type.definition.package?.rootURL {
-                                            Divider()
-                                            Button(
-                                                "Show in Finder",
-                                                systemImage: "macwindow.and.pointer.arrow"
-                                            ) {
-                                                NSWorkspace.shared.activateFileViewerSelecting([packageURL])
+                                        .contextMenu {
+                                            Button("Add to Page End", systemImage: "plus") {
+                                                addToPageEnd(type)
+                                            }
+                                            if let packageURL = type.definition.package?.rootURL {
+                                                Divider()
+                                                Button(
+                                                    "Show in Finder",
+                                                    systemImage: "macwindow.and.pointer.arrow"
+                                                ) {
+                                                    NSWorkspace.shared.activateFileViewerSelecting([packageURL])
+                                                }
                                             }
                                         }
-                                    }
-                                    .accessibilityAction(named: "Add to Page End") {
-                                        addToPageEnd(type)
+                                        .accessibilityAction(named: "Add to Page End") {
+                                            addToPageEnd(type)
+                                        }
                                     }
                                 }
                             }
                         }
                     }
+                    .padding(10)
                 }
-                .padding(10)
+                .frame(maxHeight: .infinity)
             }
-            .frame(maxHeight: .infinity)
 
         }
         .onChange(of: catalog.revision, initial: true) {

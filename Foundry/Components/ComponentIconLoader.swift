@@ -24,4 +24,8 @@ actor ComponentIconLoader {
     func removeIcon(at sourceURL: URL) {
         cache.removeValue(forKey: sourceURL.standardizedFileURL)
     }
+
+    func removeAll() {
+        cache.removeAll()
+    }
 }

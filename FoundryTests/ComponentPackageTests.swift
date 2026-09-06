@@ -1993,8 +1993,11 @@ struct ComponentPackageTests {
     }
 
     @Test @MainActor
-    func builtInsAreLoadedAsPublicComponentPackages() throws {
+    func builtInsAreLoadedAsPublicComponentPackages() async throws {
         let catalog = ComponentPackageCatalog.shared
+        await catalog.waitUntilLoaded()
+        #expect(catalog.phase == .ready)
+        #expect(!catalog.isInitialLoading)
         let bundledPackages = catalog.packages.values.filter {
             $0.rootURL.path.contains("BuiltInComponents.bundle")
         }

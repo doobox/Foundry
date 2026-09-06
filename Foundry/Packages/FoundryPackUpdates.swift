@@ -608,7 +608,9 @@ enum FoundryPackUpdater {
     }
 
     static func check(for sourceURL: URL) async throws -> AvailableUpdate {
-        let installedPack = try FoundryPackLoader.load(from: sourceURL)
+        let installedPack = try await Task.detached(priority: .utility) {
+            try FoundryPackLoader.load(from: sourceURL)
+        }.value
         guard let packID = installedPack.identifier,
               let currentVersion = installedPack.metadata.version,
               let configuration = installedPack.metadata.updates else {
@@ -641,7 +643,9 @@ enum FoundryPackUpdater {
         progress: @MainActor (Double) -> Void = { _ in }
     ) async throws -> String {
         progress(0.05)
-        let installedPack = try FoundryPackLoader.load(from: sourceURL)
+        let installedPack = try await Task.detached(priority: .utility) {
+            try FoundryPackLoader.load(from: sourceURL)
+        }.value
         guard let packID = installedPack.identifier,
               let currentVersion = installedPack.metadata.version,
               let configuration = installedPack.metadata.updates else {
@@ -670,6 +674,26 @@ enum FoundryPackUpdater {
         try FoundryPackUpdateVerifier.verify(archiveData, release: release, publicKey: configuration.publicKey)
         progress(0.75)
 
+        try await Task.detached(priority: .utility) {
+            try installArchive(
+                archiveData,
+                sourceURL: sourceURL,
+                packID: packID,
+                release: release,
+                publicKey: configuration.publicKey
+            )
+        }.value
+        progress(1)
+        return release.version
+    }
+
+    private nonisolated static func installArchive(
+        _ archiveData: Data,
+        sourceURL: URL,
+        packID: String,
+        release: FoundryPackAppcast.Release,
+        publicKey: String
+    ) throws {
         let temporaryRoot = FileManager.default.temporaryDirectory.appending(
             path: "Foundry-Update-\(UUID().uuidString)",
             directoryHint: .isDirectory
@@ -681,7 +705,6 @@ enum FoundryPackUpdater {
         try archiveData.write(to: archiveURL, options: .atomic)
         try FileManager.default.createDirectory(at: extractionURL, withIntermediateDirectories: true)
         try extract(archiveURL, to: extractionURL)
-        progress(0.88)
 
         let candidates = FoundryPackLoader.packURLs(in: extractionURL)
             .filter { $0.pathExtension.lowercased() == "foundrypack" }
@@ -698,7 +721,7 @@ enum FoundryPackUpdater {
         guard downloadedPack.metadata.version == release.version else {
             throw FoundryPackUpdateError.invalidMetadata("The downloaded pack version does not match the appcast release.")
         }
-        guard downloadedPack.metadata.updates?.publicKey == configuration.publicKey else {
+        guard downloadedPack.metadata.updates?.publicKey == publicKey else {
             throw FoundryPackUpdateError.invalidSignature
         }
 
@@ -706,9 +729,7 @@ enum FoundryPackUpdater {
         if candidate != installURL {
             try FileManager.default.moveItem(at: candidate, to: installURL)
         }
-        try FoundryPackInstaller.install(from: installURL)
-        progress(1)
-        return release.version
+        try FoundryPackInstaller.installFiles(from: installURL)
     }
 
     private static func fetchFreshData(from url: URL) async throws -> (Data, URLResponse) {
@@ -727,7 +748,7 @@ enum FoundryPackUpdater {
         }
     }
 
-    private static func extract(_ archiveURL: URL, to destinationURL: URL) throws {
+    private nonisolated static func extract(_ archiveURL: URL, to destinationURL: URL) throws {
         let process = Process()
         let pipe = Pipe()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/ditto")
@@ -741,7 +762,7 @@ enum FoundryPackUpdater {
         }
     }
 
-    private static func candidatesParentIsPack(_ url: URL, inside root: URL) -> Bool {
+    private nonisolated static func candidatesParentIsPack(_ url: URL, inside root: URL) -> Bool {
         var parent = url.deletingLastPathComponent()
         while parent.standardizedFileURL != root.standardizedFileURL && parent.path != "/" {
             if FoundryPackLoader.isPackURL(parent) { return true }

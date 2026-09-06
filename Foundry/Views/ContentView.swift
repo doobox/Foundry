@@ -418,6 +418,7 @@ struct ContentView: View {
                 assets: document.assetContents,
                 assetRevision: document.assetRevision,
                 componentPackageRevision: componentCatalog.revision,
+                isComponentCatalogReady: !componentCatalog.isInitialLoading,
                 selectedComponentIDs: selectedComponentIDs,
                 selectedPrimitive: selectedPrimitive,
                 editorOptions: canvasEditorOptions,
@@ -429,32 +430,38 @@ struct ContentView: View {
                 viewportWidth: $canvasViewportWidth
             )
         case .inspector:
-            InspectorView(
-                page: inspectedPage,
-                folder: selectedPageFolder,
-                asset: selectedPageAsset,
-                assetLibraryNode: selectedAssetLibraryNode,
-                assetLibrary: document.site.assetLibrary,
-                assetContents: document.assetContents,
-                folders: document.site.pageFolders,
-                pages: document.site.pages,
-                publicURL: document.site.publicURL,
-                component: selectedComponent,
-                componentSelectionCount: selectedComponentIDs.count,
-                libraryComponentType: selectedLibraryComponentType,
-                theme: document.site.theme,
-                assets: document.site.assets,
-                editor: editor,
-                reusableDefinition: selectedReusableDefinition,
-                isGlobalOverride: selectedGlobalContext?.isOverridden == true,
-                setGlobalOverride: setSelectedGlobalOverride,
-                breakpoint: activeCanvasBreakpoint,
-                assetUsageCount: assetUsageCount,
-                renameAsset: { document.renameAsset(id: $0, filename: $1, undoManager: undoManager) },
-                renameAssetFolder: { document.renameAssetFolder(id: $0, name: $1, undoManager: undoManager) },
-                importImage: importImageAsset,
-                editsSharedDefinition: $editsSharedReusableDefinition
-            )
+            if componentCatalog.isInitialLoading,
+               selectedComponent != nil || selectedLibraryComponentType != nil {
+                ComponentCatalogLoadingView()
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                InspectorView(
+                    page: inspectedPage,
+                    folder: selectedPageFolder,
+                    asset: selectedPageAsset,
+                    assetLibraryNode: selectedAssetLibraryNode,
+                    assetLibrary: document.site.assetLibrary,
+                    assetContents: document.assetContents,
+                    folders: document.site.pageFolders,
+                    pages: document.site.pages,
+                    publicURL: document.site.publicURL,
+                    component: selectedComponent,
+                    componentSelectionCount: selectedComponentIDs.count,
+                    libraryComponentType: selectedLibraryComponentType,
+                    theme: document.site.theme,
+                    assets: document.site.assets,
+                    editor: editor,
+                    reusableDefinition: selectedReusableDefinition,
+                    isGlobalOverride: selectedGlobalContext?.isOverridden == true,
+                    setGlobalOverride: setSelectedGlobalOverride,
+                    breakpoint: activeCanvasBreakpoint,
+                    assetUsageCount: assetUsageCount,
+                    renameAsset: { document.renameAsset(id: $0, filename: $1, undoManager: undoManager) },
+                    renameAssetFolder: { document.renameAssetFolder(id: $0, name: $1, undoManager: undoManager) },
+                    importImage: importImageAsset,
+                    editsSharedDefinition: $editsSharedReusableDefinition
+                )
+            }
         }
     }
 
