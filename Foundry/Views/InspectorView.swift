@@ -685,7 +685,7 @@ private struct ComponentInspector: View {
     private var componentIdentityHeader: some View {
         HStack(spacing: 12) {
             Group {
-                if let icon = loadedComponentIcon {
+                if let icon = displayedComponentIcon {
                     Image(nsImage: icon)
                         .resizable()
                         .scaledToFit()
@@ -715,7 +715,17 @@ private struct ComponentInspector: View {
                 loadedComponentIcon = nil
                 return
             }
+            if let cached = ComponentIconLoader.cachedIcon(at: url) {
+                loadedComponentIcon = cached.image
+                return
+            }
             loadedComponentIcon = await ComponentIconLoader.shared.icon(at: url)?.image
+        }
+    }
+
+    private var displayedComponentIcon: NSImage? {
+        loadedComponentIcon ?? (component.type.definition.package?.iconURL).flatMap {
+            ComponentIconLoader.cachedIcon(at: $0)?.image
         }
     }
 

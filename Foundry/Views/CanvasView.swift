@@ -257,16 +257,24 @@ struct CanvasView: View {
 }
 
 struct ComponentCatalogLoadingView: View {
+    @State private var catalog = ComponentPackageCatalog.shared
+
     var body: some View {
         VStack(spacing: 10) {
-            ProgressView()
-                .controlSize(.small)
-            Text("Loading components…")
+            ProgressView(value: catalog.loadingProgress)
+                .progressViewStyle(.linear)
+                .frame(width: 180)
+            Text(loadingDescription)
                 .font(.callout)
                 .foregroundStyle(.secondary)
         }
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("Loading components")
+        .accessibilityLabel(loadingDescription)
+    }
+
+    private var loadingDescription: String {
+        guard catalog.totalPackageCount > 0 else { return "Finding components…" }
+        return "Loading components… \(catalog.loadedPackageCount) of \(catalog.totalPackageCount)"
     }
 }
 

@@ -1023,9 +1023,13 @@ struct WebCanvasView: NSViewRepresentable {
             icon.setAccessibilityLabel(title)
             icon.translatesAutoresizingMaskIntoConstraints = false
             if let iconURL {
-                Task { [weak icon] in
-                    guard let image = await ComponentIconLoader.shared.icon(at: iconURL)?.image else { return }
-                    icon?.image = image
+                if let cached = ComponentIconLoader.cachedIcon(at: iconURL) {
+                    icon.image = cached.image
+                } else {
+                    Task { [weak icon] in
+                        guard let image = await ComponentIconLoader.shared.icon(at: iconURL)?.image else { return }
+                        icon?.image = image
+                    }
                 }
             }
 

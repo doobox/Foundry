@@ -2065,7 +2065,7 @@ struct ComponentPackageTests {
     }
 
     @Test @MainActor
-    func realisticFiveHundredComponentCatalogLoadTime() async throws {
+    func installedStressComponentCatalogLoadTime() async throws {
         let installedRoot = try FoundryPackLoader.installedPacksURL()
         let stressPackURL = installedRoot.appending(
             path: "FoundryStressTest.foundrypack",
@@ -2075,6 +2075,9 @@ struct ComponentPackageTests {
             print("Stress benchmark skipped because FoundryStressTest.foundrypack is not installed.")
             return
         }
+        let expectedCount = FoundryPackLoader.packURLs(in: stressPackURL, includingRoot: true)
+            .filter { $0.pathExtension.lowercased() == "foundrypack" }
+            .count - 1
 
         let clock = ContinuousClock()
         let start = clock.now
@@ -2087,8 +2090,8 @@ struct ComponentPackageTests {
         }.count
 
         print("Loaded and published \(loadedCount) stress components in \(elapsed).")
-        #expect(loadedCount == 500)
-        #expect(elapsed < .seconds(10), "A 500-component catalog reload should complete within 10 seconds.")
+        #expect(loadedCount == expectedCount)
+        #expect(elapsed < .seconds(10), "The installed stress catalog should reload within 10 seconds.")
     }
 
     @Test @MainActor
@@ -2640,6 +2643,24 @@ struct ComponentPackageTests {
         )
 
         #expect(diagnostics.contains { $0.location == "icon.svg" && $0.message.contains("64 KiB") })
+    }
+
+    @Test
+    func decodedComponentIconIsSynchronouslyReusable() async throws {
+        let iconURL = FileManager.default.temporaryDirectory
+            .appending(path: "Foundry-Icon-Cache-\(UUID().uuidString).svg")
+        defer { try? FileManager.default.removeItem(at: iconURL) }
+        try Data(
+            "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\"><rect width=\"24\" height=\"24\"/></svg>".utf8
+        ).write(to: iconURL)
+
+        #expect(ComponentIconLoader.cachedIcon(at: iconURL) == nil)
+        let loaded = await ComponentIconLoader.shared.icon(at: iconURL)
+        #expect(loaded != nil)
+        #expect(ComponentIconLoader.cachedIcon(at: iconURL) != nil)
+
+        await ComponentIconLoader.shared.removeIcon(at: iconURL)
+        #expect(ComponentIconLoader.cachedIcon(at: iconURL) == nil)
     }
 
     private func makePackage(

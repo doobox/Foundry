@@ -87,18 +87,18 @@ write_heavy_resources() {
     local sequence="$2"
     write_realistic_resources "${resources}" "${sequence}"
     /usr/bin/printf '<!--' >> "${resources}/component.html"
-    /usr/bin/dd if=/dev/zero bs=1024 count=128 2>/dev/null | /usr/bin/tr '\0' x >> "${resources}/component.html"
+    /usr/bin/printf '%*s' 131072 '' | /usr/bin/tr ' ' x >> "${resources}/component.html"
     /usr/bin/printf -- '-->\n' >> "${resources}/component.html"
     /usr/bin/printf '/*' >> "${resources}/component.css"
-    /usr/bin/dd if=/dev/zero bs=1024 count=128 2>/dev/null | /usr/bin/tr '\0' x >> "${resources}/component.css"
+    /usr/bin/printf '%*s' 131072 '' | /usr/bin/tr ' ' x >> "${resources}/component.css"
     /usr/bin/printf '*/\n' >> "${resources}/component.css"
     /usr/bin/printf '/*' >> "${resources}/component.js"
-    /usr/bin/dd if=/dev/zero bs=1024 count=128 2>/dev/null | /usr/bin/tr '\0' x >> "${resources}/component.js"
+    /usr/bin/printf '%*s' 131072 '' | /usr/bin/tr ' ' x >> "${resources}/component.js"
     /usr/bin/printf '*/\n' >> "${resources}/component.js"
 
     /usr/bin/printf '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><rect width="24" height="24"/><!--' \
         > "${resources}/icon.svg"
-    /usr/bin/dd if=/dev/zero bs=1024 count=60 2>/dev/null | /usr/bin/tr '\0' x >> "${resources}/icon.svg"
+    /usr/bin/printf '%*s' 61440 '' | /usr/bin/tr ' ' x >> "${resources}/icon.svg"
     /usr/bin/printf -- '--></svg>\n' >> "${resources}/icon.svg"
 }
 

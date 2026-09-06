@@ -1282,7 +1282,7 @@ struct ComponentLibraryIcon: View {
 
     var body: some View {
         Group {
-            if let image = loadedIcon {
+            if let image = displayedIcon {
                 Image(nsImage: image)
                     .resizable()
                     .scaledToFit()
@@ -1300,7 +1300,17 @@ struct ComponentLibraryIcon: View {
                 loadedIcon = nil
                 return
             }
+            if let cached = ComponentIconLoader.cachedIcon(at: url) {
+                loadedIcon = cached.image
+                return
+            }
             loadedIcon = await ComponentIconLoader.shared.icon(at: url)?.image
+        }
+    }
+
+    private var displayedIcon: NSImage? {
+        loadedIcon ?? (type.definition.package?.iconURL).flatMap {
+            ComponentIconLoader.cachedIcon(at: $0)?.image
         }
     }
 }

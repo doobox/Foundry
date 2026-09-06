@@ -23,10 +23,17 @@ final class ComponentPackageCatalog {
     private var loadGeneration: UInt64 = 0
     private var reloadGenerations: [URL: UInt64] = [:]
     private(set) var phase = Phase.initialLoading
+    private(set) var loadedPackageCount = 0
+    private(set) var totalPackageCount = 0
 
     var isInitialLoading: Bool { phase == .initialLoading }
 
     var isLoading: Bool { phase != .ready }
+
+    var loadingProgress: Double {
+        guard totalPackageCount > 0 else { return 0 }
+        return Double(loadedPackageCount) / Double(totalPackageCount)
+    }
 
     private init() {
         reloadCompleteCatalog(initial: true)
@@ -45,10 +52,14 @@ final class ComponentPackageCatalog {
         reloadGenerations.removeAll()
         loadingTask?.cancel()
         phase = initial ? .initialLoading : .reloading
+        loadedPackageCount = 0
+        totalPackageCount = 0
         loadingTask = Task { [weak self] in
-            let snapshot = await Task.detached(priority: .utility) {
-                await ComponentCatalogSnapshot.load()
-            }.value
+            let snapshot = await ComponentCatalogSnapshot.load { [weak self] completed, total in
+                guard let self, generation == loadGeneration else { return }
+                loadedPackageCount = completed
+                totalPackageCount = total
+            }
             guard !Task.isCancelled, let self, generation == loadGeneration else { return }
             publish(snapshot)
         }
@@ -291,7 +302,9 @@ private struct ComponentCatalogSnapshot: Sendable {
     let developmentRoots: Set<URL>
     let installedRoot: URL?
 
-    nonisolated static func load() async -> ComponentCatalogSnapshot {
+    nonisolated static func load(
+        progress: @escaping @MainActor @Sendable (_ completed: Int, _ total: Int) -> Void
+    ) async -> ComponentCatalogSnapshot {
         var urls: [URL] = []
         if let bundleURL = Bundle.main.url(forResource: "BuiltInComponents", withExtension: "bundle"),
            let componentBundle = Bundle(url: bundleURL),
@@ -313,7 +326,14 @@ private struct ComponentCatalogSnapshot: Sendable {
             url.pathExtension.lowercased() == "foundrydevpack" ? url.standardizedFileURL : nil
         })
 
-        let outcomes = await loadOutcomes(urls.map(\.standardizedFileURL))
+        let standardizedURLs = urls.map(\.standardizedFileURL)
+        await progress(0, standardizedURLs.count)
+        let progressUpdateInterval = max(1, standardizedURLs.count / 100)
+        let outcomes = await loadOutcomes(standardizedURLs) { completed in
+            if completed == standardizedURLs.count || completed.isMultiple(of: progressUpdateInterval) {
+                await progress(completed, standardizedURLs.count)
+            }
+        }
         var packages: [String: LoadedComponentPackage] = [:]
         var diagnostics: [URL: [ComponentPackageDiagnostic]] = [:]
         for outcome in outcomes {
@@ -347,7 +367,10 @@ private struct ComponentCatalogSnapshot: Sendable {
         )
     }
 
-    fileprivate nonisolated static func loadOutcomes(_ urls: [URL]) async -> [ComponentPackageLoadOutcome] {
+    fileprivate nonisolated static func loadOutcomes(
+        _ urls: [URL],
+        progress: @escaping @Sendable (Int) async -> Void = { _ in }
+    ) async -> [ComponentPackageLoadOutcome] {
         guard !urls.isEmpty else { return [] }
         var results = Array<ComponentPackageLoadOutcome?>(repeating: nil, count: urls.count)
         await withTaskGroup(of: (Int, ComponentPackageLoadOutcome).self) { group in
@@ -356,8 +379,11 @@ private struct ComponentCatalogSnapshot: Sendable {
                 group.addTask { (index, ComponentPackageLoadOutcome.load(from: urls[index])) }
             }
             var nextIndex = concurrentLoadCount
+            var completedCount = 0
             for await (index, outcome) in group {
                 results[index] = outcome
+                completedCount += 1
+                await progress(completedCount)
                 if nextIndex < urls.count {
                     let index = nextIndex
                     nextIndex += 1
