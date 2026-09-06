@@ -936,9 +936,15 @@ private final class AppKitWorkspaceSplitViewController: NSSplitViewController, N
             let sidebarIndex = editorToolbar.items.firstIndex {
                 $0.itemIdentifier == ToolbarIdentifier.sidebarToggle
             } ?? -1
-            editorToolbar.insertItem(withItemIdentifier: identifier, at: sidebarIndex + 1)
+            editorToolbar.insertItem(withItemIdentifier: .space, at: sidebarIndex + 1)
+            editorToolbar.insertItem(withItemIdentifier: identifier, at: sidebarIndex + 2)
         } else if toolbarContent?.componentUpdates == nil, let existingIndex {
             editorToolbar.removeItem(at: existingIndex)
+            let spacerIndex = existingIndex - 1
+            if editorToolbar.items.indices.contains(spacerIndex),
+               editorToolbar.items[spacerIndex].itemIdentifier == .space {
+                editorToolbar.removeItem(at: spacerIndex)
+            }
             toolbarHostingViews.removeValue(forKey: identifier)
         }
     }
@@ -966,16 +972,19 @@ private final class AppKitWorkspaceSplitViewController: NSSplitViewController, N
             ToolbarIdentifier.sidebarToggle,
             ToolbarIdentifier.leadingSeparator,
             ToolbarIdentifier.workspaces,
+            .space,
             ToolbarIdentifier.preview,
             .flexibleSpace,
             ToolbarIdentifier.trailingSeparator,
             .flexibleSpace,
             ToolbarIdentifier.settings,
+            .space,
             ToolbarIdentifier.publish,
+            .space,
             ToolbarIdentifier.inspectorToggle
         ]
         if toolbarContent?.componentUpdates != nil {
-            identifiers.insert(ToolbarIdentifier.componentUpdates, at: 1)
+            identifiers.insert(contentsOf: [.space, ToolbarIdentifier.componentUpdates], at: 1)
         }
         return identifiers
     }
@@ -1003,12 +1012,28 @@ private final class AppKitWorkspaceSplitViewController: NSSplitViewController, N
             let hostingView = NSHostingView(rootView: content)
             toolbarHostingViews[itemIdentifier] = hostingView
             let item = NSToolbarItem(itemIdentifier: itemIdentifier)
+            let label = toolbarLabel(for: itemIdentifier)
+            item.label = label
+            item.paletteLabel = label
             item.view = hostingView
             item.visibilityPriority = itemIdentifier == ToolbarIdentifier.inspectorToggle
                 || itemIdentifier == ToolbarIdentifier.sidebarToggle
                 ? .user
                 : .standard
             return item
+        }
+    }
+
+    private func toolbarLabel(for identifier: NSToolbarItem.Identifier) -> String {
+        switch identifier {
+        case ToolbarIdentifier.sidebarToggle: "Sidebar"
+        case ToolbarIdentifier.componentUpdates: "Component Updates"
+        case ToolbarIdentifier.workspaces: "Workspaces"
+        case ToolbarIdentifier.preview: "Preview"
+        case ToolbarIdentifier.settings: "Settings"
+        case ToolbarIdentifier.publish: "Publish"
+        case ToolbarIdentifier.inspectorToggle: "Inspector"
+        default: ""
         }
     }
 

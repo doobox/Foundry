@@ -185,10 +185,7 @@ struct ContentView: View {
             selectedAssetLibraryNodeID = nil
         }
         .onDeleteCommand {
-            if let selectedPrimitive {
-                removeImage(componentID: selectedPrimitive.componentID, propertyKey: selectedPrimitive.propertyKey)
-                return
-            }
+            if selectedPrimitive != nil { return }
             guard !selectedComponentIDs.isEmpty else { return }
             deleteComponent()
         }
@@ -392,6 +389,7 @@ struct ContentView: View {
         case .assets:
             AssetsPanel(
                 library: document.site.assetLibrary.resourcesOnly,
+                assetContents: document.assetContents,
                 selectedNodeID: inspectableAssetLibrarySelection,
                 importFiles: importAssets,
                 importURLs: importAssetURLs,
@@ -657,25 +655,6 @@ struct ContentView: View {
         editor.setGlobalComponentLinked(componentID: selectedComponentID, isLinked: !isOverridden)
     }
 
-    private func removeImage(componentID: UUID, propertyKey: ComponentProperty.Key) {
-        guard let page = selectedPage,
-              let component = page.components.node(withID: componentID),
-              component.type.definition.properties.contains(where: {
-                  guard $0.key == propertyKey else { return false }
-                  if case .asset = $0.control { return true }
-                  return false
-              }) else { return }
-        if let context = document.site.globalComponentContext(containing: componentID), !context.isOverridden {
-            editor.setSharedReusableProperty(componentID: componentID, key: propertyKey, value: .url(""))
-        } else {
-            editor.setProperty(id: componentID, key: propertyKey, value: .url(""))
-        }
-        undoManager?.setActionName("Remove Image")
-        selectedComponentIDs = [componentID]
-        selectedComponentID = componentID
-        selectedPrimitive = nil
-    }
-
     private func handleCanvasMessage(_ message: CanvasMessage) {
         guard let page = selectedPage else { return }
 
@@ -706,10 +685,6 @@ struct ContentView: View {
             selectedComponentID = componentID
             selectedPrimitive = .init(componentID: componentID, propertyKey: propertyKey)
             workspaceLayout.activate(.structure)
-        case .removeImage:
-            guard let componentID = message.componentID,
-                  let propertyKey = message.propertyKey else { return }
-            removeImage(componentID: componentID, propertyKey: propertyKey)
         case .deleteComponents:
             deleteComponents(message.componentIDs ?? [])
         case .insertComponent:
@@ -848,7 +823,7 @@ struct ContentView: View {
             undoManager?.endUndoGrouping()
             undoManager?.setActionName("Import Image")
             selectedComponentID = componentID
-            selectedPrimitive = .init(componentID: componentID, propertyKey: propertyKey)
+            selectedPrimitive = nil
             workspaceLayout.activate(.structure)
         case .insertImageComponent:
             guard let placement = validatedPlacement(message.placement, on: page) else { return }
@@ -909,6 +884,15 @@ struct ContentView: View {
         selectedComponentID = componentID
 
         switch action {
+        case .clearImage:
+            undoManager?.beginUndoGrouping()
+            if let context = document.site.globalComponentContext(containing: componentID), !context.isOverridden {
+                editor.setSharedReusableProperty(componentID: componentID, key: .source, value: .url(""))
+            } else {
+                editor.setProperty(id: componentID, key: .source, value: .url(""))
+            }
+            undoManager?.endUndoGrouping()
+            undoManager?.setActionName("Clear Image")
         case .duplicate:
             duplicateComponent()
         case .copy:

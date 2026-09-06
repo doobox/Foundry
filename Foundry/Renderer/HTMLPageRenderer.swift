@@ -105,7 +105,7 @@ struct HTMLPageRenderer: PageRendering {
             }
             .foundry-empty-drop-zone {
               display: grid; place-items: center; min-height: 64px; padding: 16px;
-              border: 2px dashed color-mix(in srgb, var(--foundry-editor-chrome) 42%, transparent);
+              border: 2px dashed color-mix(in srgb, var(--foundry-editor-component) 42%, transparent) !important;
               border-radius: 6px; color: color-mix(in srgb, var(--foundry-color-text) 58%, transparent);
               background: color-mix(in srgb, var(--foundry-color-surface) 72%, transparent);
               font: 600 13px system-ui; text-align: center;
@@ -118,7 +118,7 @@ struct HTMLPageRenderer: PageRendering {
             .foundry-contentless-drop-zone { min-height: 32px; padding: 6px 12px; }
             .foundry-columns > .foundry-empty-drop-zone { grid-column: 1 / -1; }
             [data-foundry-global].foundry-empty-drop-zone {
-              border-color: color-mix(in srgb, var(--foundry-editor-chrome) 42%, transparent);
+              border-color: color-mix(in srgb, var(--foundry-editor-component) 42%, transparent) !important;
             }
             [data-foundry-global].foundry-editing { outline-color: var(--foundry-editor-chrome) !important; }
             html, body { min-height: 100%; }
@@ -136,17 +136,17 @@ struct HTMLPageRenderer: PageRendering {
             .foundry-columns { display: grid; }
             .foundry-image { display: block; width: 100%; height: auto; }
             .foundry-image-drop-zone {
-              display: grid; width: 100%; min-height: 180px; padding: 16px; place-items: center;
-              border: 2px dashed color-mix(in srgb, var(--foundry-editor-chrome) 42%, transparent);
+              display: grid; width: 100%; min-height: 64px; padding: 16px; place-items: center;
+              border: 2px dashed color-mix(in srgb, var(--foundry-editor-component) 42%, transparent) !important;
               border-radius: 6px; color: color-mix(in srgb, var(--foundry-color-text) 58%, transparent);
               background: color-mix(in srgb, var(--foundry-color-surface) 72%, transparent);
               font: 600 13px system-ui; text-align: center;
             }
-            .foundry-image-drop-zone[data-foundry-primitive-property] {
-              border-color: color-mix(in srgb, var(--foundry-editor-primitive) 55%, transparent);
-            }
             .foundry-image-drop-zone.foundry-drop-inside {
               border-color: transparent !important;
+              outline-offset: 0;
+            }
+            [data-foundry-id].foundry-image.foundry-drop-inside {
               outline-offset: -2px;
             }
             [data-foundry-image-drop-zone][data-foundry-primitive-property].foundry-drop-inside {

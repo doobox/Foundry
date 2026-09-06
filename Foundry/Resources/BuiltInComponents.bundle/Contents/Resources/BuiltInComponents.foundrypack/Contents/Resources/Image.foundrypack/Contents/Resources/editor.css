@@ -1,9 +1,0 @@
-.foundry-image-drop-zone {
-    display: grid;
-    min-height: 180px;
-    place-items: center;
-    border: 2px dashed color-mix(in srgb, currentColor 28%, transparent);
-    border-radius: 10px;
-    color: color-mix(in srgb, currentColor 58%, transparent);
-    font: 600 14px/1.4 system-ui, sans-serif;
-}

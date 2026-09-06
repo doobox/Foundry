@@ -106,6 +106,7 @@ final class CanvasAssetSchemeHandler: NSObject, WKURLSchemeHandler {
 }
 
 nonisolated enum CanvasContextMenuAction: String, Sendable {
+    case clearImage
     case duplicate
     case copy
     case paste
@@ -317,6 +318,21 @@ struct WebCanvasView: NSViewRepresentable {
             });
           };
 
+          const hideSelectionChromeForImageDrop = imageTarget => {
+            const owner = imageTarget?.closest(selector);
+            selectedChrome.forEach((outline, index) => {
+              const entry = selectedChromeTargets[index];
+              const sharesImageRegion = entry && (
+                entry.element === imageTarget
+                || entry.element === owner
+                || (entry.isPrimitive && entry.element.closest(selector) === owner)
+              );
+              if (sharesImageRegion) {
+                outline.style.setProperty('display', 'none', 'important');
+              }
+            });
+          };
+
           const updateHoverChrome = () => {
             const target = hoveredPrimitive || hoveredComponent;
             const isSelected = selectedChromeTargets.some(entry => entry.element === target);
@@ -325,11 +341,10 @@ struct WebCanvasView: NSViewRepresentable {
               return;
             }
             const isPrimitive = Boolean(hoveredPrimitive);
-            const isImage = hoveredPrimitive?.hasAttribute('data-foundry-image-property') ?? false;
             positionOutline(
               hoverChrome,
               target,
-              isImage ? '#FF9F0A' : (isPrimitive ? '#AF52DE' : componentChromeColor(target)),
+              isPrimitive ? '#AF52DE' : componentChromeColor(target),
               isPrimitive,
               false
             );
@@ -521,17 +536,12 @@ struct WebCanvasView: NSViewRepresentable {
               const primitive = selectsPrimitive
                 ? element.querySelector('[data-foundry-primitive-property="' + CSS.escape(primitiveSelection.propertyKey) + '"]')
                 : null;
-              const selectedImage = selectsPrimitive
-                ? element.querySelector('[data-foundry-image-property="' + CSS.escape(primitiveSelection.propertyKey) + '"]')
-                : null;
-              const selectedElement = primitive || selectedImage || element;
-              const isImage = Boolean(selectedImage);
+              const selectedElement = primitive || element;
               if (!firstElement) firstElement = selectedElement;
               selectedChromeTargets.push({
                 element: selectedElement,
-                color: isImage ? '#FF9F0A' : (primitive ? '#AF52DE' : componentChromeColor(element)),
-                isPrimitive: Boolean(primitive || selectedImage),
-                isImage: isImage
+                color: primitive ? '#AF52DE' : componentChromeColor(element),
+                isPrimitive: Boolean(primitive)
               });
             });
             scheduleChromeTitleUpdate();
@@ -543,19 +553,7 @@ struct WebCanvasView: NSViewRepresentable {
           document.addEventListener('keydown', event => {
             if (event.key !== 'Backspace' && event.key !== 'Delete') return;
             if (selectedComponentIDs.length === 0) return;
-            if (selectedPrimitiveSelection) {
-              const selectedImage = selectedChromeTargets.find(entry => entry.isImage);
-              if (!selectedImage) return;
-              event.preventDefault();
-              event.stopPropagation();
-              window.webkit.messageHandlers.foundryCanvas.postMessage({
-                version: 1,
-                event: 'removeImage',
-                componentID: selectedPrimitiveSelection.componentID,
-                propertyKey: selectedPrimitiveSelection.propertyKey
-              });
-              return;
-            }
+            if (selectedPrimitiveSelection) return;
             const target = event.target;
             if (target?.isContentEditable || target?.closest?.('input, textarea, select, [contenteditable="true"]')) return;
             event.preventDefault();
@@ -617,13 +615,15 @@ struct WebCanvasView: NSViewRepresentable {
           document.addEventListener('dragover', event => {
             isDragging = true;
             clearDrop();
+            updateSelectionChrome();
             hoverChrome.style.setProperty('display', 'none', 'important');
             if (event.dataTransfer.types.includes('Files')) {
               event.preventDefault();
               const imageZone = event.target.closest('[data-foundry-image-drop-zone]');
               const image = imageZone?.closest(selector);
               if (image) {
-                imageZone.classList.add('foundry-drop-inside');
+                image.classList.add('foundry-drop-inside');
+                hideSelectionChromeForImageDrop(imageZone);
               } else {
                 placement = intendedPlacement(event);
                 if (placement.element) placement.element.classList.add('foundry-drop-' + placement.kind);
@@ -647,7 +647,8 @@ struct WebCanvasView: NSViewRepresentable {
               : null;
             const image = imageZone?.closest(selector);
             if (image) {
-              imageZone.classList.add('foundry-drop-inside');
+              image.classList.add('foundry-drop-inside');
+              hideSelectionChromeForImageDrop(imageZone);
               event.dataTransfer.dropEffect = 'copy';
               return;
             }
@@ -678,6 +679,22 @@ struct WebCanvasView: NSViewRepresentable {
               clearDrop();
               const isImage = file.type.startsWith('image/') || /\\.(?:avif|gif|heic|heif|jpe?g|png|svg|webp)$/i.test(file.name);
               if (!isImage || file.size > 25000000) return;
+              const internalAssetMatch = file.name.match(/^foundry-image-asset-([0-9a-f-]{36})--/i);
+              if (internalAssetMatch) {
+                const message = {
+                  version: 1,
+                  event: image ? 'importImageAsset' : 'insertImageComponent',
+                  assetID: internalAssetMatch[1]
+                };
+                if (image) {
+                  message.componentID = image.dataset.foundryId;
+                  message.propertyKey = imageZone.dataset.foundryImageProperty || 'source';
+                } else {
+                  message.placement = { kind: target.kind, targetID: target.targetID, slotID: target.slotID };
+                }
+                window.webkit.messageHandlers.foundryCanvas.postMessage(message);
+                return;
+              }
               const reader = new FileReader();
               reader.onload = () => {
                 const encoded = String(reader.result).split(',', 2)[1];
@@ -738,19 +755,6 @@ struct WebCanvasView: NSViewRepresentable {
           });
 
           document.addEventListener('dblclick', event => {
-            const imageElement = event.target.closest('[data-foundry-image-property]');
-            const imageComponent = imageElement?.closest(selector);
-            if (imageElement && imageComponent) {
-              event.preventDefault();
-              event.stopPropagation();
-              window.webkit.messageHandlers.foundryCanvas.postMessage({
-                version: 1,
-                event: 'selectPrimitive',
-                componentID: imageComponent.dataset.foundryId,
-                propertyKey: imageElement.dataset.foundryImageProperty
-              });
-              return;
-            }
             const editableElement = event.target.closest('[data-foundry-inline-property]');
             const componentElement = editableElement?.closest(selector);
             const element = editableElement ?? event.target.closest(selector);
@@ -805,6 +809,9 @@ struct WebCanvasView: NSViewRepresentable {
             if (!component) return;
             const editable = component.matches('[data-foundry-inline-property]')
               || component.querySelector('[data-foundry-inline-property]') !== null;
+            const imageZone = component.matches('[data-foundry-image-drop-zone]')
+              ? component
+              : component.querySelector('[data-foundry-image-drop-zone]');
             window.webkit.messageHandlers.foundryCanvas.postMessage({
               version: 1,
               event: 'contextMenu',
@@ -814,6 +821,7 @@ struct WebCanvasView: NSViewRepresentable {
               componentAuthor: component.dataset.foundryAuthor,
               componentVersion: component.dataset.foundryVersion,
               canEdit: editable,
+              hasImage: imageZone?.tagName === 'IMG',
               preservesSelection: selectedComponentIDs.includes(component.dataset.foundryId)
             });
           }, true);
@@ -919,12 +927,18 @@ struct WebCanvasView: NSViewRepresentable {
             }
 
             let menu = NSMenu()
+            menu.autoenablesItems = false
             menu.addItem(contextMenuHeader(for: request))
             menu.addItem(.separator())
-            let edit = menuItem("Edit", action: #selector(editComponent), key: "\r", modifiers: [])
-            edit.isEnabled = request["canEdit"] as? Bool == true
-            menu.addItem(edit)
-            menu.addItem(.separator())
+            if request["canEdit"] as? Bool == true {
+                menu.addItem(menuItem("Edit", action: #selector(editComponent), key: "\r", modifiers: []))
+                menu.addItem(.separator())
+            } else if request["componentTypeID"] as? String == ComponentType.image.rawValue {
+                let clear = menuItem("Clear", action: #selector(performContextAction(_:)), representedAction: .clearImage)
+                clear.isEnabled = request["hasImage"] as? Bool == true
+                menu.addItem(clear)
+                menu.addItem(.separator())
+            }
             menu.addItem(menuItem("Duplicate", action: #selector(performContextAction(_:)), representedAction: .duplicate, key: "d"))
             menu.addItem(menuItem("Copy", action: #selector(performContextAction(_:)), representedAction: .copy, key: "c"))
             let paste = menuItem("Paste", action: #selector(performContextAction(_:)), representedAction: .paste, key: "v")

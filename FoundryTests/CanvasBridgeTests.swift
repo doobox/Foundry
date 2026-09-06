@@ -41,23 +41,6 @@ struct CanvasBridgeTests {
     }
 
     @Test
-    func decodesImageRemovalMessage() {
-        let componentID = UUID()
-        let propertyKey = ComponentProperty.Key(rawValue: "source")
-
-        let message = CanvasMessage.decode([
-            "version": CanvasMessage.currentVersion,
-            "event": "removeImage",
-            "componentID": componentID.uuidString,
-            "propertyKey": propertyKey.rawValue
-        ])
-
-        #expect(message?.event == .removeImage)
-        #expect(message?.componentID == componentID)
-        #expect(message?.propertyKey == propertyKey)
-    }
-
-    @Test
     func rejectsUnsupportedAndMalformedMessages() {
         let id = UUID().uuidString
 

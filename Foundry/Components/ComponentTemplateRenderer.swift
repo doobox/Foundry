@@ -433,7 +433,7 @@ nonisolated enum ComponentTemplateRenderer {
     private static func value(forExpression expression: String, context: ComponentTemplateContext) -> String {
         let parts = ComponentTemplateExpression.templateParts(expression)
         guard let key = parts.first else { return "" }
-        let simpleValue = #"^(?:id|instance\.(?:id|uuid)|package\.id|site\.baseURL|page\.url|path\.(?:siteRoot|siteAssets)|component\.(?:class|attributes)|asset\.[^\s]+|control\.[A-Za-z][A-Za-z0-9_.-]*(?:\[[0-9]+\])?)$"#
+            let simpleValue = #"^(?:id|instance\.(?:id|uuid)|package\.id|site\.baseURL|page\.url|path\.(?:siteRoot|siteAssets)|component\.(?:class|attributes)|asset\.[^\s]+|control\.[A-Za-z][A-Za-z0-9_.-]*(?:\[[0-9]+\])?)$"#
         var result: String
         if key.range(of: simpleValue, options: .regularExpression) != nil {
             result = value(for: key, context: context)

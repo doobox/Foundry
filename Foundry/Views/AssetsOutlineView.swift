@@ -3,6 +3,7 @@ import SwiftUI
 
 struct AssetsOutlineView: NSViewRepresentable {
     let nodes: [ProjectAssetNode]
+    let assetContents: [UUID: ProjectAssetContent]
     @Binding var selectedNodeID: UUID?
     let moveNode: (UUID, AssetPlacement) -> Bool
     let importURLs: ([URL], AssetPlacement) -> Void
@@ -22,7 +23,7 @@ struct AssetsOutlineView: NSViewRepresentable {
         outlineView.dataSource = context.coordinator
         outlineView.delegate = context.coordinator
         outlineView.registerForDraggedTypes([.assetNode, .fileURL])
-        outlineView.setDraggingSourceOperationMask(.move, forLocal: true)
+        outlineView.setDraggingSourceOperationMask([.copy, .move], forLocal: true)
         outlineView.setDraggingSourceOperationMask(.copy, forLocal: false)
 
         let scrollView = NSScrollView()
@@ -48,6 +49,7 @@ struct AssetsOutlineView: NSViewRepresentable {
         private var itemsByID: [UUID: AssetOutlineItem] = [:]
         private var displayedSignature: [String] = []
         private var isRestoringSelection = false
+        private var dragTemporaryDirectories: [URL] = []
 
         init(parent: AssetsOutlineView) { self.parent = parent }
 
@@ -109,9 +111,43 @@ struct AssetsOutlineView: NSViewRepresentable {
                 pasteboardItem.setString(prefix + asset.id.uuidString, forType: .string)
                 if isImage {
                     pasteboardItem.setString(asset.id.uuidString, forType: .imageAsset)
+                    if let content = parent.assetContents[asset.id],
+                       let fileURL = temporaryDragFile(for: content) {
+                        pasteboardItem.setString(fileURL.absoluteString, forType: .fileURL)
+                    }
                 }
             }
             return pasteboardItem
+        }
+
+        func outlineView(
+            _ outlineView: NSOutlineView,
+            draggingSession session: NSDraggingSession,
+            endedAt screenPoint: NSPoint,
+            operation: NSDragOperation
+        ) {
+            for directory in dragTemporaryDirectories {
+                try? FileManager.default.removeItem(at: directory)
+            }
+            dragTemporaryDirectories.removeAll(keepingCapacity: true)
+        }
+
+        private func temporaryDragFile(for content: ProjectAssetContent) -> URL? {
+            let directory = FileManager.default.temporaryDirectory
+                .appending(path: "FoundryAssetDrag-\(UUID().uuidString)", directoryHint: .isDirectory)
+            let originalName = (content.asset.filename as NSString).lastPathComponent
+            guard !originalName.isEmpty else { return nil }
+            let filename = "foundry-image-asset-\(content.asset.id.uuidString)--\(originalName)"
+            let fileURL = directory.appending(path: filename)
+            do {
+                try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+                try content.data.write(to: fileURL, options: .atomic)
+                dragTemporaryDirectories.append(directory)
+                return fileURL
+            } catch {
+                try? FileManager.default.removeItem(at: directory)
+                return nil
+            }
         }
 
         func outlineView(
@@ -279,6 +315,7 @@ extension NSPasteboard.PasteboardType {
     static let assetNode = NSPasteboard.PasteboardType("uk.co.garysimpson.foundry.asset-node")
     static let imageAsset = NSPasteboard.PasteboardType("uk.co.garysimpson.foundry.image-asset")
 }
+
 
 private extension NSUserInterfaceItemIdentifier {
     static let assetColumn = NSUserInterfaceItemIdentifier("AssetsColumn")

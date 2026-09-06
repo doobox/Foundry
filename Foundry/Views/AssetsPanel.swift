@@ -2,6 +2,7 @@ import SwiftUI
 
 struct AssetsPanel: View {
     let library: [ProjectAssetNode]
+    let assetContents: [UUID: ProjectAssetContent]
     @Binding var selectedNodeID: UUID?
     let importFiles: () -> Void
     let importURLs: ([URL], AssetPlacement) -> Void
@@ -15,6 +16,7 @@ struct AssetsPanel: View {
         VStack(spacing: 0) {
             AssetsOutlineView(
                 nodes: library,
+                assetContents: assetContents,
                 selectedNodeID: $selectedNodeID,
                 moveNode: moveNode,
                 importURLs: importURLs
