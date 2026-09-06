@@ -3,8 +3,7 @@ import Foundation
 nonisolated enum ComponentPackageAdapter {
     static func definition(from package: LoadedComponentPackage) -> ComponentDefinition {
         let manifest = package.manifest
-        let repeatMaximums = package.repeatMaximums
-        let implicitTextProperties = ComponentTemplateRenderer.textPrimitives(in: package.htmlTemplate, repeatMaximums: repeatMaximums).map { primitive in
+        let implicitTextProperties = package.preparedPrimitives.text.map { primitive in
             ComponentPropertyDefinition(
                 key: .init(rawValue: primitive.key), label: "Text", section: .content,
                 control: .multilineText,
@@ -12,7 +11,7 @@ nonisolated enum ComponentPackageAdapter {
                 isResponsive: false, isInspectorVisible: false
             )
         }
-        let implicitHTMLProperties = ComponentTemplateRenderer.htmlPrimitives(in: package.htmlTemplate, repeatMaximums: repeatMaximums).map { primitive in
+        let implicitHTMLProperties = package.preparedPrimitives.html.map { primitive in
             ComponentPropertyDefinition(
                 key: .init(rawValue: primitive.key), label: "HTML", section: .content,
                 control: .multilineText,
@@ -20,7 +19,7 @@ nonisolated enum ComponentPackageAdapter {
                 isResponsive: false, isInspectorVisible: false
             )
         }
-        let implicitHTMLArtifactProperties = ComponentTemplateRenderer.htmlPrimitives(in: package.htmlTemplate, repeatMaximums: repeatMaximums).flatMap { primitive in
+        let implicitHTMLArtifactProperties = package.preparedPrimitives.html.flatMap { primitive in
             ["CSS", "JavaScript"].map { suffix in
                 ComponentPropertyDefinition(
                     key: .init(rawValue: primitive.key + suffix), label: suffix, section: .content,
@@ -30,7 +29,7 @@ nonisolated enum ComponentPackageAdapter {
                 )
             }
         }
-        let implicitImageProperties = ComponentTemplateRenderer.imagePrimitives(in: package.htmlTemplate).map { primitive in
+        let implicitImageProperties = package.preparedPrimitives.images.map { primitive in
             ComponentPropertyDefinition(
                 key: .init(rawValue: primitive.key), label: "Image", section: .content,
                 control: .image,

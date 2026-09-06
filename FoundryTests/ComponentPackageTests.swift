@@ -2151,6 +2151,29 @@ struct ComponentPackageTests {
         #expect(elapsed < .seconds(20), "The installed stress catalog should reload within 20 seconds.")
     }
 
+    @Test
+    func catalogIndexRestoresPreparedDefinitionsWithoutLoadingRuntimePayloads() throws {
+        let packageURL = try makePackage(
+            manifest: validManifest,
+            template: "<div {{ component.attributes }}>{{ text=\"Cached text\" }}</div>"
+        )
+        defer { try? FileManager.default.removeItem(at: packageURL) }
+
+        let initial = try ComponentPackageLoader.loadForCatalog(from: packageURL, validates: false)
+        #expect(!initial.package.isPayloadLoaded)
+        #expect(ComponentPackageAdapter.definition(from: initial.package).properties.contains {
+            $0.defaultValue == .string("Cached text")
+        })
+        #expect(!initial.package.isPayloadLoaded)
+        ComponentPackagePreparedIndex.flush()
+
+        let cached = try ComponentPackageLoader.loadForCatalog(from: packageURL, validates: false)
+        #expect(cached.timings.total == .zero)
+        #expect(!cached.package.isPayloadLoaded)
+        #expect(cached.package.htmlTemplate.contains("Cached text"))
+        #expect(cached.package.isPayloadLoaded)
+    }
+
     @Test @MainActor
     func spacingControlsResolveThemeCustomAndAutomaticValuesAsCSSShorthand() {
         _ = ComponentPackageCatalog.shared

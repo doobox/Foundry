@@ -1,21 +1,74 @@
 import Foundation
+import Synchronization
 import UniformTypeIdentifiers
 
 nonisolated struct LoadedComponentPackage: Sendable {
     let manifest: ComponentPackageManifest
     let rootURL: URL
-    let htmlTemplate: String
-    let css: String
-    let pageCSS: String
-    let siteCSS: String
-    let placedHTML: [LoadedPlacedHTMLTemplate]
-    let instanceJavaScript: String
-    let pageJavaScript: String
-    let instancePHP: String
-    let pagePHP: String
-    let editorCSS: String
     let updateSourceURL: URL?
-    let imageMetadata: [String: ComponentImageMetadata]
+    let preparedPrimitives: ComponentPreparedPrimitives
+    private let payloadStorage: ComponentPackagePayloadStorage
+
+    var htmlTemplate: String { payloadStorage.payload.htmlTemplate }
+    var css: String { payloadStorage.payload.css }
+    var pageCSS: String { payloadStorage.payload.pageCSS }
+    var siteCSS: String { payloadStorage.payload.siteCSS }
+    var placedHTML: [LoadedPlacedHTMLTemplate] { payloadStorage.payload.placedHTML }
+    var instanceJavaScript: String { payloadStorage.payload.instanceJavaScript }
+    var pageJavaScript: String { payloadStorage.payload.pageJavaScript }
+    var instancePHP: String { payloadStorage.payload.instancePHP }
+    var pagePHP: String { payloadStorage.payload.pagePHP }
+    var editorCSS: String { payloadStorage.payload.editorCSS }
+    var imageMetadata: [String: ComponentImageMetadata] { payloadStorage.payload.imageMetadata }
+    var isPayloadLoaded: Bool { payloadStorage.isLoaded }
+
+    init(
+        manifest: ComponentPackageManifest,
+        rootURL: URL,
+        htmlTemplate: String,
+        css: String,
+        pageCSS: String,
+        siteCSS: String,
+        placedHTML: [LoadedPlacedHTMLTemplate],
+        instanceJavaScript: String,
+        pageJavaScript: String,
+        instancePHP: String,
+        pagePHP: String,
+        editorCSS: String,
+        updateSourceURL: URL?,
+        imageMetadata: [String: ComponentImageMetadata]
+    ) {
+        self.manifest = manifest
+        self.rootURL = rootURL
+        self.updateSourceURL = updateSourceURL
+        preparedPrimitives = ComponentPreparedPrimitives(template: htmlTemplate, repeatMaximums: Self.repeatMaximums(for: manifest))
+        payloadStorage = .init(payload: .init(
+            htmlTemplate: htmlTemplate,
+            css: css,
+            pageCSS: pageCSS,
+            siteCSS: siteCSS,
+            placedHTML: placedHTML,
+            instanceJavaScript: instanceJavaScript,
+            pageJavaScript: pageJavaScript,
+            instancePHP: instancePHP,
+            pagePHP: pagePHP,
+            editorCSS: editorCSS,
+            imageMetadata: imageMetadata
+        ))
+    }
+
+    init(
+        manifest: ComponentPackageManifest,
+        rootURL: URL,
+        updateSourceURL: URL?,
+        preparedPrimitives: ComponentPreparedPrimitives
+    ) {
+        self.manifest = manifest
+        self.rootURL = rootURL
+        self.updateSourceURL = updateSourceURL
+        self.preparedPrimitives = preparedPrimitives
+        payloadStorage = .init(manifest: manifest, rootURL: rootURL)
+    }
 
     var lock: ComponentPackageLock {
         .init(identifier: manifest.identifier)
@@ -56,6 +109,10 @@ nonisolated struct LoadedComponentPackage: Sendable {
     }
 
     var repeatMaximums: [String: Int] {
+        Self.repeatMaximums(for: manifest)
+    }
+
+    private static func repeatMaximums(for manifest: ComponentPackageManifest) -> [String: Int] {
         Dictionary(uniqueKeysWithValues: manifest.properties.compactMap { property in
             guard property.control.type == .number || property.control.type == .slider,
                   let maximum = property.control.maximum,
@@ -71,6 +128,86 @@ nonisolated struct LoadedComponentPackage: Sendable {
             scopes.contains { $0.rawValue == file.scope.rawValue }
                 && file.path.lowercased().hasSuffix(".js")
         }
+    }
+}
+
+nonisolated struct ComponentPreparedPrimitives: Codable, Equatable, Sendable {
+    let text: [ComponentTextPrimitive]
+    let html: [ComponentHTMLPrimitive]
+    let images: [ComponentImagePrimitive]
+
+    init(
+        text: [ComponentTextPrimitive],
+        html: [ComponentHTMLPrimitive],
+        images: [ComponentImagePrimitive]
+    ) {
+        self.text = text
+        self.html = html
+        self.images = images
+    }
+
+    init(template: String, repeatMaximums: [String: Int]) {
+        text = ComponentTemplateRenderer.textPrimitives(in: template, repeatMaximums: repeatMaximums)
+        html = ComponentTemplateRenderer.htmlPrimitives(in: template, repeatMaximums: repeatMaximums)
+        images = ComponentTemplateRenderer.imagePrimitives(in: template)
+    }
+}
+
+nonisolated fileprivate struct ComponentPackagePayload: Sendable {
+    let htmlTemplate: String
+    let css: String
+    let pageCSS: String
+    let siteCSS: String
+    let placedHTML: [LoadedPlacedHTMLTemplate]
+    let instanceJavaScript: String
+    let pageJavaScript: String
+    let instancePHP: String
+    let pagePHP: String
+    let editorCSS: String
+    let imageMetadata: [String: ComponentImageMetadata]
+
+    static let empty = ComponentPackagePayload(
+        htmlTemplate: "", css: "", pageCSS: "", siteCSS: "", placedHTML: [],
+        instanceJavaScript: "", pageJavaScript: "", instancePHP: "", pagePHP: "",
+        editorCSS: "", imageMetadata: [:]
+    )
+}
+
+nonisolated private final class ComponentPackagePayloadStorage: Sendable {
+    private struct State: Sendable {
+        var payload: ComponentPackagePayload?
+    }
+
+    private let manifest: ComponentPackageManifest?
+    private let rootURL: URL?
+    private let state: Mutex<State>
+
+    init(payload: ComponentPackagePayload) {
+        manifest = nil
+        rootURL = nil
+        state = Mutex(.init(payload: payload))
+    }
+
+    init(manifest: ComponentPackageManifest, rootURL: URL) {
+        self.manifest = manifest
+        self.rootURL = rootURL
+        state = Mutex(.init(payload: nil))
+    }
+
+    var payload: ComponentPackagePayload {
+        state.withLock { state in
+            if let payload = state.payload { return payload }
+            guard let manifest, let rootURL,
+                  let payload = try? ComponentPackageLoader.loadPayload(manifest: manifest, rootURL: rootURL) else {
+                return .empty
+            }
+            state.payload = payload
+            return payload
+        }
+    }
+
+    var isLoaded: Bool {
+        state.withLock { $0.payload != nil }
     }
 }
 
@@ -138,6 +275,93 @@ nonisolated enum ComponentPackageLoader {
         try loadWithDiagnostics(from: rootURL, validates: true)
     }
 
+    static func loadForCatalog(
+        from rootURL: URL,
+        validates: Bool
+    ) throws -> ComponentPackageLoadResult {
+        if !validates, let cached = ComponentPackagePreparedIndex.entry(for: rootURL) {
+            return .init(
+                package: .init(
+                    manifest: cached.manifest,
+                    rootURL: rootURL,
+                    updateSourceURL: updateSourceURL(containing: rootURL),
+                    preparedPrimitives: cached.primitives
+                ),
+                diagnostics: [],
+                timings: .init()
+            )
+        }
+
+        let clock = ContinuousClock()
+        var timings = ComponentPackageLoadTimings()
+        let manifestURL = rootURL.appending(path: "Contents/Info.plist")
+        guard FileManager.default.fileExists(atPath: manifestURL.path) else {
+            throw ComponentPackageLoadingError.missingManifest
+        }
+
+        let data: Data
+        let manifest: ComponentPackageManifest
+        let schemaDiagnostics: [ComponentPackageDiagnostic]
+        do {
+            let readStart = clock.now
+            data = try Data(contentsOf: manifestURL)
+            timings.manifestRead = readStart.duration(to: clock.now)
+            if validates {
+                let validationStart = clock.now
+                schemaDiagnostics = try ComponentPackageManifestSchema.diagnostics(for: data)
+                timings.schemaValidation = validationStart.duration(to: clock.now)
+                guard !schemaDiagnostics.contains(where: { $0.severity == .error }) else {
+                    throw ComponentPackageLoadingError.invalid(schemaDiagnostics)
+                }
+            } else {
+                schemaDiagnostics = []
+            }
+            let decodeStart = clock.now
+            manifest = try PropertyListDecoder().decode(ComponentPackageManifest.self, from: data)
+            timings.manifestDecoding = decodeStart.duration(to: clock.now)
+        } catch let error as ComponentPackageLoadingError {
+            throw error
+        } catch {
+            throw ComponentPackageLoadingError.unreadableManifest(error)
+        }
+
+        let resourceRootURL = rootURL.appending(path: "Contents/Resources", directoryHint: .isDirectory)
+        let semanticDiagnostics: [ComponentPackageDiagnostic]
+        if validates {
+            let validationStart = clock.now
+            semanticDiagnostics = ComponentPackageValidator.validate(manifest, rootURL: resourceRootURL)
+            timings.semanticValidation = validationStart.duration(to: clock.now)
+        } else {
+            semanticDiagnostics = []
+        }
+        let diagnostics = schemaDiagnostics + semanticDiagnostics
+        guard !diagnostics.contains(where: { $0.severity == .error }) else {
+            throw ComponentPackageLoadingError.invalid(diagnostics)
+        }
+
+        let preparationStart = clock.now
+        let template = try read(manifest.render.html, from: resourceRootURL)
+        let maximums = LoadedComponentPackage(
+            manifest: manifest,
+            rootURL: rootURL,
+            updateSourceURL: nil,
+            preparedPrimitives: .init(text: [], html: [], images: [])
+        ).repeatMaximums
+        let primitives = ComponentPreparedPrimitives(template: template, repeatMaximums: maximums)
+        timings.resourceLoading = preparationStart.duration(to: clock.now)
+        ComponentPackagePreparedIndex.store(manifest: manifest, primitives: primitives, rootURL: rootURL)
+        return .init(
+            package: .init(
+                manifest: manifest,
+                rootURL: rootURL,
+                updateSourceURL: updateSourceURL(containing: rootURL),
+                preparedPrimitives: primitives
+            ),
+            diagnostics: diagnostics,
+            timings: timings
+        )
+    }
+
     static func loadWithDiagnostics(
         from rootURL: URL,
         validates: Bool
@@ -189,6 +413,36 @@ nonisolated enum ComponentPackageLoader {
             throw ComponentPackageLoadingError.invalid(diagnostics)
         }
         let resourceLoadingStart = clock.now
+        let payload = try loadPayload(manifest: manifest, rootURL: rootURL)
+        let package = LoadedComponentPackage(
+            manifest: manifest,
+            rootURL: rootURL,
+            htmlTemplate: payload.htmlTemplate,
+            css: payload.css,
+            pageCSS: payload.pageCSS,
+            siteCSS: payload.siteCSS,
+            placedHTML: payload.placedHTML,
+            instanceJavaScript: payload.instanceJavaScript,
+            pageJavaScript: payload.pageJavaScript,
+            instancePHP: payload.instancePHP,
+            pagePHP: payload.pagePHP,
+            editorCSS: payload.editorCSS,
+            updateSourceURL: updateSourceURL(containing: rootURL),
+            imageMetadata: payload.imageMetadata
+        )
+        timings.resourceLoading = resourceLoadingStart.duration(to: clock.now)
+        return ComponentPackageLoadResult(
+            package: package,
+            diagnostics: diagnostics,
+            timings: timings
+        )
+    }
+
+    fileprivate static func loadPayload(
+        manifest: ComponentPackageManifest,
+        rootURL: URL
+    ) throws -> ComponentPackagePayload {
+        let resourceRootURL = rootURL.appending(path: "Contents/Resources", directoryHint: .isDirectory)
         let instanceCSS = try manifest.render.files
             .filter { $0.scope == .instance && $0.path.lowercased().hasSuffix(".css") }
             .map { try read($0.path, from: resourceRootURL) }
@@ -227,27 +481,18 @@ nonisolated enum ComponentPackageLoader {
                 .map { try read($0.path, from: resourceRootURL) }
                 .joined(separator: "\n")
         }
-        let package = LoadedComponentPackage(
-                manifest: manifest,
-                rootURL: rootURL,
-                htmlTemplate: try read(manifest.render.html, from: resourceRootURL),
-                css: instanceCSS.joined(separator: "\n"),
-                pageCSS: pageCSS.joined(separator: "\n"),
-                siteCSS: siteCSS.joined(separator: "\n"),
-                placedHTML: placedHTML,
-                instanceJavaScript: try javascript(scope: .instance),
-                pageJavaScript: try javascript(scope: .page),
-                instancePHP: try php(scope: .instance),
-                pagePHP: try php(scope: .page),
-                editorCSS: try readIfPresent(manifest.render.editorCSS, from: resourceRootURL),
-                updateSourceURL: updateSourceURL(containing: rootURL),
-                imageMetadata: imageMetadata(for: manifest, resourceRootURL: resourceRootURL)
-            )
-        timings.resourceLoading = resourceLoadingStart.duration(to: clock.now)
-        return ComponentPackageLoadResult(
-            package: package,
-            diagnostics: diagnostics,
-            timings: timings
+        return ComponentPackagePayload(
+            htmlTemplate: try read(manifest.render.html, from: resourceRootURL),
+            css: instanceCSS.joined(separator: "\n"),
+            pageCSS: pageCSS.joined(separator: "\n"),
+            siteCSS: siteCSS.joined(separator: "\n"),
+            placedHTML: placedHTML,
+            instanceJavaScript: try javascript(scope: .instance),
+            pageJavaScript: try javascript(scope: .page),
+            instancePHP: try php(scope: .instance),
+            pagePHP: try php(scope: .page),
+            editorCSS: try readIfPresent(manifest.render.editorCSS, from: resourceRootURL),
+            imageMetadata: imageMetadata(for: manifest, resourceRootURL: resourceRootURL)
         )
     }
 

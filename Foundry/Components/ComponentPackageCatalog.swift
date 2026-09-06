@@ -364,6 +364,7 @@ private struct ComponentCatalogSnapshot: Sendable {
                 await progress(.loading, completed, standardizedURLs.count)
             }
         }
+        ComponentPackagePreparedIndex.flush(retaining: standardizedURLs)
         var packages: [String: LoadedComponentPackage] = [:]
         var definitions: [ComponentType: ComponentDefinition] = [:]
         var diagnostics: [URL: [ComponentPackageDiagnostic]] = [:]
@@ -430,6 +431,7 @@ private struct ComponentCatalogSnapshot: Sendable {
                 }
             }
         }
+        ComponentPackagePreparedIndex.flush()
         return results.compactMap { $0 }
     }
 }
@@ -445,7 +447,7 @@ private struct ComponentPackageLoadOutcome: Sendable {
             guard !pack.isCollection else {
                 return .init(url: url, package: nil, diagnostics: [])
             }
-            let result = try ComponentPackageLoader.loadWithDiagnostics(from: url, validates: validates)
+            let result = try ComponentPackageLoader.loadForCatalog(from: url, validates: validates)
             return .init(url: url, package: result.package, diagnostics: result.diagnostics)
         } catch ComponentPackageLoadingError.invalid(let diagnostics) {
             return .init(url: url, package: nil, diagnostics: diagnostics)

@@ -98,19 +98,19 @@ nonisolated struct ComponentTemplateContext: Sendable {
     }
 }
 
-nonisolated struct ComponentTextPrimitive: Equatable, Sendable {
+nonisolated struct ComponentTextPrimitive: Codable, Equatable, Sendable {
     let key: String
     let defaultValue: String
     let isRepeated: Bool
 }
 
-nonisolated struct ComponentHTMLPrimitive: Equatable, Sendable {
+nonisolated struct ComponentHTMLPrimitive: Codable, Equatable, Sendable {
     let key: String
     let defaultValue: String
     let isRepeated: Bool
 }
 
-nonisolated struct ComponentImagePrimitive: Equatable, Sendable {
+nonisolated struct ComponentImagePrimitive: Codable, Equatable, Sendable {
     let key: String
     let isRepeated: Bool
 }
