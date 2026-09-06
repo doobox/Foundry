@@ -123,6 +123,7 @@ struct WebCanvasView: NSViewRepresentable {
     let packages: [String: LoadedComponentPackage]
     let assetRevision: UInt64
     let selectedComponentIDs: Set<UUID>
+    let selectedPrimitive: CanvasPrimitiveSelection?
     let editorOptions: CanvasEditorOptions
     let enablesWebInspector: Bool
     let canPasteComponent: Bool
@@ -190,6 +191,7 @@ struct WebCanvasView: NSViewRepresentable {
         context.coordinator.handleContextMenuAction = handleContextMenuAction
         context.coordinator.canPasteComponent = canPasteComponent
         context.coordinator.selectedComponentIDs = selectedComponentIDs
+        context.coordinator.selectedPrimitive = selectedPrimitive
         context.coordinator.editorOptions = editorOptions
         if context.coordinator.lastHTML != html {
             context.coordinator.lastHTML = html
@@ -210,6 +212,7 @@ struct WebCanvasView: NSViewRepresentable {
           const selector = '[data-foundry-id]';
           let placement = null;
           let selectedComponentIDs = [];
+          let selectedPrimitiveSelection = null;
           let activeDragSources = [];
           let globalMenuTarget = null;
           let globalMenuRelinks = false;
@@ -424,16 +427,26 @@ struct WebCanvasView: NSViewRepresentable {
             scheduleChromeTitleUpdate();
           };
 
-          window.foundrySetSelection = (ids, shouldScroll = true) => {
+          window.foundrySetSelection = (ids, primitiveSelection = {}, shouldScroll = true) => {
             selectedComponentIDs = Array.isArray(ids) ? ids : [];
+            selectedPrimitiveSelection = primitiveSelection?.componentID ? primitiveSelection : null;
             document.querySelectorAll('.foundry-selected').forEach(e => e.classList.remove('foundry-selected'));
+            document.querySelectorAll('.foundry-primitive-selected').forEach(e => e.classList.remove('foundry-primitive-selected'));
             if (!Array.isArray(selectedComponentIDs)) return;
             let firstElement = null;
             selectedComponentIDs.forEach(componentID => {
               const element = document.querySelector('[data-foundry-id="' + CSS.escape(componentID) + '"]');
               if (!element) return;
-              if (!firstElement) firstElement = element;
-              if (editorOptions.showsSelection) element.classList.add('foundry-selected');
+              const selectsPrimitive = primitiveSelection.componentID === componentID
+                && typeof primitiveSelection.propertyKey === 'string';
+              const primitive = selectsPrimitive
+                ? element.querySelector('[data-foundry-primitive-property="' + CSS.escape(primitiveSelection.propertyKey) + '"]')
+                : null;
+              const selectedElement = primitive || element;
+              if (!firstElement) firstElement = selectedElement;
+              if (editorOptions.showsSelection) {
+                selectedElement.classList.add(primitive ? 'foundry-primitive-selected' : 'foundry-selected');
+              }
             });
             if (firstElement && editorOptions.scrollsToSelection && shouldScroll) {
               firstElement.scrollIntoView({ block: 'nearest', inline: 'nearest' });
@@ -443,6 +456,7 @@ struct WebCanvasView: NSViewRepresentable {
           document.addEventListener('keydown', event => {
             if (event.key !== 'Backspace' && event.key !== 'Delete') return;
             if (selectedComponentIDs.length === 0) return;
+            if (selectedPrimitiveSelection) return;
             const target = event.target;
             if (target?.isContentEditable || target?.closest?.('input, textarea, select, [contenteditable="true"]')) return;
             event.preventDefault();
@@ -457,6 +471,10 @@ struct WebCanvasView: NSViewRepresentable {
           document.querySelectorAll(selector).forEach(element => {
             element.draggable = true;
             element.addEventListener('dragstart', event => {
+              if (event.target.closest('[data-foundry-primitive-property]')) {
+                event.preventDefault();
+                return;
+              }
               if (element.isContentEditable) {
                 event.preventDefault();
                 return;
@@ -683,6 +701,16 @@ struct WebCanvasView: NSViewRepresentable {
             if (!element) return;
             event.preventDefault();
             event.stopPropagation();
+            const primitive = event.target.closest('[data-foundry-primitive-property]');
+            if (primitive && primitive.closest(selector) === element && !(event.metaKey || event.shiftKey)) {
+              window.webkit.messageHandlers.foundryCanvas.postMessage({
+                version: 1,
+                event: 'selectPrimitive',
+                componentID: element.dataset.foundryId,
+                propertyKey: primitive.dataset.foundryPrimitiveProperty
+              });
+              return;
+            }
             window.webkit.messageHandlers.foundryCanvas.postMessage({
               version: 1,
               event: 'selectComponent',
@@ -697,6 +725,7 @@ struct WebCanvasView: NSViewRepresentable {
         var lastHTML: String?
         var assetRevision: UInt64?
         var selectedComponentIDs: Set<UUID> = []
+        var selectedPrimitive: CanvasPrimitiveSelection?
         var editorOptions = CanvasEditorOptions()
         var canPasteComponent = false
         var handleMessage: (CanvasMessage) -> Void
@@ -739,9 +768,9 @@ struct WebCanvasView: NSViewRepresentable {
             guard message.name == Self.handlerName,
                   message.frameInfo.isMainFrame,
                   let canvasMessage = CanvasMessage.decode(message.body) else { return }
-            if canvasMessage.event == .selectComponent,
-               let componentID = canvasMessage.componentID {
-                if canvasMessage.extendsSelection == true {
+            if let componentID = canvasMessage.componentID,
+               canvasMessage.event == .selectComponent || canvasMessage.event == .selectPrimitive {
+                if canvasMessage.event == .selectComponent, canvasMessage.extendsSelection == true {
                     var selection = selectedComponentIDs
                     if selection.contains(componentID) {
                         selection.remove(componentID)
@@ -879,6 +908,9 @@ struct WebCanvasView: NSViewRepresentable {
         func applyCanvasState() {
             guard let webView else { return }
             let componentIDs = selectedComponentIDs.map(\.uuidString)
+            let primitiveSelection: [String: String] = selectedPrimitive.map {
+                ["componentID": $0.componentID.uuidString, "propertyKey": $0.propertyKey.rawValue]
+            } ?? [:]
             let shouldScrollToSelection = pendingCanvasSelection != selectedComponentIDs
             pendingCanvasSelection = nil
             let options: [String: Any] = [
@@ -890,10 +922,11 @@ struct WebCanvasView: NSViewRepresentable {
             let accentColor = cssAccentColor
             Task {
                 _ = try? await webView.callAsyncJavaScript(
-                    "document.documentElement.style.setProperty('--foundry-editor-accent', accentColor); window.foundrySetEditorOptions?.(options); window.foundrySetSelection?.(componentIDs, shouldScrollToSelection)",
+                    "document.documentElement.style.setProperty('--foundry-editor-accent', accentColor); window.foundrySetEditorOptions?.(options); window.foundrySetSelection?.(componentIDs, primitiveSelection, shouldScrollToSelection)",
                     arguments: [
                         "options": options,
                         "componentIDs": componentIDs,
+                        "primitiveSelection": primitiveSelection,
                         "accentColor": accentColor,
                         "shouldScrollToSelection": shouldScrollToSelection
                     ],

@@ -143,11 +143,11 @@ nonisolated enum ComponentTemplateRepeater {
         var result = replacingRepeatValues(in: source, stack: repeatStack)
         result = replacePrimitives(in: result, expression: textExpression) { defaultValue in
             state.textIndex += 1
-            return token(name: "__foundry_text", key: "content\(state.textIndex)", value: defaultValue)
+            return token(name: "__foundry_text", key: "content\(state.textIndex)", value: defaultValue, isRepeated: !repeatStack.isEmpty)
         }
         result = replacePrimitives(in: result, expression: htmlExpression) { defaultValue in
             state.htmlIndex += 1
-            return token(name: "__foundry_html", key: "html\(state.htmlIndex)", value: defaultValue)
+            return token(name: "__foundry_html", key: "html\(state.htmlIndex)", value: defaultValue, isRepeated: !repeatStack.isEmpty)
         }
         let imageReplacements = imageExpression
             .matches(in: result, range: NSRange(result.startIndex..., in: result))
@@ -156,7 +156,8 @@ nonisolated enum ComponentTemplateRepeater {
                 state.imageIndex += 1
                 let key = "sourceRepeat\(state.imageIndex)"
                 state.imageKeys.append(key)
-                return (range, "{{ __foundry_image key=\"\(key)\" }}")
+                let repeatedMarker = repeatStack.isEmpty ? "" : " repeated=\"true\""
+                return (range, "{{ __foundry_image key=\"\(key)\"\(repeatedMarker) }}")
             }
         for (range, replacement) in imageReplacements.reversed() {
             result.replaceSubrange(range, with: replacement)
@@ -208,9 +209,10 @@ nonisolated enum ComponentTemplateRepeater {
         return result
     }
 
-    private static func token(name: String, key: String, value: String?) -> String {
+    private static func token(name: String, key: String, value: String?, isRepeated: Bool) -> String {
         let encoded = value.map { Data($0.utf8).base64EncodedString() } ?? "~"
-        return "{{ \(name) key=\"\(key)\" default=\"\(encoded)\" }}"
+        let repeatedMarker = isRepeated ? " repeated=\"true\"" : ""
+        return "{{ \(name) key=\"\(key)\" default=\"\(encoded)\"\(repeatedMarker) }}"
     }
 
     private static let directiveExpression = try! NSRegularExpression(

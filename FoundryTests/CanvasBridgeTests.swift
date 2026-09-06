@@ -19,6 +19,28 @@ struct CanvasBridgeTests {
     }
 
     @Test
+    func decodesPrimitiveSelectionMessage() {
+        let componentID = UUID()
+        let propertyKey = ComponentProperty.Key(rawValue: "sourceRepeat3")
+
+        let message = CanvasMessage.decode([
+            "version": CanvasMessage.currentVersion,
+            "event": "selectPrimitive",
+            "componentID": componentID.uuidString,
+            "propertyKey": propertyKey.rawValue
+        ])
+
+        #expect(message?.event == .selectPrimitive)
+        #expect(message?.componentID == componentID)
+        #expect(message?.propertyKey == propertyKey)
+        #expect(CanvasMessage.decode([
+            "version": CanvasMessage.currentVersion,
+            "event": "selectPrimitive",
+            "componentID": componentID.uuidString
+        ]) == nil)
+    }
+
+    @Test
     func rejectsUnsupportedAndMalformedMessages() {
         let id = UUID().uuidString
 

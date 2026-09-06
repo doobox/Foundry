@@ -44,6 +44,7 @@ struct CanvasView: View {
     let assetRevision: UInt64
     let componentPackageRevision: Int
     let selectedComponentIDs: Set<UUID>
+    let selectedPrimitive: CanvasPrimitiveSelection?
     let editorOptions: CanvasEditorOptions
     let renderer: any PageRendering
     let canPasteComponent: Bool
@@ -91,6 +92,7 @@ struct CanvasView: View {
                                         packages: canvasPackages(for: page),
                                         assetRevision: assetRevision,
                                         selectedComponentIDs: selectedComponentIDs,
+                                        selectedPrimitive: selectedPrimitive,
                                         editorOptions: editorOptions,
                                         enablesWebInspector: enablesCanvasWebInspector,
                                         canPasteComponent: canPasteComponent,

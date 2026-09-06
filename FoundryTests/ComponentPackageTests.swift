@@ -630,6 +630,19 @@ struct ComponentPackageTests {
         #expect(rendered.contains("Two<img class=\"foundry-image\" src=\"two.jpg\""))
         #expect(rendered.contains("<footer>Footer value</footer>"))
         #expect(!rendered.contains("content3"))
+
+        let editorContext = ComponentTemplateContext(
+            instanceID: context.instanceID,
+            packageIdentifier: context.packageIdentifier,
+            properties: context.properties,
+            slots: [:],
+            enablesEditorMarkup: true,
+            repeatMaximums: maximums
+        )
+        let editorHTML = ComponentTemplateRenderer.render(template, context: editorContext)
+        #expect(editorHTML.contains("data-foundry-primitive-property=\"content1\""))
+        #expect(editorHTML.contains("data-foundry-primitive-property=\"sourceRepeat1\""))
+        #expect(editorHTML.contains("data-foundry-primitive-property=\"content5\"") == false)
     }
 
     @Test

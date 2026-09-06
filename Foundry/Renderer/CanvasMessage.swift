@@ -1,5 +1,10 @@
 import Foundation
 
+nonisolated struct CanvasPrimitiveSelection: Equatable, Sendable {
+    let componentID: UUID
+    let propertyKey: ComponentProperty.Key
+}
+
 nonisolated struct CanvasMessage: Codable, Equatable, Sendable {
     static let currentVersion = 1
 
@@ -58,6 +63,7 @@ nonisolated struct CanvasMessage: Codable, Equatable, Sendable {
 
     nonisolated enum Event: String, Codable, Sendable {
         case selectComponent
+        case selectPrimitive
         case deleteComponents
         case insertComponent
         case insertReusableComponent
@@ -122,6 +128,10 @@ nonisolated struct CanvasMessage: Codable, Equatable, Sendable {
         case .selectComponent:
             componentID != nil && componentType == nil && reusableDefinitionID == nil && globalDefinitionID == nil && placement == nil &&
                 propertyKey == nil && propertyValue == nil && hasNoAssetPayload
+        case .selectPrimitive:
+            componentID != nil && componentIDs == nil && extendsSelection == nil && componentType == nil &&
+                reusableDefinitionID == nil && globalDefinitionID == nil && isGlobalLinked == nil && placement == nil &&
+                propertyKey != nil && propertyValue == nil && hasNoAssetPayload
         case .deleteComponents:
             componentID == nil && componentIDs?.isEmpty == false && extendsSelection == nil && componentType == nil &&
                 reusableDefinitionID == nil && globalDefinitionID == nil && isGlobalLinked == nil && placement == nil &&

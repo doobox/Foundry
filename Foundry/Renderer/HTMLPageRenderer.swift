@@ -52,6 +52,7 @@ struct HTMLPageRenderer: PageRendering {
               \(theme.fontSizeCSSVariables)
               --foundry-editor-component: #0A84FF;
               --foundry-editor-global: #34C759;
+              --foundry-editor-primitive: #AF52DE;
               \(theme.spacingCSSVariables)
             }
             *, *::before, *::after { box-sizing: border-box; }
@@ -67,7 +68,7 @@ struct HTMLPageRenderer: PageRendering {
             [data-foundry-global-override="true"] [data-foundry-global] {
               --foundry-editor-chrome: var(--foundry-editor-component);
             }
-            [data-foundry-id]:hover:not(:has([data-foundry-id]:hover)) {
+            [data-foundry-id]:hover:not(:has([data-foundry-id]:hover)):not(:has([data-foundry-primitive-property]:hover)) {
               outline: 3px solid color-mix(in srgb, var(--foundry-editor-chrome) 55%, transparent); outline-offset: -3px;
               border-radius: 2px !important;
             }
@@ -79,6 +80,13 @@ struct HTMLPageRenderer: PageRendering {
               outline-color: color-mix(in srgb, var(--foundry-editor-chrome) 55%, transparent);
             }
             html:not(.foundry-show-outlines) [data-foundry-id]:hover:not(:has([data-foundry-id]:hover)) {
+              outline: none !important;
+            }
+            [data-foundry-primitive-property]:hover:not(.foundry-primitive-selected):not(:has([data-foundry-primitive-property]:hover)) {
+              outline: 2px dashed color-mix(in srgb, var(--foundry-editor-primitive) 72%, transparent) !important;
+              outline-offset: -2px; border-radius: 2px !important;
+            }
+            html:not(.foundry-show-outlines) [data-foundry-primitive-property]:hover {
               outline: none !important;
             }
             .foundry-multi-drag-image {
@@ -103,6 +111,10 @@ struct HTMLPageRenderer: PageRendering {
             .foundry-global-menu button:hover { background: rgba(0,0,0,.08); }
             .foundry-selected {
               outline: 3px solid var(--foundry-editor-chrome) !important; outline-offset: -3px;
+              border-radius: 2px !important;
+            }
+            .foundry-primitive-selected {
+              outline: 3px solid var(--foundry-editor-primitive) !important; outline-offset: -3px;
               border-radius: 2px !important;
             }
             [contenteditable="true"]:focus:not(.foundry-selected) {
@@ -159,6 +171,9 @@ struct HTMLPageRenderer: PageRendering {
               border-radius: 10px; color: color-mix(in srgb, var(--foundry-color-text) 58%, transparent);
               background: color-mix(in srgb, var(--foundry-color-surface) 72%, transparent);
               font: 600 13px system-ui; text-align: center;
+            }
+            .foundry-image-drop-zone[data-foundry-primitive-property] {
+              border-color: color-mix(in srgb, var(--foundry-editor-primitive) 55%, transparent);
             }
             .foundry-spacer { min-height: 8px; }
             .unavailable { padding: 16px; border: 2px dashed #C33; color: #922; background: #FFF5F5; }

@@ -36,6 +36,7 @@ struct ContentView: View {
     @State private var selectedAssetLibraryNodeID: UUID?
     @State private var selectedComponentIDs: Set<UUID> = []
     @State private var selectedComponentID: UUID?
+    @State private var selectedPrimitive: CanvasPrimitiveSelection?
     @State private var selectedLibraryComponentType: ComponentType?
     @State private var copiedComponents: [ComponentNode] = []
     @State private var editsSharedReusableDefinition = false
@@ -151,6 +152,9 @@ struct ContentView: View {
         }
         .onChange(of: selectedComponentID) { _, componentID in
             editsSharedReusableDefinition = false
+            if selectedPrimitive?.componentID != componentID {
+                selectedPrimitive = nil
+            }
             guard let componentID else {
                 selectedComponentIDs = []
                 return
@@ -165,6 +169,9 @@ struct ContentView: View {
             selectedAssetLibraryNodeID = nil
         }
         .onChange(of: selectedComponentIDs) { _, componentIDs in
+            if componentIDs.count != 1 || selectedPrimitive.map({ !componentIDs.contains($0.componentID) }) == true {
+                selectedPrimitive = nil
+            }
             if let selectedComponentID, !componentIDs.contains(selectedComponentID) {
                 self.selectedComponentID = componentIDs.first
             } else if selectedComponentID == nil {
@@ -178,7 +185,7 @@ struct ContentView: View {
             selectedAssetLibraryNodeID = nil
         }
         .onDeleteCommand {
-            guard !selectedComponentIDs.isEmpty else { return }
+            guard selectedPrimitive == nil, !selectedComponentIDs.isEmpty else { return }
             deleteComponent()
         }
         .focusedSceneValue(\.publishingCommandDispatcher, publishingCommandDispatcher)
@@ -408,6 +415,7 @@ struct ContentView: View {
                 assetRevision: document.assetRevision,
                 componentPackageRevision: componentCatalog.revision,
                 selectedComponentIDs: selectedComponentIDs,
+                selectedPrimitive: selectedPrimitive,
                 editorOptions: canvasEditorOptions,
                 renderer: renderer,
                 canPasteComponent: !copiedComponents.isEmpty,
@@ -544,6 +552,7 @@ struct ContentView: View {
         Binding(
             get: { selectedComponentID },
             set: { componentID in
+                selectedPrimitive = nil
                 selectedComponentID = componentID
                 guard componentID != nil else { return }
                 inspectedPageID = nil
@@ -566,6 +575,7 @@ struct ContentView: View {
                 selectedPageAssetID = nil
                 selectedAssetLibraryNodeID = nil
                 selectedComponentID = nil
+                selectedPrimitive = nil
             }
         )
     }
@@ -648,6 +658,7 @@ struct ContentView: View {
 
         switch message.event {
         case .selectComponent:
+            selectedPrimitive = nil
             guard let componentID = message.componentID,
                   page.components.node(withID: componentID) != nil else { return }
             selectedLibraryComponentType = nil
@@ -662,6 +673,17 @@ struct ContentView: View {
                 selectedComponentIDs = [componentID]
                 selectedComponentID = componentID
             }
+            workspaceLayout.activate(.structure)
+        case .selectPrimitive:
+            guard let componentID = message.componentID,
+                  let propertyKey = message.propertyKey,
+                  let component = page.components.node(withID: componentID),
+                  component.type.definition.properties.contains(where: {
+                      $0.key == propertyKey && !$0.isInspectorVisible
+                  }) else { return }
+            selectedComponentIDs = [componentID]
+            selectedComponentID = componentID
+            selectedPrimitive = .init(componentID: componentID, propertyKey: propertyKey)
             workspaceLayout.activate(.structure)
         case .deleteComponents:
             deleteComponents(message.componentIDs ?? [])
@@ -706,11 +728,15 @@ struct ContentView: View {
                   let source = message.propertyValue,
                   let component = page.components.node(withID: componentID),
                   let package = component.type.definition.package,
-                  ComponentTemplateRenderer.htmlPrimitives(in: package.htmlTemplate).contains(where: {
+                  ComponentTemplateRenderer.htmlPrimitives(
+                      in: package.htmlTemplate,
+                      repeatMaximums: package.repeatMaximums
+                  ).contains(where: {
                       $0.key == propertyKey.rawValue
                   }) else { return }
             selectedComponentIDs = [componentID]
             selectedComponentID = componentID
+            selectedPrimitive = .init(componentID: componentID, propertyKey: propertyKey)
             htmlSourceEditRequest = HTMLSourceEditRequest(
                 pageID: page.id,
                 componentID: componentID,
@@ -735,6 +761,11 @@ struct ContentView: View {
                   let value = message.propertyValue else { return }
             selectedComponentIDs = [componentID]
             selectedComponentID = componentID
+            if component.type.definition.properties.contains(where: {
+                $0.key == propertyKey && !$0.isInspectorVisible
+            }) {
+                selectedPrimitive = .init(componentID: componentID, propertyKey: propertyKey)
+            }
             pageTextEditRequest = PageTextEditRequest(
                 pageID: page.id,
                 componentID: componentID,
@@ -792,6 +823,7 @@ struct ContentView: View {
             undoManager?.endUndoGrouping()
             undoManager?.setActionName("Import Image")
             selectedComponentID = componentID
+            selectedPrimitive = .init(componentID: componentID, propertyKey: propertyKey)
             workspaceLayout.activate(.structure)
         case .insertImageComponent:
             guard let placement = validatedPlacement(message.placement, on: page) else { return }
@@ -844,6 +876,7 @@ struct ContentView: View {
 
     private func handleCanvasContextMenuAction(_ action: CanvasContextMenuAction, componentID: UUID) {
         guard let component = selectedPage?.components.node(withID: componentID) else { return }
+        selectedPrimitive = nil
         selectedLibraryComponentType = nil
         if !selectedComponentIDs.contains(componentID) {
             selectedComponentIDs = [componentID]
@@ -904,7 +937,10 @@ struct ContentView: View {
         guard let page = document.site.pages.first(where: { $0.id == request.pageID }),
               let component = page.components.node(withID: request.componentID),
               let package = component.type.definition.package,
-              ComponentTemplateRenderer.htmlPrimitives(in: package.htmlTemplate).contains(where: {
+              ComponentTemplateRenderer.htmlPrimitives(
+                  in: package.htmlTemplate,
+                  repeatMaximums: package.repeatMaximums
+              ).contains(where: {
                   $0.key == request.propertyKey.rawValue
               }) else { return }
         let values: [(ComponentProperty.Key, String)] = [

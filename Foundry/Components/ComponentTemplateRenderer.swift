@@ -118,9 +118,9 @@ nonisolated enum ComponentTemplateRenderer {
     private static let conditionBlockExpression = try! NSRegularExpression(pattern: #"\{\{\s*if\s+([^{}]+?)\s*\}\}([\s\S]*?)\{\{\s*endif\s*\}\}"#)
     private static let conditionBranchExpression = try! NSRegularExpression(pattern: #"\{\{\s*(elseif\s+([^{}]+?)|else)\s*\}\}"#)
     private static let slotExpression = try! NSRegularExpression(pattern: #"\{\{\s*slot\s+id\s*=\s*[\"']([A-Za-z][A-Za-z0-9_.-]*)[\"'](?:\s+[^}]*?)?\s*\}\}"#)
-    private static let keyedTextExpression = try! NSRegularExpression(pattern: #"\{\{\s*__foundry_text\s+key=\"([^\"]+)\"\s+default=\"([^\"]*)\"\s*\}\}"#)
-    private static let keyedHTMLExpression = try! NSRegularExpression(pattern: #"\{\{\s*__foundry_html\s+key=\"([^\"]+)\"\s+default=\"([^\"]*)\"\s*\}\}"#)
-    private static let keyedImageExpression = try! NSRegularExpression(pattern: #"\{\{\s*__foundry_image\s+key=\"([^\"]+)\"\s*\}\}"#)
+    private static let keyedTextExpression = try! NSRegularExpression(pattern: #"\{\{\s*__foundry_text\s+key=\"([^\"]+)\"\s+default=\"([^\"]*)\"(?:\s+repeated=\"(true)\")?\s*\}\}"#)
+    private static let keyedHTMLExpression = try! NSRegularExpression(pattern: #"\{\{\s*__foundry_html\s+key=\"([^\"]+)\"\s+default=\"([^\"]*)\"(?:\s+repeated=\"(true)\")?\s*\}\}"#)
+    private static let keyedImageExpression = try! NSRegularExpression(pattern: #"\{\{\s*__foundry_image\s+key=\"([^\"]+)\"(?:\s+repeated=\"(true)\")?\s*\}\}"#)
 
     static func render(_ template: String, context: ComponentTemplateContext) -> String {
         let repeatMaximums = context.repeatMaximums.isEmpty
@@ -239,7 +239,13 @@ nonisolated enum ComponentTemplateRenderer {
             let renderedValue = renderedText(currentValue, context: context)
             result.replaceSubrange(wholeRange, with: renderedValue)
             if context.enablesEditorMarkup {
-                addInlineEditingAttribute(for: key, atUTF16Offset: match.range.location, inlineSource: currentValue, to: &result)
+                addInlineEditingAttribute(
+                    for: key,
+                    atUTF16Offset: match.range.location,
+                    inlineSource: currentValue,
+                    marksSelectablePrimitive: match.range(at: 3).location != NSNotFound,
+                    to: &result
+                )
             }
         }
         let matches = primitiveMatches(in: result)
@@ -269,11 +275,24 @@ nonisolated enum ComponentTemplateRenderer {
             guard let range = Range(match.range(at: 0), in: result),
                   let keyRange = Range(match.range(at: 1), in: result) else { continue }
             let key = String(result[keyRange])
-            result.replaceSubrange(range, with: renderedImage(source: stringValue(context.properties[key]) ?? "", key: key, context: context))
+            result.replaceSubrange(
+                range,
+                with: renderedImage(
+                    source: stringValue(context.properties[key]) ?? "",
+                    key: key,
+                    marksSelectablePrimitive: match.range(at: 2).location != NSNotFound,
+                    context: context
+                )
+            )
         }
         guard hasImagePrimitive(in: result) else { return result }
         let source = stringValue(context.properties["source"]) ?? ""
-        let image = renderedImage(source: source, key: "source", context: context)
+        let image = renderedImage(
+            source: source,
+            key: "source",
+            marksSelectablePrimitive: false,
+            context: context
+        )
         return imageExpression.stringByReplacingMatches(
             in: result,
             range: NSRange(result.startIndex..., in: result),
@@ -293,7 +312,14 @@ nonisolated enum ComponentTemplateRenderer {
             let currentValue = stringValue(context.properties[key]) ?? defaultValue
             result.replaceSubrange(wholeRange, with: currentValue)
             if context.enablesEditorMarkup {
-                addInlineEditingAttribute(for: key, atUTF16Offset: match.range.location, rendersHTML: true, inlineSource: currentValue, to: &result)
+                addInlineEditingAttribute(
+                    for: key,
+                    atUTF16Offset: match.range.location,
+                    rendersHTML: true,
+                    inlineSource: currentValue,
+                    marksSelectablePrimitive: match.range(at: 3).location != NSNotFound,
+                    to: &result
+                )
             }
         }
         let matches = htmlPrimitiveMatches(in: result)
@@ -357,13 +383,21 @@ nonisolated enum ComponentTemplateRenderer {
         return escapeText(value)
     }
 
-    private static func renderedImage(source: String, key: String, context: ComponentTemplateContext) -> String {
+    private static func renderedImage(
+        source: String,
+        key: String,
+        marksSelectablePrimitive: Bool,
+        context: ComponentTemplateContext
+    ) -> String {
         let propertyAttribute = context.enablesEditorMarkup ? " data-foundry-image-property=\"\(escapeAttribute(key))\"" : ""
+        let primitiveAttribute = context.enablesEditorMarkup && marksSelectablePrimitive
+            ? " data-foundry-primitive-property=\"\(escapeAttribute(key))\""
+            : ""
         if source.isEmpty && context.enablesEditorMarkup {
-            return "<span class=\"foundry-image-drop-zone\" data-foundry-image-drop-zone\(propertyAttribute)>Drop an image here</span>"
+            return "<span class=\"foundry-image-drop-zone\" data-foundry-image-drop-zone\(propertyAttribute)\(primitiveAttribute)>Drop an image here</span>"
         }
         let editorAttribute = context.enablesEditorMarkup ? " data-foundry-image-drop-zone\(propertyAttribute)" : ""
-        return "<img class=\"foundry-image\"\(editorAttribute) src=\"\(escapeAttribute(source))\" alt=\"\">"
+        return "<img class=\"foundry-image\"\(editorAttribute)\(primitiveAttribute) src=\"\(escapeAttribute(source))\" alt=\"\">"
     }
 
     private static func addInlineEditingAttribute(
@@ -371,6 +405,7 @@ nonisolated enum ComponentTemplateRenderer {
         atUTF16Offset offset: Int,
         rendersHTML: Bool = false,
         inlineSource: String? = nil,
+        marksSelectablePrimitive: Bool = false,
         to result: inout String
     ) {
         let textPosition = String.Index(utf16Offset: offset, in: result)
@@ -383,11 +418,14 @@ nonisolated enum ComponentTemplateRenderer {
               !tag.hasPrefix("<?"),
               !tag.contains("data-foundry-inline-property=") else { return }
         let htmlAttribute = rendersHTML ? " data-foundry-inline-html" : ""
+        let primitiveAttribute = marksSelectablePrimitive
+            ? " data-foundry-primitive-property=\"\(escapeAttribute(key))\""
+            : ""
         let sourceAttribute = inlineSource.map {
             " data-foundry-inline-source=\"\(Data($0.utf8).base64EncodedString())\""
         } ?? ""
         result.insert(
-            contentsOf: " data-foundry-inline-property=\"\(escapeAttribute(key))\"\(htmlAttribute)\(sourceAttribute)",
+            contentsOf: " data-foundry-inline-property=\"\(escapeAttribute(key))\"\(htmlAttribute)\(primitiveAttribute)\(sourceAttribute)",
             at: tagEnd
         )
     }
