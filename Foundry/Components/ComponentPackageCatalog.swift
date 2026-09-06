@@ -356,7 +356,10 @@ private struct ComponentCatalogSnapshot: Sendable {
         let standardizedURLs = urls.map(\.standardizedFileURL)
         await progress(.loading, 0, standardizedURLs.count)
         let progressUpdateInterval = max(1, standardizedURLs.count / 100)
-        let outcomes = await loadOutcomes(standardizedURLs) { completed in
+        let outcomes = await loadOutcomes(
+            standardizedURLs,
+            validates: ComponentValidationPreference.isEnabled
+        ) { completed in
             if completed == standardizedURLs.count || completed.isMultiple(of: progressUpdateInterval) {
                 await progress(.loading, completed, standardizedURLs.count)
             }
@@ -400,6 +403,7 @@ private struct ComponentCatalogSnapshot: Sendable {
 
     fileprivate nonisolated static func loadOutcomes(
         _ urls: [URL],
+        validates: Bool = ComponentValidationPreference.isEnabled,
         progress: @escaping @Sendable (Int) async -> Void = { _ in }
     ) async -> [ComponentPackageLoadOutcome] {
         guard !urls.isEmpty else { return [] }
@@ -407,7 +411,9 @@ private struct ComponentCatalogSnapshot: Sendable {
         await withTaskGroup(of: (Int, ComponentPackageLoadOutcome).self) { group in
             let concurrentLoadCount = min(4, urls.count)
             for index in 0..<concurrentLoadCount {
-                group.addTask { (index, ComponentPackageLoadOutcome.load(from: urls[index])) }
+                group.addTask {
+                    (index, ComponentPackageLoadOutcome.load(from: urls[index], validates: validates))
+                }
             }
             var nextIndex = concurrentLoadCount
             var completedCount = 0
@@ -418,7 +424,9 @@ private struct ComponentCatalogSnapshot: Sendable {
                 if nextIndex < urls.count {
                     let index = nextIndex
                     nextIndex += 1
-                    group.addTask { (index, ComponentPackageLoadOutcome.load(from: urls[index])) }
+                    group.addTask {
+                        (index, ComponentPackageLoadOutcome.load(from: urls[index], validates: validates))
+                    }
                 }
             }
         }
@@ -431,13 +439,13 @@ private struct ComponentPackageLoadOutcome: Sendable {
     let package: LoadedComponentPackage?
     let diagnostics: [ComponentPackageDiagnostic]
 
-    nonisolated static func load(from url: URL) -> ComponentPackageLoadOutcome {
+    nonisolated static func load(from url: URL, validates: Bool) -> ComponentPackageLoadOutcome {
         do {
             let pack = try FoundryPackLoader.load(from: url)
             guard !pack.isCollection else {
                 return .init(url: url, package: nil, diagnostics: [])
             }
-            let result = try ComponentPackageLoader.loadWithDiagnostics(from: url)
+            let result = try ComponentPackageLoader.loadWithDiagnostics(from: url, validates: validates)
             return .init(url: url, package: result.package, diagnostics: result.diagnostics)
         } catch ComponentPackageLoadingError.invalid(let diagnostics) {
             return .init(url: url, package: nil, diagnostics: diagnostics)

@@ -13,6 +13,13 @@ nonisolated enum AppPreferenceKey {
     static let automaticallyChecksComponentUpdates = "components.updates.automatic"
     static let componentLibraryIconSize = "components.library.iconSize"
     static let componentLibraryArrangement = "components.library.arrangement"
+    static let validatesComponentsOnLoad = "components.validation.onLoad"
+}
+
+nonisolated enum ComponentValidationPreference {
+    static var isEnabled: Bool {
+        UserDefaults.standard.bool(forKey: AppPreferenceKey.validatesComponentsOnLoad)
+    }
 }
 
 nonisolated enum AppAppearance: String, CaseIterable, Identifiable {

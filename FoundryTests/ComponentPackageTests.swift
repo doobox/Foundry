@@ -2079,17 +2079,74 @@ struct ComponentPackageTests {
             .filter { $0.pathExtension.lowercased() == "foundrypack" }
             .count - 1
 
+        let stressComponentURLs = FoundryPackLoader.packURLs(in: stressPackURL, includingRoot: true)
+            .filter {
+                $0.pathExtension.lowercased() == "foundrypack"
+                    && $0.standardizedFileURL != stressPackURL.standardizedFileURL
+            }
+        let catalog = ComponentPackageCatalog.shared
+        await catalog.waitUntilLoaded()
+        let profileStart = ContinuousClock.now
+        let measuredTimings = await withTaskGroup(of: (Int, ComponentPackageLoadTimings?).self) { group in
+            var results = Array<ComponentPackageLoadTimings?>(repeating: nil, count: stressComponentURLs.count)
+            let workerCount = min(4, stressComponentURLs.count)
+            for index in 0..<workerCount {
+                group.addTask {
+                    (index, try? ComponentPackageLoader.loadWithDiagnostics(from: stressComponentURLs[index]).timings)
+                }
+            }
+            var nextIndex = workerCount
+            for await (index, timings) in group {
+                results[index] = timings
+                if nextIndex < stressComponentURLs.count {
+                    let index = nextIndex
+                    nextIndex += 1
+                    group.addTask {
+                        (index, try? ComponentPackageLoader.loadWithDiagnostics(from: stressComponentURLs[index]).timings)
+                    }
+                }
+            }
+            return results.compactMap { $0 }.reduce(ComponentPackageLoadTimings(), +)
+        }
+        let profileElapsed = profileStart.duration(to: .now)
+        func seconds(_ duration: Duration) -> Double {
+            let components = duration.components
+            return Double(components.seconds) + Double(components.attoseconds) / 1e18
+        }
+        let measuredWork = seconds(measuredTimings.total)
+        let validationWork = seconds(measuredTimings.validation)
+        let validationPercentage = measuredWork > 0 ? validationWork / measuredWork * 100 : 0
+        print("""
+        Profiled \(stressComponentURLs.count) stress components in \(profileElapsed):
+          manifest reads: \(seconds(measuredTimings.manifestRead))s
+          schema validation: \(seconds(measuredTimings.schemaValidation))s
+          manifest decoding: \(seconds(measuredTimings.manifestDecoding))s
+          semantic validation: \(seconds(measuredTimings.semanticValidation))s
+          resource loading: \(seconds(measuredTimings.resourceLoading))s
+          validation total: \(validationWork)s (\(validationPercentage)% of measured package work)
+        """)
+
         let clock = ContinuousClock()
         let start = clock.now
-        let catalog = ComponentPackageCatalog.shared
+        let validationEnabled = ComponentValidationPreference.isEnabled
         catalog.reloadAllPacks()
         await catalog.waitUntilLoaded()
         let elapsed = start.duration(to: clock.now)
+        let estimatedValidationWallTime = seconds(profileElapsed) * validationPercentage / 100
         let loadedCount = catalog.packages.keys.filter {
             $0.hasPrefix("foundry.stress.component")
         }.count
 
         print("Loaded and published \(loadedCount) stress components in \(elapsed).")
+        print("Catalog validation enabled: \(validationEnabled).")
+        if validationEnabled {
+            let validationShare = estimatedValidationWallTime / seconds(elapsed) * 100
+            print("Estimated validation share of this catalog load: \(validationShare)% (\(estimatedValidationWallTime)s).")
+        } else {
+            let estimatedValidatedLoadTime = seconds(elapsed) + estimatedValidationWallTime
+            let potentialValidationShare = estimatedValidationWallTime / estimatedValidatedLoadTime * 100
+            print("Estimated validation cost avoided: \(estimatedValidationWallTime)s (\(potentialValidationShare)% of an estimated validated load).")
+        }
         #expect(loadedCount == expectedCount)
         #expect(elapsed < .seconds(20), "The installed stress catalog should reload within 20 seconds.")
     }

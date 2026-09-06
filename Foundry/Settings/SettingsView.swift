@@ -103,12 +103,19 @@ private struct DeveloperSettingsView: View {
     private var enablesDeveloperTools = false
     @AppStorage(AppPreferenceKey.enablesCanvasWebInspector)
     private var enablesCanvasWebInspector = false
+    @AppStorage(AppPreferenceKey.validatesComponentsOnLoad)
+    private var validatesComponentsOnLoad = false
 
     var body: some View {
         Form {
             Section("Components") {
                 Toggle("Enable Developer Tools", isOn: $enablesDeveloperTools)
                 Text("Adds component development tools, including the developer panel and pack conversion controls.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                Toggle("Validate Components When Loading", isOn: $validatesComponentsOnLoad)
+                Text("Checks component manifests, API usage, properties, templates, and resources whenever the component library loads. Disable this to trust installed components and improve loading speed.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -121,7 +128,10 @@ private struct DeveloperSettingsView: View {
             }
         }
         .formStyle(.grouped)
-        .frame(width: 560, height: 260)
+        .frame(width: 560, height: 340)
+        .onChange(of: validatesComponentsOnLoad) {
+            ComponentPackageCatalog.shared.reloadAllPacks()
+        }
     }
 }
 

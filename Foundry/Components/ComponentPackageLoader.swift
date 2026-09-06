@@ -102,6 +102,31 @@ nonisolated enum ComponentPackageLoadingError: Error, LocalizedError {
 nonisolated struct ComponentPackageLoadResult: Sendable {
     let package: LoadedComponentPackage
     let diagnostics: [ComponentPackageDiagnostic]
+    let timings: ComponentPackageLoadTimings
+}
+
+nonisolated struct ComponentPackageLoadTimings: Sendable {
+    var manifestRead: Duration = .zero
+    var schemaValidation: Duration = .zero
+    var manifestDecoding: Duration = .zero
+    var semanticValidation: Duration = .zero
+    var resourceLoading: Duration = .zero
+
+    var validation: Duration { schemaValidation + semanticValidation }
+
+    var total: Duration {
+        manifestRead + schemaValidation + manifestDecoding + semanticValidation + resourceLoading
+    }
+
+    static func + (lhs: Self, rhs: Self) -> Self {
+        .init(
+            manifestRead: lhs.manifestRead + rhs.manifestRead,
+            schemaValidation: lhs.schemaValidation + rhs.schemaValidation,
+            manifestDecoding: lhs.manifestDecoding + rhs.manifestDecoding,
+            semanticValidation: lhs.semanticValidation + rhs.semanticValidation,
+            resourceLoading: lhs.resourceLoading + rhs.resourceLoading
+        )
+    }
 }
 
 nonisolated enum ComponentPackageLoader {
@@ -110,6 +135,15 @@ nonisolated enum ComponentPackageLoader {
     }
 
     static func loadWithDiagnostics(from rootURL: URL) throws -> ComponentPackageLoadResult {
+        try loadWithDiagnostics(from: rootURL, validates: true)
+    }
+
+    static func loadWithDiagnostics(
+        from rootURL: URL,
+        validates: Bool
+    ) throws -> ComponentPackageLoadResult {
+        let clock = ContinuousClock()
+        var timings = ComponentPackageLoadTimings()
         let manifestURL = rootURL.appending(path: "Contents/Info.plist")
         guard FileManager.default.fileExists(atPath: manifestURL.path) else {
             throw ComponentPackageLoadingError.missingManifest
@@ -118,12 +152,22 @@ nonisolated enum ComponentPackageLoader {
         let manifest: ComponentPackageManifest
         let schemaDiagnostics: [ComponentPackageDiagnostic]
         do {
+            let readStart = clock.now
             let data = try Data(contentsOf: manifestURL)
-            schemaDiagnostics = try ComponentPackageManifestSchema.diagnostics(for: data)
-            guard !schemaDiagnostics.contains(where: { $0.severity == .error }) else {
-                throw ComponentPackageLoadingError.invalid(schemaDiagnostics)
+            timings.manifestRead = readStart.duration(to: clock.now)
+            if validates {
+                let schemaStart = clock.now
+                schemaDiagnostics = try ComponentPackageManifestSchema.diagnostics(for: data)
+                timings.schemaValidation = schemaStart.duration(to: clock.now)
+                guard !schemaDiagnostics.contains(where: { $0.severity == .error }) else {
+                    throw ComponentPackageLoadingError.invalid(schemaDiagnostics)
+                }
+            } else {
+                schemaDiagnostics = []
             }
+            let decodingStart = clock.now
             manifest = try PropertyListDecoder().decode(ComponentPackageManifest.self, from: data)
+            timings.manifestDecoding = decodingStart.duration(to: clock.now)
         } catch let error as ComponentPackageLoadingError {
             throw error
         } catch {
@@ -131,11 +175,20 @@ nonisolated enum ComponentPackageLoader {
         }
 
         let resourceRootURL = rootURL.appending(path: "Contents/Resources", directoryHint: .isDirectory)
-        let diagnostics = schemaDiagnostics + ComponentPackageValidator.validate(manifest, rootURL: resourceRootURL)
+        let semanticDiagnostics: [ComponentPackageDiagnostic]
+        if validates {
+            let validationStart = clock.now
+            semanticDiagnostics = ComponentPackageValidator.validate(manifest, rootURL: resourceRootURL)
+            timings.semanticValidation = validationStart.duration(to: clock.now)
+        } else {
+            semanticDiagnostics = []
+        }
+        let diagnostics = schemaDiagnostics + semanticDiagnostics
         let errors = diagnostics.filter { $0.severity == .error }
         guard errors.isEmpty else {
             throw ComponentPackageLoadingError.invalid(diagnostics)
         }
+        let resourceLoadingStart = clock.now
         let instanceCSS = try manifest.render.files
             .filter { $0.scope == .instance && $0.path.lowercased().hasSuffix(".css") }
             .map { try read($0.path, from: resourceRootURL) }
@@ -174,8 +227,7 @@ nonisolated enum ComponentPackageLoader {
                 .map { try read($0.path, from: resourceRootURL) }
                 .joined(separator: "\n")
         }
-        return ComponentPackageLoadResult(
-            package: LoadedComponentPackage(
+        let package = LoadedComponentPackage(
                 manifest: manifest,
                 rootURL: rootURL,
                 htmlTemplate: try read(manifest.render.html, from: resourceRootURL),
@@ -190,8 +242,12 @@ nonisolated enum ComponentPackageLoader {
                 editorCSS: try readIfPresent(manifest.render.editorCSS, from: resourceRootURL),
                 updateSourceURL: updateSourceURL(containing: rootURL),
                 imageMetadata: imageMetadata(for: manifest, resourceRootURL: resourceRootURL)
-            ),
-            diagnostics: diagnostics
+            )
+        timings.resourceLoading = resourceLoadingStart.duration(to: clock.now)
+        return ComponentPackageLoadResult(
+            package: package,
+            diagnostics: diagnostics,
+            timings: timings
         )
     }
 
