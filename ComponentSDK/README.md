@@ -69,9 +69,19 @@ Example.foundrydevpack/
 </section>
 ```
 
-## Image controls
+## Images
 
-Images are explicit named controls. Declare an image property and reference the same ID in the template:
+Use the plain image primitive when the image should be edited directly on the canvas without adding an Inspector control:
+
+```html
+<figure {{ component.attributes }}>
+    {{ image }}
+</figure>
+```
+
+Foundry stores this value privately on the component instance. Inside a repeat, every rendered position has its own lazily stored value.
+
+To expose an image in the Inspector, declare a normal image control:
 
 ```xml
 <key>customItems</key>
@@ -81,19 +91,45 @@ Images are explicit named controls. Declare an image property and reference the 
         <key>labels</key><string>Image</string>
         <key>group</key><string>Content</string>
         <key>type</key><string>image</string>
+        <key>alt</key><string>Default image description</string>
+        <key>focalPoint</key><true/>
     </dict>
 </array>
 ```
 
 ```html
 <figure {{ component.attributes }}>
-    {{ image source }}
+    <img src="{{ control.source }}" width="{{ control.source.width }}" height="{{ control.source.height }}" alt="{{ control.source.alt }}">
 </figure>
 ```
 
 Omitting `default` starts with no image. A non-empty default must be a path covered by the pack’s top-level `assets` declarations. Clear restores the declared default; without one it restores the empty image drop zone. Authors can replace the image from Finder, the Assets panel, or the Inspector image well.
 
-Inside a repeat, use repeat metadata to address explicitly declared controls, for example `{{ image slide-repeat.position }}` with image controls named `slide-1`, `slide-2`, and so on up to the repeat control’s maximum.
+The optional `alt` key defaults to an empty string. Foundry automatically places an editable field labelled **Alt** on the row immediately below the image well. The image control also exposes structured companion values:
+
+- `{{ control.source }}` and `{{ control.source.href }}` — resolved image URL.
+- `{{ control.source.width }}` and `{{ control.source.height }}` — intrinsic, orientation-corrected pixel dimensions.
+- `{{ control.source.mimeType }}` — MIME type, such as `image/png`.
+- `{{ control.source.byteCount }}` — exact stored size in bytes.
+- `{{ control.source.filename }}` — original filename.
+- `{{ control.source.extension }}` — lowercase filename extension without the dot.
+- `{{ control.source.aspectRatio }}` — intrinsic width divided by height.
+- `{{ control.source.alt }}` — escaped editable alternative text.
+- `{{ control.source.focalPointX }}` and `{{ control.source.focalPointY }}` — instance-specific focal-point percentages from `0` to `100`, defaulting to `50`.
+- `{{ control.source.position }}` — the focal point as a ready-to-use CSS pair such as `35% 60%`.
+
+Focal-point editing is opt-in. Add `<key>focalPoint</key><true/>` to let the user set it directly on the Inspector image preview; omitting the key or setting it to false leaves the image well unchanged and returns the centred defaults. Use the same `position` value with either replaced images or backgrounds:
+
+```css
+object-position: {{ control.source.position }};
+background-position: {{ control.source.position }};
+```
+
+Unavailable intrinsic values render as an empty string. Foundry reads dimensions when an image is imported (or once when opening an older document) and reads packaged defaults when the pack loads, so these values do not decode images during page rendering.
+
+The exact `src="{{ control.source }}"` binding is also recognized as an image drop target on the canvas. Inside a repeat, use repeat metadata in the control ID when each position has an explicitly declared control, for example `src="{{ control.slide-repeat.position }}"` with controls named `slide-1`, `slide-2`, and so on.
+
+These two forms have different Inspector behaviour inside repeats. Plain `{{ image }}` values are created lazily for the rendered positions and remain hidden from the Inspector. A `{{ control.<id> }}` image is a normal, visible Inspector control, so every repeat position it can address must have a corresponding declared control. Repeated editable text, HTML, and images can be selected and edited on the canvas, but remain part of their parent component: selecting one keeps the parent component's controls in the Inspector, and repeated values cannot be dragged independently.
 
 ## Loading and distribution
 

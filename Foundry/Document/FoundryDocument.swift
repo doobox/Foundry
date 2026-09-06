@@ -12,6 +12,8 @@ nonisolated struct FoundryDocumentSnapshot: Sendable {
     private(set) var assetIDsByDigest: [Data: Set<UUID>]
 
     init(site: Site, assetData: [UUID: Data], assetRevision: UInt64 = 0) {
+        var site = site
+        site.assetLibrary.hydrateImageMetadata(from: assetData)
         self.site = site
         self.assetData = assetData
         self.assetRevision = assetRevision
@@ -166,7 +168,14 @@ final class FoundryDocument: ReferenceFileDocument {
            let existingID = next.matchingAssetID(for: data, digest: digest) {
             return existingID
         }
-        let asset = ProjectAsset(filename: filename, mediaType: mediaType, byteCount: data.count)
+        let metadata = ComponentImageMetadata.inspect(data: data, filename: filename, mimeType: mediaType)
+        let asset = ProjectAsset(
+            filename: filename,
+            mediaType: mediaType,
+            byteCount: data.count,
+            pixelWidth: metadata.width,
+            pixelHeight: metadata.height
+        )
         guard next.site.assetLibrary.insert(.asset(asset), at: placement) else { return asset.id }
         next.insertAssetData(data, id: asset.id, digest: digest)
         replaceContents(with: next, undoManager: undoManager, actionName: "Import Asset")

@@ -327,6 +327,14 @@ struct ComponentPropertyEditor: View {
                     .scaledToFit()
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .padding(6)
+                if definition.supportsImageFocalPoint {
+                    ImageFocalPointEditor(
+                        imageSize: previewImage.size,
+                        focalPoint: imageFocalPoint,
+                        onCommit: setImageFocalPoint
+                    )
+                    .padding(6)
+                }
             } else {
                 Image(systemName: "photo")
                     .font(.title2)
@@ -358,6 +366,25 @@ struct ComponentPropertyEditor: View {
               let package = component.type.definition.package,
               package.manifest.assetDeclaration(containing: source) != nil else { return nil }
         return NSImage(contentsOf: package.resourceRootURL.appending(path: source))
+    }
+
+    private var imageFocalPoint: CGPoint {
+        let point = ComponentImageTemplateValues.focalPoint(
+            from: displayComponent.propertyValue(
+                ComponentPackageAdapter.imageFocalPointKey(for: definition.key.rawValue)
+            )
+        )
+        return CGPoint(x: point.x / 100, y: point.y / 100)
+    }
+
+    private func setImageFocalPoint(_ point: CGPoint) {
+        setProperty(
+            .array([
+                .number(min(max(point.x * 100, 0), 100)),
+                .number(min(max(point.y * 100, 0), 100))
+            ]),
+            key: ComponentPackageAdapter.imageFocalPointKey(for: definition.key.rawValue)
+        )
     }
 
     private func chooseImageFromFinder() {
@@ -754,6 +781,86 @@ struct ComponentPropertyEditor: View {
             case .choice: .choice(string)
             }
         }
+    }
+}
+
+private struct ImageFocalPointEditor: View {
+    @State private var draft: CGPoint?
+    let imageSize: CGSize
+    let focalPoint: CGPoint
+    let onCommit: (CGPoint) -> Void
+
+    var body: some View {
+        GeometryReader { proxy in
+            let imageFrame = fittedImageFrame(in: proxy.size)
+            let displayedPoint = draft ?? focalPoint
+
+            ZStack(alignment: .topLeading) {
+                Color.clear
+                focalPointMarker
+                    .position(
+                        x: imageFrame.minX + imageFrame.width * displayedPoint.x,
+                        y: imageFrame.minY + imageFrame.height * displayedPoint.y
+                    )
+            }
+            .contentShape(Rectangle())
+            .gesture(
+                DragGesture(minimumDistance: 0)
+                    .onChanged { value in
+                        draft = normalizedPoint(value.location, in: imageFrame)
+                    }
+                    .onEnded { value in
+                        let point = normalizedPoint(value.location, in: imageFrame)
+                        draft = nil
+                        onCommit(point)
+                    }
+            )
+            .help("Drag to set the image focal point")
+            .accessibilityLabel("Image focal point")
+            .accessibilityValue(
+                "Horizontal \(Int(displayedPoint.x * 100)) percent, vertical \(Int(displayedPoint.y * 100)) percent"
+            )
+        }
+    }
+
+    private var focalPointMarker: some View {
+        ZStack {
+            Circle()
+                .fill(.black.opacity(0.55))
+            Circle()
+                .stroke(.white, lineWidth: 2)
+            Image(systemName: "plus")
+                .font(.system(size: 9, weight: .bold))
+                .foregroundStyle(.white)
+        }
+        .frame(width: 22, height: 22)
+        .shadow(radius: 2)
+    }
+
+    private func fittedImageFrame(in availableSize: CGSize) -> CGRect {
+        guard imageSize.width > 0, imageSize.height > 0,
+              availableSize.width > 0, availableSize.height > 0 else {
+            return CGRect(origin: .zero, size: availableSize)
+        }
+        let scale = min(
+            availableSize.width / imageSize.width,
+            availableSize.height / imageSize.height
+        )
+        let size = CGSize(width: imageSize.width * scale, height: imageSize.height * scale)
+        return CGRect(
+            x: (availableSize.width - size.width) / 2,
+            y: (availableSize.height - size.height) / 2,
+            width: size.width,
+            height: size.height
+        )
+    }
+
+    private func normalizedPoint(_ location: CGPoint, in imageFrame: CGRect) -> CGPoint {
+        guard imageFrame.width > 0, imageFrame.height > 0 else { return focalPoint }
+        return CGPoint(
+            x: min(max((location.x - imageFrame.minX) / imageFrame.width, 0), 1),
+            y: min(max((location.y - imageFrame.minY) / imageFrame.height, 0), 1)
+        )
     }
 }
 

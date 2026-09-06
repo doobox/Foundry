@@ -7,6 +7,7 @@ private struct HTMLSourceEditRequest: Identifiable {
     let pageID: UUID
     let componentID: UUID
     let propertyKey: ComponentProperty.Key
+    let propertyPath: [Int]
     let source: HTMLComponentSource
 }
 
@@ -15,6 +16,7 @@ private struct PageTextEditRequest: Identifiable {
     let pageID: UUID
     let componentID: UUID
     let propertyKey: ComponentProperty.Key
+    let propertyPath: [Int]
     let value: String
 }
 
@@ -685,7 +687,11 @@ struct ContentView: View {
                   component.type.definition.properties.contains(where: { $0.key == propertyKey }) else { return }
             selectedComponentIDs = [componentID]
             selectedComponentID = componentID
-            selectedPrimitive = .init(componentID: componentID, propertyKey: propertyKey)
+            selectedPrimitive = .init(
+                componentID: componentID,
+                propertyKey: propertyKey,
+                propertyPath: message.propertyPath ?? []
+            )
             workspaceLayout.activate(.structure)
         case .deleteComponents:
             deleteComponents(message.componentIDs ?? [])
@@ -743,10 +749,13 @@ struct ContentView: View {
                 pageID: page.id,
                 componentID: componentID,
                 propertyKey: propertyKey,
+                propertyPath: message.propertyPath ?? [],
                 source: .init(
                     html: source,
-                    css: component.property(.init(rawValue: propertyKey.rawValue + "CSS")),
-                    javaScript: component.property(.init(rawValue: propertyKey.rawValue + "JavaScript"))
+                    css: component.propertyValue(.init(rawValue: propertyKey.rawValue + "CSS"))
+                        .value(at: message.propertyPath ?? [])?.stringValue ?? "",
+                    javaScript: component.propertyValue(.init(rawValue: propertyKey.rawValue + "JavaScript"))
+                        .value(at: message.propertyPath ?? [])?.stringValue ?? ""
                 )
             )
         case .editComponent:
@@ -766,12 +775,17 @@ struct ContentView: View {
             if component.type.definition.properties.contains(where: {
                 $0.key == propertyKey && !$0.isInspectorVisible
             }) {
-                selectedPrimitive = .init(componentID: componentID, propertyKey: propertyKey)
+                selectedPrimitive = .init(
+                    componentID: componentID,
+                    propertyKey: propertyKey,
+                    propertyPath: message.propertyPath ?? []
+                )
             }
             pageTextEditRequest = PageTextEditRequest(
                 pageID: page.id,
                 componentID: componentID,
                 propertyKey: propertyKey,
+                propertyPath: message.propertyPath ?? [],
                 value: value
             )
         case .importImageAsset:
@@ -817,11 +831,13 @@ struct ContentView: View {
                 }
                 asset = importedAsset
             }
-            if let context = document.site.globalComponentContext(containing: componentID), !context.isOverridden {
-                editor.setSharedReusableProperty(componentID: componentID, key: propertyKey, value: .url(asset.reference))
-            } else {
-                editor.setProperty(id: componentID, key: propertyKey, value: .url(asset.reference))
-            }
+            setCanvasProperty(
+                componentID: componentID,
+                key: propertyKey,
+                value: .url(asset.reference),
+                at: message.propertyPath ?? [],
+                defaultLeafValue: .url("")
+            )
             undoManager?.endUndoGrouping()
             undoManager?.setActionName("Import Image")
             selectedComponentID = componentID
@@ -886,7 +902,8 @@ struct ContentView: View {
     private func handleCanvasContextMenuAction(
         _ action: CanvasContextMenuAction,
         componentID: UUID,
-        imageProperty: ComponentProperty.Key?
+        imageProperty: ComponentProperty.Key?,
+        imagePropertyPath: [Int]
     ) {
         guard let component = selectedPage?.components.node(withID: componentID) else { return }
         selectedPrimitive = nil
@@ -905,11 +922,16 @@ struct ContentView: View {
                       return false
                   }) else { return }
             undoManager?.beginUndoGrouping()
-            if let context = document.site.globalComponentContext(containing: componentID), !context.isOverridden {
-                editor.setSharedReusableProperty(componentID: componentID, key: imageProperty, value: definition.defaultValue)
-            } else {
-                editor.setProperty(id: componentID, key: imageProperty, value: definition.defaultValue)
-            }
+            let defaultLeafValue: ComponentProperty.Value = definition.defaultValue.arrayValue == nil
+                ? definition.defaultValue
+                : .url("")
+            setCanvasProperty(
+                componentID: componentID,
+                key: imageProperty,
+                value: defaultLeafValue,
+                at: imagePropertyPath,
+                defaultLeafValue: defaultLeafValue
+            )
             undoManager?.endUndoGrouping()
             undoManager?.setActionName("Clear Image")
         case .duplicate:
@@ -935,7 +957,8 @@ struct ContentView: View {
 
     private func canClearCanvasImage(
         componentID: UUID,
-        imageProperty: ComponentProperty.Key
+        imageProperty: ComponentProperty.Key,
+        imagePropertyPath: [Int]
     ) -> Bool {
         guard let component = selectedPage?.components.node(withID: componentID),
               let definition = component.type.definition.properties.first(where: {
@@ -943,7 +966,11 @@ struct ContentView: View {
                   if case .image = $0.control { return true }
                   return false
               }) else { return false }
-        return component.propertyValue(imageProperty) != definition.defaultValue
+        let currentValue = component.propertyValue(imageProperty).value(at: imagePropertyPath)
+        let defaultLeafValue: ComponentProperty.Value = definition.defaultValue.arrayValue == nil
+            ? definition.defaultValue
+            : .url("")
+        return currentValue != nil && currentValue != defaultLeafValue
     }
 
     private var canvasReusableAlertBinding: Binding<Bool> {
@@ -991,11 +1018,23 @@ struct ContentView: View {
         ]
         undoManager?.beginUndoGrouping()
         for (key, value) in values {
-            if let context = document.site.globalComponentContext(containing: request.componentID), !context.isOverridden {
-                editor.setSharedReusableProperty(componentID: request.componentID, key: key, value: .string(value))
+            let defaultLeafValue: ComponentProperty.Value
+            if key == request.propertyKey,
+               let primitive = ComponentTemplateRenderer.htmlPrimitives(
+                   in: package.htmlTemplate,
+                   repeatMaximums: package.repeatMaximums
+               ).first(where: { $0.key == key.rawValue }) {
+                defaultLeafValue = .string(primitive.defaultValue)
             } else {
-                editor.setProperty(id: request.componentID, key: key, value: .string(value))
+                defaultLeafValue = .string("")
             }
+            setCanvasProperty(
+                componentID: request.componentID,
+                key: key,
+                value: .string(value),
+                at: request.propertyPath,
+                defaultLeafValue: defaultLeafValue
+            )
         }
         undoManager?.endUndoGrouping()
         undoManager?.setActionName("Edit HTML Component")
@@ -1012,17 +1051,43 @@ struct ContentView: View {
                   }
               }) else { return }
         undoManager?.beginUndoGrouping()
-        if let context = document.site.globalComponentContext(containing: request.componentID), !context.isOverridden {
-            editor.setSharedReusableProperty(
-                componentID: request.componentID,
-                key: request.propertyKey,
-                value: .string(value)
-            )
-        } else {
-            editor.setProperty(id: request.componentID, key: request.propertyKey, value: .string(value))
-        }
+        let defaultLeafValue = component.type.definition.package.flatMap { package in
+            ComponentTemplateRenderer.textPrimitives(
+                in: package.htmlTemplate,
+                repeatMaximums: package.repeatMaximums
+            ).first(where: { $0.key == request.propertyKey.rawValue })?.defaultValue
+        } ?? ""
+        setCanvasProperty(
+            componentID: request.componentID,
+            key: request.propertyKey,
+            value: .string(value),
+            at: request.propertyPath,
+            defaultLeafValue: .string(defaultLeafValue)
+        )
         undoManager?.endUndoGrouping()
         undoManager?.setActionName("Edit Text")
+    }
+
+    private func setCanvasProperty(
+        componentID: UUID,
+        key: ComponentProperty.Key,
+        value: ComponentProperty.Value,
+        at indexPath: [Int],
+        defaultLeafValue: ComponentProperty.Value
+    ) {
+        guard let component = selectedPage?.components.node(withID: componentID) else { return }
+        let rootValue = indexPath.isEmpty
+            ? value
+            : component.propertyValue(key).settingValue(
+                value,
+                at: indexPath,
+                defaultLeafValue: defaultLeafValue
+            )
+        if let context = document.site.globalComponentContext(containing: componentID), !context.isOverridden {
+            editor.setSharedReusableProperty(componentID: componentID, key: key, value: rootValue)
+        } else {
+            editor.setProperty(id: componentID, key: key, value: rootValue)
+        }
     }
 
     private func imageType(filename: String, mediaType: String) -> UTType? {
@@ -1464,7 +1529,12 @@ struct ContentView: View {
     }
 
     private func publishSite(forceAllFiles: Bool = false) {
-        NSDocumentController.shared.currentDocument?.save(nil)
+        guard let nativeDocument = NSDocumentController.shared.currentDocument else { return }
+        if nativeDocument.fileURL == nil {
+            nativeDocument.save(nil)
+            return
+        }
+        nativeDocument.save(nil)
         let site = document.site
         let assets = document.assetContents
         var localDirectory = PublishingDestinationStore.url(for: site.id)

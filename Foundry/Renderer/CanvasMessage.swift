@@ -3,6 +3,13 @@ import Foundation
 nonisolated struct CanvasPrimitiveSelection: Equatable, Sendable {
     let componentID: UUID
     let propertyKey: ComponentProperty.Key
+    let propertyPath: [Int]
+
+    init(componentID: UUID, propertyKey: ComponentProperty.Key, propertyPath: [Int] = []) {
+        self.componentID = componentID
+        self.propertyKey = propertyKey
+        self.propertyPath = propertyPath
+    }
 }
 
 nonisolated struct CanvasMessage: Codable, Equatable, Sendable {
@@ -19,6 +26,7 @@ nonisolated struct CanvasMessage: Codable, Equatable, Sendable {
     let isGlobalLinked: Bool?
     let placement: Placement?
     let propertyKey: ComponentProperty.Key?
+    let propertyPath: [Int]?
     let propertyValue: String?
     let assetFilename: String?
     let assetMediaType: String?
@@ -37,6 +45,7 @@ nonisolated struct CanvasMessage: Codable, Equatable, Sendable {
         isGlobalLinked: Bool? = nil,
         placement: Placement? = nil,
         propertyKey: ComponentProperty.Key? = nil,
+        propertyPath: [Int]? = nil,
         propertyValue: String? = nil,
         assetFilename: String? = nil,
         assetMediaType: String? = nil,
@@ -54,6 +63,7 @@ nonisolated struct CanvasMessage: Codable, Equatable, Sendable {
         self.isGlobalLinked = isGlobalLinked
         self.placement = placement
         self.propertyKey = propertyKey
+        self.propertyPath = propertyPath
         self.propertyValue = propertyValue
         self.assetFilename = assetFilename
         self.assetMediaType = assetMediaType
@@ -124,7 +134,8 @@ nonisolated struct CanvasMessage: Codable, Equatable, Sendable {
     }
 
     private var isValid: Bool {
-        switch event {
+        guard propertyPath?.allSatisfy({ $0 >= 0 }) != false else { return false }
+        return switch event {
         case .selectComponent:
             componentID != nil && componentType == nil && reusableDefinitionID == nil && globalDefinitionID == nil && placement == nil &&
                 propertyKey == nil && propertyValue == nil && hasNoAssetPayload

@@ -27,12 +27,14 @@ struct CanvasBridgeTests {
             "version": CanvasMessage.currentVersion,
             "event": "selectPrimitive",
             "componentID": componentID.uuidString,
-            "propertyKey": propertyKey.rawValue
+            "propertyKey": propertyKey.rawValue,
+            "propertyPath": [2, 4]
         ])
 
         #expect(message?.event == .selectPrimitive)
         #expect(message?.componentID == componentID)
         #expect(message?.propertyKey == propertyKey)
+        #expect(message?.propertyPath == [2, 4])
         #expect(CanvasMessage.decode([
             "version": CanvasMessage.currentVersion,
             "event": "selectPrimitive",
@@ -66,6 +68,7 @@ struct CanvasBridgeTests {
             "event": "importImageAsset",
             "componentID": id.uuidString,
             "propertyKey": propertyKey.rawValue,
+            "propertyPath": [3],
             "assetFilename": "hero.png",
             "assetMediaType": "image/png",
             "assetData": Data([1, 2, 3]).base64EncodedString()
@@ -74,6 +77,7 @@ struct CanvasBridgeTests {
         #expect(message?.event == .importImageAsset)
         #expect(message?.componentID == id)
         #expect(message?.propertyKey == propertyKey)
+        #expect(message?.propertyPath == [3])
         #expect(message?.assetFilename == "hero.png")
 
         let assetID = UUID()

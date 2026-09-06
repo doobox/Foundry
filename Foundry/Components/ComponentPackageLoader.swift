@@ -1,4 +1,5 @@
 import Foundation
+import UniformTypeIdentifiers
 
 nonisolated struct LoadedComponentPackage: Sendable {
     let manifest: ComponentPackageManifest
@@ -14,6 +15,7 @@ nonisolated struct LoadedComponentPackage: Sendable {
     let pagePHP: String
     let editorCSS: String
     let updateSourceURL: URL?
+    let imageMetadata: [String: ComponentImageMetadata]
 
     var lock: ComponentPackageLock {
         .init(identifier: manifest.identifier)
@@ -176,7 +178,28 @@ nonisolated enum ComponentPackageLoader {
             pagePHP: try php(scope: .page),
             editorCSS: try readIfPresent(manifest.render.editorCSS, from: resourceRootURL),
             updateSourceURL: updateSourceURL(containing: rootURL),
+            imageMetadata: imageMetadata(for: manifest, resourceRootURL: resourceRootURL)
         )
+    }
+
+    private static func imageMetadata(
+        for manifest: ComponentPackageManifest,
+        resourceRootURL: URL
+    ) -> [String: ComponentImageMetadata] {
+        manifest.properties.reduce(into: [:]) { result, property in
+            guard property.control.type == .image else { return }
+            let path = property.defaultValue.stringValue
+            guard !path.isEmpty else { return }
+            let url = resourceRootURL.appending(path: path)
+            guard let data = try? Data(contentsOf: url) else { return }
+            let mimeType = UTType(filenameExtension: url.pathExtension)?.preferredMIMEType
+                ?? "application/octet-stream"
+            result[path] = ComponentImageMetadata.inspect(
+                data: data,
+                filename: url.lastPathComponent,
+                mimeType: mimeType
+            )
+        }
     }
 
     private static func readIfPresent(_ path: String?, from rootURL: URL) throws -> String {

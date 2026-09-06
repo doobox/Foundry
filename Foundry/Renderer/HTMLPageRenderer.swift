@@ -112,7 +112,7 @@ struct HTMLPageRenderer: PageRendering {
             }
             .foundry-empty-drop-zone.foundry-drop-inside {
               border-color: transparent !important;
-              outline-offset: -2px;
+              outline-offset: -4px;
             }
             .foundry-empty-page { min-height: 100vh; }
             .foundry-contentless-drop-zone { min-height: 32px; padding: 6px 12px; }
@@ -144,10 +144,10 @@ struct HTMLPageRenderer: PageRendering {
             }
             .foundry-image-drop-zone.foundry-drop-inside {
               border-color: transparent !important;
-              outline-offset: 0;
+              outline-offset: -4px;
             }
-            [data-foundry-id].foundry-image.foundry-drop-inside {
-              outline-offset: -2px;
+            [data-foundry-image-drop-zone].foundry-image.foundry-drop-inside {
+              outline-offset: -4px;
             }
             [data-foundry-image-drop-zone][data-foundry-primitive-property].foundry-drop-inside {
               outline-color: var(--foundry-editor-primitive) !important;
@@ -494,6 +494,26 @@ struct HTMLPageRenderer: PageRendering {
                     theme: theme
                 )
             )
+        }
+        if let package = node.type.definition.package {
+            for property in package.manifest.properties where property.control.type == .image {
+                let key = ComponentProperty.Key(rawValue: property.id)
+                guard case .url(let source) = node.propertyValue(key) else { continue }
+                let metadata = source.foundryAssetID.flatMap { assets[$0]?.asset.imageMetadata }
+                    ?? package.imageMetadata[source]
+                let focalPoint = ComponentImageTemplateValues.focalPoint(
+                    from: node.propertyValue(ComponentPackageAdapter.imageFocalPointKey(for: property.id))
+                )
+                ComponentImageTemplateValues.insert(
+                    propertyID: property.id,
+                    href: values[property.id]?.stringValue ?? "",
+                    alt: node.property(ComponentPackageAdapter.imageAltKey(for: property.id)),
+                    focalPointX: focalPoint.x,
+                    focalPointY: focalPoint.y,
+                    metadata: metadata,
+                    into: &values
+                )
+            }
         }
         if let site {
             for definition in node.type.definition.properties {

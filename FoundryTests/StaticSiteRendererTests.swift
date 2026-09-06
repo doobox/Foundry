@@ -177,10 +177,20 @@ struct StaticSiteRendererTests {
             filename: "hero.png",
             mediaType: "image/png",
             byteCount: data.count,
+            pixelWidth: 1600,
+            pixelHeight: 900,
             exportDirectory: .folder(filesFolder.id)
         )
         var image = ComponentNode.make(.image)
         image.setProperty(.source, value: .url(asset.reference))
+        image.setProperty(
+            ComponentPackageAdapter.imageAltKey(for: "source"),
+            value: "A descriptive image"
+        )
+        image.setProperty(
+            ComponentPackageAdapter.imageFocalPointKey(for: "source"),
+            value: .array([.number(25), .number(70)])
+        )
         let page = Page(title: "Story", slug: "story", components: [image], folderID: pagesFolder.id)
         let site = Site(
             name: "Files",
@@ -196,8 +206,12 @@ struct StaticSiteRendererTests {
 
         #expect(bundle.file(at: "downloads/hero.png")?.data == data)
         #expect(bundle.file(at: asset.exportPath) == nil)
-        #expect(try #require(bundle.file(at: "articles/story/index.html"))
-            .contents.contains("src=\"../../downloads/hero.png\""))
+        let html = try #require(bundle.file(at: "articles/story/index.html")).contents
+        #expect(html.contains("src=\"../../downloads/hero.png\""))
+        #expect(html.contains("width=\"1600\""))
+        #expect(html.contains("height=\"900\""))
+        #expect(html.contains("object-position: 25% 70%"))
+        #expect(html.contains("alt=\"A descriptive image\""))
     }
 
     @Test

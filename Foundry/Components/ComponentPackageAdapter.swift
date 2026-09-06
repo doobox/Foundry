@@ -7,14 +7,16 @@ nonisolated enum ComponentPackageAdapter {
         let implicitTextProperties = ComponentTemplateRenderer.textPrimitives(in: package.htmlTemplate, repeatMaximums: repeatMaximums).map { primitive in
             ComponentPropertyDefinition(
                 key: .init(rawValue: primitive.key), label: "Text", section: .content,
-                control: .multilineText, defaultValue: .string(primitive.defaultValue),
+                control: .multilineText,
+                defaultValue: primitive.isRepeated ? .array([]) : .string(primitive.defaultValue),
                 isResponsive: false, isInspectorVisible: false
             )
         }
         let implicitHTMLProperties = ComponentTemplateRenderer.htmlPrimitives(in: package.htmlTemplate, repeatMaximums: repeatMaximums).map { primitive in
             ComponentPropertyDefinition(
                 key: .init(rawValue: primitive.key), label: "HTML", section: .content,
-                control: .multilineText, defaultValue: .string(primitive.defaultValue),
+                control: .multilineText,
+                defaultValue: primitive.isRepeated ? .array([]) : .string(primitive.defaultValue),
                 isResponsive: false, isInspectorVisible: false
             )
         }
@@ -22,10 +24,19 @@ nonisolated enum ComponentPackageAdapter {
             ["CSS", "JavaScript"].map { suffix in
                 ComponentPropertyDefinition(
                     key: .init(rawValue: primitive.key + suffix), label: suffix, section: .content,
-                    control: .multilineText, defaultValue: .string(""),
+                    control: .multilineText,
+                    defaultValue: primitive.isRepeated ? .array([]) : .string(""),
                     isResponsive: false, isInspectorVisible: false
                 )
             }
+        }
+        let implicitImageProperties = ComponentTemplateRenderer.imagePrimitives(in: package.htmlTemplate).map { primitive in
+            ComponentPropertyDefinition(
+                key: .init(rawValue: primitive.key), label: "Image", section: .content,
+                control: .image,
+                defaultValue: primitive.isRepeated ? .array([]) : .url(""),
+                isResponsive: false, isInspectorVisible: false
+            )
         }
         return ComponentDefinition(
             type: ComponentType(rawValue: manifest.identifier),
@@ -34,7 +45,7 @@ nonisolated enum ComponentPackageAdapter {
             category: ComponentCategory(rawValue: ComponentPackageGroup.resolve(manifest.category).rawValue),
             allowsChildren: !manifest.slots.isEmpty,
             renderKind: .package,
-            properties: manifest.properties.flatMap(propertyDefinitions) + implicitTextProperties + implicitHTMLProperties + implicitHTMLArtifactProperties,
+            properties: manifest.properties.flatMap(propertyDefinitions) + implicitTextProperties + implicitHTMLProperties + implicitHTMLArtifactProperties + implicitImageProperties,
             package: package
         )
     }
@@ -42,6 +53,42 @@ nonisolated enum ComponentPackageAdapter {
     private static func propertyDefinitions(_ property: ComponentPackageProperty) -> [ComponentPropertyDefinition] {
         if property.control.type == .padding { return spacingProperties(for: property, kind: .padding) }
         if property.control.type == .margin { return spacingProperties(for: property, kind: .margin) }
+        if property.control.type == .image {
+            var definitions = [
+                ComponentPropertyDefinition(
+                    key: .init(rawValue: property.id),
+                    label: property.label,
+                    section: .init(rawValue: property.group),
+                    control: .image,
+                    defaultValue: value(property.defaultValue, control: .image),
+                    isResponsive: false,
+                    enable: property.enable,
+                    supportsImageFocalPoint: property.focalPoint
+                ),
+                ComponentPropertyDefinition(
+                    key: imageAltKey(for: property.id),
+                    label: "Alt",
+                    section: .init(rawValue: property.group),
+                    control: .singleLineText,
+                    defaultValue: .string(property.alt),
+                    isResponsive: false,
+                    enable: property.enable
+                )
+            ]
+            if property.focalPoint {
+                definitions.append(ComponentPropertyDefinition(
+                    key: imageFocalPointKey(for: property.id),
+                    label: "Focal point",
+                    section: .init(rawValue: property.group),
+                    control: .derived,
+                    defaultValue: .array([.number(50), .number(50)]),
+                    isResponsive: false,
+                    isInspectorVisible: false,
+                    enable: property.enable
+                ))
+            }
+            return definitions
+        }
         if let requestedCount = property.control.count, requestedCount > 1 {
             let count = min(max(requestedCount, 2), 4)
             let defaults: [ComponentPackageValue]
@@ -94,6 +141,14 @@ nonisolated enum ComponentPackageAdapter {
             allowsCustomThemeValue: property.control.allowsCustom == true
                 && property.control.themeValueSource != .fontFamilies
         )]
+    }
+
+    static func imageAltKey(for propertyID: String) -> ComponentProperty.Key {
+        .init(rawValue: "__foundry_image_alt_\(propertyID)")
+    }
+
+    static func imageFocalPointKey(for propertyID: String) -> ComponentProperty.Key {
+        .init(rawValue: "__foundry_image_focal_point_\(propertyID)")
     }
 
     private static func spacingProperties(

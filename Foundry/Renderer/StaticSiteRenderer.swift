@@ -808,6 +808,26 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
                 )
             )
         }
+        if let package = node.type.definition.package {
+            for property in package.manifest.properties where property.control.type == .image {
+                let key = ComponentProperty.Key(rawValue: property.id)
+                guard case .url(let source) = node.propertyValue(key) else { continue }
+                let metadata = source.foundryAssetID.flatMap { assets[$0]?.asset.imageMetadata }
+                    ?? package.imageMetadata[source]
+                let focalPoint = ComponentImageTemplateValues.focalPoint(
+                    from: node.propertyValue(ComponentPackageAdapter.imageFocalPointKey(for: property.id))
+                )
+                ComponentImageTemplateValues.insert(
+                    propertyID: property.id,
+                    href: values[property.id]?.stringValue ?? "",
+                    alt: node.property(ComponentPackageAdapter.imageAltKey(for: property.id)),
+                    focalPointX: focalPoint.x,
+                    focalPointY: focalPoint.y,
+                    metadata: metadata,
+                    into: &values
+                )
+            }
+        }
         for definition in node.type.definition.properties {
             guard case .link(let absoluteURL) = definition.control,
                   case .link(let link) = node.propertyValue(definition.key) else { continue }

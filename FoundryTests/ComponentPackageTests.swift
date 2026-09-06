@@ -600,23 +600,23 @@ struct ComponentPackageTests {
     @Test
     func controlRepeatKeepsPrimitiveKeysStableAcrossCountChanges() {
         let template = """
-        {{ repeat control.itemCount }}<article>{{ text="Card" }}{{ image card-repeat.position }}</article>{{ endrepeat }}
+        {{ repeat control.itemCount }}<article>{{ text="Card" }}{{ image }}</article>{{ endrepeat }}
         <footer>{{ text="Footer" }}</footer>
         """
         let maximums = ["itemCount": 4]
         let textPrimitives = ComponentTemplateRenderer.textPrimitives(in: template, repeatMaximums: maximums)
-        #expect(textPrimitives.map(\.key) == ["content1", "content2", "content3", "content4", "content5"])
+        #expect(textPrimitives.map(\.key) == ["content1", "content2"])
+        #expect(textPrimitives.first?.isRepeated == true)
+        #expect(ComponentTemplateRenderer.imagePrimitives(in: template).first?.isRepeated == true)
 
         let context = ComponentTemplateContext(
             instanceID: UUID(),
             packageIdentifier: "com.example.repeat",
             properties: [
                 "itemCount": .number(2),
-                "content1": .string("One"),
-                "content2": .string("Two"),
-                "content5": .string("Footer value"),
-                "card-1": .string("one.jpg"),
-                "card-2": .string("two.jpg")
+                "content1": .array([.string("One"), .string("Two")]),
+                "content2": .string("Footer value"),
+                "image1": .array([.string("one.jpg"), .string("two.jpg")])
             ],
             slots: [:],
             repeatMaximums: maximums
@@ -639,8 +639,20 @@ struct ComponentPackageTests {
         )
         let editorHTML = ComponentTemplateRenderer.render(template, context: editorContext)
         #expect(editorHTML.contains("data-foundry-primitive-property=\"content1\""))
-        #expect(editorHTML.contains("data-foundry-primitive-property=\"card-1\""))
-        #expect(editorHTML.contains("data-foundry-primitive-property=\"content5\"") == false)
+        #expect(editorHTML.contains("data-foundry-primitive-property=\"image1\""))
+        #expect(editorHTML.contains("data-foundry-property-path=\"0\""))
+
+        let empty: ComponentProperty.Value = .array([])
+        let edited = empty.settingValue(
+            .url("asset://chosen"),
+            at: [2, 4],
+            defaultLeafValue: .url("")
+        )
+
+        #expect(edited.value(at: [2, 4]) == .url("asset://chosen"))
+        #expect(edited.value(at: [0, 0]) == nil)
+        #expect(edited.arrayValue?.count == 3)
+        #expect(edited.arrayValue?[2].arrayValue?.count == 5)
     }
 
     @Test
@@ -858,7 +870,7 @@ struct ComponentPackageTests {
 
     @Test
     func namedImagePrimitiveRendersItsDeclaredProperty() {
-        let template = "<figure {{ component.attributes }}>{{ image source }}</figure>"
+        let template = "<figure {{ component.attributes }}>{{ image }}</figure>"
         let editorContext = ComponentTemplateContext(
             instanceID: UUID(), packageIdentifier: "com.example.image",
             properties: [:], slots: [:], componentAttributes: "data-editor=\"true\"",
@@ -866,7 +878,7 @@ struct ComponentPackageTests {
         )
         let exportContext = ComponentTemplateContext(
             instanceID: UUID(), packageIdentifier: "com.example.image",
-            properties: ["source": .string("assets/hero & wide.jpg")], slots: [:]
+            properties: ["image1": .string("assets/hero & wide.jpg")], slots: [:]
         )
 
         #expect(ComponentTemplateRenderer.hasImagePrimitive(in: template))
@@ -893,6 +905,80 @@ struct ComponentPackageTests {
 
         #expect(image.defaultValue == .string(""))
         #expect(!image.responsive)
+        #expect(image.alt.isEmpty)
+        #expect(!image.focalPoint)
+    }
+
+    @Test
+    func imageControlProvidesAltAndStructuredTemplateValues() throws {
+        let packageURL = try makePackage(
+            manifest: manifest(withCustomItems: """
+                <dict>
+                    <key>id</key><string>source</string>
+                    <key>labels</key><string>Image</string>
+                    <key>group</key><string>Content</string>
+                    <key>type</key><string>image</string>
+                    <key>alt</key><string>Default description</string>
+                    <key>focalPoint</key><true/>
+                </dict>
+                """),
+            template: """
+                <figure {{ component.attributes }}><img src="{{ control.source.href }}" width="{{ control.source.width }}" height="{{ control.source.height }}" data-type="{{ control.source.mimeType }}" data-bytes="{{ control.source.byteCount }}" data-name="{{ control.source.filename }}" data-extension="{{ control.source.extension }}" data-ratio="{{ control.source.aspectRatio }}" data-x="{{ control.source.focalPointX }}" data-y="{{ control.source.focalPointY }}" style="object-position: {{ control.source.position }}" alt="{{ control.source.alt }}">{{ slot id="content" }}</figure>
+                """
+        )
+        defer { try? FileManager.default.removeItem(at: packageURL) }
+        let package = try ComponentPackageLoader.load(from: packageURL)
+        let definitions = ComponentPackageAdapter.definition(from: package).properties
+        let altDefinition = try #require(definitions.first {
+            $0.key == ComponentPackageAdapter.imageAltKey(for: "source")
+        })
+        #expect(altDefinition.label == "Alt")
+        #expect(altDefinition.defaultValue == .string("Default description"))
+        let imageDefinition = try #require(definitions.first { $0.key.rawValue == "source" })
+        #expect(imageDefinition.supportsImageFocalPoint)
+        let focalPointDefinition = try #require(definitions.first {
+            $0.key == ComponentPackageAdapter.imageFocalPointKey(for: "source")
+        })
+        #expect(!focalPointDefinition.isInspectorVisible)
+        #expect(focalPointDefinition.defaultValue == .array([.number(50), .number(50)]))
+
+        var values: [String: ComponentPackageValue] = ["source": .string("files/photo.png")]
+        ComponentImageTemplateValues.insert(
+            propertyID: "source",
+            href: "files/photo.png",
+            alt: "A <bright> photograph",
+            focalPointX: 37.5,
+            focalPointY: 62,
+            metadata: .init(
+                width: 1600,
+                height: 900,
+                mimeType: "image/png",
+                byteCount: 42_000,
+                filename: "Holiday Photo.png"
+            ),
+            into: &values
+        )
+        let rendered = ComponentTemplateRenderer.render(
+            package.htmlTemplate,
+            context: .init(
+                instanceID: UUID(),
+                packageIdentifier: package.manifest.identifier,
+                properties: values,
+                slots: [:]
+            )
+        )
+        #expect(rendered.contains("src=\"files/photo.png\""))
+        #expect(rendered.contains("width=\"1600\""))
+        #expect(rendered.contains("height=\"900\""))
+        #expect(rendered.contains("data-type=\"image/png\""))
+        #expect(rendered.contains("data-bytes=\"42000\""))
+        #expect(rendered.contains("data-name=\"Holiday Photo.png\""))
+        #expect(rendered.contains("data-extension=\"png\""))
+        #expect(rendered.contains("data-ratio=\"1.777778\""))
+        #expect(rendered.contains("data-x=\"37.5\""))
+        #expect(rendered.contains("data-y=\"62\""))
+        #expect(rendered.contains("object-position: 37.5% 62%"))
+        #expect(rendered.contains("alt=\"A &lt;bright&gt; photograph\""))
     }
 
     @Test
@@ -909,25 +995,20 @@ struct ComponentPackageTests {
             """)
         let barePackage = try makePackage(
             manifest: manifestText,
-            template: "<figure {{ component.attributes }}>{{ image }}</figure>"
+            template: "<figure {{ component.attributes }}>{{ image }}{{ slot id=\"content\" }}</figure>"
         )
         let wrongTypePackage = try makePackage(
             manifest: manifestText,
-            template: "<figure {{ component.attributes }}>{{ image title }}</figure>"
+            template: "<figure {{ component.attributes }}>{{ image title }}{{ slot id=\"content\" }}</figure>"
         )
         defer {
             try? FileManager.default.removeItem(at: barePackage)
             try? FileManager.default.removeItem(at: wrongTypePackage)
         }
 
+        _ = try ComponentPackageLoader.load(from: barePackage)
         #expect(throws: ComponentPackageLoadingError.self) {
-            try ComponentPackageLoader.load(from: barePackage)
-        }
-        do {
-            _ = try ComponentPackageLoader.load(from: wrongTypePackage)
-            Issue.record("A text property was accepted by an image macro.")
-        } catch ComponentPackageLoadingError.invalid(let diagnostics) {
-            #expect(diagnostics.contains { $0.message.contains("must use the image control") })
+            try ComponentPackageLoader.load(from: wrongTypePackage)
         }
     }
 
@@ -944,7 +1025,7 @@ struct ComponentPackageTests {
             """)
         let packageURL = try makePackage(
             manifest: validImageManifest,
-            template: "<figure {{ component.attributes }}>{{ image source }}{{ slot id=\"content\" }}</figure>"
+            template: "<figure {{ component.attributes }}><img src=\"{{ control.source }}\" alt=\"\">{{ slot id=\"content\" }}</figure>"
         )
         defer { try? FileManager.default.removeItem(at: packageURL) }
         let package = try ComponentPackageLoader.load(from: packageURL)
@@ -968,7 +1049,7 @@ struct ComponentPackageTests {
         )
         let invalidPackage = try makePackage(
             manifest: invalidManifest,
-            template: "<figure {{ component.attributes }}>{{ image source }}{{ slot id=\"content\" }}</figure>"
+            template: "<figure {{ component.attributes }}><img src=\"{{ control.source }}\" alt=\"\">{{ slot id=\"content\" }}</figure>"
         )
         defer { try? FileManager.default.removeItem(at: invalidPackage) }
         #expect(throws: ComponentPackageLoadingError.self) {

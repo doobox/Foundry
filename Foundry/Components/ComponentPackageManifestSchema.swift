@@ -51,7 +51,7 @@ nonisolated enum ComponentPackageManifestSchema {
         "id", "labels", "group", "default", "responsive", "subtitles", "units", "toolTip",
         "type", "minimum", "maximum", "step", "options", "themeValues", "allowsCustom", "colorMath", "opacity",
         "customColor", "customValue", "count", "ticks", "showsValueField", "trueValue", "falseValue",
-        "systemImage", "fontSize", "argument1", "argument2", "operation", "round", "absoluteURL", "enable"
+        "systemImage", "fontSize", "argument1", "argument2", "operation", "round", "absoluteURL", "enable", "alt", "focalPoint"
     ]
     private static let enableKeys: Set<String> = ["id", "operation", "value"]
     private static let optionKeys: Set<String> = ["value", "title"]
@@ -286,6 +286,8 @@ nonisolated enum ComponentPackageManifestSchema {
         requireString("id", in: property, location: location, into: &diagnostics)
         optionalString("group", in: property, location: location, into: &diagnostics)
         optionalString("toolTip", in: property, location: location, into: &diagnostics)
+        optionalString("alt", in: property, location: location, into: &diagnostics)
+        optionalBoolean("focalPoint", in: property, location: location, into: &diagnostics)
 
         guard let rawType = property["type"] else {
             appendMissing("type", expected: "control type string", location: location, into: &diagnostics)
@@ -298,6 +300,20 @@ nonisolated enum ComponentPackageManifestSchema {
         guard let type = ComponentPackageControl.Kind(rawValue: typeName) else {
             diagnostics.append(.init(severity: .error, location: "\(location):type", message: "Unknown control type '\(typeName)'."))
             return
+        }
+        if type != .image, property["alt"] != nil {
+            diagnostics.append(.init(
+                severity: .error,
+                location: "\(location):alt",
+                message: "alt is supported only by image controls."
+            ))
+        }
+        if type != .image, property["focalPoint"] != nil {
+            diagnostics.append(.init(
+                severity: .error,
+                location: "\(location):focalPoint",
+                message: "focalPoint is supported only by image controls."
+            ))
         }
 
         let count = property["count"].flatMap(integer)

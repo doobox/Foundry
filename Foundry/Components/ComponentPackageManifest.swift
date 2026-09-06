@@ -176,6 +176,8 @@ nonisolated struct ComponentPackageProperty: Codable, Equatable, Identifiable, S
     let units: [String]
     let toolTip: String?
     let enable: ComponentPackageEnable?
+    let alt: String
+    let focalPoint: Bool
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -187,6 +189,8 @@ nonisolated struct ComponentPackageProperty: Codable, Equatable, Identifiable, S
         case units
         case toolTip
         case enable
+        case alt
+        case focalPoint
     }
 
     init(from decoder: Decoder) throws {
@@ -197,6 +201,8 @@ nonisolated struct ComponentPackageProperty: Codable, Equatable, Identifiable, S
         subtitles = try container.decodeIfPresent([String].self, forKey: .subtitles) ?? []
         toolTip = try container.decodeIfPresent(String.self, forKey: .toolTip)
         enable = try container.decodeIfPresent(ComponentPackageEnable.self, forKey: .enable)
+        alt = try container.decodeIfPresent(String.self, forKey: .alt) ?? ""
+        focalPoint = try container.decodeIfPresent(Bool.self, forKey: .focalPoint) ?? false
 
         if control.count != nil {
             labels = try container.decode([String].self, forKey: .labels)
@@ -247,6 +253,12 @@ nonisolated struct ComponentPackageProperty: Codable, Equatable, Identifiable, S
         }
         try container.encodeIfPresent(toolTip, forKey: .toolTip)
         try container.encodeIfPresent(enable, forKey: .enable)
+        if control.type == .image, !alt.isEmpty {
+            try container.encode(alt, forKey: .alt)
+        }
+        if control.type == .image, focalPoint {
+            try container.encode(true, forKey: .focalPoint)
+        }
     }
 }
 

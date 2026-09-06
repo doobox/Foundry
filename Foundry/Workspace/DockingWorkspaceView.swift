@@ -531,7 +531,7 @@ private final class AppKitWorkspaceSplitViewController: NSSplitViewController, N
         toolbar.delegate = self
         toolbar.displayMode = .default
         toolbar.allowsUserCustomization = false
-        toolbar.autosavesConfiguration = false
+        toolbar.autosavesConfiguration = true
         return toolbar
     }()
 

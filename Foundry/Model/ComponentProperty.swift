@@ -172,5 +172,31 @@ nonisolated struct ComponentProperty: Codable, Equatable, Identifiable, Sendable
             guard case .array(let value) = self else { return nil }
             return value
         }
+
+        func value(at indexPath: [Int]) -> Value? {
+            guard let index = indexPath.first else { return self }
+            guard case .array(let values) = self, values.indices.contains(index) else { return nil }
+            return values[index].value(at: Array(indexPath.dropFirst()))
+        }
+
+        func settingValue(
+            _ value: Value,
+            at indexPath: [Int],
+            defaultLeafValue: Value
+        ) -> Value {
+            guard let index = indexPath.first else { return value }
+            var values = arrayValue ?? []
+            let remainingPath = Array(indexPath.dropFirst())
+            let paddingValue: Value = remainingPath.isEmpty ? defaultLeafValue : .array([])
+            while values.count <= index {
+                values.append(paddingValue)
+            }
+            values[index] = values[index].settingValue(
+                value,
+                at: remainingPath,
+                defaultLeafValue: defaultLeafValue
+            )
+            return .array(values)
+        }
     }
 }

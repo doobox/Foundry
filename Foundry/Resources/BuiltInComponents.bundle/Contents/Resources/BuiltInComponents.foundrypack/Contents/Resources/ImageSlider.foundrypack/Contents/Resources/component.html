@@ -4,7 +4,7 @@
             {{ repeat control.slideCount }}
                 {{ if !canvas || repeat.position == min(control.canvasSlide, control.slideCount) }}
                     <figure class="foundry-image-slider__slide" data-slide-index="{{ repeat.index }}" aria-roledescription="slide" aria-label="Slide {{ repeat.position }} of {{ repeat.count }}">
-                        <div class="foundry-image-slider__media">{{ image slide-repeat.position }}</div>
+                        <div class="foundry-image-slider__media"><img src="{{ control.slide-repeat.position }}" width="{{ control.slide-repeat.position.width }}" height="{{ control.slide-repeat.position.height }}" style="object-position: {{ control.slide-repeat.position.position }}" alt="{{ control.slide-repeat.position.alt }}"></div>
                         {{ if control.showCaptions }}<figcaption>{{ text="Image caption" }}</figcaption>{{ endif }}
                     </figure>
                 {{ endif }}

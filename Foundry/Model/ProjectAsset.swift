@@ -1,4 +1,99 @@
 import Foundation
+import ImageIO
+
+nonisolated struct ComponentImageMetadata: Equatable, Sendable {
+    let width: Int?
+    let height: Int?
+    let mimeType: String
+    let byteCount: Int
+    let filename: String
+
+    var fileExtension: String {
+        (filename as NSString).pathExtension.lowercased()
+    }
+
+    var aspectRatio: Double? {
+        guard let width, let height, height > 0 else { return nil }
+        return Double(width) / Double(height)
+    }
+
+    static func inspect(
+        data: Data,
+        filename: String,
+        mimeType: String
+    ) -> ComponentImageMetadata {
+        let dimensions = imageDimensions(in: data)
+        return ComponentImageMetadata(
+            width: dimensions?.width,
+            height: dimensions?.height,
+            mimeType: mimeType,
+            byteCount: data.count,
+            filename: filename
+        )
+    }
+
+    private static func imageDimensions(in data: Data) -> (width: Int, height: Int)? {
+        guard let source = CGImageSourceCreateWithData(data as CFData, nil),
+              let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any],
+              let rawWidth = (properties[kCGImagePropertyPixelWidth] as? NSNumber)?.intValue,
+              let rawHeight = (properties[kCGImagePropertyPixelHeight] as? NSNumber)?.intValue,
+              rawWidth > 0,
+              rawHeight > 0 else { return nil }
+        let orientation = (properties[kCGImagePropertyOrientation] as? NSNumber)?.intValue ?? 1
+        return [5, 6, 7, 8].contains(orientation)
+            ? (rawHeight, rawWidth)
+            : (rawWidth, rawHeight)
+    }
+}
+
+nonisolated enum ComponentImageTemplateValues {
+    static func focalPoint(from value: ComponentProperty.Value) -> (x: Double, y: Double) {
+        let values = value.arrayValue ?? []
+        return (
+            values.indices.contains(0) ? values[0].numberValue ?? 50 : 50,
+            values.indices.contains(1) ? values[1].numberValue ?? 50 : 50
+        )
+    }
+
+    static func insert(
+        propertyID: String,
+        href: String,
+        alt: String,
+        focalPointX: Double,
+        focalPointY: Double,
+        metadata: ComponentImageMetadata?,
+        into values: inout [String: ComponentPackageValue]
+    ) {
+        values[propertyID + ".href"] = .string(href)
+        values[propertyID + ".alt"] = .string(alt)
+        values[propertyID + ".focalPointX"] = .number(focalPointX)
+        values[propertyID + ".focalPointY"] = .number(focalPointY)
+        values[propertyID + ".position"] = .string(
+            "\(formattedPercentage(focalPointX))% \(formattedPercentage(focalPointY))%"
+        )
+        guard let metadata else {
+            for suffix in ["width", "height", "mimeType", "byteCount", "filename", "extension", "aspectRatio"] {
+                values[propertyID + "." + suffix] = .string("")
+            }
+            return
+        }
+        values[propertyID + ".width"] = metadata.width.map { .number(Double($0)) } ?? .string("")
+        values[propertyID + ".height"] = metadata.height.map { .number(Double($0)) } ?? .string("")
+        values[propertyID + ".mimeType"] = .string(metadata.mimeType)
+        values[propertyID + ".byteCount"] = .number(Double(metadata.byteCount))
+        values[propertyID + ".filename"] = .string(metadata.filename)
+        values[propertyID + ".extension"] = .string(metadata.fileExtension)
+        values[propertyID + ".aspectRatio"] = metadata.aspectRatio.map(ComponentPackageValue.number) ?? .string("")
+    }
+
+    private static func formattedPercentage(_ value: Double) -> String {
+        value.formatted(
+            .number
+                .locale(Locale(identifier: "en_US_POSIX"))
+                .precision(.fractionLength(0...3))
+        )
+    }
+}
 
 nonisolated struct ProjectAsset: Codable, Equatable, Identifiable, Sendable {
     enum ExportDirectory: Codable, Equatable, Sendable {
@@ -10,6 +105,8 @@ nonisolated struct ProjectAsset: Codable, Equatable, Identifiable, Sendable {
     var filename: String
     var mediaType: String
     var byteCount: Int
+    var pixelWidth: Int?
+    var pixelHeight: Int?
     var exportDirectory: ExportDirectory?
     var exportOrder: Int
 
@@ -18,6 +115,8 @@ nonisolated struct ProjectAsset: Codable, Equatable, Identifiable, Sendable {
         filename: String,
         mediaType: String,
         byteCount: Int,
+        pixelWidth: Int? = nil,
+        pixelHeight: Int? = nil,
         exportDirectory: ExportDirectory? = nil,
         exportOrder: Int = 0
     ) {
@@ -25,6 +124,8 @@ nonisolated struct ProjectAsset: Codable, Equatable, Identifiable, Sendable {
         self.filename = filename
         self.mediaType = mediaType
         self.byteCount = byteCount
+        self.pixelWidth = pixelWidth
+        self.pixelHeight = pixelHeight
         self.exportDirectory = exportDirectory
         self.exportOrder = exportOrder
     }
@@ -49,7 +150,7 @@ nonisolated struct ProjectAsset: Codable, Equatable, Identifiable, Sendable {
     }
 
     private enum CodingKeys: String, CodingKey {
-        case id, filename, mediaType, byteCount, exportDirectory, exportOrder
+        case id, filename, mediaType, byteCount, pixelWidth, pixelHeight, exportDirectory, exportOrder
     }
 
     init(from decoder: Decoder) throws {
@@ -58,8 +159,20 @@ nonisolated struct ProjectAsset: Codable, Equatable, Identifiable, Sendable {
         filename = try container.decode(String.self, forKey: .filename)
         mediaType = try container.decode(String.self, forKey: .mediaType)
         byteCount = try container.decode(Int.self, forKey: .byteCount)
+        pixelWidth = try container.decodeIfPresent(Int.self, forKey: .pixelWidth)
+        pixelHeight = try container.decodeIfPresent(Int.self, forKey: .pixelHeight)
         exportDirectory = try container.decodeIfPresent(ExportDirectory.self, forKey: .exportDirectory)
         exportOrder = try container.decodeIfPresent(Int.self, forKey: .exportOrder) ?? 0
+    }
+
+    var imageMetadata: ComponentImageMetadata {
+        ComponentImageMetadata(
+            width: pixelWidth,
+            height: pixelHeight,
+            mimeType: mediaType,
+            byteCount: byteCount,
+            filename: filename
+        )
     }
 }
 
@@ -88,6 +201,28 @@ nonisolated indirect enum ProjectAssetNode: Codable, Equatable, Identifiable, Se
 }
 
 nonisolated extension Array where Element == ProjectAssetNode {
+    mutating func hydrateImageMetadata(from dataByID: [UUID: Data]) {
+        for index in indices {
+            switch self[index] {
+            case .asset(var asset):
+                guard asset.mediaType.hasPrefix("image/"),
+                      asset.pixelWidth == nil || asset.pixelHeight == nil,
+                      let data = dataByID[asset.id] else { continue }
+                let metadata = ComponentImageMetadata.inspect(
+                    data: data,
+                    filename: asset.filename,
+                    mimeType: asset.mediaType
+                )
+                asset.pixelWidth = metadata.width
+                asset.pixelHeight = metadata.height
+                self[index] = .asset(asset)
+            case .folder(var folder):
+                folder.children.hydrateImageMetadata(from: dataByID)
+                self[index] = .folder(folder)
+            }
+        }
+    }
+
     func managedExportPath(for asset: ProjectAsset) -> String {
         managedExportPaths()[asset.id] ?? asset.exportPath
     }

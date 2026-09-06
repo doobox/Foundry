@@ -78,6 +78,7 @@ nonisolated struct ComponentPropertyDefinition: Identifiable, Sendable {
     let enable: ComponentPackageEnable?
     let themeValueSource: ComponentPackageThemeValueSource?
     let allowsCustomThemeValue: Bool
+    let supportsImageFocalPoint: Bool
 
     var id: ComponentProperty.Key { key }
 
@@ -91,7 +92,8 @@ nonisolated struct ComponentPropertyDefinition: Identifiable, Sendable {
         isInspectorVisible: Bool = true,
         enable: ComponentPackageEnable? = nil,
         themeValueSource: ComponentPackageThemeValueSource? = nil,
-        allowsCustomThemeValue: Bool = false
+        allowsCustomThemeValue: Bool = false,
+        supportsImageFocalPoint: Bool = false
     ) {
         self.key = key
         self.label = label
@@ -103,6 +105,7 @@ nonisolated struct ComponentPropertyDefinition: Identifiable, Sendable {
         self.enable = enable
         self.themeValueSource = themeValueSource
         self.allowsCustomThemeValue = allowsCustomThemeValue
+        self.supportsImageFocalPoint = supportsImageFocalPoint
     }
 
     private static let builtInResponsiveKeys: Set<ComponentProperty.Key> = [

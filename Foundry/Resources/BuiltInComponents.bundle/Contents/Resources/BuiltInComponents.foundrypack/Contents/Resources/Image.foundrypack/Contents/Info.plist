@@ -21,6 +21,8 @@
 			<string>Image</string>
 			<key>type</key>
 			<string>image</string>
+			<key>focalPoint</key>
+			<true/>
 		</dict>
 		<dict>
 			<key>default</key>
