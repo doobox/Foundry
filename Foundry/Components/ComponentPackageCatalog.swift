@@ -7,6 +7,14 @@ import Observation
 final class ComponentPackageCatalog {
     static let shared = ComponentPackageCatalog()
 
+    nonisolated enum LoadingStage: Equatable, Sendable {
+        case finding
+        case loading
+        case preparing
+        case publishing
+        case ready
+    }
+
     enum Phase: Equatable {
         case initialLoading
         case ready
@@ -23,7 +31,8 @@ final class ComponentPackageCatalog {
     private var loadGeneration: UInt64 = 0
     private var reloadGenerations: [URL: UInt64] = [:]
     private(set) var phase = Phase.initialLoading
-    private(set) var loadedPackageCount = 0
+    private(set) var loadingStage = LoadingStage.finding
+    private(set) var completedPackageCount = 0
     private(set) var totalPackageCount = 0
 
     var isInitialLoading: Bool { phase == .initialLoading }
@@ -32,7 +41,17 @@ final class ComponentPackageCatalog {
 
     var loadingProgress: Double {
         guard totalPackageCount > 0 else { return 0 }
-        return Double(loadedPackageCount) / Double(totalPackageCount)
+        let totalWork = Double(totalPackageCount * 2)
+        switch loadingStage {
+        case .finding:
+            return 0
+        case .loading:
+            return Double(completedPackageCount) / totalWork
+        case .preparing:
+            return Double(totalPackageCount + completedPackageCount) / totalWork
+        case .publishing, .ready:
+            return 1
+        }
     }
 
     private init() {
@@ -52,15 +71,20 @@ final class ComponentPackageCatalog {
         reloadGenerations.removeAll()
         loadingTask?.cancel()
         phase = initial ? .initialLoading : .reloading
-        loadedPackageCount = 0
+        loadingStage = .finding
+        completedPackageCount = 0
         totalPackageCount = 0
         loadingTask = Task { [weak self] in
-            let snapshot = await ComponentCatalogSnapshot.load { [weak self] completed, total in
-                guard let self, generation == loadGeneration else { return }
-                loadedPackageCount = completed
-                totalPackageCount = total
-            }
+            let snapshot = await Task.detached(priority: .utility) { [weak self] in
+                await ComponentCatalogSnapshot.load { [weak self] stage, completed, total in
+                    guard let self, generation == loadGeneration else { return }
+                    loadingStage = stage
+                    completedPackageCount = completed
+                    totalPackageCount = total
+                }
+            }.value
             guard !Task.isCancelled, let self, generation == loadGeneration else { return }
+            loadingStage = .publishing
             publish(snapshot)
         }
     }
@@ -68,9 +92,10 @@ final class ComponentPackageCatalog {
     private func publish(_ snapshot: ComponentCatalogSnapshot) {
         packages = snapshot.packages
         diagnostics = snapshot.diagnostics
-        ComponentRegistry.replacePackages(Array(snapshot.packages.values))
+        ComponentRegistry.replaceDefinitions(snapshot.definitions)
         Task { await ComponentIconLoader.shared.removeAll() }
         configureDevelopmentWatchers(snapshot.developmentRoots, installedRoot: snapshot.installedRoot)
+        loadingStage = .ready
         phase = .ready
         revision += 1
     }
@@ -131,10 +156,7 @@ final class ComponentPackageCatalog {
                 packages.removeValue(forKey: identifier)
             }
             packages[package.manifest.identifier] = package
-            diagnostics[url] = ComponentPackageValidator.validate(
-                package.manifest,
-                rootURL: package.resourceRootURL
-            )
+            diagnostics[url] = outcome.diagnostics
             ComponentRegistry.replacePackage(package, removing: replacedIdentifiers)
             revision += 1
         } else if !outcome.diagnostics.isEmpty {
@@ -298,12 +320,17 @@ final class ComponentPackageCatalog {
 
 private struct ComponentCatalogSnapshot: Sendable {
     let packages: [String: LoadedComponentPackage]
+    let definitions: [ComponentType: ComponentDefinition]
     let diagnostics: [URL: [ComponentPackageDiagnostic]]
     let developmentRoots: Set<URL>
     let installedRoot: URL?
 
     nonisolated static func load(
-        progress: @escaping @MainActor @Sendable (_ completed: Int, _ total: Int) -> Void
+        progress: @escaping @MainActor @Sendable (
+            _ stage: ComponentPackageCatalog.LoadingStage,
+            _ completed: Int,
+            _ total: Int
+        ) -> Void
     ) async -> ComponentCatalogSnapshot {
         var urls: [URL] = []
         if let bundleURL = Bundle.main.url(forResource: "BuiltInComponents", withExtension: "bundle"),
@@ -327,40 +354,44 @@ private struct ComponentCatalogSnapshot: Sendable {
         })
 
         let standardizedURLs = urls.map(\.standardizedFileURL)
-        await progress(0, standardizedURLs.count)
+        await progress(.loading, 0, standardizedURLs.count)
         let progressUpdateInterval = max(1, standardizedURLs.count / 100)
         let outcomes = await loadOutcomes(standardizedURLs) { completed in
             if completed == standardizedURLs.count || completed.isMultiple(of: progressUpdateInterval) {
-                await progress(completed, standardizedURLs.count)
+                await progress(.loading, completed, standardizedURLs.count)
             }
         }
         var packages: [String: LoadedComponentPackage] = [:]
+        var definitions: [ComponentType: ComponentDefinition] = [:]
         var diagnostics: [URL: [ComponentPackageDiagnostic]] = [:]
-        for outcome in outcomes {
+        await progress(.preparing, 0, outcomes.count)
+        for (index, outcome) in outcomes.enumerated() {
             let url = outcome.url.standardizedFileURL
-            guard let package = outcome.package else {
-                if !outcome.diagnostics.isEmpty {
+            if let package = outcome.package {
+                let identifier = package.manifest.identifier
+                if let previous = packages[identifier], previous.rootURL.standardizedFileURL != url {
+                    diagnostics[url] = [.init(
+                        severity: .error,
+                        location: "Info.plist:id",
+                        message: "Another installed package already uses '\(identifier)'."
+                    )]
+                } else {
+                    packages[identifier] = package
+                    let definition = ComponentPackageAdapter.definition(from: package)
+                    definitions[definition.type] = definition
                     diagnostics[url] = outcome.diagnostics
                 }
-                continue
+            } else if !outcome.diagnostics.isEmpty {
+                diagnostics[url] = outcome.diagnostics
             }
-            let identifier = package.manifest.identifier
-            if let previous = packages[identifier], previous.rootURL.standardizedFileURL != url {
-                diagnostics[url] = [.init(
-                    severity: .error,
-                    location: "Info.plist:id",
-                    message: "Another installed package already uses '\(identifier)'."
-                )]
-                continue
+            let completed = index + 1
+            if completed == outcomes.count || completed.isMultiple(of: progressUpdateInterval) {
+                await progress(.preparing, completed, outcomes.count)
             }
-            packages[identifier] = package
-            diagnostics[url] = ComponentPackageValidator.validate(
-                package.manifest,
-                rootURL: package.resourceRootURL
-            )
         }
         return ComponentCatalogSnapshot(
             packages: packages,
+            definitions: definitions,
             diagnostics: diagnostics,
             developmentRoots: developmentRoots,
             installedRoot: installedRoot
@@ -406,7 +437,8 @@ private struct ComponentPackageLoadOutcome: Sendable {
             guard !pack.isCollection else {
                 return .init(url: url, package: nil, diagnostics: [])
             }
-            return .init(url: url, package: try ComponentPackageLoader.load(from: url), diagnostics: [])
+            let result = try ComponentPackageLoader.loadWithDiagnostics(from: url)
+            return .init(url: url, package: result.package, diagnostics: result.diagnostics)
         } catch ComponentPackageLoadingError.invalid(let diagnostics) {
             return .init(url: url, package: nil, diagnostics: diagnostics)
         } catch {

@@ -17,11 +17,7 @@ nonisolated enum ComponentRegistry {
         packageDefinitions.withLock { $0[definition.type] = definition }
     }
 
-    static func replacePackages(_ packages: [LoadedComponentPackage]) {
-        let definitions = Dictionary(
-            packages.map(ComponentPackageAdapter.definition).map { ($0.type, $0) },
-            uniquingKeysWith: { _, latest in latest }
-        )
+    static func replaceDefinitions(_ definitions: [ComponentType: ComponentDefinition]) {
         packageDefinitions.withLock { $0 = definitions }
     }
 

@@ -99,17 +99,27 @@ nonisolated enum ComponentPackageLoadingError: Error, LocalizedError {
     }
 }
 
+nonisolated struct ComponentPackageLoadResult: Sendable {
+    let package: LoadedComponentPackage
+    let diagnostics: [ComponentPackageDiagnostic]
+}
+
 nonisolated enum ComponentPackageLoader {
     static func load(from rootURL: URL) throws -> LoadedComponentPackage {
+        try loadWithDiagnostics(from: rootURL).package
+    }
+
+    static func loadWithDiagnostics(from rootURL: URL) throws -> ComponentPackageLoadResult {
         let manifestURL = rootURL.appending(path: "Contents/Info.plist")
         guard FileManager.default.fileExists(atPath: manifestURL.path) else {
             throw ComponentPackageLoadingError.missingManifest
         }
 
         let manifest: ComponentPackageManifest
+        let schemaDiagnostics: [ComponentPackageDiagnostic]
         do {
             let data = try Data(contentsOf: manifestURL)
-            let schemaDiagnostics = try ComponentPackageManifestSchema.diagnostics(for: data)
+            schemaDiagnostics = try ComponentPackageManifestSchema.diagnostics(for: data)
             guard !schemaDiagnostics.contains(where: { $0.severity == .error }) else {
                 throw ComponentPackageLoadingError.invalid(schemaDiagnostics)
             }
@@ -121,7 +131,7 @@ nonisolated enum ComponentPackageLoader {
         }
 
         let resourceRootURL = rootURL.appending(path: "Contents/Resources", directoryHint: .isDirectory)
-        let diagnostics = ComponentPackageValidator.validate(manifest, rootURL: resourceRootURL)
+        let diagnostics = schemaDiagnostics + ComponentPackageValidator.validate(manifest, rootURL: resourceRootURL)
         let errors = diagnostics.filter { $0.severity == .error }
         guard errors.isEmpty else {
             throw ComponentPackageLoadingError.invalid(diagnostics)
@@ -164,21 +174,24 @@ nonisolated enum ComponentPackageLoader {
                 .map { try read($0.path, from: resourceRootURL) }
                 .joined(separator: "\n")
         }
-        return LoadedComponentPackage(
-            manifest: manifest,
-            rootURL: rootURL,
-            htmlTemplate: try read(manifest.render.html, from: resourceRootURL),
-            css: instanceCSS.joined(separator: "\n"),
-            pageCSS: pageCSS.joined(separator: "\n"),
-            siteCSS: siteCSS.joined(separator: "\n"),
-            placedHTML: placedHTML,
-            instanceJavaScript: try javascript(scope: .instance),
-            pageJavaScript: try javascript(scope: .page),
-            instancePHP: try php(scope: .instance),
-            pagePHP: try php(scope: .page),
-            editorCSS: try readIfPresent(manifest.render.editorCSS, from: resourceRootURL),
-            updateSourceURL: updateSourceURL(containing: rootURL),
-            imageMetadata: imageMetadata(for: manifest, resourceRootURL: resourceRootURL)
+        return ComponentPackageLoadResult(
+            package: LoadedComponentPackage(
+                manifest: manifest,
+                rootURL: rootURL,
+                htmlTemplate: try read(manifest.render.html, from: resourceRootURL),
+                css: instanceCSS.joined(separator: "\n"),
+                pageCSS: pageCSS.joined(separator: "\n"),
+                siteCSS: siteCSS.joined(separator: "\n"),
+                placedHTML: placedHTML,
+                instanceJavaScript: try javascript(scope: .instance),
+                pageJavaScript: try javascript(scope: .page),
+                instancePHP: try php(scope: .instance),
+                pagePHP: try php(scope: .page),
+                editorCSS: try readIfPresent(manifest.render.editorCSS, from: resourceRootURL),
+                updateSourceURL: updateSourceURL(containing: rootURL),
+                imageMetadata: imageMetadata(for: manifest, resourceRootURL: resourceRootURL)
+            ),
+            diagnostics: diagnostics
         )
     }
 

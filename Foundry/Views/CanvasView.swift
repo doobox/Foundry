@@ -273,8 +273,18 @@ struct ComponentCatalogLoadingView: View {
     }
 
     private var loadingDescription: String {
-        guard catalog.totalPackageCount > 0 else { return "Finding components…" }
-        return "Loading components… \(catalog.loadedPackageCount) of \(catalog.totalPackageCount)"
+        switch catalog.loadingStage {
+        case .finding:
+            return "Finding components…"
+        case .loading:
+            return "Loading component files… \(catalog.completedPackageCount) of \(catalog.totalPackageCount)"
+        case .preparing:
+            return "Preparing component library… \(catalog.completedPackageCount) of \(catalog.totalPackageCount)"
+        case .publishing:
+            return "Publishing component library…"
+        case .ready:
+            return "Components ready"
+        }
     }
 }
 

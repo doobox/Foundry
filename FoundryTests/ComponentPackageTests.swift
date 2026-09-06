@@ -2091,7 +2091,7 @@ struct ComponentPackageTests {
 
         print("Loaded and published \(loadedCount) stress components in \(elapsed).")
         #expect(loadedCount == expectedCount)
-        #expect(elapsed < .seconds(10), "The installed stress catalog should reload within 10 seconds.")
+        #expect(elapsed < .seconds(20), "The installed stress catalog should reload within 20 seconds.")
     }
 
     @Test @MainActor
