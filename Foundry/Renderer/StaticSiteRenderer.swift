@@ -84,8 +84,14 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
             scope: .site,
             destinationDirectory: "assets"
         ))
+        let managedAssetPaths = site.assetLibrary.managedExportPaths()
         files.append(contentsOf: site.assets.compactMap { asset in
-            assets[asset.id].map { SiteExportFile(path: site.publishedPath(for: asset), data: $0.data) }
+            assets[asset.id].map {
+                SiteExportFile(
+                    path: site.publishedPath(for: asset, managedAssetPaths: managedAssetPaths),
+                    data: $0.data
+                )
+            }
         })
         files.append(contentsOf: imageRenditionFiles(site: site, assets: assets))
         if site.generatesSitemap, let baseURL = validPublicURL(site.publicURL) {

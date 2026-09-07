@@ -83,22 +83,25 @@ final class FoundryDocument: ReferenceFileDocument {
     }
 
     required init(configuration: ReadConfiguration) throws {
-        if configuration.file.isRegularFile,
-           let data = configuration.file.regularFileContents {
-            storage = Mutex(.init(site: try Self.decodeProject(from: data), assetData: [:]))
-            return
+        storage = Mutex(try Self.decodeSnapshot(from: configuration.file))
+    }
+
+    nonisolated static func decodeSnapshot(from file: FileWrapper) throws -> FoundryDocumentSnapshot {
+        if file.isRegularFile,
+           let data = file.regularFileContents {
+            return .init(site: try decodeProject(from: data), assetData: [:])
         }
-        guard configuration.file.isDirectory,
-              let wrappers = configuration.file.fileWrappers,
+        guard file.isDirectory,
+              let wrappers = file.fileWrappers,
               let projectData = wrappers["project.json"]?.regularFileContents else {
             throw CocoaError(.fileReadCorruptFile)
         }
-        let site = try Self.decodeProject(from: projectData)
+        let site = try decodeProject(from: projectData)
         let assetWrappers = wrappers["assets"]?.fileWrappers ?? [:]
         let data = Dictionary(uniqueKeysWithValues: site.assets.compactMap { asset in
             assetWrappers[asset.storageFilename]?.regularFileContents.map { (asset.id, $0) }
         })
-        storage = Mutex(.init(site: site, assetData: data))
+        return .init(site: site, assetData: data)
     }
 
     nonisolated func snapshot(contentType: UTType) throws -> FoundryDocumentSnapshot {

@@ -1380,12 +1380,10 @@ struct ContentView: View {
 
     private func previewSite() {
         previewRefreshTask?.cancel()
-        let bundle = StaticSiteRenderer(environment: .preview).render(
-            site: document.site,
-            assets: document.assetContents
-        )
+        let site = document.site
+        let assets = document.assetContents
         let selectedPageOutputPath = selectedPage.map {
-            StaticSiteRenderer.outputPath(for: $0, in: document.site)
+            StaticSiteRenderer.outputPath(for: $0, in: site)
         }
         let applicationIdentifier = selectedPreviewApplicationIdentifier
         let sessionID: UUID
@@ -1397,9 +1395,14 @@ struct ContentView: View {
         } else {
             sessionID = previewSessionID
         }
-        Task {
+        previewRefreshTask = Task { @MainActor in
             do {
+                let bundle = await Task.detached(priority: .userInitiated) {
+                    StaticSiteRenderer(environment: .preview).render(site: site, assets: assets)
+                }.value
+                guard !Task.isCancelled else { return }
                 let serverURL = try await PreviewServer.shared.publish(bundle, notifyingClients: false)
+                guard !Task.isCancelled else { return }
                 let pageURL = selectedPageOutputPath.map {
                     previewURL(for: $0, relativeTo: serverURL)
                 } ?? serverURL
@@ -1422,10 +1425,12 @@ struct ContentView: View {
         previewRefreshTask = Task { @MainActor in
             try? await Task.sleep(for: .milliseconds(250))
             guard !Task.isCancelled else { return }
-            let bundle = StaticSiteRenderer(environment: .preview).render(
-                site: document.site,
-                assets: document.assetContents
-            )
+            let site = document.site
+            let assets = document.assetContents
+            let bundle = await Task.detached(priority: .userInitiated) {
+                StaticSiteRenderer(environment: .preview).render(site: site, assets: assets)
+            }.value
+            guard !Task.isCancelled else { return }
             do {
                 _ = try await PreviewServer.shared.publish(bundle)
             } catch {

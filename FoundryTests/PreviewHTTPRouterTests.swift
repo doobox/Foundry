@@ -10,6 +10,20 @@ struct PreviewHTTPRouterTests {
     ])
 
     @Test
+    func staticPreviewDoesNotRequireFilesystemStaging() {
+        #expect(!PreviewServer.requiresPHPDocumentRoot(for: bundle))
+    }
+
+    @Test
+    func phpPreviewRequiresFilesystemStaging() {
+        let phpBundle = SiteExportBundle(files: [
+            .init(path: "index.PHP", contents: "<?php echo 'Hello';")
+        ])
+
+        #expect(PreviewServer.requiresPHPDocumentRoot(for: phpBundle))
+    }
+
+    @Test
     func mapsRootNestedRoutesAndAssets() {
         #expect(PreviewHTTPRouter.safeBundlePath("/") == "index.html")
         #expect(PreviewHTTPRouter.safeBundlePath("/about/") == "about/index.html")

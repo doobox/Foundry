@@ -309,6 +309,10 @@ nonisolated private extension ProjectAssetNode {
 
 nonisolated extension Site {
     func publishedPath(for asset: ProjectAsset) -> String {
+        publishedPath(for: asset, managedAssetPaths: assetLibrary.managedExportPaths())
+    }
+
+    func publishedPath(for asset: ProjectAsset, managedAssetPaths: [UUID: String]) -> String {
         let filename = (asset.filename as NSString).lastPathComponent
         let safeFilename = filename.isEmpty ? asset.storageFilename : filename
         switch asset.exportDirectory {
@@ -318,7 +322,7 @@ nonisolated extension Site {
             let folderPath = publishedFolderPath(for: folderID)
             return folderPath.isEmpty ? safeFilename : folderPath + "/" + safeFilename
         case nil:
-            return assetLibrary.managedExportPath(for: asset)
+            return managedAssetPaths[asset.id] ?? asset.exportPath
         }
     }
 

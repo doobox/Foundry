@@ -23,9 +23,19 @@ actor PreviewServer {
 
     func publish(_ bundle: SiteExportBundle, notifyingClients: Bool = true) async throws -> URL {
         try bundle.validate()
-        let nextRoot = FileManager.default.temporaryDirectory
-            .appending(path: "FoundryPreview-\(UUID().uuidString)", directoryHint: .isDirectory)
-        try SiteExportWriter().write(bundle, to: nextRoot)
+        let nextRoot: URL?
+        if Self.requiresPHPDocumentRoot(for: bundle) {
+            nextRoot = try await Task.detached(priority: .userInitiated) {
+                let root = FileManager.default.temporaryDirectory
+                    .appending(path: "FoundryPreview-\(UUID().uuidString)", directoryHint: .isDirectory)
+                try SiteExportWriter().write(bundle, to: root)
+                return root
+            }.value
+        } else {
+            // Static previews are served directly from the in-memory document snapshot. Avoid
+            // hashing and duplicating every project asset into a temporary export directory.
+            nextRoot = nil
+        }
         let previousRoot = documentRoot
         documentRoot = nextRoot
         self.bundle = bundle
@@ -59,6 +69,10 @@ actor PreviewServer {
         return try await withCheckedThrowingContinuation { continuation in
             startContinuation = continuation
         }
+    }
+
+    nonisolated static func requiresPHPDocumentRoot(for bundle: SiteExportBundle) -> Bool {
+        bundle.files.contains { $0.path.lowercased().hasSuffix(".php") }
     }
 
     private func handle(_ state: NWListener.State) {
