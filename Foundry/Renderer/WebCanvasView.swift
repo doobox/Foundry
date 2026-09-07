@@ -118,6 +118,23 @@ nonisolated enum CanvasContextMenuAction: String, Sendable {
     case delete
 }
 
+@MainActor
+final class CanvasWebView: WKWebView {
+    weak var canvasCoordinator: WebCanvasView.Coordinator?
+
+    override func menu(for event: NSEvent) -> NSMenu? {
+        canvasCoordinator?.prepareForNativeContextMenu()
+        return super.menu(for: event)
+    }
+
+    override func willOpenMenu(_ menu: NSMenu, with event: NSEvent) {
+        if isInspectable {
+            canvasCoordinator?.augmentNativeContextMenu(menu)
+        }
+        super.willOpenMenu(menu, with: event)
+    }
+}
+
 struct WebCanvasView: NSViewRepresentable {
     let html: String
     let assets: [UUID: ProjectAssetContent]
@@ -165,8 +182,9 @@ struct WebCanvasView: NSViewRepresentable {
             in: .defaultClient
         ))
 
-        let webView = WKWebView(frame: .zero, configuration: configuration)
+        let webView = CanvasWebView(frame: .zero, configuration: configuration)
         webView.isInspectable = enablesWebInspector
+        webView.canvasCoordinator = context.coordinator
         webView.navigationDelegate = context.coordinator
         webView.setValue(false, forKey: "drawsBackground")
         webView.setContentHuggingPriority(.defaultLow, for: .horizontal)
@@ -185,6 +203,7 @@ struct WebCanvasView: NSViewRepresentable {
     }
 
     func updateNSView(_ webView: WKWebView, context: Context) {
+        webView.isInspectable = enablesWebInspector
         context.coordinator.assetSchemeHandler.update(packages: packages)
         if context.coordinator.assetRevision != assetRevision {
             context.coordinator.assetSchemeHandler.update(assets: assets)
@@ -218,6 +237,10 @@ struct WebCanvasView: NSViewRepresentable {
           let selectedComponentIDs = [];
           let selectedPrimitiveSelection = null;
           let isDragging = false;
+          let webInspectorEnabled = false;
+          window.foundrySetWebInspectorEnabled = enabled => {
+            webInspectorEnabled = enabled === true;
+          };
           const propertyPath = element => {
             const raw = element?.dataset.foundryPropertyPath;
             if (!raw) return [];
@@ -446,7 +469,7 @@ struct WebCanvasView: NSViewRepresentable {
           });
 
           document.addEventListener('contextmenu', event => {
-            if (event.altKey) return;
+            if (webInspectorEnabled || event.altKey) return;
             const element = event.target.closest(selector);
             if (!element?.dataset.foundryGlobal) return;
             event.preventDefault();
@@ -563,21 +586,11 @@ struct WebCanvasView: NSViewRepresentable {
             selectedComponentIDs.forEach(componentID => {
               const element = document.querySelector('[data-foundry-id="' + CSS.escape(componentID) + '"]');
               if (!element) return;
-              const selectsPrimitive = primitiveSelection.componentID === componentID
-                && typeof primitiveSelection.propertyKey === 'string';
-              const expectedPath = Array.isArray(primitiveSelection.propertyPath)
-                ? primitiveSelection.propertyPath.join(',')
-                : '';
-              const primitive = selectsPrimitive
-                ? Array.from(element.querySelectorAll('[data-foundry-primitive-property="' + CSS.escape(primitiveSelection.propertyKey) + '"]'))
-                    .find(candidate => (candidate.dataset.foundryPropertyPath || '') === expectedPath)
-                : null;
-              const selectedElement = primitive || element;
-              if (!firstElement) firstElement = selectedElement;
+              if (!firstElement) firstElement = element;
               selectedChromeTargets.push({
-                element: selectedElement,
+                element,
                 color: editorChromeColor,
-                isPrimitive: Boolean(primitive)
+                isPrimitive: false
               });
             });
             scheduleChromeTitleUpdate();
@@ -844,9 +857,8 @@ struct WebCanvasView: NSViewRepresentable {
           };
 
           document.addEventListener('contextmenu', event => {
+            if (event.altKey) return;
             const component = event.target.closest(selector);
-            event.preventDefault();
-            event.stopPropagation();
             if (!component) return;
             const editable = component.matches('[data-foundry-inline-property]')
               || component.querySelector('[data-foundry-inline-property]') !== null;
@@ -866,6 +878,9 @@ struct WebCanvasView: NSViewRepresentable {
               imagePropertyPath: propertyPath(imageZone),
               preservesSelection: selectedComponentIDs.includes(component.dataset.foundryId)
             });
+            if (webInspectorEnabled) return;
+            event.preventDefault();
+            event.stopPropagation();
           }, true);
 
           document.addEventListener('click', event => {
@@ -908,6 +923,7 @@ struct WebCanvasView: NSViewRepresentable {
         private var contextMenuComponentID: UUID?
         private var contextMenuImageProperty: ComponentProperty.Key?
         private var contextMenuImagePropertyPath: [Int] = []
+        private var contextMenuRequest: [String: Any]?
         private var pendingCanvasSelection: Set<UUID>?
 
         init(
@@ -968,6 +984,7 @@ struct WebCanvasView: NSViewRepresentable {
             guard let webView,
                   let value = request["componentID"] as? String,
                   let componentID = UUID(uuidString: value) else { return }
+            contextMenuRequest = request
             contextMenuComponentID = componentID
             contextMenuImageProperty = (request["imageProperty"] as? String).map(ComponentProperty.Key.init(rawValue:))
             contextMenuImagePropertyPath = (request["imagePropertyPath"] as? [NSNumber])?.map(\.intValue) ?? []
@@ -976,8 +993,41 @@ struct WebCanvasView: NSViewRepresentable {
                 handleMessage(.init(event: .selectComponent, componentID: componentID, extendsSelection: false))
             }
 
+            if webView.isInspectable {
+                return
+            }
+
             let menu = NSMenu()
             menu.autoenablesItems = false
+            addFoundryContextMenuItems(to: menu, request: request, componentID: componentID)
+            let windowPoint = webView.window?.mouseLocationOutsideOfEventStream ?? .zero
+            let webViewPoint = webView.convert(windowPoint, from: nil)
+            menu.popUp(positioning: nil, at: webViewPoint, in: webView)
+        }
+
+        func prepareForNativeContextMenu() {
+            contextMenuRequest = nil
+        }
+
+        func augmentNativeContextMenu(_ menu: NSMenu) {
+            guard let request = contextMenuRequest,
+                  let value = request["componentID"] as? String,
+                  let componentID = UUID(uuidString: value) else { return }
+            let nativeItems = menu.items
+            menu.removeAllItems()
+            menu.autoenablesItems = false
+            addFoundryContextMenuItems(to: menu, request: request, componentID: componentID)
+            if !nativeItems.isEmpty {
+                menu.addItem(.separator())
+                nativeItems.forEach(menu.addItem)
+            }
+        }
+
+        private func addFoundryContextMenuItems(
+            to menu: NSMenu,
+            request: [String: Any],
+            componentID: UUID
+        ) {
             menu.addItem(contextMenuHeader(for: request))
             menu.addItem(.separator())
             if contextMenuImageProperty != nil {
@@ -1003,9 +1053,6 @@ struct WebCanvasView: NSViewRepresentable {
             menu.addItem(menuItem("Move Out of Container", action: #selector(performContextAction(_:)), representedAction: .outdent))
             menu.addItem(.separator())
             menu.addItem(menuItem("Delete", action: #selector(performContextAction(_:)), representedAction: .delete, key: String(Character(UnicodeScalar(NSDeleteCharacter)!)), modifiers: []))
-            let windowPoint = webView.window?.mouseLocationOutsideOfEventStream ?? .zero
-            let webViewPoint = webView.convert(windowPoint, from: nil)
-            menu.popUp(positioning: nil, at: webViewPoint, in: webView)
         }
 
         private func contextMenuHeader(for request: [String: Any]) -> NSMenuItem {
@@ -1122,12 +1169,13 @@ struct WebCanvasView: NSViewRepresentable {
             let accentColor = cssAccentColor
             Task {
                 _ = try? await webView.callAsyncJavaScript(
-                    "document.documentElement.style.setProperty('--foundry-editor-accent', accentColor); window.foundrySetEditorOptions?.(options); window.foundrySetSelection?.(componentIDs, primitiveSelection, shouldScrollToSelection)",
+                    "document.documentElement.style.setProperty('--foundry-editor-accent', accentColor); window.foundrySetWebInspectorEnabled?.(webInspectorEnabled); window.foundrySetEditorOptions?.(options); window.foundrySetSelection?.(componentIDs, primitiveSelection, shouldScrollToSelection)",
                     arguments: [
                         "options": options,
                         "componentIDs": componentIDs,
                         "primitiveSelection": primitiveSelection,
                         "accentColor": accentColor,
+                        "webInspectorEnabled": webView.isInspectable,
                         "shouldScrollToSelection": shouldScrollToSelection
                     ],
                     in: nil,

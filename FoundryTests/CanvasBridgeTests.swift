@@ -194,6 +194,10 @@ struct CanvasBridgeTests {
         #expect(WebCanvasView.Coordinator.interactionScript.contains("position: 'fixed'"))
         #expect(WebCanvasView.Coordinator.interactionScript.contains("'left', Math.max(0, rect.left)"))
         #expect(WebCanvasView.Coordinator.interactionScript.contains("pointerEvents: 'none'"))
+        #expect(WebCanvasView.Coordinator.interactionScript.contains("if (event.altKey) return;"))
+        #expect(WebCanvasView.Coordinator.interactionScript.contains("selectedChromeTargets.push({"))
+        #expect(WebCanvasView.Coordinator.interactionScript.contains("element,\n        color: editorChromeColor"))
+        #expect(!WebCanvasView.Coordinator.interactionScript.contains("const selectedElement = primitive || element"))
         #expect(!html.contains("[data-foundry-id]:hover:not(:has([data-foundry-id]:hover))"))
         #expect(!html.contains("data-foundry-name); position: absolute"))
     }
