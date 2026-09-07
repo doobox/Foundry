@@ -48,9 +48,9 @@ nonisolated enum ComponentPackageManifestSchema {
     private static let updateKeys: Set<String> = ["appcastURL", "publicKey"]
     private static let slotKeys: Set<String> = ["id", "title", "accepts", "minimum", "maximum"]
     private static let propertyKeys: Set<String> = [
-        "id", "labels", "group", "default", "responsive", "subtitles", "units", "toolTip",
+        "id", "label", "group", "default", "responsive", "subtitle", "units", "toolTip",
         "type", "minimum", "maximum", "step", "options", "themeValues", "allowsCustom", "colorMath", "opacity",
-        "customColor", "customValue", "count", "ticks", "showsValueField", "trueValue", "falseValue",
+        "customColor", "count", "ticks", "showsValueField", "trueValue", "falseValue",
         "systemImage", "fontSize", "argument1", "argument2", "operation", "round", "absoluteURL", "enable", "alt", "focalPoint", "renditions"
     ]
     private static let enableKeys: Set<String> = ["id", "operation", "value"]
@@ -151,6 +151,22 @@ nonisolated enum ComponentPackageManifestSchema {
                     severity: .error,
                     location: "\(location).count",
                     message: "A color control using themeValues cannot be a multi control; remove count."
+                ))
+            }
+            if property["type"] as? String == ComponentPackageControl.Kind.shadow.rawValue,
+               property["themeValues"] != nil {
+                diagnostics.append(.init(
+                    severity: .error,
+                    location: "\(location).themeValues",
+                    message: "A shadow control automatically uses theme shadows; remove themeValues."
+                ))
+            }
+            if property["type"] as? String == ComponentPackageControl.Kind.select.rawValue,
+               property["themeValues"] as? String == ComponentPackageThemeValueSource.shadows.rawValue {
+                diagnostics.append(.init(
+                    severity: .error,
+                    location: "\(location).type",
+                    message: "Use type shadow instead of a select control requesting shadow theme values."
                 ))
             }
             if let enable = property["enable"] as? [String: Any] {
@@ -363,14 +379,21 @@ nonisolated enum ComponentPackageManifestSchema {
                 message: "An image control represents one named image; remove count and declare each image property explicitly."
             ))
         }
+        if type == .shadow, property["count"] != nil {
+            diagnostics.append(.init(
+                severity: .error,
+                location: "\(location).count",
+                message: "A shadow control cannot be a multi control; use its visual layer editor instead."
+            ))
+        }
         if property["count"] != nil {
-            requireStringArray("labels", in: property, location: location, into: &diagnostics)
-            optionalStringArray("subtitles", in: property, location: location, into: &diagnostics)
+            requireStringArray("label", in: property, location: location, into: &diagnostics)
+            optionalStringArray("subtitle", in: property, location: location, into: &diagnostics)
             optionalStringArray("units", in: property, location: location, into: &diagnostics)
         } else {
-            optionalString("labels", in: property, location: location, into: &diagnostics)
-            if property["subtitles"] != nil {
-                optionalStringArray("subtitles", in: property, location: location, into: &diagnostics)
+            optionalString("label", in: property, location: location, into: &diagnostics)
+            if property["subtitle"] != nil {
+                optionalStringArray("subtitle", in: property, location: location, into: &diagnostics)
             }
             optionalString("units", in: property, location: location, into: &diagnostics)
         }
@@ -381,7 +404,7 @@ nonisolated enum ComponentPackageManifestSchema {
         }
         for key in ["ticks"] { optionalInteger(key, in: property, location: location, into: &diagnostics) }
         for key in ["customColor", "systemImage", "operation"] { optionalString(key, in: property, location: location, into: &diagnostics) }
-        for key in ["default", "customValue", "trueValue", "falseValue", "argument1", "argument2"] {
+        for key in ["default", "trueValue", "falseValue", "argument1", "argument2"] {
             optionalComponentValue(key, in: property, location: location, into: &diagnostics)
         }
 
@@ -389,12 +412,7 @@ nonisolated enum ComponentPackageManifestSchema {
         if !permitsMissingDefault && property["default"] == nil {
             appendMissing("default", expected: "value", location: location, into: &diagnostics)
         }
-        let permitsMissingResponsive = type == .divider || type == .image || type == .info || type == .math
-        if !permitsMissingResponsive && property["responsive"] == nil {
-            appendMissing("responsive", expected: "Boolean", location: location, into: &diagnostics)
-        } else {
-            optionalBoolean("responsive", in: property, location: location, into: &diagnostics)
-        }
+        optionalBoolean("responsive", in: property, location: location, into: &diagnostics)
         if type == .image, let value = property["default"], !(value is String) {
             appendTypeError(key: "default", expected: "an asset path string", location: location, into: &diagnostics)
         }

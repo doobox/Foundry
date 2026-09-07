@@ -67,22 +67,24 @@ struct ComponentPackageTests {
     }
 
     @Test
-    func removedFontFamilyControlIsRejected() {
-        let plist = """
-        <?xml version="1.0" encoding="UTF-8"?>
-        <plist version="1.0"><dict>
-        <key>type</key><string>fontFamily</string>
-        </dict></plist>
-        """
+    func removedControlTypesAreRejected() {
+        for type in ["fontFamily", "margin", "padding"] {
+            let plist = """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <plist version="1.0"><dict>
+            <key>type</key><string>\(type)</string>
+            </dict></plist>
+            """
 
-        do {
-            _ = try PropertyListDecoder().decode(
-                ComponentPackageControl.self,
-                from: Data(plist.utf8)
-            )
-            Issue.record("The removed fontFamily control unexpectedly decoded.")
-        } catch {
-            // Unknown control types must fail package decoding.
+            do {
+                _ = try PropertyListDecoder().decode(
+                    ComponentPackageControl.self,
+                    from: Data(plist.utf8)
+                )
+                Issue.record("The removed \(type) control unexpectedly decoded.")
+            } catch {
+                // Unknown control types must fail package decoding.
+            }
         }
     }
 
@@ -148,7 +150,7 @@ struct ComponentPackageTests {
                     "base": .number(10),
                     "offset": .number(6),
                     "multiplier": .number(3),
-                    "labels": .array([.string("Alpha"), .string("Beta")])
+                    "label": .array([.string("Alpha"), .string("Beta")])
                 ],
                 slots: [:],
                 environment: .canvas
@@ -228,8 +230,8 @@ struct ComponentPackageTests {
         <key>author</key><string>Foundry</string><key>version</key><string>1.0.0</string><key>group</key><string>Other</string>
         <key>tags</key><array/><key>assets</key><array/><key>slots</key><array/>
         <key>customItems</key><array><dict>
-        <key>id</key><string>palette</string><key>labels</key><array><string>One</string><string>Two</string><string>Three</string><string>Four</string></array><key>group</key><string>Appearance</string>
-        <key>subtitles</key><array><string>First</string><string>Second</string><string>Third</string><string>Fourth</string></array>
+        <key>id</key><string>palette</string><key>label</key><array><string>One</string><string>Two</string><string>Three</string><string>Four</string></array><key>group</key><string>Appearance</string>
+        <key>subtitle</key><array><string>First</string><string>Second</string><string>Third</string><string>Fourth</string></array>
         <key>toolTip</key><string>Four colours</string>
         <key>type</key><string>color</string><key>count</key><integer>4</integer>
         <key>default</key><array><string>#111111</string><string>#222222</string><string>#333333</string><string>#444444</string></array>
@@ -267,7 +269,7 @@ struct ComponentPackageTests {
         <key>author</key><string>Foundry</string><key>version</key><string>1.0.0</string><key>group</key><string>Other</string>
         <key>tags</key><array/><key>assets</key><array/><key>slots</key><array/>
         <key>customItems</key><array><dict>
-        <key>id</key><string>tone</string><key>labels</key><string>Tone</string><key>group</key><string>Appearance</string>
+        <key>id</key><string>tone</string><key>label</key><string>Tone</string><key>group</key><string>Appearance</string>
         <key>type</key><string>select</string><key>themeValues</key><string>spacing</string>
         <key>allowsCustom</key><true/>
         <key>options</key><array><dict><key>value</key><string>inherit</string><key>title</key><string>Inherit</string></dict></array>
@@ -355,7 +357,7 @@ struct ComponentPackageTests {
         let item = """
         <dict>
             <key>id</key><string>typeface</string>
-            <key>labels</key><string>Typeface</string>
+            <key>label</key><string>Typeface</string>
             <key>group</key><string>Typography</string>
             <key>type</key><string>select</string>
             <key>themeValues</key><string>fontFamilies</string>
@@ -379,11 +381,55 @@ struct ComponentPackageTests {
     }
 
     @Test
+    func shadowIsAStandaloneThemeAwareControl() throws {
+        let item = """
+        <dict>
+            <key>id</key><string>cardShadow</string>
+            <key>label</key><string>Shadow</string>
+            <key>group</key><string>Appearance</string>
+            <key>type</key><string>shadow</string>
+            <key>allowsCustom</key><true/>
+            <key>default</key><string>md</string>
+            <key>responsive</key><false/>
+        </dict>
+        """
+        let decodedManifest = try PropertyListDecoder().decode(
+            ComponentPackageManifest.self,
+            from: Data(manifest(withCustomItems: item).utf8)
+        )
+        let property = try #require(decodedManifest.properties.first)
+        #expect(property.control.type == .shadow)
+        #expect(property.control.themeValues == nil)
+        #expect(property.control.themeValueSource == .shadows)
+        #expect(property.control.allowsCustom == true)
+        let diagnostics = ComponentPackageValidator.validate(
+            decodedManifest,
+            rootURL: FileManager.default.temporaryDirectory
+        )
+        #expect(!diagnostics.contains {
+            $0.location.contains("cardShadow") || $0.location.contains("customItems")
+        })
+
+        let legacyItem = item
+            .replacingOccurrences(
+                of: "<key>type</key><string>shadow</string>",
+                with: "<key>type</key><string>select</string><key>themeValues</key><string>shadows</string>"
+            )
+        let legacyDiagnostics = try ComponentPackageManifestSchema.diagnostics(
+            for: Data(manifest(withCustomItems: legacyItem).utf8)
+        )
+        #expect(legacyDiagnostics.contains {
+            $0.location.hasSuffix(".type")
+                && $0.message == "Use type shadow instead of a select control requesting shadow theme values."
+        })
+    }
+
+    @Test
     func malformedControlFieldsProduceActionableSchemaDiagnostics() throws {
         let validItem = """
         <dict>
             <key>id</key><string>example</string>
-            <key>labels</key><string>Example</string>
+            <key>label</key><string>Example</string>
             <key>type</key><string>text</string>
             <key>default</key><string>Hello</string>
             <key>responsive</key><false/>
@@ -399,8 +445,12 @@ struct ComponentPackageTests {
                 ":type", "Unknown control type 'fontFamily'."
             ),
             (
-                validItem.replacingOccurrences(of: "<key>labels</key><string>Example</string>", with: "<key>labels</key><array><string>Example</string></array>"),
-                ":labels", "labels must be a string."
+                validItem.replacingOccurrences(of: "<key>label</key><string>Example</string>", with: "<key>label</key><array><string>Example</string></array>"),
+                ":label", "label must be a string."
+            ),
+            (
+                validItem.replacingOccurrences(of: "<key>label</key>", with: "<key>labels</key>"),
+                ":labels", "Unknown key 'labels'. Check the spelling or remove it."
             ),
             (
                 validItem.replacingOccurrences(of: "<key>responsive</key><false/>", with: "<key>responsive</key><string>false</string>"),
@@ -438,6 +488,15 @@ struct ComponentPackageTests {
         ).contains {
             $0.location.hasSuffix(":options[0]") && $0.message == "Each options entry must be a dictionary."
         })
+
+        let withoutResponsive = validItem.replacingOccurrences(
+            of: "<key>responsive</key><false/>",
+            with: ""
+        )
+        let withoutResponsiveData = Data(manifest(withCustomItems: withoutResponsive).utf8)
+        #expect(try ComponentPackageManifestSchema.diagnostics(for: withoutResponsiveData).isEmpty)
+        let decoded = try PropertyListDecoder().decode(ComponentPackageManifest.self, from: withoutResponsiveData)
+        #expect(decoded.properties.first?.responsive == false)
     }
 
     @Test
@@ -451,9 +510,9 @@ struct ComponentPackageTests {
         <key>version</key><string>1.0.0</string><key>group</key><string>Other</string>
         <key>assets</key><array/><key>slots</key><array/>
         <key>customItems</key><array>
-        <dict><key>id</key><string>mode</string><key>labels</key><string>Mode</string><key>type</key><string>select</string><key>options</key><array><dict><key>value</key><string>featured</string><key>title</key><string>Featured</string></dict></array><key>default</key><string>featured</string><key>responsive</key><false/></dict>
-        <dict><key>id</key><string>titles</string><key>labels</key><array><string>One</string><string>Two</string><string>Three</string></array><key>type</key><string>text</string><key>count</key><integer>3</integer><key>default</key><array><string>One</string><string>Two</string><string>Featured story</string></array><key>responsive</key><false/></dict>
-        <dict><key>id</key><string>detail</string><key>labels</key><string>Detail</string><key>type</key><string>text</string><key>default</key><string>Visible</string><key>responsive</key><false/><key>enable</key><dict><key>id</key><string>titles[2]</string><key>operation</key><string>containsInsensitive</string><key>value</key><string>featured</string></dict></dict>
+        <dict><key>id</key><string>mode</string><key>label</key><string>Mode</string><key>type</key><string>select</string><key>options</key><array><dict><key>value</key><string>featured</string><key>title</key><string>Featured</string></dict></array><key>default</key><string>featured</string><key>responsive</key><false/></dict>
+        <dict><key>id</key><string>titles</string><key>label</key><array><string>One</string><string>Two</string><string>Three</string></array><key>type</key><string>text</string><key>count</key><integer>3</integer><key>default</key><array><string>One</string><string>Two</string><string>Featured story</string></array><key>responsive</key><false/></dict>
+        <dict><key>id</key><string>detail</string><key>label</key><string>Detail</string><key>type</key><string>text</string><key>default</key><string>Visible</string><key>responsive</key><false/><key>enable</key><dict><key>id</key><string>titles[2]</string><key>operation</key><string>containsInsensitive</string><key>value</key><string>featured</string></dict></dict>
         </array><key>templates</key><dict><key>html</key><string>component.html</string></dict>
         </dict></plist>
         """
@@ -487,8 +546,8 @@ struct ComponentPackageTests {
         <key>version</key><string>1.0.0</string>
         <key>group</key><string>Other</string><key>assets</key><array/><key>slots</key><array/>
         <key>customItems</key><array>
-        <dict><key>id</key><string>amount</string><key>labels</key><string>Amount</string><key>group</key><string>Test</string><key>type</key><string>number</string><key>default</key><real>21</real><key>responsive</key><false/></dict>
-        <dict><key>id</key><string>action</string><key>labels</key><string>Action</string><key>group</key><string>Test</string><key>type</key><string>button</string><key>trueValue</key><string>active</string><key>falseValue</key><string>ready</string><key>default</key><false/><key>responsive</key><false/></dict>
+        <dict><key>id</key><string>amount</string><key>label</key><string>Amount</string><key>group</key><string>Test</string><key>type</key><string>number</string><key>default</key><real>21</real><key>responsive</key><false/></dict>
+        <dict><key>id</key><string>action</string><key>label</key><string>Action</string><key>group</key><string>Test</string><key>type</key><string>button</string><key>trueValue</key><string>active</string><key>falseValue</key><string>ready</string><key>default</key><false/><key>responsive</key><false/></dict>
         <dict><key>id</key><string>doubled</string><key>group</key><string>Test</string><key>type</key><string>math</string><key>argument1</key><string>amount</string><key>argument2</key><real>2</real><key>operation</key><string>*</string><key>round</key><false/></dict>
         </array><key>templates</key><dict><key>html</key><string>component.html</string></dict>
         </dict></plist>
@@ -722,7 +781,7 @@ struct ComponentPackageTests {
         let item = """
         <dict>
             <key>id</key><string>itemCount</string>
-            <key>labels</key><string>Items</string>
+            <key>label</key><string>Items</string>
             <key>type</key><string>number</string>
             <key>minimum</key><real>0</real>
             <key>maximum</key><real>12</real>
@@ -961,7 +1020,7 @@ struct ComponentPackageTests {
             from: Data(manifest(withCustomItems: """
                 <dict>
                     <key>id</key><string>source</string>
-                    <key>labels</key><string>Image</string>
+                    <key>label</key><string>Image</string>
                     <key>group</key><string>Content</string>
                     <key>type</key><string>image</string>
                 </dict>
@@ -983,7 +1042,7 @@ struct ComponentPackageTests {
             from: Data(manifest(withCustomItems: """
                 <dict>
                     <key>id</key><string>source</string>
-                    <key>labels</key><string>Image</string>
+                    <key>label</key><string>Image</string>
                     <key>type</key><string>image</string>
                     <key>renditions</key>
                     <array>
@@ -1038,7 +1097,7 @@ struct ComponentPackageTests {
             manifest: manifest(withCustomItems: """
                 <dict>
                     <key>id</key><string>source</string>
-                    <key>labels</key><string>Image</string>
+                    <key>label</key><string>Image</string>
                     <key>type</key><string>image</string>
                     <key>renditions</key><array>
                         <dict><key>id</key><string>thumbnail</string><key>maximumDimension</key><integer>20</integer></dict>
@@ -1089,7 +1148,7 @@ struct ComponentPackageTests {
             manifest: manifest(withCustomItems: """
                 <dict>
                     <key>id</key><string>source</string>
-                    <key>labels</key><string>Image</string>
+                    <key>label</key><string>Image</string>
                     <key>group</key><string>Content</string>
                     <key>type</key><string>image</string>
                     <key>alt</key><string>Default description</string>
@@ -1165,7 +1224,7 @@ struct ComponentPackageTests {
         let manifestText = manifest(withCustomItems: """
             <dict>
                 <key>id</key><string>title</string>
-                <key>labels</key><string>Title</string>
+                <key>label</key><string>Title</string>
                 <key>group</key><string>Content</string>
                 <key>type</key><string>text</string>
                 <key>default</key><string>Hello</string>
@@ -1196,7 +1255,7 @@ struct ComponentPackageTests {
         let validImageManifest = manifest(withCustomItems: """
             <dict>
                 <key>id</key><string>source</string>
-                <key>labels</key><string>Image</string>
+                <key>label</key><string>Image</string>
                 <key>group</key><string>Content</string>
                 <key>type</key><string>image</string>
                 <key>default</key><string>images/icon.svg</string>
@@ -1579,7 +1638,7 @@ struct ComponentPackageTests {
         let item = """
         <dict>
             <key>id</key><string>alignment</string>
-            <key>labels</key><string>Alignment</string>
+            <key>label</key><string>Alignment</string>
             <key>group</key><string>Typography</string>
             <key>type</key><string>textAlignment</string>
             <key>default</key><string>start</string>
@@ -1621,7 +1680,7 @@ struct ComponentPackageTests {
         let item = """
         <dict>
             <key>id</key><string>sizes</string>
-            <key>labels</key><array><string>First</string><string>Second</string></array>
+            <key>label</key><array><string>First</string><string>Second</string></array>
             <key>type</key><string>select</string>
             <key>themeValues</key><string>fontSizes</string>
             <key>count</key><integer>2</integer>
@@ -1649,7 +1708,7 @@ struct ComponentPackageTests {
         let numberItem = """
         <dict>
             <key>id</key><string>spacing</string>
-            <key>labels</key><string>Spacing</string>
+            <key>label</key><string>Spacing</string>
             <key>type</key><string>number</string>
             <key>default</key><real>12</real>
             <key>responsive</key><false/>
@@ -1680,47 +1739,11 @@ struct ComponentPackageTests {
     }
 
     @Test
-    func spacingControlsEnforceTheirFourSideContract() throws {
-        let paddingItem = """
-        <dict>
-            <key>id</key><string>padding</string>
-            <key>labels</key><array><string>Padding</string></array>
-            <key>type</key><string>padding</string>
-            <key>default</key>
-            <array>
-                <string>lg</string><string>auto</string><string>custom</string><string>none</string>
-            </array>
-            <key>customValue</key>
-            <array><real>16</real><real>0</real><real>-8</real><real>0</real></array>
-            <key>minimum</key><real>0</real>
-            <key>maximum</key><real>64</real>
-            <key>count</key><integer>4</integer>
-            <key>responsive</key><false/>
-        </dict>
-        """
-        let manifestText = manifest(withCustomItems: paddingItem)
-        let manifest = try PropertyListDecoder().decode(
-            ComponentPackageManifest.self,
-            from: Data(manifestText.utf8)
-        )
-        let diagnostics = ComponentPackageValidator.validate(
-            manifest,
-            rootURL: FileManager.default.temporaryDirectory
-        )
-        let messages = Set(diagnostics.map(\.message))
-
-        #expect(messages.contains("Padding always contains top, right, bottom and left values; remove count."))
-        #expect(messages.contains("Use none, custom, a standard theme spacing ID."))
-        #expect(messages.contains("Padding custom values cannot be negative."))
-        #expect(messages.contains("Every customValue must be within the control's 0.0…64.0 range."))
-    }
-
-    @Test
     func sliderUsesContinuousDefaultStepVisualTicksAndOptionalUnits() throws {
         let sliderItem = """
         <dict>
             <key>id</key><string>opacity</string>
-            <key>labels</key><string>Opacity</string>
+            <key>label</key><string>Opacity</string>
             <key>type</key><string>slider</string>
             <key>minimum</key><real>0</real>
             <key>maximum</key><real>100</real>
@@ -1756,7 +1779,7 @@ struct ComponentPackageTests {
         let item = """
         <dict>
             <key>id</key><string>dimensions</string>
-            <key>labels</key>
+            <key>label</key>
             <array><string>Width</string><string>Height</string><string>Opacity</string></array>
             <key>type</key><string>slider</string>
             <key>count</key><integer>3</integer>
@@ -1797,7 +1820,7 @@ struct ComponentPackageTests {
             let item = """
             <dict>
                 <key>id</key><string>slider</string>
-                <key>labels</key><string>Slider</string>
+                <key>label</key><string>Slider</string>
                 <key>type</key><string>slider</string>
                 <key>minimum</key><real>\(testCase.minimum)</real>
                 <key>maximum</key><real>\(testCase.maximum)</real>
@@ -1819,7 +1842,7 @@ struct ComponentPackageTests {
         let item = """
         <dict>
             <key>id</key><string>slider</string>
-            <key>labels</key><string>Slider</string>
+            <key>label</key><string>Slider</string>
             <key>type</key><string>slider</string>
             <key>showsValueField</key><false/>
             <key>responsive</key><false/>
@@ -1855,7 +1878,7 @@ struct ComponentPackageTests {
         let item = """
         <dict>
             <key>id</key><string>slider</string>
-            <key>labels</key><string>Slider</string>
+            <key>label</key><string>Slider</string>
             <key>type</key><string>slider</string>
             <key>minimum</key><real>10</real>
             <key>maximum</key><real>10</real>
@@ -2058,36 +2081,7 @@ struct ComponentPackageTests {
         }.map(\.key.rawValue) == (1...8).map { "slide-\($0)" })
         #expect(ComponentType.section.definition.allowsChildren)
         #expect(!ComponentType.section.definition.properties.contains { $0.key.rawValue == "contentWidth" })
-        let sectionPadding = try #require(ComponentType.section.definition.properties.first {
-            $0.key.rawValue == "padding"
-        })
-        #expect(sectionPadding.defaultValue == .packageSpacing(.init(
-            sources: ["2xl", "none", "2xl", "none"],
-            customValues: [64, 0, 64, 0]
-        )))
-        #expect(sectionPadding.isResponsive)
-        if case .packageSpacing(let kind, let range, let step) = sectionPadding.control {
-            #expect(kind == .padding)
-            #expect(range == 0...320)
-            #expect(step == 4)
-        } else {
-            Issue.record("Section should use the specialised padding control")
-        }
-        let sectionMargin = try #require(ComponentType.section.definition.properties.first {
-            $0.key.rawValue == "margin"
-        })
-        #expect(sectionMargin.defaultValue == .packageSpacing(.init(
-            sources: ["none", "none", "none", "none"],
-            customValues: [0, 0, 0, 0]
-        )))
-        #expect(sectionMargin.isResponsive)
-        if case .packageSpacing(let kind, let range, let step) = sectionMargin.control {
-            #expect(kind == .margin)
-            #expect(range == -320...320)
-            #expect(step == 4)
-        } else {
-            Issue.record("Section should use the specialised margin control")
-        }
+        #expect(!ComponentType.section.definition.properties.contains { ["padding", "margin"].contains($0.key.rawValue) })
         #expect(ComponentType.image.definition.properties.contains { $0.key == .source && $0.isInspectorVisible })
         #expect(ComponentType.image.definition.properties.contains {
             $0.key.rawValue == "maxWidth" && $0.defaultValue == .number(1200) && $0.isResponsive
@@ -2235,28 +2229,6 @@ struct ComponentPackageTests {
         try reloaded.preparePayload()
         #expect(reloaded.isPayloadLoaded)
         #expect(reloaded.css.contains("display: block"))
-    }
-
-    @Test @MainActor
-    func spacingControlsResolveThemeCustomAndAutomaticValuesAsCSSShorthand() {
-        _ = ComponentPackageCatalog.shared
-        #expect(ComponentPackageSpacingResolver.resolve(
-            .init(
-                sources: ["lg", ComponentThemeValueSelection.manualCustom, "none", "3xs"],
-                customValues: [0, 24, 0, 0]
-            ),
-            theme: .standard,
-            kind: .padding
-        ) == "var(--foundry-space-lg) 24px 0 var(--foundry-space-3xs)")
-
-        #expect(ComponentPackageSpacingResolver.resolve(
-            .init(
-                sources: [ComponentThemeValueSelection.manualCustom, "auto", "sm", "auto"],
-                customValues: [-12, 0, 0, 0]
-            ),
-            theme: .standard,
-            kind: .margin
-        ) == "-12px auto var(--foundry-space-sm) auto")
     }
 
     @Test @MainActor
@@ -2587,7 +2559,7 @@ struct ComponentPackageTests {
         let item = """
         <dict>
             <key>id</key><string>symbol</string>
-            <key>labels</key><string>Icon</string>
+            <key>label</key><string>Icon</string>
             <key>group</key><string>Content</string>
             <key>type</key><string>icon</string>
             <key>default</key><string>stars</string>
@@ -2630,7 +2602,7 @@ struct ComponentPackageTests {
         let item = """
         <dict>
             <key>id</key><string>symbol</string>
-            <key>labels</key><string>Icon</string>
+            <key>label</key><string>Icon</string>
             <key>type</key><string>icon</string>
             <key>default</key><string>not-a-real-foundry-icon</string>
             <key>responsive</key><false/>
@@ -2732,7 +2704,7 @@ struct ComponentPackageTests {
         <array>
             <dict>
                 <key>id</key><string>title</string>
-                <key>labels</key><string>Title</string>
+                <key>label</key><string>Title</string>
                 <key>group</key><string>Content</string>
                 <key>type</key><string>text</string>
                 <key>default</key><string>Hello</string>

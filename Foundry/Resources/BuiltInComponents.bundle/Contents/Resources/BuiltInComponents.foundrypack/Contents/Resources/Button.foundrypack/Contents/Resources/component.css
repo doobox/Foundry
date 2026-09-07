@@ -7,5 +7,5 @@
     text-decoration: none;
     background-color: {{ control.backgroundColor }};
     border-radius: {{ control.cornerRadius }}px;
-    padding: {{ control.padding }};
+    padding: 12px 22px;
 }

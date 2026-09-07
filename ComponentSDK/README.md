@@ -102,7 +102,7 @@ To expose an image in the Inspector, declare a normal image control:
 <array>
     <dict>
         <key>id</key><string>source</string>
-        <key>labels</key><string>Image</string>
+        <key>label</key><string>Image</string>
         <key>group</key><string>Content</string>
         <key>type</key><string>image</string>
         <key>alt</key><string>Default image description</string>

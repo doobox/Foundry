@@ -54,6 +54,7 @@ struct HTMLPageRenderer: PageRendering {
               --foundry-editor-global: #0A84FF;
               --foundry-editor-primitive: #0A84FF;
               \(theme.spacingCSSVariables)
+              \(theme.shadowCSSVariables)
             }
             *, *::before, *::after { box-sizing: border-box; }
             a { color: var(--foundry-color-links); }
@@ -473,15 +474,11 @@ struct HTMLPageRenderer: PageRendering {
                     ? fontSizeValue.customValue : theme.fontSizeCSSVariable(for: fontSizeValue.source)
                 return (definition.key.rawValue, .string(resolved))
             }
-            if case .packageSpacing(let kind, _, _) = definition.control,
-               case .packageSpacing(let spacingValue) = value {
+            if case .packageShadow = definition.control,
+               case .packageShadow(let shadowValue) = value {
                 return (
                     definition.key.rawValue,
-                    .string(ComponentPackageSpacingResolver.resolve(
-                        spacingValue,
-                        theme: theme,
-                        kind: kind
-                    ))
+                    .string(ComponentPackageShadowResolver.resolve(shadowValue, theme: theme))
                 )
             }
             if case .number = definition.control {
@@ -559,7 +556,7 @@ struct HTMLPageRenderer: PageRendering {
         case .link: .string("")
         case .packageColor(let value): .string(value.source)
         case .packageFontSize(let value): .string(value.source)
-        case .packageSpacing(let value): .array(value.sources.map(ComponentPackageValue.string))
+        case .packageShadow(let value): .string(value.source)
         }
     }
 

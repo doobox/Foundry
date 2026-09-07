@@ -23,7 +23,7 @@
     <array>
         <dict>
             <key>id</key><string>columnCount</string>
-            <key>labels</key><string>Columns</string>
+            <key>label</key><string>Columns</string>
             <key>group</key><string>Layout</string>
             <key>type</key><string>number</string>
             <key>minimum</key><integer>1</integer>
@@ -34,7 +34,7 @@
         </dict>
         <dict>
             <key>id</key><string>gap</string>
-            <key>labels</key><string>Gap</string>
+            <key>label</key><string>Gap</string>
             <key>group</key><string>Layout</string>
             <key>type</key><string>number</string>
             <key>minimum</key><integer>0</integer>

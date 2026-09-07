@@ -50,8 +50,6 @@ nonisolated enum ComponentPackageAdapter {
     }
 
     private static func propertyDefinitions(_ property: ComponentPackageProperty) -> [ComponentPropertyDefinition] {
-        if property.control.type == .padding { return spacingProperties(for: property, kind: .padding) }
-        if property.control.type == .margin { return spacingProperties(for: property, kind: .margin) }
         if property.control.type == .image {
             var definitions = [
                 ComponentPropertyDefinition(
@@ -120,6 +118,7 @@ nonisolated enum ComponentPackageAdapter {
             )]
         }
         if property.control.type == .color { return colorProperties(for: property) }
+        if property.control.type == .shadow { return shadowProperties(for: property) }
         if property.control.type == .select,
            property.control.themeValueSource == .fontSizes,
            property.control.allowsCustom == true {
@@ -149,56 +148,6 @@ nonisolated enum ComponentPackageAdapter {
 
     static func imageFocalPointKey(for propertyID: String) -> ComponentProperty.Key {
         .init(rawValue: "__foundry_image_focal_point_\(propertyID)")
-    }
-
-    private static func spacingProperties(
-        for property: ComponentPackageProperty,
-        kind: ComponentSpacingKind
-    ) -> [ComponentPropertyDefinition] {
-        let key = ComponentProperty.Key(rawValue: property.id)
-        let section = ComponentPropertySection(rawValue: property.group)
-        let defaultSources: [String]
-        if case .array(let values) = property.defaultValue {
-            defaultSources = Array(values.prefix(4)).map(\.stringValue)
-        } else {
-            defaultSources = []
-        }
-        let paddedSources = Array(
-            (defaultSources + Array(repeating: "none", count: 4)).prefix(4)
-        ).map(ComponentThemeValueSelection.storedSource)
-        let declaredCustomValues: [Double]
-        if case .array(let values) = property.control.customValue {
-            declaredCustomValues = values.compactMap(\.numberValue)
-        } else {
-            declaredCustomValues = []
-        }
-        let customValues = Array(
-            (declaredCustomValues + Array(repeating: 0, count: 4)).prefix(4)
-        )
-        let range: ClosedRange<Double> = kind == .padding
-            ? (property.control.minimum ?? 0)...(property.control.maximum ?? 640)
-            : (property.control.minimum ?? -640)...(property.control.maximum ?? 640)
-
-        return [
-            .init(
-                key: key,
-                label: property.label,
-                section: section,
-                control: .packageSpacing(
-                    kind: kind,
-                    range: range,
-                    step: property.control.step ?? 1
-                ),
-                defaultValue: .packageSpacing(.init(
-                    sources: paddedSources,
-                    customValues: customValues
-                )),
-                isResponsive: property.responsive,
-                enable: property.enable,
-                themeValueSource: property.control.themeValueSource,
-                allowsCustomThemeValue: property.control.allowsCustom == true
-            )
-        ]
     }
 
     private static func fontSizeProperties(for property: ComponentPackageProperty) -> [ComponentPropertyDefinition] {
@@ -247,6 +196,26 @@ nonisolated enum ComponentPackageAdapter {
         ]
     }
 
+    private static func shadowProperties(for property: ComponentPackageProperty) -> [ComponentPropertyDefinition] {
+        let source = ComponentThemeValueSelection.storedSource(
+            forManifestValue: property.defaultValue.stringValue
+        )
+        return [ComponentPropertyDefinition(
+            key: .init(rawValue: property.id),
+            label: property.label,
+            section: .init(rawValue: property.group),
+            control: .packageShadow,
+            defaultValue: .packageShadow(.init(
+                source: source,
+                customLayers: ComponentPackageShadowValue.defaultCustom.customLayers
+            )),
+            isResponsive: property.responsive,
+            enable: property.enable,
+            themeValueSource: .shadows,
+            allowsCustomThemeValue: property.control.allowsCustom == true
+        )]
+    }
+
     private static func control(_ control: ComponentPackageControl, unit: String) -> ComponentPropertyControl {
         switch control.type {
         case .text: .singleLineText
@@ -262,7 +231,6 @@ nonisolated enum ComponentPackageAdapter {
             .choice((control.options ?? []).map { .init(value: $0.value, label: $0.title) })
         case .link: .link(absoluteURL: control.absoluteURL ?? false)
         case .toggle: .toggle
-        case .margin, .padding: .derived
         case .textAlignment: .textAlignment
         case .divider: .divider
         case .slider:
@@ -279,6 +247,7 @@ nonisolated enum ComponentPackageAdapter {
         case .button: .button(systemImage: control.systemImage)
         case .image: .image
         case .math: .derived
+        case .shadow: .packageShadow
         }
     }
 
@@ -293,7 +262,7 @@ nonisolated enum ComponentPackageAdapter {
             switch control {
             case .link: .link(.init(destination: value.isEmpty ? .none : .url(value)))
             case .color: .color(value)
-            case .icon, .select, .margin, .padding, .textAlignment: .choice(value)
+            case .icon, .select, .textAlignment, .shadow: .choice(value)
             case .date: .string(value)
             case .image: .url(value)
             default: .string(value)

@@ -65,27 +65,18 @@ struct StaticSiteRendererTests {
         let componentID = try #require(site.pages.first?.components.first?.id)
         site.updateComponent(id: componentID) {
             $0.setResponsiveProperty(
-                .padding,
-                value: .packageSpacing(.init(
-                    sources: Array(repeating: ComponentThemeValueSelection.manualCustom, count: 4),
-                    customValues: Array(repeating: 8, count: 4)
-                )),
+                .maxWidth,
+                value: .number(800),
                 at: .mobile
             )
             $0.setResponsiveProperty(
-                .padding,
-                value: .packageSpacing(.init(
-                    sources: Array(repeating: ComponentThemeValueSelection.manualCustom, count: 4),
-                    customValues: Array(repeating: 18, count: 4)
-                )),
+                .maxWidth,
+                value: .number(900),
                 at: .medium
             )
             $0.setResponsiveProperty(
-                .padding,
-                value: .packageSpacing(.init(
-                    sources: Array(repeating: ComponentThemeValueSelection.manualCustom, count: 4),
-                    customValues: Array(repeating: 24, count: 4)
-                )),
+                .maxWidth,
+                value: .number(1000),
                 at: .large
             )
         }
@@ -97,9 +88,9 @@ struct StaticSiteRendererTests {
         #expect(css.contains("@media(min-width:768px)"))
         #expect(css.contains("@media(min-width:1024px)"))
         #expect(!css.contains("@media(max-width:"))
-        #expect(css.contains("padding: 8px 8px 8px 8px"))
-        #expect(css.contains("padding: 18px 18px 18px 18px"))
-        #expect(css.contains("padding: 24px 24px 24px 24px"))
+        #expect(css.contains("max-width: 800px"))
+        #expect(css.contains("max-width: 900px"))
+        #expect(css.contains("max-width: 1000px"))
         #expect(html.contains("id=\"foundry-\(componentID.uuidString.lowercased())\""))
         #expect(!html.contains("data-foundry"))
     }

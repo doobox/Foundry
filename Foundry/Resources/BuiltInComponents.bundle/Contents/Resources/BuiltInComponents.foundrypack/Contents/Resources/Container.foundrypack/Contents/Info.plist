@@ -19,7 +19,7 @@
 			<string>Appearance</string>
 			<key>id</key>
 			<string>backgroundColor</string>
-			<key>labels</key>
+			<key>label</key>
 			<string>Background</string>
 			<key>responsive</key>
 			<false/>
@@ -37,7 +37,7 @@
 			<string>Border</string>
 			<key>id</key>
 			<string>cornerRadius</string>
-			<key>labels</key>
+			<key>label</key>
 			<string>Corner radius</string>
 			<key>responsive</key>
 			<true/>
@@ -59,7 +59,7 @@
 			<string>Border</string>
 			<key>id</key>
 			<string>borderColor</string>
-			<key>labels</key>
+			<key>label</key>
 			<string>Border colour</string>
 			<key>responsive</key>
 			<false/>
@@ -75,7 +75,7 @@
 			<string>Border</string>
 			<key>id</key>
 			<string>borderWidth</string>
-			<key>labels</key>
+			<key>label</key>
 			<string>Border width</string>
 			<key>responsive</key>
 			<true/>
@@ -92,44 +92,12 @@
 		</dict>
 		<dict>
 			<key>default</key>
-			<array>
-				<string>custom</string>
-				<string>custom</string>
-				<string>custom</string>
-				<string>custom</string>
-			</array>
-			<key>customValue</key>
-			<array>
-				<integer>32</integer>
-				<integer>32</integer>
-				<integer>32</integer>
-				<integer>32</integer>
-			</array>
-			<key>group</key>
-			<string>Layout</string>
-			<key>id</key>
-			<string>padding</string>
-			<key>labels</key>
-			<string>Padding</string>
-			<key>responsive</key>
-			<true/>
-			<key>maximum</key>
-			<integer>240</integer>
-			<key>minimum</key>
-			<integer>0</integer>
-			<key>step</key>
-			<integer>4</integer>
-			<key>type</key>
-			<string>padding</string>
-		</dict>
-		<dict>
-			<key>default</key>
 			<integer>760</integer>
 			<key>group</key>
 			<string>Layout</string>
 			<key>id</key>
 			<string>maxWidth</string>
-			<key>labels</key>
+			<key>label</key>
 			<string>Maximum width</string>
 			<key>responsive</key>
 			<true/>
@@ -151,7 +119,7 @@
 			<string>Layout</string>
 			<key>id</key>
 			<string>horizontalAlignment</string>
-			<key>labels</key>
+			<key>label</key>
 			<string>Alignment</string>
 			<key>responsive</key>
 			<true/>

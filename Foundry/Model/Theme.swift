@@ -3,29 +3,33 @@ import Foundation
 nonisolated struct Theme: Codable, Equatable, Sendable {
     var colors: ColorTokens
     var spacing: SpacingTokens
+    var shadows: ShadowTokens
     var typography: TypographyTokens
     var screens: ScreenTokens
 
     init(
         colors: ColorTokens,
         spacing: SpacingTokens,
+        shadows: ShadowTokens = .standard,
         typography: TypographyTokens,
         screens: ScreenTokens = .standard
     ) {
         self.colors = colors
         self.spacing = spacing
+        self.shadows = shadows
         self.typography = typography
         self.screens = screens
     }
 
     enum CodingKeys: String, CodingKey {
-        case colors, spacing, typography, screens
+        case colors, spacing, shadows, typography, screens
     }
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         colors = try container.decode(ColorTokens.self, forKey: .colors)
         spacing = try container.decode(SpacingTokens.self, forKey: .spacing)
+        shadows = try container.decodeIfPresent(ShadowTokens.self, forKey: .shadows) ?? .standard
         typography = try container.decode(TypographyTokens.self, forKey: .typography)
         screens = try container.decode(ScreenTokens.self, forKey: .screens)
     }
@@ -323,6 +327,126 @@ nonisolated struct ThemeSpacing: Codable, Equatable, Identifiable, Sendable {
     }
 }
 
+nonisolated struct ShadowTokens: Codable, Equatable, Sendable {
+    var predefined: [ThemeShadow]
+    var custom: [ThemeShadow]
+
+    static let standard = ShadowTokens(
+        predefined: [
+            .init(id: "default", title: "Default", layers: [
+                .init(x: 0, y: 1, blur: 3, opacity: 0.10),
+                .init(x: 0, y: 1, blur: 2, opacity: 0.10)
+            ]),
+            .init(id: "none", title: "none", layers: []),
+            .init(id: "inner", title: "inner", layers: [
+                .init(x: 0, y: 2, blur: 4, opacity: 0.06, isInset: true)
+            ]),
+            .init(id: "xs", title: "xs", layers: [
+                .init(x: 0, y: 1, blur: 2, opacity: 0.05)
+            ]),
+            .init(id: "sm", title: "sm", layers: [
+                .init(x: 0, y: 1, blur: 3, opacity: 0.10),
+                .init(x: 0, y: 1, blur: 2, opacity: 0.10)
+            ]),
+            .init(id: "md", title: "md", layers: [
+                .init(x: 0, y: 4, blur: 6, opacity: 0.10),
+                .init(x: 0, y: 2, blur: 4, opacity: 0.10)
+            ]),
+            .init(id: "lg", title: "lg", layers: [
+                .init(x: 0, y: 10, blur: 15, opacity: 0.10),
+                .init(x: 0, y: 4, blur: 6, opacity: 0.10)
+            ]),
+            .init(id: "xl", title: "xl", layers: [
+                .init(x: 0, y: 20, blur: 25, opacity: 0.10),
+                .init(x: 0, y: 8, blur: 10, opacity: 0.10)
+            ]),
+            .init(id: "2xl", title: "2xl", layers: [
+                .init(x: 0, y: 25, blur: 50, opacity: 0.25)
+            ])
+        ],
+        custom: []
+    )
+
+    var shadows: [ThemeShadow] { custom + predefined }
+}
+
+nonisolated struct ThemeShadow: Codable, Equatable, Identifiable, Sendable {
+    let id: String
+    var title: String
+    var layers: [ThemeShadowLayer]
+
+    var cssValue: String {
+        layers.isEmpty ? "none" : layers.map(\.cssValue).joined(separator: ", ")
+    }
+
+    var cssVariable: String {
+        if id.hasPrefix("user-") {
+            return "--foundry-shadow-custom-\(id.dropFirst("user-".count))"
+        }
+        return "--foundry-shadow-\(id)"
+    }
+}
+
+nonisolated struct ThemeShadowLayer: Codable, Equatable, Identifiable, Sendable {
+    var id: UUID
+    var x: Double
+    var y: Double
+    var blur: Double
+    var spread: Double
+    var color: String
+    var opacity: Double
+    var isInset: Bool
+
+    init(
+        id: UUID = UUID(),
+        x: Double,
+        y: Double,
+        blur: Double,
+        spread: Double = 0,
+        color: String = "#000000",
+        opacity: Double,
+        isInset: Bool = false
+    ) {
+        self.id = id
+        self.x = x
+        self.y = y
+        self.blur = blur
+        self.spread = spread
+        self.color = color
+        self.opacity = opacity
+        self.isInset = isInset
+    }
+
+    var cssValue: String {
+        let inset = isInset ? "inset " : ""
+        return "\(inset)\(x.rounded().cssNumber)px \(y.rounded().cssNumber)px \(max(0, blur).cssNumber)px \(spread.rounded().cssNumber)px \(cssColor)"
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id, x, y, blur, spread, color, opacity, isInset
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(UUID.self, forKey: .id)
+        x = try container.decode(Double.self, forKey: .x)
+        y = try container.decode(Double.self, forKey: .y)
+        blur = try container.decode(Double.self, forKey: .blur)
+        spread = try container.decodeIfPresent(Double.self, forKey: .spread) ?? 0
+        color = try container.decode(String.self, forKey: .color)
+        opacity = try container.decode(Double.self, forKey: .opacity)
+        isInset = try container.decode(Bool.self, forKey: .isInset)
+    }
+
+    private var cssColor: String {
+        let hex = color.trimmingCharacters(in: CharacterSet(charactersIn: "#"))
+        guard hex.count == 6, let value = Int(hex, radix: 16) else {
+            return "rgb(0 0 0 / \(min(max(opacity, 0), 1).cssNumber))"
+        }
+        return "rgb(\((value >> 16) & 255) \((value >> 8) & 255) \(value & 255) / \(min(max(opacity, 0), 1).cssNumber))"
+    }
+}
+
 nonisolated struct TypographyTokens: Codable, Equatable, Sendable {
     static let rootSize = 16.0
 
@@ -545,6 +669,25 @@ nonisolated extension Theme {
                 separatorBefore: index == 0
             )
         }
+    }
+
+    var shadowChoices: [ComponentPropertyChoice] {
+        shadows.shadows.enumerated().map { index, shadow in
+            .init(
+                value: shadow.id,
+                label: shadow.title,
+                separatorBefore: index == shadows.custom.count && !shadows.custom.isEmpty
+            )
+        }
+    }
+
+    func shadowCSSVariable(for reference: String) -> String? {
+        guard let shadow = shadows.shadows.first(where: { $0.id == reference }) else { return nil }
+        return "var(\(shadow.cssVariable))"
+    }
+
+    var shadowCSSVariables: String {
+        shadows.shadows.map { "\($0.cssVariable):\($0.cssValue);" }.joined()
     }
 
     func spacingCSSVariable(for reference: String) -> String? {

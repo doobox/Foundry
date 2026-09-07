@@ -17,7 +17,7 @@
 			<string>Content</string>
 			<key>id</key>
 			<string>source</string>
-			<key>labels</key>
+			<key>label</key>
 			<string>Image</string>
 			<key>type</key>
 			<string>image</string>
@@ -29,7 +29,7 @@
 			<string>Sizing</string>
 			<key>id</key>
 			<string>maxWidth</string>
-			<key>labels</key>
+			<key>label</key>
 			<string>Max Width</string>
 			<key>responsive</key>
 			<true/>
@@ -51,7 +51,7 @@
 			<string>Sizing</string>
 			<key>id</key>
 			<string>alignment</string>
-			<key>labels</key>
+			<key>label</key>
 			<string>Alignment</string>
 			<key>responsive</key>
 			<true/>

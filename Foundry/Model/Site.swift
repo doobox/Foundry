@@ -4,17 +4,34 @@ nonisolated struct ProjectThemeValues: Codable, Equatable, Sendable {
     var spacing: [ThemeSpacing] = []
     var fonts: [ThemeCustomFont] = []
     var fontSizes: [ThemeFontSize] = []
+    var shadows: [ThemeShadow] = []
+
+    private enum CodingKeys: String, CodingKey {
+        case spacing, fonts, fontSizes, shadows
+    }
+
+    init() {}
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        spacing = try container.decodeIfPresent([ThemeSpacing].self, forKey: .spacing) ?? []
+        fonts = try container.decodeIfPresent([ThemeCustomFont].self, forKey: .fonts) ?? []
+        fontSizes = try container.decodeIfPresent([ThemeFontSize].self, forKey: .fontSizes) ?? []
+        shadows = try container.decodeIfPresent([ThemeShadow].self, forKey: .shadows) ?? []
+    }
 
     mutating func absorb(_ theme: Theme) {
         spacing = theme.spacing.custom
         fonts = theme.typography.customFonts
         fontSizes = theme.typography.customFontSizes
+        shadows = theme.shadows.custom
     }
 
     mutating func include(_ theme: Theme) {
         Self.mergeKeepingExisting(theme.spacing.custom, into: &spacing, id: \.id)
         Self.mergeKeepingExisting(theme.typography.customFonts, into: &fonts, id: \.id)
         Self.mergeKeepingExisting(theme.typography.customFontSizes, into: &fontSizes, id: \.id)
+        Self.mergeKeepingExisting(theme.shadows.custom, into: &shadows, id: \.id)
     }
 
     func applied(to theme: Theme) -> Theme {
@@ -22,6 +39,7 @@ nonisolated struct ProjectThemeValues: Codable, Equatable, Sendable {
         Self.mergeReplacingExisting(spacing, into: &result.spacing.custom, id: \.id)
         Self.mergeReplacingExisting(fonts, into: &result.typography.customFonts, id: \.id)
         Self.mergeReplacingExisting(fontSizes, into: &result.typography.customFontSizes, id: \.id)
+        Self.mergeReplacingExisting(shadows, into: &result.shadows.custom, id: \.id)
         return result
     }
 

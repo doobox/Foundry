@@ -617,7 +617,8 @@ struct WebCanvasView: NSViewRepresentable {
           document.querySelectorAll(selector).forEach(element => {
             element.draggable = true;
             element.addEventListener('dragstart', event => {
-              if (event.target.closest('[data-foundry-primitive-property]')) {
+              const primitive = event.target.closest('[data-foundry-primitive-property]');
+              if (primitive && primitive !== element) {
                 event.preventDefault();
                 return;
               }

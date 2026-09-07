@@ -152,11 +152,7 @@ nonisolated enum ComponentPropertyControl: Sendable {
     case choice([ComponentPropertyChoice])
     case themeFontSize
     case packageFontSize(themeValues: Bool)
-    case packageSpacing(
-        kind: ComponentSpacingKind,
-        range: ClosedRange<Double>,
-        step: Double
-    )
+    case packageShadow
     case textAlignment
     case divider
     case toggle
@@ -166,13 +162,6 @@ nonisolated enum ComponentPropertyControl: Sendable {
         if case .themeFontSize = self { true } else { false }
     }
 
-}
-
-nonisolated enum ComponentSpacingKind: String, Sendable {
-    case margin
-    case padding
-
-    var permitsAuto: Bool { self == .margin }
 }
 
 nonisolated struct ComponentPropertyChoice: Identifiable, Sendable {

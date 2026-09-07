@@ -10,6 +10,7 @@ nonisolated enum ComponentPackageThemeValueResolver {
         case .fontFamilies: theme.fontFamilyChoices
         case .fontSizes: theme.fontSizeChoices
         case .spacing: theme.spacingChoices
+        case .shadows: theme.shadowChoices
         }
     }
 
@@ -30,6 +31,8 @@ nonisolated enum ComponentPackageThemeValueResolver {
             return theme.fontSizeCSSVariable(for: reference)
         case .spacing:
             return theme.spacingCSSVariable(for: reference)
+        case .shadows:
+            return theme.shadowCSSVariable(for: reference)
         }
     }
 

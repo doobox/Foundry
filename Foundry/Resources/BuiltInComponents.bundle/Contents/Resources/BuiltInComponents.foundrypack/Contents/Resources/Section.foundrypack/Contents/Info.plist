@@ -43,7 +43,7 @@
 		<dict>
 			<key>id</key>
 			<string>minimumHeight</string>
-			<key>labels</key>
+			<key>label</key>
 			<string>Minimum Height</string>
 			<key>group</key>
 			<string>Layout</string>
@@ -65,7 +65,7 @@
 		<dict>
 			<key>id</key>
 			<string>verticalAlignment</string>
-			<key>labels</key>
+			<key>label</key>
 			<string>Vertical Alignment</string>
 			<key>group</key>
 			<string>Layout</string>
@@ -99,76 +99,8 @@
 		</dict>
 		<dict>
 			<key>id</key>
-			<string>padding</string>
-			<key>labels</key>
-			<string>Padding</string>
-			<key>group</key>
-			<string>Spacing</string>
-			<key>type</key>
-			<string>padding</string>
-			<key>default</key>
-			<array>
-				<string>2xl</string>
-				<string>none</string>
-				<string>2xl</string>
-				<string>none</string>
-			</array>
-			<key>customValue</key>
-			<array>
-				<real>64</real>
-				<real>0</real>
-				<real>64</real>
-				<real>0</real>
-			</array>
-			<key>minimum</key>
-			<real>0</real>
-			<key>maximum</key>
-			<real>320</real>
-			<key>step</key>
-			<real>4</real>
-			<key>responsive</key>
-			<true/>
-			<key>toolTip</key>
-			<string>Theme-aware space inside each edge. Use a Container inside the section for standard horizontal gutters and content width.</string>
-		</dict>
-		<dict>
-			<key>id</key>
-			<string>margin</string>
-			<key>labels</key>
-			<string>Margin</string>
-			<key>group</key>
-			<string>Spacing</string>
-			<key>type</key>
-			<string>margin</string>
-			<key>default</key>
-			<array>
-				<string>none</string>
-				<string>none</string>
-				<string>none</string>
-				<string>none</string>
-			</array>
-			<key>customValue</key>
-			<array>
-				<real>0</real>
-				<real>0</real>
-				<real>0</real>
-				<real>0</real>
-			</array>
-			<key>minimum</key>
-			<real>-320</real>
-			<key>maximum</key>
-			<real>320</real>
-			<key>step</key>
-			<real>4</real>
-			<key>responsive</key>
-			<true/>
-			<key>toolTip</key>
-			<string>Theme-aware space outside each edge. Custom values may be negative to create overlaps.</string>
-		</dict>
-		<dict>
-			<key>id</key>
 			<string>backgroundColor</string>
-			<key>labels</key>
+			<key>label</key>
 			<string>Colour</string>
 			<key>group</key>
 			<string>Background</string>
@@ -188,7 +120,7 @@
 		<dict>
 			<key>id</key>
 			<string>element</string>
-			<key>labels</key>
+			<key>label</key>
 			<string>HTML Element</string>
 			<key>group</key>
 			<string>Advanced</string>

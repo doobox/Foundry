@@ -19,7 +19,7 @@
 			<string>Typography</string>
 			<key>id</key>
 			<string>typeface</string>
-			<key>labels</key>
+			<key>label</key>
 			<string>Typeface</string>
 			<key>responsive</key>
 			<true/>
@@ -35,7 +35,7 @@
 			<string>Typography</string>
 			<key>id</key>
 			<string>textSize</string>
-			<key>labels</key>
+			<key>label</key>
 			<string>Font Size</string>
 			<key>responsive</key>
 			<false/>
@@ -53,7 +53,7 @@
 			<string>Typography</string>
 			<key>id</key>
 			<string>textAlignment</string>
-			<key>labels</key>
+			<key>label</key>
 			<string>Alignment</string>
 			<key>responsive</key>
 			<true/>
@@ -67,7 +67,7 @@
 			<string>Typography</string>
 			<key>id</key>
 			<string>textDecoration</string>
-			<key>labels</key>
+			<key>label</key>
 			<string>Underline</string>
 			<key>options</key>
 			<array>
@@ -108,7 +108,7 @@
 			<string>Colour</string>
 			<key>id</key>
 			<string>textColor</string>
-			<key>labels</key>
+			<key>label</key>
 			<string>Colour</string>
 			<key>responsive</key>
 			<true/>

@@ -578,10 +578,6 @@ nonisolated enum ComponentPackageValidator {
     private static func validate(_ property: ComponentPackageProperty, into diagnostics: inout [ComponentPackageDiagnostic]) {
         let location = "Info.plist:customItems.\(property.id)"
         validateThemeValues(property, location: location, into: &diagnostics)
-        if property.control.type == .padding || property.control.type == .margin {
-            validateSpacing(property, location: location, into: &diagnostics)
-            return
-        }
         if let count = property.control.count {
             guard (2...4).contains(count) else {
                 diagnostics.append(.init(severity: .error, location: location, message: "Control arrays must contain between two and four controls."))
@@ -619,12 +615,13 @@ nonisolated enum ComponentPackageValidator {
                 message: "A select control using themeValues cannot be a multi control; remove count."
             ))
         }
-        if property.control.allowsCustom.orFalse,
-           property.control.type != .select || property.control.themeValueSource == nil {
+        let supportsCustomThemeValue = property.control.type == .shadow
+            || (property.control.type == .select && property.control.themeValueSource != nil)
+        if property.control.allowsCustom.orFalse, !supportsCustomThemeValue {
             diagnostics.append(.init(
                 severity: .error,
                 location: "\(location).allowsCustom",
-                message: "allowsCustom requires a select control with a named themeValues source."
+                message: "allowsCustom requires a theme-aware control."
             ))
         }
         if property.control.allowsCustom.orFalse,
@@ -667,11 +664,28 @@ nonisolated enum ComponentPackageValidator {
                 message: "The \(property.control.type.rawValue) control does not accept a theme role as themeValues."
             ))
         }
+        if property.control.type == .shadow, property.control.themeValues != nil {
+            diagnostics.append(.init(
+                severity: .error,
+                location: "\(location).themeValues",
+                message: "A shadow control automatically uses theme shadows; remove themeValues."
+            ))
+            return
+        }
+        if property.control.type == .select,
+           property.control.themeValueSource == .shadows {
+            diagnostics.append(.init(
+                severity: .error,
+                location: "\(location).type",
+                message: "Use type shadow instead of a select control requesting shadow theme values."
+            ))
+            return
+        }
         guard let source = property.control.themeValueSource else { return }
         let supported: Bool
         switch (property.control.type, source) {
         case (.select, .fontFamilies), (.select, .fontSizes), (.select, .spacing),
-             (.margin, .spacing), (.padding, .spacing):
+             (.shadow, .shadows):
             supported = true
         default:
             supported = false
@@ -681,98 +695,6 @@ nonisolated enum ComponentPackageValidator {
                 severity: .error,
                 location: "\(location).themeValues",
                 message: "The \(property.control.type.rawValue) control cannot request \(source.rawValue) theme values."
-            ))
-        }
-    }
-
-    private static func validateSpacing(
-        _ property: ComponentPackageProperty,
-        location: String,
-        into diagnostics: inout [ComponentPackageDiagnostic]
-    ) {
-        let isMargin = property.control.type == .margin
-        if property.control.count != nil {
-            diagnostics.append(.init(
-                severity: .error,
-                location: location,
-                message: "\(isMargin ? "Margin" : "Padding") always contains top, right, bottom and left values; remove count."
-            ))
-        }
-        guard case .array(let defaults) = property.defaultValue, defaults.count == 4 else {
-            diagnostics.append(.init(
-                severity: .error,
-                location: location,
-                message: "A \(isMargin ? "margin" : "padding") control requires exactly four string defaults in top, right, bottom, left order."
-            ))
-            return
-        }
-        let permitted = Set(["none", "custom", "3xs", "2xs", "xs", "sm", "md", "lg", "xl", "2xl", "3xl"] + (isMargin ? ["auto"] : []))
-        for (index, value) in defaults.enumerated() {
-            guard case .string(let source) = value, permitted.contains(source) else {
-                diagnostics.append(.init(
-                    severity: .error,
-                    location: "\(location).default[\(index)]",
-                    message: "Use none, custom, a standard theme spacing ID\(isMargin ? ", or auto" : "")."
-                ))
-                continue
-            }
-        }
-
-        if let declaredCustomValue = property.control.customValue {
-            guard case .array(let rawCustomValues) = declaredCustomValue else {
-                diagnostics.append(.init(
-                    severity: .error,
-                    location: "\(location).customValue",
-                    message: "customValue must contain exactly four numbers in top, right, bottom, left order."
-                ))
-                return
-            }
-            let customValues = rawCustomValues.compactMap(\.numberValue)
-            if customValues.count != 4 {
-                diagnostics.append(.init(
-                    severity: .error,
-                    location: "\(location).customValue",
-                    message: "customValue must contain exactly four numbers in top, right, bottom, left order."
-                ))
-            }
-            if !isMargin, customValues.contains(where: { $0 < 0 }) {
-                diagnostics.append(.init(
-                    severity: .error,
-                    location: "\(location).customValue",
-                    message: "Padding custom values cannot be negative."
-                ))
-            }
-            let minimum = property.control.minimum ?? (isMargin ? -640 : 0)
-            let maximum = property.control.maximum ?? 640
-            if customValues.contains(where: { $0 < minimum || $0 > maximum }) {
-                diagnostics.append(.init(
-                    severity: .error,
-                    location: "\(location).customValue",
-                    message: "Every customValue must be within the control's \(minimum)…\(maximum) range."
-                ))
-            }
-        }
-        if let minimum = property.control.minimum,
-           let maximum = property.control.maximum,
-           maximum <= minimum {
-            diagnostics.append(.init(
-                severity: .error,
-                location: location,
-                message: "The control maximum must be greater than its minimum."
-            ))
-        }
-        if !isMargin, let minimum = property.control.minimum, minimum < 0 {
-            diagnostics.append(.init(
-                severity: .error,
-                location: location,
-                message: "Padding minimum cannot be negative."
-            ))
-        }
-        if let step = property.control.step, step <= 0 {
-            diagnostics.append(.init(
-                severity: .error,
-                location: location,
-                message: "The control step must be greater than zero."
             ))
         }
     }
@@ -887,6 +809,21 @@ nonisolated enum ComponentPackageValidator {
             if let customColor = property.control.customColor,
                !customColor.matches(#"^#[0-9A-Fa-f]{6}$"#) {
                 diagnostics.append(.init(severity: .error, location: location, message: "customColor must be a six-digit hexadecimal colour."))
+            }
+        case .shadow:
+            guard case .string(let value) = defaultValue else {
+                diagnostics.append(.init(severity: .error, location: location, message: "A shadow control requires a string default value."))
+                return
+            }
+            let isThemeShadow = Theme.standard.shadowChoices.contains { $0.value == value }
+            let isAllowedCustom = value == ComponentThemeValueSelection.manifestCustom
+                && property.control.allowsCustom.orFalse
+            if !isThemeShadow && !isAllowedCustom {
+                diagnostics.append(.init(
+                    severity: .error,
+                    location: location,
+                    message: "A shadow default must be a standard theme shadow ID, or custom when allowsCustom is enabled."
+                ))
             }
         case .textAlignment:
             if case .string(let value) = defaultValue,

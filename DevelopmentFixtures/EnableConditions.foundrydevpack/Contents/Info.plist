@@ -16,7 +16,7 @@
     <array>
         <dict>
             <key>id</key><string>mode</string>
-            <key>labels</key><string>Mode</string>
+            <key>label</key><string>Mode</string>
             <key>group</key><string>Enable Demo</string>
             <key>type</key><string>select</string>
             <key>options</key><array>
@@ -28,7 +28,7 @@
         </dict>
         <dict>
             <key>id</key><string>featuredTitle</string>
-            <key>labels</key><string>Featured title</string>
+            <key>label</key><string>Featured title</string>
             <key>group</key><string>Enable Demo</string>
             <key>type</key><string>text</string>
             <key>default</key><string>A featured title</string>
@@ -37,7 +37,7 @@
         </dict>
         <dict>
             <key>id</key><string>width</string>
-            <key>labels</key><string>Width</string>
+            <key>label</key><string>Width</string>
             <key>group</key><string>Enable Demo</string>
             <key>type</key><string>number</string>
             <key>minimum</key><integer>0</integer><key>maximum</key><integer>1000</integer><key>step</key><integer>10</integer>
@@ -47,15 +47,15 @@
         </dict>
         <dict>
             <key>id</key><string>wideMessage</string>
-            <key>labels</key><string>Width is at least 600 px</string>
+            <key>label</key><string>Width is at least 600 px</string>
             <key>group</key><string>Enable Demo</string>
             <key>type</key><string>info</string>
             <key>enable</key><dict><key>id</key><string>width</string><key>operation</key><string>&gt;=</string><key>value</key><integer>600</integer></dict>
         </dict>
         <dict>
             <key>id</key><string>titles</string>
-            <key>labels</key><array><string>First</string><string>Second</string><string>Third</string></array>
-            <key>subtitles</key><array><string>Title 1</string><string>Title 2</string><string>Title 3</string></array>
+            <key>label</key><array><string>First</string><string>Second</string><string>Third</string></array>
+            <key>subtitle</key><array><string>Title 1</string><string>Title 2</string><string>Title 3</string></array>
             <key>group</key><string>Enable Demo</string>
             <key>type</key><string>text</string>
             <key>count</key><integer>3</integer>
@@ -64,14 +64,14 @@
         </dict>
         <dict>
             <key>id</key><string>thirdTitleMessage</string>
-            <key>labels</key><string>Third title contains “featured”</string>
+            <key>label</key><string>Third title contains “featured”</string>
             <key>group</key><string>Enable Demo</string>
             <key>type</key><string>info</string>
             <key>enable</key><dict><key>id</key><string>titles[2]</string><key>operation</key><string>containsInsensitive</string><key>value</key><string>featured</string></dict>
         </dict>
         <dict>
             <key>id</key><string>note</string>
-            <key>labels</key><string>Optional note</string>
+            <key>label</key><string>Optional note</string>
             <key>group</key><string>Enable Demo</string>
             <key>type</key><string>text</string>
             <key>default</key><string></string>
@@ -79,14 +79,14 @@
         </dict>
         <dict>
             <key>id</key><string>emptyMessage</string>
-            <key>labels</key><string>The optional note is empty</string>
+            <key>label</key><string>The optional note is empty</string>
             <key>group</key><string>Enable Demo</string>
             <key>type</key><string>info</string>
             <key>enable</key><dict><key>id</key><string>note</string><key>operation</key><string>isEmpty</string></dict>
         </dict>
         <dict>
             <key>id</key><string>noteDetail</string>
-            <key>labels</key><string>Note detail</string>
+            <key>label</key><string>Note detail</string>
             <key>group</key><string>Enable Demo</string>
             <key>type</key><string>textArea</string>
             <key>default</key><string>This appears after entering a note.</string>

@@ -44,7 +44,7 @@ struct StructureOutlineView: NSViewRepresentable {
         outlineView.setDraggingSourceOperationMask(.move, forLocal: true)
         outlineView.setDraggingSourceOperationMask(.copy, forLocal: false)
 
-        let scrollView = NSScrollView()
+        let scrollView = StructureScrollView()
         scrollView.documentView = outlineView
         scrollView.hasVerticalScroller = true
         scrollView.hasHorizontalScroller = false
@@ -475,6 +475,30 @@ private final class StructureNativeOutlineView: NSOutlineView {
     override func keyDown(with event: NSEvent) {
         if handleKeyEvent?(event) == true { return }
         super.keyDown(with: event)
+    }
+}
+
+/// Keeps the outline's drop surface at least as tall as the visible panel.
+/// Without this, the apparent empty area below the final row belongs only to
+/// the clip view, so AppKit continues targeting the final row during a drag.
+private final class StructureScrollView: NSScrollView {
+    override func layout() {
+        super.layout()
+        guard let outlineView = documentView as? NSOutlineView else { return }
+
+        let rowsHeight: CGFloat
+        if outlineView.numberOfRows > 0 {
+            rowsHeight = outlineView.rect(ofRow: outlineView.numberOfRows - 1).maxY
+        } else {
+            rowsHeight = 0
+        }
+        let desiredSize = NSSize(
+            width: contentView.bounds.width,
+            height: max(contentView.bounds.height, rowsHeight)
+        )
+        if outlineView.frame.size != desiredSize {
+            outlineView.setFrameSize(desiredSize)
+        }
     }
 }
 

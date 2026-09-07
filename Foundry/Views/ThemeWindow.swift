@@ -195,6 +195,8 @@ private struct ThemeSettingsDetail: View {
                 fontSizeSettings
             } else if section == .spacing {
                 ThemeSpacingSettings(spacing: theme.spacing, editor: editor)
+            } else if section == .shadows {
+                ThemeShadowSettings(shadows: theme.shadows, editor: editor)
             } else {
                 Form {
                     switch section {
@@ -221,7 +223,7 @@ private struct ThemeSettingsDetail: View {
                     case .spacing:
                         EmptyView()
                     case .shadows:
-                        pendingSettings("Reusable shadow styles will be configured here.")
+                        EmptyView()
                     case .borderWidth:
                         pendingSettings("The theme border-width scale will be configured here.")
                     case .borderRadius:
@@ -489,6 +491,161 @@ private struct ThemeSettingsDetail: View {
 
     private func lineHeightPixels(for token: ThemeFontSize) -> Double {
         token.size * TypographyTokens.rootSize * token.lineHeight
+    }
+}
+
+private struct ThemeShadowSettings: View {
+    let shadows: ShadowTokens
+    let editor: ProjectEditor
+    @State private var selectedShadowID: String?
+
+    var body: some View {
+        HStack(spacing: 0) {
+            shadowList
+                .frame(width: 250)
+            Divider()
+            Group {
+                if let selectedShadow {
+                    ThemeShadowEditor(
+                        shadow: selectedShadow,
+                        isCustom: shadows.custom.contains { $0.id == selectedShadow.id },
+                        editor: editor
+                    )
+                } else {
+                    ContentUnavailableView(
+                        "Select a Shadow",
+                        systemImage: "square.stack",
+                        description: Text("Choose a theme or custom shadow to edit it.")
+                    )
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+        .onAppear(perform: selectInitialShadowIfNeeded)
+        .onChange(of: shadows.shadows.map(\.id)) { _, _ in selectInitialShadowIfNeeded() }
+    }
+
+    private var shadowList: some View {
+        ScrollView {
+            VStack(spacing: 0) {
+                listHeader("Custom Shadows") {
+                    selectedShadowID = editor.addThemeShadow()
+                } label: {
+                    Label("Add Custom Shadow", systemImage: "plus")
+                }
+                rows(shadows.custom, allowsDeletion: true)
+
+                listHeader("Theme Shadows") {
+                    editor.resetThemeShadowScale()
+                } label: {
+                    Label("Reset Theme Shadows", systemImage: "arrow.counterclockwise")
+                }
+                rows(shadows.predefined, allowsDeletion: false)
+            }
+        }
+        .background(.background)
+    }
+
+    private func listHeader(
+        _ title: LocalizedStringKey,
+        action: @escaping () -> Void,
+        @ViewBuilder label: () -> some View
+    ) -> some View {
+        HStack {
+            Text(title).font(.headline)
+            Spacer()
+            Button(action: action, label: label)
+                .labelStyle(.iconOnly)
+                .buttonStyle(.borderless)
+        }
+        .padding(.horizontal, 14)
+        .frame(height: 44)
+        .overlay(alignment: .bottom) { Divider() }
+    }
+
+    private func rows(_ values: [ThemeShadow], allowsDeletion: Bool) -> some View {
+        ForEach(values) { shadow in
+            HStack(spacing: 6) {
+                Button {
+                    selectedShadowID = shadow.id
+                } label: {
+                    HStack {
+                        Text(shadow.title)
+                        Spacer()
+                    }
+                    .contentShape(.rect)
+                }
+                .buttonStyle(.plain)
+                if allowsDeletion {
+                    Button("Delete Custom Shadow", systemImage: "trash", role: .destructive) {
+                        editor.removeThemeShadow(id: shadow.id)
+                    }
+                    .labelStyle(.iconOnly)
+                    .buttonStyle(.borderless)
+                }
+            }
+            .padding(.horizontal, 8)
+            .frame(height: 38)
+            .background(
+                selectedShadowID == shadow.id ? Color.accentColor : Color.clear,
+                in: .rect(cornerRadius: 7)
+            )
+            .foregroundStyle(selectedShadowID == shadow.id ? .white : .primary)
+            .padding(.horizontal, 8)
+            Divider().padding(.leading, 14)
+        }
+    }
+
+    private var selectedShadow: ThemeShadow? {
+        shadows.shadows.first { $0.id == selectedShadowID }
+    }
+
+    private func selectInitialShadowIfNeeded() {
+        guard shadows.shadows.contains(where: { $0.id == selectedShadowID }) == false else { return }
+        selectedShadowID = shadows.custom.first?.id
+            ?? shadows.predefined.first(where: { $0.id == "default" })?.id
+            ?? shadows.predefined.first?.id
+    }
+}
+
+private struct ThemeShadowEditor: View {
+    let shadow: ThemeShadow
+    let isCustom: Bool
+    let editor: ProjectEditor
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 14) {
+                HStack {
+                    Text("Name")
+                    if isCustom {
+                        TextField("Shadow Name", text: titleBinding)
+                            .frame(maxWidth: 220)
+                    } else {
+                        Text(shadow.title)
+                    }
+                    Spacer()
+                }
+
+                ShadowControl(layers: layersBinding, presentation: .expanded)
+                    .frame(maxWidth: .infinity)
+            }
+            .padding(32)
+        }
+    }
+
+    private var titleBinding: Binding<String> {
+        Binding(
+            get: { shadow.title },
+            set: { editor.setThemeShadowTitle(id: shadow.id, value: $0) }
+        )
+    }
+
+    private var layersBinding: Binding<[ThemeShadowLayer]> {
+        Binding(
+            get: { shadow.layers },
+            set: { editor.setThemeShadowLayers(shadowID: shadow.id, layers: $0) }
+        )
     }
 }
 

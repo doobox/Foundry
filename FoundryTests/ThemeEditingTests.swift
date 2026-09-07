@@ -67,7 +67,6 @@ struct ThemeEditingTests {
     func rendererResolvesComponentTokensThroughTheme() throws {
         var theme = Theme.standard
         theme.colors.accent = "#123ABC"
-        theme.spacing.large = 44
         var container = ComponentNode.make(.container)
         container.setProperty(.backgroundColor, value: .packageColor(.init(
             source: ThemeColorRole.accent.rawValue,
@@ -75,16 +74,11 @@ struct ThemeEditingTests {
             adjustment: 0,
             opacity: 1
         )))
-        container.setProperty(.padding, value: .packageSpacing(.init(
-            sources: ["lg", "lg", "lg", "lg"],
-            customValues: [0, 0, 0, 0]
-        )))
         let page = Page(title: "Tokens", slug: "tokens", components: [container])
 
         let html = HTMLPageRenderer().render(page: page, theme: theme)
 
         #expect(html.contains("background-color: #123ABC"))
-        #expect(html.contains("padding: var(--foundry-space-lg) var(--foundry-space-lg) var(--foundry-space-lg) var(--foundry-space-lg)"))
     }
 
     @Test @MainActor
@@ -171,6 +165,79 @@ struct ThemeEditingTests {
 
         #expect(document.site.theme.spacing.usesStandardPredefinedScale)
         #expect(document.site.theme.spacing.custom.map(\.id) == [customID])
+    }
+
+    @Test
+    func shadowsCanBeEditedPersistedResolvedAndUndone() throws {
+        let document = FoundryDocument()
+        let undoManager = UndoManager()
+        let editor = ProjectEditor(document: document, undoManager: undoManager)
+        let shadowID = editor.addThemeShadow()
+        editor.setThemeShadowTitle(id: shadowID, value: "Floating Card")
+        var layer = try #require(
+            document.site.theme.shadows.custom
+                .first(where: { $0.id == shadowID })?
+                .layers.first
+        )
+        layer.x = 3
+        layer.y = 12
+        layer.blur = 28
+        layer.color = "#123456"
+        layer.opacity = 0.4
+        editor.setThemeShadowLayer(shadowID: shadowID, layer: layer)
+
+        let shadow = try #require(document.site.theme.shadows.custom.first(where: { $0.id == shadowID }))
+        #expect(shadow.title == "Floating Card")
+        #expect(shadow.cssValue.contains("3px 12px 28px"))
+        #expect(document.site.theme.shadowCSSVariables.contains(shadow.cssVariable))
+        #expect(ComponentPackageThemeValueResolver.resolve(
+            shadowID,
+            from: .shadows,
+            theme: document.site.theme
+        ) == "var(\(shadow.cssVariable))")
+
+        let data = try FoundryDocument.encoder.encode(document.site)
+        let decoded = try FoundryDocument.decoder.decode(Site.self, from: data)
+        #expect(decoded.theme.shadows.custom == [shadow])
+
+        undoManager.undo()
+        #expect(document.site.theme.shadows.custom.first?.layers.first != layer)
+    }
+
+    @Test
+    func themesWithoutShadowTokensReceiveTailwindDefaults() throws {
+        let encoded = try FoundryDocument.encoder.encode(Theme.standard)
+        var object = try #require(JSONSerialization.jsonObject(with: encoded) as? [String: Any])
+        object.removeValue(forKey: "shadows")
+        let legacyData = try JSONSerialization.data(withJSONObject: object)
+
+        let decoded = try FoundryDocument.decoder.decode(Theme.self, from: legacyData)
+
+        #expect(decoded.shadows == .standard)
+        #expect(decoded.shadowChoices.contains { $0.value == "2xl" })
+    }
+
+    @Test
+    func componentShadowValuesRoundTripAndResolveThemeOrCustomLayers() throws {
+        let customLayer = ThemeShadowLayer(
+            x: 3, y: 7, blur: 12, color: "#123456", opacity: 0.4
+        )
+        let custom = ComponentPackageShadowValue(
+            source: ComponentThemeValueSelection.manualCustom,
+            customLayers: [customLayer]
+        )
+
+        let data = try FoundryDocument.encoder.encode(ComponentProperty.Value.packageShadow(custom))
+        let decoded = try FoundryDocument.decoder.decode(ComponentProperty.Value.self, from: data)
+
+        #expect(decoded == .packageShadow(custom))
+        #expect(ComponentPackageShadowResolver.resolve(custom, theme: .standard) == customLayer.cssValue)
+
+        let themed = ComponentPackageShadowValue(source: "lg", customLayers: [customLayer])
+        #expect(
+            ComponentPackageShadowResolver.resolve(themed, theme: .standard)
+                == Theme.standard.shadowCSSVariable(for: "lg")
+        )
     }
 
     @Test

@@ -58,9 +58,23 @@ nonisolated struct ComponentPackageFontSizeValue: Codable, Equatable, Sendable {
     }
 }
 
-nonisolated struct ComponentPackageSpacingValue: Codable, Equatable, Sendable {
-    var sources: [String]
-    var customValues: [Double]
+nonisolated struct ComponentPackageShadowValue: Codable, Equatable, Sendable {
+    var source: String
+    var customLayers: [ThemeShadowLayer]
+
+    static let defaultCustom = ComponentPackageShadowValue(
+        source: ComponentThemeValueSelection.manualCustom,
+        customLayers: [.init(x: 0, y: 4, blur: 8, opacity: 0.15)]
+    )
+}
+
+nonisolated enum ComponentPackageShadowResolver {
+    static func resolve(_ value: ComponentPackageShadowValue, theme: Theme) -> String {
+        if ComponentThemeValueSelection.isManualCustom(value.source) {
+            return value.customLayers.isEmpty ? "none" : value.customLayers.map(\.cssValue).joined(separator: ", ")
+        }
+        return theme.shadowCSSVariable(for: value.source) ?? "none"
+    }
 }
 
 nonisolated struct ComponentProperty: Codable, Equatable, Identifiable, Sendable {
@@ -128,7 +142,7 @@ nonisolated struct ComponentProperty: Codable, Equatable, Identifiable, Sendable
         case link(ComponentLink)
         case packageColor(ComponentPackageColorValue)
         case packageFontSize(ComponentPackageFontSizeValue)
-        case packageSpacing(ComponentPackageSpacingValue)
+        case packageShadow(ComponentPackageShadowValue)
 
         var stringValue: String {
             switch self {
@@ -148,8 +162,8 @@ nonisolated struct ComponentProperty: Codable, Equatable, Identifiable, Sendable
                 value.source
             case .packageFontSize(let value):
                 value.source
-            case .packageSpacing(let value):
-                value.sources.joined(separator: ", ")
+            case .packageShadow(let value):
+                value.source
             }
         }
 

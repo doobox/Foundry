@@ -15,7 +15,7 @@
     <array>
         <dict>
             <key>id</key><string>headingLevel</string>
-            <key>labels</key><string>Level</string>
+            <key>label</key><string>Level</string>
             <key>group</key><string>Typography</string>
             <key>type</key><string>select</string>
             <key>options</key><array>
@@ -29,10 +29,10 @@
             <key>default</key><string>2</string>
             <key>responsive</key><false/>
         </dict>
-        <dict><key>id</key><string>typeface</string><key>labels</key><string>Typeface</string><key>group</key><string>Typography</string><key>type</key><string>select</string><key>themeValues</key><string>fontFamilies</string><key>default</key><string>heading</string><key>responsive</key><true/></dict>
-        <dict><key>id</key><string>textSize</string><key>labels</key><string>Font Size</string><key>group</key><string>Typography</string><key>type</key><string>select</string><key>themeValues</key><string>fontSizes</string><key>allowsCustom</key><true/><key>default</key><string>3xl</string><key>responsive</key><true/></dict>
-        <dict><key>id</key><string>textAlignment</string><key>labels</key><string>Alignment</string><key>group</key><string>Typography</string><key>type</key><string>textAlignment</string><key>default</key><string>start</string><key>responsive</key><true/></dict>
-        <dict><key>id</key><string>textColor</string><key>labels</key><string>Colour</string><key>group</key><string>Colour</string><key>type</key><string>color</string><key>themeValues</key><string>text</string><key>colorMath</key><true/><key>opacity</key><true/><key>customColor</key><string>#171719</string><key>default</key><string>custom</string><key>responsive</key><true/></dict>
+        <dict><key>id</key><string>typeface</string><key>label</key><string>Typeface</string><key>group</key><string>Typography</string><key>type</key><string>select</string><key>themeValues</key><string>fontFamilies</string><key>default</key><string>heading</string><key>responsive</key><true/></dict>
+        <dict><key>id</key><string>textSize</string><key>label</key><string>Font Size</string><key>group</key><string>Typography</string><key>type</key><string>select</string><key>themeValues</key><string>fontSizes</string><key>allowsCustom</key><true/><key>default</key><string>3xl</string><key>responsive</key><true/></dict>
+        <dict><key>id</key><string>textAlignment</string><key>label</key><string>Alignment</string><key>group</key><string>Typography</string><key>type</key><string>textAlignment</string><key>default</key><string>start</string><key>responsive</key><true/></dict>
+        <dict><key>id</key><string>textColor</string><key>label</key><string>Colour</string><key>group</key><string>Colour</string><key>type</key><string>color</string><key>themeValues</key><string>text</string><key>colorMath</key><true/><key>opacity</key><true/><key>customColor</key><string>#171719</string><key>default</key><string>custom</string><key>responsive</key><true/></dict>
     </array>
     <key>templates</key><dict><key>html</key><string>component.html</string><key>files</key><array><dict><key>path</key><string>component.css</string><key>scope</key><string>instance</string></dict></array></dict>
     <key>assets</key><array/>

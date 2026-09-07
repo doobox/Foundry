@@ -32,9 +32,9 @@ struct FoundryApp: App {
         WindowGroup("Theme", id: "theme-editor", for: UUID.self) { $presentationID in
             ThemeWindowSceneContent(presentationID: presentationID)
                 .frame(
-                    minWidth: 1_104,
-                    idealWidth: 1_104,
-                    maxWidth: .infinity,
+                    minWidth: 1_204,
+                    idealWidth: 1_204,
+                    maxWidth: 1_204,
                     minHeight: 661,
                     idealHeight: 661,
                     maxHeight: .infinity
@@ -42,8 +42,8 @@ struct FoundryApp: App {
         }
         .handlesExternalEvents(matching: [])
         .commandsRemoved()
-        .defaultSize(width: 1_104, height: 661)
-        .windowResizability(.contentMinSize)
+        .defaultSize(width: 1_204, height: 661)
+        .windowResizability(.contentSize)
         .windowToolbarStyle(.unified)
         .restorationBehavior(.disabled)
 

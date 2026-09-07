@@ -267,6 +267,75 @@ struct ProjectEditor {
         }
     }
 
+    @discardableResult
+    func addThemeShadow() -> String {
+        let id = "user-\(UUID().uuidString.lowercased())"
+        let shadow = ThemeShadow(
+            id: id,
+            title: "Custom Shadow",
+            layers: [.init(x: 0, y: 4, blur: 8, opacity: 0.15)]
+        )
+        mutate(actionName: "Add Theme Shadow") { $0.theme.shadows.custom.insert(shadow, at: 0) }
+        return id
+    }
+
+    func removeThemeShadow(id: String) {
+        mutate(actionName: "Delete Theme Shadow") {
+            $0.theme.shadows.custom.removeAll { $0.id == id }
+        }
+    }
+
+    func setThemeShadowTitle(id: String, value: String) {
+        mutateThemeShadow(id: id, actionName: "Rename Theme Shadow") { $0.title = value }
+    }
+
+    func setThemeShadowLayer(shadowID: String, layer: ThemeShadowLayer) {
+        mutateThemeShadow(id: shadowID, actionName: "Edit Theme Shadow") { shadow in
+            guard let index = shadow.layers.firstIndex(where: { $0.id == layer.id }) else { return }
+            shadow.layers[index] = layer
+        }
+    }
+
+    func setThemeShadowLayers(shadowID: String, layers: [ThemeShadowLayer]) {
+        mutateThemeShadow(id: shadowID, actionName: "Edit Theme Shadow") { $0.layers = layers }
+    }
+
+    @discardableResult
+    func addThemeShadowLayer(shadowID: String) -> UUID {
+        let layer = ThemeShadowLayer(x: 0, y: 4, blur: 8, opacity: 0.15)
+        mutateThemeShadow(id: shadowID, actionName: "Add Shadow Layer") { $0.layers.append(layer) }
+        return layer.id
+    }
+
+    func removeThemeShadowLayer(shadowID: String, layerID: UUID) {
+        mutateThemeShadow(id: shadowID, actionName: "Delete Shadow Layer") {
+            $0.layers.removeAll { $0.id == layerID }
+        }
+    }
+
+    func resetThemeShadowScale() {
+        mutate(actionName: "Reset Theme Shadow Scale") { site in
+            let defaults = ThemeLibrary.shared.themes
+                .first(where: { $0.id == site.themeSourceID })?
+                .theme.shadows.predefined ?? ShadowTokens.standard.predefined
+            site.theme.shadows.predefined = defaults
+        }
+    }
+
+    private func mutateThemeShadow(
+        id: String,
+        actionName: String,
+        update: (inout ThemeShadow) -> Void
+    ) {
+        mutate(actionName: actionName) { site in
+            if let index = site.theme.shadows.custom.firstIndex(where: { $0.id == id }) {
+                update(&site.theme.shadows.custom[index])
+            } else if let index = site.theme.shadows.predefined.firstIndex(where: { $0.id == id }) {
+                update(&site.theme.shadows.predefined[index])
+            }
+        }
+    }
+
     func setThemeBodyFont(_ value: String) {
         setThemeFont(value, for: .body)
     }

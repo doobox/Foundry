@@ -191,11 +191,11 @@ nonisolated struct ComponentPackageProperty: Codable, Equatable, Identifiable, S
 
     enum CodingKeys: String, CodingKey {
         case id
-        case labels
+        case label
         case group
         case defaultValue = "default"
         case responsive
-        case subtitles
+        case subtitle
         case units
         case toolTip
         case enable
@@ -209,7 +209,7 @@ nonisolated struct ComponentPackageProperty: Codable, Equatable, Identifiable, S
         id = try container.decode(String.self, forKey: .id)
         group = try container.decodeIfPresent(String.self, forKey: .group) ?? "Settings"
         control = try ComponentPackageControl(from: decoder)
-        subtitles = try container.decodeIfPresent([String].self, forKey: .subtitles) ?? []
+        subtitles = try container.decodeIfPresent([String].self, forKey: .subtitle) ?? []
         toolTip = try container.decodeIfPresent(String.self, forKey: .toolTip)
         enable = try container.decodeIfPresent(ComponentPackageEnable.self, forKey: .enable)
         alt = try container.decodeIfPresent(String.self, forKey: .alt) ?? ""
@@ -217,13 +217,13 @@ nonisolated struct ComponentPackageProperty: Codable, Equatable, Identifiable, S
         renditions = try container.decodeIfPresent([ComponentPackageImageRendition].self, forKey: .renditions) ?? []
 
         if control.count != nil {
-            labels = try container.decode([String].self, forKey: .labels)
+            labels = try container.decode([String].self, forKey: .label)
             units = try container.decodeIfPresent([String].self, forKey: .units) ?? []
             label = ""
         } else {
             labels = []
             units = [try container.decodeIfPresent(String.self, forKey: .units) ?? ""]
-            label = try container.decodeIfPresent(String.self, forKey: .labels) ?? ""
+            label = try container.decodeIfPresent(String.self, forKey: .label) ?? ""
         }
 
         if control.type == .divider || control.type == .info || control.type == .image || control.type == .math {
@@ -237,10 +237,10 @@ nonisolated struct ComponentPackageProperty: Codable, Equatable, Identifiable, S
             let implicitDefault = min(max(0, lowerBound), upperBound)
             defaultValue = try container.decodeIfPresent(ComponentPackageValue.self, forKey: .defaultValue)
                 ?? .number(implicitDefault)
-            responsive = try container.decode(Bool.self, forKey: .responsive)
+            responsive = try container.decodeIfPresent(Bool.self, forKey: .responsive) ?? false
         } else {
             defaultValue = try container.decode(ComponentPackageValue.self, forKey: .defaultValue)
-            responsive = try container.decode(Bool.self, forKey: .responsive)
+            responsive = try container.decodeIfPresent(Bool.self, forKey: .responsive) ?? false
         }
     }
 
@@ -249,12 +249,12 @@ nonisolated struct ComponentPackageProperty: Codable, Equatable, Identifiable, S
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encode(id, forKey: .id)
         if control.count != nil {
-            try container.encode(labels, forKey: .labels)
+            try container.encode(labels, forKey: .label)
             if !units.isEmpty {
                 try container.encode(units, forKey: .units)
             }
         } else if !label.isEmpty {
-            try container.encode(label, forKey: .labels)
+            try container.encode(label, forKey: .label)
             if let unit = units.first, !unit.isEmpty {
                 try container.encode(unit, forKey: .units)
             }
@@ -263,7 +263,7 @@ nonisolated struct ComponentPackageProperty: Codable, Equatable, Identifiable, S
         try container.encode(defaultValue, forKey: .defaultValue)
         try container.encode(responsive, forKey: .responsive)
         if !subtitles.isEmpty {
-            try container.encode(subtitles, forKey: .subtitles)
+            try container.encode(subtitles, forKey: .subtitle)
         }
         try container.encodeIfPresent(toolTip, forKey: .toolTip)
         try container.encodeIfPresent(enable, forKey: .enable)
@@ -314,8 +314,6 @@ nonisolated struct ComponentPackageControl: Codable, Equatable, Sendable {
         case select
         case link
         case toggle
-        case margin
-        case padding
         case textAlignment
         case divider
         case slider
@@ -325,6 +323,7 @@ nonisolated struct ComponentPackageControl: Codable, Equatable, Sendable {
         case button
         case image
         case math
+        case shadow
     }
 
     let type: Kind
@@ -337,7 +336,6 @@ nonisolated struct ComponentPackageControl: Codable, Equatable, Sendable {
     let colorMath: Bool?
     let opacity: Bool?
     let customColor: String?
-    let customValue: ComponentPackageValue?
     let count: Int?
     let ticks: Int?
     let showsValueField: Bool?
@@ -356,6 +354,7 @@ nonisolated enum ComponentPackageThemeValueSource: String, Codable, CaseIterable
     case fontFamilies
     case fontSizes
     case spacing
+    case shadows
 }
 
 nonisolated enum ComponentPackageThemeValues: Codable, Equatable, Sendable {
@@ -379,7 +378,8 @@ nonisolated enum ComponentPackageThemeValues: Codable, Equatable, Sendable {
 
 nonisolated extension ComponentPackageControl {
     var themeValueSource: ComponentPackageThemeValueSource? {
-        switch themeValues {
+        if type == .shadow { return .shadows }
+        return switch themeValues {
         case .source(let source): source
         case .defaultValue: type == .color ? .colors : nil
         case nil: nil

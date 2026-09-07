@@ -20,7 +20,7 @@
     <array>
         <dict>
             <key>id</key><string>status</string>
-            <key>labels</key><string>Status</string>
+            <key>label</key><string>Status</string>
             <key>group</key><string>Conditions</string>
             <key>type</key><string>select</string>
             <key>options</key>
@@ -34,7 +34,7 @@
         </dict>
         <dict>
             <key>id</key><string>enabled</string>
-            <key>labels</key><string>Enabled</string>
+            <key>label</key><string>Enabled</string>
             <key>group</key><string>Conditions</string>
             <key>type</key><string>toggle</string>
             <key>default</key><true/>
@@ -42,7 +42,7 @@
         </dict>
         <dict>
             <key>id</key><string>score</string>
-            <key>labels</key><string>Score</string>
+            <key>label</key><string>Score</string>
             <key>group</key><string>Conditions</string>
             <key>type</key><string>number</string>
             <key>minimum</key><integer>0</integer>
@@ -53,7 +53,7 @@
         </dict>
         <dict>
             <key>id</key><string>threshold</string>
-            <key>labels</key><string>Threshold</string>
+            <key>label</key><string>Threshold</string>
             <key>group</key><string>Conditions</string>
             <key>type</key><string>number</string>
             <key>minimum</key><integer>0</integer>
@@ -64,7 +64,7 @@
         </dict>
         <dict>
             <key>id</key><string>base</string>
-            <key>labels</key><string>Base</string>
+            <key>label</key><string>Base</string>
             <key>group</key><string>Arithmetic</string>
             <key>type</key><string>number</string>
             <key>minimum</key><integer>-100</integer>
@@ -75,7 +75,7 @@
         </dict>
         <dict>
             <key>id</key><string>offset</string>
-            <key>labels</key><string>Offset</string>
+            <key>label</key><string>Offset</string>
             <key>group</key><string>Arithmetic</string>
             <key>type</key><string>number</string>
             <key>minimum</key><integer>-100</integer>
@@ -86,7 +86,7 @@
         </dict>
         <dict>
             <key>id</key><string>multiplier</string>
-            <key>labels</key><string>Multiplier</string>
+            <key>label</key><string>Multiplier</string>
             <key>group</key><string>Arithmetic</string>
             <key>type</key><string>number</string>
             <key>minimum</key><integer>-10</integer>
@@ -97,7 +97,7 @@
         </dict>
         <dict>
             <key>id</key><string>labels</string>
-            <key>labels</key>
+            <key>label</key>
             <array>
                 <string>First label</string>
                 <string>Second label</string>

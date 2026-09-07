@@ -91,7 +91,6 @@ struct ComponentDefinitionTests {
         #expect(buttonProperties.first(where: { $0.key.rawValue == "content1" })?.section == .content)
         #expect(buttonProperties.first(where: { $0.key.rawValue == "textSize" })?.section == .typography)
         #expect(buttonProperties.first(where: { $0.key == .backgroundColor })?.section == .appearance)
-        #expect(buttonProperties.first(where: { $0.key == .padding })?.section == .layout)
         #expect(buttonProperties.first(where: { $0.key == .destination })?.section == .link)
         #expect(buttonProperties.first(where: { $0.key == .accessibilityLabel })?.section == .accessibility)
     }
@@ -101,10 +100,6 @@ struct ComponentDefinitionTests {
         var container = ComponentNode.make(.container)
         var text = ComponentNode.make(.paragraph)
         var button = ComponentNode.make(.button)
-        container.setProperty(.padding, value: .packageSpacing(.init(
-            sources: Array(repeating: ComponentThemeValueSelection.manualCustom, count: 4),
-            customValues: [24, 24, 24, 24]
-        )))
         container.setProperty(.borderWidth, value: .number(2))
         container.setProperty(.borderColor, value: .packageColor(.init(
             source: ComponentThemeValueSelection.manualCustom,
@@ -125,7 +120,6 @@ struct ComponentDefinitionTests {
         let page = Page(title: "Test", slug: "test", components: [container])
         let html = HTMLPageRenderer().render(page: page, theme: .standard)
 
-        #expect(html.contains("padding: 24px 24px 24px 24px"))
         #expect(html.contains("border: 2px solid #ABCDEF"))
         #expect(html.contains("border-radius: 28px"))
         #expect(html.contains("max-width: 920px"))

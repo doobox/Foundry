@@ -465,7 +465,7 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
             destination: .export,
             exportedSource: { "../" + site.publishedPath(for: $0) }
         ))
-        :root{font-size:16px;--foundry-color-background:\(theme.colors.background);--foundry-color-surface:\(theme.colors.surface);--foundry-color-text:\(theme.colors.text);--foundry-color-accent:\(theme.colors.accent);--foundry-color-links:\(theme.colors.links);--foundry-font-body:\(theme.typography.bodyFont.cssFamily);--foundry-font-heading:\(theme.typography.headingFont.cssFamily);--foundry-font-monospace:\(theme.typography.monospacedFont.cssFamily);\(theme.customFontCSSVariables)\(theme.fontSizeCSSVariables)\(theme.spacingCSSVariables)}
+        :root{font-size:16px;--foundry-color-background:\(theme.colors.background);--foundry-color-surface:\(theme.colors.surface);--foundry-color-text:\(theme.colors.text);--foundry-color-accent:\(theme.colors.accent);--foundry-color-links:\(theme.colors.links);--foundry-font-body:\(theme.typography.bodyFont.cssFamily);--foundry-font-heading:\(theme.typography.headingFont.cssFamily);--foundry-font-monospace:\(theme.typography.monospacedFont.cssFamily);\(theme.customFontCSSVariables)\(theme.fontSizeCSSVariables)\(theme.spacingCSSVariables)\(theme.shadowCSSVariables)}
         \(theme.screens.containerCSS)
         *,*::before,*::after{box-sizing:border-box}
         html,body{min-height:100%}
@@ -738,7 +738,7 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
         case .link: .string("")
         case .packageColor(let value): .string(value.source)
         case .packageFontSize(let value): .string(value.source)
-        case .packageSpacing(let value): .array(value.sources.map(ComponentPackageValue.string))
+        case .packageShadow(let value): .string(value.source)
         }
     }
 
@@ -800,15 +800,11 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
                     ? fontSizeValue.customValue : theme.fontSizeCSSVariable(for: fontSizeValue.source)
                 return (definition.key.rawValue, .string(resolved))
             }
-            if case .packageSpacing(let kind, _, _) = definition.control,
-               case .packageSpacing(let spacingValue) = value {
+            if case .packageShadow = definition.control,
+               case .packageShadow(let shadowValue) = value {
                 return (
                     definition.key.rawValue,
-                    .string(ComponentPackageSpacingResolver.resolve(
-                        spacingValue,
-                        theme: theme,
-                        kind: kind
-                    ))
+                    .string(ComponentPackageShadowResolver.resolve(shadowValue, theme: theme))
                 )
             }
             if case .number = definition.control {
@@ -948,8 +944,8 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
             raw = value.source
         case .packageFontSize(let value):
             raw = value.source
-        case .packageSpacing(let value):
-            raw = value.sources.joined(separator: " ")
+        case .packageShadow(let value):
+            raw = value.source
         }
         return raw.filter { !";{}<>".contains($0) }
     }

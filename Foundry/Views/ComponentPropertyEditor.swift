@@ -246,15 +246,12 @@ struct ComponentPropertyEditor: View {
                 customLineHeight: packageFontSizeCustomLineHeightBinding,
                 indicator: responsiveIndicator
             )
-        case .packageSpacing(let kind, let range, let step):
-            PackageSpacingControlEditor(
+        case .packageShadow:
+            PackageShadowControlEditor(
                 label: definition.label,
-                kind: kind,
-                themeChoices: theme.spacingChoices,
-                sources: (0..<4).map(spacingSourceBinding),
-                customValues: (0..<4).map(packageSpacingCustomBinding),
-                range: range,
-                step: step,
+                choices: theme.shadowChoices,
+                source: packageShadowSourceBinding,
+                customLayers: packageShadowLayersBinding,
                 indicator: responsiveIndicator
             )
         case .textAlignment:
@@ -576,6 +573,34 @@ struct ComponentPropertyEditor: View {
         return .init(source: ComponentThemeValueSelection.manualCustom, customValue: "1rem")
     }
 
+    private var packageShadowValue: ComponentPackageShadowValue {
+        if case .packageShadow(let value) = displayComponent.propertyValue(definition.key) { return value }
+        if case .packageShadow(let value) = definition.defaultValue { return value }
+        return .defaultCustom
+    }
+
+    private var packageShadowSourceBinding: Binding<String> {
+        Binding(
+            get: { packageShadowValue.source },
+            set: { source in
+                var value = packageShadowValue
+                value.source = source
+                setProperty(.packageShadow(value))
+            }
+        )
+    }
+
+    private var packageShadowLayersBinding: Binding<[ThemeShadowLayer]> {
+        Binding(
+            get: { packageShadowValue.customLayers },
+            set: { layers in
+                var value = packageShadowValue
+                value.customLayers = layers
+                setProperty(.packageShadow(value))
+            }
+        )
+    }
+
 
     private var packageFontSizeSourceBinding: Binding<String> {
         Binding(
@@ -606,36 +631,6 @@ struct ComponentPropertyEditor: View {
                 var value = packageFontSizeValue
                 value.customLineHeight = customLineHeight
                 setProperty(.packageFontSize(value))
-            }
-        )
-    }
-
-    private var packageSpacingValue: ComponentPackageSpacingValue {
-        if case .packageSpacing(let value) = displayComponent.propertyValue(definition.key) { return value }
-        if case .packageSpacing(let value) = definition.defaultValue { return value }
-        return .init(sources: Array(repeating: "none", count: 4), customValues: Array(repeating: 0, count: 4))
-    }
-
-    private func spacingSourceBinding(_ index: Int) -> Binding<String> {
-        return Binding(
-            get: { packageSpacingValue.sources.indices.contains(index) ? packageSpacingValue.sources[index] : "none" },
-            set: { source in
-                var value = packageSpacingValue
-                while value.sources.count <= index { value.sources.append("none") }
-                value.sources[index] = source
-                setProperty(.packageSpacing(value))
-            }
-        )
-    }
-
-    private func packageSpacingCustomBinding(_ index: Int) -> Binding<Double> {
-        return Binding(
-            get: { packageSpacingValue.customValues.indices.contains(index) ? packageSpacingValue.customValues[index] : 0 },
-            set: { customValue in
-                var value = packageSpacingValue
-                while value.customValues.count <= index { value.customValues.append(0) }
-                value.customValues[index] = customValue
-                setProperty(.packageSpacing(value))
             }
         )
     }
@@ -1389,79 +1384,41 @@ private struct PackageThemeValueGridEditor: View {
     }
 }
 
-private struct PackageSpacingControlEditor: View {
+private struct PackageShadowControlEditor: View {
     let label: String
-    let kind: ComponentSpacingKind
-    let themeChoices: [ComponentPropertyChoice]
-    let sources: [Binding<String>]
-    let customValues: [Binding<Double>]
-    let range: ClosedRange<Double>
-    let step: Double
+    let choices: [ComponentPropertyChoice]
+    @Binding var source: String
+    @Binding var customLayers: [ThemeShadowLayer]
     let indicator: InspectorRowIndicator
 
-    private let sides = ["Top", "Right", "Bottom", "Left"]
-
     var body: some View {
-        InspectorRow(title: label, alignment: .top, indicator: indicator) {
-            VStack(alignment: .leading, spacing: 8) {
-                ForEach(0..<4, id: \.self) { index in
-                    sideEditor(index)
-                }
-            }
-        }
-    }
-
-    @ViewBuilder
-    private func sideEditor(_ index: Int) -> some View {
-        let source = sources[index]
-        VStack(alignment: .leading, spacing: 4) {
-            HStack(spacing: 6) {
-                Text(sides[index])
-                    .foregroundStyle(.secondary)
-                    .frame(width: 44, alignment: .trailing)
+        if !choices.isEmpty {
+            InspectorRow(title: label, indicator: indicator) {
                 InspectorPopup(
-                    selection: source,
-                    options: popupOptions(for: source.wrappedValue),
-                    accessibilityLabel: "\(label) \(sides[index])",
-                    help: "Choose theme or custom \(kind.rawValue) for the \(sides[index].lowercased()) side"
+                    selection: $source,
+                    options: popupOptions,
+                    accessibilityLabel: label,
+                    help: label
                 )
             }
-            if source.wrappedValue == "custom" {
-                HStack(spacing: 4) {
-                    Color.clear.frame(width: 44, height: 0)
-                    InspectorNumberField(
-                        value: customValues[index],
-                        range: range,
-                        step: step,
-                        accessibilityLabel: "Custom \(label) \(sides[index])"
-                    )
-                    InspectorUnitLabel(unit: "px")
-                    InspectorStepper(
-                        value: customValues[index],
-                        range: range,
-                        increment: step,
-                        accessibilityLabel: "Custom \(label) \(sides[index])"
-                    )
-                }
-            }
+        }
+
+        if ComponentThemeValueSelection.isManualCustom(source) || choices.isEmpty {
+            InspectorShadowControl(layers: $customLayers)
         }
     }
 
-    private func popupOptions(for source: String) -> [InspectorPopupOption<String>] {
-        var options = themeChoices.map {
+    private var popupOptions: [InspectorPopupOption<String>] {
+        var options = choices.map {
             InspectorPopupOption(title: $0.label, value: $0.value, separatorBefore: $0.separatorBefore)
-        }
-        options.append(.init(title: "None", value: "none", separatorBefore: !options.isEmpty))
-        if kind.permitsAuto {
-            options.append(.init(title: "Auto", value: "auto"))
         }
         options.append(.init(
             title: "Custom",
             value: ComponentThemeValueSelection.manualCustom,
-            separatorBefore: true
+            separatorBefore: !options.isEmpty
         ))
         if !options.contains(where: { $0.value == source }) {
-            options.insert(.init(title: "Missing Theme Spacing", value: source), at: 0)
+            options.insert(.init(title: "Missing Theme Shadow", value: source), at: 0)
         }
         return options
     }
