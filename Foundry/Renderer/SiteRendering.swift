@@ -3,9 +3,20 @@ import Foundation
 nonisolated struct SiteExportFile: Equatable, Sendable {
     let path: String
     let data: Data
+    let contentFingerprint: String?
 
-    init(path: String, contents: String) { self.path = path; data = Data(contents.utf8) }
-    init(path: String, data: Data) { self.path = path; self.data = data }
+    init(path: String, contents: String) {
+        self.path = path
+        data = Data(contents.utf8)
+        contentFingerprint = nil
+    }
+
+    init(path: String, data: Data, contentFingerprint: String? = nil) {
+        self.path = path
+        self.data = data
+        self.contentFingerprint = contentFingerprint
+    }
+
     var contents: String { String(decoding: data, as: UTF8.self) }
 }
 

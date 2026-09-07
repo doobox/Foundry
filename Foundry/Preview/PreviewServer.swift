@@ -13,6 +13,8 @@ actor PreviewServer {
     private var startContinuation: CheckedContinuation<URL, any Error>?
     private var revision: UInt64 = 0
     private var documentRoot: URL?
+    private var phpDocumentRoot: URL?
+    private var phpManifest: PublishingManifest?
     private struct EventStream {
         let connection: NWConnection
         let sessionID: UUID?
@@ -23,31 +25,36 @@ actor PreviewServer {
 
     func publish(_ bundle: SiteExportBundle, notifyingClients: Bool = true) async throws -> URL {
         try bundle.validate()
-        let nextRoot: URL?
         if Self.requiresPHPDocumentRoot(for: bundle) {
-            nextRoot = try await Task.detached(priority: .userInitiated) {
-                let root = FileManager.default.temporaryDirectory
-                    .appending(path: "FoundryPreview-\(UUID().uuidString)", directoryHint: .isDirectory)
-                try SiteExportWriter().write(bundle, to: root)
-                return root
+            let root = phpDocumentRoot ?? FileManager.default.temporaryDirectory
+                .appending(path: "FoundryPreview-\(UUID().uuidString)", directoryHint: .isDirectory)
+            let previousManifest = phpManifest
+            let nextManifest = try await Task.detached(priority: .userInitiated) {
+                let plan = PublishingPlan.make(
+                    bundle: bundle,
+                    previous: previousManifest,
+                    removesObsoleteFiles: true
+                )
+                try SiteExportWriter().apply(
+                    plan,
+                    bundle: bundle,
+                    to: root,
+                    preservingModifiedFiles: false
+                )
+                return plan.nextManifest
             }.value
+            phpDocumentRoot = root
+            phpManifest = nextManifest
+            documentRoot = root
         } else {
             // Static previews are served directly from the in-memory document snapshot. Avoid
             // hashing and duplicating every project asset into a temporary export directory.
-            nextRoot = nil
+            documentRoot = nil
         }
-        let previousRoot = documentRoot
-        documentRoot = nextRoot
         self.bundle = bundle
         revision &+= 1
         if notifyingClients {
             publishReloadEvent()
-        }
-        if let previousRoot {
-            Task {
-                try? await Task.sleep(for: .seconds(10))
-                try? FileManager.default.removeItem(at: previousRoot)
-            }
         }
         if let port, let url = serverURL(port: port) { return url }
         if startContinuation != nil {

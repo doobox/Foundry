@@ -346,6 +346,13 @@ nonisolated enum AssetPlacement: Equatable, Sendable {
 nonisolated struct ProjectAssetContent: Equatable, Sendable {
     let asset: ProjectAsset
     let data: Data
+    let digest: Data?
+
+    init(asset: ProjectAsset, data: Data, digest: Data? = nil) {
+        self.asset = asset
+        self.data = data
+        self.digest = digest
+    }
 }
 
 nonisolated extension String {

@@ -26,7 +26,7 @@ nonisolated struct SiteExportWriter: SiteExportWriting {
         let root = try Self.preparedRoot(directory, fileManager: fileManager)
         let previous = Self.loadOwnershipManifest(from: root, fileManager: fileManager)
         let current = Dictionary(uniqueKeysWithValues: bundle.files.map {
-            ($0.path, PublishingPlan.hash($0.data))
+            ($0.path, $0.contentFingerprint ?? PublishingPlan.hash($0.data))
         })
         let obsolete = previous.files.keys.filter { current[$0] == nil }.sorted()
 
@@ -53,17 +53,22 @@ nonisolated struct SiteExportWriter: SiteExportWriting {
     func apply(
         _ plan: PublishingPlan,
         bundle: SiteExportBundle,
-        to directory: URL
+        to directory: URL,
+        preservingModifiedFiles: Bool = true
     ) throws -> Int {
         try bundle.validate()
         let fileManager = FileManager.default
         let root = try Self.preparedRoot(directory, fileManager: fileManager)
-        let removedCount = try Self.removeOwnedFiles(
-            plan.removals,
-            expectedHashes: plan.removalHashes,
-            from: root,
-            fileManager: fileManager
-        )
+        let removedCount = if preservingModifiedFiles {
+            try Self.removeOwnedFiles(
+                plan.removals,
+                expectedHashes: plan.removalHashes,
+                from: root,
+                fileManager: fileManager
+            )
+        } else {
+            try Self.removeFiles(plan.removals, from: root, fileManager: fileManager)
+        }
         for file in plan.uploads {
             try Self.write(file, to: root, fileManager: fileManager)
         }
@@ -73,6 +78,22 @@ nonisolated struct SiteExportWriter: SiteExportWriting {
             fileManager: fileManager
         )
         return removedCount
+    }
+
+    private static func removeFiles(
+        _ paths: [String],
+        from root: URL,
+        fileManager: FileManager
+    ) throws -> Int {
+        var removedURLs: [URL] = []
+        for path in paths {
+            let url = try safeURL(for: path, under: root, fileManager: fileManager)
+            guard fileManager.fileExists(atPath: url.path) else { continue }
+            try fileManager.removeItem(at: url)
+            removedURLs.append(url)
+        }
+        pruneEmptyParentDirectories(of: removedURLs, under: root, fileManager: fileManager)
+        return removedURLs.count
     }
 
     private struct ExportOwnershipManifest: Codable {

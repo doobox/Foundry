@@ -62,6 +62,30 @@ struct PublishingTests {
     }
 
     @Test
+    func publishingPlanReusesTrustedAssetFingerprints() {
+        let originalData = Data(repeating: 0x11, count: 1_000_000)
+        let replacementData = Data(repeating: 0x22, count: 1_000_000)
+        let fingerprint = "known-document-digest"
+        let original = SiteExportBundle(files: [
+            .init(path: "assets/image.bin", data: originalData, contentFingerprint: fingerprint)
+        ])
+        let manifest = PublishingPlan.make(
+            bundle: original,
+            previous: nil,
+            removesObsoleteFiles: true
+        ).nextManifest
+        let current = SiteExportBundle(files: [
+            .init(path: "assets/image.bin", data: replacementData, contentFingerprint: fingerprint)
+        ])
+
+        let plan = PublishingPlan.make(bundle: current, previous: manifest, removesObsoleteFiles: true)
+
+        #expect(plan.uploads.isEmpty)
+        #expect(plan.unchangedFileCount == 1)
+        #expect(plan.nextManifest.files["assets/image.bin"] == fingerprint)
+    }
+
+    @Test
     func publishingPlanRemovesOnlyPreviouslyManagedObsoleteFiles() {
         let previous = PublishingManifest(files: ["index.html": "changed", "old.html": "old-hash"])
         let bundle = SiteExportBundle(files: [.init(path: "index.html", contents: "new")])

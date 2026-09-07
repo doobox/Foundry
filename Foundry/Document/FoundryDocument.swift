@@ -147,7 +147,16 @@ final class FoundryDocument: ReferenceFileDocument {
     var assetContents: [UUID: ProjectAssetContent] {
         let snapshot = storage.withLock { $0 }
         return Dictionary(uniqueKeysWithValues: snapshot.site.assets.compactMap { asset in
-            snapshot.assetData[asset.id].map { (asset.id, ProjectAssetContent(asset: asset, data: $0)) }
+            snapshot.assetData[asset.id].map {
+                (
+                    asset.id,
+                    ProjectAssetContent(
+                        asset: asset,
+                        data: $0,
+                        digest: snapshot.assetDigestByID[asset.id]
+                    )
+                )
+            }
         })
     }
 

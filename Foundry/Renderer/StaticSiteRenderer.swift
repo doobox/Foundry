@@ -89,7 +89,8 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
             assets[asset.id].map {
                 SiteExportFile(
                     path: site.publishedPath(for: asset, managedAssetPaths: managedAssetPaths),
-                    data: $0.data
+                    data: $0.data,
+                    contentFingerprint: $0.digest?.map { String(format: "%02x", $0) }.joined()
                 )
             }
         })

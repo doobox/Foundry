@@ -88,7 +88,9 @@ nonisolated struct PublishingPlan: Sendable, Equatable {
         previous: PublishingManifest?,
         removesObsoleteFiles: Bool
     ) -> PublishingPlan {
-        let current = Dictionary(uniqueKeysWithValues: bundle.files.map { ($0.path, hash($0.data)) })
+        let current = Dictionary(uniqueKeysWithValues: bundle.files.map {
+            ($0.path, $0.contentFingerprint ?? hash($0.data))
+        })
         let previousFiles = previous?.files ?? [:]
         let uploads = bundle.files.filter { previousFiles[$0.path] != current[$0.path] }
         let obsolete = previousFiles.keys.filter { current[$0] == nil }.sorted()
@@ -115,7 +117,7 @@ nonisolated struct PublishingPlan: Sendable, Equatable {
         previous: PublishingManifest?
     ) -> [String: PublishingChange] {
         Dictionary(uniqueKeysWithValues: bundle.files.compactMap { file in
-            let currentHash = hash(file.data)
+            let currentHash = file.contentFingerprint ?? hash(file.data)
             guard previous?.files[file.path] != currentHash else { return nil }
             return (file.path, previous?.files[file.path] == nil ? .new : .modified)
         })

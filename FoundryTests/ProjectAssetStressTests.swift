@@ -64,7 +64,16 @@ struct ProjectAssetStressTests {
         let wrapper = try FileWrapper(url: projectURL, options: [])
         let snapshot = try FoundryDocument.decodeSnapshot(from: wrapper)
         let assets = Dictionary(uniqueKeysWithValues: snapshot.site.assets.compactMap { asset in
-            snapshot.assetData[asset.id].map { (asset.id, ProjectAssetContent(asset: asset, data: $0)) }
+            snapshot.assetData[asset.id].map {
+                (
+                    asset.id,
+                    ProjectAssetContent(
+                        asset: asset,
+                        data: $0,
+                        digest: snapshot.assetDigestByID[asset.id]
+                    )
+                )
+            }
         })
         let clock = ContinuousClock()
         let start = clock.now
@@ -86,5 +95,65 @@ struct ProjectAssetStressTests {
         """)
 
         #expect(totalElapsed < .seconds(10), "The static stress-project preview should prepare within 10 seconds.")
+    }
+
+    @Test
+    func externalLargeProjectRepeatedPHPPreviewTime() async throws {
+        let environmentPath = ProcessInfo.processInfo.environment["FOUNDRY_ASSET_STRESS_PROJECT"]
+        let defaultStressPath = "/Users/garysimpson/Desktop/Foundry Asset Stress 10x.foundry"
+        let fallbackPath = "/Users/garysimpson/Desktop/Untitled 2.foundry"
+        let selectedPath = environmentPath
+            ?? (FileManager.default.fileExists(atPath: defaultStressPath) ? defaultStressPath : fallbackPath)
+        let projectURL = URL(filePath: selectedPath, directoryHint: .isDirectory)
+        guard FileManager.default.fileExists(atPath: projectURL.path) else {
+            print("Large-project PHP preview benchmark skipped. Set FOUNDRY_ASSET_STRESS_PROJECT to a .foundry package.")
+            return
+        }
+
+        let wrapper = try FileWrapper(url: projectURL, options: [])
+        let snapshot = try FoundryDocument.decodeSnapshot(from: wrapper)
+        let assets = Dictionary(uniqueKeysWithValues: snapshot.site.assets.compactMap { asset in
+            snapshot.assetData[asset.id].map {
+                (
+                    asset.id,
+                    ProjectAssetContent(
+                        asset: asset,
+                        data: $0,
+                        digest: snapshot.assetDigestByID[asset.id]
+                    )
+                )
+            }
+        })
+        let staticBundle = StaticSiteRenderer(environment: .preview).render(site: snapshot.site, assets: assets)
+        var convertedPage = false
+        let phpFiles = staticBundle.files.map { file -> SiteExportFile in
+            guard !convertedPage, file.path.hasSuffix(".html") else { return file }
+            convertedPage = true
+            return SiteExportFile(
+                path: String(file.path.dropLast(4)) + "php",
+                data: file.data,
+                contentFingerprint: file.contentFingerprint
+            )
+        }
+        let phpBundle = SiteExportBundle(files: phpFiles, errors: staticBundle.errors)
+        #expect(PreviewServer.requiresPHPDocumentRoot(for: phpBundle))
+
+        let clock = ContinuousClock()
+        let firstStart = clock.now
+        _ = try await PreviewServer.shared.publish(phpBundle, notifyingClients: false)
+        let firstElapsed = firstStart.duration(to: clock.now)
+        let repeatedStart = clock.now
+        _ = try await PreviewServer.shared.publish(phpBundle, notifyingClients: false)
+        let repeatedElapsed = repeatedStart.duration(to: clock.now)
+
+        print("""
+        Prepared repeated external project PHP preview:
+          path: \(projectURL.path)
+          files: \(phpBundle.files.count)
+          first staging: \(firstElapsed)
+          unchanged repeat: \(repeatedElapsed)
+        """)
+
+        #expect(repeatedElapsed < .seconds(1), "An unchanged PHP preview should reuse its staged files.")
     }
 }
