@@ -3,9 +3,6 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 struct ComponentPropertyEditor: View {
-    @State private var showsLinkEditor = false
-    @State private var linkDraft = ComponentLink()
-    @State private var isImageDropTarget = false
     let definition: ComponentPropertyDefinition
     let component: ComponentNode
     let theme: Theme
@@ -65,67 +62,32 @@ struct ComponentPropertyEditor: View {
                 controlArrayRow(element: element, count: count, labels: labels, subtitles: subtitles, units: units, help: help)
             }
         case .singleLineText:
-            InspectorRow(title: definition.label, indicator: responsiveIndicator) {
-                InspectorTextField(text: stringBinding(as: .string), accessibilityLabel: definition.label, help: definition.label)
-            }
+            TextComponentControl(label: definition.label, indicator: responsiveIndicator, text: stringBinding(as: .string))
         case .multilineText:
-            InspectorRow(title: definition.label, alignment: .top, indicator: responsiveIndicator) {
-                TextEditor(text: stringBinding(as: .string))
-                    .frame(minHeight: 72)
-                    .padding(4)
-                    .background(.background, in: RoundedRectangle(cornerRadius: 5))
-                    .overlay {
-                        RoundedRectangle(cornerRadius: 5)
-                            .stroke(Color.secondary.opacity(0.25), lineWidth: 1)
-                    }
-            }
+            TextAreaComponentControl(label: definition.label, indicator: responsiveIndicator, text: stringBinding(as: .string))
         case .link(let absoluteURL):
-            InspectorRow(title: definition.label, alignment: .center, indicator: responsiveIndicator) {
-                HStack(spacing: 8) {
-                    Button(linkSummary) {
-                        linkDraft = currentLink
-                        showsLinkEditor = true
-                    }
-                    if currentLink.destination != .none {
-                        Button {
-                            setProperty(.link(.init()))
-                        } label: {
-                            Image(systemName: "xmark.circle")
-                        }
-                        .buttonStyle(.borderless)
-                        .help("Clear link")
-                    }
-                }
-                .sheet(isPresented: $showsLinkEditor) {
-                    ComponentLinkEditor(
-                        link: $linkDraft,
-                        pages: pages,
-                        folders: folders,
-                        assets: assets,
-                        publicURL: publicURL,
-                        absoluteURL: absoluteURL,
-                        cancel: { showsLinkEditor = false },
-                        apply: {
-                            setProperty(.link(linkDraft))
-                            showsLinkEditor = false
-                        }
-                    )
-                }
-            }
+            LinkComponentControl(
+                label: definition.label,
+                currentLink: currentLink,
+                summary: linkSummary,
+                indicator: responsiveIndicator,
+                pages: pages,
+                folders: folders,
+                assets: assets,
+                publicURL: publicURL,
+                absoluteURL: absoluteURL,
+                update: { setProperty(.link($0)) }
+            )
         case .number(let range, let step, let unit):
             Group {
-                InspectorRow(title: definition.label, indicator: responsiveIndicator) {
-                    HStack(spacing: 6) {
-                        InspectorNumberField(
-                            value: numberBinding,
-                            range: range,
-                            accessibilityLabel: definition.label,
-                            help: definition.label
-                        )
-                        InspectorUnitLabel(unit: unit)
-                        InspectorStepper(value: numberBinding, range: range, increment: step, accessibilityLabel: definition.label)
-                    }
-                }
+                NumberComponentControl(
+                    label: definition.label,
+                    range: range,
+                    step: step,
+                    unit: unit,
+                    indicator: responsiveIndicator,
+                    value: numberBinding
+                )
                 if supportsSpacingTokens {
                     InspectorRow(title: "Source") {
                         tokenPicker(tokens: DesignToken.spacingTokens, customLabel: "Custom value")
@@ -133,86 +95,56 @@ struct ComponentPropertyEditor: View {
                 }
             }
         case .slider(let range, let step, let ticks, let unit, let showsValueField):
-            InspectorRow(title: definition.label, alignment: .center, indicator: responsiveIndicator) {
-                HStack(spacing: 8) {
-                    InspectorSlider(
-                        value: numberBinding, range: range, step: step,
-                        tickMarkCount: ticks,
-                        accessibilityLabel: definition.label, help: definition.label
-                    )
-                    if showsValueField {
-                        InspectorNumberField(
-                            value: numberBinding,
-                            range: range,
-                            step: step,
-                            accessibilityLabel: "\(definition.label) value",
-                            help: definition.label
-                        )
-                        .frame(width: 64)
-                        InspectorUnitLabel(unit: unit)
-                    }
-                }
-            }
+            SliderComponentControl(
+                label: definition.label,
+                range: range,
+                step: step,
+                ticks: ticks,
+                unit: unit,
+                showsValueField: showsValueField,
+                indicator: responsiveIndicator,
+                value: numberBinding
+            )
             .contextMenu {
                 resetButton
             }
         case .date:
-            InspectorRow(title: definition.label, alignment: .center, indicator: responsiveIndicator) {
-                DatePicker("", selection: dateBinding, displayedComponents: [.date])
-                    .labelsHidden()
-            }
+            DateComponentControl(label: definition.label, indicator: responsiveIndicator, value: dateBinding)
         case .info:
-            InspectorRow(title: "", alignment: .top) {
-                Text(definition.label).font(.caption).foregroundStyle(.secondary)
-            }
+            InfoComponentControl(text: definition.label)
         case .button(let systemImage):
-            InspectorRow(title: definition.label, alignment: .center, indicator: responsiveIndicator) {
-                Button {
-                    booleanBinding.wrappedValue.toggle()
-                } label: {
-                    if let systemImage {
-                        Label(definition.label, systemImage: systemImage)
-                    } else {
-                        Text(definition.label)
-                    }
-                }
-                .buttonStyle(.bordered)
-                .accessibilityValue(booleanBinding.wrappedValue ? "On" : "Off")
-            }
+            ButtonComponentControl(
+                label: definition.label,
+                systemImage: systemImage,
+                indicator: responsiveIndicator,
+                isActive: booleanBinding
+            )
         case .details(let help):
-            InspectorRow(title: "", alignment: .center, indicator: responsiveIndicator) {
-                Button {
-                    booleanBinding.wrappedValue.toggle()
-                } label: {
-                    Image(systemName: "ellipsis.circle")
-                }
-                .buttonStyle(.borderless)
-                .help(help ?? definition.label)
-                .accessibilityLabel(definition.label.isEmpty ? "Show details" : definition.label)
-                .accessibilityValue(booleanBinding.wrappedValue ? "Shown" : "Hidden")
-            }
+            DetailsComponentControl(
+                label: definition.label,
+                help: help,
+                indicator: responsiveIndicator,
+                isPresented: booleanBinding
+            )
         case .derived:
             EmptyView()
         case .color:
-            Group {
-                InspectorRow(title: "Source") {
-                    tokenPicker(tokens: DesignToken.colorTokens, customLabel: "Custom colour")
-                }
-                if selectedToken == nil {
-                    InspectorRow(title: definition.label, alignment: .center, indicator: responsiveIndicator) {
-                        InspectorColorWell(color: colorBinding)
-                    }
-                }
+            BasicColorComponentControl(
+                label: definition.label,
+                selectedToken: selectedToken,
+                indicator: responsiveIndicator,
+                color: colorBinding
+            ) {
+                tokenPicker(tokens: DesignToken.colorTokens, customLabel: "Custom colour")
+            }
+        case .colorWithOpacity:
+            InspectorRow(title: definition.label, alignment: .center, indicator: responsiveIndicator) {
+                InspectorColorWell(color: colorBinding, supportsAlpha: true)
             }
         case .icon:
-            InspectorRow(title: definition.label, indicator: responsiveIndicator) {
-                FoundryIconPicker(
-                    selection: stringBinding(as: .choice),
-                    accessibilityLabel: definition.label
-                )
-            }
+            IconComponentControl(label: definition.label, indicator: responsiveIndicator, selection: stringBinding(as: .choice))
         case .packageColor(let themeValues, let colorMath, let opacity):
-            PackageColorControlEditor(
+            ColorComponentControl(
                 label: definition.label,
                 choices: themeValues ? theme.colorChoices : [],
                 theme: theme,
@@ -223,22 +155,23 @@ struct ComponentPropertyEditor: View {
                 indicator: responsiveIndicator
             )
         case .choice(let choices):
-            InspectorRow(title: definition.label, indicator: responsiveIndicator) {
-                InspectorPopup(
-                    selection: stringBinding(as: .choice),
-                    options: choiceOptions(choices).map {
-                        .init(title: $0.label, value: $0.value, separatorBefore: $0.separatorBefore)
-                    },
-                    accessibilityLabel: definition.label,
-                    help: definition.label
-                )
-            }
+            SelectComponentControl(
+                label: definition.label,
+                options: choiceOptions(choices).map {
+                    .init(title: $0.label, value: $0.value, separatorBefore: $0.separatorBefore)
+                },
+                indicator: responsiveIndicator,
+                selection: stringBinding(as: .choice)
+            )
         case .themeFontSize:
-            InspectorRow(title: definition.label, indicator: responsiveIndicator) {
-                InspectorPopup(selection: stringBinding(as: .choice), options: theme.fontSizeChoices.map { .init(title: $0.label, value: $0.value) }, accessibilityLabel: definition.label, help: definition.label)
-            }
+            SelectComponentControl(
+                label: definition.label,
+                options: theme.fontSizeChoices.map { .init(title: $0.label, value: $0.value) },
+                indicator: responsiveIndicator,
+                selection: stringBinding(as: .choice)
+            )
         case .packageFontSize(let themeValues):
-            PackageThemeValueGridEditor(
+            ThemeFontSizeComponentControl(
                 label: definition.label,
                 choices: themeValues ? theme.fontSizeChoices : [],
                 source: packageFontSizeSourceBinding,
@@ -247,7 +180,7 @@ struct ComponentPropertyEditor: View {
                 indicator: responsiveIndicator
             )
         case .packageShadow:
-            PackageShadowControlEditor(
+            ShadowComponentControl(
                 label: definition.label,
                 choices: theme.shadowChoices,
                 source: packageShadowSourceBinding,
@@ -255,113 +188,35 @@ struct ComponentPropertyEditor: View {
                 indicator: responsiveIndicator
             )
         case .textAlignment:
-            InspectorRow(title: definition.label, indicator: responsiveIndicator) {
-                InspectorSegmentedControl(selection: stringBinding(as: .choice), segments: alignmentSegments)
-            }
+            TextAlignmentComponentControl(
+                label: definition.label,
+                segments: alignmentSegments,
+                indicator: responsiveIndicator,
+                selection: stringBinding(as: .choice)
+            )
         case .divider:
-            Divider()
-                .padding(.vertical, 6)
-                .accessibilityHidden(true)
+            DividerComponentControl()
         case .toggle:
-            InspectorRow(title: definition.label, indicator: responsiveIndicator) {
-                Toggle("", isOn: booleanBinding)
-                    .labelsHidden()
-            }
+            ToggleComponentControl(label: definition.label, indicator: responsiveIndicator, isOn: booleanBinding)
         case .image:
-            assetPicker
-        }
-    }
-
-    @ViewBuilder
-    private var assetPicker: some View {
-        GridRow(alignment: .top) {
-            HStack(alignment: .top, spacing: 3) {
-                InspectorResponsiveIndicator(
-                    isVisible: imageFocalPointResponsiveIndicator.isVisible,
-                    isOverridden: imageFocalPointResponsiveIndicator.isOverridden,
-                    breakpointName: imageFocalPointResponsiveIndicator.breakpointName,
-                    toggle: imageFocalPointResponsiveIndicator.toggle
-                )
-                .frame(width: 8)
-
-                VStack(alignment: .trailing, spacing: 6) {
-                    Text(definition.label)
-                        .lineLimit(1)
-                        .truncationMode(.tail)
-                        .frame(maxWidth: .infinity, alignment: .trailing)
-                        .foregroundStyle(.secondary)
-                        .multilineTextAlignment(.trailing)
-                        .help(definition.label)
-
-                    Button("Pick") {
-                        chooseImageFromFinder()
-                    }
-                    .buttonStyle(.bordered)
-                    .buttonSizing(.flexible)
-                    .frame(maxWidth: .infinity)
-
-                    Button("Clear") {
-                        setProperty(definition.defaultValue)
-                    }
-                    .buttonStyle(.bordered)
-                    .buttonSizing(.flexible)
-                    .frame(maxWidth: .infinity)
-                    .disabled(displayComponent.propertyValue(definition.key) == definition.defaultValue)
-                }
-            }
-            .frame(width: InspectorMetrics.labelWidth)
-            .gridColumnAlignment(.trailing)
-
-            imageWell
-                .gridColumnAlignment(.leading)
-        }
-
-        InspectorRow(title: "Alt") {
-            InspectorTextField(
-                text: imageAltBinding,
-                accessibilityLabel: "Alt",
-                help: "Alt"
+            ImageComponentControl(
+                label: definition.label,
+                previewImage: previewImage,
+                supportsFocalPoint: definition.supportsImageFocalPoint,
+                focalPoint: imageFocalPoint,
+                focalPointIndicator: imageFocalPointResponsiveIndicator,
+                isClearDisabled: displayComponent.propertyValue(definition.key) == definition.defaultValue,
+                altText: imageAltBinding,
+                chooseImage: chooseImageFromFinder,
+                clearImage: { setProperty(definition.defaultValue) },
+                importImage: { url in
+                    guard let asset = importImage(url) else { return false }
+                    setProperty(.url(asset.reference))
+                    return true
+                },
+                setFocalPoint: setImageFocalPoint
             )
         }
-    }
-
-    private var imageWell: some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: 6)
-                .fill(.background)
-            if let previewImage {
-                Image(nsImage: previewImage)
-                    .resizable()
-                    .scaledToFit()
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .padding(6)
-                if definition.supportsImageFocalPoint {
-                    ImageFocalPointEditor(
-                        imageSize: previewImage.size,
-                        focalPoint: imageFocalPoint,
-                        onCommit: setImageFocalPoint
-                    )
-                    .padding(6)
-                }
-            } else {
-                Image(systemName: "photo")
-                    .font(.title2)
-                    .foregroundStyle(.secondary)
-            }
-            RoundedRectangle(cornerRadius: 6)
-                .stroke(
-                    isImageDropTarget ? Color.accentColor : Color.secondary.opacity(0.35),
-                    lineWidth: isImageDropTarget ? 2 : 1
-                )
-        }
-        .frame(maxWidth: .infinity)
-        .frame(height: 120)
-        .contentShape(RoundedRectangle(cornerRadius: 6))
-        .dropDestination(for: URL.self) { urls, _ in
-            guard let asset = urls.lazy.compactMap(importImage).first else { return false }
-            setProperty(.url(asset.reference))
-            return true
-        } isTargeted: { isImageDropTarget = $0 }
     }
 
     private var previewImage: NSImage? {
@@ -823,225 +678,6 @@ struct ComponentPropertyEditor: View {
     }
 }
 
-private struct ImageFocalPointEditor: View {
-    @State private var draft: CGPoint?
-    let imageSize: CGSize
-    let focalPoint: CGPoint
-    let onCommit: (CGPoint) -> Void
-
-    var body: some View {
-        GeometryReader { proxy in
-            let imageFrame = fittedImageFrame(in: proxy.size)
-            let displayedPoint = draft ?? focalPoint
-
-            ZStack(alignment: .topLeading) {
-                Color.clear
-                focalPointMarker
-                    .position(
-                        x: imageFrame.minX + imageFrame.width * displayedPoint.x,
-                        y: imageFrame.minY + imageFrame.height * displayedPoint.y
-                    )
-            }
-            .contentShape(Rectangle())
-            .gesture(
-                DragGesture(minimumDistance: 0)
-                    .onChanged { value in
-                        draft = normalizedPoint(value.location, in: imageFrame)
-                    }
-                    .onEnded { value in
-                        let point = normalizedPoint(value.location, in: imageFrame)
-                        draft = nil
-                        onCommit(point)
-                    }
-            )
-            .help("Drag to set the image focal point")
-            .accessibilityLabel("Image focal point")
-            .accessibilityValue(
-                "Horizontal \(Int(displayedPoint.x * 100)) percent, vertical \(Int(displayedPoint.y * 100)) percent"
-            )
-        }
-    }
-
-    private var focalPointMarker: some View {
-        ZStack {
-            Circle()
-                .fill(.black.opacity(0.55))
-            Circle()
-                .stroke(.white, lineWidth: 2)
-            Image(systemName: "plus")
-                .font(.system(size: 9, weight: .bold))
-                .foregroundStyle(.white)
-        }
-        .frame(width: 22, height: 22)
-        .shadow(radius: 2)
-    }
-
-    private func fittedImageFrame(in availableSize: CGSize) -> CGRect {
-        guard imageSize.width > 0, imageSize.height > 0,
-              availableSize.width > 0, availableSize.height > 0 else {
-            return CGRect(origin: .zero, size: availableSize)
-        }
-        let scale = min(
-            availableSize.width / imageSize.width,
-            availableSize.height / imageSize.height
-        )
-        let size = CGSize(width: imageSize.width * scale, height: imageSize.height * scale)
-        return CGRect(
-            x: (availableSize.width - size.width) / 2,
-            y: (availableSize.height - size.height) / 2,
-            width: size.width,
-            height: size.height
-        )
-    }
-
-    private func normalizedPoint(_ location: CGPoint, in imageFrame: CGRect) -> CGPoint {
-        guard imageFrame.width > 0, imageFrame.height > 0 else { return focalPoint }
-        return CGPoint(
-            x: min(max((location.x - imageFrame.minX) / imageFrame.width, 0), 1),
-            y: min(max((location.y - imageFrame.minY) / imageFrame.height, 0), 1)
-        )
-    }
-}
-
-struct ComponentLinkEditor: View {
-    @Binding var link: ComponentLink
-    let pages: [Page]
-    let folders: [PageFolder]
-    let assets: [ProjectAsset]
-    let publicURL: String
-    let absoluteURL: Bool
-    var remove: (() -> Void)? = nil
-    let cancel: () -> Void
-    let apply: () -> Void
-
-    var body: some View {
-        VStack(spacing: 16) {
-            Form {
-                Picker("Type", selection: kindBinding) {
-                    Text("URL").tag(LinkKind.url)
-                    Text("Plain Text").tag(LinkKind.plainText)
-                    Text("Page").tag(LinkKind.page)
-                    Text("Resource").tag(LinkKind.resource)
-                }
-                destinationEditor
-                TextField("Anchor", text: $link.anchor, prompt: Text("Optional anchor"))
-                Toggle("Open in New Window", isOn: $link.opensInNewWindow)
-                if absoluteURL && publicURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && isInternalLink {
-                    Label("Set the Site URL in Project Settings to produce an absolute URL.", systemImage: "exclamationmark.triangle")
-                        .foregroundStyle(.orange)
-                }
-                Section("Custom Attributes") {
-                    ForEach($link.attributes) { $attribute in
-                        HStack {
-                            TextField("Name", text: $attribute.name)
-                            TextField("Value", text: $attribute.value)
-                            Button(role: .destructive) {
-                                link.attributes.removeAll { $0.id == attribute.id }
-                            } label: { Image(systemName: "minus.circle") }
-                                .buttonStyle(.borderless)
-                        }
-                    }
-                    Button("Add Attribute", systemImage: "plus") {
-                        link.attributes.append(.init())
-                    }
-                }
-            }
-            .formStyle(.grouped)
-            HStack {
-                if let remove {
-                    Button("Remove", role: .destructive, action: remove)
-                }
-                Spacer()
-                Button("Cancel", action: cancel)
-                Button("Set Link", action: apply)
-                    .keyboardShortcut(.defaultAction)
-                    .disabled(!isValid)
-            }
-        }
-        .padding()
-        .frame(width: 680, height: 500)
-    }
-
-    @ViewBuilder
-    private var destinationEditor: some View {
-        switch link.destination {
-        case .url(let value):
-            TextField("URL", text: destinationTextBinding(value, kind: .url), prompt: Text("https://example.com"))
-        case .plainText(let value):
-            TextField("Text", text: destinationTextBinding(value, kind: .plainText))
-        case .page(let id):
-            Picker("Page", selection: destinationIDBinding(id, kind: .page)) {
-                Text("Choose a page").tag(nil as UUID?)
-                ForEach(pages) { page in Text(page.title).tag(page.id as UUID?) }
-            }
-        case .resource(let id):
-            Picker("Resource", selection: destinationIDBinding(id, kind: .resource)) {
-                Text("Choose a resource").tag(nil as UUID?)
-                ForEach(assets) { asset in Text(asset.filename).tag(asset.id as UUID?) }
-            }
-        case .none:
-            EmptyView()
-        }
-    }
-
-    private var kindBinding: Binding<LinkKind> {
-        Binding(get: {
-            switch link.destination {
-            case .url: .url
-            case .plainText: .plainText
-            case .page: .page
-            case .resource: .resource
-            case .none: .url
-            }
-        }, set: { kind in
-            switch kind {
-            case .url: link.destination = .url("")
-            case .plainText: link.destination = .plainText("")
-            case .page: link.destination = .page(pages.first?.id ?? UUID())
-            case .resource: link.destination = .resource(assets.first?.id ?? UUID())
-            }
-        })
-    }
-
-    private func destinationTextBinding(_ value: String, kind: LinkKind) -> Binding<String> {
-        Binding(get: {
-            switch link.destination {
-            case .url(let value), .plainText(let value): value
-            default: value
-            }
-        }, set: { link.destination = kind == .url ? .url($0) : .plainText($0) })
-    }
-
-    private func destinationIDBinding(_ value: UUID, kind: LinkKind) -> Binding<UUID?> {
-        Binding(get: {
-            switch link.destination {
-            case .page(let id), .resource(let id): id
-            default: value
-            }
-        }, set: { id in
-            guard let id else { link.destination = .none; return }
-            link.destination = kind == .page ? .page(id) : .resource(id)
-        })
-    }
-
-    private var isInternalLink: Bool {
-        if case .page = link.destination { return true }
-        if case .resource = link.destination { return true }
-        return false
-    }
-
-    private var isValid: Bool {
-        switch link.destination {
-        case .none: false
-        case .url(let value), .plainText(let value): !value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        case .page(let id): pages.contains { $0.id == id }
-        case .resource(let id): assets.contains { $0.id == id }
-        }
-    }
-
-    private enum LinkKind: Hashable { case url, plainText, page, resource }
-}
-
 private struct InspectorUnitLabel: View {
     let unit: String
 
@@ -1226,6 +862,8 @@ private struct InspectorControlArrayItem: View {
         switch element {
         case .color:
             InspectorColorWell(color: colorBinding)
+        case .colorWithOpacity:
+            InspectorColorWell(color: colorBinding, supportsAlpha: true)
         case .icon:
             FoundryIconPicker(
                 selection: iconBinding,
@@ -1318,7 +956,13 @@ private struct InspectorControlArrayItem: View {
     private var colorBinding: Binding<Color> {
         Binding(
             get: { Color(hex: value.stringValue) ?? .black },
-            set: { value = .color($0.hexString ?? "#000000") }
+            set: {
+                value = .color(
+                    element.isColorWithOpacity
+                        ? ($0.cssStringWithAlpha ?? "rgb(0 0 0 / 1)")
+                        : ($0.hexString ?? "#000000")
+                )
+            }
         )
     }
 
@@ -1340,146 +984,8 @@ private struct InspectorControlArrayItem: View {
     }
 }
 
-private struct PackageThemeValueGridEditor: View {
-    let label: String
-    let choices: [ComponentPropertyChoice]
-    @Binding var source: String
-    @Binding var customValue: String
-    @Binding var customLineHeight: String
-    let indicator: InspectorRowIndicator
-
-    var body: some View {
-        if !choices.isEmpty {
-            InspectorRow(title: label, indicator: indicator) {
-                InspectorPopup(
-                    selection: $source,
-                    options: popupOptions,
-                    accessibilityLabel: label,
-                    help: label
-                )
-            }
-        }
-
-        if ComponentThemeValueSelection.isManualCustom(source) || choices.isEmpty {
-            InspectorRow(
-                title: "Size",
-                indicator: choices.isEmpty ? indicator : nil
-            ) {
-                InspectorTextField(text: $customValue, accessibilityLabel: "Size")
-            }
-            InspectorRow(title: "Line Height") {
-                InspectorTextField(text: $customLineHeight, accessibilityLabel: "Line Height")
-            }
-        }
-    }
-
-    private var popupOptions: [InspectorPopupOption<String>] {
-        choices.map {
-            InspectorPopupOption(title: $0.label, value: $0.value, separatorBefore: $0.separatorBefore)
-        } + [InspectorPopupOption(
-            title: "Custom",
-            value: ComponentThemeValueSelection.manualCustom,
-            separatorBefore: !choices.isEmpty
-        )]
-    }
-}
-
-private struct PackageShadowControlEditor: View {
-    let label: String
-    let choices: [ComponentPropertyChoice]
-    @Binding var source: String
-    @Binding var customLayers: [ThemeShadowLayer]
-    let indicator: InspectorRowIndicator
-
-    var body: some View {
-        if !choices.isEmpty {
-            InspectorRow(title: label, indicator: indicator) {
-                InspectorPopup(
-                    selection: $source,
-                    options: popupOptions,
-                    accessibilityLabel: label,
-                    help: label
-                )
-            }
-        }
-
-        if ComponentThemeValueSelection.isManualCustom(source) || choices.isEmpty {
-            InspectorShadowControl(layers: $customLayers)
-        }
-    }
-
-    private var popupOptions: [InspectorPopupOption<String>] {
-        var options = choices.map {
-            InspectorPopupOption(title: $0.label, value: $0.value, separatorBefore: $0.separatorBefore)
-        }
-        options.append(.init(
-            title: "Custom",
-            value: ComponentThemeValueSelection.manualCustom,
-            separatorBefore: !options.isEmpty
-        ))
-        if !options.contains(where: { $0.value == source }) {
-            options.insert(.init(title: "Missing Theme Shadow", value: source), at: 0)
-        }
-        return options
-    }
-}
-
-private struct PackageColorControlEditor: View {
-    let label: String
-    let choices: [ComponentPropertyChoice]
-    let theme: Theme
-    @Binding var source: String
-    @Binding var customColor: Color
-    let adjustment: Binding<Double>?
-    let allowsOpacity: Bool
-    let indicator: InspectorRowIndicator
-
-    var body: some View {
-        Group {
-            if !choices.isEmpty {
-                InspectorRow(title: label, indicator: indicator) {
-                    InspectorPopup(
-                        selection: $source,
-                        options: choices.map {
-                            .init(
-                                title: $0.label,
-                                value: $0.value,
-                                separatorBefore: $0.separatorBefore,
-                                swatchHex: previewColorHex(for: $0.value)
-                            )
-                        } + [InspectorPopupOption(
-                            title: "Custom",
-                            value: ComponentThemeValueSelection.manualCustom,
-                            separatorBefore: !choices.isEmpty,
-                            swatchHex: customColor.hexString
-                        )],
-                        accessibilityLabel: label,
-                        help: label
-                    )
-                }
-            }
-            if ComponentThemeValueSelection.isManualCustom(source) || choices.isEmpty {
-                InspectorRow(
-                    title: choices.isEmpty ? label : "",
-                    alignment: .center,
-                    indicator: choices.isEmpty ? indicator : nil
-                ) {
-                    InspectorColorWell(color: $customColor, supportsAlpha: allowsOpacity)
-                }
-            }
-            if let adjustment {
-                InspectorRow(title: "Lighter or darker", alignment: .center) {
-                    HStack {
-                        InspectorSlider(value: adjustment, range: -100...100, step: 1, accessibilityLabel: "Lighter or darker", help: "Adjust the selected colour")
-                        Text(adjustment.wrappedValue.formatted() + "%").monospacedDigit().frame(minWidth: 42, alignment: .trailing)
-                    }
-                }
-            }
-        }
-    }
-
-    private func previewColorHex(for value: String) -> String? {
-        guard let role = ThemeColorRole(rawValue: value) else { return nil }
-        return theme.color(for: role)
+private extension ComponentPropertyControl {
+    var isColorWithOpacity: Bool {
+        if case .colorWithOpacity = self { true } else { false }
     }
 }

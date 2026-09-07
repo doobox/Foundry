@@ -709,57 +709,60 @@ struct InspectorColorWell: View {
     }
 
     var body: some View {
-        AppKitColorWell(color: $color, supportsAlpha: supportsAlpha)
+        //AppKitColorWell(color: $color, supportsAlpha: supportsAlpha)
+            //.accessibilityLabel("Choose colour")
+        ColorPicker("", selection: $color, supportsOpacity: supportsAlpha)
+            .buttonSizing(.flexible)
             .accessibilityLabel("Choose colour")
     }
 }
 
-private struct AppKitColorWell: NSViewRepresentable {
-    @Binding var color: Color
-    let supportsAlpha: Bool
-    @Environment(\.isEnabled) private var isEnabled
-    @Environment(\.controlSize) private var controlSize
-
-    func makeCoordinator() -> Coordinator {
-        Coordinator(color: $color)
-    }
-
-    func makeNSView(context: Context) -> NSColorWell {
-        let colorWell = NSColorWell()
-        colorWell.controlSize = controlSize.appKitControlSize
-        colorWell.supportsAlpha = supportsAlpha
-        colorWell.target = context.coordinator
-        colorWell.action = #selector(Coordinator.colorChanged(_:))
-        return colorWell
-    }
-
-    func updateNSView(_ colorWell: NSColorWell, context: Context) {
-        colorWell.controlSize = controlSize.appKitControlSize
-        context.coordinator.color = $color
-        context.coordinator.isUpdating = true
-        colorWell.color = NSColor(color)
-        colorWell.supportsAlpha = supportsAlpha
-        colorWell.isEnabled = isEnabled
-        colorWell.setAccessibilityLabel("Choose colour")
-        context.coordinator.isUpdating = false
-    }
-
-    static func dismantleNSView(_ colorWell: NSColorWell, coordinator: Coordinator) {
-        colorWell.target = nil
-        colorWell.action = nil
-    }
-
-    final class Coordinator: NSObject {
-        var color: Binding<Color>
-        var isUpdating = false
-
-        init(color: Binding<Color>) {
-            self.color = color
-        }
-
-        @objc func colorChanged(_ sender: NSColorWell) {
-            guard !isUpdating else { return }
-            color.wrappedValue = Color(nsColor: sender.color)
-        }
-    }
-}
+//private struct AppKitColorWell: NSViewRepresentable {
+//    @Binding var color: Color
+//    let supportsAlpha: Bool
+//    @Environment(\.isEnabled) private var isEnabled
+//    @Environment(\.controlSize) private var controlSize
+//
+//    func makeCoordinator() -> Coordinator {
+//        Coordinator(color: $color)
+//    }
+//
+//    func makeNSView(context: Context) -> NSColorWell {
+//        let colorWell = NSColorWell()
+//        colorWell.controlSize = controlSize.appKitControlSize
+//        colorWell.supportsAlpha = supportsAlpha
+//        colorWell.target = context.coordinator
+//        colorWell.action = #selector(Coordinator.colorChanged(_:))
+//        return colorWell
+//    }
+//
+//    func updateNSView(_ colorWell: NSColorWell, context: Context) {
+//        colorWell.controlSize = controlSize.appKitControlSize
+//        context.coordinator.color = $color
+//        context.coordinator.isUpdating = true
+//        colorWell.color = NSColor(color)
+//        colorWell.supportsAlpha = supportsAlpha
+//        colorWell.isEnabled = isEnabled
+//        colorWell.setAccessibilityLabel("Choose colour")
+//        context.coordinator.isUpdating = false
+//    }
+//
+//    static func dismantleNSView(_ colorWell: NSColorWell, coordinator: Coordinator) {
+//        colorWell.target = nil
+//        colorWell.action = nil
+//    }
+//
+//    final class Coordinator: NSObject {
+//        var color: Binding<Color>
+//        var isUpdating = false
+//
+//        init(color: Binding<Color>) {
+//            self.color = color
+//        }
+//
+//        @objc func colorChanged(_ sender: NSColorWell) {
+//            guard !isUpdating else { return }
+//            color.wrappedValue = Color(nsColor: sender.color)
+//        }
+//    }
+//}

@@ -4,6 +4,21 @@ import SwiftUI
 extension Color {
     init?(hex: String) {
         let value = hex.trimmingCharacters(in: .whitespacesAndNewlines)
+        if value.hasPrefix("rgb("), value.hasSuffix(")") {
+            let components = value
+                .dropFirst(4)
+                .dropLast()
+                .split(whereSeparator: { $0 == " " || $0 == "/" })
+                .compactMap { Double($0) }
+            guard components.count == 4 else { return nil }
+            self.init(
+                red: components[0] / 255,
+                green: components[1] / 255,
+                blue: components[2] / 255,
+                opacity: min(max(components[3], 0), 1)
+            )
+            return
+        }
         guard value.hasPrefix("#") else { return nil }
 
         let digits = String(value.dropFirst())
@@ -23,6 +38,20 @@ extension Color {
             Int((color.redComponent * 255).rounded()),
             Int((color.greenComponent * 255).rounded()),
             Int((color.blueComponent * 255).rounded())
+        )
+    }
+
+    var cssStringWithAlpha: String? {
+        guard let color = NSColor(self).usingColorSpace(.sRGB) else { return nil }
+        let alpha = Double(color.alphaComponent).formatted(
+            .number.precision(.fractionLength(0...3)).locale(Locale(identifier: "en_US_POSIX"))
+        )
+        return String(
+            format: "rgb(%d %d %d / %@)",
+            Int((color.redComponent * 255).rounded()),
+            Int((color.greenComponent * 255).rounded()),
+            Int((color.blueComponent * 255).rounded()),
+            alpha
         )
     }
 }

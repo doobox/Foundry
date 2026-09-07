@@ -13,7 +13,9 @@ struct FoundryApp: App {
     @State private var workspaceLibrary = WorkspacePresetLibrary()
 
     init() {
-        _ = ComponentPackageCatalog.shared
+        if ProcessInfo.processInfo.environment["XCODE_RUNNING_FOR_PREVIEWS"] != "1" {
+            _ = ComponentPackageCatalog.shared
+        }
     }
 
     var body: some Scene {

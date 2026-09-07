@@ -143,6 +143,7 @@ nonisolated enum ComponentPropertyControl: Sendable {
     case details(help: String?)
     case derived
     case color
+    case colorWithOpacity
     case icon
     case packageColor(
         themeValues: Bool,

@@ -217,8 +217,7 @@ struct WebCanvasView: NSViewRepresentable {
         context.coordinator.selectedPrimitive = selectedPrimitive
         context.coordinator.editorOptions = editorOptions
         if context.coordinator.lastHTML != html {
-            context.coordinator.lastHTML = html
-            webView.loadHTMLString(html, baseURL: nil)
+            context.coordinator.updateHTML(html, in: webView)
         } else {
             context.coordinator.applyCanvasState()
         }
@@ -923,6 +922,9 @@ struct WebCanvasView: NSViewRepresentable {
         var handleContextMenuAction: (CanvasContextMenuAction, UUID, ComponentProperty.Key?, [Int]) -> Void
         private var contextMenuComponentID: UUID?
         private var contextMenuImageProperty: ComponentProperty.Key?
+        private var pendingHTML: String?
+        private var loadedHTML: String?
+        private var isLoadingHTML = false
         private var contextMenuImagePropertyPath: [Int] = []
         private var contextMenuRequest: [String: Any]?
         private var pendingCanvasSelection: Set<UUID>?
@@ -1145,8 +1147,50 @@ struct WebCanvasView: NSViewRepresentable {
             handleContextMenuAction(action, contextMenuComponentID, contextMenuImageProperty, contextMenuImagePropertyPath)
         }
 
+        func updateHTML(_ html: String, in webView: WKWebView) {
+            lastHTML = html
+            guard !isLoadingHTML else {
+                pendingHTML = html
+                return
+            }
+            load(html, in: webView)
+        }
+
+        private func load(_ html: String, in webView: WKWebView) {
+            pendingHTML = nil
+            loadedHTML = html
+            isLoadingHTML = true
+            webView.loadHTMLString(html, baseURL: nil)
+        }
+
         func webView(_ webView: WKWebView, didFinish navigation: WKNavigation?) {
-            applyCanvasState()
+            finishHTMLLoad(in: webView)
+        }
+
+        func webView(
+            _ webView: WKWebView,
+            didFail navigation: WKNavigation?,
+            withError error: any Error
+        ) {
+            finishHTMLLoad(in: webView)
+        }
+
+        func webView(
+            _ webView: WKWebView,
+            didFailProvisionalNavigation navigation: WKNavigation?,
+            withError error: any Error
+        ) {
+            finishHTMLLoad(in: webView)
+        }
+
+        private func finishHTMLLoad(in webView: WKWebView) {
+            isLoadingHTML = false
+            if let pendingHTML, pendingHTML != loadedHTML {
+                load(pendingHTML, in: webView)
+            } else {
+                pendingHTML = nil
+                applyCanvasState()
+            }
         }
 
         func applyCanvasState() {

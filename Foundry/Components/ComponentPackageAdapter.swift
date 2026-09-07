@@ -101,7 +101,9 @@ nonisolated enum ComponentPackageAdapter {
                 label: property.label,
                 section: .init(rawValue: property.group),
                 control: .array(
-                    element: control(property.control, unit: ""),
+                    element: property.control.type == .color && property.control.opacity == true
+                        ? .colorWithOpacity
+                        : control(property.control, unit: ""),
                     count: count,
                     labels: Array(property.labels.prefix(count)),
                     subtitles: Array(property.subtitles.prefix(count)),

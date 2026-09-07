@@ -1,0 +1,31 @@
+import SwiftUI
+
+struct NumberComponentControl: View {
+    let label: String
+    let range: ClosedRange<Double>
+    let step: Double
+    let unit: String?
+    let indicator: InspectorRowIndicator?
+    @Binding var value: Double
+
+    var body: some View {
+        InspectorRow(title: label, indicator: indicator) {
+            HStack(spacing: 6) {
+                InspectorNumberField(value: $value, range: range, accessibilityLabel: label, help: label)
+                if let unit, !unit.isEmpty {
+                    Text(unit)
+                        .foregroundStyle(.secondary)
+                        .fixedSize()
+                }
+                InspectorStepper(value: $value, range: range, increment: step, accessibilityLabel: label)
+            }
+        }
+    }
+}
+
+#Preview {
+    @Previewable @State var value = 24.0
+    ComponentControlPreview {
+        NumberComponentControl(label: "Width", range: 0...100, step: 1, unit: "px", indicator: .preview, value: $value)
+    }
+}
