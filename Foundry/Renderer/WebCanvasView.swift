@@ -641,9 +641,13 @@ struct WebCanvasView: NSViewRepresentable {
             });
           }, true);
 
-          document.querySelectorAll(selector).forEach(element => {
-            element.draggable = true;
-            element.addEventListener('dragstart', event => {
+          const dragHandlerElements = new WeakSet();
+          const installComponentDragHandlers = () => {
+            document.querySelectorAll(selector).forEach(element => {
+              if (dragHandlerElements.has(element)) return;
+              dragHandlerElements.add(element);
+              element.draggable = true;
+              element.addEventListener('dragstart', event => {
               const primitive = event.target.closest('[data-foundry-primitive-property]');
               if (primitive && primitive !== element) {
                 event.preventDefault();
@@ -680,14 +684,65 @@ struct WebCanvasView: NSViewRepresentable {
               event.dataTransfer.setData('text/plain', value);
               event.dataTransfer.effectAllowed = 'move';
               event.stopPropagation();
+              });
+              element.addEventListener('dragend', () => {
+                isDragging = false;
+                clearDrop();
+                clearDragSources();
+                scheduleChromeTitleUpdate();
+              });
             });
-            element.addEventListener('dragend', () => {
-              isDragging = false;
-              clearDrop();
-              clearDragSources();
-              scheduleChromeTitleUpdate();
+          };
+          installComponentDragHandlers();
+
+          const syncAttributes = (target, source) => {
+            Array.from(target.attributes).forEach(attribute => target.removeAttribute(attribute.name));
+            Array.from(source.attributes).forEach(attribute => target.setAttribute(attribute.name, attribute.value));
+          };
+
+          window.foundryReplaceDocument = html => {
+            const replacement = new DOMParser().parseFromString(html, 'text/html');
+            replacement.querySelectorAll(selector).forEach(element => { element.draggable = true; });
+
+            const currentHeadNodes = Array.from(document.head.childNodes);
+            const replacementHeadNodes = Array.from(replacement.head.childNodes);
+            replacementHeadNodes.forEach((node, index) => {
+              const current = currentHeadNodes[index];
+              if (!current) {
+                document.head.appendChild(document.importNode(node, true));
+              } else if (current.nodeName === 'STYLE' && node.nodeName === 'STYLE') {
+                if (current.textContent !== node.textContent) current.textContent = node.textContent;
+              } else if (current.outerHTML !== node.outerHTML && current.textContent !== node.textContent) {
+                current.replaceWith(document.importNode(node, true));
+              }
             });
-          });
+            currentHeadNodes.slice(replacementHeadNodes.length).forEach(node => node.remove());
+
+            syncAttributes(document.body, replacement.body);
+            const changedIDs = new Set();
+            replacement.querySelectorAll(selector).forEach(nextElement => {
+              const componentID = nextElement.dataset.foundryId;
+              const currentElement = document.querySelector('[data-foundry-id="' + CSS.escape(componentID) + '"]');
+              if (!currentElement || currentElement.outerHTML === nextElement.outerHTML) return;
+              const changedAncestor = nextElement.parentElement?.closest(selector);
+              if (changedAncestor && changedIDs.has(changedAncestor.dataset.foundryId)) return;
+              currentElement.replaceWith(document.importNode(nextElement, true));
+              changedIDs.add(componentID);
+            });
+
+            if (changedIDs.size === 0 && document.body.innerHTML !== replacement.body.innerHTML) {
+              const bodyNodes = Array.from(replacement.body.childNodes).map(node => document.importNode(node, true));
+              document.body.replaceChildren(...bodyNodes);
+            }
+            installComponentDragHandlers();
+            hoveredComponent = null;
+            hoveredPrimitive = null;
+            dismissGlobalMenu();
+            window.foundrySetEditorOptions(editorOptions);
+            window.foundrySetSelection(selectedComponentIDs, selectedPrimitiveSelection, false);
+            scheduleChromeTitleUpdate();
+            return true;
+          };
 
           document.addEventListener('dragover', event => {
             isDragging = true;
@@ -956,6 +1011,10 @@ struct WebCanvasView: NSViewRepresentable {
         private var contextMenuImagePropertyPath: [Int] = []
         private var contextMenuRequest: [String: Any]?
         private var pendingCanvasSelection: Set<UUID>?
+        private var lastAppliedSelection: Set<UUID>?
+        private var scrollPositionBeforeLoad: CGPoint?
+        private var isCapturingScrollPosition = false
+        private var isPatchingHTML = false
 
         init(
             assets: [UUID: ProjectAssetContent],
@@ -1177,11 +1236,57 @@ struct WebCanvasView: NSViewRepresentable {
 
         func updateHTML(_ html: String, in webView: WKWebView) {
             lastHTML = html
-            guard !isLoadingHTML else {
+            guard !isLoadingHTML, !isCapturingScrollPosition, !isPatchingHTML else {
                 pendingHTML = html
                 return
             }
-            load(html, in: webView)
+            if loadedHTML == nil {
+                captureScrollPositionThenLoad(html, in: webView)
+            } else {
+                patchHTML(html, in: webView)
+            }
+        }
+
+        private func patchHTML(_ html: String, in webView: WKWebView) {
+            isPatchingHTML = true
+            Task { [weak self, weak webView] in
+                guard let self, let webView else { return }
+                let didPatch = (try? await webView.callAsyncJavaScript(
+                    "return window.foundryReplaceDocument?.(html) === true",
+                    arguments: ["html": html],
+                    in: nil,
+                    contentWorld: .defaultClient
+                )) as? Bool == true
+                self.isPatchingHTML = false
+                guard didPatch else {
+                    self.captureScrollPositionThenLoad(self.pendingHTML ?? html, in: webView)
+                    return
+                }
+                self.loadedHTML = html
+                if let pendingHTML = self.pendingHTML, pendingHTML != html {
+                    self.pendingHTML = nil
+                    self.patchHTML(pendingHTML, in: webView)
+                } else {
+                    self.pendingHTML = nil
+                    self.applyCanvasState()
+                }
+            }
+        }
+
+        private func captureScrollPositionThenLoad(_ html: String, in webView: WKWebView) {
+            isCapturingScrollPosition = true
+            webView.evaluateJavaScript("[window.scrollX, window.scrollY]") { [weak self, weak webView] result, _ in
+                guard let self, let webView else { return }
+                self.isCapturingScrollPosition = false
+                if let coordinates = result as? [NSNumber], coordinates.count == 2 {
+                    self.scrollPositionBeforeLoad = CGPoint(
+                        x: coordinates[0].doubleValue,
+                        y: coordinates[1].doubleValue
+                    )
+                }
+                let latestHTML = self.pendingHTML ?? html
+                self.load(latestHTML, in: webView)
+            }
         }
 
         private func load(_ html: String, in webView: WKWebView) {
@@ -1231,8 +1336,15 @@ struct WebCanvasView: NSViewRepresentable {
                     "propertyPath": $0.propertyPath
                 ]
             } ?? [:]
-            let shouldScrollToSelection = pendingCanvasSelection != selectedComponentIDs
+            let selectionChanged = lastAppliedSelection != selectedComponentIDs
+            let selectionOriginatedInCanvas = pendingCanvasSelection == selectedComponentIDs
+            let shouldScrollToSelection = selectionChanged && !selectionOriginatedInCanvas
             pendingCanvasSelection = nil
+            lastAppliedSelection = selectedComponentIDs
+            let scrollPosition = scrollPositionBeforeLoad.map {
+                ["x": $0.x, "y": $0.y]
+            } ?? [:]
+            scrollPositionBeforeLoad = nil
             let options: [String: Any] = [
                 "showsTitles": editorOptions.showsTitles,
                 "showsOutlines": editorOptions.showsOutlines,
@@ -1242,14 +1354,15 @@ struct WebCanvasView: NSViewRepresentable {
             let accentColor = cssAccentColor
             Task {
                 _ = try? await webView.callAsyncJavaScript(
-                    "document.documentElement.style.setProperty('--foundry-editor-accent', accentColor); window.foundrySetWebInspectorEnabled?.(webInspectorEnabled); window.foundrySetEditorOptions?.(options); window.foundrySetSelection?.(componentIDs, primitiveSelection, shouldScrollToSelection)",
+                    "if (scrollPosition.x !== undefined) window.scrollTo(scrollPosition.x, scrollPosition.y); document.documentElement.style.setProperty('--foundry-editor-accent', accentColor); window.foundrySetWebInspectorEnabled?.(webInspectorEnabled); window.foundrySetEditorOptions?.(options); window.foundrySetSelection?.(componentIDs, primitiveSelection, shouldScrollToSelection)",
                     arguments: [
                         "options": options,
                         "componentIDs": componentIDs,
                         "primitiveSelection": primitiveSelection,
                         "accentColor": accentColor,
                         "webInspectorEnabled": webView.isInspectable,
-                        "shouldScrollToSelection": shouldScrollToSelection
+                        "shouldScrollToSelection": shouldScrollToSelection,
+                        "scrollPosition": scrollPosition
                     ],
                     in: nil,
                     contentWorld: .defaultClient
