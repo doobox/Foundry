@@ -63,7 +63,7 @@ struct ComponentDefinitionTests {
             customValue: "1rem"
         )))
         #expect(decoded.propertyValue(.init(rawValue: "textColor")) == .packageColor(.init(
-            source: ThemeColorRole.text.rawValue,
+            source: ComponentThemeValueSelection.manualCustom,
             customColor: "#000000",
             adjustment: 0,
             opacity: 1
@@ -101,12 +101,7 @@ struct ComponentDefinitionTests {
         var text = ComponentNode.make(.paragraph)
         var button = ComponentNode.make(.button)
         container.setProperty(.borderWidth, value: .number(2))
-        container.setProperty(.borderColor, value: .packageColor(.init(
-            source: ComponentThemeValueSelection.manualCustom,
-            customColor: "#ABCDEF",
-            adjustment: 0,
-            opacity: 1
-        )))
+        container.setProperty(.borderColor, value: .color("#ABCDEF"))
         container.setProperty(.cornerRadius, value: .number(28))
         container.setProperty(.maxWidth, value: .number(920))
         text.setProperty(.init(rawValue: "typeface"), value: .choice("heading"))

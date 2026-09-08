@@ -105,13 +105,13 @@
 			<key>group</key>
 			<string>Background</string>
 			<key>type</key>
-			<string>color</string>
+			<string>themeColor</string>
 			<key>default</key>
 			<string>custom</string>
 			<key>customColor</key>
 			<string>#FFFFFF</string>
-			<key>themeValues</key>
-			<string>background</string>
+			<key>allowsCustom</key>
+			<true/>
 			<key>opacity</key>
 			<true/>
 			<key>responsive</key>

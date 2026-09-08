@@ -54,7 +54,7 @@
         </dict>
         <dict>
             <key>id</key><string>titles</string>
-            <key>label</key><array><string>First</string><string>Second</string><string>Third</string></array>
+            <key>label</key><string>Titles</string>
             <key>subtitle</key><array><string>Title 1</string><string>Title 2</string><string>Title 3</string></array>
             <key>group</key><string>Enable Demo</string>
             <key>type</key><string>text</string>

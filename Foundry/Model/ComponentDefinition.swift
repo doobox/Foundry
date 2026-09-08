@@ -70,6 +70,7 @@ nonisolated enum ComponentRenderKind: Sendable {
 nonisolated struct ComponentPropertyDefinition: Identifiable, Sendable {
     let key: ComponentProperty.Key
     let label: String
+    let subtitle: String?
     let section: ComponentPropertySection
     let control: ComponentPropertyControl
     let defaultValue: ComponentProperty.Value
@@ -85,6 +86,7 @@ nonisolated struct ComponentPropertyDefinition: Identifiable, Sendable {
     init(
         key: ComponentProperty.Key,
         label: String,
+        subtitle: String? = nil,
         section: ComponentPropertySection,
         control: ComponentPropertyControl,
         defaultValue: ComponentProperty.Value,
@@ -97,6 +99,7 @@ nonisolated struct ComponentPropertyDefinition: Identifiable, Sendable {
     ) {
         self.key = key
         self.label = label
+        self.subtitle = subtitle
         self.section = section
         self.control = control
         self.defaultValue = defaultValue
@@ -131,7 +134,7 @@ nonisolated struct ComponentPropertySection: RawRepresentable, Hashable, Sendabl
 }
 
 nonisolated enum ComponentPropertyControl: Sendable {
-    indirect case array(element: ComponentPropertyControl, count: Int, labels: [String], subtitles: [String], units: [String], help: String?)
+    indirect case array(element: ComponentPropertyControl, count: Int, subtitles: [String], buttonTexts: [String], buttonIcons: [String], activeButtonTexts: [String], activeButtonIcons: [String], buttonSelectionMode: ComponentPackageControl.ButtonSelectionMode, units: [String], help: String?)
     case singleLineText
     case multilineText
     case link(absoluteURL: Bool)
@@ -139,11 +142,12 @@ nonisolated enum ComponentPropertyControl: Sendable {
     case slider(range: ClosedRange<Double>, step: Double, ticks: Int, unit: String, showsValueField: Bool)
     case date
     case info
-    case button(systemImage: String?)
+    case button(icon: String?, text: String, activeIcon: String?, activeText: String?)
     case details(help: String?)
     case derived
     case color
     case colorWithOpacity
+    case literalColor(allowsOpacity: Bool)
     case icon
     case packageColor(
         themeValues: Bool,
@@ -161,6 +165,10 @@ nonisolated enum ComponentPropertyControl: Sendable {
 
     var isThemeFontSize: Bool {
         if case .themeFontSize = self { true } else { false }
+    }
+
+    var isArray: Bool {
+        if case .array = self { true } else { false }
     }
 
 }

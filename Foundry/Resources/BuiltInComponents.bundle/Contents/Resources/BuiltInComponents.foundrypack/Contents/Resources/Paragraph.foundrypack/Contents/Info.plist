@@ -118,10 +118,10 @@
 			<string>#000000</string>
 			<key>opacity</key>
 			<true/>
-			<key>themeValues</key>
-			<string>text</string>
+			<key>allowsCustom</key>
+			<true/>
 			<key>type</key>
-			<string>color</string>
+			<string>themeColor</string>
 		</dict>
 	</array>
 	<key>description</key>

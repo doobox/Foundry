@@ -22,12 +22,16 @@ extension Color {
         guard value.hasPrefix("#") else { return nil }
 
         let digits = String(value.dropFirst())
-        guard digits.count == 6, let rgb = UInt64(digits, radix: 16) else { return nil }
+        guard [6, 8].contains(digits.count), let rgba = UInt64(digits, radix: 16) else { return nil }
+
+        let rgb = digits.count == 8 ? rgba >> 8 : rgba
+        let alpha = digits.count == 8 ? Double(rgba & 0xFF) / 255 : 1
 
         self.init(
             red: Double((rgb >> 16) & 0xFF) / 255,
             green: Double((rgb >> 8) & 0xFF) / 255,
-            blue: Double(rgb & 0xFF) / 255
+            blue: Double(rgb & 0xFF) / 255,
+            opacity: alpha
         )
     }
 

@@ -98,10 +98,7 @@
         <dict>
             <key>id</key><string>labels</string>
             <key>label</key>
-            <array>
-                <string>First label</string>
-                <string>Second label</string>
-            </array>
+            <string>Labels</string>
             <key>group</key><string>Indexed values</string>
             <key>type</key><string>text</string>
             <key>count</key><integer>2</integer>

@@ -248,6 +248,35 @@ struct WebCanvasView: NSViewRepresentable {
           let activeDragSources = [];
           let globalMenuTarget = null;
           let globalMenuRelinks = false;
+
+          const chromeHost = document.createElement('div');
+          chromeHost.setAttribute('popover', 'manual');
+          chromeHost.setAttribute('data-foundry-editor-chrome', 'host');
+          const chromeHostStyles = {
+            all: 'initial', position: 'fixed', inset: '0', width: '0', height: '0',
+            margin: '0', padding: '0', border: '0', overflow: 'visible', pointerEvents: 'none'
+          };
+          Object.entries(chromeHostStyles).forEach(([property, value]) => {
+            chromeHost.style.setProperty(property.replace(/[A-Z]/g, match => '-' + match.toLowerCase()), value, 'important');
+          });
+          const chromeRoot = chromeHost.attachShadow({ mode: 'open' });
+          const chromeStyles = document.createElement('style');
+          chromeStyles.textContent = `
+            *, *::before, *::after { box-sizing: border-box; }
+            .foundry-global-menu {
+              display: none; position: fixed; z-index: 2; min-width: 190px; padding: 5px;
+              border: 1px solid rgba(0,0,0,.12); border-radius: 9px; background: rgba(255,255,255,.98);
+              box-shadow: 0 10px 30px rgba(0,0,0,.2); color: #171719; pointer-events: auto;
+            }
+            .foundry-global-menu.is-visible { display: block; }
+            .foundry-global-menu button {
+              display: block; width: 100%; padding: 7px 10px; border: 0; border-radius: 6px;
+              background: transparent; color: inherit; font: 13px system-ui; text-align: left; cursor: default;
+            }
+            .foundry-global-menu button:hover { background: rgba(0,0,0,.08); }
+          `;
+          chromeRoot.appendChild(chromeStyles);
+
           const globalMenu = document.createElement('div');
           globalMenu.className = 'foundry-global-menu';
           globalMenu.setAttribute('role', 'menu');
@@ -255,10 +284,8 @@ struct WebCanvasView: NSViewRepresentable {
           globalMenuAction.type = 'button';
           globalMenuAction.setAttribute('role', 'menuitem');
           globalMenu.appendChild(globalMenuAction);
-          document.body.appendChild(globalMenu);
 
           const chromeLayer = document.createElement('div');
-          chromeLayer.setAttribute('popover', 'manual');
           chromeLayer.setAttribute('data-foundry-editor-chrome', 'layer');
           const chromeLayerStyles = {
             all: 'initial', position: 'fixed', inset: '0', width: '0', height: '0',
@@ -267,8 +294,9 @@ struct WebCanvasView: NSViewRepresentable {
           Object.entries(chromeLayerStyles).forEach(([property, value]) => {
             chromeLayer.style.setProperty(property.replace(/[A-Z]/g, match => '-' + match.toLowerCase()), value, 'important');
           });
-          document.documentElement.appendChild(chromeLayer);
-          if (typeof chromeLayer.showPopover === 'function') chromeLayer.showPopover();
+          chromeRoot.append(chromeLayer, globalMenu);
+          document.documentElement.appendChild(chromeHost);
+          if (typeof chromeHost.showPopover === 'function') chromeHost.showPopover();
 
           const chromeTitle = document.createElement('div');
           chromeTitle.setAttribute('data-foundry-editor-chrome', 'title');

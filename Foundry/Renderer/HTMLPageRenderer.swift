@@ -78,17 +78,6 @@ struct HTMLPageRenderer: PageRendering {
                           0 8px 24px rgba(0,0,0,.2);
               font: 600 12px system-ui; text-align: center;
             }
-            .foundry-global-menu {
-              display: none; position: fixed; z-index: 1002; min-width: 190px; padding: 5px;
-              border: 1px solid rgba(0,0,0,.12); border-radius: 9px; background: rgba(255,255,255,.98);
-              box-shadow: 0 10px 30px rgba(0,0,0,.2); color: #171719;
-            }
-            .foundry-global-menu.is-visible { display: block; }
-            .foundry-global-menu button {
-              display: block; width: 100%; padding: 7px 10px; border: 0; border-radius: 6px;
-              background: transparent; color: inherit; font: 13px system-ui; text-align: left; cursor: default;
-            }
-            .foundry-global-menu button:hover { background: rgba(0,0,0,.08); }
             [contenteditable="true"]:focus {
               outline: none !important;
             }

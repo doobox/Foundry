@@ -12,12 +12,12 @@ struct NumberComponentControl: View {
         InspectorRow(title: label, indicator: indicator) {
             HStack(spacing: 6) {
                 InspectorNumberField(value: $value, range: range, accessibilityLabel: label, help: label)
+                InspectorStepper(value: $value, range: range, increment: step, accessibilityLabel: label)
                 if let unit, !unit.isEmpty {
                     Text(unit)
                         .foregroundStyle(.secondary)
                         .fixedSize()
                 }
-                InspectorStepper(value: $value, range: range, increment: step, accessibilityLabel: label)
             }
         }
     }

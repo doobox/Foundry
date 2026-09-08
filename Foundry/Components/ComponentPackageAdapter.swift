@@ -96,17 +96,26 @@ nonisolated enum ComponentPackageAdapter {
                 defaults = Array(repeating: property.defaultValue, count: count)
             }
             let paddedDefaults = defaults + Array(repeating: defaults.last ?? .string(""), count: max(0, count - defaults.count))
+            let buttonTexts = Array(property.buttonTexts.prefix(count))
+            let paddedButtonTexts = buttonTexts + Array(repeating: "", count: max(0, count - buttonTexts.count))
+            let buttonIcons = Array(property.buttonIcons.prefix(count))
+            let activeButtonTexts = Array(property.activeButtonTexts.prefix(count))
+            let activeButtonIcons = Array(property.activeButtonIcons.prefix(count))
             return [ComponentPropertyDefinition(
                 key: .init(rawValue: property.id),
                 label: property.label,
                 section: .init(rawValue: property.group),
                 control: .array(
-                    element: property.control.type == .color && property.control.opacity == true
-                        ? .colorWithOpacity
+                    element: property.control.type == .color
+                        ? .literalColor(allowsOpacity: property.control.opacity == true)
                         : control(property.control, unit: ""),
                     count: count,
-                    labels: Array(property.labels.prefix(count)),
                     subtitles: Array(property.subtitles.prefix(count)),
+                    buttonTexts: Array(paddedButtonTexts.prefix(count)),
+                    buttonIcons: buttonIcons,
+                    activeButtonTexts: activeButtonTexts,
+                    activeButtonIcons: activeButtonIcons,
+                    buttonSelectionMode: property.control.selectionMode ?? .multiple,
                     units: Array(property.units.prefix(count)),
                     help: property.toolTip
                 ),
@@ -119,7 +128,7 @@ nonisolated enum ComponentPackageAdapter {
                 allowsCustomThemeValue: property.control.allowsCustom == true
             )]
         }
-        if property.control.type == .color { return colorProperties(for: property) }
+        if property.control.type == .themeColor { return themeColorProperties(for: property) }
         if property.control.type == .shadow { return shadowProperties(for: property) }
         if property.control.type == .select,
            property.control.themeValueSource == .fontSizes,
@@ -129,10 +138,18 @@ nonisolated enum ComponentPackageAdapter {
         return [ComponentPropertyDefinition(
             key: .init(rawValue: property.id),
             label: property.label,
+            subtitle: property.subtitles.first,
             section: .init(rawValue: property.group),
             control: property.control.type == .details
                 ? .details(help: property.toolTip)
-                : control(property.control, unit: property.units.first ?? ""),
+                : property.control.type == .button
+                    ? .button(
+                        icon: property.buttonIcons.first,
+                        text: property.buttonTexts.first ?? "",
+                        activeIcon: property.activeButtonIcons.first,
+                        activeText: property.activeButtonTexts.first
+                    )
+                    : control(property.control, unit: property.units.first ?? ""),
             defaultValue: value(property.defaultValue, control: property.control.type),
             isResponsive: property.responsive,
             isInspectorVisible: property.control.type != .math &&
@@ -171,20 +188,20 @@ nonisolated enum ComponentPackageAdapter {
         ]
     }
 
-    private static func colorProperties(for property: ComponentPackageProperty) -> [ComponentPropertyDefinition] {
+    private static func themeColorProperties(for property: ComponentPackageProperty) -> [ComponentPropertyDefinition] {
         let key = ComponentProperty.Key(rawValue: property.id)
         let section = ComponentPropertySection(rawValue: property.group)
         return [
             ComponentPropertyDefinition(
                 key: key, label: property.label, section: section,
                 control: .packageColor(
-                    themeValues: property.control.themeValueSource == .colors,
+                    themeValues: true,
                     colorMath: property.control.colorMath ?? false,
                     opacity: property.control.opacity ?? false
                 ),
                 defaultValue: .packageColor(.init(
                     source: ComponentThemeValueSelection.storedSource(
-                        forManifestValue: property.control.themeValueDefault ?? property.defaultValue.stringValue
+                        forManifestValue: property.defaultValue.stringValue
                     ),
                     customColor: property.control.customColor ?? "#000000",
                     adjustment: 0,
@@ -227,7 +244,8 @@ nonisolated enum ComponentPackageAdapter {
                 range: (control.minimum ?? -10_000)...(control.maximum ?? 10_000),
                 step: control.step ?? 1, unit: unit
             )
-        case .color: .color
+        case .color: .literalColor(allowsOpacity: control.opacity == true)
+        case .themeColor: .derived
         case .icon: .icon
         case .select:
             .choice((control.options ?? []).map { .init(value: $0.value, label: $0.title) })
@@ -246,7 +264,7 @@ nonisolated enum ComponentPackageAdapter {
         case .date: .date
         case .details: .details(help: nil)
         case .info: .info
-        case .button: .button(systemImage: control.systemImage)
+        case .button: .button(icon: nil, text: "Button", activeIcon: nil, activeText: nil)
         case .image: .image
         case .math: .derived
         case .shadow: .packageShadow
@@ -264,6 +282,7 @@ nonisolated enum ComponentPackageAdapter {
             switch control {
             case .link: .link(.init(destination: value.isEmpty ? .none : .url(value)))
             case .color: .color(value)
+            case .themeColor: .choice(value)
             case .icon, .select, .textAlignment, .shadow: .choice(value)
             case .date: .string(value)
             case .image: .url(value)

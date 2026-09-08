@@ -122,8 +122,12 @@ struct ComponentPackageTests {
         )
         #expect(themePackage.manifest.identifier == "dev.foundry.theme-values")
         #expect(themePackage.manifest.properties.contains { $0.control.themeValueSource == .fontFamilies })
-        #expect(themePackage.manifest.properties.contains { $0.id == "topBorder" && $0.control.themeValueDefault == "accent" })
-        #expect(themePackage.manifest.properties.contains { $0.id == "bottomBorder" && $0.control.themeValueDefault == "links" })
+        #expect(themePackage.manifest.properties.contains {
+            $0.id == "topBorder" && $0.control.type == .themeColor && $0.control.allowsCustom == true
+        })
+        #expect(themePackage.manifest.properties.contains {
+            $0.id == "bottomBorder" && $0.control.type == .themeColor && $0.control.allowsCustom == true
+        })
 
         let scopedAssetsPackage = try ComponentPackageLoader.load(
             from: repositoryURL.appending(path: "DevelopmentFixtures/ScopedAssets.foundrydevpack")
@@ -230,7 +234,7 @@ struct ComponentPackageTests {
         <key>author</key><string>Foundry</string><key>version</key><string>1.0.0</string><key>group</key><string>Other</string>
         <key>tags</key><array/><key>assets</key><array/><key>slots</key><array/>
         <key>customItems</key><array><dict>
-        <key>id</key><string>palette</string><key>label</key><array><string>One</string><string>Two</string><string>Three</string><string>Four</string></array><key>group</key><string>Appearance</string>
+        <key>id</key><string>palette</string><key>label</key><string>Palette</string><key>group</key><string>Appearance</string>
         <key>subtitle</key><array><string>First</string><string>Second</string><string>Third</string><string>Fourth</string></array>
         <key>toolTip</key><string>Four colours</string>
         <key>type</key><string>color</string><key>count</key><integer>4</integer>
@@ -242,7 +246,7 @@ struct ComponentPackageTests {
         let manifest = try PropertyListDecoder().decode(ComponentPackageManifest.self, from: Data(plist.utf8))
         let property = try #require(manifest.properties.first)
         #expect(property.control.count == 4)
-        #expect(property.labels == ["One", "Two", "Three", "Four"])
+        #expect(property.label == "Palette")
         #expect(property.subtitles == ["First", "Second", "Third", "Fourth"])
         #expect(property.toolTip == "Four colours")
 
@@ -321,14 +325,14 @@ struct ComponentPackageTests {
         let countedThemeColor = countedThemeSelect
             .replacingOccurrences(
                 of: "<key>type</key><string>select</string>",
-                with: "<key>type</key><string>color</string>"
+                with: "<key>type</key><string>themeColor</string>"
             )
         let colorSchemaDiagnostics = try ComponentPackageManifestSchema.diagnostics(
             for: Data(countedThemeColor.utf8)
         )
         #expect(colorSchemaDiagnostics.contains {
             $0.location.hasSuffix(".count")
-                && $0.message == "A color control using themeValues cannot be a multi control; remove count."
+                && $0.message == "A themeColor control cannot be a multi control; remove count."
         })
 
         let booleanThemeValues = Data(
@@ -511,7 +515,7 @@ struct ComponentPackageTests {
         <key>assets</key><array/><key>slots</key><array/>
         <key>customItems</key><array>
         <dict><key>id</key><string>mode</string><key>label</key><string>Mode</string><key>type</key><string>select</string><key>options</key><array><dict><key>value</key><string>featured</string><key>title</key><string>Featured</string></dict></array><key>default</key><string>featured</string><key>responsive</key><false/></dict>
-        <dict><key>id</key><string>titles</string><key>label</key><array><string>One</string><string>Two</string><string>Three</string></array><key>type</key><string>text</string><key>count</key><integer>3</integer><key>default</key><array><string>One</string><string>Two</string><string>Featured story</string></array><key>responsive</key><false/></dict>
+        <dict><key>id</key><string>titles</string><key>label</key><string>Titles</string><key>type</key><string>text</string><key>count</key><integer>3</integer><key>default</key><array><string>One</string><string>Two</string><string>Featured story</string></array><key>responsive</key><false/></dict>
         <dict><key>id</key><string>detail</string><key>label</key><string>Detail</string><key>type</key><string>text</string><key>default</key><string>Visible</string><key>responsive</key><false/><key>enable</key><dict><key>id</key><string>titles[2]</string><key>operation</key><string>containsInsensitive</string><key>value</key><string>featured</string></dict></dict>
         </array><key>templates</key><dict><key>html</key><string>component.html</string></dict>
         </dict></plist>
@@ -559,6 +563,63 @@ struct ComponentPackageTests {
         )
         #expect(resolved["doubled"] == .number(42))
         #expect(resolved["action"] == .string("active"))
+    }
+
+    @Test
+    func buttonContractSupportsOptionalLabelsSubtitlesAndValidatedMappings() throws {
+        let plist = """
+        <?xml version="1.0" encoding="UTF-8"?>
+        <plist version="1.0"><dict>
+        <key>minimumAPIVersion</key><integer>1</integer>
+        <key>id</key><string>com.example.buttons</string>
+        <key>title</key><string>Buttons</string><key>description</key><string>Button contract</string>
+        <key>version</key><string>1.0.0</string>
+        <key>group</key><string>Other</string><key>assets</key><array/><key>slots</key><array/>
+        <key>customItems</key><array>
+        <dict><key>id</key><string>plain</string><key>subtitle</key><string>Optional help</string><key>type</key><string>button</string><key>default</key><false/></dict>
+        <dict><key>id</key><string>mapped</string><key>type</key><string>button</string><key>buttonText</key><string>Apply</string><key>buttonIcon</key><string>bolt.fill</string><key>trueValue</key><string>active</string><key>falseValue</key><string>idle</string><key>default</key><true/></dict>
+        <dict><key>id</key><string>multiple</string><key>type</key><string>button</string><key>count</key><integer>2</integer><key>subtitle</key><array><string>First</string><string>Second</string></array><key>buttonText</key><array><string>Previous</string><string>Next</string></array><key>buttonIcon</key><array><string>arrow.left</string><string>arrow.right</string></array><key>activeButtonText</key><array><string>Selected previous</string><string>Selected next</string></array><key>activeButtonIcon</key><array><string>checkmark</string><string>checkmark</string></array><key>trueValue</key><array><string>one</string><string>two</string></array><key>falseValue</key><string>off</string><key>default</key><array><true/><false/></array></dict>
+        <dict><key>id</key><string>singleChoice</string><key>type</key><string>button</string><key>count</key><integer>2</integer><key>selectionMode</key><string>single</string><key>trueValue</key><array><string>first</string><string>second</string></array><key>default</key><array><false/><true/></array></dict>
+        <dict><key>id</key><string>wrongDefault</string><key>type</key><string>button</string><key>default</key><string>no</string></dict>
+        <dict><key>id</key><string>wrongMapping</string><key>type</key><string>button</string><key>count</key><integer>2</integer><key>selectionMode</key><string>single</string><key>trueValue</key><array><string>only-one</string></array><key>default</key><array><true/><true/></array></dict>
+        </array><key>templates</key><dict><key>html</key><string>component.html</string></dict>
+        </dict></plist>
+        """
+        let data = Data(plist.utf8)
+        #expect(try ComponentPackageManifestSchema.diagnostics(for: data).isEmpty)
+
+        let manifest = try PropertyListDecoder().decode(ComponentPackageManifest.self, from: data)
+        #expect(manifest.properties[0].label.isEmpty)
+        #expect(manifest.properties[0].subtitles == ["Optional help"])
+        #expect(manifest.properties[1].buttonTexts == ["Apply"])
+        #expect(manifest.properties[1].buttonIcons == ["bolt.fill"])
+        #expect(manifest.properties[2].subtitles == ["First", "Second"])
+        #expect(manifest.properties[2].buttonTexts == ["Previous", "Next"])
+        #expect(manifest.properties[2].buttonIcons == ["arrow.left", "arrow.right"])
+        #expect(manifest.properties[2].activeButtonTexts == ["Selected previous", "Selected next"])
+        #expect(manifest.properties[2].activeButtonIcons == ["checkmark", "checkmark"])
+        #expect(manifest.properties[2].control.selectionMode == nil)
+        #expect(manifest.properties[3].control.selectionMode == .single)
+        #expect(manifest.properties[5].control.selectionMode == .single)
+
+        let resolved = ComponentPackageDerivedValueResolver.resolve(
+            [
+                "plain": .boolean(false),
+                "mapped": .boolean(true),
+                "multiple": .array([.boolean(true), .boolean(false)]),
+                "singleChoice": .array([.boolean(false), .boolean(true)])
+            ],
+            properties: manifest.properties
+        )
+        #expect(resolved["plain"] == .boolean(false))
+        #expect(resolved["mapped"] == .string("active"))
+        #expect(resolved["multiple"] == .array([.string("one"), .string("off")]))
+        #expect(resolved["singleChoice"] == .string("second"))
+
+        let diagnostics = ComponentPackageValidator.validate(manifest, rootURL: FileManager.default.temporaryDirectory)
+        #expect(diagnostics.contains { $0.message == "A button control requires a Boolean default value." })
+        #expect(diagnostics.contains { $0.message == "A button control array requires exactly 2 trueValue values." })
+        #expect(diagnostics.contains { $0.message == "A button control using single selectionMode requires exactly one true default value." })
     }
 
     @Test
@@ -1680,7 +1741,7 @@ struct ComponentPackageTests {
         let item = """
         <dict>
             <key>id</key><string>sizes</string>
-            <key>label</key><array><string>First</string><string>Second</string></array>
+            <key>label</key><string>Font sizes</string>
             <key>type</key><string>select</string>
             <key>themeValues</key><string>fontSizes</string>
             <key>count</key><integer>2</integer>
@@ -1779,8 +1840,7 @@ struct ComponentPackageTests {
         let item = """
         <dict>
             <key>id</key><string>dimensions</string>
-            <key>label</key>
-            <array><string>Width</string><string>Height</string><string>Opacity</string></array>
+            <key>label</key><string>Dimensions</string>
             <key>type</key><string>slider</string>
             <key>count</key><integer>3</integer>
             <key>units</key>
@@ -1799,7 +1859,7 @@ struct ComponentPackageTests {
 
         let package = try ComponentPackageLoader.load(from: packageURL)
         let property = try #require(ComponentPackageAdapter.definition(from: package).properties.first)
-        guard case .array(_, let count, _, _, let units, _) = property.control else {
+        guard case .array(_, let count, _, _, _, _, _, _, let units, _) = property.control else {
             Issue.record("Expected a multi control")
             return
         }
@@ -2241,7 +2301,7 @@ struct ComponentPackageTests {
         let textDecoration = try #require(properties.first(where: { $0.key.rawValue == "textDecoration" }))
 
         #expect(color.defaultValue == .packageColor(.init(
-            source: ThemeColorRole.text.rawValue,
+            source: ComponentThemeValueSelection.manualCustom,
             customColor: "#000000",
             adjustment: 0,
             opacity: 1

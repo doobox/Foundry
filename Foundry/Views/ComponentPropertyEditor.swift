@@ -46,20 +46,29 @@ struct ComponentPropertyEditor: View {
 
     @ViewBuilder
     var body: some View {
-        editorControl
+        if let subtitle = definition.subtitle, !subtitle.isEmpty, !definition.control.isArray {
+            VStack(alignment: .leading, spacing: 4) {
+                editorControl
+                Text(subtitle)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        } else {
+            editorControl
+        }
     }
 
     @ViewBuilder
     private var editorControl: some View {
         switch definition.control {
-        case .array(let element, let count, let labels, let subtitles, let units, let help):
+        case .array(let element, let count, let subtitles, let buttonTexts, let buttonIcons, let activeButtonTexts, let activeButtonIcons, let buttonSelectionMode, let units, let help):
             if case .slider = element {
-                controlArrayRow(element: element, count: count, labels: labels, subtitles: subtitles, units: units, help: help)
+                controlArrayRow(element: element, count: count, subtitles: subtitles, buttonTexts: buttonTexts, buttonIcons: buttonIcons, activeButtonTexts: activeButtonTexts, activeButtonIcons: activeButtonIcons, buttonSelectionMode: buttonSelectionMode, units: units, help: help)
                     .contextMenu {
                         resetButton
                     }
             } else {
-                controlArrayRow(element: element, count: count, labels: labels, subtitles: subtitles, units: units, help: help)
+                controlArrayRow(element: element, count: count, subtitles: subtitles, buttonTexts: buttonTexts, buttonIcons: buttonIcons, activeButtonTexts: activeButtonTexts, activeButtonIcons: activeButtonIcons, buttonSelectionMode: buttonSelectionMode, units: units, help: help)
             }
         case .singleLineText:
             TextComponentControl(label: definition.label, indicator: responsiveIndicator, text: stringBinding(as: .string))
@@ -112,10 +121,13 @@ struct ComponentPropertyEditor: View {
             DateComponentControl(label: definition.label, indicator: responsiveIndicator, value: dateBinding)
         case .info:
             InfoComponentControl(text: definition.label)
-        case .button(let systemImage):
+        case .button(let icon, let text, let activeIcon, let activeText):
             ButtonComponentControl(
                 label: definition.label,
-                systemImage: systemImage,
+                buttonText: text,
+                systemImage: icon,
+                activeButtonText: activeText,
+                activeSystemImage: activeIcon,
                 indicator: responsiveIndicator,
                 isActive: booleanBinding
             )
@@ -141,12 +153,20 @@ struct ComponentPropertyEditor: View {
             InspectorRow(title: definition.label, alignment: .center, indicator: responsiveIndicator) {
                 InspectorColorWell(color: colorBinding, supportsAlpha: true)
             }
+        case .literalColor(let allowsOpacity):
+            ColorComponentControl(
+                label: definition.label,
+                allowsOpacity: allowsOpacity,
+                indicator: responsiveIndicator,
+                color: colorBinding
+            )
         case .icon:
             IconComponentControl(label: definition.label, indicator: responsiveIndicator, selection: stringBinding(as: .choice))
         case .packageColor(let themeValues, let colorMath, let opacity):
-            ColorComponentControl(
+            ThemeColorComponentControl(
                 label: definition.label,
                 choices: themeValues ? theme.colorChoices : [],
+                allowsCustom: definition.allowsCustomThemeValue,
                 theme: theme,
                 source: packageColorSourceBinding,
                 customColor: packageCustomColorBinding,
@@ -324,7 +344,13 @@ struct ComponentPropertyEditor: View {
     private var colorBinding: Binding<Color> {
         Binding(
             get: { Color(hex: displayComponent.colorProperty(definition.key, theme: theme)) ?? .white },
-            set: { setProperty(.color($0.hexString ?? "#FFFFFF")) }
+            set: {
+                setProperty(.color(
+                    definition.control.allowsLiteralColorOpacity
+                        ? ($0.cssStringWithAlpha ?? "rgb(255 255 255 / 1)")
+                        : ($0.hexString ?? "#FFFFFF")
+                ))
+            }
         )
     }
 
@@ -358,6 +384,19 @@ struct ComponentPropertyEditor: View {
 
     private func arrayElementBinding(_ index: Int) -> Binding<ComponentProperty.Value> {
         arrayElementBinding(index, key: definition.key, fallback: .string(""))
+    }
+
+    private func arrayBinding(count: Int) -> Binding<[ComponentProperty.Value]> {
+        Binding(
+            get: {
+                var values = displayComponent.propertyValue(definition.key).arrayValue ?? []
+                while values.count < count { values.append(.boolean(false)) }
+                return Array(values.prefix(count))
+            },
+            set: { values in
+                setProperty(.array(Array(values.prefix(count))))
+            }
+        )
     }
 
     private func arrayElementBinding(
@@ -494,34 +533,36 @@ struct ComponentPropertyEditor: View {
     private func controlArrayRow(
         element: ComponentPropertyControl,
         count: Int,
-        labels: [String],
         subtitles: [String],
+        buttonTexts: [String],
+        buttonIcons: [String],
+        activeButtonTexts: [String],
+        activeButtonIcons: [String],
+        buttonSelectionMode: ComponentPackageControl.ButtonSelectionMode,
         units: [String],
         help: String?
     ) -> some View {
-        if case .slider = element {
-            ForEach(0..<count, id: \.self) { index in
-                InspectorRow(
-                    title: labels[index],
-                    indicator: index == 0 ? responsiveIndicator : nil
-                ) {
-                    InspectorControlArrayItem(
-                        title: labels[index],
-                        subtitle: subtitles.indices.contains(index) ? subtitles[index] : nil,
-                        unit: units.indices.contains(index) ? units[index] : "",
-                        help: help,
-                        value: arrayElementBinding(index),
-                        element: themedArrayElement(element),
-                        assets: assets
-                    )
-                }
+        if case .button = element, buttonSelectionMode == .single {
+            InspectorRow(title: definition.label, alignment: .top, indicator: responsiveIndicator) {
+                InspectorSegmentedButtonControl(
+                    subtitles: subtitles,
+                    buttonTexts: buttonTexts,
+                    buttonIcons: buttonIcons,
+                    activeButtonTexts: activeButtonTexts,
+                    activeButtonIcons: activeButtonIcons,
+                    help: help,
+                    values: arrayBinding(count: count)
+                )
             }
         } else {
             InspectorRow(title: definition.label, alignment: .top, indicator: responsiveIndicator) {
                 InspectorControlArray(
                     count: count,
-                    labels: labels,
                     subtitles: subtitles,
+                    buttonTexts: buttonTexts,
+                    buttonIcons: buttonIcons,
+                    activeButtonTexts: activeButtonTexts,
+                    activeButtonIcons: activeButtonIcons,
                     units: units,
                     help: help,
                     values: (0..<count).map(arrayElementBinding),
@@ -727,8 +768,11 @@ private struct CharacterWidthText: View {
 
 private struct InspectorControlArray: View {
     let count: Int
-    let labels: [String]
     let subtitles: [String]
+    let buttonTexts: [String]
+    let buttonIcons: [String]
+    let activeButtonTexts: [String]
+    let activeButtonIcons: [String]
     let units: [String]
     let help: String?
     let values: [Binding<ComponentProperty.Value>]
@@ -752,8 +796,11 @@ private struct InspectorControlArray: View {
     private var arrayItems: some View {
         ForEach(0..<count, id: \.self) { index in
             InspectorControlArrayItem(
-                title: labels[index],
                 subtitle: subtitles.indices.contains(index) ? subtitles[index] : nil,
+                buttonText: buttonTexts.indices.contains(index) ? buttonTexts[index] : "",
+                buttonIcon: buttonIcons.indices.contains(index) ? buttonIcons[index] : nil,
+                activeButtonText: activeButtonTexts.indices.contains(index) ? activeButtonTexts[index] : nil,
+                activeButtonIcon: activeButtonIcons.indices.contains(index) ? activeButtonIcons[index] : nil,
                 unit: units.indices.contains(index) ? units[index] : "",
                 help: help,
                 value: values[index],
@@ -766,8 +813,11 @@ private struct InspectorControlArray: View {
 }
 
 private struct InspectorControlArrayItem: View {
-    let title: String
     let subtitle: String?
+    let buttonText: String
+    let buttonIcon: String?
+    let activeButtonText: String?
+    let activeButtonIcon: String?
     let unit: String
     let help: String?
     @Binding var value: ComponentProperty.Value
@@ -788,11 +838,6 @@ private struct InspectorControlArrayItem: View {
             .help(help ?? subtitle ?? "")
         } else {
             VStack(spacing: 4) {
-                Text(title)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-                    .foregroundStyle(.secondary)
-                    .help(title)
                 control
                 if let subtitle, !subtitle.isEmpty {
                     subtitleText(subtitle)
@@ -864,10 +909,12 @@ private struct InspectorControlArrayItem: View {
             InspectorColorWell(color: colorBinding)
         case .colorWithOpacity:
             InspectorColorWell(color: colorBinding, supportsAlpha: true)
+        case .literalColor(let allowsOpacity):
+            InspectorColorWell(color: colorBinding, supportsAlpha: allowsOpacity)
         case .icon:
             FoundryIconPicker(
                 selection: iconBinding,
-                accessibilityLabel: subtitle ?? title
+                accessibilityLabel: subtitle ?? "Icon"
             )
         case .singleLineText:
             InspectorTextField(text: stringBinding, accessibilityLabel: subtitle ?? "Text value", help: help)
@@ -899,13 +946,14 @@ private struct InspectorControlArrayItem: View {
             }
         case .date:
             DatePicker("", selection: dateBinding, displayedComponents: [.date]).labelsHidden()
-        case .button(let systemImage):
-            Button {
-                booleanBinding.wrappedValue.toggle()
-            } label: {
-                if let systemImage { Image(systemName: systemImage) } else { Text(subtitle ?? "Button") }
-            }
-            .buttonStyle(.bordered)
+        case .button:
+            ButtonArrayItemComponentControl(
+                buttonText: buttonText,
+                systemImage: buttonIcon,
+                activeButtonText: activeButtonText,
+                activeSystemImage: activeButtonIcon,
+                isActive: booleanBinding
+            )
         case .details:
             Button { booleanBinding.wrappedValue.toggle() } label: { Image(systemName: "ellipsis.circle") }
                 .buttonStyle(.borderless)
@@ -958,7 +1006,7 @@ private struct InspectorControlArrayItem: View {
             get: { Color(hex: value.stringValue) ?? .black },
             set: {
                 value = .color(
-                    element.isColorWithOpacity
+                    element.allowsLiteralColorOpacity
                         ? ($0.cssStringWithAlpha ?? "rgb(0 0 0 / 1)")
                         : ($0.hexString ?? "#000000")
                 )
@@ -985,7 +1033,10 @@ private struct InspectorControlArrayItem: View {
 }
 
 private extension ComponentPropertyControl {
-    var isColorWithOpacity: Bool {
-        if case .colorWithOpacity = self { true } else { false }
+    var allowsLiteralColorOpacity: Bool {
+        switch self {
+        case .colorWithOpacity, .literalColor(allowsOpacity: true): true
+        default: false
+        }
     }
 }

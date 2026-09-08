@@ -176,12 +176,15 @@ nonisolated struct ComponentPackageImageRendition: Codable, Equatable, Identifia
 nonisolated struct ComponentPackageProperty: Codable, Equatable, Identifiable, Sendable {
     let id: String
     let label: String
-    let labels: [String]
     let group: String
     let control: ComponentPackageControl
     let defaultValue: ComponentPackageValue
     let responsive: Bool
     let subtitles: [String]
+    let buttonTexts: [String]
+    let buttonIcons: [String]
+    let activeButtonTexts: [String]
+    let activeButtonIcons: [String]
     let units: [String]
     let toolTip: String?
     let enable: ComponentPackageEnable?
@@ -196,6 +199,10 @@ nonisolated struct ComponentPackageProperty: Codable, Equatable, Identifiable, S
         case defaultValue = "default"
         case responsive
         case subtitle
+        case buttonText
+        case buttonIcon
+        case activeButtonText
+        case activeButtonIcon
         case units
         case toolTip
         case enable
@@ -209,7 +216,6 @@ nonisolated struct ComponentPackageProperty: Codable, Equatable, Identifiable, S
         id = try container.decode(String.self, forKey: .id)
         group = try container.decodeIfPresent(String.self, forKey: .group) ?? "Settings"
         control = try ComponentPackageControl(from: decoder)
-        subtitles = try container.decodeIfPresent([String].self, forKey: .subtitle) ?? []
         toolTip = try container.decodeIfPresent(String.self, forKey: .toolTip)
         enable = try container.decodeIfPresent(ComponentPackageEnable.self, forKey: .enable)
         alt = try container.decodeIfPresent(String.self, forKey: .alt) ?? ""
@@ -217,14 +223,21 @@ nonisolated struct ComponentPackageProperty: Codable, Equatable, Identifiable, S
         renditions = try container.decodeIfPresent([ComponentPackageImageRendition].self, forKey: .renditions) ?? []
 
         if control.count != nil {
-            labels = try container.decode([String].self, forKey: .label)
+            subtitles = try container.decodeIfPresent([String].self, forKey: .subtitle) ?? []
+            buttonTexts = try container.decodeIfPresent([String].self, forKey: .buttonText) ?? []
+            buttonIcons = try container.decodeIfPresent([String].self, forKey: .buttonIcon) ?? []
+            activeButtonTexts = try container.decodeIfPresent([String].self, forKey: .activeButtonText) ?? []
+            activeButtonIcons = try container.decodeIfPresent([String].self, forKey: .activeButtonIcon) ?? []
             units = try container.decodeIfPresent([String].self, forKey: .units) ?? []
-            label = ""
         } else {
-            labels = []
+            subtitles = try container.decodeIfPresent(String.self, forKey: .subtitle).map { [$0] } ?? []
+            buttonTexts = try container.decodeIfPresent(String.self, forKey: .buttonText).map { [$0] } ?? []
+            buttonIcons = try container.decodeIfPresent(String.self, forKey: .buttonIcon).map { [$0] } ?? []
+            activeButtonTexts = try container.decodeIfPresent(String.self, forKey: .activeButtonText).map { [$0] } ?? []
+            activeButtonIcons = try container.decodeIfPresent(String.self, forKey: .activeButtonIcon).map { [$0] } ?? []
             units = [try container.decodeIfPresent(String.self, forKey: .units) ?? ""]
-            label = try container.decodeIfPresent(String.self, forKey: .label) ?? ""
         }
+        label = try container.decodeIfPresent(String.self, forKey: .label) ?? ""
 
         if control.type == .divider || control.type == .info || control.type == .image || control.type == .math {
             defaultValue = try container.decodeIfPresent(ComponentPackageValue.self, forKey: .defaultValue) ?? .string("")
@@ -249,21 +262,38 @@ nonisolated struct ComponentPackageProperty: Codable, Equatable, Identifiable, S
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encode(id, forKey: .id)
         if control.count != nil {
-            try container.encode(labels, forKey: .label)
             if !units.isEmpty {
                 try container.encode(units, forKey: .units)
             }
-        } else if !label.isEmpty {
-            try container.encode(label, forKey: .label)
+        } else {
             if let unit = units.first, !unit.isEmpty {
                 try container.encode(unit, forKey: .units)
             }
         }
+        if !label.isEmpty {
+            try container.encode(label, forKey: .label)
+        }
         try container.encode(group, forKey: .group)
         try container.encode(defaultValue, forKey: .defaultValue)
         try container.encode(responsive, forKey: .responsive)
-        if !subtitles.isEmpty {
+        if control.count != nil, !subtitles.isEmpty {
             try container.encode(subtitles, forKey: .subtitle)
+        } else if let subtitle = subtitles.first, !subtitle.isEmpty {
+            try container.encode(subtitle, forKey: .subtitle)
+        }
+        if control.count != nil, !buttonTexts.isEmpty {
+            try container.encode(buttonTexts, forKey: .buttonText)
+        } else if let buttonText = buttonTexts.first, !buttonText.isEmpty {
+            try container.encode(buttonText, forKey: .buttonText)
+        }
+        if control.count != nil {
+            if !buttonIcons.isEmpty { try container.encode(buttonIcons, forKey: .buttonIcon) }
+            if !activeButtonTexts.isEmpty { try container.encode(activeButtonTexts, forKey: .activeButtonText) }
+            if !activeButtonIcons.isEmpty { try container.encode(activeButtonIcons, forKey: .activeButtonIcon) }
+        } else {
+            if let value = buttonIcons.first, !value.isEmpty { try container.encode(value, forKey: .buttonIcon) }
+            if let value = activeButtonTexts.first, !value.isEmpty { try container.encode(value, forKey: .activeButtonText) }
+            if let value = activeButtonIcons.first, !value.isEmpty { try container.encode(value, forKey: .activeButtonIcon) }
         }
         try container.encodeIfPresent(toolTip, forKey: .toolTip)
         try container.encodeIfPresent(enable, forKey: .enable)
@@ -305,11 +335,17 @@ nonisolated struct ComponentPackageEnable: Codable, Equatable, Sendable {
 }
 
 nonisolated struct ComponentPackageControl: Codable, Equatable, Sendable {
+    enum ButtonSelectionMode: String, Codable, Sendable {
+        case multiple
+        case single
+    }
+
     enum Kind: String, Codable, Sendable {
         case text
         case textArea
         case number
         case color
+        case themeColor
         case icon
         case select
         case link
@@ -341,7 +377,7 @@ nonisolated struct ComponentPackageControl: Codable, Equatable, Sendable {
     let showsValueField: Bool?
     let trueValue: ComponentPackageValue?
     let falseValue: ComponentPackageValue?
-    let systemImage: String?
+    let selectionMode: ButtonSelectionMode?
     let argument1: ComponentPackageValue?
     let argument2: ComponentPackageValue?
     let operation: String?
@@ -379,9 +415,10 @@ nonisolated enum ComponentPackageThemeValues: Codable, Equatable, Sendable {
 nonisolated extension ComponentPackageControl {
     var themeValueSource: ComponentPackageThemeValueSource? {
         if type == .shadow { return .shadows }
+        if type == .themeColor { return .colors }
         return switch themeValues {
         case .source(let source): source
-        case .defaultValue: type == .color ? .colors : nil
+        case .defaultValue: nil
         case nil: nil
         }
     }

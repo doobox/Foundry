@@ -30,6 +30,15 @@ nonisolated enum ComponentPackageDerivedValueResolver {
         _ stored: ComponentPackageValue,
         control: ComponentPackageControl
     ) -> ComponentPackageValue {
+        if control.selectionMode == .single, case .array(let values) = stored {
+            guard let selectedIndex = values.firstIndex(where: {
+                if case .boolean(true) = $0 { true } else { false }
+            }) else { return control.trueValue?.arrayValue?.first ?? control.trueValue ?? .number(0) }
+            if let mappedValues = control.trueValue?.arrayValue {
+                return mappedValues[safe: selectedIndex] ?? .boolean(true)
+            }
+            return control.trueValue ?? .number(Double(selectedIndex))
+        }
         switch stored {
         case .boolean(let isOn):
             return isOn ? (control.trueValue ?? .boolean(true)) : (control.falseValue ?? .boolean(false))

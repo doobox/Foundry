@@ -580,25 +580,55 @@ nonisolated enum ComponentPackageValidator {
         validateThemeValues(property, location: location, into: &diagnostics)
         if let count = property.control.count {
             guard (2...4).contains(count) else {
-                diagnostics.append(.init(severity: .error, location: location, message: "Control arrays must contain between two and four controls."))
+                diagnostics.append(.init(severity: .error, location: "\(location).count", message: "count must be between 2 and 4."))
                 return
             }
             guard case .array(let values) = property.defaultValue, values.count == count else {
-                diagnostics.append(.init(severity: .error, location: location, message: "A control array requires exactly \(count) default values."))
+                diagnostics.append(.init(severity: .error, location: "\(location).default", message: "default must contain exactly \(count) values."))
                 return
             }
-            if property.labels.count != count || property.labels.contains(where: { $0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }) {
-                diagnostics.append(.init(severity: .error, location: location, message: "A control array requires a non-empty label for every control."))
-            }
             if property.subtitles.count > count {
-                diagnostics.append(.init(severity: .error, location: location, message: "A control array cannot have more subtitles than controls."))
+                diagnostics.append(.init(severity: .error, location: "\(location).subtitle", message: "subtitle cannot contain more than \(count) values."))
+            }
+            if property.control.type == .button {
+                if property.buttonTexts.count > count {
+                    diagnostics.append(.init(severity: .error, location: "\(location).buttonText", message: "A button control array cannot have more buttonText values than controls."))
+                }
+                for (key, values) in [
+                    ("buttonIcon", property.buttonIcons),
+                    ("activeButtonText", property.activeButtonTexts),
+                    ("activeButtonIcon", property.activeButtonIcons)
+                ] where values.count > count {
+                    diagnostics.append(.init(
+                        severity: .error,
+                        location: "\(location).\(key)",
+                        message: "A button control array cannot have more \(key) values than controls."
+                    ))
+                }
+                validateButtonMapping(property.control.trueValue, key: "trueValue", count: count, location: location, into: &diagnostics)
+                validateButtonMapping(property.control.falseValue, key: "falseValue", count: count, location: location, into: &diagnostics)
+                let selectedCount = values.filter { if case .boolean(true) = $0 { true } else { false } }.count
+                if property.control.selectionMode == .single, selectedCount != 1 {
+                    diagnostics.append(.init(
+                        severity: .error,
+                        location: "\(location).default",
+                        message: "A button control using single selectionMode requires exactly one true default value."
+                    ))
+                }
+                if property.control.selectionMode == .single, property.control.falseValue != nil {
+                    diagnostics.append(.init(
+                        severity: .error,
+                        location: "\(location).falseValue",
+                        message: "A button control using single selectionMode does not use falseValue."
+                    ))
+                }
             }
             for (index, value) in values.enumerated() {
                 validate(value, for: property, location: "\(location).default[\(index)]", allowsLiteralColor: true, into: &diagnostics)
             }
             return
         }
-        validate(property.defaultValue, for: property, location: location, allowsLiteralColor: false, into: &diagnostics)
+        validate(property.defaultValue, for: property, location: "\(location).default", allowsLiteralColor: false, into: &diagnostics)
     }
 
     private static func validateThemeValues(
@@ -616,6 +646,7 @@ nonisolated enum ComponentPackageValidator {
             ))
         }
         let supportsCustomThemeValue = property.control.type == .shadow
+            || property.control.type == .themeColor
             || (property.control.type == .select && property.control.themeValueSource != nil)
         if property.control.allowsCustom.orFalse, !supportsCustomThemeValue {
             diagnostics.append(.init(
@@ -633,28 +664,37 @@ nonisolated enum ComponentPackageValidator {
             ))
         }
         if property.control.type == .color {
-            if property.control.themeValues != nil,
-               property.control.count != nil {
-                diagnostics.append(.init(
-                    severity: .error,
-                    location: "\(location).count",
-                    message: "A color control using themeValues cannot be a multi control; remove count."
-                ))
-            }
-            if let themeDefault = property.control.themeValueDefault,
-               ThemeColorRole(rawValue: themeDefault) == nil {
+            if property.control.themeValues != nil {
                 diagnostics.append(.init(
                     severity: .error,
                     location: "\(location).themeValues",
-                    message: "A color themeValues string must be background, surface, text, accent, or links."
+                    message: "A color control does not use themeValues; use type themeColor."
                 ))
             }
-            if property.control.themeValues != nil, property.control.themeValueDefault == nil {
+            if property.control.customColor != nil {
                 diagnostics.append(.init(
                     severity: .error,
-                    location: "\(location).themeValues",
-                    message: "A color themeValues string must be background, surface, text, accent, or links."
+                    location: "\(location).customColor",
+                    message: "A color control declares its initial colour in default; remove customColor."
                 ))
+            }
+            if property.control.colorMath != nil {
+                diagnostics.append(.init(
+                    severity: .error,
+                    location: "\(location).colorMath",
+                    message: "colorMath is only available on a themeColor control."
+                ))
+            }
+            return
+        } else if property.control.type == .themeColor {
+            if property.control.themeValues != nil {
+                diagnostics.append(.init(severity: .error, location: "\(location).themeValues", message: "A themeColor control uses theme colours automatically; remove themeValues."))
+            }
+            if property.control.count != nil {
+                diagnostics.append(.init(severity: .error, location: "\(location).count", message: "A themeColor control cannot be a multi control; remove count."))
+            }
+            if property.control.customColor != nil, property.control.allowsCustom != true {
+                diagnostics.append(.init(severity: .error, location: "\(location).customColor", message: "customColor requires allowsCustom to be true."))
             }
             return
         } else if property.control.themeValueDefault != nil {
@@ -771,7 +811,7 @@ nonisolated enum ComponentPackageValidator {
             }
         case .toggle, .details, .button:
             if case .boolean = defaultValue {} else {
-                diagnostics.append(.init(severity: .error, location: location, message: "A toggle control requires a Boolean default value."))
+                diagnostics.append(.init(severity: .error, location: location, message: "A \(property.control.type.rawValue) control requires a Boolean default value."))
             }
         case .select:
             guard case .string(let value) = defaultValue else {
@@ -802,9 +842,26 @@ nonisolated enum ComponentPackageValidator {
                 diagnostics.append(.init(severity: .error, location: location, message: "A color control requires a string default value."))
                 return
             }
-            let isLiteralColor = allowsLiteralColor && value.matches(#"^#[0-9A-Fa-f]{6}([0-9A-Fa-f]{2})?$"#)
-            if !isLiteralColor && value != "custom" {
-                diagnostics.append(.init(severity: .error, location: location, message: "A color default must be custom."))
+            let pattern = property.control.opacity == true
+                ? #"^#[0-9A-Fa-f]{6}([0-9A-Fa-f]{2})?$"#
+                : #"^#[0-9A-Fa-f]{6}$"#
+            if !value.matches(pattern) {
+                diagnostics.append(.init(severity: .error, location: location, message: property.control.opacity == true
+                    ? "A color default must be a six- or eight-digit hexadecimal colour."
+                    : "A color default must be a six-digit hexadecimal colour; enable opacity to use alpha."))
+            }
+        case .themeColor:
+            guard case .string(let value) = defaultValue else {
+                diagnostics.append(.init(severity: .error, location: location, message: "A themeColor control requires a string default value."))
+                return
+            }
+            let isThemeRole = ThemeColorRole(rawValue: value) != nil
+            let isCustom = value == ComponentThemeValueSelection.manifestCustom && property.control.allowsCustom.orFalse
+            if !isThemeRole && !isCustom {
+                diagnostics.append(.init(severity: .error, location: location, message: "A themeColor default must be background, surface, text, accent, links, or custom when allowsCustom is true."))
+            }
+            if value == ComponentThemeValueSelection.manifestCustom && property.control.customColor == nil {
+                diagnostics.append(.init(severity: .error, location: location, message: "customColor is required when a themeColor default is custom."))
             }
             if let customColor = property.control.customColor,
                !customColor.matches(#"^#[0-9A-Fa-f]{6}$"#) {
@@ -840,6 +897,21 @@ nonisolated enum ComponentPackageValidator {
                 diagnostics.append(.init(severity: .error, location: location, message: "This control requires a string default value."))
             }
         }
+    }
+
+    private static func validateButtonMapping(
+        _ value: ComponentPackageValue?,
+        key: String,
+        count: Int,
+        location: String,
+        into diagnostics: inout [ComponentPackageDiagnostic]
+    ) {
+        guard case .array(let values) = value, values.count != count else { return }
+        diagnostics.append(.init(
+            severity: .error,
+            location: "\(location).\(key)",
+            message: "A button control array requires exactly \(count) \(key) values."
+        ))
     }
 
     private static func validateUnique(_ values: [String], kind: String, into diagnostics: inout [ComponentPackageDiagnostic]) {

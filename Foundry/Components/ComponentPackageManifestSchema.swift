@@ -48,10 +48,10 @@ nonisolated enum ComponentPackageManifestSchema {
     private static let updateKeys: Set<String> = ["appcastURL", "publicKey"]
     private static let slotKeys: Set<String> = ["id", "title", "accepts", "minimum", "maximum"]
     private static let propertyKeys: Set<String> = [
-        "id", "label", "group", "default", "responsive", "subtitle", "units", "toolTip",
+        "id", "label", "group", "default", "responsive", "subtitle", "buttonText", "units", "toolTip",
         "type", "minimum", "maximum", "step", "options", "themeValues", "allowsCustom", "colorMath", "opacity",
         "customColor", "count", "ticks", "showsValueField", "trueValue", "falseValue",
-        "systemImage", "fontSize", "argument1", "argument2", "operation", "round", "absoluteURL", "enable", "alt", "focalPoint", "renditions"
+        "buttonIcon", "activeButtonText", "activeButtonIcon", "selectionMode", "fontSize", "argument1", "argument2", "operation", "round", "absoluteURL", "enable", "alt", "focalPoint", "renditions"
     ]
     private static let enableKeys: Set<String> = ["id", "operation", "value"]
     private static let optionKeys: Set<String> = ["value", "title"]
@@ -144,13 +144,12 @@ nonisolated enum ComponentPackageManifestSchema {
                     message: "A select control using themeValues cannot be a multi control; remove count."
                 ))
             }
-            if property["type"] as? String == ComponentPackageControl.Kind.color.rawValue,
-               property["themeValues"] is String,
+            if property["type"] as? String == ComponentPackageControl.Kind.themeColor.rawValue,
                property["count"] != nil {
                 diagnostics.append(.init(
                     severity: .error,
                     location: "\(location).count",
-                    message: "A color control using themeValues cannot be a multi control; remove count."
+                    message: "A themeColor control cannot be a multi control; remove count."
                 ))
             }
             if property["type"] as? String == ComponentPackageControl.Kind.shadow.rawValue,
@@ -387,23 +386,29 @@ nonisolated enum ComponentPackageManifestSchema {
             ))
         }
         if property["count"] != nil {
-            requireStringArray("label", in: property, location: location, into: &diagnostics)
             optionalStringArray("subtitle", in: property, location: location, into: &diagnostics)
+            optionalStringArray("buttonText", in: property, location: location, into: &diagnostics)
+            optionalStringArray("buttonIcon", in: property, location: location, into: &diagnostics)
+            optionalStringArray("activeButtonText", in: property, location: location, into: &diagnostics)
+            optionalStringArray("activeButtonIcon", in: property, location: location, into: &diagnostics)
             optionalStringArray("units", in: property, location: location, into: &diagnostics)
         } else {
-            optionalString("label", in: property, location: location, into: &diagnostics)
-            if property["subtitle"] != nil {
-                optionalStringArray("subtitle", in: property, location: location, into: &diagnostics)
-            }
+            optionalString("subtitle", in: property, location: location, into: &diagnostics)
+            optionalString("buttonText", in: property, location: location, into: &diagnostics)
+            optionalString("buttonIcon", in: property, location: location, into: &diagnostics)
+            optionalString("activeButtonText", in: property, location: location, into: &diagnostics)
+            optionalString("activeButtonIcon", in: property, location: location, into: &diagnostics)
             optionalString("units", in: property, location: location, into: &diagnostics)
         }
+        optionalString("label", in: property, location: location, into: &diagnostics)
 
         for key in ["minimum", "maximum", "step"] { optionalNumber(key, in: property, location: location, into: &diagnostics) }
         for key in ["allowsCustom", "colorMath", "opacity", "showsValueField", "round", "absoluteURL"] {
             optionalBoolean(key, in: property, location: location, into: &diagnostics)
         }
         for key in ["ticks"] { optionalInteger(key, in: property, location: location, into: &diagnostics) }
-        for key in ["customColor", "systemImage", "operation"] { optionalString(key, in: property, location: location, into: &diagnostics) }
+        for key in ["customColor", "operation"] { optionalString(key, in: property, location: location, into: &diagnostics) }
+        optionalEnumString("selectionMode", values: ["multiple", "single"], in: property, location: location, into: &diagnostics)
         for key in ["default", "trueValue", "falseValue", "argument1", "argument2"] {
             optionalComponentValue(key, in: property, location: location, into: &diagnostics)
         }
@@ -413,6 +418,40 @@ nonisolated enum ComponentPackageManifestSchema {
             appendMissing("default", expected: "value", location: location, into: &diagnostics)
         }
         optionalBoolean("responsive", in: property, location: location, into: &diagnostics)
+        if type != .button, property["buttonText"] != nil {
+            diagnostics.append(.init(
+                severity: .error,
+                location: "\(location):buttonText",
+                message: "buttonText is supported only by button controls."
+            ))
+        }
+        if type != .button, property["buttonIcon"] != nil {
+            diagnostics.append(.init(
+                severity: .error,
+                location: "\(location):buttonIcon",
+                message: "buttonIcon is supported only by button controls."
+            ))
+        }
+        for key in ["activeButtonText", "activeButtonIcon"] where type != .button && property[key] != nil {
+            diagnostics.append(.init(
+                severity: .error,
+                location: "\(location):\(key)",
+                message: "\(key) is supported only by button controls."
+            ))
+        }
+        if type != .button, property["selectionMode"] != nil {
+            diagnostics.append(.init(
+                severity: .error,
+                location: "\(location):selectionMode",
+                message: "selectionMode is supported only by button controls."
+            ))
+        } else if type == .button, property["selectionMode"] != nil, count == nil {
+            diagnostics.append(.init(
+                severity: .error,
+                location: "\(location):selectionMode",
+                message: "selectionMode requires count."
+            ))
+        }
         if type == .image, let value = property["default"], !(value is String) {
             appendTypeError(key: "default", expected: "an asset path string", location: location, into: &diagnostics)
         }
