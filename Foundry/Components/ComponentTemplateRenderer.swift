@@ -122,6 +122,8 @@ nonisolated enum ComponentTemplateRenderer {
     private static let textExpression = try! NSRegularExpression(pattern: #"\{\{\s*text(?:\s*=\s*"([^"]*)")?\s*\}\}"#)
     private static let htmlExpression = try! NSRegularExpression(pattern: #"\{\{\s*html(?:\s*=\s*"([^"]*)")?\s*\}\}"#)
     private static let colorFilterExpression = try! NSRegularExpression(pattern: #"^(lighten|darken)\(\s*([0-9]+(?:\.[0-9]+)?)\s*\)$"#)
+    private static let alphaFilterExpression = try! NSRegularExpression(pattern: #"^withAlpha\(\s*([0-9]+(?:\.[0-9]+)?)\s*\)$"#)
+    private static let mixFilterExpression = try! NSRegularExpression(pattern: #"^mix\(\s*[\"'](#[0-9A-Fa-f]{6}(?:[0-9A-Fa-f]{2})?)[\"']\s*,\s*([0-9]+(?:\.[0-9]+)?)\s*\)$"#)
     private static let conditionBlockExpression = try! NSRegularExpression(pattern: #"\{\{\s*if\s+([^{}]+?)\s*\}\}([\s\S]*?)\{\{\s*endif\s*\}\}"#)
     private static let conditionBranchExpression = try! NSRegularExpression(pattern: #"\{\{\s*(elseif\s+([^{}]+?)|else)\s*\}\}"#)
     private static let slotExpression = try! NSRegularExpression(pattern: #"\{\{\s*slot\s+id\s*=\s*[\"']([A-Za-z][A-Za-z0-9_.-]*)[\"'](?:\s+[^}]*?)?\s*\}\}"#)
@@ -494,6 +496,11 @@ nonisolated enum ComponentTemplateRenderer {
     private static func value(forExpression expression: String, context: ComponentTemplateContext) -> String {
         let parts = ComponentTemplateExpression.templateParts(expression)
         guard let key = parts.first else { return "" }
+        let filters = Array(parts.dropFirst())
+        if !filters.isEmpty,
+           let filteredColor = filteredColor(for: key, filters: filters, context: context) {
+            return escape(filteredColor)
+        }
             let simpleValue = #"^(?:id|instance\.(?:id|uuid)|package\.id|site\.baseURL|page\.url|path\.(?:siteRoot|siteAssets)|component\.(?:class|attributes)|asset\.[^\s]+|control\.[A-Za-z][A-Za-z0-9_.-]*(?:\[[0-9]+\])?)$"#
         var result: String
         if key.range(of: simpleValue, options: .regularExpression) != nil {
@@ -508,7 +515,7 @@ nonisolated enum ComponentTemplateRenderer {
         } else {
             result = ""
         }
-        for filter in parts.dropFirst() {
+        for filter in filters {
             result = apply(filter: filter, to: result)
         }
         return result
@@ -591,6 +598,51 @@ nonisolated enum ComponentTemplateRenderer {
         case "darken": return transformColor(value, target: 0, amount: argument / 100)
         default: return value
         }
+    }
+
+    private static func filteredColor(
+        for key: String,
+        filters: [String],
+        context: ComponentTemplateContext
+    ) -> String? {
+        guard key.hasPrefix("control.") else { return nil }
+        let reference = String(key.dropFirst("control.".count))
+        guard case .string(let source)? = context.properties["\(reference).__colorSource"],
+              case .string(let formatName)? = context.properties["\(reference).__colorFormat"],
+              let format = ComponentPackageControl.ColorOutputFormat(rawValue: formatName),
+              var color = ComponentColorComponents(hex: source) else { return nil }
+        let declaredOpacity = context.properties["\(reference).__colorOpacity"] == .boolean(true)
+        var includesOpacity = declaredOpacity
+
+        for filter in filters {
+            if let match = colorFilterExpression.firstMatch(in: filter, range: NSRange(filter.startIndex..., in: filter)),
+               let nameRange = Range(match.range(at: 1), in: filter),
+               let amountRange = Range(match.range(at: 2), in: filter),
+               let amount = Double(filter[amountRange]) {
+                let target = String(filter[nameRange]) == "lighten"
+                    ? ComponentColorComponents(red: 255, green: 255, blue: 255, alpha: color.alpha)
+                    : ComponentColorComponents(red: 0, green: 0, blue: 0, alpha: color.alpha)
+                color = color.mixed(with: target, amount: amount / 100)
+                continue
+            }
+            if let match = alphaFilterExpression.firstMatch(in: filter, range: NSRange(filter.startIndex..., in: filter)),
+               let alphaRange = Range(match.range(at: 1), in: filter),
+               let alpha = Double(filter[alphaRange]) {
+                color = color.withAlpha(alpha)
+                includesOpacity = true
+                continue
+            }
+            if let match = mixFilterExpression.firstMatch(in: filter, range: NSRange(filter.startIndex..., in: filter)),
+               let colorRange = Range(match.range(at: 1), in: filter),
+               let amountRange = Range(match.range(at: 2), in: filter),
+               let target = ComponentColorComponents(hex: String(filter[colorRange])),
+               let amount = Double(filter[amountRange]) {
+                color = color.mixed(with: target, amount: amount / 100)
+                continue
+            }
+            return nil
+        }
+        return color.formatted(as: format, includesOpacity: includesOpacity)
     }
 
     static func transformColor(_ value: String, target: Double, amount: Double) -> String {

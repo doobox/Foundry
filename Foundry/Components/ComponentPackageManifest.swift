@@ -340,6 +340,19 @@ nonisolated struct ComponentPackageControl: Codable, Equatable, Sendable {
         case single
     }
 
+    enum ColorOutputFormat: String, Codable, CaseIterable, Sendable {
+        case hex
+        case hexValue
+        case rgb
+        case rgba
+        case rgbValues
+        case rgbaValues
+        case hsl
+        case hsla
+        case hslValues
+        case hslaValues
+    }
+
     enum Kind: String, Codable, Sendable {
         case text
         case textArea
@@ -371,6 +384,7 @@ nonisolated struct ComponentPackageControl: Codable, Equatable, Sendable {
     let allowsCustom: Bool?
     let colorMath: Bool?
     let opacity: Bool?
+    let outputFormat: ColorOutputFormat?
     let customColor: String?
     let count: Int?
     let ticks: Int?

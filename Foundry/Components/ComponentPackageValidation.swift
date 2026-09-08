@@ -271,7 +271,7 @@ nonisolated enum ComponentPackageValidator {
             ))
         }
 
-        let supportedFilters: Set<String> = ["lighten", "darken"]
+        let supportedFilters: Set<String> = ["lighten", "darken", "withAlpha", "mix"]
         for reference in template.references(matching: #"\|\s*([A-Za-z][A-Za-z0-9_-]*)\s*\("#)
             where !supportedFilters.contains(reference.value) {
             diagnostics.append(templateDiagnostic(
@@ -281,13 +281,14 @@ nonisolated enum ComponentPackageValidator {
                 message: "Unknown template filter '\(reference.value)'."
             ))
         }
-        for property in manifest.properties where property.control.colorMath != true {
+        for property in manifest.properties
+            where property.control.type != .color && property.control.colorMath != true {
             let escapedID = NSRegularExpression.escapedPattern(for: property.id)
-            if template.matches(#"\{\{\s*control\."# + escapedID + #"\s*\|\s*(?:lighten|darken)\s*\("#) {
+            if template.matches(#"\{\{\s*control\."# + escapedID + #"\s*\|\s*(?:lighten|darken|withAlpha|mix)\s*\("#) {
                 diagnostics.append(.init(
                     severity: .error,
                     location: templateLocation,
-                    message: "Enable colorMath on '\(property.id)' before using lighten or darken filters."
+                    message: "Colour filters are not available for '\(property.id)'."
                 ))
             }
         }
@@ -661,6 +662,13 @@ nonisolated enum ComponentPackageValidator {
                 severity: .error,
                 location: "\(location).allowsCustom",
                 message: "A fontFamilies theme select does not support allowsCustom; add fonts in the Theme Editor."
+            ))
+        }
+        if property.control.outputFormat != nil, property.control.type != .color {
+            diagnostics.append(.init(
+                severity: .error,
+                location: "\(location).outputFormat",
+                message: "outputFormat is supported only by color controls."
             ))
         }
         if property.control.type == .color {

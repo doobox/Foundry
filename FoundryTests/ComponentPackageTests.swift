@@ -623,6 +623,92 @@ struct ComponentPackageTests {
     }
 
     @Test
+    func colorOutputFormatsRespectOpacityAndArrays() throws {
+        let formats = [
+            "hex", "hexValue", "rgb", "rgba", "rgbValues", "rgbaValues",
+            "hsl", "hsla", "hslValues", "hslaValues"
+        ]
+        let declarations = formats.map { format in
+            """
+            <dict><key>id</key><string>\(format)</string><key>type</key><string>color</string><key>opacity</key><true/><key>outputFormat</key><string>\(format)</string><key>default</key><string>#FF336680</string></dict>
+            """
+        }.joined()
+        let plist = """
+        <?xml version="1.0" encoding="UTF-8"?>
+        <plist version="1.0"><dict>
+        <key>minimumAPIVersion</key><integer>1</integer>
+        <key>id</key><string>com.example.color-formats</string>
+        <key>title</key><string>Colour formats</string><key>description</key><string>Colour output contract</string>
+        <key>version</key><string>1.0.0</string>
+        <key>group</key><string>Other</string><key>assets</key><array/><key>slots</key><array/>
+        <key>customItems</key><array>
+        \(declarations)
+        <dict><key>id</key><string>defaultHex</string><key>type</key><string>color</string><key>default</key><string>#FF3366</string></dict>
+        <dict><key>id</key><string>opaqueRGBA</string><key>type</key><string>color</string><key>outputFormat</key><string>rgba</string><key>default</key><string>#FF3366</string></dict>
+        <dict><key>id</key><string>array</string><key>type</key><string>color</string><key>count</key><integer>2</integer><key>outputFormat</key><string>rgbValues</string><key>default</key><array><string>#FF3366</string><string>#3366CC</string></array></dict>
+        </array><key>templates</key><dict><key>html</key><string>component.html</string></dict>
+        </dict></plist>
+        """
+        let data = Data(plist.utf8)
+        #expect(try ComponentPackageManifestSchema.diagnostics(for: data).isEmpty)
+
+        let manifest = try PropertyListDecoder().decode(ComponentPackageManifest.self, from: data)
+        let values = Dictionary(uniqueKeysWithValues: manifest.properties.map {
+            ($0.id, $0.defaultValue)
+        })
+        let resolved = ComponentPackageDerivedValueResolver.resolve(values, properties: manifest.properties)
+
+        #expect(resolved["hex"] == .string("#FF336680"))
+        #expect(resolved["hexValue"] == .string("FF336680"))
+        #expect(resolved["rgb"] == .string("rgb(255 51 102 / 0.502)"))
+        #expect(resolved["rgba"] == .string("rgba(255, 51, 102, 0.502)"))
+        #expect(resolved["rgbValues"] == .string("255, 51, 102"))
+        #expect(resolved["rgbaValues"] == .string("255, 51, 102, 0.502"))
+        #expect(resolved["hsl"] == .string("hsl(345 100% 60% / 0.502)"))
+        #expect(resolved["hsla"] == .string("hsla(345, 100%, 60%, 0.502)"))
+        #expect(resolved["hslValues"] == .string("345, 100%, 60%"))
+        #expect(resolved["hslaValues"] == .string("345, 100%, 60%, 0.502"))
+        #expect(resolved["defaultHex"] == .string("#FF3366"))
+        #expect(resolved["opaqueRGBA"] == .string("rgba(255, 51, 102, 1)"))
+        #expect(resolved["array"] == .array([
+            .string("255, 51, 102"),
+            .string("51, 102, 204")
+        ]))
+        #expect(resolved["hex.red"] == .number(255))
+        #expect(resolved["hex.green"] == .number(51))
+        #expect(resolved["hex.blue"] == .number(102))
+        #expect(resolved["hex.alpha"] == .number(128.0 / 255.0))
+        #expect(resolved["hex.hue"] == .number(345))
+        #expect(resolved["hex.saturation"] == .number(100))
+        #expect(resolved["hex.lightness"] == .number(60))
+        #expect(resolved["hex.contrastColor"] == .string("#000000"))
+        #expect(resolved["hex.relativeLuminance"] == .number(0.24586962186768263))
+        #expect(resolved["hex.contrastRatioWithBlack"] == .number(5.917392437353652))
+        #expect(resolved["hex.contrastRatioWithWhite"] == .number(3.5488604520188827))
+        #expect(resolved["array[1].red"] == .number(51))
+        #expect(resolved["array[1].blue"] == .number(204))
+
+        let channelExpression = try ComponentTemplateExpression.parse("control.array[1].blue")
+        #expect(try ComponentTemplateExpression.evaluate(
+            channelExpression,
+            properties: resolved,
+            environment: .published
+        ) == .number(204))
+
+        let context = ComponentTemplateContext(
+            instanceID: UUID(),
+            packageIdentifier: manifest.identifier,
+            properties: resolved,
+            slots: [:]
+        )
+        #expect(ComponentTemplateRenderer.render("{{ control.defaultHex | lighten(50) }}", context: context) == "#FF99B3")
+        #expect(ComponentTemplateRenderer.render("{{ control.defaultHex | darken(50) }}", context: context) == "#801A33")
+        #expect(ComponentTemplateRenderer.render("{{ control.defaultHex | withAlpha(0.5) }}", context: context) == "#FF336680")
+        #expect(ComponentTemplateRenderer.render("{{ control.defaultHex | mix('#3366CC', 25) }}", context: context) == "#CC4080")
+        #expect(ComponentTemplateRenderer.render("{{ control.rgba | darken(25) }}", context: context) == "rgba(191, 38, 77, 0.502)")
+    }
+
+    @Test
     func phpCapabilityForcesPageExtensionWithoutAnInlinePHPTemplate() throws {
         let defaultManifest = try PropertyListDecoder().decode(
             ComponentPackageManifest.self,

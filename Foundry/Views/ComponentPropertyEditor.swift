@@ -347,7 +347,7 @@ struct ComponentPropertyEditor: View {
             set: {
                 setProperty(.color(
                     definition.control.allowsLiteralColorOpacity
-                        ? ($0.cssStringWithAlpha ?? "rgb(255 255 255 / 1)")
+                        ? ($0.hexStringWithAlpha ?? "#FFFFFFFF")
                         : ($0.hexString ?? "#FFFFFF")
                 ))
             }
@@ -1007,7 +1007,7 @@ private struct InspectorControlArrayItem: View {
             set: {
                 value = .color(
                     element.allowsLiteralColorOpacity
-                        ? ($0.cssStringWithAlpha ?? "rgb(0 0 0 / 1)")
+                        ? ($0.hexStringWithAlpha ?? "#000000FF")
                         : ($0.hexString ?? "#000000")
                 )
             }

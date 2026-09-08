@@ -49,7 +49,7 @@ nonisolated enum ComponentPackageManifestSchema {
     private static let slotKeys: Set<String> = ["id", "title", "accepts", "minimum", "maximum"]
     private static let propertyKeys: Set<String> = [
         "id", "label", "group", "default", "responsive", "subtitle", "buttonText", "units", "toolTip",
-        "type", "minimum", "maximum", "step", "options", "themeValues", "allowsCustom", "colorMath", "opacity",
+        "type", "minimum", "maximum", "step", "options", "themeValues", "allowsCustom", "colorMath", "opacity", "outputFormat",
         "customColor", "count", "ticks", "showsValueField", "trueValue", "falseValue",
         "buttonIcon", "activeButtonText", "activeButtonIcon", "selectionMode", "fontSize", "argument1", "argument2", "operation", "round", "absoluteURL", "enable", "alt", "focalPoint", "renditions"
     ]
@@ -409,6 +409,13 @@ nonisolated enum ComponentPackageManifestSchema {
         for key in ["ticks"] { optionalInteger(key, in: property, location: location, into: &diagnostics) }
         for key in ["customColor", "operation"] { optionalString(key, in: property, location: location, into: &diagnostics) }
         optionalEnumString("selectionMode", values: ["multiple", "single"], in: property, location: location, into: &diagnostics)
+        optionalEnumString(
+            "outputFormat",
+            values: Set(ComponentPackageControl.ColorOutputFormat.allCases.map(\.rawValue)),
+            in: property,
+            location: location,
+            into: &diagnostics
+        )
         for key in ["default", "trueValue", "falseValue", "argument1", "argument2"] {
             optionalComponentValue(key, in: property, location: location, into: &diagnostics)
         }

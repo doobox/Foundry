@@ -45,6 +45,17 @@ extension Color {
         )
     }
 
+    var hexStringWithAlpha: String? {
+        guard let color = NSColor(self).usingColorSpace(.sRGB) else { return nil }
+        return String(
+            format: "#%02X%02X%02X%02X",
+            Int((color.redComponent * 255).rounded()),
+            Int((color.greenComponent * 255).rounded()),
+            Int((color.blueComponent * 255).rounded()),
+            Int((color.alphaComponent * 255).rounded())
+        )
+    }
+
     var cssStringWithAlpha: String? {
         guard let color = NSColor(self).usingColorSpace(.sRGB) else { return nil }
         let alpha = Double(color.alphaComponent).formatted(
