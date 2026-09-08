@@ -16,7 +16,7 @@ nonisolated struct FoundryWebIcon: Identifiable, Hashable, Sendable {
 }
 
 nonisolated enum FoundryWebLibraryRegistry {
-    static let iconsIdentifier = "com.foundry.icons"
+    static let iconsIdentifier = "bootstrapIcons"
     static let iconsMajorVersion = 1
     static let nativeIconFontName = "bootstrap-icons"
 
@@ -70,7 +70,14 @@ nonisolated enum FoundryWebLibraryRegistry {
         in packages: [LoadedComponentPackage]
     ) -> [ComponentPackageLibraryRequirement] {
         var seen = Set<ComponentPackageLibraryRequirement>()
-        return packages.flatMap(\.manifest.libraries).filter { seen.insert($0).inserted }
+        return packages.flatMap { package in
+            var requirements = package.manifest.libraries
+            if package.manifest.properties.contains(where: { $0.control.type == .icon }) {
+                requirements.append(iconRequirement)
+            }
+            return requirements
+        }
+        .filter { seen.insert($0).inserted }
     }
 
     static func canvasCSS(for packages: [LoadedComponentPackage]) -> String {
@@ -86,7 +93,7 @@ nonisolated enum FoundryWebLibraryRegistry {
               let css = resourceString(at: "bootstrap-icons.css") else { return "" }
         return rewrittenIconCSS(
             css,
-            fontURL: #"./libraries/com.foundry.icons/bootstrap-icons.woff2"#
+            fontURL: #"./libraries/bootstrapIcons/bootstrap-icons.woff2"#
         )
     }
 
@@ -94,7 +101,7 @@ nonisolated enum FoundryWebLibraryRegistry {
         guard uniqueRequirements(in: packages).contains(iconRequirement),
               let font = resourceData(at: "bootstrap-icons.woff2") else { return [] }
         return [SiteExportFile(
-            path: "files/libraries/com.foundry.icons/bootstrap-icons.woff2",
+            path: "files/libraries/bootstrapIcons/bootstrap-icons.woff2",
             data: font
         )]
     }

@@ -2154,6 +2154,27 @@ struct ComponentPackageTests {
             rootURL: invalidPackageURL.appending(path: "Contents/Resources", directoryHint: .isDirectory)
         )
         #expect(diagnostics.contains { $0.message.contains("Unknown property 'contentDivider'") })
+
+        let unsupportedKeys = ["label", "subtitle", "toolTip", "default", "responsive", "count"]
+        for key in unsupportedKeys {
+            let value: String
+            switch key {
+            case "responsive": value = "<true/>"
+            case "count": value = "<integer>2</integer>"
+            default: value = "<string>Unsupported</string>"
+            }
+            let invalidItem = """
+            <dict>
+                <key>id</key><string>divider</string>
+                <key>type</key><string>divider</string>
+                <key>\(key)</key>\(value)
+            </dict>
+            """
+            let schemaDiagnostics = try ComponentPackageManifestSchema.diagnostics(
+                for: Data(manifest(withCustomItems: invalidItem).utf8)
+            )
+            #expect(schemaDiagnostics.contains { $0.message == "A divider control does not support \(key)." })
+        }
     }
 
     @Test
@@ -2741,7 +2762,7 @@ struct ComponentPackageTests {
                 with: """
                 <key>libraries</key>
                 <array><dict>
-                    <key>id</key><string>com.foundry.icons</string>
+                    <key>id</key><string>bootstrapIcons</string>
                     <key>majorVersion</key><integer>1</integer>
                 </dict></array>
                 <key>templates</key>
@@ -2764,7 +2785,7 @@ struct ComponentPackageTests {
         let bundle = StaticSiteRenderer().render(site: site)
 
         #expect(bundle.file(at: "files/site.css")?.contents.contains("bootstrap-icons") == true)
-        #expect(bundle.file(at: "files/libraries/com.foundry.icons/bootstrap-icons.woff2") != nil)
+        #expect(bundle.file(at: "files/libraries/bootstrapIcons/bootstrap-icons.woff2") != nil)
     }
 
     @Test
@@ -2779,17 +2800,7 @@ struct ComponentPackageTests {
             <key>responsive</key><false/>
         </dict>
         """
-        let manifest = manifest(withCustomItems: item).replacingOccurrences(
-            of: "<key>templates</key>",
-            with: """
-            <key>libraries</key>
-            <array><dict>
-                <key>id</key><string>com.foundry.icons</string>
-                <key>majorVersion</key><integer>1</integer>
-            </dict></array>
-            <key>templates</key>
-            """
-        )
+        let manifest = manifest(withCustomItems: item)
         let packageURL = try makePackage(
             manifest: manifest,
             template: "<span {{ component.attributes }}><i class=\"bi bi-{{ control.symbol }}\"></i>{{ slot id=\"content\" }}</span>"
@@ -2808,10 +2819,13 @@ struct ComponentPackageTests {
         #expect(FoundryWebLibraryRegistry.icons.count > 2_000)
         #expect(FoundryWebLibraryRegistry.icon(named: "stars")?.cssClass == "bi-stars")
         #expect(FoundryWebLibraryRegistry.icon(named: "bi-stars")?.name == "stars")
+        #expect(FoundryWebLibraryRegistry.uniqueRequirements(in: [package, package]) == [
+            FoundryWebLibraryRegistry.iconRequirement
+        ])
     }
 
     @Test
-    func iconControlRequiresItsLibraryAndAValidDefault() throws {
+    func iconControlAutomaticallyIncludesItsLibraryAndRequiresAValidDefault() throws {
         let item = """
         <dict>
             <key>id</key><string>symbol</string>
@@ -2832,10 +2846,39 @@ struct ComponentPackageTests {
         )
 
         #expect(diagnostics.contains {
-            $0.message == "An icon control requires com.foundry.icons major version 1 in libraries."
-        })
-        #expect(diagnostics.contains {
             $0.message == "An icon default must be a valid Foundry icon name, for example stars."
+        })
+    }
+
+    @Test
+    func iconControlValidatesEveryMultiControlDefault() throws {
+        let item = """
+        <dict>
+            <key>type</key><string>icon</string>
+            <key>id</key><string>icons</string>
+            <key>label</key><string>Icons</string>
+            <key>count</key><integer>2</integer>
+            <key>subtitle</key>
+            <array><string>Previous</string><string>Next</string></array>
+            <key>default</key>
+            <array><string>arrow-left</string><string>not-a-real-foundry-icon</string></array>
+        </dict>
+        """
+        let manifestText = manifest(withCustomItems: item)
+        let manifest = try PropertyListDecoder().decode(
+            ComponentPackageManifest.self,
+            from: Data(manifestText.utf8)
+        )
+        let property = try #require(manifest.properties.first)
+        #expect(property.defaultValue == .array([.string("arrow-left"), .string("not-a-real-foundry-icon")]))
+
+        let diagnostics = ComponentPackageValidator.validate(
+            manifest,
+            rootURL: FileManager.default.temporaryDirectory
+        )
+        #expect(diagnostics.contains {
+            $0.location.hasSuffix("icons.default[1]")
+                && $0.message == "An icon default must be a valid Foundry icon name, for example stars."
         })
     }
 

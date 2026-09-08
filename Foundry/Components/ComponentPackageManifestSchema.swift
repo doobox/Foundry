@@ -345,6 +345,16 @@ nonisolated enum ComponentPackageManifestSchema {
             diagnostics.append(.init(severity: .error, location: "\(location):type", message: "Unknown control type '\(typeName)'."))
             return
         }
+        if type == .divider {
+            let supportedKeys: Set<String> = ["type", "id", "group", "enable"]
+            for key in property.keys where !supportedKeys.contains(key) {
+                diagnostics.append(.init(
+                    severity: .error,
+                    location: "\(location):\(key)",
+                    message: "A divider control does not support \(key)."
+                ))
+            }
+        }
         if type != .image, property["alt"] != nil {
             diagnostics.append(.init(
                 severity: .error,

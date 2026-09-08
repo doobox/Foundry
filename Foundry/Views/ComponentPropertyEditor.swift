@@ -818,6 +818,19 @@ private struct InspectorControlArray: View {
             VStack(spacing: 8) {
                 arrayItems
             }
+        } else if case .icon = element, count > 2 {
+            Grid(horizontalSpacing: 8, verticalSpacing: 8) {
+                ForEach(0..<2, id: \.self) { row in
+                    GridRow {
+                        arrayItem(at: row * 2)
+                        if row * 2 + 1 < count {
+                            arrayItem(at: row * 2 + 1)
+                        } else {
+                            Color.clear
+                        }
+                    }
+                }
+            }
         } else {
             HStack(alignment: .top, spacing: 8) {
                 arrayItems

@@ -86,15 +86,6 @@ nonisolated enum ComponentPackageValidator {
             }
         }
 
-        if manifest.properties.contains(where: { $0.control.type == .icon }),
-           !manifest.libraries.contains(FoundryWebLibraryRegistry.iconRequirement) {
-            diagnostics.append(.init(
-                severity: .error,
-                location: "Info.plist:libraries",
-                message: "An icon control requires com.foundry.icons major version 1 in libraries."
-            ))
-        }
-
         validateUnique(manifest.properties.map(\.id), kind: "property", into: &diagnostics)
         validateUnique(manifest.slots.map(\.id), kind: "slot", into: &diagnostics)
         for property in manifest.properties {
