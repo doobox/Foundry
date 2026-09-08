@@ -125,7 +125,10 @@ nonisolated enum ComponentPackageAdapter {
                 isResponsive: property.responsive,
                 enable: property.enable,
                 themeValueSource: property.control.themeValueSource,
-                allowsCustomThemeValue: property.control.allowsCustom == true
+                allowsCustomThemeValue: property.control.allowsCustom == true,
+                dateMinimum: property.control.minimumDate.flatMap(ComponentDateValue.init).map(\.date),
+                dateMaximum: property.control.maximumDate.flatMap(ComponentDateValue.init)
+                    .map(\.date)
             )]
         }
         if property.control.type == .themeColor { return themeColorProperties(for: property) }
@@ -157,7 +160,9 @@ nonisolated enum ComponentPackageAdapter {
             enable: property.enable,
             themeValueSource: property.control.themeValueSource,
             allowsCustomThemeValue: property.control.allowsCustom == true
-                && property.control.themeValueSource != .fontFamilies
+                && property.control.themeValueSource != .fontFamilies,
+            dateMinimum: property.control.minimumDate.flatMap(ComponentDateValue.init).map(\.date),
+            dateMaximum: property.control.maximumDate.flatMap(ComponentDateValue.init).map(\.date)
         )]
     }
 

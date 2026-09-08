@@ -402,7 +402,13 @@ nonisolated enum ComponentPackageManifestSchema {
         }
         optionalString("label", in: property, location: location, into: &diagnostics)
 
-        for key in ["minimum", "maximum", "step"] { optionalNumber(key, in: property, location: location, into: &diagnostics) }
+        if type == .date {
+            optionalString("minimum", in: property, location: location, into: &diagnostics)
+            optionalString("maximum", in: property, location: location, into: &diagnostics)
+        } else {
+            for key in ["minimum", "maximum"] { optionalNumber(key, in: property, location: location, into: &diagnostics) }
+        }
+        optionalNumber("step", in: property, location: location, into: &diagnostics)
         for key in ["allowsCustom", "colorMath", "opacity", "showsValueField", "round", "absoluteURL"] {
             optionalBoolean(key, in: property, location: location, into: &diagnostics)
         }

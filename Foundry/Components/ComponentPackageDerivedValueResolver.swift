@@ -18,6 +18,11 @@ nonisolated enum ComponentPackageDerivedValueResolver {
             result[property.id] = colorValue(stored, control: property.control)
         }
 
+        for property in properties where property.control.type == .date {
+            guard let stored = result[property.id] else { continue }
+            addDateValues(for: property.id, stored: stored, to: &result)
+        }
+
         for _ in 0..<properties.count {
             var changed = false
             for property in properties where property.control.type == .math {
@@ -115,6 +120,37 @@ nonisolated enum ComponentPackageDerivedValueResolver {
         values["\(reference).__colorOpacity"] = .boolean(control.opacity == true)
     }
 
+    private static func addDateValues(
+        for propertyID: String,
+        stored: ComponentPackageValue,
+        to values: inout [String: ComponentPackageValue]
+    ) {
+        switch stored {
+        case .string(let value):
+            guard let date = ComponentDateValue(value) else { return }
+            addDateValues(date, reference: propertyID, to: &values)
+        case .array(let dates):
+            for (index, value) in dates.enumerated() {
+                guard case .string(let string) = value,
+                      let date = ComponentDateValue(string) else { continue }
+                addDateValues(date, reference: "\(propertyID)[\(index)]", to: &values)
+            }
+        default:
+            return
+        }
+    }
+
+    private static func addDateValues(
+        _ date: ComponentDateValue,
+        reference: String,
+        to values: inout [String: ComponentPackageValue]
+    ) {
+        for (name, value) in date.derivedValues {
+            values["\(reference).\(name)"] = value
+        }
+        values["\(reference).__dateSource"] = .string(date.isoDate)
+    }
+
     private static func mathValue(
         control: ComponentPackageControl,
         values: [String: ComponentPackageValue]
@@ -153,6 +189,69 @@ nonisolated enum ComponentPackageDerivedValueResolver {
         }
     }
 
+}
+
+nonisolated struct ComponentDateValue {
+    let isoDate: String
+    let date: Date
+    let components: DateComponents
+
+    init?(_ value: String) {
+        guard value.range(of: #"^\d{4}-\d{2}-\d{2}$"#, options: .regularExpression) != nil,
+              let date = Self.formatter.date(from: value),
+              Self.formatter.string(from: date) == value else { return nil }
+        self.isoDate = value
+        self.date = date
+        self.components = Self.calendar.dateComponents(
+            [.year, .month, .day, .weekday],
+            from: date
+        )
+    }
+
+    var derivedValues: [String: ComponentPackageValue] {
+        [
+            "year": .number(Double(components.year ?? 0)),
+            "month": .number(Double(components.month ?? 0)),
+            "day": .number(Double(components.day ?? 0)),
+            "monthName": .string(formatted("MMMM")),
+            "weekday": .string(formatted("EEEE"))
+        ]
+    }
+
+    func formatted(_ pattern: String) -> String {
+        let formatter = DateFormatter()
+        formatter.calendar = Self.calendar
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone(secondsFromGMT: 0)
+        formatter.dateFormat = pattern
+        return formatter.string(from: date)
+    }
+
+    func adding(_ component: Calendar.Component, value: Int) -> ComponentDateValue? {
+        guard let adjusted = Self.calendar.date(byAdding: component, value: value, to: date) else { return nil }
+        return ComponentDateValue(Self.string(from: adjusted))
+    }
+
+    static func string(from date: Date) -> String {
+        formatter.string(from: date)
+    }
+
+    private static var calendar: Calendar {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.locale = Locale(identifier: "en_US_POSIX")
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        return calendar
+    }
+
+    private static var formatter: DateFormatter {
+        let formatter = DateFormatter()
+        formatter.calendar = calendar
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone(secondsFromGMT: 0)
+        formatter.dateFormat = "yyyy-MM-dd"
+        formatter.isLenient = false
+        return formatter
+    }
 }
 
 nonisolated struct ComponentColorComponents {

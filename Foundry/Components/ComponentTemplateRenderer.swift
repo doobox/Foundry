@@ -124,6 +124,8 @@ nonisolated enum ComponentTemplateRenderer {
     private static let colorFilterExpression = try! NSRegularExpression(pattern: #"^(lighten|darken)\(\s*([0-9]+(?:\.[0-9]+)?)\s*\)$"#)
     private static let alphaFilterExpression = try! NSRegularExpression(pattern: #"^withAlpha\(\s*([0-9]+(?:\.[0-9]+)?)\s*\)$"#)
     private static let mixFilterExpression = try! NSRegularExpression(pattern: #"^mix\(\s*[\"'](#[0-9A-Fa-f]{6}(?:[0-9A-Fa-f]{2})?)[\"']\s*,\s*([0-9]+(?:\.[0-9]+)?)\s*\)$"#)
+    private static let dateFilterExpression = try! NSRegularExpression(pattern: #"^formatDate\(\s*([\"'])(.+)\1\s*\)$"#)
+    private static let dateArithmeticFilterExpression = try! NSRegularExpression(pattern: #"^(addDays|addMonths)\(\s*(-?[0-9]+)\s*\)$"#)
     private static let conditionBlockExpression = try! NSRegularExpression(pattern: #"\{\{\s*if\s+([^{}]+?)\s*\}\}([\s\S]*?)\{\{\s*endif\s*\}\}"#)
     private static let conditionBranchExpression = try! NSRegularExpression(pattern: #"\{\{\s*(elseif\s+([^{}]+?)|else)\s*\}\}"#)
     private static let slotExpression = try! NSRegularExpression(pattern: #"\{\{\s*slot\s+id\s*=\s*[\"']([A-Za-z][A-Za-z0-9_.-]*)[\"'](?:\s+[^}]*?)?\s*\}\}"#)
@@ -498,6 +500,10 @@ nonisolated enum ComponentTemplateRenderer {
         guard let key = parts.first else { return "" }
         let filters = Array(parts.dropFirst())
         if !filters.isEmpty,
+           let filteredDate = filteredDate(for: key, filters: filters, context: context) {
+            return escape(filteredDate)
+        }
+        if !filters.isEmpty,
            let filteredColor = filteredColor(for: key, filters: filters, context: context) {
             return escape(filteredColor)
         }
@@ -643,6 +649,41 @@ nonisolated enum ComponentTemplateRenderer {
             return nil
         }
         return color.formatted(as: format, includesOpacity: includesOpacity)
+    }
+
+    private static func filteredDate(
+        for key: String,
+        filters: [String],
+        context: ComponentTemplateContext
+    ) -> String? {
+        guard key.hasPrefix("control.") else { return nil }
+        let reference = String(key.dropFirst("control.".count))
+        guard case .string(let source)? = context.properties["\(reference).__dateSource"],
+              var date = ComponentDateValue(source) else { return nil }
+        for (index, filter) in filters.enumerated() {
+            if let match = dateArithmeticFilterExpression.firstMatch(
+                in: filter,
+                range: NSRange(filter.startIndex..., in: filter)
+            ), let operationRange = Range(match.range(at: 1), in: filter),
+               let amountRange = Range(match.range(at: 2), in: filter),
+               let amount = Int(filter[amountRange]),
+               let adjusted = date.adding(
+                String(filter[operationRange]) == "addDays" ? .day : .month,
+                value: amount
+               ) {
+                date = adjusted
+                continue
+            }
+            if index == filters.indices.last,
+               let match = dateFilterExpression.firstMatch(
+                in: filter,
+                range: NSRange(filter.startIndex..., in: filter)
+               ), let patternRange = Range(match.range(at: 2), in: filter) {
+                return date.formatted(String(filter[patternRange]))
+            }
+            return nil
+        }
+        return date.isoDate
     }
 
     static func transformColor(_ value: String, target: Double, amount: Double) -> String {

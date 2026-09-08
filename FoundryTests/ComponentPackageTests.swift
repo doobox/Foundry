@@ -709,6 +709,73 @@ struct ComponentPackageTests {
     }
 
     @Test
+    func dateControlsUseDateOnlyValuesPartsAndFormatting() throws {
+        let plist = """
+        <?xml version="1.0" encoding="UTF-8"?>
+        <plist version="1.0"><dict>
+        <key>minimumAPIVersion</key><integer>1</integer>
+        <key>id</key><string>com.example.dates</string>
+        <key>title</key><string>Dates</string><key>description</key><string>Date contract</string>
+        <key>version</key><string>1.0.0</string>
+        <key>group</key><string>Other</string><key>assets</key><array/><key>slots</key><array/>
+        <key>customItems</key><array>
+        <dict><key>id</key><string>published</string><key>type</key><string>date</string><key>minimum</key><string>2026-01-01</string><key>maximum</key><string>2026-12-31</string><key>default</key><string>2026-09-08</string></dict>
+        <dict><key>id</key><string>schedule</string><key>type</key><string>date</string><key>count</key><integer>2</integer><key>default</key><array><string>2026-10-01</string><string>2026-10-20</string></array></dict>
+        </array><key>templates</key><dict><key>html</key><string>component.html</string></dict>
+        </dict></plist>
+        """
+        let data = Data(plist.utf8)
+        #expect(try ComponentPackageManifestSchema.diagnostics(for: data).isEmpty)
+
+        let manifest = try PropertyListDecoder().decode(ComponentPackageManifest.self, from: data)
+        #expect(manifest.properties.first?.control.minimumDate == "2026-01-01")
+        #expect(manifest.properties.first?.control.maximumDate == "2026-12-31")
+        let values = Dictionary(uniqueKeysWithValues: manifest.properties.map { ($0.id, $0.defaultValue) })
+        let resolved = ComponentPackageDerivedValueResolver.resolve(values, properties: manifest.properties)
+
+        #expect(resolved["published"] == .string("2026-09-08"))
+        #expect(resolved["published.year"] == .number(2026))
+        #expect(resolved["published.month"] == .number(9))
+        #expect(resolved["published.day"] == .number(8))
+        #expect(resolved["published.monthName"] == .string("September"))
+        #expect(resolved["published.weekday"] == .string("Tuesday"))
+        #expect(resolved["schedule[1].day"] == .number(20))
+
+        let context = ComponentTemplateContext(
+            instanceID: UUID(),
+            packageIdentifier: manifest.identifier,
+            properties: resolved,
+            slots: [:]
+        )
+        #expect(ComponentTemplateRenderer.render(
+            "{{ control.published | formatDate(\"d MMMM yyyy\") }}",
+            context: context
+        ) == "8 September 2026")
+        #expect(ComponentTemplateRenderer.render(
+            "{{ control.schedule[1] | formatDate('EEE d MMM') }}",
+            context: context
+        ) == "Tue 20 Oct")
+        #expect(ComponentTemplateRenderer.render(
+            "{{ control.published | addDays(7) }}",
+            context: context
+        ) == "2026-09-15")
+        #expect(ComponentTemplateRenderer.render(
+            "{{ control.published | addMonths(1) | formatDate('d MMMM yyyy') }}",
+            context: context
+        ) == "8 October 2026")
+
+        let invalid = plist.replacingOccurrences(of: "2026-09-08", with: "2026-02-30")
+        let invalidManifest = try PropertyListDecoder().decode(ComponentPackageManifest.self, from: Data(invalid.utf8))
+        let diagnostics = ComponentPackageValidator.validate(invalidManifest, rootURL: FileManager.default.temporaryDirectory)
+        #expect(diagnostics.contains { $0.message == "A date control requires a real calendar date using YYYY-MM-DD." })
+
+        let outOfRange = plist.replacingOccurrences(of: "2026-09-08", with: "2027-01-01")
+        let outOfRangeManifest = try PropertyListDecoder().decode(ComponentPackageManifest.self, from: Data(outOfRange.utf8))
+        let rangeDiagnostics = ComponentPackageValidator.validate(outOfRangeManifest, rootURL: FileManager.default.temporaryDirectory)
+        #expect(rangeDiagnostics.contains { $0.message == "The default date is after maximum." })
+    }
+
+    @Test
     func phpCapabilityForcesPageExtensionWithoutAnInlinePHPTemplate() throws {
         let defaultManifest = try PropertyListDecoder().decode(
             ComponentPackageManifest.self,

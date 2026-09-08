@@ -271,7 +271,7 @@ nonisolated enum ComponentPackageValidator {
             ))
         }
 
-        let supportedFilters: Set<String> = ["lighten", "darken", "withAlpha", "mix"]
+        let supportedFilters: Set<String> = ["lighten", "darken", "withAlpha", "mix", "formatDate", "addDays", "addMonths"]
         for reference in template.references(matching: #"\|\s*([A-Za-z][A-Za-z0-9_-]*)\s*\("#)
             where !supportedFilters.contains(reference.value) {
             diagnostics.append(templateDiagnostic(
@@ -289,6 +289,16 @@ nonisolated enum ComponentPackageValidator {
                     severity: .error,
                     location: templateLocation,
                     message: "Colour filters are not available for '\(property.id)'."
+                ))
+            }
+        }
+        for property in manifest.properties where property.control.type != .date {
+            let escapedID = NSRegularExpression.escapedPattern(for: property.id)
+            if template.matches(#"\{\{\s*control\."# + escapedID + #"(?:\[[0-9]+\])?\s*\|\s*(?:formatDate|addDays|addMonths)\s*\("#) {
+                diagnostics.append(.init(
+                    severity: .error,
+                    location: templateLocation,
+                    message: "Date filters are available only for date controls; '\(property.id)' is \(property.control.type.rawValue)."
                 ))
             }
         }
@@ -579,6 +589,7 @@ nonisolated enum ComponentPackageValidator {
     private static func validate(_ property: ComponentPackageProperty, into diagnostics: inout [ComponentPackageDiagnostic]) {
         let location = "Info.plist:customItems.\(property.id)"
         validateThemeValues(property, location: location, into: &diagnostics)
+        validateDateBounds(property, location: location, into: &diagnostics)
         if let count = property.control.count {
             guard (2...4).contains(count) else {
                 diagnostics.append(.init(severity: .error, location: "\(location).count", message: "count must be between 2 and 4."))
@@ -845,6 +856,22 @@ nonisolated enum ComponentPackageValidator {
                 ))
                 return
             }
+        case .date:
+            guard case .string(let value) = defaultValue,
+                  let date = ComponentDateValue(value) else {
+                diagnostics.append(.init(
+                    severity: .error,
+                    location: location,
+                    message: "A date control requires a real calendar date using YYYY-MM-DD."
+                ))
+                return
+            }
+            if let minimum = property.control.minimumDate.flatMap(ComponentDateValue.init), date.date < minimum.date {
+                diagnostics.append(.init(severity: .error, location: location, message: "The default date is before minimum."))
+            }
+            if let maximum = property.control.maximumDate.flatMap(ComponentDateValue.init), date.date > maximum.date {
+                diagnostics.append(.init(severity: .error, location: location, message: "The default date is after maximum."))
+            }
         case .color:
             guard case .string(let value) = defaultValue else {
                 diagnostics.append(.init(severity: .error, location: location, message: "A color control requires a string default value."))
@@ -904,6 +931,25 @@ nonisolated enum ComponentPackageValidator {
             if case .string = defaultValue {} else {
                 diagnostics.append(.init(severity: .error, location: location, message: "This control requires a string default value."))
             }
+        }
+    }
+
+    private static func validateDateBounds(
+        _ property: ComponentPackageProperty,
+        location: String,
+        into diagnostics: inout [ComponentPackageDiagnostic]
+    ) {
+        guard property.control.type == .date else { return }
+        let minimum = property.control.minimumDate.flatMap(ComponentDateValue.init)
+        let maximum = property.control.maximumDate.flatMap(ComponentDateValue.init)
+        if property.control.minimumDate != nil, minimum == nil {
+            diagnostics.append(.init(severity: .error, location: "\(location).minimum", message: "minimum must be a real calendar date using YYYY-MM-DD."))
+        }
+        if property.control.maximumDate != nil, maximum == nil {
+            diagnostics.append(.init(severity: .error, location: "\(location).maximum", message: "maximum must be a real calendar date using YYYY-MM-DD."))
+        }
+        if let minimum, let maximum, minimum.date > maximum.date {
+            diagnostics.append(.init(severity: .error, location: "\(location).maximum", message: "maximum must be the same as or later than minimum."))
         }
     }
 

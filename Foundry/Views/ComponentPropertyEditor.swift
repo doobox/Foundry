@@ -46,7 +46,10 @@ struct ComponentPropertyEditor: View {
 
     @ViewBuilder
     var body: some View {
-        if let subtitle = definition.subtitle, !subtitle.isEmpty, !definition.control.isArray {
+        if let subtitle = definition.subtitle,
+           !subtitle.isEmpty,
+           !definition.control.isArray,
+           !isDateControl {
             VStack(alignment: .leading, spacing: 4) {
                 editorControl
                 Text(subtitle)
@@ -56,6 +59,11 @@ struct ComponentPropertyEditor: View {
         } else {
             editorControl
         }
+    }
+
+    private var isDateControl: Bool {
+        if case .date = definition.control { return true }
+        return false
     }
 
     @ViewBuilder
@@ -118,7 +126,14 @@ struct ComponentPropertyEditor: View {
                 resetButton
             }
         case .date:
-            DateComponentControl(label: definition.label, indicator: responsiveIndicator, value: dateBinding)
+            DateComponentControl(
+                label: definition.label,
+                subtitle: definition.subtitle,
+                minimum: definition.dateMinimum,
+                maximum: definition.dateMaximum,
+                indicator: responsiveIndicator,
+                value: dateBinding
+            )
         case .info:
             InfoComponentControl(text: definition.label)
         case .button(let icon, let text, let activeIcon, let activeText):
@@ -377,8 +392,8 @@ struct ComponentPropertyEditor: View {
 
     private var dateBinding: Binding<Date> {
         Binding(
-            get: { ISO8601DateFormatter().date(from: displayComponent.property(definition.key)) ?? .now },
-            set: { setProperty(.string(ISO8601DateFormatter().string(from: $0))) }
+            get: { ComponentDateValue(displayComponent.property(definition.key))?.date ?? .now },
+            set: { setProperty(.string(ComponentDateValue.string(from: $0))) }
         )
     }
 
@@ -542,7 +557,17 @@ struct ComponentPropertyEditor: View {
         units: [String],
         help: String?
     ) -> some View {
-        if case .button = element, buttonSelectionMode == .single {
+        if case .date = element {
+            DateArrayComponentControl(
+                label: definition.label,
+                subtitles: subtitles,
+                help: help,
+                minimum: definition.dateMinimum,
+                maximum: definition.dateMaximum,
+                indicator: responsiveIndicator,
+                values: (0..<count).map(dateArrayBinding)
+            )
+        } else if case .button = element, buttonSelectionMode == .single {
             InspectorRow(title: definition.label, alignment: .top, indicator: responsiveIndicator) {
                 InspectorSegmentedButtonControl(
                     subtitles: subtitles,
@@ -571,6 +596,14 @@ struct ComponentPropertyEditor: View {
                 )
             }
         }
+    }
+
+    private func dateArrayBinding(at index: Int) -> Binding<Date> {
+        let binding = arrayElementBinding(index)
+        return Binding(
+            get: { ComponentDateValue(binding.wrappedValue.stringValue)?.date ?? .now },
+            set: { binding.wrappedValue = .string(ComponentDateValue.string(from: $0)) }
+        )
     }
 
     private var resetButton: some View {
@@ -795,20 +828,24 @@ private struct InspectorControlArray: View {
     @ViewBuilder
     private var arrayItems: some View {
         ForEach(0..<count, id: \.self) { index in
-            InspectorControlArrayItem(
-                subtitle: subtitles.indices.contains(index) ? subtitles[index] : nil,
-                buttonText: buttonTexts.indices.contains(index) ? buttonTexts[index] : "",
-                buttonIcon: buttonIcons.indices.contains(index) ? buttonIcons[index] : nil,
-                activeButtonText: activeButtonTexts.indices.contains(index) ? activeButtonTexts[index] : nil,
-                activeButtonIcon: activeButtonIcons.indices.contains(index) ? activeButtonIcons[index] : nil,
-                unit: units.indices.contains(index) ? units[index] : "",
-                help: help,
-                value: values[index],
-                element: element,
-                assets: assets
-            )
-            .frame(maxWidth: .infinity)
+            arrayItem(at: index)
         }
+    }
+
+    private func arrayItem(at index: Int) -> some View {
+        InspectorControlArrayItem(
+            subtitle: subtitles.indices.contains(index) ? subtitles[index] : nil,
+            buttonText: buttonTexts.indices.contains(index) ? buttonTexts[index] : "",
+            buttonIcon: buttonIcons.indices.contains(index) ? buttonIcons[index] : nil,
+            activeButtonText: activeButtonTexts.indices.contains(index) ? activeButtonTexts[index] : nil,
+            activeButtonIcon: activeButtonIcons.indices.contains(index) ? activeButtonIcons[index] : nil,
+            unit: units.indices.contains(index) ? units[index] : "",
+            help: help,
+            value: values[index],
+            element: element,
+            assets: assets
+        )
+        .frame(maxWidth: .infinity)
     }
 }
 
@@ -945,7 +982,7 @@ private struct InspectorControlArrayItem: View {
                 }
             }
         case .date:
-            DatePicker("", selection: dateBinding, displayedComponents: [.date]).labelsHidden()
+            EmptyView()
         case .button:
             ButtonArrayItemComponentControl(
                 buttonText: buttonText,
@@ -1016,8 +1053,8 @@ private struct InspectorControlArrayItem: View {
 
     private var dateBinding: Binding<Date> {
         Binding(
-            get: { ISO8601DateFormatter().date(from: value.stringValue) ?? .now },
-            set: { value = .string(ISO8601DateFormatter().string(from: $0)) }
+            get: { ComponentDateValue(value.stringValue)?.date ?? .now },
+            set: { value = .string(ComponentDateValue.string(from: $0)) }
         )
     }
 

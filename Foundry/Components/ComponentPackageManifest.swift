@@ -378,6 +378,8 @@ nonisolated struct ComponentPackageControl: Codable, Equatable, Sendable {
     let type: Kind
     let minimum: Double?
     let maximum: Double?
+    let minimumDate: String?
+    let maximumDate: String?
     let step: Double?
     let options: [ComponentPackageOption]?
     let themeValues: ComponentPackageThemeValues?
@@ -397,6 +399,78 @@ nonisolated struct ComponentPackageControl: Codable, Equatable, Sendable {
     let operation: String?
     let round: Bool?
     let absoluteURL: Bool?
+
+    enum CodingKeys: String, CodingKey {
+        case type, minimum, maximum, step, options, themeValues, allowsCustom, colorMath
+        case opacity, outputFormat, customColor, count, ticks, showsValueField
+        case trueValue, falseValue, selectionMode, argument1, argument2, operation, round, absoluteURL
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        type = try container.decode(Kind.self, forKey: .type)
+        if type == .date {
+            minimum = nil
+            maximum = nil
+            minimumDate = try container.decodeIfPresent(String.self, forKey: .minimum)
+            maximumDate = try container.decodeIfPresent(String.self, forKey: .maximum)
+        } else {
+            minimum = try container.decodeIfPresent(Double.self, forKey: .minimum)
+            maximum = try container.decodeIfPresent(Double.self, forKey: .maximum)
+            minimumDate = nil
+            maximumDate = nil
+        }
+        step = try container.decodeIfPresent(Double.self, forKey: .step)
+        options = try container.decodeIfPresent([ComponentPackageOption].self, forKey: .options)
+        themeValues = try container.decodeIfPresent(ComponentPackageThemeValues.self, forKey: .themeValues)
+        allowsCustom = try container.decodeIfPresent(Bool.self, forKey: .allowsCustom)
+        colorMath = try container.decodeIfPresent(Bool.self, forKey: .colorMath)
+        opacity = try container.decodeIfPresent(Bool.self, forKey: .opacity)
+        outputFormat = try container.decodeIfPresent(ColorOutputFormat.self, forKey: .outputFormat)
+        customColor = try container.decodeIfPresent(String.self, forKey: .customColor)
+        count = try container.decodeIfPresent(Int.self, forKey: .count)
+        ticks = try container.decodeIfPresent(Int.self, forKey: .ticks)
+        showsValueField = try container.decodeIfPresent(Bool.self, forKey: .showsValueField)
+        trueValue = try container.decodeIfPresent(ComponentPackageValue.self, forKey: .trueValue)
+        falseValue = try container.decodeIfPresent(ComponentPackageValue.self, forKey: .falseValue)
+        selectionMode = try container.decodeIfPresent(ButtonSelectionMode.self, forKey: .selectionMode)
+        argument1 = try container.decodeIfPresent(ComponentPackageValue.self, forKey: .argument1)
+        argument2 = try container.decodeIfPresent(ComponentPackageValue.self, forKey: .argument2)
+        operation = try container.decodeIfPresent(String.self, forKey: .operation)
+        round = try container.decodeIfPresent(Bool.self, forKey: .round)
+        absoluteURL = try container.decodeIfPresent(Bool.self, forKey: .absoluteURL)
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(type, forKey: .type)
+        if type == .date {
+            try container.encodeIfPresent(minimumDate, forKey: .minimum)
+            try container.encodeIfPresent(maximumDate, forKey: .maximum)
+        } else {
+            try container.encodeIfPresent(minimum, forKey: .minimum)
+            try container.encodeIfPresent(maximum, forKey: .maximum)
+        }
+        try container.encodeIfPresent(step, forKey: .step)
+        try container.encodeIfPresent(options, forKey: .options)
+        try container.encodeIfPresent(themeValues, forKey: .themeValues)
+        try container.encodeIfPresent(allowsCustom, forKey: .allowsCustom)
+        try container.encodeIfPresent(colorMath, forKey: .colorMath)
+        try container.encodeIfPresent(opacity, forKey: .opacity)
+        try container.encodeIfPresent(outputFormat, forKey: .outputFormat)
+        try container.encodeIfPresent(customColor, forKey: .customColor)
+        try container.encodeIfPresent(count, forKey: .count)
+        try container.encodeIfPresent(ticks, forKey: .ticks)
+        try container.encodeIfPresent(showsValueField, forKey: .showsValueField)
+        try container.encodeIfPresent(trueValue, forKey: .trueValue)
+        try container.encodeIfPresent(falseValue, forKey: .falseValue)
+        try container.encodeIfPresent(selectionMode, forKey: .selectionMode)
+        try container.encodeIfPresent(argument1, forKey: .argument1)
+        try container.encodeIfPresent(argument2, forKey: .argument2)
+        try container.encodeIfPresent(operation, forKey: .operation)
+        try container.encodeIfPresent(round, forKey: .round)
+        try container.encodeIfPresent(absoluteURL, forKey: .absoluteURL)
+    }
 }
 
 nonisolated enum ComponentPackageThemeValueSource: String, Codable, CaseIterable, Sendable {

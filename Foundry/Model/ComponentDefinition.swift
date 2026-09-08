@@ -80,6 +80,8 @@ nonisolated struct ComponentPropertyDefinition: Identifiable, Sendable {
     let themeValueSource: ComponentPackageThemeValueSource?
     let allowsCustomThemeValue: Bool
     let supportsImageFocalPoint: Bool
+    let dateMinimum: Date?
+    let dateMaximum: Date?
 
     var id: ComponentProperty.Key { key }
 
@@ -95,7 +97,9 @@ nonisolated struct ComponentPropertyDefinition: Identifiable, Sendable {
         enable: ComponentPackageEnable? = nil,
         themeValueSource: ComponentPackageThemeValueSource? = nil,
         allowsCustomThemeValue: Bool = false,
-        supportsImageFocalPoint: Bool = false
+        supportsImageFocalPoint: Bool = false,
+        dateMinimum: Date? = nil,
+        dateMaximum: Date? = nil
     ) {
         self.key = key
         self.label = label
@@ -109,6 +113,8 @@ nonisolated struct ComponentPropertyDefinition: Identifiable, Sendable {
         self.themeValueSource = themeValueSource
         self.allowsCustomThemeValue = allowsCustomThemeValue
         self.supportsImageFocalPoint = supportsImageFocalPoint
+        self.dateMinimum = dateMinimum
+        self.dateMaximum = dateMaximum
     }
 
     private static let builtInResponsiveKeys: Set<ComponentProperty.Key> = [
