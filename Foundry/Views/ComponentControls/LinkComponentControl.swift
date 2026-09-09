@@ -12,6 +12,8 @@ struct LinkComponentControl: View {
     let pages: [Page]
     let folders: [PageFolder]
     let assets: [ProjectAsset]
+    let assetLibrary: [ProjectAssetNode]
+    let anchorsForPage: (Page) -> [String]
     let publicURL: String
     let absoluteURL: Bool
     let update: (ComponentLink) -> Void
@@ -49,6 +51,8 @@ struct LinkComponentControl: View {
                     pages: pages,
                     folders: folders,
                     assets: assets,
+                    assetLibrary: assetLibrary,
+                    anchorsForPage: anchorsForPage,
                     publicURL: publicURL,
                     absoluteURL: absoluteURL,
                     cancel: { showsEditor = false },
@@ -73,6 +77,8 @@ struct LinkComponentControl: View {
             pages: [],
             folders: [],
             assets: [],
+            assetLibrary: [],
+            anchorsForPage: { _ in [] },
             publicURL: "https://example.com",
             absoluteURL: false,
             update: { _ in }
@@ -81,10 +87,15 @@ struct LinkComponentControl: View {
 }
 
 struct ComponentLinkEditor: View {
+    private let leadingColumnWidth: CGFloat = 140
+
     @Binding var link: ComponentLink
+    @State private var selectedAttributeID: UUID?
     let pages: [Page]
     let folders: [PageFolder]
     let assets: [ProjectAsset]
+    let assetLibrary: [ProjectAssetNode]
+    let anchorsForPage: (Page) -> [String]
     let publicURL: String
     let absoluteURL: Bool
     var remove: (() -> Void)? = nil
@@ -93,39 +104,108 @@ struct ComponentLinkEditor: View {
 
     var body: some View {
         VStack(spacing: 16) {
-            Form {
-                Picker("Type", selection: kindBinding) {
-                    Text("URL").tag(LinkKind.url)
-                    Text("Plain Text").tag(LinkKind.plainText)
-                    Text("Page").tag(LinkKind.page)
-                    Text("Resource").tag(LinkKind.resource)
-                }
-                destinationEditor
-                TextField("Anchor", text: $link.anchor, prompt: Text("Optional anchor"))
-                Toggle("Open in New Window", isOn: $link.opensInNewWindow)
-                if absoluteURL && publicURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && isInternalLink {
-                    Label("Set the Site URL in Project Settings to produce an absolute URL.", systemImage: "exclamationmark.triangle")
-                        .foregroundStyle(.orange)
-                }
-                Section("Custom Attributes") {
-                    ForEach($link.attributes) { $attribute in
+            Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 12) {
+                GridRow(alignment: .firstTextBaseline) {
+                    Menu {
+                        Button("URL") { selectKind(.url) }
+                        Button("Plain Text") { selectKind(.plainText) }
+                        Divider()
+                        Menu("Page") {
+                            pageMenu(folderID: nil, parentPageID: nil)
+                        }
+                        .disabled(pages.isEmpty)
+                        Menu("Resource") {
+                            resourceMenu(nodes: assetLibrary)
+                        }
+                        .disabled(assets.isEmpty)
+                    } label: {
                         HStack {
-                            TextField("Name", text: $attribute.name)
-                            TextField("Value", text: $attribute.value)
-                            Button(role: .destructive) {
-                                link.attributes.removeAll { $0.id == attribute.id }
-                            } label: {
-                                Image(systemName: "minus.circle")
-                            }
-                            .buttonStyle(.borderless)
+                            Text(kindTitle)
+                            Spacer()
                         }
                     }
-                    Button("Add Attribute", systemImage: "plus") {
-                        link.attributes.append(.init())
+                    .menuStyle(.button)
+                    .buttonSizing(.flexible)
+                    .frame(width: leadingColumnWidth)
+
+                    destinationEditor
+                        .frame(maxWidth: .infinity)
+                }
+
+                GridRow(alignment: .firstTextBaseline) {
+                    Text("Anchor:")
+                        .frame(width: leadingColumnWidth, alignment: .trailing)
+
+                    HStack(spacing: 12) {
+                        Picker("Anchor", selection: $link.anchor) {
+                            Text("None").tag("")
+                            ForEach(availableAnchors, id: \.self) { anchor in
+                                Text(anchor).tag(anchor)
+                            }
+                        }
+                        .labelsHidden()
+                        .buttonSizing(.flexible)
+                            .disabled(selectedPage == nil)
+                        Toggle("Open in New Window", isOn: $link.opensInNewWindow)
+                            .fixedSize()
+                    }
+                }
+
+                if absoluteURL && publicURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && isInternalLink {
+                    GridRow {
+                        Color.clear
+                            .frame(height: 0)
+                        Label("Set the Site URL in Project Settings to produce an absolute URL.", systemImage: "exclamationmark.triangle")
+                            .foregroundStyle(.orange)
+                    }
+                }
+
+                GridRow(alignment: .top) {
+                    Text("Custom Attributes:")
+                        .frame(width: leadingColumnWidth, alignment: .trailing)
+                        .padding(.top, 5)
+
+                    VStack(alignment: .leading, spacing: 6) {
+                        Table($link.attributes, selection: $selectedAttributeID) {
+                            TableColumn("Name") { $attribute in
+                                TextField("Name", text: $attribute.name)
+                                    .labelsHidden()
+                                    .textFieldStyle(.plain)
+                            }
+                            TableColumn("Value") { $attribute in
+                                TextField("Value", text: $attribute.value)
+                                    .labelsHidden()
+                                    .textFieldStyle(.plain)
+                            }
+                        }
+                        .frame(minHeight: 134, maxHeight: .infinity)
+
+                        HStack(spacing: 4) {
+                            Button {
+                                let attribute = ComponentLink.Attribute()
+                                link.attributes.append(attribute)
+                                selectedAttributeID = attribute.id
+                            } label: {
+                                Image(systemName: "plus")
+                            }
+                            .help("Add attribute")
+
+                            Button {
+                                guard let selectedAttributeID else { return }
+                                link.attributes.removeAll { $0.id == selectedAttributeID }
+                                self.selectedAttributeID = nil
+                            } label: {
+                                Image(systemName: "minus")
+                            }
+                            .disabled(selectedAttributeID == nil)
+                            .help("Remove selected attribute")
+                        }
+                        .buttonStyle(.bordered)
                     }
                 }
             }
-            .formStyle(.grouped)
+            .frame(maxHeight: .infinity)
+
             HStack {
                 if let remove {
                     Button("Remove", role: .destructive, action: remove)
@@ -138,7 +218,7 @@ struct ComponentLinkEditor: View {
             }
         }
         .padding()
-        .frame(width: 680, height: 500)
+        .frame(width: 520, height: 350)
     }
 
     @ViewBuilder
@@ -149,15 +229,13 @@ struct ComponentLinkEditor: View {
         case .plainText(let value):
             TextField("Text", text: destinationTextBinding(value, kind: .plainText))
         case .page(let id):
-            Picker("Page", selection: destinationIDBinding(id, kind: .page)) {
-                Text("Choose a page").tag(nil as UUID?)
-                ForEach(pages) { page in Text(page.title).tag(page.id as UUID?) }
-            }
+            TextField("Page", text: .constant(pages.first { $0.id == id }?.title ?? "Missing Page"))
+                .labelsHidden()
+                .disabled(true)
         case .resource(let id):
-            Picker("Resource", selection: destinationIDBinding(id, kind: .resource)) {
-                Text("Choose a resource").tag(nil as UUID?)
-                ForEach(assets) { asset in Text(asset.filename).tag(asset.id as UUID?) }
-            }
+            TextField("Resource", text: .constant(assets.first { $0.id == id }?.filename ?? "Missing Resource"))
+                .labelsHidden()
+                .disabled(true)
         case .none:
             TextField(
                 "URL",
@@ -204,6 +282,102 @@ struct ComponentLinkEditor: View {
         }, set: { id in
             guard let id else { link.destination = .none; return }
             link.destination = kind == .page ? .page(id) : .resource(id)
+        })
+    }
+
+    private var kindTitle: String {
+        switch link.destination {
+        case .url, .none: "URL"
+        case .plainText: "Plain Text"
+        case .page: "Page"
+        case .resource: "Resource"
+        }
+    }
+
+    private var selectedPage: Page? {
+        guard case .page(let id) = link.destination else { return nil }
+        return pages.first { $0.id == id }
+    }
+
+    private var availableAnchors: [String] {
+        guard let selectedPage else { return [] }
+        let anchors = anchorsForPage(selectedPage)
+        if !link.anchor.isEmpty, !anchors.contains(link.anchor) {
+            return [link.anchor] + anchors
+        }
+        return anchors
+    }
+
+    private func selectKind(_ kind: LinkKind) {
+        link.anchor = ""
+        switch kind {
+        case .url: link.destination = .url("")
+        case .plainText: link.destination = .plainText("")
+        case .page, .resource: break
+        }
+    }
+
+    private func selectPage(_ page: Page) {
+        link.destination = .page(page.id)
+        link.anchor = ""
+        setTitleAttribute(page.title)
+    }
+
+    private func selectResource(_ asset: ProjectAsset) {
+        link.destination = .resource(asset.id)
+        link.anchor = ""
+        setTitleAttribute(asset.filename)
+    }
+
+    private func setTitleAttribute(_ title: String) {
+        if let index = link.attributes.firstIndex(where: {
+            $0.name.caseInsensitiveCompare("title") == .orderedSame
+        }) {
+            link.attributes[index].name = "title"
+            link.attributes[index].value = title
+        } else {
+            link.attributes.append(.init(name: "title", value: title))
+        }
+    }
+
+    private func pageMenu(folderID: UUID?, parentPageID: UUID?) -> AnyView {
+        let childFolders = folders
+            .filter { $0.parentID == folderID }
+            .sorted { $0.order == $1.order ? $0.name < $1.name : $0.order < $1.order }
+        let childPages = pages
+            .filter { $0.folderID == folderID && $0.parentPageID == parentPageID }
+            .sorted { $0.order == $1.order ? $0.title < $1.title : $0.order < $1.order }
+        return AnyView(Group {
+            ForEach(childFolders) { folder in
+                Menu(folder.name) {
+                    pageMenu(folderID: folder.id, parentPageID: nil)
+                }
+            }
+            ForEach(childPages) { page in
+                let children = pages.filter { $0.parentPageID == page.id }
+                if children.isEmpty {
+                    Button(page.title) { selectPage(page) }
+                } else {
+                    Menu(page.title) {
+                        Button("Select \(page.title)") { selectPage(page) }
+                        Divider()
+                        pageMenu(folderID: folderID, parentPageID: page.id)
+                    }
+                }
+            }
+        })
+    }
+
+    private func resourceMenu(nodes: [ProjectAssetNode]) -> AnyView {
+        AnyView(ForEach(nodes) { node in
+            switch node {
+            case .folder(let folder):
+                Menu(folder.name) {
+                    resourceMenu(nodes: folder.children)
+                }
+            case .asset(let asset):
+                Button(asset.filename) { selectResource(asset) }
+            }
         })
     }
 

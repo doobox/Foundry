@@ -437,6 +437,7 @@ struct ContentView: View {
             } else {
                 InspectorView(
                     page: inspectedPage,
+                    currentPage: selectedPage,
                     folder: selectedPageFolder,
                     asset: selectedPageAsset,
                     assetLibraryNode: selectedAssetLibraryNode,

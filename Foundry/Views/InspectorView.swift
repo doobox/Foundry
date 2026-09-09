@@ -3,6 +3,7 @@ import SwiftUI
 
 struct InspectorView: View {
     let page: Page?
+    let currentPage: Page?
     let folder: PageFolder?
     let asset: ProjectAsset?
     let assetLibraryNode: ProjectAssetNode?
@@ -32,6 +33,7 @@ struct InspectorView: View {
             if componentSelectionCount == 1, let component {
                 ComponentInspector(
                     component: component,
+                    currentPage: currentPage,
                     theme: theme,
                     assets: assets,
                     assetContents: assetContents,
@@ -597,6 +599,7 @@ private struct PageInspector: View {
 private struct ComponentInspector: View {
     @State private var loadedComponentIcon: NSImage?
     let component: ComponentNode
+    let currentPage: Page?
     let theme: Theme
     let assets: [ProjectAsset]
     let assetContents: [UUID: ProjectAssetContent]
@@ -641,6 +644,7 @@ private struct ComponentInspector: View {
                         group: group,
                         properties: properties(in: group),
                         component: component,
+                        currentPage: currentPage,
                         theme: theme,
                         assets: assets,
                         assetContents: assetContents,
@@ -740,6 +744,7 @@ private struct ComponentInspectorGroup: View {
     let group: ComponentPropertySection
     let properties: [ComponentPropertyDefinition]
     let component: ComponentNode
+    let currentPage: Page?
     let theme: Theme
     let assets: [ProjectAsset]
     let assetContents: [UUID: ProjectAssetContent]
@@ -779,6 +784,7 @@ private struct ComponentInspectorGroup: View {
         ComponentPropertyEditor(
             definition: definition,
             component: component,
+            currentPage: currentPage,
             theme: theme,
             assets: assets,
             assetContents: assetContents,

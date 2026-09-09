@@ -5,6 +5,7 @@ import UniformTypeIdentifiers
 struct ComponentPropertyEditor: View {
     let definition: ComponentPropertyDefinition
     let component: ComponentNode
+    let currentPage: Page?
     let theme: Theme
     let assets: [ProjectAsset]
     let assetContents: [UUID: ProjectAssetContent]
@@ -19,6 +20,7 @@ struct ComponentPropertyEditor: View {
     init(
         definition: ComponentPropertyDefinition,
         component: ComponentNode,
+        currentPage: Page?,
         theme: Theme,
         assets: [ProjectAsset],
         assetContents: [UUID: ProjectAssetContent],
@@ -32,6 +34,7 @@ struct ComponentPropertyEditor: View {
     ) {
         self.definition = definition
         self.component = component
+        self.currentPage = currentPage
         self.theme = theme
         self.assets = assets
         self.assetContents = assetContents
@@ -104,6 +107,23 @@ struct ComponentPropertyEditor: View {
                 pages: pages,
                 folders: folders,
                 assets: assets,
+                assetLibrary: editor.document.site.assetLibrary,
+                anchorsForPage: { page in
+                    let site = editor.document.site
+                    let renderedPage: Page
+                    if let currentPage, currentPage.id == page.id {
+                        renderedPage = currentPage
+                    } else {
+                        renderedPage = site.pages.first { $0.id == page.id } ?? page
+                    }
+                    return Self.anchorIDs(
+                        in: HTMLPageRenderer(site: site).render(
+                            page: renderedPage,
+                            theme: theme,
+                            assets: assetContents
+                        )
+                    )
+                },
                 publicURL: publicURL,
                 absoluteURL: absoluteURL,
                 update: { setProperty(.link($0)) }
@@ -261,6 +281,19 @@ struct ComponentPropertyEditor: View {
                 },
                 setFocalPoint: setImageFocalPoint
             )
+        }
+    }
+
+    private static func anchorIDs(in html: String) -> [String] {
+        guard let expression = try? NSRegularExpression(
+            pattern: #"\bid\s*=\s*([\"'])(.*?)\1"#,
+            options: [.caseInsensitive]
+        ) else { return [] }
+        var seen = Set<String>()
+        return expression.matches(in: html, range: NSRange(html.startIndex..., in: html)).compactMap { match in
+            guard let range = Range(match.range(at: 2), in: html) else { return nil }
+            let identifier = String(html[range])
+            return identifier.isEmpty || !seen.insert(identifier).inserted ? nil : identifier
         }
     }
 
