@@ -262,8 +262,11 @@ nonisolated enum ComponentPackageValidator {
             ))
         }
 
-        let supportedFilters: Set<String> = ["lighten", "darken", "withAlpha", "mix", "formatDate", "addDays", "addMonths"]
-        for reference in template.references(matching: #"\|\s*([A-Za-z][A-Za-z0-9_-]*)\s*\("#)
+        let supportedFilters: Set<String> = [
+            "lighten", "darken", "withAlpha", "mix", "formatDate", "addDays", "addMonths",
+            "escapeHTML", "escapeHTMLAttribute", "encodeURL", "encodeURIComponent", "encodeJSON"
+        ]
+        for reference in template.references(matching: #"(?<!\|)\|(?!\|)\s*([A-Za-z][A-Za-z0-9_-]*)\b"#)
             where !supportedFilters.contains(reference.value) {
             diagnostics.append(templateDiagnostic(
                 templateLocation,
@@ -757,7 +760,7 @@ nonisolated enum ComponentPackageValidator {
         into diagnostics: inout [ComponentPackageDiagnostic]
     ) {
         switch property.control.type {
-        case .divider, .info:
+        case .divider, .note:
             break
         case .math:
             let operations = Set(["+", "-", "*", "/", "%", "min", "max"])
@@ -819,7 +822,7 @@ nonisolated enum ComponentPackageValidator {
             if let maximum = property.control.maximum, value > maximum {
                 diagnostics.append(.init(severity: .error, location: location, message: "The default value is above the control maximum."))
             }
-        case .toggle, .details, .button:
+        case .toggle, .button:
             if case .boolean = defaultValue {} else {
                 diagnostics.append(.init(severity: .error, location: location, message: "A \(property.control.type.rawValue) control requires a Boolean default value."))
             }

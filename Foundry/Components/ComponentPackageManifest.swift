@@ -176,6 +176,9 @@ nonisolated struct ComponentPackageImageRendition: Codable, Equatable, Identifia
 nonisolated struct ComponentPackageProperty: Codable, Equatable, Identifiable, Sendable {
     let id: String
     let label: String
+    let noteTitle: String?
+    let noteBody: String
+    let noteSystemImage: String?
     let group: String
     let control: ComponentPackageControl
     let defaultValue: ComponentPackageValue
@@ -195,6 +198,9 @@ nonisolated struct ComponentPackageProperty: Codable, Equatable, Identifiable, S
     enum CodingKeys: String, CodingKey {
         case id
         case label
+        case title
+        case body
+        case systemImage
         case group
         case defaultValue = "default"
         case responsive
@@ -238,8 +244,17 @@ nonisolated struct ComponentPackageProperty: Codable, Equatable, Identifiable, S
             units = [try container.decodeIfPresent(String.self, forKey: .units) ?? ""]
         }
         label = try container.decodeIfPresent(String.self, forKey: .label) ?? ""
+        noteTitle = control.type == .note
+            ? try container.decodeIfPresent(String.self, forKey: .title)
+            : nil
+        noteBody = control.type == .note
+            ? try container.decode(String.self, forKey: .body)
+            : ""
+        noteSystemImage = control.type == .note
+            ? try container.decodeIfPresent(String.self, forKey: .systemImage)
+            : nil
 
-        if control.type == .divider || control.type == .info || control.type == .image || control.type == .math {
+        if control.type == .divider || control.type == .note || control.type == .image || control.type == .math {
             defaultValue = try container.decodeIfPresent(ComponentPackageValue.self, forKey: .defaultValue) ?? .string("")
             responsive = control.type == .image && focalPoint
                 ? true
@@ -270,15 +285,22 @@ nonisolated struct ComponentPackageProperty: Codable, Equatable, Identifiable, S
                 try container.encode(unit, forKey: .units)
             }
         }
-        if !label.isEmpty {
+        if control.type != .note, !label.isEmpty {
             try container.encode(label, forKey: .label)
         }
+        if control.type == .note {
+            try container.encodeIfPresent(noteTitle, forKey: .title)
+            try container.encode(noteBody, forKey: .body)
+            try container.encodeIfPresent(noteSystemImage, forKey: .systemImage)
+        }
         try container.encode(group, forKey: .group)
-        try container.encode(defaultValue, forKey: .defaultValue)
-        try container.encode(responsive, forKey: .responsive)
-        if control.count != nil, !subtitles.isEmpty {
+        if control.type != .note {
+            try container.encode(defaultValue, forKey: .defaultValue)
+            try container.encode(responsive, forKey: .responsive)
+        }
+        if control.type != .note, control.count != nil, !subtitles.isEmpty {
             try container.encode(subtitles, forKey: .subtitle)
-        } else if let subtitle = subtitles.first, !subtitle.isEmpty {
+        } else if control.type != .note, let subtitle = subtitles.first, !subtitle.isEmpty {
             try container.encode(subtitle, forKey: .subtitle)
         }
         if control.count != nil, !buttonTexts.isEmpty {
@@ -367,8 +389,7 @@ nonisolated struct ComponentPackageControl: Codable, Equatable, Sendable {
         case divider
         case slider
         case date
-        case details
-        case info
+        case note
         case button
         case image
         case math

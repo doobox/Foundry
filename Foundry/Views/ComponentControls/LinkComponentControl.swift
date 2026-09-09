@@ -5,6 +5,7 @@ struct LinkComponentControl: View {
     @State private var draft = ComponentLink()
 
     let label: String
+    let subtitle: String?
     let currentLink: ComponentLink
     let summary: String
     let indicator: InspectorRowIndicator?
@@ -16,20 +17,30 @@ struct LinkComponentControl: View {
     let update: (ComponentLink) -> Void
 
     var body: some View {
-        InspectorRow(title: label, alignment: .center, indicator: indicator) {
-            HStack(spacing: 8) {
-                Button(summary) {
-                    draft = currentLink
-                    showsEditor = true
-                }
-                if currentLink.destination != .none {
-                    Button {
-                        update(.init())
-                    } label: {
-                        Image(systemName: "xmark.circle")
+        InspectorRow(title: label, alignment: .top, indicator: indicator) {
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 8) {
+                    Button(summary) {
+                        draft = currentLink
+                        if draft.destination == .none {
+                            draft.destination = .url("")
+                        }
+                        showsEditor = true
                     }
-                    .buttonStyle(.borderless)
-                    .help("Clear link")
+                    if currentLink.destination != .none {
+                        Button {
+                            update(.init())
+                        } label: {
+                            Image(systemName: "xmark.circle")
+                        }
+                        .buttonStyle(.borderless)
+                        .help("Clear link")
+                    }
+                }
+                if let subtitle, !subtitle.isEmpty {
+                    Text(subtitle)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
             }
             .sheet(isPresented: $showsEditor) {
@@ -55,6 +66,7 @@ struct LinkComponentControl: View {
     ComponentControlPreview {
         LinkComponentControl(
             label: "Link",
+            subtitle: "Choose where this link should lead.",
             currentLink: .init(),
             summary: "Choose Link…",
             indicator: .preview,
@@ -147,7 +159,11 @@ struct ComponentLinkEditor: View {
                 ForEach(assets) { asset in Text(asset.filename).tag(asset.id as UUID?) }
             }
         case .none:
-            EmptyView()
+            TextField(
+                "URL",
+                text: destinationTextBinding("", kind: .url),
+                prompt: Text("https://example.com")
+            )
         }
     }
 

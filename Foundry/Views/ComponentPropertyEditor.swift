@@ -49,7 +49,9 @@ struct ComponentPropertyEditor: View {
         if let subtitle = definition.subtitle,
            !subtitle.isEmpty,
            !definition.control.isArray,
-           !isDateControl {
+           !isDateControl,
+           !isNoteControl,
+           !isLinkControl {
             VStack(alignment: .leading, spacing: 4) {
                 editorControl
                 Text(subtitle)
@@ -63,6 +65,16 @@ struct ComponentPropertyEditor: View {
 
     private var isDateControl: Bool {
         if case .date = definition.control { return true }
+        return false
+    }
+
+    private var isNoteControl: Bool {
+        if case .note = definition.control { return true }
+        return false
+    }
+
+    private var isLinkControl: Bool {
+        if case .link = definition.control { return true }
         return false
     }
 
@@ -85,6 +97,7 @@ struct ComponentPropertyEditor: View {
         case .link(let absoluteURL):
             LinkComponentControl(
                 label: definition.label,
+                subtitle: definition.subtitle,
                 currentLink: currentLink,
                 summary: linkSummary,
                 indicator: responsiveIndicator,
@@ -134,8 +147,12 @@ struct ComponentPropertyEditor: View {
                 indicator: responsiveIndicator,
                 value: dateBinding
             )
-        case .info:
-            InfoComponentControl(text: definition.label)
+        case .note(let systemImage):
+            NoteComponentControl(
+                title: definition.label.isEmpty ? nil : definition.label,
+                text: definition.subtitle ?? "",
+                systemImage: systemImage
+            )
         case .button(let icon, let text, let activeIcon, let activeText):
             ButtonComponentControl(
                 label: definition.label,
@@ -145,13 +162,6 @@ struct ComponentPropertyEditor: View {
                 activeSystemImage: activeIcon,
                 indicator: responsiveIndicator,
                 isActive: booleanBinding
-            )
-        case .details(let help):
-            DetailsComponentControl(
-                label: definition.label,
-                help: help,
-                indicator: responsiveIndicator,
-                isPresented: booleanBinding
             )
         case .derived:
             EmptyView()
@@ -1004,9 +1014,6 @@ private struct InspectorControlArrayItem: View {
                 activeSystemImage: activeButtonIcon,
                 isActive: booleanBinding
             )
-        case .details:
-            Button { booleanBinding.wrappedValue.toggle() } label: { Image(systemName: "ellipsis.circle") }
-                .buttonStyle(.borderless)
         case .toggle:
             Toggle("", isOn: booleanBinding).labelsHidden()
         case .choice(let choices):

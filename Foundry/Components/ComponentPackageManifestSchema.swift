@@ -48,7 +48,7 @@ nonisolated enum ComponentPackageManifestSchema {
     private static let updateKeys: Set<String> = ["appcastURL", "publicKey"]
     private static let slotKeys: Set<String> = ["id", "title", "accepts", "minimum", "maximum"]
     private static let propertyKeys: Set<String> = [
-        "id", "label", "group", "default", "responsive", "subtitle", "buttonText", "units", "toolTip",
+        "id", "label", "title", "body", "systemImage", "group", "default", "responsive", "subtitle", "buttonText", "units", "toolTip",
         "type", "minimum", "maximum", "step", "options", "themeValues", "allowsCustom", "colorMath", "opacity", "outputFormat",
         "customColor", "count", "ticks", "showsValueField", "trueValue", "falseValue",
         "buttonIcon", "activeButtonText", "activeButtonIcon", "selectionMode", "fontSize", "argument1", "argument2", "operation", "round", "absoluteURL", "enable", "alt", "focalPoint", "renditions"
@@ -355,6 +355,36 @@ nonisolated enum ComponentPackageManifestSchema {
                 ))
             }
         }
+        if type == .note {
+            let supportedKeys: Set<String> = ["type", "id", "title", "body", "systemImage", "group", "enable"]
+            for key in property.keys where !supportedKeys.contains(key) {
+                diagnostics.append(.init(
+                    severity: .error,
+                    location: "\(location):\(key)",
+                    message: "A note control does not support \(key)."
+                ))
+            }
+            optionalString("title", in: property, location: location, into: &diagnostics)
+            requireString("body", in: property, location: location, into: &diagnostics)
+            optionalString("systemImage", in: property, location: location, into: &diagnostics)
+        } else {
+            for key in ["title", "body", "systemImage"] where property[key] != nil {
+                diagnostics.append(.init(
+                    severity: .error,
+                    location: "\(location):\(key)",
+                    message: "\(key) is supported only by note controls."
+                ))
+            }
+        }
+        if type == .link {
+            for key in ["count", "responsive"] where property[key] != nil {
+                diagnostics.append(.init(
+                    severity: .error,
+                    location: "\(location):\(key)",
+                    message: "A link control does not support \(key)."
+                ))
+            }
+        }
         if type != .image, property["alt"] != nil {
             diagnostics.append(.init(
                 severity: .error,
@@ -436,7 +466,7 @@ nonisolated enum ComponentPackageManifestSchema {
             optionalComponentValue(key, in: property, location: location, into: &diagnostics)
         }
 
-        let permitsMissingDefault = type == .divider || type == .image || type == .info || type == .math || type == .slider
+        let permitsMissingDefault = type == .divider || type == .image || type == .note || type == .math || type == .slider
         if !permitsMissingDefault && property["default"] == nil {
             appendMissing("default", expected: "value", location: location, into: &diagnostics)
         }

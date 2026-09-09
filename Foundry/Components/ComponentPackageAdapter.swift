@@ -140,11 +140,11 @@ nonisolated enum ComponentPackageAdapter {
         }
         return [ComponentPropertyDefinition(
             key: .init(rawValue: property.id),
-            label: property.label,
-            subtitle: property.subtitles.first,
+            label: property.control.type == .note ? property.noteTitle ?? "" : property.label,
+            subtitle: property.control.type == .note ? property.noteBody : property.subtitles.first,
             section: .init(rawValue: property.group),
-            control: property.control.type == .details
-                ? .details(help: property.toolTip)
+            control: property.control.type == .note
+                ? .note(systemImage: property.noteSystemImage)
                 : property.control.type == .button
                     ? .button(
                         icon: property.buttonIcons.first,
@@ -154,9 +154,9 @@ nonisolated enum ComponentPackageAdapter {
                     )
                     : control(property.control, unit: property.units.first ?? ""),
             defaultValue: value(property.defaultValue, control: property.control.type),
-            isResponsive: property.responsive,
+            isResponsive: property.control.type != .note && property.responsive,
             isInspectorVisible: property.control.type != .math &&
-                (property.control.type != .info || !property.label.isEmpty),
+                (property.control.type != .note || !property.noteBody.isEmpty),
             enable: property.enable,
             themeValueSource: property.control.themeValueSource,
             allowsCustomThemeValue: property.control.allowsCustom == true
@@ -267,8 +267,7 @@ nonisolated enum ComponentPackageAdapter {
                 showsValueField: control.showsValueField ?? true
             )
         case .date: .date
-        case .details: .details(help: nil)
-        case .info: .info
+        case .note: .note(systemImage: nil)
         case .button: .button(icon: nil, text: "Button", activeIcon: nil, activeText: nil)
         case .image: .image
         case .math: .derived

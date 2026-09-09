@@ -121,11 +121,10 @@ nonisolated enum ComponentTemplateRenderer {
     private static let imageExpression = try! NSRegularExpression(pattern: #"\{\{\s*image\s*\}\}"#)
     private static let textExpression = try! NSRegularExpression(pattern: #"\{\{\s*text(?:\s*=\s*"([^"]*)")?\s*\}\}"#)
     private static let htmlExpression = try! NSRegularExpression(pattern: #"\{\{\s*html(?:\s*=\s*"([^"]*)")?\s*\}\}"#)
-    private static let colorFilterExpression = try! NSRegularExpression(pattern: #"^(lighten|darken)\(\s*([0-9]+(?:\.[0-9]+)?)\s*\)$"#)
-    private static let alphaFilterExpression = try! NSRegularExpression(pattern: #"^withAlpha\(\s*([0-9]+(?:\.[0-9]+)?)\s*\)$"#)
-    private static let mixFilterExpression = try! NSRegularExpression(pattern: #"^mix\(\s*[\"'](#[0-9A-Fa-f]{6}(?:[0-9A-Fa-f]{2})?)[\"']\s*,\s*([0-9]+(?:\.[0-9]+)?)\s*\)$"#)
-    private static let dateFilterExpression = try! NSRegularExpression(pattern: #"^formatDate\(\s*([\"'])(.+)\1\s*\)$"#)
-    private static let dateArithmeticFilterExpression = try! NSRegularExpression(pattern: #"^(addDays|addMonths)\(\s*(-?[0-9]+)\s*\)$"#)
+    private static let filterCallExpression = try! NSRegularExpression(pattern: #"^([A-Za-z][A-Za-z0-9_-]*)\(\s*(.*?)\s*\)$"#)
+    private static let outputEncodingFilters: Set<String> = [
+        "escapeHTML", "escapeHTMLAttribute", "encodeURL", "encodeURIComponent", "encodeJSON"
+    ]
     private static let conditionBlockExpression = try! NSRegularExpression(pattern: #"\{\{\s*if\s+([^{}]+?)\s*\}\}([\s\S]*?)\{\{\s*endif\s*\}\}"#)
     private static let conditionBranchExpression = try! NSRegularExpression(pattern: #"\{\{\s*(elseif\s+([^{}]+?)|else)\s*\}\}"#)
     private static let slotExpression = try! NSRegularExpression(pattern: #"\{\{\s*slot\s+id\s*=\s*[\"']([A-Za-z][A-Za-z0-9_.-]*)[\"'](?:\s+[^}]*?)?\s*\}\}"#)
@@ -499,6 +498,12 @@ nonisolated enum ComponentTemplateRenderer {
         let parts = ComponentTemplateExpression.templateParts(expression)
         guard let key = parts.first else { return "" }
         let filters = Array(parts.dropFirst())
+        if let encodingIndex = filters.firstIndex(where: outputEncodingFilters.contains) {
+            let valueFilters = Array(filters[..<encodingIndex])
+            let encodingFilters = Array(filters[encodingIndex...])
+            guard encodingFilters.allSatisfy(outputEncodingFilters.contains) else { return "" }
+            return encodedValue(for: key, valueFilters: valueFilters, encodingFilters: encodingFilters, context: context)
+        }
         if !filters.isEmpty,
            let filteredDate = filteredDate(for: key, filters: filters, context: context) {
             return escape(filteredDate)
@@ -522,7 +527,40 @@ nonisolated enum ComponentTemplateRenderer {
             result = ""
         }
         for filter in filters {
-            result = apply(filter: filter, to: result)
+            result = apply(filter: filter, to: result, context: context)
+        }
+        return result
+    }
+
+    private static func encodedValue(
+        for key: String,
+        valueFilters: [String],
+        encodingFilters: [String],
+        context: ComponentTemplateContext
+    ) -> String {
+        let typedValue = valueFilters.isEmpty ? packageValue(for: key, context: context) : nil
+        var result: String
+        if !valueFilters.isEmpty, let date = filteredDate(for: key, filters: valueFilters, context: context) {
+            result = date
+        } else if !valueFilters.isEmpty, let color = filteredColor(for: key, filters: valueFilters, context: context) {
+            result = color
+        } else if let typedValue {
+            result = packageValueRawString(typedValue)
+        } else {
+            return ""
+        }
+
+        var jsonValue = typedValue
+        for filter in encodingFilters {
+            switch filter {
+            case "escapeHTML": result = escape(result)
+            case "escapeHTMLAttribute": result = escapeAttribute(result)
+            case "encodeURL": result = encodeURL(result) ?? ""
+            case "encodeURIComponent": result = encodeURIComponent(result)
+            case "encodeJSON": result = encodeJSON(jsonValue ?? .string(result)) ?? ""
+            default: return ""
+            }
+            jsonValue = nil
         }
         return result
     }
@@ -594,12 +632,32 @@ nonisolated enum ComponentTemplateRenderer {
         }
     }
 
-    private static func apply(filter: String, to value: String) -> String {
-        guard let match = colorFilterExpression.firstMatch(in: filter, range: NSRange(filter.startIndex..., in: filter)),
-              let nameRange = Range(match.range(at: 1), in: filter),
-              let argumentRange = Range(match.range(at: 2), in: filter),
-              let argument = Double(filter[argumentRange]) else { return value }
-        switch String(filter[nameRange]) {
+    private static func packageValueRawString(_ value: ComponentPackageValue) -> String {
+        switch value {
+        case .string(let value): value
+        case .number(let value): value.formatted(.number.locale(Locale(identifier: "en_US_POSIX")))
+        case .boolean(let value): value ? "true" : "false"
+        case .array(let values): values.map(packageValueRawString).joined(separator: ", ")
+        }
+    }
+
+    private static func packageValue(for key: String, context: ComponentTemplateContext) -> ComponentPackageValue? {
+        guard key.hasPrefix("control.") else { return nil }
+        let reference = String(key.dropFirst("control.".count))
+        if let bracket = reference.lastIndex(of: "["), reference.hasSuffix("]"),
+           let index = Int(reference[reference.index(after: bracket)..<reference.index(before: reference.endIndex)]),
+           case .array(let values)? = context.properties[String(reference[..<bracket])],
+           values.indices.contains(index) {
+            return values[index]
+        }
+        return context.properties[reference]
+    }
+
+    private static func apply(filter: String, to value: String, context: ComponentTemplateContext) -> String {
+        guard let call = filterCall(filter),
+              call.arguments.count == 1,
+              let argument = numericFilterArgument(call.arguments[0], context: context) else { return value }
+        switch call.name {
         case "lighten": return transformColor(value, target: 255, amount: argument / 100)
         case "darken": return transformColor(value, target: 0, amount: argument / 100)
         default: return value
@@ -621,28 +679,25 @@ nonisolated enum ComponentTemplateRenderer {
         var includesOpacity = declaredOpacity
 
         for filter in filters {
-            if let match = colorFilterExpression.firstMatch(in: filter, range: NSRange(filter.startIndex..., in: filter)),
-               let nameRange = Range(match.range(at: 1), in: filter),
-               let amountRange = Range(match.range(at: 2), in: filter),
-               let amount = Double(filter[amountRange]) {
-                let target = String(filter[nameRange]) == "lighten"
+            guard let call = filterCall(filter) else { return nil }
+            if ["lighten", "darken"].contains(call.name), call.arguments.count == 1,
+               let amount = numericFilterArgument(call.arguments[0], context: context) {
+                let target = call.name == "lighten"
                     ? ComponentColorComponents(red: 255, green: 255, blue: 255, alpha: color.alpha)
                     : ComponentColorComponents(red: 0, green: 0, blue: 0, alpha: color.alpha)
                 color = color.mixed(with: target, amount: amount / 100)
                 continue
             }
-            if let match = alphaFilterExpression.firstMatch(in: filter, range: NSRange(filter.startIndex..., in: filter)),
-               let alphaRange = Range(match.range(at: 1), in: filter),
-               let alpha = Double(filter[alphaRange]) {
+            if call.name == "withAlpha", call.arguments.count == 1,
+               let alpha = numericFilterArgument(call.arguments[0], context: context) {
                 color = color.withAlpha(alpha)
                 includesOpacity = true
                 continue
             }
-            if let match = mixFilterExpression.firstMatch(in: filter, range: NSRange(filter.startIndex..., in: filter)),
-               let colorRange = Range(match.range(at: 1), in: filter),
-               let amountRange = Range(match.range(at: 2), in: filter),
-               let target = ComponentColorComponents(hex: String(filter[colorRange])),
-               let amount = Double(filter[amountRange]) {
+            if call.name == "mix", call.arguments.count == 2,
+               let targetValue = colorFilterArgument(call.arguments[0], context: context),
+               let target = ComponentColorComponents(hex: targetValue),
+               let amount = numericFilterArgument(call.arguments[1], context: context) {
                 color = color.mixed(with: target, amount: amount / 100)
                 continue
             }
@@ -661,29 +716,128 @@ nonisolated enum ComponentTemplateRenderer {
         guard case .string(let source)? = context.properties["\(reference).__dateSource"],
               var date = ComponentDateValue(source) else { return nil }
         for (index, filter) in filters.enumerated() {
-            if let match = dateArithmeticFilterExpression.firstMatch(
-                in: filter,
-                range: NSRange(filter.startIndex..., in: filter)
-            ), let operationRange = Range(match.range(at: 1), in: filter),
-               let amountRange = Range(match.range(at: 2), in: filter),
-               let amount = Int(filter[amountRange]),
+            guard let call = filterCall(filter) else { return nil }
+            if ["addDays", "addMonths"].contains(call.name), call.arguments.count == 1,
+               let amount = integerFilterArgument(call.arguments[0], context: context),
                let adjusted = date.adding(
-                String(filter[operationRange]) == "addDays" ? .day : .month,
+                call.name == "addDays" ? .day : .month,
                 value: amount
                ) {
                 date = adjusted
                 continue
             }
-            if index == filters.indices.last,
-               let match = dateFilterExpression.firstMatch(
-                in: filter,
-                range: NSRange(filter.startIndex..., in: filter)
-               ), let patternRange = Range(match.range(at: 2), in: filter) {
-                return date.formatted(String(filter[patternRange]))
+            if index == filters.indices.last, call.name == "formatDate", call.arguments.count == 1,
+               let pattern = stringFilterArgument(call.arguments[0], context: context) {
+                return date.formatted(pattern)
             }
             return nil
         }
         return date.isoDate
+    }
+
+    private static func filterCall(_ filter: String) -> (name: String, arguments: [String])? {
+        guard let match = filterCallExpression.firstMatch(in: filter, range: NSRange(filter.startIndex..., in: filter)),
+              let nameRange = Range(match.range(at: 1), in: filter),
+              let argumentsRange = Range(match.range(at: 2), in: filter) else { return nil }
+        return (String(filter[nameRange]), splitFilterArguments(String(filter[argumentsRange])))
+    }
+
+    private static func splitFilterArguments(_ source: String) -> [String] {
+        guard !source.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return [] }
+        var arguments: [String] = []
+        var current = ""
+        var quote: Character?
+        for character in source {
+            if character == "\"" || character == "'" {
+                quote = quote == character ? nil : (quote ?? character)
+            }
+            if character == ",", quote == nil {
+                arguments.append(current.trimmingCharacters(in: .whitespacesAndNewlines))
+                current = ""
+            } else {
+                current.append(character)
+            }
+        }
+        arguments.append(current.trimmingCharacters(in: .whitespacesAndNewlines))
+        return arguments
+    }
+
+    private static func filterArgument(_ argument: String, context: ComponentTemplateContext) -> ComponentPackageValue? {
+        let trimmed = argument.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.count >= 2, let first = trimmed.first, first == trimmed.last, first == "\"" || first == "'" {
+            return .string(String(trimmed.dropFirst().dropLast()))
+        }
+        if trimmed.hasPrefix("control.") {
+            return packageValue(for: trimmed, context: context)
+        }
+        if let number = Double(trimmed) { return .number(number) }
+        return nil
+    }
+
+    private static func numericFilterArgument(_ argument: String, context: ComponentTemplateContext) -> Double? {
+        guard let value = filterArgument(argument, context: context) else { return nil }
+        switch value {
+        case .number(let number): return number
+        case .string(let string): return Double(string)
+        default: return nil
+        }
+    }
+
+    private static func integerFilterArgument(_ argument: String, context: ComponentTemplateContext) -> Int? {
+        guard let number = numericFilterArgument(argument, context: context),
+              number.rounded(.towardZero) == number else { return nil }
+        return Int(exactly: number)
+    }
+
+    private static func stringFilterArgument(_ argument: String, context: ComponentTemplateContext) -> String? {
+        guard let value = filterArgument(argument, context: context) else { return nil }
+        if case .string(let string) = value { return string }
+        return nil
+    }
+
+    private static func colorFilterArgument(_ argument: String, context: ComponentTemplateContext) -> String? {
+        let trimmed = argument.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.hasPrefix("control."),
+           case .string(let source)? = context.properties["\(trimmed.dropFirst("control.".count)).__colorSource"] {
+            return source
+        }
+        return stringFilterArgument(argument, context: context)
+    }
+
+    private static func encodeURIComponent(_ value: String) -> String {
+        var allowed = CharacterSet.alphanumerics
+        allowed.insert(charactersIn: "-._~")
+        return value.addingPercentEncoding(withAllowedCharacters: allowed) ?? ""
+    }
+
+    private static func encodeURL(_ value: String) -> String? {
+        let value = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let schemeSeparator = value.firstIndex(of: ":") {
+            let scheme = String(value[..<schemeSeparator])
+            if scheme.range(of: #"^[A-Za-z][A-Za-z0-9+.-]*$"#, options: .regularExpression) != nil,
+               !["http", "https", "mailto", "tel"].contains(scheme.lowercased()) {
+                return nil
+            }
+        }
+        var allowed = CharacterSet.alphanumerics
+        allowed.insert(charactersIn: "-._~:/?#[]@!$&'()*+,;=")
+        return value.addingPercentEncoding(withAllowedCharacters: allowed)
+    }
+
+    private static func encodeJSON(_ value: ComponentPackageValue) -> String? {
+        guard let data = try? JSONEncoder().encode(value),
+              var result = String(data: data, encoding: .utf8) else { return nil }
+        let replacements = [
+            ("&", "\\u0026"),
+            ("<", "\\u003C"),
+            (">", "\\u003E"),
+            ("\u{2028}", "\\u2028"),
+            ("\u{2029}", "\\u2029")
+        ]
+        for (source, replacement) in replacements {
+            result = result.replacingOccurrences(of: source, with: replacement)
+        }
+        return result
     }
 
     static func transformColor(_ value: String, target: Double, amount: Double) -> String {

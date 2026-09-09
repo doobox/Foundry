@@ -68,7 +68,7 @@ struct ComponentPackageTests {
 
     @Test
     func removedControlTypesAreRejected() {
-        for type in ["fontFamily", "margin", "padding"] {
+        for type in ["fontFamily", "info", "margin", "padding"] {
             let plist = """
             <?xml version="1.0" encoding="UTF-8"?>
             <plist version="1.0"><dict>
@@ -698,13 +698,21 @@ struct ComponentPackageTests {
         let context = ComponentTemplateContext(
             instanceID: UUID(),
             packageIdentifier: manifest.identifier,
-            properties: resolved,
+            properties: resolved.merging([
+                "filterAmount": .number(25),
+                "filterAlpha": .number(0.5),
+                "mixTarget": .string("#3366CC")
+            ]) { current, _ in current },
             slots: [:]
         )
         #expect(ComponentTemplateRenderer.render("{{ control.defaultHex | lighten(50) }}", context: context) == "#FF99B3")
         #expect(ComponentTemplateRenderer.render("{{ control.defaultHex | darken(50) }}", context: context) == "#801A33")
         #expect(ComponentTemplateRenderer.render("{{ control.defaultHex | withAlpha(0.5) }}", context: context) == "#FF336680")
         #expect(ComponentTemplateRenderer.render("{{ control.defaultHex | mix('#3366CC', 25) }}", context: context) == "#CC4080")
+        #expect(ComponentTemplateRenderer.render("{{ control.defaultHex | lighten(control.filterAmount) }}", context: context) == "#FF668C")
+        #expect(ComponentTemplateRenderer.render("{{ control.defaultHex | withAlpha(control.filterAlpha) }}", context: context) == "#FF336680")
+        #expect(ComponentTemplateRenderer.render("{{ control.defaultHex | mix(control.mixTarget, control.filterAmount) }}", context: context) == "#CC4080")
+        #expect(ComponentTemplateRenderer.render("{{ control.defaultHex | mix(control.rgba, control.filterAmount) }}", context: context) == "#FF3366")
         #expect(ComponentTemplateRenderer.render("{{ control.rgba | darken(25) }}", context: context) == "rgba(191, 38, 77, 0.502)")
     }
 
@@ -744,7 +752,10 @@ struct ComponentPackageTests {
         let context = ComponentTemplateContext(
             instanceID: UUID(),
             packageIdentifier: manifest.identifier,
-            properties: resolved,
+            properties: resolved.merging([
+                "offsetDays": .number(7),
+                "datePattern": .string("d MMMM yyyy")
+            ]) { current, _ in current },
             slots: [:]
         )
         #expect(ComponentTemplateRenderer.render(
@@ -760,6 +771,14 @@ struct ComponentPackageTests {
             context: context
         ) == "2026-09-15")
         #expect(ComponentTemplateRenderer.render(
+            "{{ control.published | addDays(control.offsetDays) }}",
+            context: context
+        ) == "2026-09-15")
+        #expect(ComponentTemplateRenderer.render(
+            "{{ control.published | formatDate(control.datePattern) }}",
+            context: context
+        ) == "8 September 2026")
+        #expect(ComponentTemplateRenderer.render(
             "{{ control.published | addMonths(1) | formatDate('d MMMM yyyy') }}",
             context: context
         ) == "8 October 2026")
@@ -773,6 +792,56 @@ struct ComponentPackageTests {
         let outOfRangeManifest = try PropertyListDecoder().decode(ComponentPackageManifest.self, from: Data(outOfRange.utf8))
         let rangeDiagnostics = ComponentPackageValidator.validate(outOfRangeManifest, rootURL: FileManager.default.temporaryDirectory)
         #expect(rangeDiagnostics.contains { $0.message == "The default date is after maximum." })
+    }
+
+    @Test
+    func controlValuesSupportContextualOutputEncodingFilters() {
+        let context = ComponentTemplateContext(
+            instanceID: UUID(),
+            packageIdentifier: "com.example.encoding",
+            properties: [
+                "title": .string("Gary's \"<Card>\" & more"),
+                "query": .string("shoes & boots/large?"),
+                "website": .string("https://example.com/my products?q=red shoes&sort=new"),
+                "unsafeWebsite": .string("javascript:alert(1)"),
+                "enabled": .boolean(true),
+                "duration": .number(300),
+                "items": .array([.string("one"), .number(2), .boolean(false)])
+            ],
+            slots: [:]
+        )
+
+        #expect(ComponentTemplateRenderer.render(
+            "{{ control.title | escapeHTML }}",
+            context: context
+        ) == "Gary&#39;s &quot;&lt;Card&gt;&quot; &amp; more")
+        #expect(ComponentTemplateRenderer.render(
+            "{{ control.title | escapeHTMLAttribute }}",
+            context: context
+        ) == "Gary&#39;s &quot;&lt;Card&gt;&quot; &amp; more")
+        #expect(ComponentTemplateRenderer.render(
+            "{{ control.query | encodeURIComponent }}",
+            context: context
+        ) == "shoes%20%26%20boots%2Flarge%3F")
+        #expect(ComponentTemplateRenderer.render(
+            "{{ control.website | encodeURL }}",
+            context: context
+        ) == "https://example.com/my%20products?q=red%20shoes&sort=new")
+        #expect(ComponentTemplateRenderer.render("{{ control.unsafeWebsite | encodeURL }}", context: context).isEmpty)
+        #expect(ComponentTemplateRenderer.render("{{ control.enabled | encodeJSON }}", context: context) == "true")
+        #expect(ComponentTemplateRenderer.render("{{ control.duration | encodeJSON }}", context: context) == "300")
+        #expect(ComponentTemplateRenderer.render(
+            "{{ control.items | encodeJSON }}",
+            context: context
+        ) == "[\"one\",2,false]")
+        #expect(ComponentTemplateRenderer.render(
+            "{{ control.title | encodeJSON }}",
+            context: context
+        ) == #""Gary's \"\u003CCard\u003E\" \u0026 more""#)
+        #expect(ComponentTemplateRenderer.render(
+            "{{ control.title | encodeJSON | escapeHTMLAttribute }}",
+            context: context
+        ) == #"&quot;Gary&#39;s \&quot;\u003CCard\u003E\&quot; \u0026 more&quot;"#)
     }
 
     @Test
@@ -2174,6 +2243,96 @@ struct ComponentPackageTests {
                 for: Data(manifest(withCustomItems: invalidItem).utf8)
             )
             #expect(schemaDiagnostics.contains { $0.message == "A divider control does not support \(key)." })
+        }
+    }
+
+    @Test
+    func noteCustomControlUsesDedicatedContentKeys() throws {
+        let validItem = """
+        <dict>
+            <key>id</key><string>guidance</string>
+            <key>type</key><string>note</string>
+            <key>title</key><string>About this setting</string>
+            <key>body</key><string>Helpful guidance.</string>
+            <key>systemImage</key><string>info.circle</string>
+        </dict>
+        """
+        let validData = Data(manifest(withCustomItems: validItem).utf8)
+        #expect(try ComponentPackageManifestSchema.diagnostics(for: validData).isEmpty)
+
+        let decodedManifest = try PropertyListDecoder().decode(ComponentPackageManifest.self, from: validData)
+        let property = try #require(decodedManifest.properties.first)
+        #expect(property.noteTitle == "About this setting")
+        #expect(property.noteBody == "Helpful guidance.")
+        #expect(property.noteSystemImage == "info.circle")
+        #expect(property.label.isEmpty)
+        #expect(property.subtitles.isEmpty)
+        #expect(!property.responsive)
+        #expect(property.control.count == nil)
+
+        let unsupportedKeys = ["label", "subtitle", "responsive", "count"]
+        for key in unsupportedKeys {
+            let value = switch key {
+            case "responsive": "<true/>"
+            case "count": "<integer>2</integer>"
+            default: "<string>Unsupported</string>"
+            }
+            let item = """
+            <dict>
+                <key>id</key><string>guidance</string>
+                <key>type</key><string>note</string>
+                <key>body</key><string>Helpful guidance.</string>
+                <key>\(key)</key>\(value)
+            </dict>
+            """
+
+            let diagnostics = try ComponentPackageManifestSchema.diagnostics(
+                for: Data(manifest(withCustomItems: item).utf8)
+            )
+
+            #expect(diagnostics.contains {
+                $0.location == "Info.plist:customItems[0]:\(key)" &&
+                    $0.message == "A note control does not support \(key)."
+            })
+        }
+
+        let missingBodyItem = """
+        <dict>
+            <key>id</key><string>guidance</string>
+            <key>type</key><string>note</string>
+        </dict>
+        """
+        let missingBodyDiagnostics = try ComponentPackageManifestSchema.diagnostics(
+            for: Data(manifest(withCustomItems: missingBodyItem).utf8)
+        )
+        #expect(missingBodyDiagnostics.contains {
+            $0.location == "Info.plist:customItems[0]:body" &&
+                $0.message == "A body string is required."
+        })
+    }
+
+    @Test
+    func linkControlRejectsCountAndResponsive() throws {
+        for key in ["count", "responsive"] {
+            let value = key == "count" ? "<integer>2</integer>" : "<true/>"
+            let item = """
+            <dict>
+                <key>id</key><string>destination</string>
+                <key>type</key><string>link</string>
+                <key>label</key><string>Destination</string>
+                <key>default</key><string></string>
+                <key>\(key)</key>\(value)
+            </dict>
+            """
+
+            let diagnostics = try ComponentPackageManifestSchema.diagnostics(
+                for: Data(manifest(withCustomItems: item).utf8)
+            )
+
+            #expect(diagnostics.contains {
+                $0.location == "Info.plist:customItems[0]:\(key)" &&
+                    $0.message == "A link control does not support \(key)."
+            })
         }
     }
 
