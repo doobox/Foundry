@@ -784,75 +784,87 @@ private struct ComponentAdvancedInspectorCard: View {
     @Binding var attributes: [ComponentHTMLAttribute]
     let isDuplicateAnchor: Bool
     @State private var selectedAttributeID: UUID?
+    @State private var isExpanded = true
 
     var body: some View {
-        InspectorCard(title: "Advanced") {
-            InspectorGrid {
-                InspectorRow(title: "Anchor") {
-                    VStack(alignment: .leading, spacing: 4) {
-                        TextField("Anchor", text: $anchor)
-                        if !anchor.isEmpty && !ComponentAnchorValidator.isValid(anchor) {
-                            Text("Enter a valid anchor.")
-                                .font(.caption)
-                                .foregroundStyle(.red)
-                        } else if isDuplicateAnchor {
-                            Text("Anchor already in use.")
-                                .font(.caption)
-                                .foregroundStyle(.orange)
-                        }
+        DisclosureGroup(isExpanded: $isExpanded) {
+            VStack(alignment: .leading, spacing: InspectorMetrics.controlSpacing) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("ID")
+                        .foregroundStyle(.secondary)
+                    TextField("ID", text: $anchor)
+                        .frame(maxWidth: .infinity)
+                    if !anchor.isEmpty && !ComponentAnchorValidator.isValid(anchor) {
+                        Text("Enter a valid ID.")
+                            .font(.caption)
+                            .foregroundStyle(.red)
+                    } else if isDuplicateAnchor {
+                        Text("ID already in use.")
+                            .font(.caption)
+                            .foregroundStyle(.orange)
                     }
                 }
 
-                InspectorRow(title: "Classes") {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Classes")
+                        .foregroundStyle(.secondary)
                     TextField("Classes", text: $classes)
+                        .frame(maxWidth: .infinity)
                 }
+
+                Text("Attributes")
+                    .font(.callout.weight(.medium))
+
+                Table($attributes, selection: $selectedAttributeID) {
+                    TableColumn("Name") { $attribute in
+                        TextField("Name", text: $attribute.name)
+                            .labelsHidden()
+                            .textFieldStyle(.plain)
+                    }
+                    TableColumn("Value") { $attribute in
+                        TextField("Value", text: $attribute.value)
+                            .labelsHidden()
+                            .textFieldStyle(.plain)
+                    }
+                }
+                .frame(minHeight: 110)
+
+                if hasInvalidAttributes {
+                    Text("Enter valid attributes.")
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                }
+
+                HStack(spacing: 4) {
+                    Button {
+                        let attribute = ComponentHTMLAttribute()
+                        attributes.append(attribute)
+                        selectedAttributeID = attribute.id
+                    } label: {
+                        Image(systemName: "plus")
+                    }
+                    .help("Add attribute")
+
+                    Button {
+                        guard let selectedAttributeID else { return }
+                        attributes.removeAll { $0.id == selectedAttributeID }
+                        self.selectedAttributeID = nil
+                    } label: {
+                        Image(systemName: "minus")
+                    }
+                    .disabled(selectedAttributeID == nil)
+                    .help("Remove selected attribute")
+                }
+                .buttonStyle(.bordered)
             }
-
-            Text("Attributes")
-                .font(.callout.weight(.medium))
-
-            Table($attributes, selection: $selectedAttributeID) {
-                TableColumn("Name") { $attribute in
-                    TextField("Name", text: $attribute.name)
-                        .labelsHidden()
-                        .textFieldStyle(.plain)
-                }
-                TableColumn("Value") { $attribute in
-                    TextField("Value", text: $attribute.value)
-                        .labelsHidden()
-                        .textFieldStyle(.plain)
-                }
-            }
-            .frame(minHeight: 110)
-
-            if hasInvalidAttributes {
-                Text("Enter valid attributes.")
-                    .font(.caption)
-                    .foregroundStyle(.red)
-            }
-
-            HStack(spacing: 4) {
-                Button {
-                    let attribute = ComponentHTMLAttribute()
-                    attributes.append(attribute)
-                    selectedAttributeID = attribute.id
-                } label: {
-                    Image(systemName: "plus")
-                }
-                .help("Add attribute")
-
-                Button {
-                    guard let selectedAttributeID else { return }
-                    attributes.removeAll { $0.id == selectedAttributeID }
-                    self.selectedAttributeID = nil
-                } label: {
-                    Image(systemName: "minus")
-                }
-                .disabled(selectedAttributeID == nil)
-                .help("Remove selected attribute")
-            }
-            .buttonStyle(.bordered)
+            .controlSize(.small)
+            .font(.callout)
+            .padding(.horizontal, InspectorMetrics.horizontalSectionPadding)
+            .padding(.vertical, InspectorMetrics.verticalSectionPadding)
+        } label: {
+            Text("Advanced")
         }
+        .disclosureGroupStyle(ComponentInspectorDisclosureStyle())
     }
 
     private var hasInvalidAttributes: Bool {
