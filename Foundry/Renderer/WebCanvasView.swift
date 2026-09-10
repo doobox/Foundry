@@ -121,6 +121,36 @@ nonisolated enum CanvasContextMenuAction: String, Sendable {
     case delete
 }
 
+struct CanvasUpdateRevisionGate {
+    private(set) var latestRequested: UInt64 = 0
+    private(set) var latestApplied: UInt64 = 0
+
+    mutating func request(_ revision: UInt64) -> Bool {
+        guard revision >= latestRequested else { return false }
+        latestRequested = revision
+        return true
+    }
+
+    mutating func apply(_ revision: UInt64) -> Bool {
+        guard revision >= latestRequested, revision >= latestApplied else { return false }
+        latestApplied = revision
+        return true
+    }
+}
+
+enum CanvasWebOperation: Equatable, Sendable {
+    case component(RenderedComponentSubtree, fallbackHTML: String, revision: UInt64)
+    case reconcilePage(html: String, revision: UInt64)
+    case reloadDocument(html: String, revision: UInt64)
+
+    var revision: UInt64 {
+        switch self {
+        case .component(_, _, let revision), .reconcilePage(_, let revision), .reloadDocument(_, let revision):
+            revision
+        }
+    }
+}
+
 @MainActor
 final class CanvasWebView: WKWebView {
     weak var canvasCoordinator: WebCanvasView.Coordinator?
@@ -140,6 +170,7 @@ final class CanvasWebView: WKWebView {
 
 struct WebCanvasView: NSViewRepresentable {
     let html: String
+    let revision: UInt64
     let assets: [UUID: ProjectAssetContent]
     let packages: [String: LoadedComponentPackage]
     let assetRevision: UInt64
@@ -220,7 +251,7 @@ struct WebCanvasView: NSViewRepresentable {
         context.coordinator.selectedPrimitive = selectedPrimitive
         context.coordinator.editorOptions = editorOptions
         if context.coordinator.lastHTML != html {
-            context.coordinator.updateHTML(html, in: webView)
+            context.coordinator.apply(.reconcilePage(html: html, revision: revision), in: webView)
         } else {
             context.coordinator.applyCanvasState()
         }
@@ -703,6 +734,38 @@ struct WebCanvasView: NSViewRepresentable {
             Array.from(source.attributes).forEach(attribute => target.setAttribute(attribute.name, attribute.value));
           };
 
+          let latestFoundryRevision = 0;
+          window.foundryReplaceComponent = (componentID, html, css, revision) => {
+            if (!Number.isSafeInteger(revision) || revision < latestFoundryRevision) return false;
+            const current = document.querySelector('[data-foundry-id="' + CSS.escape(componentID) + '"]');
+            if (!current) return false;
+            const template = document.createElement('template');
+            template.innerHTML = html.trim();
+            const replacement = template.content.firstElementChild;
+            if (!replacement || template.content.childElementCount !== 1 || replacement.dataset.foundryId !== componentID) return false;
+            current.replaceWith(replacement);
+            const styleSelector = 'style[data-foundry-instance-style="' + CSS.escape(componentID) + '"]';
+            let style = document.head.querySelector(styleSelector);
+            if (css) {
+              if (!style) {
+                style = document.createElement('style');
+                style.dataset.foundryInstanceStyle = componentID;
+                document.head.appendChild(style);
+              }
+              style.textContent = css;
+            } else {
+              style?.remove();
+            }
+            latestFoundryRevision = revision;
+            installComponentDragHandlers();
+            hoveredComponent = null;
+            hoveredPrimitive = null;
+            window.foundrySetEditorOptions(editorOptions);
+            window.foundrySetSelection(selectedComponentIDs, selectedPrimitiveSelection, false);
+            scheduleChromeTitleUpdate();
+            return true;
+          };
+
           window.foundryReplaceDocument = html => {
             const replacement = new DOMParser().parseFromString(html, 'text/html');
             replacement.querySelectorAll(selector).forEach(element => { element.draggable = true; });
@@ -1008,8 +1071,9 @@ struct WebCanvasView: NSViewRepresentable {
         var handleContextMenuAction: (CanvasContextMenuAction, UUID, ComponentProperty.Key?, [Int]) -> Void
         private var contextMenuComponentID: UUID?
         private var contextMenuImageProperty: ComponentProperty.Key?
-        private var pendingHTML: String?
+        private var pendingHTML: (html: String, revision: UInt64)?
         private var loadedHTML: String?
+        private var revisionGate = CanvasUpdateRevisionGate()
         private var isLoadingHTML = false
         private var contextMenuImagePropertyPath: [Int] = []
         private var contextMenuRequest: [String: Any]?
@@ -1237,20 +1301,71 @@ struct WebCanvasView: NSViewRepresentable {
             handleContextMenuAction(action, contextMenuComponentID, contextMenuImageProperty, contextMenuImagePropertyPath)
         }
 
-        func updateHTML(_ html: String, in webView: WKWebView) {
-            lastHTML = html
-            guard !isLoadingHTML, !isCapturingScrollPosition, !isPatchingHTML else {
-                pendingHTML = html
-                return
-            }
-            if loadedHTML == nil {
-                captureScrollPositionThenLoad(html, in: webView)
-            } else {
-                patchHTML(html, in: webView)
+        func apply(_ operation: CanvasWebOperation, in webView: WKWebView) {
+            switch operation {
+            case .component(let subtree, let fallbackHTML, let revision):
+                patchComponent(subtree, fallbackHTML: fallbackHTML, revision: revision, in: webView)
+            case .reconcilePage(let html, let revision):
+                updateHTML(html, revision: revision, in: webView)
+            case .reloadDocument(let html, let revision):
+                guard revisionGate.request(revision) else { return }
+                captureScrollPositionThenLoad(html, revision: revision, in: webView)
             }
         }
 
-        private func patchHTML(_ html: String, in webView: WKWebView) {
+        private func patchComponent(
+            _ subtree: RenderedComponentSubtree,
+            fallbackHTML: String,
+            revision: UInt64,
+            in webView: WKWebView
+        ) {
+            guard revisionGate.request(revision), !isLoadingHTML, !isPatchingHTML else {
+                pendingHTML = (fallbackHTML, revision)
+                return
+            }
+            isPatchingHTML = true
+            Task { [weak self, weak webView] in
+                guard let self, let webView else { return }
+                let didPatch = (try? await webView.callAsyncJavaScript(
+                    "return window.foundryReplaceComponent?.(componentID, html, css, revision) === true",
+                    arguments: [
+                        "componentID": subtree.componentID.uuidString,
+                        "html": subtree.html,
+                        "css": subtree.instanceCSS,
+                        "revision": revision
+                    ],
+                    in: nil,
+                    contentWorld: .defaultClient
+                )) as? Bool == true
+                self.isPatchingHTML = false
+                guard didPatch else {
+                    self.updateHTML(fallbackHTML, revision: revision, in: webView)
+                    return
+                }
+                guard self.revisionGate.apply(revision) else {
+                    self.processPendingUpdate(in: webView)
+                    return
+                }
+                self.applyCanvasState()
+                self.processPendingUpdate(in: webView)
+            }
+        }
+
+        func updateHTML(_ html: String, revision: UInt64, in webView: WKWebView) {
+            guard revisionGate.request(revision) else { return }
+            lastHTML = html
+            guard !isLoadingHTML, !isCapturingScrollPosition, !isPatchingHTML else {
+                pendingHTML = (html, revision)
+                return
+            }
+            if loadedHTML == nil {
+                captureScrollPositionThenLoad(html, revision: revision, in: webView)
+            } else {
+                patchHTML(html, revision: revision, in: webView)
+            }
+        }
+
+        private func patchHTML(_ html: String, revision: UInt64, in webView: WKWebView) {
             isPatchingHTML = true
             Task { [weak self, weak webView] in
                 guard let self, let webView else { return }
@@ -1288,14 +1403,19 @@ struct WebCanvasView: NSViewRepresentable {
                 )) as? Bool == true
 #endif
                 self.isPatchingHTML = false
+                guard self.revisionGate.apply(revision) else {
+                    self.processPendingUpdate(in: webView)
+                    return
+                }
                 guard didPatch else {
-                    self.captureScrollPositionThenLoad(self.pendingHTML ?? html, in: webView)
+                    let fallback = self.pendingHTML ?? (html, revision)
+                    self.captureScrollPositionThenLoad(fallback.html, revision: fallback.revision, in: webView)
                     return
                 }
                 self.loadedHTML = html
-                if let pendingHTML = self.pendingHTML, pendingHTML != html {
+                if let pendingHTML = self.pendingHTML, pendingHTML.html != html {
                     self.pendingHTML = nil
-                    self.patchHTML(pendingHTML, in: webView)
+                    self.patchHTML(pendingHTML.html, revision: pendingHTML.revision, in: webView)
                 } else {
                     self.pendingHTML = nil
                     self.applyCanvasState()
@@ -1303,7 +1423,7 @@ struct WebCanvasView: NSViewRepresentable {
             }
         }
 
-        private func captureScrollPositionThenLoad(_ html: String, in webView: WKWebView) {
+        private func captureScrollPositionThenLoad(_ html: String, revision: UInt64, in webView: WKWebView) {
             isCapturingScrollPosition = true
             webView.evaluateJavaScript("[window.scrollX, window.scrollY]") { [weak self, weak webView] result, _ in
                 guard let self, let webView else { return }
@@ -1314,13 +1434,14 @@ struct WebCanvasView: NSViewRepresentable {
                         y: coordinates[1].doubleValue
                     )
                 }
-                let latestHTML = self.pendingHTML ?? html
-                self.load(latestHTML, in: webView)
+                let latest = self.pendingHTML ?? (html, revision)
+                self.load(latest.html, revision: latest.revision, in: webView)
             }
         }
 
-        private func load(_ html: String, in webView: WKWebView) {
+        private func load(_ html: String, revision: UInt64, in webView: WKWebView) {
             pendingHTML = nil
+            guard revisionGate.apply(revision) else { return }
             loadedHTML = html
             isLoadingHTML = true
             webView.loadHTMLString(html, baseURL: nil)
@@ -1348,12 +1469,18 @@ struct WebCanvasView: NSViewRepresentable {
 
         private func finishHTMLLoad(in webView: WKWebView) {
             isLoadingHTML = false
-            if let pendingHTML, pendingHTML != loadedHTML {
-                load(pendingHTML, in: webView)
+            if let pendingHTML, pendingHTML.html != loadedHTML {
+                load(pendingHTML.html, revision: pendingHTML.revision, in: webView)
             } else {
                 pendingHTML = nil
                 applyCanvasState()
             }
+        }
+
+        private func processPendingUpdate(in webView: WKWebView) {
+            guard let pendingHTML else { return }
+            self.pendingHTML = nil
+            patchHTML(pendingHTML.html, revision: pendingHTML.revision, in: webView)
         }
 
         func applyCanvasState() {

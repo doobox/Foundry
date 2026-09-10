@@ -94,8 +94,10 @@ struct CanvasView: View {
                             Spacer(minLength: canvasHorizontalPadding)
                             ZStack(alignment: .top) {
                                 ZStack(alignment: .top) {
+                                    let renderedPage = renderedPage(for: page)
                                     WebCanvasView(
-                                        html: renderedHTML(for: page),
+                                        html: renderedPage.html,
+                                        revision: renderedPage.revision,
                                         assets: assets,
                                         packages: canvasPackages(for: page),
                                         assetRevision: assetRevision,
@@ -179,7 +181,7 @@ struct CanvasView: View {
         return AnyShapeStyle(color)
     }
 
-    private func renderedHTML(for page: Page) -> String {
+    private func renderedPage(for page: Page) -> CanvasRenderedPage {
         let breakpoint = ResponsiveBreakpoint.forViewportWidth(viewportWidth, screens: theme.screens)
         let input = CanvasHTMLRenderInput(
             site: site,
@@ -188,7 +190,7 @@ struct CanvasView: View {
             componentPackageRevision: componentPackageRevision,
             breakpoint: breakpoint
         )
-        return htmlCache.html(for: input) {
+        return htmlCache.page(for: input) {
             renderer.render(
                 page: page,
                 language: language,
@@ -301,12 +303,18 @@ private struct CanvasHTMLRenderInput: Equatable {
     let breakpoint: ResponsiveBreakpoint
 }
 
+struct CanvasRenderedPage: Equatable {
+    let html: String
+    let revision: UInt64
+}
+
 @MainActor
 private final class CanvasHTMLCache {
     private var input: CanvasHTMLRenderInput?
     private var renderedHTML = ""
+    private var revision: UInt64 = 0
 
-    func html(for input: CanvasHTMLRenderInput, render: () -> String) -> String {
+    func page(for input: CanvasHTMLRenderInput, render: () -> String) -> CanvasRenderedPage {
 #if DEBUG
         let comparisonStartedAt = ContinuousClock.now
 #endif
@@ -314,12 +322,13 @@ private final class CanvasHTMLCache {
 #if DEBUG
         let comparisonCompletedAt = ContinuousClock.now
 #endif
-        guard !isCacheHit else { return renderedHTML }
+        guard !isCacheHit else { return .init(html: renderedHTML, revision: revision) }
 #if DEBUG
         let renderStartedAt = ContinuousClock.now
         Logger.foundryPerformance.debug("Canvas full-page render started")
 #endif
         renderedHTML = render()
+        revision &+= 1
 #if DEBUG
         let renderCompletedAt = ContinuousClock.now
         Logger.foundryPerformance.debug(
@@ -327,7 +336,7 @@ private final class CanvasHTMLCache {
         )
 #endif
         self.input = input
-        return renderedHTML
+        return .init(html: renderedHTML, revision: revision)
     }
 }
 

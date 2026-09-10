@@ -4,6 +4,41 @@ import Testing
 
 struct CanvasBridgeTests {
     @Test
+    func revisionGateRejectsStaleRequestsAndResults() {
+        var gate = CanvasUpdateRevisionGate()
+
+        let acceptedFirstRequest = gate.request(1)
+        let acceptedNewestRequest = gate.request(3)
+        let acceptedStaleRequest = gate.request(2)
+        let appliedStaleResult = gate.apply(1)
+        let appliedNewestResult = gate.apply(3)
+        let reappliedStaleResult = gate.apply(2)
+
+        #expect(acceptedFirstRequest)
+        #expect(acceptedNewestRequest)
+        #expect(!acceptedStaleRequest)
+        #expect(!appliedStaleResult)
+        #expect(appliedNewestResult)
+        #expect(!reappliedStaleResult)
+    }
+
+    @Test
+    func canvasDefinesDistinctComponentReconciliationAndReloadOperations() {
+        let id = UUID()
+        let subtree = RenderedComponentSubtree(componentID: id, html: "<div></div>", instanceCSS: "")
+        let operations: [CanvasWebOperation] = [
+            .component(subtree, fallbackHTML: "page", revision: 4),
+            .reconcilePage(html: "page", revision: 5),
+            .reloadDocument(html: "page", revision: 6)
+        ]
+
+        #expect(operations.map(\.revision) == [4, 5, 6])
+        #expect(WebCanvasView.Coordinator.interactionScript.contains("foundryReplaceComponent"))
+        #expect(WebCanvasView.Coordinator.interactionScript.contains("data-foundry-instance-style"))
+        #expect(WebCanvasView.Coordinator.interactionScript.contains("revision < latestFoundryRevision"))
+    }
+
+    @Test
     func decodesCurrentSelectionMessage() {
         let id = UUID()
         let body: [String: Any] = [
