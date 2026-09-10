@@ -99,14 +99,7 @@ extension ProjectEditor {
         on pageID: UUID,
         to placement: ComponentPlacement
     ) -> Bool {
-        var moved = false
-        mutate(actionName: "Move Component") { site in
-            guard let index = site.pages.firstIndex(where: { $0.id == pageID }) else {
-                return
-            }
-            moved = site.pages[index].components.moveNode(withID: id, to: placement)
-        }
-        return moved
+        moveComponents(ids: [id], on: pageID, to: placement)
     }
 
     @discardableResult
@@ -115,18 +108,27 @@ extension ProjectEditor {
         on pageID: UUID,
         to placement: ComponentPlacement
     ) -> Bool {
-        guard !ids.isEmpty else { return false }
+        guard !ids.isEmpty,
+              let page = document.site.pages.first(where: { $0.id == pageID }),
+              let sharedMove = document.site.sharedGlobalMove(
+                componentIDs: ids,
+                on: page,
+                to: placement
+              ) else { return false }
         var movedAll = false
         mutate(actionName: ids.count == 1 ? "Move Component" : "Move Components") { site in
             guard let index = site.pages.firstIndex(where: { $0.id == pageID }) else { return }
+            var components = site.pages[index].components
             var nextPlacement = placement
             for id in ids {
-                guard site.pages[index].components.moveNode(withID: id, to: nextPlacement) else {
+                guard components.moveNode(withID: id, to: nextPlacement) else {
                     return
                 }
-                movedAll = true
                 nextPlacement = .after(id)
             }
+            site.pages[index].components = components
+            site.synchronizeGlobalsAfterStructureMove(sharedMove)
+            movedAll = true
         }
         return movedAll
     }
@@ -162,11 +164,79 @@ extension ProjectEditor {
     }
 }
 
+nonisolated private struct SharedGlobalStructureMove {
+    let authoritativeInstances: [UUID: UUID]
+}
+
+nonisolated private extension Site {
+    func sharedGlobalMove(
+        componentIDs: [UUID],
+        on page: Page,
+        to placement: ComponentPlacement
+    ) -> SharedGlobalStructureMove? {
+        var instancesByDefinition: [UUID: Set<UUID>] = [:]
+
+        for componentID in componentIDs {
+            guard let context = globalStructureContext(containing: componentID) else { continue }
+            if !context.path.isEmpty, !context.isOverridden {
+                instancesByDefinition[context.definitionID, default: []].insert(context.instanceID)
+            }
+        }
+
+        if let parentID = page.components.parentID(for: placement),
+           let context = globalStructureContext(containing: parentID),
+           !context.isOverridden {
+            instancesByDefinition[context.definitionID, default: []].insert(context.instanceID)
+        }
+
+        guard instancesByDefinition.values.allSatisfy({ $0.count == 1 }) else {
+            return nil
+        }
+        let authoritativeInstances = instancesByDefinition.compactMapValues(\.first)
+        return SharedGlobalStructureMove(authoritativeInstances: authoritativeInstances)
+    }
+
+    mutating func synchronizeGlobalsAfterStructureMove(_ move: SharedGlobalStructureMove) {
+        var templates: [UUID: ComponentNode] = [:]
+        for (definitionID, instanceID) in move.authoritativeInstances {
+            guard let instance = component(withID: instanceID) else { continue }
+            templates[definitionID] = instance.duplicatedForReusableDefinition()
+        }
+
+        for (definitionID, template) in templates {
+            guard let index = globalComponents.firstIndex(where: { $0.id == definitionID }) else { continue }
+            globalComponents[index].root = template
+        }
+
+        for (definitionID, template) in templates {
+            let authoritativeInstanceID = move.authoritativeInstances[definitionID]
+            for pageIndex in pages.indices {
+                pages[pageIndex].components.replaceReusableInstances(
+                    definitionID: definitionID,
+                    with: template,
+                    excludingInstanceID: authoritativeInstanceID
+                )
+            }
+        }
+    }
+}
+
 nonisolated extension Array where Element == ComponentNode {
     func children(of parentID: UUID?) -> [ComponentNode]? {
         guard let parentID else {
             return self
         }
         return node(withID: parentID)?.children
+    }
+
+    func parentID(for placement: ComponentPlacement) -> UUID? {
+        switch placement {
+        case .inside(let parentID), .insideSlot(let parentID, _):
+            parentID
+        case .before(let targetID), .after(let targetID):
+            location(of: targetID)?.parentID
+        case .end:
+            nil
+        }
     }
 }

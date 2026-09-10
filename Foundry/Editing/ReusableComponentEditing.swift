@@ -153,6 +153,11 @@ extension ProjectEditor {
 
 nonisolated extension Site {
     func globalComponentContext(containing componentID: UUID) -> (definitionID: UUID, path: [Int], isOverridden: Bool, overrideOwnerID: UUID?)? {
+        guard let context = globalStructureContext(containing: componentID) else { return nil }
+        return (context.definitionID, context.path, context.isOverridden, context.overrideOwnerID)
+    }
+
+    func globalStructureContext(containing componentID: UUID) -> (definitionID: UUID, instanceID: UUID, path: [Int], isOverridden: Bool, overrideOwnerID: UUID?)? {
         for page in pages {
             for component in page.components {
                 if let context = component.globalComponentContext(containing: componentID) {
@@ -165,11 +170,11 @@ nonisolated extension Site {
 }
 
 nonisolated private extension ComponentNode {
-    func globalComponentContext(containing componentID: UUID) -> (definitionID: UUID, path: [Int], isOverridden: Bool, overrideOwnerID: UUID?)? {
+    func globalComponentContext(containing componentID: UUID) -> (definitionID: UUID, instanceID: UUID, path: [Int], isOverridden: Bool, overrideOwnerID: UUID?)? {
         if let definitionID = reusableDefinitionID,
            let path = path(to: componentID) {
             let overrideOwnerID = overrideOwnerID(at: path)
-            return (definitionID, path, overrideOwnerID != nil, overrideOwnerID)
+            return (definitionID, id, path, overrideOwnerID != nil, overrideOwnerID)
         }
         for child in children {
             if let context = child.globalComponentContext(containing: componentID) {
@@ -211,7 +216,7 @@ nonisolated private extension ComponentNode {
     }
 }
 
-nonisolated private extension Array where Element == ComponentNode {
+nonisolated extension Array where Element == ComponentNode {
     mutating func detachReusableInstances(definitionID: UUID) {
         for index in indices {
             if self[index].reusableDefinitionID == definitionID {
@@ -223,18 +228,22 @@ nonisolated private extension Array where Element == ComponentNode {
 
     mutating func replaceReusableInstances(
         definitionID: UUID,
-        with template: ComponentNode
+        with template: ComponentNode,
+        excludingInstanceID: UUID? = nil
     ) {
         for index in indices {
             if self[index].reusableDefinitionID == definitionID {
-                self[index] = template.duplicatedAsReusableInstance(
-                    of: definitionID,
-                    preservingIDsFrom: self[index]
-                )
+                if self[index].id != excludingInstanceID {
+                    self[index] = template.duplicatedAsReusableInstance(
+                        of: definitionID,
+                        preservingIDsFrom: self[index]
+                    )
+                }
             } else {
                 self[index].children.replaceReusableInstances(
                     definitionID: definitionID,
-                    with: template
+                    with: template,
+                    excludingInstanceID: excludingInstanceID
                 )
             }
         }

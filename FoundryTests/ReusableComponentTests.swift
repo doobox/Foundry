@@ -205,4 +205,80 @@ struct ReusableComponentTests {
         #expect(document.site.component(withID: secondTextID)?.property(.text) == "Global heading")
         #expect(document.site.globalComponentContext(containing: secondTextID)?.isOverridden == false)
     }
+
+    @Test
+    func movingLocalComponentIntoGlobalUpdatesEveryInstance() throws {
+        var site = TestSiteFixtures.populatedSite()
+        let source = try #require(site.pages.first?.components.first)
+        let local = ComponentNode(type: .paragraph, name: "Local addition")
+        site.pages[0].components.append(local)
+        let document = FoundryDocument(site: site)
+        let editor = ProjectEditor(document: document, undoManager: nil)
+        let definitionID = try #require(editor.saveGlobalComponent(componentID: source.id, name: "Hero"))
+        let secondRootID = try #require(
+            editor.insertGlobalComponent(definitionID: definitionID, on: site.pages[0].id, placement: .end)
+        )
+
+        #expect(editor.moveComponent(id: local.id, on: site.pages[0].id, to: .inside(source.id)))
+
+        #expect(document.site.component(withID: source.id)?.children.last?.id == local.id)
+        #expect(document.site.component(withID: secondRootID)?.children.last?.name == "Local addition")
+        #expect(document.site.globalComponents.first?.root.children.last?.name == "Local addition")
+    }
+
+    @Test
+    func movingComponentOutOfGlobalUpdatesEveryInstanceAndKeepsDraggedNodeLocal() throws {
+        let site = TestSiteFixtures.populatedSite()
+        let source = try #require(site.pages.first?.components.first)
+        let movedChild = try #require(source.children.first)
+        let document = FoundryDocument(site: site)
+        let editor = ProjectEditor(document: document, undoManager: nil)
+        let definitionID = try #require(editor.saveGlobalComponent(componentID: source.id, name: "Hero"))
+        let secondRootID = try #require(
+            editor.insertGlobalComponent(definitionID: definitionID, on: site.pages[0].id, placement: .end)
+        )
+
+        #expect(editor.moveComponent(id: movedChild.id, on: site.pages[0].id, to: .after(source.id)))
+
+        #expect(document.site.component(withID: source.id)?.children.count == 1)
+        #expect(document.site.component(withID: secondRootID)?.children.count == 1)
+        #expect(document.site.pages[0].components.contains(where: { $0.id == movedChild.id }))
+        #expect(document.site.component(withID: movedChild.id)?.reusableDefinitionID == nil)
+    }
+
+    @Test
+    func reorderingInsideGlobalUpdatesEveryInstance() throws {
+        let site = TestSiteFixtures.populatedSite()
+        let source = try #require(site.pages.first?.components.first)
+        let firstChild = try #require(source.children.first)
+        let secondChild = try #require(source.children.last)
+        let document = FoundryDocument(site: site)
+        let editor = ProjectEditor(document: document, undoManager: nil)
+        let definitionID = try #require(editor.saveGlobalComponent(componentID: source.id, name: "Hero"))
+        let secondRootID = try #require(
+            editor.insertGlobalComponent(definitionID: definitionID, on: site.pages[0].id, placement: .end)
+        )
+
+        #expect(editor.moveComponent(id: firstChild.id, on: site.pages[0].id, to: .after(secondChild.id)))
+
+        #expect(document.site.component(withID: source.id)?.children.map(\.name) == ["Call to action", "Paragraph"])
+        #expect(document.site.component(withID: secondRootID)?.children.map(\.name) == ["Call to action", "Paragraph"])
+    }
+
+    @Test
+    func movingBetweenInstancesOfSameGlobalIsRejected() throws {
+        let site = TestSiteFixtures.populatedSite()
+        let source = try #require(site.pages.first?.components.first)
+        let sourceChild = try #require(source.children.first)
+        let document = FoundryDocument(site: site)
+        let editor = ProjectEditor(document: document, undoManager: nil)
+        let definitionID = try #require(editor.saveGlobalComponent(componentID: source.id, name: "Hero"))
+        let secondRootID = try #require(
+            editor.insertGlobalComponent(definitionID: definitionID, on: site.pages[0].id, placement: .end)
+        )
+
+        #expect(!editor.moveComponent(id: sourceChild.id, on: site.pages[0].id, to: .inside(secondRootID)))
+        #expect(document.site.component(withID: source.id)?.children.count == 2)
+        #expect(document.site.component(withID: secondRootID)?.children.count == 2)
+    }
 }
