@@ -139,13 +139,13 @@ struct CanvasUpdateRevisionGate {
 }
 
 enum CanvasWebOperation: Equatable, Sendable {
-    case component(RenderedComponentSubtree, fallbackHTML: String, revision: UInt64)
+    case component(RenderedComponentSubtree, revision: UInt64)
     case reconcilePage(html: String, revision: UInt64)
     case reloadDocument(html: String, revision: UInt64)
 
     var revision: UInt64 {
         switch self {
-        case .component(_, _, let revision), .reconcilePage(_, let revision), .reloadDocument(_, let revision):
+        case .component(_, let revision), .reconcilePage(_, let revision), .reloadDocument(_, let revision):
             revision
         }
     }
@@ -169,8 +169,7 @@ final class CanvasWebView: WKWebView {
 }
 
 struct WebCanvasView: NSViewRepresentable {
-    let html: String
-    let revision: UInt64
+    let operation: CanvasWebOperation
     let assets: [UUID: ProjectAssetContent]
     let packages: [String: LoadedComponentPackage]
     let assetRevision: UInt64
@@ -182,6 +181,7 @@ struct WebCanvasView: NSViewRepresentable {
     let canClearImage: (UUID, ComponentProperty.Key, [Int]) -> Bool
     let handleMessage: (CanvasMessage) -> Void
     let handleContextMenuAction: (CanvasContextMenuAction, UUID, ComponentProperty.Key?, [Int]) -> Void
+    let requestFullReconciliation: () -> Void
 
     func makeCoordinator() -> Coordinator {
         Coordinator(
@@ -189,7 +189,8 @@ struct WebCanvasView: NSViewRepresentable {
             packages: packages,
             canClearImage: canClearImage,
             handleMessage: handleMessage,
-            handleContextMenuAction: handleContextMenuAction
+            handleContextMenuAction: handleContextMenuAction,
+            requestFullReconciliation: requestFullReconciliation
         )
     }
 
@@ -250,8 +251,10 @@ struct WebCanvasView: NSViewRepresentable {
         context.coordinator.selectedComponentIDs = selectedComponentIDs
         context.coordinator.selectedPrimitive = selectedPrimitive
         context.coordinator.editorOptions = editorOptions
-        if context.coordinator.lastHTML != html {
-            context.coordinator.apply(.reconcilePage(html: html, revision: revision), in: webView)
+        context.coordinator.requestFullReconciliation = requestFullReconciliation
+        if context.coordinator.lastSubmittedRevision != operation.revision {
+            context.coordinator.lastSubmittedRevision = operation.revision
+            context.coordinator.apply(operation, in: webView)
         } else {
             context.coordinator.applyCanvasState()
         }
@@ -1069,10 +1072,13 @@ struct WebCanvasView: NSViewRepresentable {
         var canClearImage: (UUID, ComponentProperty.Key, [Int]) -> Bool
         var handleMessage: (CanvasMessage) -> Void
         var handleContextMenuAction: (CanvasContextMenuAction, UUID, ComponentProperty.Key?, [Int]) -> Void
+        var requestFullReconciliation: () -> Void
         private var contextMenuComponentID: UUID?
         private var contextMenuImageProperty: ComponentProperty.Key?
         private var pendingHTML: (html: String, revision: UInt64)?
+        private var pendingComponent: (subtree: RenderedComponentSubtree, revision: UInt64)?
         private var loadedHTML: String?
+        fileprivate var lastSubmittedRevision: UInt64?
         private var revisionGate = CanvasUpdateRevisionGate()
         private var isLoadingHTML = false
         private var contextMenuImagePropertyPath: [Int] = []
@@ -1088,12 +1094,14 @@ struct WebCanvasView: NSViewRepresentable {
             packages: [String: LoadedComponentPackage],
             canClearImage: @escaping (UUID, ComponentProperty.Key, [Int]) -> Bool,
             handleMessage: @escaping (CanvasMessage) -> Void,
-            handleContextMenuAction: @escaping (CanvasContextMenuAction, UUID, ComponentProperty.Key?, [Int]) -> Void
+            handleContextMenuAction: @escaping (CanvasContextMenuAction, UUID, ComponentProperty.Key?, [Int]) -> Void,
+            requestFullReconciliation: @escaping () -> Void
         ) {
             assetSchemeHandler = CanvasAssetSchemeHandler(assets: assets, packages: packages)
             self.canClearImage = canClearImage
             self.handleMessage = handleMessage
             self.handleContextMenuAction = handleContextMenuAction
+            self.requestFullReconciliation = requestFullReconciliation
             super.init()
             NotificationCenter.default.addObserver(
                 self,
@@ -1303,8 +1311,8 @@ struct WebCanvasView: NSViewRepresentable {
 
         func apply(_ operation: CanvasWebOperation, in webView: WKWebView) {
             switch operation {
-            case .component(let subtree, let fallbackHTML, let revision):
-                patchComponent(subtree, fallbackHTML: fallbackHTML, revision: revision, in: webView)
+            case .component(let subtree, let revision):
+                patchComponent(subtree, revision: revision, in: webView)
             case .reconcilePage(let html, let revision):
                 updateHTML(html, revision: revision, in: webView)
             case .reloadDocument(let html, let revision):
@@ -1315,17 +1323,48 @@ struct WebCanvasView: NSViewRepresentable {
 
         private func patchComponent(
             _ subtree: RenderedComponentSubtree,
-            fallbackHTML: String,
             revision: UInt64,
             in webView: WKWebView
         ) {
-            guard revisionGate.request(revision), !isLoadingHTML, !isPatchingHTML else {
-                pendingHTML = (fallbackHTML, revision)
+            guard revisionGate.request(revision) else { return }
+            guard !isLoadingHTML, !isPatchingHTML, loadedHTML != nil else {
+                pendingComponent = (subtree, revision)
                 return
             }
             isPatchingHTML = true
             Task { [weak self, weak webView] in
                 guard let self, let webView else { return }
+#if DEBUG
+                let requestStartedAt = ContinuousClock.now
+                Logger.foundryPerformance.debug(
+                    "Component patch sent to WebKit: id=\(subtree.componentID.uuidString), htmlBytes=\(subtree.html.utf8.count), cssBytes=\(subtree.instanceCSS.utf8.count)"
+                )
+                let result = try? await webView.callAsyncJavaScript(
+                    """
+                    const startedAt = performance.now();
+                    const didPatch = window.foundryReplaceComponent?.(componentID, html, css, revision) === true;
+                    const domMilliseconds = performance.now() - startedAt;
+                    return await new Promise(resolve => requestAnimationFrame(() => resolve({
+                        didPatch,
+                        domMilliseconds,
+                        paintedMilliseconds: performance.now() - startedAt
+                    })));
+                    """,
+                    arguments: [
+                        "componentID": subtree.componentID.uuidString,
+                        "html": subtree.html,
+                        "css": subtree.instanceCSS,
+                        "revision": revision
+                    ],
+                    in: nil,
+                    contentWorld: .defaultClient
+                ) as? [String: Any]
+                let didPatch = result?["didPatch"] as? Bool == true
+                let acknowledgedAt = ContinuousClock.now
+                Logger.foundryPerformance.debug(
+                    "Component patch painted: success=\(didPatch), dom=\(result?["domMilliseconds"] as? Double ?? -1, format: .fixed(precision: 3))ms, requestAnimationFrame=\(result?["paintedMilliseconds"] as? Double ?? -1, format: .fixed(precision: 3))ms, SwiftRoundTrip=\(requestStartedAt.milliseconds(to: acknowledgedAt), format: .fixed(precision: 3))ms"
+                )
+#else
                 let didPatch = (try? await webView.callAsyncJavaScript(
                     "return window.foundryReplaceComponent?.(componentID, html, css, revision) === true",
                     arguments: [
@@ -1337,9 +1376,11 @@ struct WebCanvasView: NSViewRepresentable {
                     in: nil,
                     contentWorld: .defaultClient
                 )) as? Bool == true
+#endif
                 self.isPatchingHTML = false
                 guard didPatch else {
-                    self.updateHTML(fallbackHTML, revision: revision, in: webView)
+                    self.pendingComponent = nil
+                    self.requestFullReconciliation()
                     return
                 }
                 guard self.revisionGate.apply(revision) else {
@@ -1474,13 +1515,20 @@ struct WebCanvasView: NSViewRepresentable {
             } else {
                 pendingHTML = nil
                 applyCanvasState()
+                processPendingUpdate(in: webView)
             }
         }
 
         private func processPendingUpdate(in webView: WKWebView) {
-            guard let pendingHTML else { return }
-            self.pendingHTML = nil
-            patchHTML(pendingHTML.html, revision: pendingHTML.revision, in: webView)
+            if let pendingHTML,
+               pendingHTML.revision >= (pendingComponent?.revision ?? 0) {
+                self.pendingHTML = nil
+                pendingComponent = nil
+                patchHTML(pendingHTML.html, revision: pendingHTML.revision, in: webView)
+            } else if let pendingComponent {
+                self.pendingComponent = nil
+                patchComponent(pendingComponent.subtree, revision: pendingComponent.revision, in: webView)
+            }
         }
 
         func applyCanvasState() {

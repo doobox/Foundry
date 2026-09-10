@@ -14,9 +14,26 @@ nonisolated protocol PageRendering: Sendable {
         assets: [UUID: ProjectAssetContent],
         breakpoint: ResponsiveBreakpoint
     ) -> String
+    func renderSubtree(
+        componentID: UUID,
+        page: Page,
+        theme: Theme,
+        assets: [UUID: ProjectAssetContent],
+        breakpoint: ResponsiveBreakpoint
+    ) -> RenderedComponentSubtree?
 }
 
 extension PageRendering {
+    func renderSubtree(
+        componentID: UUID,
+        page: Page,
+        theme: Theme,
+        assets: [UUID: ProjectAssetContent],
+        breakpoint: ResponsiveBreakpoint
+    ) -> RenderedComponentSubtree? {
+        nil
+    }
+
     func render(page: Page, theme: Theme) -> String {
         render(page: page, language: "en", theme: theme, assets: [:], breakpoint: .extraLarge)
     }

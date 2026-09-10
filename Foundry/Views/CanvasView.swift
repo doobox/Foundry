@@ -45,7 +45,7 @@ struct CanvasView: View {
     let theme: Theme
     let assets: [UUID: ProjectAssetContent]
     let assetRevision: UInt64
-    let mutationRevision: UInt64
+    let mutationEvent: ProjectMutationEvent
     let componentPackageRevision: Int
     let isComponentCatalogReady: Bool
     let selectedComponentIDs: Set<UUID>
@@ -68,6 +68,7 @@ struct CanvasView: View {
     @State private var visibleCanvasWidth = 0.0
     @State private var renderedPage: CanvasRenderedPage?
     @State private var renderRevision: UInt64 = 0
+    @State private var forcedReconciliationRevision: UInt64?
     private let resizeEdgeHitTargetWidth = 12.0
     private let canvasHorizontalPadding = 24.0
     private let minimumViewportWidth = 320.0
@@ -98,8 +99,7 @@ struct CanvasView: View {
                                 ZStack(alignment: .top) {
                                     if let renderedPage {
                                         WebCanvasView(
-                                            html: renderedPage.html,
-                                            revision: renderedPage.revision,
+                                            operation: renderedPage.operation,
                                             assets: assets,
                                             packages: canvasPackages(for: page),
                                             assetRevision: assetRevision,
@@ -110,7 +110,10 @@ struct CanvasView: View {
                                             canPasteComponent: canPasteComponent,
                                             canClearImage: canClearImage,
                                             handleMessage: handleMessage,
-                                            handleContextMenuAction: handleContextMenuAction
+                                            handleContextMenuAction: handleContextMenuAction,
+                                            requestFullReconciliation: {
+                                                forcedReconciliationRevision = mutationEvent.revision
+                                            }
                                         )
                                         .id(enablesCanvasWebInspector)
                                         .frame(width: viewportWidth, height: logicalHeight)
@@ -196,10 +199,11 @@ struct CanvasView: View {
         let breakpoint = ResponsiveBreakpoint.forViewportWidth(viewportWidth, screens: theme.screens)
         return CanvasRenderRequestID(
             pageID: page.id,
-            mutationRevision: mutationRevision,
+            mutationRevision: mutationEvent.revision,
             assetRevision: assetRevision,
             componentPackageRevision: componentPackageRevision,
-            breakpoint: breakpoint
+            breakpoint: breakpoint,
+            forcesReconciliation: forcedReconciliationRevision == mutationEvent.revision
         )
     }
 
@@ -210,19 +214,22 @@ struct CanvasView: View {
         }
         renderRevision &+= 1
         let revision = renderRevision
+        let requiresInitialPage = renderedPage?.pageID != page.id
         let snapshot = CanvasRenderSnapshot(
             renderer: renderer,
             page: page,
             language: language,
             theme: theme,
             assets: assets,
-            breakpoint: requestID.breakpoint
+            breakpoint: requestID.breakpoint,
+            impact: mutationEvent.impact,
+            forcesReconciliation: requestID.forcesReconciliation || requiresInitialPage
         )
-        let html = await Task.detached(priority: .userInitiated) {
+        let operation = await Task.detached(priority: .userInitiated) {
             snapshot.render()
         }.value
         guard !Task.isCancelled, requestID == renderRequestID, revision == renderRevision else { return }
-        renderedPage = .init(html: html, revision: revision)
+        renderedPage = .init(pageID: page.id, operation: operation.withRevision(revision))
     }
 
     private func canvasPackages(for page: Page) -> [String: LoadedComponentPackage] {
@@ -325,11 +332,12 @@ private struct CanvasRenderRequestID: Hashable {
     let assetRevision: UInt64
     let componentPackageRevision: Int
     let breakpoint: ResponsiveBreakpoint
+    let forcesReconciliation: Bool
 }
 
 struct CanvasRenderedPage: Equatable {
-    let html: String
-    let revision: UInt64
+    let pageID: UUID
+    let operation: CanvasWebOperation
 }
 
 nonisolated struct CanvasRenderSnapshot: Sendable {
@@ -339,8 +347,22 @@ nonisolated struct CanvasRenderSnapshot: Sendable {
     let theme: Theme
     let assets: [UUID: ProjectAssetContent]
     let breakpoint: ResponsiveBreakpoint
+    let impact: ProjectMutationImpact
+    let forcesReconciliation: Bool
 
-    func render() -> String {
+    func render() -> CanvasRenderResult {
+        if !forcesReconciliation,
+           case .componentProperty(let componentID, let propertyKey) = impact,
+           allowsComponentPatch(componentID: componentID, propertyKey: propertyKey),
+           let subtree = renderer.renderSubtree(
+               componentID: componentID,
+               page: page,
+               theme: theme,
+               assets: assets,
+               breakpoint: breakpoint
+           ) {
+            return .component(subtree)
+        }
 #if DEBUG
         let startedAt = ContinuousClock.now
         Logger.foundryPerformance.debug("Canvas background full-page render started")
@@ -358,7 +380,49 @@ nonisolated struct CanvasRenderSnapshot: Sendable {
             "Canvas background full-page render completed: render=\(startedAt.milliseconds(to: completedAt), format: .fixed(precision: 3))ms, bytes=\(html.utf8.count)"
         )
 #endif
-        return html
+        return .page(html)
+    }
+
+    private func allowsComponentPatch(componentID: UUID, propertyKey: ComponentProperty.Key) -> Bool {
+        guard let path = componentPath(to: componentID, in: page.components),
+              path.allSatisfy({ $0.reusableDefinitionID == nil }),
+              let component = path.last,
+              let package = component.type.definition.package,
+              let property = component.type.definition.properties.first(where: { $0.key == propertyKey }) else {
+            return false
+        }
+        guard package.pageCSS.isEmpty,
+              package.siteCSS.isEmpty,
+              package.placedHTML.isEmpty,
+              package.instanceJavaScript.isEmpty,
+              package.pageJavaScript.isEmpty,
+              package.manifest.assets.isEmpty else {
+            return false
+        }
+        if case .image = property.control { return false }
+        return true
+    }
+
+    private func componentPath(to componentID: UUID, in nodes: [ComponentNode]) -> [ComponentNode]? {
+        for node in nodes {
+            if node.id == componentID { return [node] }
+            if let childPath = componentPath(to: componentID, in: node.children) {
+                return [node] + childPath
+            }
+        }
+        return nil
+    }
+}
+
+nonisolated enum CanvasRenderResult: Equatable, Sendable {
+    case component(RenderedComponentSubtree)
+    case page(String)
+
+    func withRevision(_ revision: UInt64) -> CanvasWebOperation {
+        switch self {
+        case .component(let subtree): .component(subtree, revision: revision)
+        case .page(let html): .reconcilePage(html: html, revision: revision)
+        }
     }
 }
 

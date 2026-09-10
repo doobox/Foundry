@@ -416,7 +416,7 @@ struct ContentView: View {
                 theme: document.site.theme,
                 assets: document.assetContents,
                 assetRevision: document.assetRevision,
-                mutationRevision: document.mutationEvent.revision,
+                mutationEvent: document.mutationEvent,
                 componentPackageRevision: componentCatalog.revision,
                 isComponentCatalogReady: !componentCatalog.isInitialLoading,
                 selectedComponentIDs: selectedComponentIDs,

@@ -27,7 +27,7 @@ struct CanvasBridgeTests {
         let id = UUID()
         let subtree = RenderedComponentSubtree(componentID: id, html: "<div></div>", instanceCSS: "")
         let operations: [CanvasWebOperation] = [
-            .component(subtree, fallbackHTML: "page", revision: 4),
+            .component(subtree, revision: 4),
             .reconcilePage(html: "page", revision: 5),
             .reloadDocument(html: "page", revision: 6)
         ]
@@ -49,7 +49,9 @@ struct CanvasBridgeTests {
             language: site.language,
             theme: site.theme,
             assets: [:],
-            breakpoint: .extraLarge
+            breakpoint: .extraLarge,
+            impact: .page,
+            forcesReconciliation: false
         )
 
         let backgroundHTML = await Task.detached { snapshot.render() }.value
@@ -61,7 +63,56 @@ struct CanvasBridgeTests {
             breakpoint: .extraLarge
         )
 
-        #expect(backgroundHTML == authoritativeHTML)
+        #expect(backgroundHTML == .page(authoritativeHTML))
+    }
+
+    @Test @MainActor
+    func ordinaryLocalPropertyMutationUsesAuthoritativeComponentPatch() throws {
+        var paragraph = ComponentNode.make(.paragraph)
+        let propertyKey = ComponentProperty.Key(rawValue: "content1")
+        paragraph.setProperty(propertyKey, value: .string("Patched value"))
+        let page = Page(title: "Patch", slug: "patch", components: [paragraph])
+        let snapshot = CanvasRenderSnapshot(
+            renderer: HTMLPageRenderer(),
+            page: page,
+            language: "en",
+            theme: .standard,
+            assets: [:],
+            breakpoint: .extraLarge,
+            impact: .componentProperty(componentID: paragraph.id, propertyKey: propertyKey),
+            forcesReconciliation: false
+        )
+
+        let result = snapshot.render()
+        guard case .component(let subtree) = result else {
+            Issue.record("Expected a targeted component render")
+            return
+        }
+        #expect(subtree.componentID == paragraph.id)
+        #expect(HTMLPageRenderer().render(page: page, theme: .standard).contains(subtree.html))
+    }
+
+    @Test @MainActor
+    func reusablePropertyMutationUsesPageFallback() {
+        var paragraph = ComponentNode.make(.paragraph)
+        paragraph.reusableDefinitionID = UUID()
+        let propertyKey = ComponentProperty.Key(rawValue: "content1")
+        let page = Page(title: "Fallback", slug: "fallback", components: [paragraph])
+        let snapshot = CanvasRenderSnapshot(
+            renderer: HTMLPageRenderer(),
+            page: page,
+            language: "en",
+            theme: .standard,
+            assets: [:],
+            breakpoint: .extraLarge,
+            impact: .componentProperty(componentID: paragraph.id, propertyKey: propertyKey),
+            forcesReconciliation: false
+        )
+
+        guard case .page = snapshot.render() else {
+            Issue.record("Expected the authoritative page fallback")
+            return
+        }
     }
 
     @Test
