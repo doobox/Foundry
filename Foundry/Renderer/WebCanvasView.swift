@@ -363,6 +363,7 @@ struct WebCanvasView: NSViewRepresentable {
           chromeLayer.appendChild(chromeTitle);
           let hoveredComponent = null;
           let hoveredPrimitive = null;
+          let hoveredEditable = null;
           let selectedChromeTargets = [];
           let selectedChrome = [];
           const hoverChrome = document.createElement('div');
@@ -378,10 +379,30 @@ struct WebCanvasView: NSViewRepresentable {
           };
           applyOutlineBaseStyles(hoverChrome);
           chromeLayer.appendChild(hoverChrome);
+          const editableChrome = document.createElement('div');
+          editableChrome.setAttribute('data-foundry-editor-chrome', 'editable');
+          applyOutlineBaseStyles(editableChrome);
+          const editableBadge = document.createElement('div');
+          editableBadge.innerHTML = '<svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true"><path d="M11.7 1.3a1 1 0 0 1 1.4 0l1.6 1.6a1 1 0 0 1 0 1.4L6 13l-4 1 1-4zM10.6 2.4 4.4 8.6l3 3 6.2-6.2z" fill="currentColor"/></svg>';
+          const editableBadgeStyles = {
+            all: 'initial', position: 'fixed', display: 'none', width: '22px', height: '22px',
+            boxSizing: 'border-box', borderRadius: '11px', color: 'white', pointerEvents: 'none',
+            alignItems: 'center', justifyContent: 'center', zIndex: '2147483647'
+          };
+          Object.entries(editableBadgeStyles).forEach(([property, value]) => {
+            editableBadge.style.setProperty(property.replace(/[A-Z]/g, match => '-' + match.toLowerCase()), value, 'important');
+          });
+          chromeLayer.append(editableChrome, editableBadge);
           let chromeFrame = null;
 
           const editorChromeColor = '#0A84FF';
-          const componentChromeColor = _ => editorChromeColor;
+          const globalChromeColor = '#30D158';
+          const componentChromeColor = element => {
+            if (!element || element.closest('[data-foundry-global-override="true"]')) {
+              return editorChromeColor;
+            }
+            return element.closest('[data-foundry-global]') ? globalChromeColor : editorChromeColor;
+          };
 
           const chromeRect = target => {
             const elementRect = target.getBoundingClientRect();
@@ -462,16 +483,43 @@ struct WebCanvasView: NSViewRepresentable {
             positionOutline(
               hoverChrome,
               target,
-              editorChromeColor,
+              componentChromeColor(target),
               isPrimitive,
               false
             );
+          };
+
+          const updateEditableChrome = () => {
+            const target = hoveredEditable;
+            if (!target?.isConnected || target.isContentEditable || isDragging || !editorOptions.showsOutlines) {
+              editableChrome.style.setProperty('display', 'none', 'important');
+              editableBadge.style.setProperty('display', 'none', 'important');
+              return;
+            }
+            const rect = chromeRect(target);
+            if (rect.width <= 0 || rect.height <= 0 || rect.bottom < 0 || rect.top > window.innerHeight) {
+              editableChrome.style.setProperty('display', 'none', 'important');
+              editableBadge.style.setProperty('display', 'none', 'important');
+              return;
+            }
+            const color = componentChromeColor(target);
+            editableChrome.style.setProperty('left', rect.left + 'px', 'important');
+            editableChrome.style.setProperty('top', rect.top + 'px', 'important');
+            editableChrome.style.setProperty('width', rect.width + 'px', 'important');
+            editableChrome.style.setProperty('height', rect.height + 'px', 'important');
+            editableChrome.style.setProperty('background', color + '14', 'important');
+            editableChrome.style.setProperty('display', 'block', 'important');
+            editableBadge.style.setProperty('left', Math.max(2, Math.min(rect.right - 24, window.innerWidth - 24)) + 'px', 'important');
+            editableBadge.style.setProperty('top', Math.max(2, rect.top + 2) + 'px', 'important');
+            editableBadge.style.setProperty('background', color, 'important');
+            editableBadge.style.setProperty('display', 'flex', 'important');
           };
 
           const updateChromeTitle = () => {
             chromeFrame = null;
             updateSelectionChrome();
             updateHoverChrome();
+            updateEditableChrome();
             if (!hoveredComponent || !hoveredComponent.isConnected || !editorOptions.showsTitles) {
               chromeTitle.style.setProperty('display', 'none', 'important');
               return;
@@ -500,14 +548,17 @@ struct WebCanvasView: NSViewRepresentable {
           document.addEventListener('pointermove', event => {
             const component = event.target.closest?.(selector) ?? null;
             const primitive = event.target.closest?.('[data-foundry-primitive-property]') ?? null;
-            if (component === hoveredComponent && primitive === hoveredPrimitive) return;
+            const editable = event.target.closest?.('[data-foundry-inline-property]') ?? null;
+            if (component === hoveredComponent && primitive === hoveredPrimitive && editable === hoveredEditable) return;
             hoveredComponent = component;
             hoveredPrimitive = primitive;
+            hoveredEditable = editable;
             scheduleChromeTitleUpdate();
           }, true);
           document.addEventListener('pointerleave', () => {
             hoveredComponent = null;
             hoveredPrimitive = null;
+            hoveredEditable = null;
             scheduleChromeTitleUpdate();
           }, true);
           document.addEventListener('scroll', scheduleChromeTitleUpdate, true);
@@ -673,7 +724,7 @@ struct WebCanvasView: NSViewRepresentable {
               if (!firstElement) firstElement = selectionElement;
               selectedChromeTargets.push({
                 element: selectionElement,
-                color: editorChromeColor,
+                color: componentChromeColor(selectionElement),
                 isPrimitive
               });
             });

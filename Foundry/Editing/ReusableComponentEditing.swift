@@ -95,11 +95,16 @@ extension ProjectEditor {
         guard let definition = document.site.reusableComponents.first(where: { $0.id == definitionID }) else {
             return nil
         }
+        guard let page = document.site.pages.first(where: { $0.id == pageID }) else { return nil }
         let instance = definition.root.duplicatedForReusableDefinition()
+        let sharedInsertion = document.site.sharedGlobalInsertion(on: page, at: placement)
         var inserted = false
         mutate(actionName: "Add \(definition.name)") { site in
             guard let pageIndex = site.pages.firstIndex(where: { $0.id == pageID }) else { return }
             inserted = site.pages[pageIndex].components.insert(instance, at: placement)
+            if inserted {
+                site.synchronizeGlobalsAfterStructureMove(sharedInsertion)
+            }
         }
         return inserted ? instance.id : nil
     }
@@ -131,7 +136,7 @@ extension ProjectEditor {
         }
     }
 
-    private func editSharedReusableComponent(
+    func editSharedReusableComponent(
         componentID: UUID,
         actionName: String,
         mutation: (inout ComponentNode) -> Void

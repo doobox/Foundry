@@ -227,6 +227,81 @@ struct ReusableComponentTests {
     }
 
     @Test
+    func insertingNewComponentIntoGlobalUpdatesEveryInstance() throws {
+        let site = TestSiteFixtures.populatedSite()
+        let source = try #require(site.pages.first?.components.first)
+        let lastChild = try #require(source.children.last)
+        let document = FoundryDocument(site: site)
+        let editor = ProjectEditor(document: document, undoManager: nil)
+        let definitionID = try #require(editor.saveGlobalComponent(componentID: source.id, name: "Hero"))
+        let secondRootID = try #require(
+            editor.insertGlobalComponent(definitionID: definitionID, on: site.pages[0].id, placement: .end)
+        )
+
+        let insertedID = try #require(
+            editor.insertComponent(type: .paragraph, on: site.pages[0].id, placement: .after(lastChild.id))
+        )
+
+        #expect(document.site.component(withID: source.id)?.children.last?.id == insertedID)
+        #expect(document.site.component(withID: secondRootID)?.children.last?.type == .paragraph)
+        #expect(document.site.globalComponents.first?.root.children.last?.type == .paragraph)
+    }
+
+    @Test
+    func deletingAndDuplicatingNestedGlobalComponentsUpdatesEveryInstance() throws {
+        let site = TestSiteFixtures.populatedSite()
+        let source = try #require(site.pages.first?.components.first)
+        let firstChild = try #require(source.children.first)
+        let secondChild = try #require(source.children.last)
+        let document = FoundryDocument(site: site)
+        let editor = ProjectEditor(document: document, undoManager: nil)
+        let definitionID = try #require(editor.saveGlobalComponent(componentID: source.id, name: "Hero"))
+        let secondRootID = try #require(
+            editor.insertGlobalComponent(definitionID: definitionID, on: site.pages[0].id, placement: .end)
+        )
+
+        let duplicateID = try #require(editor.duplicateComponent(id: firstChild.id, on: site.pages[0].id))
+        #expect(document.site.component(withID: source.id)?.children.count == 3)
+        #expect(document.site.component(withID: secondRootID)?.children.count == 3)
+
+        editor.removeComponent(id: secondChild.id)
+        #expect(document.site.component(withID: source.id)?.children.count == 2)
+        #expect(document.site.component(withID: secondRootID)?.children.count == 2)
+        #expect(document.site.component(withID: duplicateID) != nil)
+    }
+
+    @Test
+    func linkedGlobalMetadataAndPropertiesSynchronizeButAnchorRemainsLocal() throws {
+        let site = TestSiteFixtures.populatedSite()
+        let source = try #require(site.pages.first?.components.first)
+        let sourceChild = try #require(source.children.first)
+        let document = FoundryDocument(site: site)
+        let editor = ProjectEditor(document: document, undoManager: nil)
+        let definitionID = try #require(editor.saveGlobalComponent(componentID: source.id, name: "Hero"))
+        let secondRootID = try #require(
+            editor.insertGlobalComponent(definitionID: definitionID, on: site.pages[0].id, placement: .end)
+        )
+        let secondChildID = try #require(document.site.component(withID: secondRootID)?.children.first?.id)
+
+        editor.renameComponent(id: sourceChild.id, name: "Shared name")
+        editor.setComponentClasses(id: sourceChild.id, classes: "shared-class")
+        editor.setComponentRootAttributes(
+            id: sourceChild.id,
+            attributes: [ComponentHTMLAttribute(name: "data-role", value: "hero")]
+        )
+        editor.setProperty(id: sourceChild.id, key: .text, value: .string("Shared value"))
+        editor.setComponentAnchor(id: sourceChild.id, anchor: "local-anchor")
+
+        let secondChild = try #require(document.site.component(withID: secondChildID))
+        #expect(secondChild.name == "Shared name")
+        #expect(secondChild.customClasses == "shared-class")
+        #expect(secondChild.rootAttributes?.first?.name == "data-role")
+        #expect(secondChild.property(.text) == "Shared value")
+        #expect(secondChild.anchor == nil)
+        #expect(document.site.component(withID: sourceChild.id)?.anchor == "local-anchor")
+    }
+
+    @Test
     func movingComponentOutOfGlobalUpdatesEveryInstanceAndKeepsDraggedNodeLocal() throws {
         let site = TestSiteFixtures.populatedSite()
         let source = try #require(site.pages.first?.components.first)

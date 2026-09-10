@@ -39,11 +39,16 @@ extension ProjectEditor {
     @discardableResult
     func insertGlobalComponent(definitionID: UUID, on pageID: UUID, placement: ComponentPlacement) -> UUID? {
         guard let definition = document.site.globalComponents.first(where: { $0.id == definitionID }) else { return nil }
+        guard let page = document.site.pages.first(where: { $0.id == pageID }) else { return nil }
         let instance = definition.root.duplicatedAsReusableInstance(of: definitionID)
+        let sharedInsertion = document.site.sharedGlobalInsertion(on: page, at: placement)
         var inserted = false
         mutate(actionName: "Add \(definition.name)") { site in
             guard let pageIndex = site.pages.firstIndex(where: { $0.id == pageID }) else { return }
             inserted = site.pages[pageIndex].components.insert(instance, at: placement)
+            if inserted {
+                site.synchronizeGlobalsAfterStructureMove(sharedInsertion)
+            }
         }
         return inserted ? instance.id : nil
     }

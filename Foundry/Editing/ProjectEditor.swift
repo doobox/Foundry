@@ -137,6 +137,10 @@ struct ProjectEditor {
     }
 
     func renameComponent(id: UUID, name: String) {
+        if let context = document.site.globalComponentContext(containing: id), !context.isOverridden {
+            renameSharedReusableComponentInstance(componentID: id, name: name)
+            return
+        }
         mutate(actionName: "Rename Component", impact: .componentProperty(componentID: id, propertyKey: .init(rawValue: "name"))) { site in
             site.updateComponent(id: id) { $0.name = name }
         }
@@ -152,6 +156,14 @@ struct ProjectEditor {
     }
 
     func setComponentClasses(id: UUID, classes: String) {
+        if let context = document.site.globalComponentContext(containing: id), !context.isOverridden {
+            editSharedReusableComponent(componentID: id, actionName: "Edit Component Classes") {
+                $0.customClasses = classes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                    ? nil
+                    : classes
+            }
+            return
+        }
         mutate(actionName: "Edit Component Classes", impact: .componentProperty(componentID: id, propertyKey: .init(rawValue: "classes"))) { site in
             site.updateComponent(id: id) {
                 $0.customClasses = classes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -162,6 +174,12 @@ struct ProjectEditor {
     }
 
     func setComponentRootAttributes(id: UUID, attributes: [ComponentHTMLAttribute]) {
+        if let context = document.site.globalComponentContext(containing: id), !context.isOverridden {
+            editSharedReusableComponent(componentID: id, actionName: "Edit Component Attributes") {
+                $0.rootAttributes = attributes.isEmpty ? nil : attributes
+            }
+            return
+        }
         mutate(actionName: "Edit Component Attributes", impact: .componentProperty(componentID: id, propertyKey: .init(rawValue: "attributes"))) { site in
             site.updateComponent(id: id) {
                 $0.rootAttributes = attributes.isEmpty ? nil : attributes
@@ -174,6 +192,10 @@ struct ProjectEditor {
         key: ComponentProperty.Key,
         value: ComponentProperty.Value
     ) {
+        if let context = document.site.globalComponentContext(containing: id), !context.isOverridden {
+            setSharedReusableProperty(componentID: id, key: key, value: value)
+            return
+        }
         mutate(actionName: "Edit Component", impact: .componentProperty(componentID: id, propertyKey: key)) { site in
             site.updateComponent(id: id) { $0.setProperty(key, value: value) }
         }
@@ -192,6 +214,10 @@ struct ProjectEditor {
         value: ComponentProperty.Value,
         breakpoint: ResponsiveBreakpoint
     ) {
+        if let context = document.site.globalComponentContext(containing: id), !context.isOverridden {
+            setSharedReusableResponsiveProperty(componentID: id, key: key, value: value, breakpoint: breakpoint)
+            return
+        }
         mutate(actionName: "Edit \(breakpoint.displayName) Component", impact: .componentProperty(componentID: id, propertyKey: key)) { site in
             site.updateComponent(id: id) {
                 $0.setResponsiveProperty(key, value: value, at: breakpoint)
@@ -200,6 +226,10 @@ struct ProjectEditor {
     }
 
     func removeResponsiveOverride(id: UUID, key: ComponentProperty.Key, breakpoint: ResponsiveBreakpoint) {
+        if let context = document.site.globalComponentContext(containing: id), !context.isOverridden {
+            removeSharedReusableResponsiveOverride(componentID: id, key: key, breakpoint: breakpoint)
+            return
+        }
         mutate(actionName: "Reset \(breakpoint.displayName) Component", impact: .componentProperty(componentID: id, propertyKey: key)) { site in
             site.updateComponent(id: id) { $0.removeResponsiveOverride(key, at: breakpoint) }
         }
@@ -661,11 +691,16 @@ struct ProjectEditor {
         parentID: UUID?
     ) -> UUID {
         let node = ComponentNode.make(type)
+        let page = document.site.pages.first(where: { $0.id == pageID })
+        let sharedInsertion = page.map {
+            document.site.sharedGlobalInsertion(on: $0, at: parentID.map(ComponentPlacement.inside) ?? .end)
+        } ?? SharedGlobalStructureMove(authoritativeInstances: [:])
         mutate(actionName: "Add \(type.displayName)", impact: .componentStructure(ownerID: parentID)) { site in
             guard let pageIndex = site.pages.firstIndex(where: { $0.id == pageID }) else {
                 return
             }
             site.pages[pageIndex].components.append(node, to: parentID)
+            site.synchronizeGlobalsAfterStructureMove(sharedInsertion)
         }
         return node.id
     }
@@ -675,7 +710,8 @@ struct ProjectEditor {
     }
 
     func removeComponents(ids: [UUID]) {
-        guard !ids.isEmpty else { return }
+        guard !ids.isEmpty,
+              let sharedRemoval = document.site.sharedGlobalRemoval(componentIDs: ids) else { return }
         mutate(actionName: ids.count == 1 ? "Delete Component" : "Delete Components", impact: .componentStructure(ownerID: nil)) { site in
             for id in ids {
                 for pageIndex in site.pages.indices {
@@ -684,6 +720,7 @@ struct ProjectEditor {
                     }
                 }
             }
+            site.synchronizeGlobalsAfterStructureMove(sharedRemoval)
         }
     }
 

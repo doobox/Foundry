@@ -122,6 +122,7 @@ struct ComponentDefinitionTests {
         #expect(html.contains("font-size: var(--foundry-font-size-xl)"))
         #expect(html.contains("aria-label=\"Open &quot;details&quot;\""))
         #expect(html.contains("--foundry-editor-component: #0A84FF"))
+        #expect(html.contains("--foundry-editor-global: #30D158"))
     }
 
     @Test
