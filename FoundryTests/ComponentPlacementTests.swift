@@ -81,6 +81,42 @@ struct ComponentPlacementTests {
 @MainActor
 struct ComponentEditingTests {
     @Test
+    func movingMultipleComponentsPreservesTheirRequestedOrder() throws {
+        let first = ComponentNode.make(.paragraph)
+        let second = ComponentNode.make(.button)
+        let third = ComponentNode.make(.heading)
+        let page = Page(title: "Home", slug: "index", components: [first, second, third])
+        let document = FoundryDocument(site: Site(name: "Ordering", pages: [page]))
+        let editor = ProjectEditor(document: document, undoManager: nil)
+
+        #expect(editor.canMoveComponents(ids: [second.id, third.id], on: page.id, to: .before(first.id)))
+        #expect(editor.moveComponents(ids: [second.id, third.id], on: page.id, to: .before(first.id)))
+
+        let orderedIDs = try #require(document.site.pages.first).components.map(\.id)
+        #expect(orderedIDs == [second.id, third.id, first.id])
+    }
+
+    @Test
+    func moveValidationRejectsSelfAndDescendantDestinations() {
+        let child = ComponentNode.make(.paragraph)
+        let container = ComponentNode(type: .container, children: [child])
+        let page = Page(title: "Home", slug: "index", components: [container])
+        let document = FoundryDocument(site: Site(name: "Validation", pages: [page]))
+        let editor = ProjectEditor(document: document, undoManager: nil)
+
+        #expect(!editor.canMoveComponents(ids: [container.id], on: page.id, to: .inside(container.id)))
+        #expect(!editor.canMoveComponents(ids: [container.id], on: page.id, to: .before(child.id)))
+    }
+
+    @Test
+    func insertingAtEndOfNamedSlotPreservesTheSlot() {
+        let existing = ComponentNode(type: .paragraph, slotID: "sidebar")
+        let parentID = UUID()
+
+        #expect([existing].endPlacement(in: parentID) == .insideSlot(parentID, "sidebar"))
+    }
+
+    @Test
     func duplicateCreatesFreshIdentifiers() throws {
         let document = TestSiteFixtures.populatedDocument()
         let editor = ProjectEditor(document: document, undoManager: nil)

@@ -622,18 +622,26 @@ private struct ComponentInspector: View {
 
                     if reusableDefinition != nil {
                         Divider()
-                        Toggle(
-                            "Local Override",
-                            isOn: Binding(
-                                get: { isGlobalOverride },
-                                set: setGlobalOverride
+                        HStack(spacing: 8) {
+                            Toggle(
+                                "Local Override",
+                                isOn: Binding(
+                                    get: { isGlobalOverride },
+                                    set: setGlobalOverride
+                                )
                             )
-                        )
-                        Text(isGlobalOverride
-                             ? "This component is a local override. Changes apply only here."
-                             : "Changes apply to every linked instance.")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+
+                            Spacer(minLength: 8)
+
+                            if !isGlobalOverride {
+                                Text(globalIndicatorLabel)
+                                    .font(.caption2.weight(.semibold))
+                                    .foregroundStyle(globalIndicatorColor)
+                                    .padding(.horizontal, 6)
+                                    .padding(.vertical, 2)
+                                    .background(globalIndicatorColor.opacity(0.14), in: Capsule())
+                            }
+                        }
                     }
                 }
 
@@ -730,6 +738,14 @@ private struct ComponentInspector: View {
             }
             loadedComponentIcon = await ComponentIconLoader.shared.icon(at: url)?.image
         }
+    }
+
+    private var globalIndicatorColor: Color {
+        Color(red: 48.0 / 255.0, green: 209.0 / 255.0, blue: 88.0 / 255.0)
+    }
+
+    private var globalIndicatorLabel: String {
+        component.reusableDefinitionID == reusableDefinition?.id ? "Global" : "Global — Child"
     }
 
     private var displayedComponentIcon: NSImage? {

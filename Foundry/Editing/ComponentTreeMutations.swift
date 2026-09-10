@@ -21,6 +21,13 @@ nonisolated struct ComponentLocation: Equatable, Sendable {
 }
 
 nonisolated extension Array where Element == ComponentNode {
+    func endPlacement(in parentID: UUID) -> ComponentPlacement {
+        if let slotID = last?.slotID {
+            return .insideSlot(parentID, slotID)
+        }
+        return .inside(parentID)
+    }
+
     func ancestorIDs(of id: UUID) -> [UUID] {
         for node in self {
             if node.id == id {

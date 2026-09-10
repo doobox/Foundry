@@ -75,6 +75,9 @@ nonisolated struct CanvasMessage: Codable, Equatable, Sendable {
         case selectComponent
         case selectPrimitive
         case deleteComponents
+        case duplicateComponents
+        case copyComponents
+        case pasteComponents
         case insertComponent
         case insertReusableComponent
         case insertGlobalComponent
@@ -143,7 +146,7 @@ nonisolated struct CanvasMessage: Codable, Equatable, Sendable {
             componentID != nil && componentIDs == nil && extendsSelection == nil && componentType == nil &&
                 reusableDefinitionID == nil && globalDefinitionID == nil && isGlobalLinked == nil && placement == nil &&
                 propertyKey != nil && propertyValue == nil && hasNoAssetPayload
-        case .deleteComponents:
+        case .deleteComponents, .duplicateComponents, .copyComponents, .pasteComponents:
             componentID == nil && componentIDs?.isEmpty == false && extendsSelection == nil && componentType == nil &&
                 reusableDefinitionID == nil && globalDefinitionID == nil && isGlobalLinked == nil && placement == nil &&
                 propertyKey == nil && propertyValue == nil && hasNoAssetPayload

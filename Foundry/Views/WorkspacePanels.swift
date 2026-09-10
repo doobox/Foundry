@@ -14,7 +14,7 @@ struct PagesPanel: View {
     let addPage: (PageTreePlacement?) -> Void
     let addFolder: (String, PageTreePlacement?) -> Void
     let renameFolder: (UUID, String) -> Void
-    let deleteFolder: (UUID) -> Void
+    let deleteFolder: (UUID, Bool) -> Void
     let duplicatePage: (UUID) -> Void
     let renamePage: (UUID, String) -> Void
     let deletePage: (UUID) -> Void
@@ -57,7 +57,13 @@ struct PagesPanel: View {
                     isNamingFolder = true
                 },
                 renameFolder: renameFolder,
-                requestDeleteFolder: { folderPendingDeletion = $0 },
+                requestDeleteFolder: { folderID in
+                    if isFolderEmpty(folderID) {
+                        deleteFolderAndClearSelection(folderID)
+                    } else {
+                        folderPendingDeletion = folderID
+                    }
+                },
                 duplicatePage: duplicatePage,
                 renamePage: renamePage,
                 deletePage: deletePage,
@@ -94,17 +100,33 @@ struct PagesPanel: View {
             )
         ) {
             Button("Cancel", role: .cancel) { folderPendingDeletion = nil }
-            Button("Delete Folder", role: .destructive) {
+            Button("Move Contents Up") {
                 guard let folderID = folderPendingDeletion else { return }
-                deleteFolder(folderID)
-                expandedItemIDs.remove(folderID)
-                if selectedFolderID == folderID {
-                    selectedFolderID = nil
-                }
+                deleteFolderAndClearSelection(folderID, includingContents: false)
+                folderPendingDeletion = nil
+            }
+            Button("Delete All", role: .destructive) {
+                guard let folderID = folderPendingDeletion else { return }
+                deleteFolderAndClearSelection(folderID, includingContents: true)
                 folderPendingDeletion = nil
             }
         } message: {
-            Text("Pages, subfolders, and published assets inside this folder will be moved up one level.")
+            Text("Move the folder’s contents up one level, or delete the folder and everything inside it.")
+        }
+    }
+
+    private func isFolderEmpty(_ folderID: UUID) -> Bool {
+        let containsPage = pages.contains { $0.folderID == folderID }
+        let containsFolder = folders.contains { $0.parentID == folderID }
+        let containsPublishedAsset = assets.contains { $0.exportDirectory == .folder(folderID) }
+        return !containsPage && !containsFolder && !containsPublishedAsset
+    }
+
+    private func deleteFolderAndClearSelection(_ folderID: UUID, includingContents: Bool = false) {
+        deleteFolder(folderID, includingContents)
+        expandedItemIDs.remove(folderID)
+        if selectedFolderID == folderID {
+            selectedFolderID = nil
         }
     }
 }
@@ -1497,7 +1519,9 @@ struct StructurePanel: View {
     let globalComponentNames: [UUID: String]
     @Binding var selectedComponentIDs: Set<UUID>
     @Binding var selectedComponentID: UUID?
+    @Binding var expandedComponentIDs: Set<UUID>
     let renameComponent: (UUID, String) -> Void
+    let canMoveComponentsToPlacement: ([UUID], ComponentPlacement) -> Bool
     let moveComponentsToPlacement: ([UUID], ComponentPlacement) -> Bool
     let insertComponent: (ComponentType, ComponentPlacement) -> Bool
     let insertReusableComponent: (UUID, ComponentPlacement) -> Bool
@@ -1511,7 +1535,7 @@ struct StructurePanel: View {
     let canPasteComponent: Bool
     let saveReusableComponent: (String) -> Void
     let saveGlobalComponent: (String) -> Void
-    @State private var expandedComponentIDs: Set<UUID> = []
+    let setGlobalComponentLinked: (UUID, Bool) -> Void
     @State private var isNamingReusableComponent = false
     @State private var reusableComponentName = ""
     @State private var isNamingGlobalComponent = false
@@ -1525,7 +1549,9 @@ struct StructurePanel: View {
                     globalComponentNames: globalComponentNames,
                     selectedComponentIDs: $selectedComponentIDs,
                     primarySelectedComponentID: $selectedComponentID,
+                    expandedItemIDs: $expandedComponentIDs,
                     renameComponent: renameComponent,
+                    canMoveComponents: canMoveComponentsToPlacement,
                     moveComponents: moveComponentsToPlacement,
                     insertComponent: insertComponent,
                     insertReusableComponent: insertReusableComponent,
@@ -1542,6 +1568,7 @@ struct StructurePanel: View {
                         globalComponentName = $0
                         isNamingGlobalComponent = true
                     },
+                    setGlobalComponentLinked: setGlobalComponentLinked,
                     moveComponent: moveComponent,
                     outdentComponent: outdentComponent,
                     deleteComponent: deleteComponent

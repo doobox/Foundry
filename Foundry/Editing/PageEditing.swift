@@ -46,19 +46,58 @@ extension ProjectEditor {
         }
     }
 
-    func removePageFolder(id: UUID) {
+    func removePageFolder(id: UUID, includingContents: Bool = false) {
         let item = PageTreeItem.folder(id)
         guard document.site.pageFolders.contains(where: { $0.id == id }) else { return }
         let folderParent = parent(of: item)
         var replacementSiblings = childItems(of: folderParent)
         guard let folderIndex = replacementSiblings.firstIndex(of: item) else { return }
-        replacementSiblings.replaceSubrange(
-            folderIndex...folderIndex,
-            with: childItems(of: .folder(id))
-        )
+        if includingContents {
+            replacementSiblings.remove(at: folderIndex)
+        } else {
+            replacementSiblings.replaceSubrange(
+                folderIndex...folderIndex,
+                with: childItems(of: .folder(id))
+            )
+        }
 
-        mutate(actionName: "Delete Page Folder") { site in
-            site.pageFolders.removeAll(where: { $0.id == id })
+        var removedFolderIDs: Set<UUID> = [id]
+        var removedPageIDs = Set<UUID>()
+        if includingContents {
+            var foundAnotherLevel = true
+            while foundAnotherLevel {
+                foundAnotherLevel = false
+                for folder in document.site.pageFolders where
+                    folder.parentID.map(removedFolderIDs.contains) == true
+                    && removedFolderIDs.insert(folder.id).inserted {
+                    foundAnotherLevel = true
+                }
+            }
+
+            removedPageIDs = Set(document.site.pages.compactMap { page in
+                page.folderID.map(removedFolderIDs.contains) == true ? page.id : nil
+            })
+            foundAnotherLevel = true
+            while foundAnotherLevel {
+                foundAnotherLevel = false
+                for page in document.site.pages where
+                    page.parentPageID.map(removedPageIDs.contains) == true
+                    && removedPageIDs.insert(page.id).inserted {
+                    foundAnotherLevel = true
+                }
+            }
+        }
+
+        mutate(actionName: includingContents ? "Delete Page Folder and Contents" : "Delete Page Folder") { site in
+            site.pageFolders.removeAll(where: { removedFolderIDs.contains($0.id) })
+            site.pages.removeAll(where: { removedPageIDs.contains($0.id) })
+            if includingContents {
+                for asset in site.assets {
+                    guard case .folder(let folderID) = asset.exportDirectory,
+                          removedFolderIDs.contains(folderID) else { continue }
+                    _ = site.assetLibrary.clearExportDirectory(forAssetID: asset.id)
+                }
+            }
             site.applyPageTreeOrder(replacementSiblings, parent: folderParent)
         }
     }

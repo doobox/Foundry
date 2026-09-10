@@ -223,6 +223,28 @@ struct CanvasBridgeTests {
         ]) == nil)
     }
 
+    @Test
+    func decodesCanvasKeyboardSelectionActions() {
+        let ids = [UUID(), UUID()]
+        let actions: [(String, CanvasMessage.Event)] = [
+            ("duplicateComponents", .duplicateComponents),
+            ("copyComponents", .copyComponents),
+            ("pasteComponents", .pasteComponents)
+        ]
+        for (event, expectedEvent) in actions {
+            let message = CanvasMessage.decode([
+                "version": CanvasMessage.currentVersion,
+                "event": event,
+                "componentIDs": ids.map(\.uuidString)
+            ])
+
+            #expect(message?.event == expectedEvent)
+            #expect(message?.componentIDs == ids)
+        }
+        #expect(WebCanvasView.Coordinator.interactionScript.contains("event.metaKey"))
+        #expect(WebCanvasView.Coordinator.interactionScript.contains("window.foundryEditComponent(componentID)"))
+    }
+
     @Test @MainActor
     func rendererEmitsStableIdentityForEveryComponent() {
         let page = TestSiteFixtures.populatedSite().pages[0]

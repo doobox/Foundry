@@ -666,17 +666,73 @@ struct WebCanvasView: NSViewRepresentable {
           };
 
           document.addEventListener('keydown', event => {
-            if (event.key !== 'Backspace' && event.key !== 'Delete') return;
-            if (selectedComponentIDs.length === 0) return;
-            if (selectedPrimitiveSelection) return;
             const target = event.target;
             if (target?.isContentEditable || target?.closest?.('input, textarea, select, [contenteditable="true"]')) return;
+            if (selectedComponentIDs.length === 0) return;
+
+            const postSelectionAction = action => {
+              event.preventDefault();
+              event.stopPropagation();
+              window.webkit.messageHandlers.foundryCanvas.postMessage({
+                version: 1,
+                event: action,
+                componentIDs: selectedComponentIDs
+              });
+            };
+
+            if (!event.metaKey && !event.altKey && !event.ctrlKey && !event.shiftKey
+                && (event.key === 'Backspace' || event.key === 'Delete')) {
+              if (!selectedPrimitiveSelection) postSelectionAction('deleteComponents');
+              return;
+            }
+
+            if (!event.metaKey && !event.altKey && !event.ctrlKey && !event.shiftKey
+                && event.key === 'Enter' && selectedComponentIDs.length === 1) {
+              const componentID = selectedComponentIDs[0];
+              const component = document.querySelector('[data-foundry-id="' + CSS.escape(componentID) + '"]');
+              if (selectedEditableElement(component)) {
+                event.preventDefault();
+                event.stopPropagation();
+                window.foundryEditComponent(componentID);
+              }
+              return;
+            }
+
+            if (event.metaKey && !event.altKey && !event.ctrlKey && !event.shiftKey) {
+              const key = event.key.toLowerCase();
+              if (key === 'd') postSelectionAction('duplicateComponents');
+              else if (key === 'c') postSelectionAction('copyComponents');
+              else if (key === 'v') postSelectionAction('pasteComponents');
+              return;
+            }
+
+            if (!event.metaKey || !event.altKey || event.ctrlKey || event.shiftKey
+                || selectedComponentIDs.length !== 1) return;
+            const component = document.querySelector(
+              '[data-foundry-id="' + CSS.escape(selectedComponentIDs[0]) + '"]'
+            );
+            if (!component) return;
+            const parentComponent = component.parentElement?.closest(selector) ?? null;
+            const siblings = [...document.querySelectorAll(selector)].filter(candidate =>
+              (candidate.parentElement?.closest(selector) ?? null) === parentComponent
+            );
+            const index = siblings.indexOf(component);
+            let placement = null;
+            if (event.key === 'ArrowUp' && index > 0) {
+              placement = { kind: 'before', targetID: siblings[index - 1].dataset.foundryId };
+            } else if (event.key === 'ArrowDown' && index >= 0 && index < siblings.length - 1) {
+              placement = { kind: 'after', targetID: siblings[index + 1].dataset.foundryId };
+            } else if (event.key === 'ArrowLeft' && parentComponent) {
+              placement = { kind: 'after', targetID: parentComponent.dataset.foundryId };
+            }
+            if (!placement) return;
             event.preventDefault();
             event.stopPropagation();
             window.webkit.messageHandlers.foundryCanvas.postMessage({
               version: 1,
-              event: 'deleteComponents',
-              componentIDs: selectedComponentIDs
+              event: 'moveComponent',
+              componentID: selectedComponentIDs[0],
+              placement
             });
           }, true);
 
@@ -1325,6 +1381,9 @@ struct WebCanvasView: NSViewRepresentable {
                 .map(\.iconURL)
             let icon = NSImageView(image: NSImage(size: NSSize(width: 36, height: 36)))
             icon.imageScaling = .scaleProportionallyUpOrDown
+            icon.wantsLayer = true
+            icon.layer?.cornerRadius = 36 * 0.16
+            icon.layer?.masksToBounds = true
             icon.setAccessibilityLabel(title)
             icon.translatesAutoresizingMaskIntoConstraints = false
             if let iconURL {

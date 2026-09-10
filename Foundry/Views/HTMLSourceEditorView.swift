@@ -163,7 +163,10 @@ private struct HTMLSourceCodeEditor: View {
     private func editor(text: Binding<AttributedString>, language: SourceCodeLanguage) -> some View {
         TextEditor(text: text)
             .padding(12)
-            .onChange(of: String(text.wrappedValue.characters)) { _, source in
+            .task(id: String(text.wrappedValue.characters)) {
+                await Task.yield()
+                guard !Task.isCancelled else { return }
+                let source = String(text.wrappedValue.characters)
                 let highlighted = SourceSyntaxHighlighter.highlight(
                     source,
                     language: language,

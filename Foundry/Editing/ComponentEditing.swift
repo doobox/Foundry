@@ -122,6 +122,27 @@ extension ProjectEditor {
         moveComponents(ids: [id], on: pageID, to: placement)
     }
 
+    func canMoveComponents(
+        ids: [UUID],
+        on pageID: UUID,
+        to placement: ComponentPlacement
+    ) -> Bool {
+        guard !ids.isEmpty,
+              let page = document.site.pages.first(where: { $0.id == pageID }),
+              document.site.sharedGlobalMove(
+                componentIDs: ids,
+                on: page,
+                to: placement
+              ) != nil else { return false }
+        var components = page.components
+        var nextPlacement = placement
+        for id in ids {
+            guard components.moveNode(withID: id, to: nextPlacement) else { return false }
+            nextPlacement = .after(id)
+        }
+        return true
+    }
+
     @discardableResult
     func moveComponents(
         ids: [UUID],

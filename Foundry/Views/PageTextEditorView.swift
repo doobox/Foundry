@@ -125,8 +125,11 @@ struct PageTextEditorView: View {
                 selection: Binding(
                     get: { textColor },
                     set: { color in
-                        transformSelection { attributes in
-                            attributes.foregroundColor = color
+                        Task { @MainActor in
+                            await Task.yield()
+                            transformSelection { attributes in
+                                attributes.foregroundColor = color
+                            }
                         }
                     }
                 ),

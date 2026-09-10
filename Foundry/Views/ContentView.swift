@@ -39,6 +39,7 @@ struct ContentView: View {
     @State private var selectedAssetLibraryNodeID: UUID?
     @State private var selectedComponentIDs: Set<UUID> = []
     @State private var selectedComponentID: UUID?
+    @State private var expandedStructureComponentIDs: Set<UUID> = []
     @State private var selectedPrimitive: CanvasPrimitiveSelection?
     @State private var selectedLibraryComponentType: ComponentType?
     @State private var copiedComponents: [ComponentNode] = []
@@ -344,7 +345,7 @@ struct ContentView: View {
                 addPage: { addPage(at: $0) },
                 addFolder: addPageFolder,
                 renameFolder: { editor.renamePageFolder(id: $0, name: $1) },
-                deleteFolder: { editor.removePageFolder(id: $0) },
+                deleteFolder: { editor.removePageFolder(id: $0, includingContents: $1) },
                 duplicatePage: duplicatePage,
                 renamePage: { editor.renamePageFromOutline(id: $0, title: $1) },
                 deletePage: deletePage,
@@ -379,7 +380,9 @@ struct ContentView: View {
                 ),
                 selectedComponentIDs: $selectedComponentIDs,
                 selectedComponentID: inspectableComponentSelection,
+                expandedComponentIDs: $expandedStructureComponentIDs,
                 renameComponent: renameComponent,
+                canMoveComponentsToPlacement: canMoveComponentsFromStructure,
                 moveComponentsToPlacement: moveComponentsFromStructure,
                 insertComponent: insertComponentFromLibrary,
                 insertReusableComponent: insertReusableComponentFromLibrary,
@@ -392,7 +395,12 @@ struct ContentView: View {
                 deleteComponent: deleteComponent,
                 canPasteComponent: !copiedComponents.isEmpty,
                 saveReusableComponent: saveReusableComponent,
-                saveGlobalComponent: saveGlobalComponent
+                saveGlobalComponent: saveGlobalComponent,
+                setGlobalComponentLinked: { componentID, isLinked in
+                    editor.setGlobalComponentLinked(componentID: componentID, isLinked: isLinked)
+                    selectedComponentIDs = [componentID]
+                    selectedComponentID = componentID
+                }
             )
         case .assets:
             AssetsPanel(
@@ -756,6 +764,15 @@ struct ContentView: View {
             workspaceLayout.activate(.structure)
         case .deleteComponents:
             deleteComponents(message.componentIDs ?? [])
+        case .duplicateComponents:
+            guard selectCanvasComponents(message.componentIDs, on: page) else { return }
+            duplicateComponent()
+        case .copyComponents:
+            guard selectCanvasComponents(message.componentIDs, on: page) else { return }
+            copyComponent()
+        case .pasteComponents:
+            guard selectCanvasComponents(message.componentIDs, on: page) else { return }
+            pasteComponent()
         case .insertComponent:
             guard let type = message.componentType,
                   let placement = validatedPlacement(message.placement, on: page),
@@ -958,6 +975,15 @@ struct ContentView: View {
             selectedComponentID = componentID
             workspaceLayout.activate(.structure)
         }
+    }
+
+    @discardableResult
+    private func selectCanvasComponents(_ componentIDs: [UUID]?, on page: Page) -> Bool {
+        guard let componentIDs, !componentIDs.isEmpty,
+              componentIDs.allSatisfy({ page.components.node(withID: $0) != nil }) else { return false }
+        selectedComponentIDs = Set(componentIDs)
+        selectedComponentID = componentIDs.last
+        return true
     }
 
     private func handleCanvasContextMenuAction(
@@ -1397,14 +1423,9 @@ struct ContentView: View {
 
     private func pasteComponent() {
         guard let pageID = selectedPage?.id, !copiedComponents.isEmpty else { return }
-        let placement: ComponentPlacement
-        if let selectedComponent {
-            placement = selectedComponent.type.definition.allowsChildren
-                ? .inside(selectedComponent.id)
-                : .after(selectedComponent.id)
-        } else {
-            placement = .end
-        }
+        let placement = topLevelSelectedComponentIDs.last
+            .map(ComponentPlacement.after)
+            ?? .end
         let pastedIDs = editor.pasteComponents(
             copiedComponents,
             on: pageID,
@@ -1451,6 +1472,11 @@ struct ContentView: View {
             return true
         }
         return false
+    }
+
+    private func canMoveComponentsFromStructure(_ sourceIDs: [UUID], _ placement: ComponentPlacement) -> Bool {
+        guard let pageID = selectedPage?.id else { return false }
+        return editor.canMoveComponents(ids: sourceIDs, on: pageID, to: placement)
     }
 
     private func deleteComponent() {
