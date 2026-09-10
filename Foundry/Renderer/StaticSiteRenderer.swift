@@ -194,6 +194,7 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
                     instanceID: node.id,
                     packageIdentifier: package.manifest.identifier,
                     properties: packageProperties(node, theme: theme, assetPrefix: assetPrefix, assets: assets, site: site),
+                    templateValues: ComponentNavigationTemplateValues.values(site: site, currentPage: page),
                     slots: [:],
                     assetBasePath: packageAssetPrefix,
                     assetPaths: templateAssetPaths(for: package, pageAssetPrefix: packageAssetPrefix, siteAssetPrefix: assetPrefix),
@@ -217,6 +218,7 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
                     instanceID: UUID(uuid: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)),
                     packageIdentifier: package.manifest.identifier,
                     properties: [:],
+                    templateValues: ComponentNavigationTemplateValues.values(site: site, currentPage: page),
                     slots: [:],
                     assetBasePath: packageAssetPrefix,
                     assetPaths: templateAssetPaths(for: package, pageAssetPrefix: packageAssetPrefix, siteAssetPrefix: assetPrefix),
@@ -240,7 +242,7 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
             guard !source.isEmpty else { return nil }
             return ComponentTemplateRenderer.render(
                 source,
-                context: .init(instanceID: node.id, packageIdentifier: package.manifest.identifier, properties: packageProperties(node, theme: theme, assetPrefix: assetPrefix, assets: assets, site: site), slots: [:], assetBasePath: packageAssetPrefix, assetPaths: templateAssetPaths(for: package, pageAssetPrefix: packageAssetPrefix, siteAssetPrefix: assetPrefix), siteBaseURL: siteBaseURL(for: site), pageURL: pageURL(for: page, in: site), siteRootPath: siteRootPath(for: assetPrefix), siteAssetsPath: assetPrefix, environment: environment)
+                context: .init(instanceID: node.id, packageIdentifier: package.manifest.identifier, properties: packageProperties(node, theme: theme, assetPrefix: assetPrefix, assets: assets, site: site), templateValues: ComponentNavigationTemplateValues.values(site: site, currentPage: page), slots: [:], assetBasePath: packageAssetPrefix, assetPaths: templateAssetPaths(for: package, pageAssetPrefix: packageAssetPrefix, siteAssetPrefix: assetPrefix), siteBaseURL: siteBaseURL(for: site), pageURL: pageURL(for: page, in: site), siteRootPath: siteRootPath(for: assetPrefix), siteAssetsPath: assetPrefix, environment: environment)
             )
         }
         var seenPackages: Set<String> = []
@@ -249,7 +251,7 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
                   seenPackages.insert(package.manifest.identifier).inserted else { return nil }
             let source = package.pageJavaScript
             guard !source.isEmpty else { return nil }
-            return ComponentTemplateRenderer.render(source, context: .init(instanceID: UUID(uuid: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)), packageIdentifier: package.manifest.identifier, properties: [:], slots: [:], assetBasePath: packageAssetPrefix, assetPaths: templateAssetPaths(for: package, pageAssetPrefix: packageAssetPrefix, siteAssetPrefix: assetPrefix), siteBaseURL: siteBaseURL(for: site), pageURL: pageURL(for: page, in: site), siteRootPath: siteRootPath(for: assetPrefix), siteAssetsPath: assetPrefix, environment: environment))
+            return ComponentTemplateRenderer.render(source, context: .init(instanceID: UUID(uuid: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)), packageIdentifier: package.manifest.identifier, properties: [:], templateValues: ComponentNavigationTemplateValues.values(site: site, currentPage: page), slots: [:], assetBasePath: packageAssetPrefix, assetPaths: templateAssetPaths(for: package, pageAssetPrefix: packageAssetPrefix, siteAssetPrefix: assetPrefix), siteBaseURL: siteBaseURL(for: site), pageURL: pageURL(for: page, in: site), siteRootPath: siteRootPath(for: assetPrefix), siteAssetsPath: assetPrefix, environment: environment))
         }
         let source = (instanceScripts + sharedScripts).joined(separator: "\n")
         return source
@@ -266,6 +268,7 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
                 instanceID: UUID(uuid: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)),
                 packageIdentifier: package.manifest.identifier,
                 properties: [:],
+                templateValues: ComponentNavigationTemplateValues.values(site: site, currentPage: page),
                 slots: [:],
                 assetBasePath: packageAssetPrefix,
                 assetPaths: templateAssetPaths(for: package, pageAssetPrefix: packageAssetPrefix, siteAssetPrefix: assetPrefix),
@@ -405,6 +408,7 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
                     instanceID: node.id,
                     packageIdentifier: package.manifest.identifier,
                     properties: packageProperties(node, theme: theme, assetPrefix: assetPrefix, assets: assets, site: site),
+                    templateValues: ComponentNavigationTemplateValues.values(site: site, currentPage: page),
                     slots: slots,
                     componentClass: componentClass(node) + " " +
                         ComponentTemplateRenderer.packageClass(for: package.manifest.identifier),
@@ -619,6 +623,7 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
                                 assets: assets,
                                 site: site
                             ),
+                            templateValues: ComponentNavigationTemplateValues.values(site: site, currentPage: page),
                             slots: [:],
                             componentClass: componentClass(resolved),
                             assetBasePath: packageAssetPrefix,
@@ -670,6 +675,7 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
                         assets: assets,
                         site: site
                     ),
+                    templateValues: ComponentNavigationTemplateValues.values(site: site, currentPage: page),
                     slots: [:],
                     componentClass: componentClass(node),
                     assetBasePath: packageAssetPrefix,
@@ -691,6 +697,7 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
                     instanceID: UUID(uuid: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)),
                     packageIdentifier: package.manifest.identifier,
                     properties: [:],
+                    templateValues: ComponentNavigationTemplateValues.values(site: site, currentPage: page),
                     slots: [:],
                     assetBasePath: packageAssetPrefix,
                     assetPaths: templateAssetPaths(for: package, pageAssetPrefix: packageAssetPrefix, siteAssetPrefix: assetPrefix),
@@ -778,11 +785,10 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
                     return .string(resolved)
                 }))
             }
-            if case .image = definition.control,
-               case .url(let source) = value {
+            if case .image = definition.control {
                 return (
                     definition.key.rawValue,
-                    .string(exportSource(source, assetPrefix: assetPrefix, assets: assets, site: site))
+                    resolvedImageValue(value, assetPrefix: assetPrefix, assets: assets, site: site)
                 )
             }
             if case .color = definition.control {
@@ -885,6 +891,24 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
             values,
             properties: node.type.definition.package?.manifest.properties ?? []
         )
+    }
+
+    private func resolvedImageValue(
+        _ value: ComponentProperty.Value,
+        assetPrefix: String,
+        assets: [UUID: ProjectAssetContent],
+        site: Site
+    ) -> ComponentPackageValue {
+        switch value {
+        case .url(let source):
+            .string(exportSource(source, assetPrefix: assetPrefix, assets: assets, site: site))
+        case .array(let values):
+            .array(values.map {
+                resolvedImageValue($0, assetPrefix: assetPrefix, assets: assets, site: site)
+            })
+        default:
+            packageValue(value)
+        }
     }
 
     private func imageRenditionFiles(

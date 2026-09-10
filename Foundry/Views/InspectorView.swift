@@ -539,6 +539,13 @@ private struct PageInspector: View {
             .disabled(page.slug == "index")
             LabeledContent("Path", value: exportPath)
             LabeledContent("Export File", value: exportFilePath)
+            Toggle(
+                "Include in Navigation",
+                isOn: Binding(
+                    get: { page.includeInNavigation },
+                    set: { editor.setPageIncludedInNavigation(id: page.id, included: $0) }
+                )
+            )
             Text("Slugs use lowercase letters, numbers, and hyphens. Duplicate slugs receive a numeric suffix.")
                 .font(.caption)
                 .foregroundStyle(.secondary)

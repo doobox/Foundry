@@ -980,15 +980,15 @@ struct ComponentPackageTests {
     }
 
     @Test
-    func repeatRendersArbitraryMarkupAndPositionMetadata() {
+    func loopRendersArbitraryMarkupAndPositionMetadata() {
         let template = """
-        {{ repeat 3 }}
-        <span data-index="{{ repeat.index }}">{{ repeat.position }}/{{ repeat.count }} {{ if repeat.first }}first{{ elseif repeat.last }}last{{ endif }}</span>
-        {{ endrepeat }}
+        {{ loop 3 }}
+        <span data-index="{{ loop.index }}">{{ loop.position }}/{{ loop.count }} {{ if loop.first }}first{{ elseif loop.last }}last{{ endif }}</span>
+        {{ endloop }}
         """
         let context = ComponentTemplateContext(
             instanceID: UUID(),
-            packageIdentifier: "com.example.repeat",
+            packageIdentifier: "com.example.loop",
             properties: [:],
             slots: [:]
         )
@@ -1002,31 +1002,149 @@ struct ComponentPackageTests {
     }
 
     @Test
-    func nestedRepeatExposesParentMetadata() {
-        let template = "{{ repeat 2 }}{{ repeat 2 }}{{ repeat.parent.position }}.{{ repeat.position }};{{ endrepeat }}{{ endrepeat }}"
+    func nestedLoopExposesParentMetadata() {
+        let template = "{{ loop 2 }}{{ loop 2 }}{{ loop.parent.position }}.{{ loop.position }};{{ endloop }}{{ endloop }}"
         let rendered = ComponentTemplateRenderer.render(
             template,
-            context: .init(instanceID: UUID(), packageIdentifier: "com.example.repeat", properties: [:], slots: [:])
+            context: .init(instanceID: UUID(), packageIdentifier: "com.example.loop", properties: [:], slots: [:])
         )
 
         #expect(rendered == "1.1;1.2;2.1;2.2;")
     }
 
     @Test
-    func controlRepeatKeepsPrimitiveKeysStableAcrossCountChanges() {
+    func collectionLoopSupportsAliasesNestedCollectionsAndFiltering() {
         let template = """
-        {{ repeat control.itemCount }}<article>{{ text="Card" }}{{ image }}</article>{{ endrepeat }}
+        {{ loop navigation.items as item where item.visible }}
+        {{ item.title }}:{{ loop item.children as child }}{{ child.title }}{{ if !loop.last }},{{ endif }}{{ endloop }};
+        {{ endloop }}
+        """
+        let values: [ComponentPackageValue] = [
+            .object([
+                "title": .string("Home"),
+                "visible": .boolean(true),
+                "children": .array([.object(["title": .string("News")]), .object(["title": .string("About")])])
+            ]),
+            .object(["title": .string("Hidden"), "visible": .boolean(false), "children": .array([])])
+        ]
+        let rendered = ComponentTemplateRenderer.render(
+            template,
+            context: .init(
+                instanceID: UUID(), packageIdentifier: "com.example.loop", properties: [:],
+                templateValues: ["navigation.items": .array(values)], slots: [:]
+            )
+        )
+
+        #expect(rendered.trimmingCharacters(in: .whitespacesAndNewlines) == "Home:News,About;")
+    }
+
+    @Test
+    func reversedLoopsWorkWithCountsCollectionsAndFilters() {
+        let values: [ComponentPackageValue] = [
+            .object(["title": .string("First"), "visible": .boolean(true)]),
+            .object(["title": .string("Hidden"), "visible": .boolean(false)]),
+            .object(["title": .string("Last"), "visible": .boolean(true)])
+        ]
+        let context = ComponentTemplateContext(
+            instanceID: UUID(),
+            packageIdentifier: "com.example.loop",
+            properties: [:],
+            templateValues: ["pages.all": .array(values)],
+            slots: [:]
+        )
+
+        let collection = ComponentTemplateRenderer.render(
+            "{{ loop pages.all as page where page.visible reversed }}{{ page.title }}:{{ loop.position }}:{{ loop.first }}:{{ loop.last }};{{ endloop }}",
+            context: context
+        )
+        let counted = ComponentTemplateRenderer.render(
+            "{{ loop 4 reversed }}{{ loop.position }}{{ if !loop.last }},{{ endif }}{{ endloop }}",
+            context: context
+        )
+
+        #expect(collection == "Last:2:true:false;First:1:false:true;")
+        #expect(counted == "4,3,2,1")
+    }
+
+    @Test
+    func navigationLoopUsesPageHierarchyVisibilityAndCurrentState() throws {
+        let identifier = "com.example.navigation\(UUID().uuidString.replacingOccurrences(of: "-", with: "").lowercased())"
+        let packageURL = try makePackage(
+            manifest: manifest(withCustomItems: "").replacingOccurrences(of: "com.example.card", with: identifier),
+            template: """
+            <nav {{ component.attributes }}>{{ loop navigation.items as item }}
+            <a href="{{ item.href }}">{{ item.title }}</a>
+            {{ loop item.children as child }}<a href="{{ child.href }}"{{ if child.current }} aria-current="page"{{ endif }}>{{ child.title }}</a>{{ endloop }}
+            {{ endloop }}{{ slot id="content" }}</nav>
+            """
+        )
+        defer { try? FileManager.default.removeItem(at: packageURL) }
+        let package = try ComponentPackageLoader.load(from: packageURL)
+        ComponentRegistry.register(package)
+
+        let home = Page(title: "Home", slug: "index")
+        let hidden = Page(title: "Hidden", slug: "hidden", parentPageID: home.id, includeInNavigation: false)
+        let about = Page(title: "About", slug: "about", order: 2)
+        let contact = Page(title: "Contact", slug: "contact", order: 1)
+        let component = ComponentNode(type: .init(rawValue: identifier))
+        let current = Page(
+            title: "Current & Selected", slug: "current", components: [component], parentPageID: hidden.id
+        )
+        let site = Site(
+            name: "Navigation",
+            pages: [
+                about,
+                hidden,
+                current,
+                contact,
+                home
+            ]
+        )
+        let direct = ComponentTemplateRenderer.render(
+            package.htmlTemplate,
+            context: .init(
+                instanceID: component.id,
+                packageIdentifier: identifier,
+                properties: [:],
+                templateValues: ComponentNavigationTemplateValues.values(site: site, currentPage: current),
+                slots: ["content": ""]
+            )
+        )
+        #expect(direct.contains(">Home</a>"))
+        let homeRange = try #require(direct.range(of: ">Home</a>"))
+        let contactRange = try #require(direct.range(of: ">Contact</a>"))
+        let aboutRange = try #require(direct.range(of: ">About</a>"))
+        #expect(homeRange.lowerBound < contactRange.lowerBound)
+        #expect(contactRange.lowerBound < aboutRange.lowerBound)
+        ComponentRegistry.register(package)
+        let html = try #require(
+            StaticSiteRenderer(environment: .preview).render(site: site, assets: [:])
+                .file(at: "hidden/current/index.html")?.contents
+        )
+
+        #expect(html.contains("href=\"/\">Home</a>"))
+        #expect(html.contains("href=\"/hidden/current/\" aria-current=\"page\">Current &amp; Selected</a>"))
+        #expect(!html.contains(">Hidden</a>"))
+
+        let decodedHidden = try JSONDecoder().decode(Page.self, from: JSONEncoder().encode(hidden))
+        #expect(decodedHidden.includeInNavigation == false)
+    }
+
+    @Test
+    func controlLoopKeepsPrimitiveKeysStableAcrossCountChanges() {
+        let template = """
+        {{ loop control.itemCount }}<article>{{ text="Card" }}{{ image }}</article>{{ endloop }}
         <footer>{{ text="Footer" }}</footer>
         """
         let maximums = ["itemCount": 4]
-        let textPrimitives = ComponentTemplateRenderer.textPrimitives(in: template, repeatMaximums: maximums)
+        let textPrimitives = ComponentTemplateRenderer.textPrimitives(in: template, loopMaximums: maximums)
         #expect(textPrimitives.map(\.key) == ["content1", "content2"])
         #expect(textPrimitives.first?.isRepeated == true)
         #expect(ComponentTemplateRenderer.imagePrimitives(in: template).first?.isRepeated == true)
 
         let context = ComponentTemplateContext(
             instanceID: UUID(),
-            packageIdentifier: "com.example.repeat",
+            packageIdentifier: "com.example.loop",
             properties: [
                 "itemCount": .number(2),
                 "content1": .array([.string("One"), .string("Two")]),
@@ -1034,7 +1152,7 @@ struct ComponentPackageTests {
                 "image1": .array([.string("one.jpg"), .string("two.jpg")])
             ],
             slots: [:],
-            repeatMaximums: maximums
+            loopMaximums: maximums
         )
         let rendered = ComponentTemplateRenderer.render(template, context: context)
 
@@ -1050,7 +1168,7 @@ struct ComponentPackageTests {
             properties: context.properties,
             slots: [:],
             enablesEditorMarkup: true,
-            repeatMaximums: maximums
+            loopMaximums: maximums
         )
         let editorHTML = ComponentTemplateRenderer.render(template, context: editorContext)
         #expect(editorHTML.contains("data-foundry-primitive-property=\"content1\""))
@@ -1071,7 +1189,7 @@ struct ComponentPackageTests {
     }
 
     @Test
-    func repeatValidationRequiresBalancedBlocksAndBoundedNumericControls() throws {
+    func loopValidationRequiresBalancedBlocksAndBoundedNumericControls() throws {
         let item = """
         <dict>
             <key>id</key><string>itemCount</string>
@@ -1086,35 +1204,53 @@ struct ComponentPackageTests {
         let manifestText = manifest(withCustomItems: item)
         let validURL = try makePackage(
             manifest: manifestText,
-            template: "<section {{ component.attributes }}>{{ repeat control.itemCount }}<b>{{ repeat.position }}</b>{{ endrepeat }}{{ slot id=\"content\" }}</section>"
+            template: "<section {{ component.attributes }}>{{ loop control.itemCount reversed }}<b>{{ loop.position }}</b>{{ endloop }}{{ slot id=\"content\" }}</section>"
         )
         defer { try? FileManager.default.removeItem(at: validURL) }
         let package = try ComponentPackageLoader.load(from: validURL)
-        #expect(package.repeatMaximums == ["itemCount": 12])
+        #expect(package.loopMaximums == ["itemCount": 12])
 
         let invalidURL = try makePackage(
             manifest: manifestText.replacingOccurrences(of: "<key>maximum</key><real>12</real>", with: ""),
-            template: "<section {{ component.attributes }}>{{ repeat control.itemCount }}<b></b>{{ slot id=\"content\" }}</section>"
+            template: "<section {{ component.attributes }}>{{ loop control.itemCount }}<b></b>{{ slot id=\"content\" }}</section>"
         )
         defer { try? FileManager.default.removeItem(at: invalidURL) }
         #expect(throws: ComponentPackageLoadingError.self) {
             try ComponentPackageLoader.load(from: invalidURL)
         }
+
+        let legacyURL = try makePackage(
+            manifest: manifestText,
+            template: "<section {{ component.attributes }}>{{ repeat 2 }}<b></b>{{ endrepeat }}{{ slot id=\"content\" }}</section>"
+        )
+        defer { try? FileManager.default.removeItem(at: legacyURL) }
+        #expect(throws: ComponentPackageLoadingError.self) {
+            try ComponentPackageLoader.load(from: legacyURL)
+        }
+
+        let invalidFilterURL = try makePackage(
+            manifest: manifestText,
+            template: "<section {{ component.attributes }}>{{ loop navigation.items as item where item.current && }}<b></b>{{ endloop }}{{ slot id=\"content\" }}</section>"
+        )
+        defer { try? FileManager.default.removeItem(at: invalidFilterURL) }
+        #expect(throws: ComponentPackageLoadingError.self) {
+            try ComponentPackageLoader.load(from: invalidFilterURL)
+        }
     }
 
     @Test
-    func repeatAcceptsDirectiveWhitespaceAndLimitsNestedExpansion() throws {
-        let whitespaceTemplate = "{{\n repeat\t2 }}item{{ endrepeat }}"
-        let expanded = try ComponentTemplateRepeater.expand(
+    func loopAcceptsDirectiveWhitespaceAndLimitsNestedExpansion() throws {
+        let whitespaceTemplate = "{{\n loop\t2 }}item{{ endloop }}"
+        let expanded = try ComponentTemplateLoop.expand(
             whitespaceTemplate,
             properties: [:],
             maximums: [:]
         )
         #expect(expanded.template == "itemitem")
 
-        let excessiveTemplate = "{{ repeat 100 }}{{ repeat 100 }}{{ repeat 2 }}item{{ endrepeat }}{{ endrepeat }}{{ endrepeat }}"
-        #expect(throws: ComponentTemplateRepeater.RepeatError.self) {
-            try ComponentTemplateRepeater.expand(
+        let excessiveTemplate = "{{ loop 100 }}{{ loop 100 }}{{ loop 2 }}item{{ endloop }}{{ endloop }}{{ endloop }}"
+        #expect(throws: ComponentTemplateLoop.LoopError.self) {
+            try ComponentTemplateLoop.expand(
                 excessiveTemplate,
                 properties: [:],
                 maximums: [:]
@@ -1434,6 +1570,42 @@ struct ComponentPackageTests {
         #expect(bundle.files.filter { $0.path == renditionPath }.count == 1)
         #expect(bundle.file(at: "index.html")?.contents.contains(renditionPath) == true)
         #expect(bundle.file(at: "about/index.html")?.contents.contains("../" + renditionPath) == true)
+    }
+
+    @Test
+    func staticPreviewResolvesManagedAssetsInLoopImagePrimitives() throws {
+        let identifier = "com.example.repeatedimages\(UUID().uuidString.replacingOccurrences(of: "-", with: "").lowercased())"
+        let packageURL = try makePackage(
+            manifest: manifest(withCustomItems: "").replacingOccurrences(of: "com.example.card", with: identifier),
+            template: "<section {{ component.attributes }}>{{ loop 2 }}{{ image }}{{ endloop }}{{ slot id=\"content\" }}</section>"
+        )
+        defer { try? FileManager.default.removeItem(at: packageURL) }
+        ComponentRegistry.register(try ComponentPackageLoader.load(from: packageURL))
+
+        let first = ProjectAsset(filename: "first.png", mediaType: "image/png", byteCount: 1)
+        let second = ProjectAsset(filename: "second.png", mediaType: "image/png", byteCount: 1)
+        var component = ComponentNode(type: .init(rawValue: identifier))
+        component.setProperty(
+            .init(rawValue: "image1"),
+            value: .array([.url(first.reference), .url(second.reference)])
+        )
+        let site = Site(
+            name: "Repeated Images",
+            pages: [Page(title: "Home", slug: "index", components: [component])],
+            assets: [first, second]
+        )
+        let bundle = StaticSiteRenderer(environment: .preview).render(
+            site: site,
+            assets: [
+                first.id: .init(asset: first, data: Data([0])),
+                second.id: .init(asset: second, data: Data([1]))
+            ]
+        )
+        let html = try #require(bundle.file(at: "index.html")?.contents)
+
+        #expect(html.contains("src=\"assets/\(first.readableExportFilename)\""))
+        #expect(html.contains("src=\"assets/\(second.readableExportFilename)\""))
+        #expect(!html.contains("foundry-asset:"))
     }
 
     @Test
@@ -2559,7 +2731,7 @@ struct ComponentPackageTests {
         let imageSlider = try #require(builtIns.first {
             $0.type.rawValue == "foundry.media.imageslider"
         })
-        #expect(imageSlider.package?.repeatMaximums["slideCount"] == 8)
+        #expect(imageSlider.package?.loopMaximums["slideCount"] == 8)
         #expect(imageSlider.properties.filter {
             if case .image = $0.control { return true }
             return false

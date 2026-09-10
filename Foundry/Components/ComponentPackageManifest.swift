@@ -550,6 +550,7 @@ nonisolated enum ComponentPackageValue: Codable, Equatable, Sendable {
     case number(Double)
     case boolean(Bool)
     case array([ComponentPackageValue])
+    case object([String: ComponentPackageValue])
 
     init(from decoder: Decoder) throws {
         let container = try decoder.singleValueContainer()
@@ -559,6 +560,8 @@ nonisolated enum ComponentPackageValue: Codable, Equatable, Sendable {
             self = .number(value)
         } else if let value = try? container.decode([ComponentPackageValue].self) {
             self = .array(value)
+        } else if let value = try? container.decode([String: ComponentPackageValue].self) {
+            self = .object(value)
         } else {
             self = .string(try container.decode(String.self))
         }
@@ -571,6 +574,7 @@ nonisolated enum ComponentPackageValue: Codable, Equatable, Sendable {
         case .number(let value): try container.encode(value)
         case .boolean(let value): try container.encode(value)
         case .array(let value): try container.encode(value)
+        case .object(let value): try container.encode(value)
         }
     }
 
@@ -580,6 +584,12 @@ nonisolated enum ComponentPackageValue: Codable, Equatable, Sendable {
 
     var numberValue: Double? {
         if case .number(let value) = self { value } else { nil }
+    }
+
+    func value(at path: ArraySlice<Substring>) -> ComponentPackageValue? {
+        guard let key = path.first else { return self }
+        guard case .object(let values) = self, let value = values[String(key)] else { return nil }
+        return value.value(at: path.dropFirst())
     }
 }
 

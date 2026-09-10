@@ -1,6 +1,6 @@
 import Foundation
 
-nonisolated enum ComponentTemplateRepeater {
+nonisolated enum ComponentTemplateLoop {
     static let maximumIterationCount = 100
     static let maximumExpandedIterationCount = 10_000
 
@@ -21,7 +21,7 @@ nonisolated enum ComponentTemplateRepeater {
         let template: String
     }
 
-    enum RepeatError: Error, CustomStringConvertible {
+    enum LoopError: Error, CustomStringConvertible {
         case unexpectedEnd
         case missingEnd
         case invalidCount(String)
@@ -29,10 +29,10 @@ nonisolated enum ComponentTemplateRepeater {
 
         var description: String {
             switch self {
-            case .unexpectedEnd: "An endrepeat directive does not have a matching repeat."
-            case .missingEnd: "Every repeat directive requires one endrepeat."
-            case .invalidCount(let value): "Invalid repeat count '\(value)'. Use an integer from 0 through \(maximumIterationCount), or a bounded numeric control."
-            case .expansionLimitExceeded: "Nested repeat blocks may expand to at most \(maximumExpandedIterationCount) total iterations."
+            case .unexpectedEnd: "An endloop directive does not have a matching loop."
+            case .missingEnd: "Every loop directive requires one endloop."
+            case .invalidCount(let value): "Invalid loop count '\(value)'. Use an integer from 0 through \(maximumIterationCount), or a bounded numeric control."
+            case .expansionLimitExceeded: "Nested loop blocks may expand to at most \(maximumExpandedIterationCount) total iterations."
             }
         }
     }
@@ -49,7 +49,8 @@ nonisolated enum ComponentTemplateRepeater {
         _ template: String,
         properties: [String: ComponentPackageValue],
         maximums: [String: Int],
-        usingMaximumCounts: Bool = false
+        usingMaximumCounts: Bool = false,
+        environment: ComponentTemplateEnvironment = .published
     ) throws -> Expansion {
         var parser = Parser(template)
         let parsed = try parser.nodes(expectsEnd: false)
@@ -61,7 +62,8 @@ nonisolated enum ComponentTemplateRepeater {
             properties: properties,
             maximums: maximums,
             usingMaximumCounts: usingMaximumCounts,
-            repeatStack: [],
+            environment: environment,
+            loopStack: [],
             expandedIterationCount: &expandedIterationCount
         )
         return .init(template: output)
@@ -69,12 +71,16 @@ nonisolated enum ComponentTemplateRepeater {
 
     private indirect enum Node {
         case text(String)
-        case repeated(String, [Node])
+        case loop(String, [Node])
     }
 
-    private struct RepeatFrame {
+    private struct LoopFrame {
         let index: Int
+        let emissionIndex: Int
+        let pathIndex: Int
         let count: Int
+        let alias: String?
+        let item: ComponentPackageValue?
     }
 
     private struct PreparationState {
@@ -111,8 +117,8 @@ nonisolated enum ComponentTemplateRepeater {
                     return token(name: "__foundry_image", key: key, value: nil, isRepeated: depth > 0)
                 }
                 return .text(result)
-            case .repeated(let source, let children):
-                return .repeated(source, prepare(children, depth: depth + 1, state: &state))
+            case .loop(let source, let children):
+                return .loop(source, prepare(children, depth: depth + 1, state: &state))
             }
         }
     }
@@ -122,7 +128,8 @@ nonisolated enum ComponentTemplateRepeater {
         properties: [String: ComponentPackageValue],
         maximums: [String: Int],
         usingMaximumCounts: Bool,
-        repeatStack: [RepeatFrame],
+        environment: ComponentTemplateEnvironment,
+        loopStack: [LoopFrame],
         expandedIterationCount: inout Int
     ) throws -> String {
         var output = ""
@@ -130,23 +137,81 @@ nonisolated enum ComponentTemplateRepeater {
             switch node {
             case .text(let source):
                 output += annotatePrimitivePaths(
-                    in: replacingRepeatValues(in: source, stack: repeatStack),
-                    path: repeatStack.map(\.index)
+                    in: replacingLoopValues(in: source, stack: loopStack),
+                    path: loopStack.map(\.pathIndex)
                 )
-            case .repeated(let source, let children):
-                let maximum = try maximumCount(for: source, maximums: maximums)
-                let count = usingMaximumCounts ? maximum : currentCount(for: source, properties: properties, maximum: maximum)
-                for index in 0..<count {
+            case .loop(let source, let children):
+                let directive = LoopDirective(source)
+                let iterationProperties = propertiesForFrames(loopStack, base: properties)
+                let sourceItems = collection(for: directive.source, properties: iterationProperties)
+                let candidates: [(pathIndex: Int, item: ComponentPackageValue?)]
+                if let sourceItems {
+                    candidates = sourceItems.enumerated().compactMap { pathIndex, item in
+                        guard let predicate = directive.predicate else { return (pathIndex, item) }
+                        let frame = LoopFrame(
+                            index: pathIndex,
+                            emissionIndex: pathIndex,
+                            pathIndex: pathIndex,
+                            count: sourceItems.count,
+                            alias: directive.alias,
+                            item: item
+                        )
+                        return predicateIsTrue(
+                            predicate,
+                            properties: propertiesForFrames(loopStack + [frame], base: properties),
+                            environment: environment
+                        ) ? (pathIndex, item) : nil
+                    }
+                } else {
+                    let maximum = try maximumCount(for: directive.source, maximums: maximums)
+                    let sourceCount = usingMaximumCounts
+                        ? maximum
+                        : currentCount(for: directive.source, properties: iterationProperties, maximum: maximum)
+                    candidates = (0..<sourceCount).compactMap { pathIndex in
+                        let frame = LoopFrame(
+                            index: pathIndex,
+                            emissionIndex: pathIndex,
+                            pathIndex: pathIndex,
+                            count: sourceCount,
+                            alias: directive.alias,
+                            item: nil
+                        )
+                        guard let predicate = directive.predicate else { return (pathIndex, nil) }
+                        return predicateIsTrue(
+                            predicate,
+                            properties: propertiesForFrames(loopStack + [frame], base: properties),
+                            environment: environment
+                        ) ? (pathIndex, nil) : nil
+                    }
+                }
+                let normalizedCandidates = candidates.enumerated().map {
+                    (index: $0.offset, pathIndex: $0.element.pathIndex, item: $0.element.item)
+                }
+                let orderedCandidates = directive.isReversed
+                    ? Array(normalizedCandidates.reversed())
+                    : normalizedCandidates
+                let iterations = Array(orderedCandidates.prefix(maximumIterationCount))
+                for (emissionIndex, candidate) in iterations.enumerated() {
+                    let frame = LoopFrame(
+                        index: candidate.index,
+                        emissionIndex: emissionIndex,
+                        pathIndex: candidate.pathIndex,
+                        count: iterations.count,
+                        alias: directive.alias,
+                        item: candidate.item
+                    )
+                    let nextStack = loopStack + [frame]
                     expandedIterationCount += 1
                     guard expandedIterationCount <= maximumExpandedIterationCount else {
-                        throw RepeatError.expansionLimitExceeded
+                        throw LoopError.expansionLimitExceeded
                     }
                     output += try render(
                         children,
                         properties: properties,
                         maximums: maximums,
                         usingMaximumCounts: usingMaximumCounts,
-                        repeatStack: repeatStack + [.init(index: index, count: count)],
+                        environment: environment,
+                        loopStack: nextStack,
                         expandedIterationCount: &expandedIterationCount
                     )
                 }
@@ -155,12 +220,83 @@ nonisolated enum ComponentTemplateRepeater {
         return output
     }
 
+    private struct LoopDirective {
+        let source: String
+        let alias: String?
+        let predicate: String?
+        let isReversed: Bool
+
+        init(_ value: String) {
+            let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+            isReversed = trimmed.hasSuffix(" reversed")
+            let body = isReversed
+                ? String(trimmed.dropLast(" reversed".count)).trimmingCharacters(in: .whitespacesAndNewlines)
+                : trimmed
+            let predicateParts = body.components(separatedBy: " where ")
+            let sourceAndAlias = predicateParts[0].trimmingCharacters(in: .whitespacesAndNewlines)
+            let aliasParts = sourceAndAlias.components(separatedBy: " as ")
+            source = aliasParts[0].trimmingCharacters(in: .whitespacesAndNewlines)
+            alias = aliasParts.count == 2 ? aliasParts[1].trimmingCharacters(in: .whitespacesAndNewlines) : nil
+            predicate = predicateParts.count > 1
+                ? predicateParts.dropFirst().joined(separator: " where ").trimmingCharacters(in: .whitespacesAndNewlines)
+                : nil
+        }
+    }
+
+    private static func collection(
+        for source: String,
+        properties: [String: ComponentPackageValue]
+    ) -> [ComponentPackageValue]? {
+        let key = source.hasPrefix("control.") ? String(source.dropFirst("control.".count)) : source
+        if case .array(let values) = resolvedValue(key, properties: properties) { return values }
+        if !source.hasPrefix("control."), source.contains(".") { return [] }
+        return nil
+    }
+
+    private static func resolvedValue(
+        _ key: String,
+        properties: [String: ComponentPackageValue]
+    ) -> ComponentPackageValue? {
+        if let value = properties[key] { return value }
+        let parts = key.split(separator: ".")
+        for splitIndex in stride(from: parts.count - 1, through: 0, by: -1) {
+            let root = parts[0...splitIndex].joined(separator: ".")
+            if let value = properties[root]?.value(at: parts.dropFirst(splitIndex + 1)) { return value }
+        }
+        return nil
+    }
+
+    private static func propertiesForFrames(
+        _ frames: [LoopFrame],
+        base: [String: ComponentPackageValue]
+    ) -> [String: ComponentPackageValue] {
+        var result = base
+        for frame in frames {
+            guard let item = frame.item else { continue }
+            result["loop.item"] = item
+            if let alias = frame.alias { result[alias] = item }
+        }
+        return result
+    }
+
+    private static func predicateIsTrue(
+        _ predicate: String,
+        properties: [String: ComponentPackageValue],
+        environment: ComponentTemplateEnvironment
+    ) -> Bool {
+        guard let expression = try? ComponentTemplateExpression.parse(predicate),
+              let value = try? ComponentTemplateExpression.evaluate(
+                expression, properties: properties, environment: environment
+              ) else { return false }
+        return value.isTruthy
+    }
+
     private static func maximumCount(for source: String, maximums: [String: Int]) throws -> Int {
         if let literal = Int(source), (0...maximumIterationCount).contains(literal) { return literal }
         if source.hasPrefix("control."),
            let maximum = maximums[String(source.dropFirst("control.".count))],
            (0...maximumIterationCount).contains(maximum) { return maximum }
-        throw RepeatError.invalidCount(source)
+        throw LoopError.invalidCount(source)
     }
 
     private static func currentCount(
@@ -182,26 +318,88 @@ nonisolated enum ComponentTemplateRepeater {
         )
     }
 
-    private static func replacingRepeatValues(in source: String, stack: [RepeatFrame]) -> String {
+    private static func replacingLoopValues(in source: String, stack: [LoopFrame]) -> String {
         guard let current = stack.last else { return source }
         var result = source
         let values: [(String, String)] = [
-            ("repeat.index", String(current.index)),
-            ("repeat.position", String(current.index + 1)),
-            ("repeat.count", String(current.count)),
-            ("repeat.first", current.index == 0 ? "true" : "false"),
-            ("repeat.last", current.index == current.count - 1 ? "true" : "false")
+            ("loop.index", String(current.index)),
+            ("loop.position", String(current.index + 1)),
+            ("loop.count", String(current.count)),
+            ("loop.first", current.emissionIndex == 0 ? "true" : "false"),
+            ("loop.last", current.emissionIndex == current.count - 1 ? "true" : "false")
         ]
         for (key, value) in values { result = result.replacingOccurrences(of: key, with: value) }
         if stack.count > 1 {
             let parent = stack[stack.count - 2]
-            result = result.replacingOccurrences(of: "repeat.parent.index", with: String(parent.index))
-            result = result.replacingOccurrences(of: "repeat.parent.position", with: String(parent.index + 1))
-            result = result.replacingOccurrences(of: "repeat.parent.count", with: String(parent.count))
-            result = result.replacingOccurrences(of: "repeat.parent.first", with: parent.index == 0 ? "true" : "false")
-            result = result.replacingOccurrences(of: "repeat.parent.last", with: parent.index == parent.count - 1 ? "true" : "false")
+            result = result.replacingOccurrences(of: "loop.parent.index", with: String(parent.index))
+            result = result.replacingOccurrences(of: "loop.parent.position", with: String(parent.index + 1))
+            result = result.replacingOccurrences(of: "loop.parent.count", with: String(parent.count))
+            result = result.replacingOccurrences(of: "loop.parent.first", with: parent.emissionIndex == 0 ? "true" : "false")
+            result = result.replacingOccurrences(of: "loop.parent.last", with: parent.emissionIndex == parent.count - 1 ? "true" : "false")
+        }
+        let properties = propertiesForFrames(stack, base: [:])
+        result = replacingIterationValuesInConditions(in: result, properties: properties)
+        let expression = try! NSRegularExpression(
+            pattern: #"\{\{\s*((?:loop\.item|[A-Za-z_][A-Za-z0-9_]*)(?:\.[A-Za-z_][A-Za-z0-9_]*)*)\s*\}\}"#
+        )
+        for match in expression.matches(in: result, range: NSRange(result.startIndex..., in: result)).reversed() {
+            guard let range = Range(match.range(at: 0), in: result),
+                  let keyRange = Range(match.range(at: 1), in: result),
+                  let value = resolvedValue(String(result[keyRange]), properties: properties) else { continue }
+            result.replaceSubrange(range, with: escapedOutput(value))
         }
         return result
+    }
+
+    private static func replacingIterationValuesInConditions(
+        in source: String,
+        properties: [String: ComponentPackageValue]
+    ) -> String {
+        var result = source
+        let directive = try! NSRegularExpression(pattern: #"\{\{\s*(?:if|elseif)\s+([^{}]+?)\s*\}\}"#)
+        let variable = try! NSRegularExpression(pattern: #"\b(?:loop\.item|[A-Za-z_][A-Za-z0-9_]*)(?:\.[A-Za-z_][A-Za-z0-9_]*)*\b"#)
+        for match in directive.matches(in: result, range: NSRange(result.startIndex..., in: result)).reversed() {
+            guard let conditionRange = Range(match.range(at: 1), in: result) else { continue }
+            var condition = String(result[conditionRange])
+            for variableMatch in variable.matches(in: condition, range: NSRange(condition.startIndex..., in: condition)).reversed() {
+                guard let range = Range(variableMatch.range, in: condition),
+                      let value = resolvedValue(String(condition[range]), properties: properties) else { continue }
+                condition.replaceSubrange(range, with: expressionLiteral(value))
+            }
+            result.replaceSubrange(conditionRange, with: condition)
+        }
+        return result
+    }
+
+    private static func expressionLiteral(_ value: ComponentPackageValue) -> String {
+        switch value {
+        case .string(let value):
+            return "\"" + value.replacingOccurrences(of: "\\", with: "\\\\")
+                .replacingOccurrences(of: "\"", with: "\\\"") + "\""
+        case .number(let value):
+            return value.formatted(.number.grouping(.never).locale(Locale(identifier: "en_US_POSIX")))
+        case .boolean(let value):
+            return value ? "true" : "false"
+        case .array(let values):
+            return values.isEmpty ? "false" : "true"
+        case .object(let values):
+            return values.isEmpty ? "false" : "true"
+        }
+    }
+
+    private static func escapedOutput(_ value: ComponentPackageValue) -> String {
+        let result: String = switch value {
+        case .string(let value): value
+        case .number(let value): value.formatted(.number.grouping(.never).locale(Locale(identifier: "en_US_POSIX")))
+        case .boolean(let value): value ? "true" : "false"
+        case .array, .object: ""
+        }
+        return result
+            .replacingOccurrences(of: "&", with: "&amp;")
+            .replacingOccurrences(of: "<", with: "&lt;")
+            .replacingOccurrences(of: ">", with: "&gt;")
+            .replacingOccurrences(of: "\"", with: "&quot;")
+            .replacingOccurrences(of: "'", with: "&#39;")
     }
 
     private static func replacePrimitives(
@@ -228,7 +426,7 @@ nonisolated enum ComponentTemplateRepeater {
         return "{{ \(name) key=\"\(key)\"\(defaultMarker)\(repeatedMarker) }}"
     }
 
-    private static let directiveExpression = try! NSRegularExpression(pattern: #"\{\{\s*(repeat\s+([^{}]+?)|endrepeat)\s*\}\}"#)
+    private static let directiveExpression = try! NSRegularExpression(pattern: #"\{\{\s*(loop\s+([^{}]+?)|endloop)\s*\}\}"#)
     private static let imageExpression = try! NSRegularExpression(pattern: #"\{\{\s*image\s*\}\}"#)
     private static let textExpression = try! NSRegularExpression(pattern: #"\{\{\s*text(?:\s*=\s*\"([^\"]*)\")?\s*\}\}"#)
     private static let htmlExpression = try! NSRegularExpression(pattern: #"\{\{\s*html(?:\s*=\s*\"([^\"]*)\")?\s*\}\}"#)
@@ -253,13 +451,13 @@ nonisolated enum ComponentTemplateRepeater {
                 }
                 location = NSMaxRange(match.range)
                 let directive = substring(match.range(at: 1))
-                if directive == "endrepeat" {
+                if directive == "endloop" {
                     if expectsEnd { return result }
-                    throw RepeatError.unexpectedEnd
+                    throw LoopError.unexpectedEnd
                 }
-                result.append(.repeated(substring(match.range(at: 2)).trimmingCharacters(in: .whitespacesAndNewlines), try nodes(expectsEnd: true)))
+                result.append(.loop(substring(match.range(at: 2)).trimmingCharacters(in: .whitespacesAndNewlines), try nodes(expectsEnd: true)))
             }
-            if expectsEnd { throw RepeatError.missingEnd }
+            if expectsEnd { throw LoopError.missingEnd }
             return result
         }
 

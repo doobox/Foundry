@@ -55,7 +55,7 @@ nonisolated struct LoadedComponentPackage: Sendable {
         self.manifest = manifest
         self.rootURL = rootURL
         self.updateSourceURL = updateSourceURL
-        preparedPrimitives = ComponentPreparedPrimitives(template: htmlTemplate, repeatMaximums: Self.repeatMaximums(for: manifest))
+        preparedPrimitives = ComponentPreparedPrimitives(template: htmlTemplate, loopMaximums: Self.loopMaximums(for: manifest))
         payloadStorage = .init(payload: .init(
             htmlTemplate: htmlTemplate,
             css: css,
@@ -122,17 +122,17 @@ nonisolated struct LoadedComponentPackage: Sendable {
         rootURL.appending(path: "Contents/Resources", directoryHint: .isDirectory)
     }
 
-    var repeatMaximums: [String: Int] {
-        Self.repeatMaximums(for: manifest)
+    var loopMaximums: [String: Int] {
+        Self.loopMaximums(for: manifest)
     }
 
-    private static func repeatMaximums(for manifest: ComponentPackageManifest) -> [String: Int] {
+    private static func loopMaximums(for manifest: ComponentPackageManifest) -> [String: Int] {
         Dictionary(uniqueKeysWithValues: manifest.properties.compactMap { property in
             guard property.control.type == .number || property.control.type == .slider,
                   let maximum = property.control.maximum,
                   maximum.isFinite,
                   maximum >= 0,
-                  maximum <= Double(ComponentTemplateRepeater.maximumIterationCount) else { return nil }
+                  maximum <= Double(ComponentTemplateLoop.maximumIterationCount) else { return nil }
             return (property.id, Int(maximum.rounded(.down)))
         })
     }
@@ -160,9 +160,9 @@ nonisolated struct ComponentPreparedPrimitives: Codable, Equatable, Sendable {
         self.images = images
     }
 
-    init(template: String, repeatMaximums: [String: Int]) {
-        text = ComponentTemplateRenderer.textPrimitives(in: template, repeatMaximums: repeatMaximums)
-        html = ComponentTemplateRenderer.htmlPrimitives(in: template, repeatMaximums: repeatMaximums)
+    init(template: String, loopMaximums: [String: Int]) {
+        text = ComponentTemplateRenderer.textPrimitives(in: template, loopMaximums: loopMaximums)
+        html = ComponentTemplateRenderer.htmlPrimitives(in: template, loopMaximums: loopMaximums)
         images = ComponentTemplateRenderer.imagePrimitives(in: template)
     }
 }
@@ -428,8 +428,8 @@ nonisolated enum ComponentPackageLoader {
             rootURL: rootURL,
             updateSourceURL: nil,
             preparedPrimitives: .init(text: [], html: [], images: [])
-        ).repeatMaximums
-        let primitives = ComponentPreparedPrimitives(template: template, repeatMaximums: maximums)
+        ).loopMaximums
+        let primitives = ComponentPreparedPrimitives(template: template, loopMaximums: maximums)
         timings.resourceLoading = preparationStart.duration(to: clock.now)
         ComponentPackagePreparedIndex.store(manifest: manifest, primitives: primitives, rootURL: rootURL)
         return .init(

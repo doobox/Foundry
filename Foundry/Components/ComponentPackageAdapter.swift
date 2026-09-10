@@ -294,6 +294,8 @@ nonisolated enum ComponentPackageAdapter {
             }
         case .array(let values):
             .array(values.map { self.value($0, control: control) })
+        case .object:
+            .string("")
         }
     }
 }

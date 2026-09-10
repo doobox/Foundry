@@ -198,6 +198,13 @@ extension ProjectEditor {
         }
     }
 
+    func setPageIncludedInNavigation(id: UUID, included: Bool) {
+        mutate(actionName: "Change Page Navigation Visibility") { site in
+            guard let index = site.pages.firstIndex(where: { $0.id == id }) else { return }
+            site.pages[index].includeInNavigation = included
+        }
+    }
+
     func renamePageFromOutline(id: UUID, title: String) {
         guard let page = document.site.pages.first(where: { $0.id == id }) else { return }
         let slug = page.slug == "index"

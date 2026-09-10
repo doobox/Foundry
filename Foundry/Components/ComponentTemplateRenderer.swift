@@ -10,6 +10,7 @@ nonisolated struct ComponentTemplateContext: Sendable {
     let instanceID: UUID
     let packageIdentifier: String
     let properties: [String: ComponentPackageValue]
+    let templateValues: [String: ComponentPackageValue]
     let slots: [String: String]
     let componentClass: String
     let componentAttributes: String
@@ -22,12 +23,17 @@ nonisolated struct ComponentTemplateContext: Sendable {
     let enablesEditorMarkup: Bool
     let environment: ComponentTemplateEnvironment
     let richTextLinkContext: FoundryRichTextCodec.LinkContext?
-    let repeatMaximums: [String: Int]
+    let loopMaximums: [String: Int]
+
+    var allProperties: [String: ComponentPackageValue] {
+        properties.merging(templateValues) { current, _ in current }
+    }
 
     init(
         instanceID: UUID,
         packageIdentifier: String,
         properties: [String: ComponentPackageValue],
+        templateValues: [String: ComponentPackageValue] = [:],
         slots: [String: String],
         componentClass: String = "",
         componentAttributes: String = "",
@@ -40,11 +46,12 @@ nonisolated struct ComponentTemplateContext: Sendable {
         enablesEditorMarkup: Bool = false,
         environment: ComponentTemplateEnvironment = .published,
         richTextLinkContext: FoundryRichTextCodec.LinkContext? = nil,
-        repeatMaximums: [String: Int]
+        loopMaximums: [String: Int]
     ) {
         self.instanceID = instanceID
         self.packageIdentifier = packageIdentifier
         self.properties = properties
+        self.templateValues = templateValues
         self.slots = slots
         self.componentClass = componentClass
         self.componentAttributes = componentAttributes
@@ -57,13 +64,14 @@ nonisolated struct ComponentTemplateContext: Sendable {
         self.enablesEditorMarkup = enablesEditorMarkup
         self.environment = environment
         self.richTextLinkContext = richTextLinkContext
-        self.repeatMaximums = repeatMaximums
+        self.loopMaximums = loopMaximums
     }
 
     init(
         instanceID: UUID,
         packageIdentifier: String,
         properties: [String: ComponentPackageValue],
+        templateValues: [String: ComponentPackageValue] = [:],
         slots: [String: String],
         componentClass: String = "",
         componentAttributes: String = "",
@@ -81,6 +89,7 @@ nonisolated struct ComponentTemplateContext: Sendable {
             instanceID: instanceID,
             packageIdentifier: packageIdentifier,
             properties: properties,
+            templateValues: templateValues,
             slots: slots,
             componentClass: componentClass,
             componentAttributes: componentAttributes,
@@ -93,7 +102,7 @@ nonisolated struct ComponentTemplateContext: Sendable {
             enablesEditorMarkup: enablesEditorMarkup,
             environment: environment,
             richTextLinkContext: richTextLinkContext,
-            repeatMaximums: [:]
+            loopMaximums: [:]
         )
     }
 }
@@ -137,13 +146,14 @@ nonisolated enum ComponentTemplateRenderer {
     )
 
     static func render(_ template: String, context: ComponentTemplateContext) -> String {
-        let repeatMaximums = context.repeatMaximums.isEmpty
-            ? ComponentRegistry.definition(for: .init(rawValue: context.packageIdentifier)).package?.repeatMaximums ?? [:]
-            : context.repeatMaximums
-        let expanded = (try? ComponentTemplateRepeater.expand(
+        let loopMaximums = context.loopMaximums.isEmpty
+            ? ComponentRegistry.definition(for: .init(rawValue: context.packageIdentifier)).package?.loopMaximums ?? [:]
+            : context.loopMaximums
+        let expanded = (try? ComponentTemplateLoop.expand(
             template,
-            properties: context.properties,
-            maximums: repeatMaximums
+            properties: context.allProperties,
+            maximums: loopMaximums,
+            environment: context.environment
         ).template) ?? template
         var result = renderControlledImageElements(in: expanded, context: context)
         result = renderText(in: result, context: context)
@@ -167,11 +177,11 @@ nonisolated enum ComponentTemplateRenderer {
     }
 
     static func textPrimitives(in template: String) -> [ComponentTextPrimitive] {
-        textPrimitives(in: template, repeatMaximums: [:])
+        textPrimitives(in: template, loopMaximums: [:])
     }
 
-    static func textPrimitives(in template: String, repeatMaximums: [String: Int]) -> [ComponentTextPrimitive] {
-        (try? ComponentTemplateRepeater.declarations(in: template))?.compactMap {
+    static func textPrimitives(in template: String, loopMaximums: [String: Int]) -> [ComponentTextPrimitive] {
+        (try? ComponentTemplateLoop.declarations(in: template))?.compactMap {
             guard case .text = $0.kind else { return nil }
             return .init(key: $0.key, defaultValue: $0.defaultValue ?? loremParagraph, isRepeated: $0.isRepeated)
         } ?? []
@@ -182,18 +192,18 @@ nonisolated enum ComponentTemplateRenderer {
     }
 
     static func htmlPrimitives(in template: String) -> [ComponentHTMLPrimitive] {
-        htmlPrimitives(in: template, repeatMaximums: [:])
+        htmlPrimitives(in: template, loopMaximums: [:])
     }
 
-    static func htmlPrimitives(in template: String, repeatMaximums: [String: Int]) -> [ComponentHTMLPrimitive] {
-        (try? ComponentTemplateRepeater.declarations(in: template))?.compactMap {
+    static func htmlPrimitives(in template: String, loopMaximums: [String: Int]) -> [ComponentHTMLPrimitive] {
+        (try? ComponentTemplateLoop.declarations(in: template))?.compactMap {
             guard case .html = $0.kind else { return nil }
             return .init(key: $0.key, defaultValue: $0.defaultValue ?? htmlDefault, isRepeated: $0.isRepeated)
         } ?? []
     }
 
     static func imagePrimitives(in template: String) -> [ComponentImagePrimitive] {
-        (try? ComponentTemplateRepeater.declarations(in: template))?.compactMap {
+        (try? ComponentTemplateLoop.declarations(in: template))?.compactMap {
             guard case .image = $0.kind else { return nil }
             return .init(key: $0.key, isRepeated: $0.isRepeated)
         } ?? []
@@ -222,7 +232,7 @@ nonisolated enum ComponentTemplateRenderer {
             let key = String(result[keyRange])
             let declaredDefault = decodedDefault(String(result[defaultRange])) ?? loremParagraph
             let path = indexPath(match, group: 4, in: result)
-            let currentValue = stringValue(value(context.properties[key], at: path)) ?? declaredDefault
+            let currentValue = stringValue(value(context.allProperties[key], at: path)) ?? declaredDefault
             let renderedValue = renderedText(currentValue, context: context)
             result.replaceSubrange(wholeRange, with: renderedValue)
             if context.enablesEditorMarkup {
@@ -241,7 +251,7 @@ nonisolated enum ComponentTemplateRenderer {
             guard let wholeRange = Range(match.range(at: 0), in: result) else { continue }
             let key = "content\(index + 1)"
             let declaredDefault = primitiveDefault(match: match, in: result)
-            let currentValue = stringValue(context.properties[key]) ?? declaredDefault
+            let currentValue = stringValue(context.allProperties[key]) ?? declaredDefault
             let renderedValue = renderedText(currentValue, context: context)
             result.replaceSubrange(wholeRange, with: renderedValue)
             if context.enablesEditorMarkup {
@@ -268,7 +278,7 @@ nonisolated enum ComponentTemplateRenderer {
             result.replaceSubrange(
                 range,
                 with: renderedImage(
-                    source: stringValue(value(context.properties[key], at: path)) ?? "",
+                    source: stringValue(value(context.allProperties[key], at: path)) ?? "",
                     key: key,
                     marksSelectablePrimitive: !path.isEmpty,
                     indexPath: path,
@@ -297,7 +307,7 @@ nonisolated enum ComponentTemplateRenderer {
             let suffix = Range(match.range(at: 4), in: result).map { String(result[$0]) } ?? ""
             let renditionSuffix = suffix.hasSuffix(".href") ? String(suffix.dropLast(5)) : suffix
             let valueKey = suffix == ".href" ? key : key + renditionSuffix
-            let source = stringValue(context.properties[valueKey]) ?? ""
+            let source = stringValue(context.allProperties[valueKey]) ?? ""
             let resolvedSource = context.assetPaths[source] ?? source
             let before = String(result[beforeRange])
             let after = String(result[afterRange])
@@ -334,7 +344,7 @@ nonisolated enum ComponentTemplateRenderer {
             let key = String(result[keyRange])
             let defaultValue = decodedDefault(String(result[defaultRange])) ?? htmlDefault
             let path = indexPath(match, group: 4, in: result)
-            let currentValue = stringValue(value(context.properties[key], at: path)) ?? defaultValue
+            let currentValue = stringValue(value(context.allProperties[key], at: path)) ?? defaultValue
             result.replaceSubrange(wholeRange, with: currentValue)
             if context.enablesEditorMarkup {
                 addInlineEditingAttribute(
@@ -352,7 +362,7 @@ nonisolated enum ComponentTemplateRenderer {
         for (index, match) in matches.enumerated().reversed() {
             guard let wholeRange = Range(match.range(at: 0), in: result) else { continue }
             let key = "html\(index + 1)"
-            let currentValue = stringValue(context.properties[key]) ?? htmlPrimitiveDefault(match: match, in: result)
+            let currentValue = stringValue(context.allProperties[key]) ?? htmlPrimitiveDefault(match: match, in: result)
             result.replaceSubrange(wholeRange, with: currentValue)
             if context.enablesEditorMarkup {
                 addInlineEditingAttribute(
@@ -519,7 +529,7 @@ nonisolated enum ComponentTemplateRenderer {
         } else if let node = try? ComponentTemplateExpression.parse(key),
                   let evaluated = try? ComponentTemplateExpression.evaluate(
                     node,
-                    properties: context.properties,
+                    properties: context.allProperties,
                     environment: context.environment
                   ) {
             result = escape(evaluated.output)
@@ -601,10 +611,10 @@ nonisolated enum ComponentTemplateRenderer {
         let value: ComponentPackageValue
         if let bracket = reference.lastIndex(of: "["), reference.hasSuffix("]"),
            let index = Int(reference[reference.index(after: bracket)..<reference.index(before: reference.endIndex)]),
-           let stored = context.properties[String(reference[..<bracket])],
+           let stored = context.allProperties[String(reference[..<bracket])],
            case .array(let values) = stored, values.indices.contains(index) {
             value = values[index]
-        } else if let stored = context.properties[reference] {
+        } else if let stored = context.allProperties[reference] {
             value = stored
         } else {
             return ""
@@ -619,6 +629,7 @@ nonisolated enum ComponentTemplateRenderer {
         case .number(let value): return value.formatted(.number.locale(Locale(identifier: "en_US_POSIX")))
         case .boolean(let value): return value ? "true" : "false"
         case .array(let values): return values.map(packageValueString).joined(separator: ", ")
+        case .object: return ""
         }
     }
 
@@ -629,6 +640,7 @@ nonisolated enum ComponentTemplateRenderer {
         case .number(let value): value.formatted(.number.locale(Locale(identifier: "en_US_POSIX")))
         case .boolean(let value): value ? "true" : "false"
         case .array(let values): values.map(packageValueString).joined(separator: ", ")
+        case .object: ""
         }
     }
 
@@ -638,6 +650,7 @@ nonisolated enum ComponentTemplateRenderer {
         case .number(let value): value.formatted(.number.locale(Locale(identifier: "en_US_POSIX")))
         case .boolean(let value): value ? "true" : "false"
         case .array(let values): values.map(packageValueRawString).joined(separator: ", ")
+        case .object: ""
         }
     }
 
@@ -646,11 +659,11 @@ nonisolated enum ComponentTemplateRenderer {
         let reference = String(key.dropFirst("control.".count))
         if let bracket = reference.lastIndex(of: "["), reference.hasSuffix("]"),
            let index = Int(reference[reference.index(after: bracket)..<reference.index(before: reference.endIndex)]),
-           case .array(let values)? = context.properties[String(reference[..<bracket])],
+           case .array(let values)? = context.allProperties[String(reference[..<bracket])],
            values.indices.contains(index) {
             return values[index]
         }
-        return context.properties[reference]
+        return context.allProperties[reference]
     }
 
     private static func apply(filter: String, to value: String, context: ComponentTemplateContext) -> String {
@@ -671,11 +684,11 @@ nonisolated enum ComponentTemplateRenderer {
     ) -> String? {
         guard key.hasPrefix("control.") else { return nil }
         let reference = String(key.dropFirst("control.".count))
-        guard case .string(let source)? = context.properties["\(reference).__colorSource"],
-              case .string(let formatName)? = context.properties["\(reference).__colorFormat"],
+        guard case .string(let source)? = context.allProperties["\(reference).__colorSource"],
+              case .string(let formatName)? = context.allProperties["\(reference).__colorFormat"],
               let format = ComponentPackageControl.ColorOutputFormat(rawValue: formatName),
               var color = ComponentColorComponents(hex: source) else { return nil }
-        let declaredOpacity = context.properties["\(reference).__colorOpacity"] == .boolean(true)
+        let declaredOpacity = context.allProperties["\(reference).__colorOpacity"] == .boolean(true)
         var includesOpacity = declaredOpacity
 
         for filter in filters {
@@ -713,7 +726,7 @@ nonisolated enum ComponentTemplateRenderer {
     ) -> String? {
         guard key.hasPrefix("control.") else { return nil }
         let reference = String(key.dropFirst("control.".count))
-        guard case .string(let source)? = context.properties["\(reference).__dateSource"],
+        guard case .string(let source)? = context.allProperties["\(reference).__dateSource"],
               var date = ComponentDateValue(source) else { return nil }
         for (index, filter) in filters.enumerated() {
             guard let call = filterCall(filter) else { return nil }
@@ -798,7 +811,7 @@ nonisolated enum ComponentTemplateRenderer {
     private static func colorFilterArgument(_ argument: String, context: ComponentTemplateContext) -> String? {
         let trimmed = argument.trimmingCharacters(in: .whitespacesAndNewlines)
         if trimmed.hasPrefix("control."),
-           case .string(let source)? = context.properties["\(trimmed.dropFirst("control.".count)).__colorSource"] {
+           case .string(let source)? = context.allProperties["\(trimmed.dropFirst("control.".count)).__colorSource"] {
             return source
         }
         return stringFilterArgument(argument, context: context)
@@ -902,7 +915,7 @@ nonisolated enum ComponentTemplateRenderer {
         guard let node = try? ComponentTemplateExpression.parse(expression),
               let value = try? ComponentTemplateExpression.evaluate(
                 node,
-                properties: context.properties,
+                properties: context.allProperties,
                 environment: context.environment
               ) else { return false }
         return value.isTruthy
@@ -925,6 +938,7 @@ nonisolated enum ComponentTemplateRenderer {
         case .number(let value): value != 0
         case .string(let value): !value.isEmpty
         case .array(let values): !values.isEmpty
+        case .object(let values): !values.isEmpty
         case nil: false
         }
     }
@@ -935,6 +949,7 @@ nonisolated enum ComponentTemplateRenderer {
         case .number(let value): value.formatted(.number.locale(Locale(identifier: "en_US_POSIX")))
         case .boolean(let value): value ? "true" : "false"
         case .array(let values): values.map(packageValueString).joined(separator: ", ")
+        case .object: nil
         case nil: nil
         }
     }

@@ -16,6 +16,7 @@ nonisolated enum ComponentTemplateExpression {
         case string(String)
         case boolean(Bool)
         case array([ComponentPackageValue])
+        case object([String: ComponentPackageValue])
         case missing
 
         var isTruthy: Bool {
@@ -24,6 +25,7 @@ nonisolated enum ComponentTemplateExpression {
             case .string(let value): !value.isEmpty
             case .boolean(let value): value
             case .array(let values): !values.isEmpty
+            case .object(let values): !values.isEmpty
             case .missing: false
             }
         }
@@ -34,6 +36,7 @@ nonisolated enum ComponentTemplateExpression {
             case .string(let value): value
             case .boolean(let value): value ? "true" : "false"
             case .array(let values): values.map(valueOutput).joined(separator: ", ")
+            case .object: ""
             case .missing: ""
             }
         }
@@ -104,7 +107,8 @@ nonisolated enum ComponentTemplateExpression {
         case .number, .string, .boolean:
             return
         case .variable(let name):
-            guard ["canvas", "preview", "published"].contains(name) || name.hasPrefix("control.") else {
+            guard ["canvas", "preview", "published"].contains(name) ||
+                    name.hasPrefix("control.") || name.hasPrefix("navigation.") || name.contains(".") else {
                 throw ExpressionError(description: "Unknown value '\(name)'.")
             }
         case .unary(_, let value):
@@ -159,14 +163,21 @@ nonisolated enum ComponentTemplateExpression {
     }
 
     private static func resolve(_ name: String, properties: [String: ComponentPackageValue]) -> Value {
-        guard name.hasPrefix("control.") else { return .missing }
-        let reference = String(name.dropFirst("control.".count))
+        let reference = name.hasPrefix("control.") ? String(name.dropFirst("control.".count)) : name
         if let bracket = reference.lastIndex(of: "["), reference.hasSuffix("]"),
            let index = Int(reference[reference.index(after: bracket)..<reference.index(before: reference.endIndex)]),
            case .array(let values) = properties[String(reference[..<bracket])], values.indices.contains(index) {
             return value(values[index])
         }
-        return properties[reference].map(value) ?? .missing
+        if let exact = properties[reference] { return value(exact) }
+        let parts = reference.split(separator: ".")
+        for splitIndex in stride(from: parts.count - 1, through: 0, by: -1) {
+            let root = parts[0...splitIndex].joined(separator: ".")
+            guard let rootValue = properties[root],
+                  let nested = rootValue.value(at: parts.dropFirst(splitIndex + 1)) else { continue }
+            return value(nested)
+        }
+        return .missing
     }
 
     private static func value(_ value: ComponentPackageValue) -> Value {
@@ -175,6 +186,7 @@ nonisolated enum ComponentTemplateExpression {
         case .string(let value): .string(value)
         case .boolean(let value): .boolean(value)
         case .array(let values): .array(values)
+        case .object(let values): .object(values)
         }
     }
 
@@ -232,6 +244,7 @@ nonisolated enum ComponentTemplateExpression {
         case .string(let value): value
         case .boolean(let value): value ? "true" : "false"
         case .array(let values): values.map(valueOutput).joined(separator: ", ")
+        case .object: ""
         }
     }
 

@@ -379,7 +379,7 @@ nonisolated enum ComponentPackageValidator {
         for reference in template.references(
             matching: #"<img\b[^>]*\bsrc\s*=\s*[\"']\{\{\s*control\.([A-Za-z][A-Za-z0-9_-]*)(?:\.href|\.rendition\.[A-Za-z][A-Za-z0-9_-]*(?:\.href)?)?\s*\}\}[\"']"#
         ) {
-            let propertyID = replacingRepeatMetadata(in: reference.value)
+            let propertyID = replacingLoopMetadata(in: reference.value)
             guard let property = manifest.properties.first(where: { $0.id == propertyID }),
                   property.control.type == .image else {
                 diagnostics.append(templateDiagnostic(
@@ -421,25 +421,25 @@ nonisolated enum ComponentPackageValidator {
             ))
         }
 
-        let repeatCount = template.matchCount(#"\{\{\s*repeat\s+"#)
-        let endRepeatCount = template.matchCount(#"\{\{\s*endrepeat\s*\}\}"#)
-        if repeatCount != endRepeatCount {
+        let loopCount = template.matchCount(#"\{\{\s*loop\s+"#)
+        let endLoopCount = template.matchCount(#"\{\{\s*endloop\s*\}\}"#)
+        if loopCount != endLoopCount {
             diagnostics.append(.init(
                 severity: .error,
                 location: templateLocation,
-                message: "Repeat directives are unbalanced; every repeat requires one endrepeat."
+                message: "Loop directives are unbalanced; every loop requires one endloop."
             ))
-        } else if repeatCount > 0 {
+        } else if loopCount > 0 {
             let maximums = Dictionary(uniqueKeysWithValues: manifest.properties.compactMap { property -> (String, Int)? in
                 guard property.control.type == .number || property.control.type == .slider,
                       let maximum = property.control.maximum,
                       maximum.isFinite,
                       maximum >= 0,
-                      maximum <= Double(ComponentTemplateRepeater.maximumIterationCount) else { return nil }
+                      maximum <= Double(ComponentTemplateLoop.maximumIterationCount) else { return nil }
                 return (property.id, Int(maximum.rounded(.down)))
             })
             do {
-                _ = try ComponentTemplateRepeater.expand(
+                _ = try ComponentTemplateLoop.expand(
                     template,
                     properties: Dictionary(uniqueKeysWithValues: manifest.properties.map { ($0.id, $0.defaultValue) }),
                     maximums: maximums,
@@ -449,29 +449,60 @@ nonisolated enum ComponentPackageValidator {
                 diagnostics.append(.init(
                     severity: .error,
                     location: templateLocation,
-                    message: "Invalid repeat structure: \(error)"
+                    message: "Invalid loop structure: \(error)"
                 ))
             }
         }
-        for reference in template.references(matching: #"\{\{\s*repeat\s+([^{}]+?)\s*\}\}"#) {
-            let count = reference.value.trimmingCharacters(in: .whitespacesAndNewlines)
-            if let literal = Int(count) {
-                if !(0...ComponentTemplateRepeater.maximumIterationCount).contains(literal) {
+        let loopReferences = template.references(matching: #"\{\{\s*loop\s+([^{}]+?)\s*\}\}"#)
+        let loopAliases = Set(loopReferences.compactMap { reference -> String? in
+            let value = reference.value.hasSuffix(" reversed")
+                ? String(reference.value.dropLast(" reversed".count))
+                : reference.value
+            let head = value.components(separatedBy: " where ")[0]
+            let parts = head.components(separatedBy: " as ")
+            return parts.count == 2 ? parts[1].trimmingCharacters(in: .whitespacesAndNewlines) : nil
+        })
+        for reference in loopReferences {
+            let value = reference.value.hasSuffix(" reversed")
+                ? String(reference.value.dropLast(" reversed".count))
+                : reference.value
+            let predicateParts = value.components(separatedBy: " where ")
+            let head = predicateParts[0]
+            if predicateParts.count > 1 {
+                let predicate = predicateParts.dropFirst().joined(separator: " where ")
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                do {
+                    let expression = try ComponentTemplateExpression.parse(predicate)
+                    try ComponentTemplateExpression.validate(expression)
+                } catch {
                     diagnostics.append(templateDiagnostic(
                         templateLocation,
                         template: template,
                         offset: reference.offset,
-                        message: "A literal repeat count must be between 0 and \(ComponentTemplateRepeater.maximumIterationCount)."
+                        message: "Invalid loop filter: \(error)"
+                    ))
+                }
+            }
+            let count = head.components(separatedBy: " as ")[0].trimmingCharacters(in: .whitespacesAndNewlines)
+            if let literal = Int(count) {
+                if !(0...ComponentTemplateLoop.maximumIterationCount).contains(literal) {
+                    diagnostics.append(templateDiagnostic(
+                        templateLocation,
+                        template: template,
+                        offset: reference.offset,
+                        message: "A literal loop count must be between 0 and \(ComponentTemplateLoop.maximumIterationCount)."
                     ))
                 }
                 continue
             }
+            if count.hasPrefix("navigation.") || count.hasPrefix("pages.") || count.hasPrefix("assets.") { continue }
+            if loopAliases.contains(where: { count == $0 || count.hasPrefix($0 + ".") }) { continue }
             guard count.hasPrefix("control.") else {
                 diagnostics.append(templateDiagnostic(
                     templateLocation,
                     template: template,
                     offset: reference.offset,
-                    message: "A repeat count must be an integer or a control reference."
+                    message: "A loop count must be an integer or a control reference."
                 ))
                 continue
             }
@@ -485,23 +516,24 @@ nonisolated enum ComponentPackageValidator {
                 ))
                 continue
             }
+            if case .array = property.defaultValue { continue }
             guard property.control.type == .number || property.control.type == .slider,
                   let maximum = property.control.maximum,
                   maximum.isFinite,
                   maximum >= 0,
-                  maximum <= Double(ComponentTemplateRepeater.maximumIterationCount) else {
+                  maximum <= Double(ComponentTemplateLoop.maximumIterationCount) else {
                 diagnostics.append(templateDiagnostic(
                     templateLocation,
                     template: template,
                     offset: reference.offset,
-                    message: "A repeat control must be numeric and declare a maximum from 0 through \(ComponentTemplateRepeater.maximumIterationCount)."
+                    message: "A loop control must be numeric and declare a maximum from 0 through \(ComponentTemplateLoop.maximumIterationCount)."
                 ))
                 continue
             }
         }
 
         for reference in template.references(matching: #"\{\{\s*(?:if|elseif)\s+([^{}]+?)\s*\}\}"#) {
-            let condition = replacingRepeatMetadata(in: reference.value.trimmingCharacters(in: .whitespacesAndNewlines))
+            let condition = replacingLoopMetadata(in: reference.value.trimmingCharacters(in: .whitespacesAndNewlines))
             do {
                 let expression = try ComponentTemplateExpression.parse(condition)
                 try ComponentTemplateExpression.validate(expression)
@@ -528,14 +560,15 @@ nonisolated enum ComponentPackageValidator {
             guard let sourceRange = Range(match.range(at: 1), in: template) else { continue }
             let source = String(template[sourceRange]).trimmingCharacters(in: .whitespacesAndNewlines)
             if source.hasPrefix("if ") || source.hasPrefix("elseif ") || source == "else" || source == "endif" ||
-                source.hasPrefix("repeat ") || source == "endrepeat" || source.hasPrefix("repeat.") ||
+                source.hasPrefix("loop ") || source == "endloop" || source.hasPrefix("loop.") ||
                 source.hasPrefix("slot ") || source.hasPrefix("text ") || source.hasPrefix("text=") ||
                 source.hasPrefix("html ") || source.hasPrefix("html=") ||
                 ["text", "html", "image", "id", "instance.id", "instance.uuid", "package.id", "site.baseURL", "page.url", "path.siteRoot", "path.siteAssets", "component.class", "component.attributes"].contains(source) ||
                 source.hasPrefix("asset.") {
                 continue
             }
-            let normalizedSource = replacingRepeatMetadata(in: source)
+            if loopAliases.contains(where: { source == $0 || source.hasPrefix($0 + ".") }) { continue }
+            let normalizedSource = replacingLoopMetadata(in: source)
             let expressionSource = ComponentTemplateExpression.templateParts(normalizedSource).first ?? normalizedSource
             do {
                 let expression = try ComponentTemplateExpression.parse(expressionSource)
@@ -560,10 +593,10 @@ nonisolated enum ComponentPackageValidator {
 
         let supportedMacroNames: Set<String> = [
             "id", "instance", "package", "site", "page", "path", "component", "control", "asset", "slot",
-            "if", "elseif", "else", "endif", "repeat", "endrepeat", "text", "html", "image", "canvas", "preview", "published"
+            "if", "elseif", "else", "endif", "loop", "endloop", "text", "html", "image", "canvas", "preview", "published", "navigation", "pages", "assets"
         ]
         for reference in template.references(matching: #"\{\{\s*([A-Za-z]+)(?:\.|\s|\}\})"#)
-            where !supportedMacroNames.contains(reference.value) {
+            where !supportedMacroNames.contains(reference.value) && !loopAliases.contains(reference.value) {
             diagnostics.append(templateDiagnostic(
                 templateLocation,
                 template: template,
@@ -573,12 +606,12 @@ nonisolated enum ComponentPackageValidator {
         }
     }
 
-    private static func replacingRepeatMetadata(in source: String) -> String {
+    private static func replacingLoopMetadata(in source: String) -> String {
         var result = source
-        for key in ["repeat.parent.first", "repeat.parent.last", "repeat.first", "repeat.last"] {
+        for key in ["loop.parent.first", "loop.parent.last", "loop.first", "loop.last"] {
             result = result.replacingOccurrences(of: key, with: "true")
         }
-        for key in ["repeat.parent.position", "repeat.parent.index", "repeat.parent.count", "repeat.position", "repeat.index", "repeat.count"] {
+        for key in ["loop.parent.position", "loop.parent.index", "loop.parent.count", "loop.position", "loop.index", "loop.count"] {
             result = result.replacingOccurrences(of: key, with: "1")
         }
         return result

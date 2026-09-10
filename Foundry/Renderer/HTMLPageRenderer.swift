@@ -11,7 +11,7 @@ nonisolated struct HTMLPageRenderer: PageRendering {
     func render(page: Page, language: String, theme: Theme, assets: [UUID: ProjectAssetContent], breakpoint: ResponsiveBreakpoint) -> String {
         let body = page.components.isEmpty
             ? rootDropZone
-            : page.components.map { render($0, theme: theme, assets: assets, globalDefinitionID: $0.reusableDefinitionID, breakpoint: breakpoint) }.joined(separator: "\n")
+            : page.components.map { render($0, page: page, theme: theme, assets: assets, globalDefinitionID: $0.reusableDefinitionID, breakpoint: breakpoint) }.joined(separator: "\n")
         let pageTitle = page.metadata.browserTitle.isEmpty ? page.title : page.metadata.browserTitle
         let browserTitle = pageTitle + (site?.titleSuffix ?? "")
         let metadata = metadataHTML(for: page, browserTitle: browserTitle, site: site, assets: assets)
@@ -169,6 +169,7 @@ nonisolated struct HTMLPageRenderer: PageRendering {
             componentID: componentID,
             html: render(
                 target.node,
+                page: page,
                 theme: theme,
                 assets: assets,
                 globalDefinitionID: target.inheritedGlobalDefinitionID,
@@ -176,6 +177,7 @@ nonisolated struct HTMLPageRenderer: PageRendering {
             ),
             instanceCSS: componentStyles(
                 for: flattened(target.node),
+                page: page,
                 theme: theme,
                 assets: assets,
                 breakpoint: breakpoint
@@ -199,11 +201,12 @@ nonisolated struct HTMLPageRenderer: PageRendering {
                     instanceID: node.id,
                     packageIdentifier: package.manifest.identifier,
                     properties: packageProperties(node, theme: theme, assets: assets),
+                    templateValues: site.map { ComponentNavigationTemplateValues.values(site: $0, currentPage: page) } ?? [:],
                     slots: [:],
                     assetBasePath: canvasAssetBasePath(for: package),
                     assetPaths: canvasAssetPaths(for: package),
                     environment: .canvas,
-                    repeatMaximums: package.repeatMaximums
+                    loopMaximums: package.loopMaximums
                 )
             )
         }
@@ -215,7 +218,7 @@ nonisolated struct HTMLPageRenderer: PageRendering {
             guard !source.isEmpty else { return nil }
             return ComponentTemplateRenderer.render(
                 source,
-                context: .init(instanceID: UUID(uuid: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)), packageIdentifier: package.manifest.identifier, properties: [:], slots: [:], assetBasePath: canvasAssetBasePath(for: package), assetPaths: canvasAssetPaths(for: package), environment: .canvas, repeatMaximums: package.repeatMaximums)
+                context: .init(instanceID: UUID(uuid: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)), packageIdentifier: package.manifest.identifier, properties: [:], templateValues: site.map { ComponentNavigationTemplateValues.values(site: $0, currentPage: page) } ?? [:], slots: [:], assetBasePath: canvasAssetBasePath(for: package), assetPaths: canvasAssetPaths(for: package), environment: .canvas, loopMaximums: package.loopMaximums)
             )
         }
         let htmlScripts = nodes.map {
@@ -237,11 +240,12 @@ nonisolated struct HTMLPageRenderer: PageRendering {
                 instanceID: UUID(uuid: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)),
                 packageIdentifier: package.manifest.identifier,
                 properties: [:],
+                templateValues: site.map { ComponentNavigationTemplateValues.values(site: $0, currentPage: page) } ?? [:],
                 slots: [:],
                 assetBasePath: canvasAssetBasePath(for: package),
                 assetPaths: canvasAssetPaths(for: package),
                 environment: .canvas,
-                repeatMaximums: package.repeatMaximums
+                loopMaximums: package.loopMaximums
             )
             return templates.map { ComponentTemplateRenderer.render($0.contents, context: context) }.joined(separator: "\n")
         }.joined(separator: "\n")
@@ -316,23 +320,23 @@ nonisolated struct HTMLPageRenderer: PageRendering {
         return baseURL + "/" + slugs.joined(separator: "/") + "/"
     }
 
-    private func render(_ sourceNode: ComponentNode, theme: Theme, assets: [UUID: ProjectAssetContent], globalDefinitionID: UUID?, breakpoint: ResponsiveBreakpoint) -> String {
+    private func render(_ sourceNode: ComponentNode, page: Page, theme: Theme, assets: [UUID: ProjectAssetContent], globalDefinitionID: UUID?, breakpoint: ResponsiveBreakpoint) -> String {
         let node = sourceNode.resolved(at: breakpoint)
         let globalDefinitionID = node.reusableDefinitionID ?? globalDefinitionID
         switch node.type.definition.renderKind {
         case .package:
             guard let package = node.type.definition.package else {
-                return unavailableComponent(node, theme: theme, assets: assets, globalDefinitionID: globalDefinitionID, breakpoint: breakpoint)
+                return unavailableComponent(node, page: page, theme: theme, assets: assets, globalDefinitionID: globalDefinitionID, breakpoint: breakpoint)
             }
             do {
                 try package.preparePayload()
             } catch {
-                return failedComponent(node, package: package, theme: theme, assets: assets, globalDefinitionID: globalDefinitionID, breakpoint: breakpoint)
+                return failedComponent(node, page: page, package: package, theme: theme, assets: assets, globalDefinitionID: globalDefinitionID, breakpoint: breakpoint)
             }
             let slots = Dictionary(uniqueKeysWithValues: package.manifest.slots.map { slot in
                 let children = node.children.filter { ($0.slotID ?? package.manifest.slots.first?.id) == slot.id }
                 let html = children.map {
-                    render($0, theme: theme, assets: assets, globalDefinitionID: globalDefinitionID, breakpoint: breakpoint)
+                    render($0, page: page, theme: theme, assets: assets, globalDefinitionID: globalDefinitionID, breakpoint: breakpoint)
                 }.joined()
                 return (slot.id, html.isEmpty ? "<div class=\"foundry-empty-drop-zone\" data-foundry-empty-parent=\"\(node.id.uuidString)\" data-foundry-slot-id=\"\(escapeAttribute(slot.id))\">Drop component here</div>" : html)
             })
@@ -348,6 +352,7 @@ nonisolated struct HTMLPageRenderer: PageRendering {
                     instanceID: node.id,
                     packageIdentifier: package.manifest.identifier,
                     properties: packageProperties(node, theme: theme, assets: assets),
+                    templateValues: site.map { ComponentNavigationTemplateValues.values(site: $0, currentPage: page) } ?? [:],
                     slots: slots,
                     componentClass: componentClass(node) + " " +
                         ComponentTemplateRenderer.packageClass(for: package.manifest.identifier),
@@ -357,7 +362,7 @@ nonisolated struct HTMLPageRenderer: PageRendering {
                     enablesEditorMarkup: true,
                     environment: .canvas,
                     richTextLinkContext: richTextLinkContext,
-                    repeatMaximums: package.repeatMaximums
+                    loopMaximums: package.loopMaximums
                 )
             )
             if package.htmlTemplate.contains("{{ component.attributes }}") ||
@@ -366,7 +371,7 @@ nonisolated struct HTMLPageRenderer: PageRendering {
             }
             return "<div \(canvasAttributes)>\(rendered)</div>"
         case .unavailable:
-            return unavailableComponent(node, theme: theme, assets: assets, globalDefinitionID: globalDefinitionID, breakpoint: breakpoint)
+            return unavailableComponent(node, page: page, theme: theme, assets: assets, globalDefinitionID: globalDefinitionID, breakpoint: breakpoint)
         }
     }
 
@@ -390,6 +395,7 @@ nonisolated struct HTMLPageRenderer: PageRendering {
         let nodes = page.components.flatMap(flattened)
         let componentStyles = componentStyles(
             for: nodes,
+            page: page,
             theme: theme,
             assets: assets,
             breakpoint: breakpoint
@@ -405,11 +411,12 @@ nonisolated struct HTMLPageRenderer: PageRendering {
                     instanceID: UUID(uuid: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)),
                     packageIdentifier: package.manifest.identifier,
                     properties: [:],
+                    templateValues: site.map { ComponentNavigationTemplateValues.values(site: $0, currentPage: page) } ?? [:],
                     slots: [:],
                     assetBasePath: canvasAssetBasePath(for: package),
                     assetPaths: canvasAssetPaths(for: package),
                     environment: .canvas,
-                    repeatMaximums: package.repeatMaximums
+                    loopMaximums: package.loopMaximums
                 )
             )
         }.joined(separator: "\n")
@@ -418,6 +425,7 @@ nonisolated struct HTMLPageRenderer: PageRendering {
 
     private func componentStyles(
         for nodes: [ComponentNode],
+        page: Page,
         theme: Theme,
         assets: [UUID: ProjectAssetContent],
         breakpoint: ResponsiveBreakpoint
@@ -431,11 +439,12 @@ nonisolated struct HTMLPageRenderer: PageRendering {
                     instanceID: node.id,
                     packageIdentifier: package.manifest.identifier,
                     properties: packageProperties(node, theme: theme, assets: assets),
+                    templateValues: site.map { ComponentNavigationTemplateValues.values(site: $0, currentPage: page) } ?? [:],
                     slots: [:],
                     assetBasePath: canvasAssetBasePath(for: package),
                     assetPaths: canvasAssetPaths(for: package),
                     environment: .canvas,
-                    repeatMaximums: package.repeatMaximums
+                    loopMaximums: package.loopMaximums
                 )
             )
             return ComponentTemplateRenderer.scopedCSS(css, packageIdentifier: package.manifest.identifier)
@@ -615,26 +624,19 @@ nonisolated struct HTMLPageRenderer: PageRendering {
         }
     }
 
-    private func unavailableComponent(_ node: ComponentNode, theme: Theme, assets: [UUID: ProjectAssetContent], globalDefinitionID: UUID?, breakpoint: ResponsiveBreakpoint) -> String {
-        let children = node.children.map { render($0, theme: theme, assets: assets, globalDefinitionID: globalDefinitionID, breakpoint: breakpoint) }.joined()
+    private func unavailableComponent(_ node: ComponentNode, page: Page, theme: Theme, assets: [UUID: ProjectAssetContent], globalDefinitionID: UUID?, breakpoint: ResponsiveBreakpoint) -> String {
+        let children = node.children.map { render($0, page: page, theme: theme, assets: assets, globalDefinitionID: globalDefinitionID, breakpoint: breakpoint) }.joined()
         let name = node.missingPackageSnapshot?.name ?? node.type.rawValue
         return "<div class=\"unavailable\" \(attributes(for: node, globalDefinitionID: globalDefinitionID))>Missing component: \(escape(name))\(children)</div>"
     }
 
-    private func failedComponent(_ node: ComponentNode, package: LoadedComponentPackage, theme: Theme, assets: [UUID: ProjectAssetContent], globalDefinitionID: UUID?, breakpoint: ResponsiveBreakpoint) -> String {
-        let children = node.children.map { render($0, theme: theme, assets: assets, globalDefinitionID: globalDefinitionID, breakpoint: breakpoint) }.joined()
+    private func failedComponent(_ node: ComponentNode, page: Page, package: LoadedComponentPackage, theme: Theme, assets: [UUID: ProjectAssetContent], globalDefinitionID: UUID?, breakpoint: ResponsiveBreakpoint) -> String {
+        let children = node.children.map { render($0, page: page, theme: theme, assets: assets, globalDefinitionID: globalDefinitionID, breakpoint: breakpoint) }.joined()
         return "<div class=\"unavailable\" \(attributes(for: node, globalDefinitionID: globalDefinitionID))>Component files could not be loaded: \(escape(package.manifest.name))\(children)</div>"
     }
 
     private var rootDropZone: String {
         "<div class=\"foundry-empty-drop-zone foundry-empty-page\" data-foundry-root-drop-zone>Drop component here</div>"
-    }
-
-    private func renderedChildren(of node: ComponentNode, theme: Theme, assets: [UUID: ProjectAssetContent], globalDefinitionID: UUID?, breakpoint: ResponsiveBreakpoint) -> String {
-        guard node.children.isEmpty else {
-            return node.children.map { render($0, theme: theme, assets: assets, globalDefinitionID: globalDefinitionID, breakpoint: breakpoint) }.joined()
-        }
-        return "<div class=\"foundry-empty-drop-zone\" data-foundry-empty-parent=\"\(node.id.uuidString)\">Drop component here</div>"
     }
 
     private func canvasSource(_ source: String, assets: [UUID: ProjectAssetContent]) -> String {

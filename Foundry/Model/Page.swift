@@ -47,6 +47,7 @@ nonisolated struct Page: Codable, Equatable, Identifiable, Sendable {
     var folderID: UUID?
     var parentPageID: UUID?
     var order: Int
+    var includeInNavigation: Bool
 
     init(
         id: UUID = UUID(),
@@ -56,7 +57,8 @@ nonisolated struct Page: Codable, Equatable, Identifiable, Sendable {
         components: [ComponentNode] = [],
         folderID: UUID? = nil,
         parentPageID: UUID? = nil,
-        order: Int = 0
+        order: Int = 0,
+        includeInNavigation: Bool = true
     ) {
         self.id = id
         self.title = title
@@ -66,10 +68,11 @@ nonisolated struct Page: Codable, Equatable, Identifiable, Sendable {
         self.folderID = folderID
         self.parentPageID = parentPageID
         self.order = order
+        self.includeInNavigation = includeInNavigation
     }
 
     private enum CodingKeys: String, CodingKey {
-        case id, title, slug, metadata, components, folderID, parentPageID, order
+        case id, title, slug, metadata, components, folderID, parentPageID, order, includeInNavigation
     }
 
     init(from decoder: Decoder) throws {
@@ -82,6 +85,7 @@ nonisolated struct Page: Codable, Equatable, Identifiable, Sendable {
         folderID = try container.decodeIfPresent(UUID.self, forKey: .folderID)
         parentPageID = try container.decodeIfPresent(UUID.self, forKey: .parentPageID)
         order = try container.decode(Int.self, forKey: .order)
+        includeInNavigation = try container.decodeIfPresent(Bool.self, forKey: .includeInNavigation) ?? true
     }
 
     static func slugify(_ value: String) -> String {
@@ -102,7 +106,8 @@ nonisolated struct Page: Codable, Equatable, Identifiable, Sendable {
             components: components.map { $0.duplicated() },
             folderID: folderID,
             parentPageID: parentPageID,
-            order: order
+            order: order,
+            includeInNavigation: includeInNavigation
         )
     }
 }

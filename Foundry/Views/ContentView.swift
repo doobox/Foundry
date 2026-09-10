@@ -816,7 +816,7 @@ struct ContentView: View {
                   let package = component.type.definition.package,
                   ComponentTemplateRenderer.htmlPrimitives(
                       in: package.htmlTemplate,
-                      repeatMaximums: package.repeatMaximums
+                      loopMaximums: package.loopMaximums
                   ).contains(where: {
                       $0.key == propertyKey.rawValue
                   }) else { return }
@@ -1098,7 +1098,7 @@ struct ContentView: View {
               let package = component.type.definition.package,
               ComponentTemplateRenderer.htmlPrimitives(
                   in: package.htmlTemplate,
-                  repeatMaximums: package.repeatMaximums
+                  loopMaximums: package.loopMaximums
               ).contains(where: {
                   $0.key == request.propertyKey.rawValue
               }) else { return }
@@ -1113,7 +1113,7 @@ struct ContentView: View {
             if key == request.propertyKey,
                let primitive = ComponentTemplateRenderer.htmlPrimitives(
                    in: package.htmlTemplate,
-                   repeatMaximums: package.repeatMaximums
+                   loopMaximums: package.loopMaximums
                ).first(where: { $0.key == key.rawValue }) {
                 defaultLeafValue = .string(primitive.defaultValue)
             } else {
@@ -1145,7 +1145,7 @@ struct ContentView: View {
         let defaultLeafValue = component.type.definition.package.flatMap { package in
             ComponentTemplateRenderer.textPrimitives(
                 in: package.htmlTemplate,
-                repeatMaximums: package.repeatMaximums
+                loopMaximums: package.loopMaximums
             ).first(where: { $0.key == request.propertyKey.rawValue })?.defaultValue
         } ?? ""
         setCanvasProperty(
