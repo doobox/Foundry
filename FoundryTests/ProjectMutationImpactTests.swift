@@ -49,4 +49,29 @@ struct ProjectMutationImpactTests {
         #expect(document.assetContentsBuildCount == 2)
         #expect(document.mutationEvent.impact == .assets)
     }
+
+    @Test
+    func continuousInteractionKeepsModelCurrentAndCreatesOneUndoStep() {
+        let document = FoundryDocument(site: Site.starter())
+        let originalName = document.site.name
+        let undoManager = UndoManager()
+        undoManager.groupsByEvent = false
+        let editor = ProjectEditor(document: document, undoManager: undoManager)
+        let transaction = ContinuousUndoTransaction()
+        transaction.undoManager = undoManager
+
+        transaction.begin()
+        editor.setSiteName("First")
+        #expect(document.site.name == "First")
+        editor.setSiteName("Second")
+        #expect(document.site.name == "Second")
+        editor.setSiteName("Final")
+        transaction.end()
+
+        #expect(document.site.name == "Final")
+        #expect(undoManager.canUndo)
+        undoManager.undo()
+        #expect(document.site.name == originalName)
+        #expect(!undoManager.canUndo)
+    }
 }

@@ -478,6 +478,7 @@ struct InspectorSlider: NSViewRepresentable {
     let help: String?
     @Environment(\.isEnabled) private var isEnabled
     @Environment(\.controlSize) private var controlSize
+    @Environment(\.undoManager) private var undoManager
 
     init(
         value: Binding<Double>,
@@ -502,7 +503,13 @@ struct InspectorSlider: NSViewRepresentable {
     }
 
     func makeNSView(context: Context) -> NSSlider {
-        let slider = NSSlider(value: value, minValue: range.lowerBound, maxValue: range.upperBound, target: context.coordinator, action: #selector(Coordinator.valueChanged(_:)))
+        let slider = ContinuousInspectorSlider(value: value, minValue: range.lowerBound, maxValue: range.upperBound, target: context.coordinator, action: #selector(Coordinator.valueChanged(_:)))
+        slider.beginInteraction = { [weak coordinator = context.coordinator] in
+            coordinator?.transaction.begin()
+        }
+        slider.endInteraction = { [weak coordinator = context.coordinator] in
+            coordinator?.transaction.end()
+        }
         slider.controlSize = controlSize.appKitControlSize
         slider.setContentHuggingPriority(.defaultLow, for: .horizontal)
         slider.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
@@ -514,6 +521,7 @@ struct InspectorSlider: NSViewRepresentable {
         context.coordinator.value = $value
         context.coordinator.range = range
         context.coordinator.step = step
+        context.coordinator.transaction.undoManager = undoManager
         context.coordinator.isUpdating = true
         slider.minValue = range.lowerBound
         slider.maxValue = range.upperBound
@@ -542,6 +550,7 @@ struct InspectorSlider: NSViewRepresentable {
         var range: ClosedRange<Double>
         var step: Double
         var isUpdating = false
+        let transaction = ContinuousUndoTransaction()
 
         init(value: Binding<Double>, range: ClosedRange<Double>, step: Double) {
             self.value = value
@@ -559,6 +568,36 @@ struct InspectorSlider: NSViewRepresentable {
             sender.doubleValue = resolvedValue
             value.wrappedValue = resolvedValue
         }
+    }
+}
+
+@MainActor
+final class ContinuousUndoTransaction {
+    weak var undoManager: UndoManager?
+    private(set) var isActive = false
+
+    func begin() {
+        guard !isActive, let undoManager else { return }
+        isActive = true
+        undoManager.beginUndoGrouping()
+    }
+
+    func end() {
+        guard isActive else { return }
+        isActive = false
+        undoManager?.endUndoGrouping()
+    }
+}
+
+@MainActor
+private final class ContinuousInspectorSlider: NSSlider {
+    var beginInteraction: () -> Void = {}
+    var endInteraction: () -> Void = {}
+
+    override func mouseDown(with event: NSEvent) {
+        beginInteraction()
+        defer { endInteraction() }
+        super.mouseDown(with: event)
     }
 }
 
@@ -719,13 +758,20 @@ private struct AppKitColorWell: NSViewRepresentable {
     let supportsAlpha: Bool
     @Environment(\.isEnabled) private var isEnabled
     @Environment(\.controlSize) private var controlSize
+    @Environment(\.undoManager) private var undoManager
 
     func makeCoordinator() -> Coordinator {
         Coordinator(color: $color)
     }
 
     func makeNSView(context: Context) -> NSColorWell {
-        let colorWell = NSColorWell()
+        let colorWell = ContinuousInspectorColorWell()
+        colorWell.beginInteraction = { [weak coordinator = context.coordinator] in
+            coordinator?.transaction.begin()
+        }
+        colorWell.endInteraction = { [weak coordinator = context.coordinator] in
+            coordinator?.transaction.end()
+        }
         colorWell.controlSize = controlSize.appKitControlSize
         colorWell.supportsAlpha = supportsAlpha
         colorWell.target = context.coordinator
@@ -736,6 +782,7 @@ private struct AppKitColorWell: NSViewRepresentable {
     func updateNSView(_ colorWell: NSColorWell, context: Context) {
         colorWell.controlSize = controlSize.appKitControlSize
         context.coordinator.color = $color
+        context.coordinator.transaction.undoManager = undoManager
         if !colorWell.isActive {
             colorWell.color = NSColor(color)
         }
@@ -745,12 +792,14 @@ private struct AppKitColorWell: NSViewRepresentable {
     }
 
     static func dismantleNSView(_ colorWell: NSColorWell, coordinator: Coordinator) {
+        coordinator.transaction.end()
         colorWell.target = nil
         colorWell.action = nil
     }
 
     final class Coordinator: NSObject {
         var color: Binding<Color>
+        let transaction = ContinuousUndoTransaction()
 
         init(color: Binding<Color>) {
             self.color = color
@@ -759,5 +808,21 @@ private struct AppKitColorWell: NSViewRepresentable {
         @objc func colorChanged(_ sender: NSColorWell) {
             color.wrappedValue = Color(nsColor: sender.color)
         }
+    }
+}
+
+@MainActor
+private final class ContinuousInspectorColorWell: NSColorWell {
+    var beginInteraction: () -> Void = {}
+    var endInteraction: () -> Void = {}
+
+    override func activate(_ exclusive: Bool) {
+        beginInteraction()
+        super.activate(exclusive)
+    }
+
+    override func deactivate() {
+        super.deactivate()
+        endInteraction()
     }
 }
