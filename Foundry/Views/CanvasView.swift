@@ -1,8 +1,5 @@
 import AppKit
 import SwiftUI
-#if DEBUG
-import OSLog
-#endif
 
 nonisolated struct CanvasEditorOptions: Equatable, Sendable {
     var showsTitles = true
@@ -363,10 +360,6 @@ nonisolated struct CanvasRenderSnapshot: Sendable {
            ) {
             return .component(subtree)
         }
-#if DEBUG
-        let startedAt = ContinuousClock.now
-        Logger.foundryPerformance.debug("Canvas background full-page render started")
-#endif
         let html = renderer.render(
             page: page,
             language: language,
@@ -374,12 +367,6 @@ nonisolated struct CanvasRenderSnapshot: Sendable {
             assets: assets,
             breakpoint: breakpoint
         )
-#if DEBUG
-        let completedAt = ContinuousClock.now
-        Logger.foundryPerformance.debug(
-            "Canvas background full-page render completed: render=\(startedAt.milliseconds(to: completedAt), format: .fixed(precision: 3))ms, bytes=\(html.utf8.count)"
-        )
-#endif
         return .page(html)
     }
 

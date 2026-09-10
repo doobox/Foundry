@@ -3,9 +3,6 @@ import ImageIO
 import SwiftUI
 import UniformTypeIdentifiers
 import WebKit
-#if DEBUG
-import OSLog
-#endif
 
 @MainActor
 final class CanvasAssetSchemeHandler: NSObject, WKURLSchemeHandler {
@@ -1334,37 +1331,6 @@ struct WebCanvasView: NSViewRepresentable {
             isPatchingHTML = true
             Task { [weak self, weak webView] in
                 guard let self, let webView else { return }
-#if DEBUG
-                let requestStartedAt = ContinuousClock.now
-                Logger.foundryPerformance.debug(
-                    "Component patch sent to WebKit: id=\(subtree.componentID.uuidString), htmlBytes=\(subtree.html.utf8.count), cssBytes=\(subtree.instanceCSS.utf8.count)"
-                )
-                let result = try? await webView.callAsyncJavaScript(
-                    """
-                    const startedAt = performance.now();
-                    const didPatch = window.foundryReplaceComponent?.(componentID, html, css, revision) === true;
-                    const domMilliseconds = performance.now() - startedAt;
-                    return await new Promise(resolve => requestAnimationFrame(() => resolve({
-                        didPatch,
-                        domMilliseconds,
-                        paintedMilliseconds: performance.now() - startedAt
-                    })));
-                    """,
-                    arguments: [
-                        "componentID": subtree.componentID.uuidString,
-                        "html": subtree.html,
-                        "css": subtree.instanceCSS,
-                        "revision": revision
-                    ],
-                    in: nil,
-                    contentWorld: .defaultClient
-                ) as? [String: Any]
-                let didPatch = result?["didPatch"] as? Bool == true
-                let acknowledgedAt = ContinuousClock.now
-                Logger.foundryPerformance.debug(
-                    "Component patch painted: success=\(didPatch), dom=\(result?["domMilliseconds"] as? Double ?? -1, format: .fixed(precision: 3))ms, requestAnimationFrame=\(result?["paintedMilliseconds"] as? Double ?? -1, format: .fixed(precision: 3))ms, SwiftRoundTrip=\(requestStartedAt.milliseconds(to: acknowledgedAt), format: .fixed(precision: 3))ms"
-                )
-#else
                 let didPatch = (try? await webView.callAsyncJavaScript(
                     "return window.foundryReplaceComponent?.(componentID, html, css, revision) === true",
                     arguments: [
@@ -1376,7 +1342,6 @@ struct WebCanvasView: NSViewRepresentable {
                     in: nil,
                     contentWorld: .defaultClient
                 )) as? Bool == true
-#endif
                 self.isPatchingHTML = false
                 guard didPatch else {
                     self.pendingComponent = nil
@@ -1410,39 +1375,12 @@ struct WebCanvasView: NSViewRepresentable {
             isPatchingHTML = true
             Task { [weak self, weak webView] in
                 guard let self, let webView else { return }
-#if DEBUG
-                let requestStartedAt = ContinuousClock.now
-                Logger.foundryPerformance.debug("HTML sent to WebKit: bytes=\(html.utf8.count)")
-                let result = try? await webView.callAsyncJavaScript(
-                    """
-                    const startedAt = performance.now();
-                    const didPatch = window.foundryReplaceDocument?.(html) === true;
-                    const domMilliseconds = performance.now() - startedAt;
-                    return await new Promise(resolve => requestAnimationFrame(() => resolve({
-                        didPatch,
-                        domMilliseconds,
-                        paintedMilliseconds: performance.now() - startedAt
-                    })));
-                    """,
-                    arguments: ["html": html],
-                    in: nil,
-                    contentWorld: .defaultClient
-                ) as? [String: Any]
-                let acknowledgedAt = ContinuousClock.now
-                let didPatch = result?["didPatch"] as? Bool == true
-                let domMilliseconds = result?["domMilliseconds"] as? Double ?? -1
-                let paintedMilliseconds = result?["paintedMilliseconds"] as? Double ?? -1
-                Logger.foundryPerformance.debug(
-                    "WebKit patch painted: success=\(didPatch), dom=\(domMilliseconds, format: .fixed(precision: 3))ms, requestAnimationFrame=\(paintedMilliseconds, format: .fixed(precision: 3))ms, SwiftRoundTrip=\(requestStartedAt.milliseconds(to: acknowledgedAt), format: .fixed(precision: 3))ms"
-                )
-#else
                 let didPatch = (try? await webView.callAsyncJavaScript(
                     "return window.foundryReplaceDocument?.(html) === true",
                     arguments: ["html": html],
                     in: nil,
                     contentWorld: .defaultClient
                 )) as? Bool == true
-#endif
                 self.isPatchingHTML = false
                 guard self.revisionGate.apply(revision) else {
                     self.processPendingUpdate(in: webView)
