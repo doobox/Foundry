@@ -196,12 +196,11 @@ struct ContentView: View {
             guard let command = publishingCommandDispatcher.request?.command else { return }
             handlePublishingCommand(command)
         }
-        .onChange(of: document.site) {
-            schedulePreviewRefresh()
-            schedulePublishingChangeRefresh()
+        .onChange(of: document.mutationEvent.revision) {
+            handleMutationImpact(document.mutationEvent.impact)
         }
         .onChange(of: componentCatalog.revision) {
-            schedulePublishingChangeRefresh()
+            handleMutationImpact(.package)
         }
         .onDisappear {
             previewRefreshTask?.cancel()
@@ -468,16 +467,16 @@ struct ContentView: View {
 
     private func schedulePublishingChangeRefresh(immediately: Bool = false) {
         publishingChangeTask?.cancel()
-        let site = document.site
-        let assets = document.assetContents
-        let localDirectory = site.publishingDestination == .local
-            ? PublishingDestinationStore.url(for: site.id)
-            : nil
         publishingChangeTask = Task {
             if !immediately {
-                try? await Task.sleep(for: .milliseconds(150))
+                try? await Task.sleep(for: .milliseconds(750))
             }
             guard !Task.isCancelled else { return }
+            let site = document.site
+            let assets = document.assetContents
+            let localDirectory = site.publishingDestination == .local
+                ? PublishingDestinationStore.url(for: site.id)
+                : nil
             let result = await Task.detached {
                 let bundle = StaticSiteRenderer().render(site: site, assets: assets)
                 let previous = PublishingManifestStore().load(for: site, localDirectory: localDirectory)
@@ -494,6 +493,51 @@ struct ContentView: View {
             }.value
             guard !Task.isCancelled else { return }
             publishingChangesByTreeItem = result
+        }
+    }
+
+    private func handleMutationImpact(_ impact: ProjectMutationImpact) {
+        guard impact.affectsRenderedOutput else {
+            schedulePublishingChangeRefresh()
+            return
+        }
+        markPublishingChangesDirty(for: impact)
+        schedulePublishingChangeRefresh()
+        schedulePreviewRefresh()
+    }
+
+    private func markPublishingChangesDirty(for impact: ProjectMutationImpact) {
+        func markModified(_ id: UUID) {
+            if publishingChangesByTreeItem[id] != .new {
+                publishingChangesByTreeItem[id] = .modified
+            }
+        }
+
+        func markAllPages() {
+            document.site.pages.forEach { markModified($0.id) }
+        }
+
+        switch impact {
+        case .componentProperty(let componentID, _):
+            if let page = document.site.pages.first(where: { $0.components.node(withID: componentID) != nil }) {
+                markModified(page.id)
+            } else {
+                markAllPages()
+            }
+        case .componentStructure(let ownerID):
+            if let ownerID,
+               let page = document.site.pages.first(where: { $0.components.node(withID: ownerID) != nil }) {
+                markModified(page.id)
+            } else {
+                markAllPages()
+            }
+        case .assets:
+            markAllPages()
+            document.site.assets.forEach { markModified($0.id) }
+        case .page, .theme, .package:
+            markAllPages()
+        case .publishingOnly:
+            break
         }
     }
 

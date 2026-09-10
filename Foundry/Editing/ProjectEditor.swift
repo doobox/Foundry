@@ -3,6 +3,25 @@ import Foundation
 import OSLog
 #endif
 
+nonisolated enum ProjectMutationImpact: Equatable, Sendable {
+    case componentProperty(componentID: UUID, propertyKey: ComponentProperty.Key)
+    case componentStructure(ownerID: UUID?)
+    case page
+    case theme
+    case assets
+    case package
+    case publishingOnly
+
+    var affectsRenderedOutput: Bool {
+        self != .publishingOnly
+    }
+}
+
+nonisolated struct ProjectMutationEvent: Equatable, Sendable {
+    let revision: UInt64
+    let impact: ProjectMutationImpact
+}
+
 @MainActor
 struct ProjectEditor {
     let document: FoundryDocument
@@ -83,7 +102,7 @@ struct ProjectEditor {
     }
 
     func setPublishingDestination(_ destination: PublishingDestinationKind) {
-        mutate(actionName: "Change Publishing Destination") {
+        mutate(actionName: "Change Publishing Destination", impact: .publishingOnly) {
             let previousDefaultPort = $0.publishingDestination.defaultPort
             $0.publishingDestination = destination
             if $0.publishingPort == 0 || $0.publishingPort == previousDefaultPort {
@@ -93,41 +112,41 @@ struct ProjectEditor {
     }
 
     func setPublishingHost(_ host: String) {
-        mutate(actionName: "Edit Publishing Host") { $0.publishingHost = host }
+        mutate(actionName: "Edit Publishing Host", impact: .publishingOnly) { $0.publishingHost = host }
     }
 
     func setPublishingPort(_ port: Int) {
-        mutate(actionName: "Edit Publishing Port") { $0.publishingPort = max(0, min(port, 65_535)) }
+        mutate(actionName: "Edit Publishing Port", impact: .publishingOnly) { $0.publishingPort = max(0, min(port, 65_535)) }
     }
 
     func setPublishingUsername(_ username: String) {
-        mutate(actionName: "Edit Publishing Username") { $0.publishingUsername = username }
+        mutate(actionName: "Edit Publishing Username", impact: .publishingOnly) { $0.publishingUsername = username }
     }
 
     func setPublishingRemotePath(_ path: String) {
-        mutate(actionName: "Edit Publishing Path") { $0.publishingRemotePath = path }
+        mutate(actionName: "Edit Publishing Path", impact: .publishingOnly) { $0.publishingRemotePath = path }
     }
 
     func setPublishingS3Bucket(_ bucket: String) {
-        mutate(actionName: "Edit S3 Bucket") { $0.publishingS3Bucket = bucket }
+        mutate(actionName: "Edit S3 Bucket", impact: .publishingOnly) { $0.publishingS3Bucket = bucket }
     }
 
     func setPublishingS3Region(_ region: String) {
-        mutate(actionName: "Edit S3 Region") { $0.publishingS3Region = region }
+        mutate(actionName: "Edit S3 Region", impact: .publishingOnly) { $0.publishingS3Region = region }
     }
 
     func setCleansObsoleteExportFiles(_ isEnabled: Bool) {
-        mutate(actionName: "Change Export Cleanup") { $0.cleansObsoleteExportFiles = isEnabled }
+        mutate(actionName: "Change Export Cleanup", impact: .publishingOnly) { $0.cleansObsoleteExportFiles = isEnabled }
     }
 
     func renameComponent(id: UUID, name: String) {
-        mutate(actionName: "Rename Component") { site in
+        mutate(actionName: "Rename Component", impact: .componentProperty(componentID: id, propertyKey: .init(rawValue: "name"))) { site in
             site.updateComponent(id: id) { $0.name = name }
         }
     }
 
     func setComponentAnchor(id: UUID, anchor: String) {
-        mutate(actionName: "Edit Component Anchor") { site in
+        mutate(actionName: "Edit Component Anchor", impact: .componentProperty(componentID: id, propertyKey: .init(rawValue: "anchor"))) { site in
             site.updateComponent(id: id) {
                 let value = anchor.trimmingCharacters(in: .whitespacesAndNewlines)
                 $0.anchor = value.isEmpty ? nil : value
@@ -136,7 +155,7 @@ struct ProjectEditor {
     }
 
     func setComponentClasses(id: UUID, classes: String) {
-        mutate(actionName: "Edit Component Classes") { site in
+        mutate(actionName: "Edit Component Classes", impact: .componentProperty(componentID: id, propertyKey: .init(rawValue: "classes"))) { site in
             site.updateComponent(id: id) {
                 $0.customClasses = classes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
                     ? nil
@@ -146,7 +165,7 @@ struct ProjectEditor {
     }
 
     func setComponentRootAttributes(id: UUID, attributes: [ComponentHTMLAttribute]) {
-        mutate(actionName: "Edit Component Attributes") { site in
+        mutate(actionName: "Edit Component Attributes", impact: .componentProperty(componentID: id, propertyKey: .init(rawValue: "attributes"))) { site in
             site.updateComponent(id: id) {
                 $0.rootAttributes = attributes.isEmpty ? nil : attributes
             }
@@ -158,7 +177,7 @@ struct ProjectEditor {
         key: ComponentProperty.Key,
         value: ComponentProperty.Value
     ) {
-        mutate(actionName: "Edit Component") { site in
+        mutate(actionName: "Edit Component", impact: .componentProperty(componentID: id, propertyKey: key)) { site in
             site.updateComponent(id: id) { $0.setProperty(key, value: value) }
         }
     }
@@ -176,7 +195,7 @@ struct ProjectEditor {
         value: ComponentProperty.Value,
         breakpoint: ResponsiveBreakpoint
     ) {
-        mutate(actionName: "Edit \(breakpoint.displayName) Component") { site in
+        mutate(actionName: "Edit \(breakpoint.displayName) Component", impact: .componentProperty(componentID: id, propertyKey: key)) { site in
             site.updateComponent(id: id) {
                 $0.setResponsiveProperty(key, value: value, at: breakpoint)
             }
@@ -184,13 +203,13 @@ struct ProjectEditor {
     }
 
     func removeResponsiveOverride(id: UUID, key: ComponentProperty.Key, breakpoint: ResponsiveBreakpoint) {
-        mutate(actionName: "Reset \(breakpoint.displayName) Component") { site in
+        mutate(actionName: "Reset \(breakpoint.displayName) Component", impact: .componentProperty(componentID: id, propertyKey: key)) { site in
             site.updateComponent(id: id) { $0.removeResponsiveOverride(key, at: breakpoint) }
         }
     }
 
     func setThemeColor(_ token: DesignToken, value: String) {
-        mutate(actionName: "Edit Theme Color") { site in
+        mutate(actionName: "Edit Theme Color", impact: .theme) { site in
             switch token {
             case .backgroundColor: site.theme.colors.background = value
             case .surfaceColor: site.theme.colors.surface = value
@@ -205,20 +224,20 @@ struct ProjectEditor {
     }
 
     func setThemeScreenEnabled(_ id: ThemeScreenID, value: Bool) {
-        mutate(actionName: "Enable Theme Screen") { site in
+        mutate(actionName: "Enable Theme Screen", impact: .theme) { site in
             site.theme.screens.update(id) { $0.isEnabled = value }
         }
     }
 
     func setThemeScreenMinimumWidth(_ id: ThemeScreenID, value: Double) {
         guard value.isFinite else { return }
-        mutate(actionName: "Edit Theme Screen Width") { site in
+        mutate(actionName: "Edit Theme Screen Width", impact: .theme) { site in
             site.theme.screens.update(id) { $0.minimumWidth = value }
         }
     }
 
     func setThemeScreenContainerUnit(_ id: ThemeScreenID, value: ThemeContainerUnit) {
-        mutate(actionName: "Edit Theme Container Unit") { site in
+        mutate(actionName: "Edit Theme Container Unit", impact: .theme) { site in
             site.theme.screens.update(id) { screen in
                 screen.container.unit = value
                 if value == .auto {
@@ -230,14 +249,14 @@ struct ProjectEditor {
 
     func setThemeScreenContainerWidth(_ id: ThemeScreenID, value: Double) {
         guard value.isFinite else { return }
-        mutate(actionName: "Edit Theme Container Width") { site in
+        mutate(actionName: "Edit Theme Container Width", impact: .theme) { site in
             site.theme.screens.update(id) { $0.container.value = value }
         }
     }
 
     func setThemeSpacing(_ token: DesignToken, value: Double) {
         guard value.isFinite, value >= 0 else { return }
-        mutate(actionName: "Edit Theme Spacing") { site in
+        mutate(actionName: "Edit Theme Spacing", impact: .theme) { site in
             switch token {
             case .threeExtraSmallSpacing: site.theme.spacing.threeExtraSmall = value
             case .doubleExtraSmallSpacing: site.theme.spacing.doubleExtraSmall = value
@@ -254,7 +273,7 @@ struct ProjectEditor {
     }
 
     func resetThemeSpacingScale() {
-        mutate(actionName: "Reset Theme Spacing Scale") { site in
+        mutate(actionName: "Reset Theme Spacing Scale", impact: .theme) { site in
             guard let source = ThemeLibrary.shared.themes.first(where: { $0.id == site.themeSourceID }) else { return }
             let defaults = source.theme.spacing
             site.theme.spacing.threeExtraSmall = defaults.threeExtraSmall
@@ -272,12 +291,12 @@ struct ProjectEditor {
     @discardableResult
     func addThemeSpacing() -> UUID {
         let spacing = ThemeSpacing(name: "Custom Spacing", value: 5)
-        mutate(actionName: "Add Theme Spacing") { $0.theme.spacing.custom.append(spacing) }
+        mutate(actionName: "Add Theme Spacing", impact: .theme) { $0.theme.spacing.custom.append(spacing) }
         return spacing.id
     }
 
     func setThemeSpacingName(id: UUID, value: String) {
-        mutate(actionName: "Rename Theme Spacing") { site in
+        mutate(actionName: "Rename Theme Spacing", impact: .theme) { site in
             guard let index = site.theme.spacing.custom.firstIndex(where: { $0.id == id }) else { return }
             site.theme.spacing.custom[index].name = value
         }
@@ -285,14 +304,14 @@ struct ProjectEditor {
 
     func setThemeSpacingValue(id: UUID, value: Double) {
         guard value.isFinite, value >= 0 else { return }
-        mutate(actionName: "Edit Theme Spacing") { site in
+        mutate(actionName: "Edit Theme Spacing", impact: .theme) { site in
             guard let index = site.theme.spacing.custom.firstIndex(where: { $0.id == id }) else { return }
             site.theme.spacing.custom[index].value = value
         }
     }
 
     func removeThemeSpacing(id: UUID) {
-        mutate(actionName: "Delete Theme Spacing") {
+        mutate(actionName: "Delete Theme Spacing", impact: .theme) {
             $0.theme.spacing.custom.removeAll(where: { $0.id == id })
         }
     }
@@ -305,12 +324,12 @@ struct ProjectEditor {
             title: "Custom Shadow",
             layers: [.init(x: 0, y: 4, blur: 8, opacity: 0.15)]
         )
-        mutate(actionName: "Add Theme Shadow") { $0.theme.shadows.custom.insert(shadow, at: 0) }
+        mutate(actionName: "Add Theme Shadow", impact: .theme) { $0.theme.shadows.custom.insert(shadow, at: 0) }
         return id
     }
 
     func removeThemeShadow(id: String) {
-        mutate(actionName: "Delete Theme Shadow") {
+        mutate(actionName: "Delete Theme Shadow", impact: .theme) {
             $0.theme.shadows.custom.removeAll { $0.id == id }
         }
     }
@@ -344,7 +363,7 @@ struct ProjectEditor {
     }
 
     func resetThemeShadowScale() {
-        mutate(actionName: "Reset Theme Shadow Scale") { site in
+        mutate(actionName: "Reset Theme Shadow Scale", impact: .theme) { site in
             let defaults = ThemeLibrary.shared.themes
                 .first(where: { $0.id == site.themeSourceID })?
                 .theme.shadows.predefined ?? ShadowTokens.standard.predefined
@@ -357,7 +376,7 @@ struct ProjectEditor {
         actionName: String,
         update: (inout ThemeShadow) -> Void
     ) {
-        mutate(actionName: actionName) { site in
+        mutate(actionName: actionName, impact: .theme) { site in
             if let index = site.theme.shadows.custom.firstIndex(where: { $0.id == id }) {
                 update(&site.theme.shadows.custom[index])
             } else if let index = site.theme.shadows.predefined.firstIndex(where: { $0.id == id }) {
@@ -371,7 +390,7 @@ struct ProjectEditor {
     }
 
     func setThemeFont(_ value: String, for role: ThemeFontRole) {
-        mutate(actionName: "Edit Theme Font Family") { site in
+        mutate(actionName: "Edit Theme Font Family", impact: .theme) { site in
             switch role {
             case .body: site.theme.typography.bodyFont.family = value
             case .heading: site.theme.typography.headingFont.family = value
@@ -386,19 +405,19 @@ struct ProjectEditor {
             name: "Custom Font",
             font: .system(family: "system-ui", weights: [400, 700])
         )
-        mutate(actionName: "Add Theme Font") { $0.theme.typography.customFonts.append(font) }
+        mutate(actionName: "Add Theme Font", impact: .theme) { $0.theme.typography.customFonts.append(font) }
         return font.id
     }
 
     func setThemeCustomFontName(id: UUID, value: String) {
-        mutate(actionName: "Rename Theme Font") { site in
+        mutate(actionName: "Rename Theme Font", impact: .theme) { site in
             guard let index = site.theme.typography.customFonts.firstIndex(where: { $0.id == id }) else { return }
             site.theme.typography.customFonts[index].name = value
         }
     }
 
     func setThemeCustomFontFamily(id: UUID, value: String) {
-        mutate(actionName: "Edit Theme Font") { site in
+        mutate(actionName: "Edit Theme Font", impact: .theme) { site in
             guard let index = site.theme.typography.customFonts.firstIndex(where: { $0.id == id }) else { return }
             site.theme.typography.customFonts[index].font.family = value
         }
@@ -495,7 +514,7 @@ struct ProjectEditor {
     }
 
     func removeThemeCustomFont(id: UUID) {
-        mutate(actionName: "Delete Theme Font") {
+        mutate(actionName: "Delete Theme Font", impact: .theme) {
             $0.theme.typography.customFonts.removeAll(where: { $0.id == id })
         }
     }
@@ -505,7 +524,7 @@ struct ProjectEditor {
         actionName: String,
         update: (inout ThemeFontDefinition) -> Void
     ) {
-        mutate(actionName: actionName) { site in
+        mutate(actionName: actionName, impact: .theme) { site in
             switch reference {
             case .role(.body): update(&site.theme.typography.bodyFont)
             case .role(.heading): update(&site.theme.typography.headingFont)
@@ -529,7 +548,7 @@ struct ProjectEditor {
 
     func setThemeFontSize(id: String, value: Double) {
         guard value.isFinite, value > 0 else { return }
-        mutate(actionName: "Edit Theme Font Size") { site in
+        mutate(actionName: "Edit Theme Font Size", impact: .theme) { site in
             if let index = site.theme.typography.predefinedFontSizes.firstIndex(where: { $0.id == id }) {
                 site.theme.typography.predefinedFontSizes[index].size = value
             } else if let index = site.theme.typography.customFontSizes.firstIndex(where: { $0.id == id }) {
@@ -540,7 +559,7 @@ struct ProjectEditor {
 
     func setThemeFontSizeLineHeight(id: String, value: Double) {
         guard value.isFinite, value > 0 else { return }
-        mutate(actionName: "Edit Theme Line Height") { site in
+        mutate(actionName: "Edit Theme Line Height", impact: .theme) { site in
             if let index = site.theme.typography.predefinedFontSizes.firstIndex(where: { $0.id == id }) {
                 site.theme.typography.predefinedFontSizes[index].lineHeight = value
             } else if let index = site.theme.typography.customFontSizes.firstIndex(where: { $0.id == id }) {
@@ -550,14 +569,14 @@ struct ProjectEditor {
     }
 
     func setThemeFontSizeTitle(id: String, value: String) {
-        mutate(actionName: "Rename Theme Font Size") { site in
+        mutate(actionName: "Rename Theme Font Size", impact: .theme) { site in
             guard let index = site.theme.typography.customFontSizes.firstIndex(where: { $0.id == id }) else { return }
             site.theme.typography.customFontSizes[index].title = value
         }
     }
 
     func resetThemeFontSizeScale() {
-        mutate(actionName: "Reset Theme Font Size Scale") { site in
+        mutate(actionName: "Reset Theme Font Size Scale", impact: .theme) { site in
             guard let source = ThemeLibrary.shared.themes.first(where: { $0.id == site.themeSourceID }) else { return }
             site.theme.typography.predefinedFontSizes = source.theme.typography.predefinedFontSizes
         }
@@ -566,7 +585,7 @@ struct ProjectEditor {
     @discardableResult
     func addThemeFontSize() -> String {
         let newID = "user-\(UUID().uuidString.lowercased())"
-        mutate(actionName: "Add Theme Font Size") { site in
+        mutate(actionName: "Add Theme Font Size", impact: .theme) { site in
             site.theme.typography.customFontSizes.insert(
                 .init(id: newID, title: "Custom", size: 1, lineHeight: 1.5),
                 at: 0
@@ -576,14 +595,14 @@ struct ProjectEditor {
     }
 
     func removeThemeFontSize(id: String) {
-        mutate(actionName: "Delete Theme Font Size") {
+        mutate(actionName: "Delete Theme Font Size", impact: .theme) {
             $0.theme.typography.customFontSizes.removeAll { $0.id == id }
         }
     }
 
     func moveThemeFontSize(id: String, before targetID: String) {
         guard id != targetID else { return }
-        mutate(actionName: "Reorder Theme Font Sizes") { site in
+        mutate(actionName: "Reorder Theme Font Sizes", impact: .theme) { site in
             guard let source = site.theme.typography.customFontSizes.firstIndex(where: { $0.id == id }) else { return }
             let item = site.theme.typography.customFontSizes.remove(at: source)
             guard let destination = site.theme.typography.customFontSizes.firstIndex(where: { $0.id == targetID }) else {
@@ -595,7 +614,7 @@ struct ProjectEditor {
     }
 
     func moveThemeFontSizes(fromOffsets offsets: IndexSet, toOffset destination: Int) {
-        mutate(actionName: "Reorder Theme Font Sizes") { site in
+        mutate(actionName: "Reorder Theme Font Sizes", impact: .theme) { site in
             var sizes = site.theme.typography.customFontSizes
             let moving = offsets.sorted().map { sizes[$0] }
             for index in offsets.sorted(by: >) {
@@ -609,7 +628,7 @@ struct ProjectEditor {
     }
 
     func selectTheme(_ theme: Theme, sourceID: UUID) {
-        mutate(actionName: "Select Theme") { site in
+        mutate(actionName: "Select Theme", impact: .theme) { site in
             guard site.themeSourceID != sourceID else { return }
             site.projectThemeValues.absorb(site.theme)
             site.saveActiveThemeState()
@@ -621,7 +640,7 @@ struct ProjectEditor {
     }
 
     func resetTheme(_ theme: Theme, sourceID: UUID) {
-        mutate(actionName: "Reset Theme") { site in
+        mutate(actionName: "Reset Theme", impact: .theme) { site in
             site.projectThemeValues.absorb(site.theme)
             site.themeStates.removeAll { $0.sourceID == sourceID }
             site.theme = site.projectThemeValues.applied(to: theme)
@@ -630,7 +649,7 @@ struct ProjectEditor {
     }
 
     func commitTheme(_ theme: Theme, sourceID: UUID) {
-        mutate(actionName: "Update Theme Defaults") { site in
+        mutate(actionName: "Update Theme Defaults", impact: .theme) { site in
             site.themeStates.removeAll { $0.sourceID == sourceID }
             site.projectThemeValues.absorb(theme)
             site.theme = site.projectThemeValues.applied(to: theme)
@@ -645,7 +664,7 @@ struct ProjectEditor {
         parentID: UUID?
     ) -> UUID {
         let node = ComponentNode.make(type)
-        mutate(actionName: "Add \(type.displayName)") { site in
+        mutate(actionName: "Add \(type.displayName)", impact: .componentStructure(ownerID: parentID)) { site in
             guard let pageIndex = site.pages.firstIndex(where: { $0.id == pageID }) else {
                 return
             }
@@ -660,7 +679,7 @@ struct ProjectEditor {
 
     func removeComponents(ids: [UUID]) {
         guard !ids.isEmpty else { return }
-        mutate(actionName: ids.count == 1 ? "Delete Component" : "Delete Components") { site in
+        mutate(actionName: ids.count == 1 ? "Delete Component" : "Delete Components", impact: .componentStructure(ownerID: nil)) { site in
             for id in ids {
                 for pageIndex in site.pages.indices {
                     if site.pages[pageIndex].components.removeNode(withID: id) {
@@ -671,7 +690,11 @@ struct ProjectEditor {
         }
     }
 
-    func mutate(actionName: String, mutation: (inout Site) -> Void) {
+    func mutate(
+        actionName: String,
+        impact: ProjectMutationImpact = .page,
+        mutation: (inout Site) -> Void
+    ) {
 #if DEBUG
         let receivedAt = ContinuousClock.now
         Logger.foundryPerformance.debug("Inspector mutation received: \(actionName, privacy: .public)")
@@ -684,7 +707,8 @@ struct ProjectEditor {
         document.replaceSite(
             with: updatedSite,
             undoManager: undoManager,
-            actionName: actionName
+            actionName: actionName,
+            impact: impact
         )
 #if DEBUG
         let completedAt = ContinuousClock.now

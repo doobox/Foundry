@@ -63,18 +63,16 @@ final class FoundryDocument: ReferenceFileDocument {
 
     nonisolated let objectWillChange = ObservableObjectPublisher()
     private let storage: Mutex<FoundryDocumentSnapshot>
+    @MainActor private(set) var mutationEvent = ProjectMutationEvent(revision: 0, impact: .page)
+    @MainActor private var cachedAssetContentsRevision: UInt64?
+    @MainActor private var cachedAssetContents: [UUID: ProjectAssetContent] = [:]
+    @MainActor private(set) var assetContentsBuildCount = 0
 
     @MainActor
     var site: Site {
         get { storage.withLock { $0.site } }
         set {
-            objectWillChange.send()
-            storage.withLock {
-                if $0.site.assets != newValue.assets {
-                    $0.assetRevision &+= 1
-                }
-                $0.site = newValue
-            }
+            applySite(newValue, impact: .page)
         }
     }
 
@@ -126,7 +124,8 @@ final class FoundryDocument: ReferenceFileDocument {
     func replaceSite(
         with newSite: Site,
         undoManager: UndoManager?,
-        actionName: String
+        actionName: String,
+        impact: ProjectMutationImpact = .page
     ) {
         guard newSite != site else {
             return
@@ -136,17 +135,21 @@ final class FoundryDocument: ReferenceFileDocument {
             document.replaceSite(
                 with: previousSite,
                 undoManager: undoManager,
-                actionName: actionName
+                actionName: actionName,
+                impact: impact
             )
         }
         undoManager?.setActionName(actionName)
-        site = newSite
+        applySite(newSite, impact: impact)
     }
 
     @MainActor
     var assetContents: [UUID: ProjectAssetContent] {
         let snapshot = storage.withLock { $0 }
-        return Dictionary(uniqueKeysWithValues: snapshot.site.assets.compactMap { asset in
+        guard cachedAssetContentsRevision != snapshot.assetRevision else {
+            return cachedAssetContents
+        }
+        let contents = Dictionary(uniqueKeysWithValues: snapshot.site.assets.compactMap { asset in
             snapshot.assetData[asset.id].map {
                 (
                     asset.id,
@@ -158,6 +161,10 @@ final class FoundryDocument: ReferenceFileDocument {
                 )
             }
         })
+        cachedAssetContents = contents
+        cachedAssetContentsRevision = snapshot.assetRevision
+        assetContentsBuildCount += 1
+        return contents
     }
 
     @MainActor
@@ -200,7 +207,7 @@ final class FoundryDocument: ReferenceFileDocument {
         let folder = ProjectAssetFolder(name: name)
         var nextSite = site
         guard nextSite.assetLibrary.insert(.folder(folder), at: placement) else { return folder.id }
-        replaceSite(with: nextSite, undoManager: undoManager, actionName: "New Asset Folder")
+        replaceSite(with: nextSite, undoManager: undoManager, actionName: "New Asset Folder", impact: .assets)
         return folder.id
     }
 
@@ -208,7 +215,7 @@ final class FoundryDocument: ReferenceFileDocument {
     func renameAssetFolder(id: UUID, name: String, undoManager: UndoManager?) {
         var nextSite = site
         guard nextSite.assetLibrary.renameFolder(id: id, to: name) else { return }
-        replaceSite(with: nextSite, undoManager: undoManager, actionName: "Rename Asset Folder")
+        replaceSite(with: nextSite, undoManager: undoManager, actionName: "Rename Asset Folder", impact: .assets)
     }
 
     @MainActor
@@ -217,7 +224,7 @@ final class FoundryDocument: ReferenceFileDocument {
         guard !safeFilename.isEmpty else { return }
         var nextSite = site
         guard nextSite.assetLibrary.renameAsset(id: id, to: safeFilename) else { return }
-        replaceSite(with: nextSite, undoManager: undoManager, actionName: "Rename Asset")
+        replaceSite(with: nextSite, undoManager: undoManager, actionName: "Rename Asset", impact: .assets)
     }
 
     @MainActor
@@ -232,7 +239,7 @@ final class FoundryDocument: ReferenceFileDocument {
     func moveAssetNode(id: UUID, to placement: AssetPlacement, undoManager: UndoManager?) -> Bool {
         var nextSite = site
         guard nextSite.assetLibrary.move(id: id, to: placement) else { return false }
-        replaceSite(with: nextSite, undoManager: undoManager, actionName: "Move Asset Item")
+        replaceSite(with: nextSite, undoManager: undoManager, actionName: "Move Asset Item", impact: .assets)
         return true
     }
 
@@ -241,7 +248,7 @@ final class FoundryDocument: ReferenceFileDocument {
         var nextSite = site
         guard nextSite.assetLibrary.move(id: id, to: placement) else { return false }
         _ = nextSite.assetLibrary.clearExportDirectory(forAssetID: id)
-        replaceSite(with: nextSite, undoManager: undoManager, actionName: "Move Asset to Resources")
+        replaceSite(with: nextSite, undoManager: undoManager, actionName: "Move Asset to Resources", impact: .assets)
         return true
     }
 
@@ -264,12 +271,33 @@ final class FoundryDocument: ReferenceFileDocument {
             document.replaceContents(with: previous, undoManager: undoManager, actionName: actionName)
         }
         undoManager?.setActionName(actionName)
+        advanceMutationEvent(.assets)
         objectWillChange.send()
         storage.withLock {
             var replacement = newSnapshot
             replacement.assetRevision = $0.assetRevision &+ 1
             $0 = replacement
         }
+    }
+
+    @MainActor
+    private func applySite(_ newSite: Site, impact: ProjectMutationImpact) {
+        advanceMutationEvent(impact)
+        objectWillChange.send()
+        storage.withLock {
+            if $0.site.assets != newSite.assets {
+                $0.assetRevision &+= 1
+            }
+            $0.site = newSite
+        }
+    }
+
+    @MainActor
+    private func advanceMutationEvent(_ impact: ProjectMutationImpact) {
+        mutationEvent = ProjectMutationEvent(
+            revision: mutationEvent.revision &+ 1,
+            impact: impact
+        )
     }
 
     nonisolated static func decodeProject(from data: Data) throws -> Site {
