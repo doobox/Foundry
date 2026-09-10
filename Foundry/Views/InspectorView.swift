@@ -789,28 +789,40 @@ private struct ComponentAdvancedInspectorCard: View {
     var body: some View {
         DisclosureGroup(isExpanded: $isExpanded) {
             VStack(alignment: .leading, spacing: InspectorMetrics.controlSpacing) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("ID")
-                        .foregroundStyle(.secondary)
-                    TextField("ID", text: $anchor)
-                        .frame(maxWidth: .infinity)
-                    if !anchor.isEmpty && !ComponentAnchorValidator.isValid(anchor) {
-                        Text("Enter a valid ID.")
-                            .font(.caption)
-                            .foregroundStyle(.red)
-                    } else if isDuplicateAnchor {
-                        Text("ID already in use.")
-                            .font(.caption)
-                            .foregroundStyle(.orange)
+                Grid(
+                    alignment: .leading,
+                    horizontalSpacing: InspectorMetrics.columnSpacing,
+                    verticalSpacing: InspectorMetrics.rowSpacing
+                ) {
+                    GridRow(alignment: .firstTextBaseline) {
+                        Text("ID")
+                            .foregroundStyle(.secondary)
+                            .gridColumnAlignment(.trailing)
+
+                        VStack(alignment: .leading, spacing: 4) {
+                            TextField("ID", text: $anchor)
+                                .frame(maxWidth: .infinity)
+                            if !anchor.isEmpty && !ComponentAnchorValidator.isValid(anchor) {
+                                Text("Enter a valid ID.")
+                                    .font(.caption)
+                                    .foregroundStyle(.red)
+                            } else if isDuplicateAnchor {
+                                Text("ID already in use.")
+                                    .font(.caption)
+                                    .foregroundStyle(.orange)
+                            }
+                        }
+                    }
+
+                    GridRow(alignment: .firstTextBaseline) {
+                        Text("Classes")
+                            .foregroundStyle(.secondary)
+
+                        TextField("Classes", text: $classes)
+                            .frame(maxWidth: .infinity)
                     }
                 }
-
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Classes")
-                        .foregroundStyle(.secondary)
-                    TextField("Classes", text: $classes)
-                        .frame(maxWidth: .infinity)
-                }
+                .frame(maxWidth: .infinity, alignment: .leading)
 
                 Text("Attributes")
                     .font(.callout.weight(.medium))
