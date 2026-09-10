@@ -39,6 +39,32 @@ struct CanvasBridgeTests {
     }
 
     @Test
+    func immutableCanvasSnapshotMatchesAuthoritativeRenderer() async {
+        let site = TestSiteFixtures.populatedSite()
+        let page = site.pages[0]
+        let renderer = HTMLPageRenderer(site: site)
+        let snapshot = CanvasRenderSnapshot(
+            renderer: renderer,
+            page: page,
+            language: site.language,
+            theme: site.theme,
+            assets: [:],
+            breakpoint: .extraLarge
+        )
+
+        let backgroundHTML = await Task.detached { snapshot.render() }.value
+        let authoritativeHTML = renderer.render(
+            page: page,
+            language: site.language,
+            theme: site.theme,
+            assets: [:],
+            breakpoint: .extraLarge
+        )
+
+        #expect(backgroundHTML == authoritativeHTML)
+    }
+
+    @Test
     func decodesCurrentSelectionMessage() {
         let id = UUID()
         let body: [String: Any] = [

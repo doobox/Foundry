@@ -6,8 +6,7 @@ struct RenderedComponentSubtree: Equatable, Sendable {
     let instanceCSS: String
 }
 
-@MainActor
-protocol PageRendering {
+nonisolated protocol PageRendering: Sendable {
     func render(
         page: Page,
         language: String,

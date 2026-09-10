@@ -45,6 +45,7 @@ struct CanvasView: View {
     let theme: Theme
     let assets: [UUID: ProjectAssetContent]
     let assetRevision: UInt64
+    let mutationRevision: UInt64
     let componentPackageRevision: Int
     let isComponentCatalogReady: Bool
     let selectedComponentIDs: Set<UUID>
@@ -65,7 +66,8 @@ struct CanvasView: View {
     @State private var resizeStartWidth: Double?
     @State private var resizeStartScale: Double?
     @State private var visibleCanvasWidth = 0.0
-    @State private var htmlCache = CanvasHTMLCache()
+    @State private var renderedPage: CanvasRenderedPage?
+    @State private var renderRevision: UInt64 = 0
     private let resizeEdgeHitTargetWidth = 12.0
     private let canvasHorizontalPadding = 24.0
     private let minimumViewportWidth = 320.0
@@ -94,27 +96,32 @@ struct CanvasView: View {
                             Spacer(minLength: canvasHorizontalPadding)
                             ZStack(alignment: .top) {
                                 ZStack(alignment: .top) {
-                                    let renderedPage = renderedPage(for: page)
-                                    WebCanvasView(
-                                        html: renderedPage.html,
-                                        revision: renderedPage.revision,
-                                        assets: assets,
-                                        packages: canvasPackages(for: page),
-                                        assetRevision: assetRevision,
-                                        selectedComponentIDs: selectedComponentIDs,
-                                        selectedPrimitive: selectedPrimitive,
-                                        editorOptions: editorOptions,
-                                        enablesWebInspector: enablesCanvasWebInspector,
-                                        canPasteComponent: canPasteComponent,
-                                        canClearImage: canClearImage,
-                                        handleMessage: handleMessage,
-                                        handleContextMenuAction: handleContextMenuAction
-                                    )
-                                    .id(enablesCanvasWebInspector)
-                                    .frame(width: viewportWidth, height: logicalHeight)
-                                    .background(Color(hex: theme.colors.background) ?? .white)
-                                    .shadow(color: .black.opacity(0.12), radius: 12, y: 4)
-                                    .scaleEffect(scale, anchor: .top)
+                                    if let renderedPage {
+                                        WebCanvasView(
+                                            html: renderedPage.html,
+                                            revision: renderedPage.revision,
+                                            assets: assets,
+                                            packages: canvasPackages(for: page),
+                                            assetRevision: assetRevision,
+                                            selectedComponentIDs: selectedComponentIDs,
+                                            selectedPrimitive: selectedPrimitive,
+                                            editorOptions: editorOptions,
+                                            enablesWebInspector: enablesCanvasWebInspector,
+                                            canPasteComponent: canPasteComponent,
+                                            canClearImage: canClearImage,
+                                            handleMessage: handleMessage,
+                                            handleContextMenuAction: handleContextMenuAction
+                                        )
+                                        .id(enablesCanvasWebInspector)
+                                        .frame(width: viewportWidth, height: logicalHeight)
+                                        .background(Color(hex: theme.colors.background) ?? .white)
+                                        .shadow(color: .black.opacity(0.12), radius: 12, y: 4)
+                                        .scaleEffect(scale, anchor: .top)
+                                    } else {
+                                        ProgressView()
+                                            .frame(width: viewportWidth, height: logicalHeight)
+                                            .scaleEffect(scale, anchor: .top)
+                                    }
                                 }
                                 .frame(
                                     width: viewportWidth * scale,
@@ -169,6 +176,9 @@ struct CanvasView: View {
         }
         .background(canvasBackgroundStyle)
         .navigationTitle(page?.title ?? "Canvas")
+        .task(id: renderRequestID) {
+            await renderCurrentPage()
+        }
     }
 
     private var canvasBackgroundStyle: AnyShapeStyle {
@@ -181,24 +191,38 @@ struct CanvasView: View {
         return AnyShapeStyle(color)
     }
 
-    private func renderedPage(for page: Page) -> CanvasRenderedPage {
+    private var renderRequestID: CanvasRenderRequestID? {
+        guard let page else { return nil }
         let breakpoint = ResponsiveBreakpoint.forViewportWidth(viewportWidth, screens: theme.screens)
-        let input = CanvasHTMLRenderInput(
-            site: site,
+        return CanvasRenderRequestID(
             pageID: page.id,
+            mutationRevision: mutationRevision,
             assetRevision: assetRevision,
             componentPackageRevision: componentPackageRevision,
             breakpoint: breakpoint
         )
-        return htmlCache.page(for: input) {
-            renderer.render(
-                page: page,
-                language: language,
-                theme: theme,
-                assets: assets,
-                breakpoint: breakpoint
-            )
+    }
+
+    private func renderCurrentPage() async {
+        guard let page, let requestID = renderRequestID else {
+            renderedPage = nil
+            return
         }
+        renderRevision &+= 1
+        let revision = renderRevision
+        let snapshot = CanvasRenderSnapshot(
+            renderer: renderer,
+            page: page,
+            language: language,
+            theme: theme,
+            assets: assets,
+            breakpoint: requestID.breakpoint
+        )
+        let html = await Task.detached(priority: .userInitiated) {
+            snapshot.render()
+        }.value
+        guard !Task.isCancelled, requestID == renderRequestID, revision == renderRevision else { return }
+        renderedPage = .init(html: html, revision: revision)
     }
 
     private func canvasPackages(for page: Page) -> [String: LoadedComponentPackage] {
@@ -295,9 +319,9 @@ struct ComponentCatalogLoadingView: View {
     }
 }
 
-private struct CanvasHTMLRenderInput: Equatable {
-    let site: Site
+private struct CanvasRenderRequestID: Hashable {
     let pageID: UUID
+    let mutationRevision: UInt64
     let assetRevision: UInt64
     let componentPackageRevision: Int
     let breakpoint: ResponsiveBreakpoint
@@ -308,37 +332,36 @@ struct CanvasRenderedPage: Equatable {
     let revision: UInt64
 }
 
-@MainActor
-private final class CanvasHTMLCache {
-    private var input: CanvasHTMLRenderInput?
-    private var renderedHTML = ""
-    private var revision: UInt64 = 0
+nonisolated struct CanvasRenderSnapshot: Sendable {
+    let renderer: any PageRendering
+    let page: Page
+    let language: String
+    let theme: Theme
+    let assets: [UUID: ProjectAssetContent]
+    let breakpoint: ResponsiveBreakpoint
 
-    func page(for input: CanvasHTMLRenderInput, render: () -> String) -> CanvasRenderedPage {
+    func render() -> String {
 #if DEBUG
-        let comparisonStartedAt = ContinuousClock.now
+        let startedAt = ContinuousClock.now
+        Logger.foundryPerformance.debug("Canvas background full-page render started")
 #endif
-        let isCacheHit = self.input == input
+        let html = renderer.render(
+            page: page,
+            language: language,
+            theme: theme,
+            assets: assets,
+            breakpoint: breakpoint
+        )
 #if DEBUG
-        let comparisonCompletedAt = ContinuousClock.now
-#endif
-        guard !isCacheHit else { return .init(html: renderedHTML, revision: revision) }
-#if DEBUG
-        let renderStartedAt = ContinuousClock.now
-        Logger.foundryPerformance.debug("Canvas full-page render started")
-#endif
-        renderedHTML = render()
-        revision &+= 1
-#if DEBUG
-        let renderCompletedAt = ContinuousClock.now
+        let completedAt = ContinuousClock.now
         Logger.foundryPerformance.debug(
-            "Canvas full-page render completed: inputEquality=\(comparisonStartedAt.milliseconds(to: comparisonCompletedAt), format: .fixed(precision: 3))ms, render=\(renderStartedAt.milliseconds(to: renderCompletedAt), format: .fixed(precision: 3))ms, bytes=\(self.renderedHTML.utf8.count)"
+            "Canvas background full-page render completed: render=\(startedAt.milliseconds(to: completedAt), format: .fixed(precision: 3))ms, bytes=\(html.utf8.count)"
         )
 #endif
-        self.input = input
-        return .init(html: renderedHTML, revision: revision)
+        return html
     }
 }
+
 
 private struct CanvasVisibleWidthReader: NSViewRepresentable {
     let onChange: (CGFloat) -> Void

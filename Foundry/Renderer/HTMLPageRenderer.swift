@@ -1,7 +1,6 @@
 import Foundation
 
-@MainActor
-struct HTMLPageRenderer: PageRendering {
+nonisolated struct HTMLPageRenderer: PageRendering {
     let site: Site?
 
     init(site: Site? = nil) { self.site = site }
