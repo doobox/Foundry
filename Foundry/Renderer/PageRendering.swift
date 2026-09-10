@@ -1,6 +1,6 @@
 import Foundation
 
-struct RenderedComponentSubtree: Equatable, Sendable {
+nonisolated struct RenderedComponentSubtree: Equatable, Sendable {
     let componentID: UUID
     let html: String
     let instanceCSS: String

@@ -6,8 +6,8 @@ import WebKit
 
 @MainActor
 final class CanvasAssetSchemeHandler: NSObject, WKURLSchemeHandler {
-    static let scheme = "foundry-asset"
-    static let packageScheme = "foundry-package-asset"
+    nonisolated static let scheme = "foundry-asset"
+    nonisolated static let packageScheme = "foundry-package-asset"
 
     private var assets: [UUID: ProjectAssetContent]
     private var packages: [String: LoadedComponentPackage]
@@ -135,7 +135,7 @@ struct CanvasUpdateRevisionGate {
     }
 }
 
-enum CanvasWebOperation: Equatable, Sendable {
+nonisolated enum CanvasWebOperation: Equatable, Sendable {
     case component(RenderedComponentSubtree, revision: UInt64)
     case reconcilePage(html: String, revision: UInt64)
     case reloadDocument(html: String, revision: UInt64)
@@ -263,7 +263,7 @@ struct WebCanvasView: NSViewRepresentable {
     final class Coordinator: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
         static let handlerName = "foundryCanvas"
         let assetSchemeHandler: CanvasAssetSchemeHandler
-        static let interactionScript = """
+        nonisolated static let interactionScript = """
         (() => {
           if (window.foundryCanvasInstalled) return;
           window.foundryCanvasInstalled = true;
