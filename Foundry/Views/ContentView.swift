@@ -35,6 +35,7 @@ struct ContentView: View {
     @State private var inspectedPageID: UUID?
     @State private var selectedPageFolderID: UUID?
     @State private var selectedPageAssetID: UUID?
+    @State private var expandedPageTreeItemIDs: Set<UUID> = []
     @State private var selectedAssetLibraryNodeID: UUID?
     @State private var selectedComponentIDs: Set<UUID> = []
     @State private var selectedComponentID: UUID?
@@ -339,8 +340,11 @@ struct ContentView: View {
                 selectedPageID: inspectablePageSelection,
                 selectedFolderID: inspectablePageFolderSelection,
                 selectedAssetID: inspectablePageAssetSelection,
-                addPage: addPage,
-                addFolder: { _ = editor.addPageFolder(named: $0) },
+                expandedItemIDs: $expandedPageTreeItemIDs,
+                addPage: { addPage(at: $0) },
+                addFolder: addPageFolder,
+                renameFolder: { editor.renamePageFolder(id: $0, name: $1) },
+                deleteFolder: { editor.removePageFolder(id: $0) },
                 duplicatePage: duplicatePage,
                 renamePage: { editor.renamePageFromOutline(id: $0, title: $1) },
                 deletePage: deletePage,
@@ -370,9 +374,12 @@ struct ContentView: View {
         case .structure:
             StructurePanel(
                 page: selectedPage,
+                globalComponentNames: Dictionary(
+                    uniqueKeysWithValues: document.site.globalComponents.map { ($0.id, $0.name) }
+                ),
                 selectedComponentIDs: $selectedComponentIDs,
                 selectedComponentID: inspectableComponentSelection,
-                renameComponent: { editor.renameComponent(id: $0, name: $1) },
+                renameComponent: renameComponent,
                 moveComponentsToPlacement: moveComponentsFromStructure,
                 insertComponent: insertComponentFromLibrary,
                 insertReusableComponent: insertReusableComponentFromLibrary,
@@ -549,7 +556,7 @@ struct ContentView: View {
 
     private var inspectablePageSelection: Binding<UUID?> {
         Binding(
-            get: { inspectedPageID },
+            get: { inspectedPageID ?? selectedPageID },
             set: { pageID in
                 inspectedPageID = pageID
                 guard pageID != nil else { return }
@@ -998,6 +1005,10 @@ struct ContentView: View {
             canvasReusableComponentName = component.name
         case .saveGlobal:
             canvasGlobalComponentName = component.name
+        case .makeLocalOverride:
+            editor.setGlobalComponentLinked(componentID: componentID, isLinked: false)
+        case .relinkGlobal:
+            editor.setGlobalComponentLinked(componentID: componentID, isLinked: true)
         case .moveUp:
             moveComponent(-1)
         case .moveDown:
@@ -1158,10 +1169,30 @@ struct ContentView: View {
     }
 
     private func addPage() {
+        addPage(at: nil)
+    }
+
+    private func addPage(at placement: PageTreePlacement?) {
         let pageID = editor.addPage()
+        if let placement {
+            _ = editor.movePageTreeItem(.page(pageID), to: placement)
+        }
         selectedPageID = pageID
+        selectedPageFolderID = nil
+        selectedPageAssetID = nil
         inspectedPageID = pageID
         selectedComponentID = nil
+    }
+
+    private func addPageFolder(_ name: String, at placement: PageTreePlacement?) {
+        let folderID = editor.addPageFolder(named: name)
+        if let placement {
+            _ = editor.movePageTreeItem(.folder(folderID), to: placement)
+        }
+        selectedPageFolderID = folderID
+        inspectedPageID = nil
+        selectedPageAssetID = nil
+        expandedPageTreeItemIDs.insert(folderID)
     }
 
     private func duplicatePage(_ pageID: UUID) {
@@ -1301,6 +1332,15 @@ struct ContentView: View {
             editsSharedReusableDefinition = true
         }
         return createdIDs.count == orderedTopLevelIDs.count
+    }
+
+    private func renameComponent(_ componentID: UUID, _ name: String) {
+        if let definitionID = document.site.component(withID: componentID)?.reusableDefinitionID,
+           document.site.globalComponents.contains(where: { $0.id == definitionID }) {
+            editor.renameGlobalComponent(definitionID: definitionID, name: name)
+        } else {
+            editor.renameComponent(id: componentID, name: name)
+        }
     }
 
     private func renameGlobalComponent(_ definitionID: UUID, _ name: String) {

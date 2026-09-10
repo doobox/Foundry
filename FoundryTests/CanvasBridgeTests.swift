@@ -391,6 +391,8 @@ struct CanvasBridgeTests {
         #expect(interactionScript.contains("const globalChromeColor = '#30D158'"))
         #expect(interactionScript.contains("data-foundry-editor-chrome', 'editable"))
         #expect(interactionScript.contains("[data-foundry-inline-property]"))
+        #expect(interactionScript.contains("const clickedEditable = event.target.closest('[data-foundry-inline-property]')"))
+        #expect(!interactionScript.contains("component.querySelector('[data-foundry-inline-property]') !== null"))
         #expect(!html.contains("[data-foundry-id]:hover:not(:has([data-foundry-id]:hover))"))
         #expect(!html.contains("data-foundry-name); position: absolute"))
         #expect(!html.contains("position: relative; cursor: default"))

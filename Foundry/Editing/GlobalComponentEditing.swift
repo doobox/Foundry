@@ -57,6 +57,13 @@ extension ProjectEditor {
         mutate(actionName: "Rename Global Component") { site in
             guard let index = site.globalComponents.firstIndex(where: { $0.id == definitionID }) else { return }
             site.globalComponents[index].name = name
+            site.globalComponents[index].root.name = name
+            for pageIndex in site.pages.indices {
+                site.pages[pageIndex].components.renameGlobalInstances(
+                    definitionID: definitionID,
+                    name: name
+                )
+            }
         }
     }
 
@@ -71,6 +78,15 @@ extension ProjectEditor {
 }
 
 nonisolated private extension Array where Element == ComponentNode {
+    mutating func renameGlobalInstances(definitionID: UUID, name: String) {
+        for index in indices {
+            if self[index].reusableDefinitionID == definitionID {
+                self[index].name = name
+            }
+            self[index].children.renameGlobalInstances(definitionID: definitionID, name: name)
+        }
+    }
+
     mutating func detachGlobalInstances(definitionID: UUID) {
         for index in indices {
             if self[index].reusableDefinitionID == definitionID {

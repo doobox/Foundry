@@ -156,7 +156,12 @@ nonisolated extension ComponentNode {
             children: children.map { $0.duplicated() },
             reusableDefinitionID: reusableDefinitionID,
             overridesGlobalDefinition: overridesGlobalDefinition,
-            responsiveOverrides: responsiveOverrides
+            responsiveOverrides: responsiveOverrides,
+            packageLock: packageLock,
+            missingPackageSnapshot: missingPackageSnapshot,
+            slotID: slotID,
+            customClasses: customClasses,
+            rootAttributes: rootAttributes
         )
     }
 
@@ -179,7 +184,13 @@ nonisolated extension ComponentNode {
             name: name,
             properties: properties,
             children: children.map { $0.duplicated() },
-            reusableDefinitionID: definitionID
+            reusableDefinitionID: definitionID,
+            responsiveOverrides: responsiveOverrides,
+            packageLock: packageLock,
+            missingPackageSnapshot: missingPackageSnapshot,
+            slotID: slotID,
+            customClasses: customClasses,
+            rootAttributes: rootAttributes
         )
     }
 
@@ -201,7 +212,13 @@ nonisolated extension ComponentNode {
             },
             reusableDefinitionID: definitionID,
             overridesGlobalDefinition: false,
-            responsiveOverrides: responsiveOverrides
+            responsiveOverrides: responsiveOverrides,
+            packageLock: packageLock,
+            missingPackageSnapshot: missingPackageSnapshot,
+            slotID: slotID,
+            anchor: instance.anchor,
+            customClasses: customClasses,
+            rootAttributes: rootAttributes
         )
     }
 

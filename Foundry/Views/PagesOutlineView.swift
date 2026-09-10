@@ -9,8 +9,11 @@ struct PagesOutlineView: NSViewRepresentable {
     @Binding var selectedPageID: UUID?
     @Binding var selectedFolderID: UUID?
     @Binding var selectedAssetID: UUID?
-    let addPage: () -> Void
-    let requestAddFolder: () -> Void
+    @Binding var expandedItemIDs: Set<UUID>
+    let addPage: (PageTreePlacement?) -> Void
+    let requestAddFolder: (PageTreePlacement?) -> Void
+    let renameFolder: (UUID, String) -> Void
+    let requestDeleteFolder: (UUID) -> Void
     let duplicatePage: (UUID) -> Void
     let renamePage: (UUID, String) -> Void
     let deletePage: (UUID) -> Void
@@ -79,6 +82,7 @@ struct PagesOutlineView: NSViewRepresentable {
         private var itemsByID: [UUID: PageOutlineItem] = [:]
         private var displayedSignature: [String] = []
         private var isRestoringSelection = false
+        private var isRestoringExpansion = false
 
         init(parent: PagesOutlineView) {
             self.parent = parent
@@ -98,13 +102,15 @@ struct PagesOutlineView: NSViewRepresentable {
                     asset.exportDirectory.map { "a:\(asset.id):\($0):\(asset.exportOrder):\(asset.filename):\(parent.publishingChanges[asset.id]?.rawValue ?? "published")" }
                 }
             if signature != displayedSignature {
-                let expandedIDs = expandedItemIDs()
+                let expandedIDs = parent.expandedItemIDs.union(expandedItemIDs())
                 displayedSignature = signature
                 rebuild(pages: pages, folders: folders, assets: assets)
                 outlineView?.reloadData()
+                isRestoringExpansion = true
                 for id in expandedIDs {
                     if let item = itemsByID[id] { outlineView?.expandItem(item) }
                 }
+                isRestoringExpansion = false
             }
             restoreSelectionIfNeeded(
                 pageID: selectedPageID,
@@ -123,8 +129,7 @@ struct PagesOutlineView: NSViewRepresentable {
 
         func outlineView(_ outlineView: NSOutlineView, isItemExpandable item: Any) -> Bool {
             guard let item = item as? PageOutlineItem else { return false }
-            if case .folder = item.kind { return true }
-            return item.isPage && !item.children.isEmpty
+            return !item.children.isEmpty
         }
 
         func outlineView(_ outlineView: NSOutlineView, viewFor tableColumn: NSTableColumn?, item: Any) -> NSView? {
@@ -135,8 +140,8 @@ struct PagesOutlineView: NSViewRepresentable {
             cell.textField?.stringValue = item.title
             cell.textField?.identifier = NSUserInterfaceItemIdentifier(item.id.uuidString)
             cell.textField?.delegate = self
-            cell.textField?.isEditable = item.isPage
-            cell.textField?.isSelectable = item.isPage
+            cell.textField?.isEditable = item.isPage || item.isFolder
+            cell.textField?.isSelectable = item.isPage || item.isFolder
             cell.imageView?.image = NSImage(
                 systemSymbolName: item.systemImage,
                 accessibilityDescription: item.title
@@ -157,10 +162,22 @@ struct PagesOutlineView: NSViewRepresentable {
                 selectForContextAction(item)
             }
 
-            menu.addItem(menuItem("New Page", action: #selector(addPageFromContextMenu), key: "n", modifiers: [.command, .option]))
-            menu.addItem(menuItem("New Folder…", action: #selector(addFolderFromContextMenu), key: "n", modifiers: [.command, .shift]))
+            menu.addItem(menuItem(
+                "New Page",
+                action: #selector(addPageFromContextMenu(_:)),
+                item: item,
+                key: "n",
+                modifiers: [.command, .option]
+            ))
+            menu.addItem(menuItem(
+                "New Folder…",
+                action: #selector(addFolderFromContextMenu(_:)),
+                item: item,
+                key: "n",
+                modifiers: [.command, .shift]
+            ))
 
-            guard let item, case .page = item.kind else { return }
+            guard let item, item.isPage || item.isFolder else { return }
             menu.addItem(.separator())
             menu.addItem(menuItem(
                 "Rename",
@@ -169,6 +186,18 @@ struct PagesOutlineView: NSViewRepresentable {
                 key: "\r",
                 modifiers: []
             ))
+            if item.isFolder {
+                menu.addItem(.separator())
+                menu.addItem(menuItem(
+                    "Delete Folder…",
+                    action: #selector(deleteFolderFromContextMenu(_:)),
+                    item: item,
+                    key: String(Character(UnicodeScalar(NSDeleteCharacter)!)),
+                    modifiers: []
+                ))
+                return
+            }
+
             menu.addItem(menuItem("Duplicate", action: #selector(duplicateFromContextMenu(_:)), item: item, key: "d"))
             if item.isTopLevelPage {
                 let setHome = menuItem(
@@ -231,18 +260,23 @@ struct PagesOutlineView: NSViewRepresentable {
             let character = event.charactersIgnoringModifiers?.lowercased()
 
             if modifiers == [.command, .option], character == "n" {
-                parent.addPage()
+                parent.addPage(nil)
                 return true
             }
             if modifiers == [.command, .shift], character == "n" {
-                parent.requestAddFolder()
+                parent.requestAddFolder(nil)
                 return true
             }
-            guard let item = selectedPageItem else { return false }
+            guard let item = selectedEditableItem else { return false }
             if modifiers.isEmpty, [36, 76].contains(event.keyCode) {
                 beginRenaming(item)
                 return true
             }
+            if [51, 117].contains(event.keyCode), item.isFolder {
+                parent.requestDeleteFolder(item.id)
+                return true
+            }
+            guard item.isPage else { return false }
             if modifiers == .command, character == "d" {
                 parent.duplicatePage(item.id)
                 return true
@@ -266,12 +300,25 @@ struct PagesOutlineView: NSViewRepresentable {
             return false
         }
 
-        @objc private func addPageFromContextMenu() {
-            parent.addPage()
+        @objc private func addPageFromContextMenu(_ sender: NSMenuItem) {
+            let item = contextItem(from: sender)
+            let placement: PageTreePlacement?
+            switch item?.kind {
+            case .folder(let id): placement = .insideFolder(id)
+            case .page(let id): placement = .insidePage(id)
+            case .asset, nil: placement = nil
+            }
+            parent.addPage(placement)
         }
 
-        @objc private func addFolderFromContextMenu() {
-            parent.requestAddFolder()
+        @objc private func addFolderFromContextMenu(_ sender: NSMenuItem) {
+            let placement: PageTreePlacement?
+            if case .folder(let id) = contextItem(from: sender)?.kind {
+                placement = .insideFolder(id)
+            } else {
+                placement = nil
+            }
+            parent.requestAddFolder(placement)
         }
 
         @objc private func duplicateFromContextMenu(_ sender: NSMenuItem) {
@@ -279,9 +326,15 @@ struct PagesOutlineView: NSViewRepresentable {
         }
 
         @objc private func renameFromContextMenu(_ sender: NSMenuItem) {
-            guard let item = contextItem(from: sender), case .page = item.kind else { return }
+            guard let item = contextItem(from: sender), item.isPage || item.isFolder else { return }
             selectForContextAction(item)
             beginRenaming(item)
+        }
+
+        @objc private func deleteFolderFromContextMenu(_ sender: NSMenuItem) {
+            guard let item = contextItem(from: sender), item.isFolder else { return }
+            selectForContextAction(item)
+            parent.requestDeleteFolder(item.id)
         }
 
         @objc private func setHomeFromContextMenu(_ sender: NSMenuItem) {
@@ -311,10 +364,10 @@ struct PagesOutlineView: NSViewRepresentable {
             return itemsByID[id]
         }
 
-        private var selectedPageItem: PageOutlineItem? {
+        private var selectedEditableItem: PageOutlineItem? {
             guard let outlineView, outlineView.selectedRow >= 0,
                   let item = outlineView.item(atRow: outlineView.selectedRow) as? PageOutlineItem,
-                  case .page = item.kind else { return nil }
+                  item.isPage || item.isFolder else { return nil }
             return item
         }
 
@@ -335,16 +388,19 @@ struct PagesOutlineView: NSViewRepresentable {
         func controlTextDidEndEditing(_ notification: Notification) {
             guard let textField = notification.object as? NSTextField,
                   let identifier = textField.identifier?.rawValue,
-                  let pageID = UUID(uuidString: identifier),
-                  let item = itemsByID[pageID],
-                  case .page = item.kind else { return }
+                  let itemID = UUID(uuidString: identifier),
+                  let item = itemsByID[itemID] else { return }
             let title = textField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !title.isEmpty else {
                 textField.stringValue = item.title
                 return
             }
             guard title != item.title else { return }
-            parent.renamePage(pageID, title)
+            switch item.kind {
+            case .page(let id): parent.renamePage(id, title)
+            case .folder(let id): parent.renameFolder(id, title)
+            case .asset: break
+            }
         }
 
         private func canMove(_ item: PageOutlineItem, offset: Int) -> Bool {
@@ -391,6 +447,14 @@ struct PagesOutlineView: NSViewRepresentable {
                 parent.selectedFolderID = nil
                 parent.selectedAssetID = nil
             }
+        }
+
+        func outlineViewItemDidExpand(_ notification: Notification) {
+            synchronizeExpansionState()
+        }
+
+        func outlineViewItemDidCollapse(_ notification: Notification) {
+            synchronizeExpansionState()
         }
 
         func outlineView(_ outlineView: NSOutlineView, pasteboardWriterForItem item: Any) -> (any NSPasteboardWriting)? {
@@ -632,10 +696,13 @@ struct PagesOutlineView: NSViewRepresentable {
                 outlineView.deselectAll(nil)
                 return
             }
+            isRestoringExpansion = true
             expandAncestors(of: item.id, in: roots)
+            isRestoringExpansion = false
             let row = outlineView.row(forItem: item)
             if row >= 0 {
                 outlineView.selectRowIndexes(IndexSet(integer: row), byExtendingSelection: false)
+                outlineView.scrollRowToVisible(row)
             }
         }
 
@@ -649,6 +716,11 @@ struct PagesOutlineView: NSViewRepresentable {
                 }
             }
             return false
+        }
+
+        private func synchronizeExpansionState() {
+            guard !isRestoringExpansion else { return }
+            parent.expandedItemIDs = expandedItemIDs()
         }
     }
 }

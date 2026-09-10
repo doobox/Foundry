@@ -10,8 +10,11 @@ struct PagesPanel: View {
     @Binding var selectedPageID: UUID?
     @Binding var selectedFolderID: UUID?
     @Binding var selectedAssetID: UUID?
-    let addPage: () -> Void
-    let addFolder: (String) -> Void
+    @Binding var expandedItemIDs: Set<UUID>
+    let addPage: (PageTreePlacement?) -> Void
+    let addFolder: (String, PageTreePlacement?) -> Void
+    let renameFolder: (UUID, String) -> Void
+    let deleteFolder: (UUID) -> Void
     let duplicatePage: (UUID) -> Void
     let renamePage: (UUID, String) -> Void
     let deletePage: (UUID) -> Void
@@ -21,13 +24,18 @@ struct PagesPanel: View {
     let importURLs: ([URL], PageTreePlacement) -> Void
     @State private var isNamingFolder = false
     @State private var folderName = ""
+    @State private var folderPlacement: PageTreePlacement?
+    @State private var folderPendingDeletion: UUID?
 
     var body: some View {
         VStack(spacing: 0) {
             PagesPanelHeader(
-                addPage: addPage,
+                addPage: {
+                    addPage(selectedFolderID.map(PageTreePlacement.insideFolder))
+                },
                 addFolder: {
                     folderName = ""
+                    folderPlacement = selectedFolderID.map(PageTreePlacement.insideFolder)
                     isNamingFolder = true
                 }
             )
@@ -41,11 +49,15 @@ struct PagesPanel: View {
                 selectedPageID: $selectedPageID,
                 selectedFolderID: $selectedFolderID,
                 selectedAssetID: $selectedAssetID,
+                expandedItemIDs: $expandedItemIDs,
                 addPage: addPage,
-                requestAddFolder: {
+                requestAddFolder: { placement in
                     folderName = ""
+                    folderPlacement = placement
                     isNamingFolder = true
                 },
+                renameFolder: renameFolder,
+                requestDeleteFolder: { folderPendingDeletion = $0 },
                 duplicatePage: duplicatePage,
                 renamePage: renamePage,
                 deletePage: deletePage,
@@ -58,6 +70,7 @@ struct PagesPanel: View {
             .overlay {
                 if pages.isEmpty && folders.isEmpty {
                     ContentUnavailableView("No Pages", systemImage: "doc")
+                        .allowsHitTesting(false)
                 }
             }
 
@@ -66,9 +79,32 @@ struct PagesPanel: View {
             TextField("Folder Name", text: $folderName)
             Button("Cancel", role: .cancel) {}
             Button("Create") {
-                addFolder(folderName.trimmingCharacters(in: .whitespacesAndNewlines))
+                addFolder(
+                    folderName.trimmingCharacters(in: .whitespacesAndNewlines),
+                    folderPlacement
+                )
             }
             .disabled(folderName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+        }
+        .alert(
+            "Delete Folder?",
+            isPresented: Binding(
+                get: { folderPendingDeletion != nil },
+                set: { if !$0 { folderPendingDeletion = nil } }
+            )
+        ) {
+            Button("Cancel", role: .cancel) { folderPendingDeletion = nil }
+            Button("Delete Folder", role: .destructive) {
+                guard let folderID = folderPendingDeletion else { return }
+                deleteFolder(folderID)
+                expandedItemIDs.remove(folderID)
+                if selectedFolderID == folderID {
+                    selectedFolderID = nil
+                }
+                folderPendingDeletion = nil
+            }
+        } message: {
+            Text("Pages, subfolders, and published assets inside this folder will be moved up one level.")
         }
     }
 }
@@ -1458,6 +1494,7 @@ struct GlobalComponentLibraryPanel: View {
 
 struct StructurePanel: View {
     let page: Page?
+    let globalComponentNames: [UUID: String]
     @Binding var selectedComponentIDs: Set<UUID>
     @Binding var selectedComponentID: UUID?
     let renameComponent: (UUID, String) -> Void
@@ -1485,6 +1522,7 @@ struct StructurePanel: View {
             if let page {
                 StructureOutlineView(
                     components: page.components,
+                    globalComponentNames: globalComponentNames,
                     selectedComponentIDs: $selectedComponentIDs,
                     primarySelectedComponentID: $selectedComponentID,
                     renameComponent: renameComponent,

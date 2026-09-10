@@ -300,6 +300,33 @@ struct PageEditingTests {
     }
 
     @Test
+    func deletingFolderPromotesItsContentsToTheParent() throws {
+        let page = Page(title: "About", slug: "about")
+        let parent = PageFolder(name: "Company", slug: "company")
+        let folder = PageFolder(name: "Team", slug: "team", parentID: parent.id)
+        let childFolder = PageFolder(name: "Photos", slug: "photos", parentID: folder.id)
+        let asset = ProjectAsset(filename: "team.txt", mediaType: "text/plain", byteCount: 12)
+        let site = Site(
+            name: "Tree",
+            pages: [page],
+            pageFolders: [parent, folder, childFolder],
+            assetLibrary: [.asset(asset)]
+        )
+        let document = FoundryDocument(site: site)
+        let editor = ProjectEditor(document: document, undoManager: nil)
+        #expect(editor.movePageTreeItem(.page(page.id), to: .insideFolder(folder.id)))
+        #expect(editor.movePageTreeItem(.asset(asset.id), to: .insideFolder(folder.id)))
+
+        editor.removePageFolder(id: folder.id)
+
+        #expect(!document.site.pageFolders.contains(where: { $0.id == folder.id }))
+        #expect(document.site.pages.first(where: { $0.id == page.id })?.folderID == parent.id)
+        #expect(document.site.pageFolders.first(where: { $0.id == childFolder.id })?.parentID == parent.id)
+        let movedAsset = try #require(document.site.assets.first(where: { $0.id == asset.id }))
+        #expect(movedAsset.exportDirectory == .folder(parent.id))
+    }
+
+    @Test
     func pagesCanContainPagesAndDriveNestedRoutes() throws {
         let document = FoundryDocument()
         let editor = ProjectEditor(document: document, undoManager: nil)

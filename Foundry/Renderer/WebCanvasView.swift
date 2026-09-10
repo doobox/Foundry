@@ -112,6 +112,8 @@ nonisolated enum CanvasContextMenuAction: String, Sendable {
     case paste
     case saveReusable
     case saveGlobal
+    case makeLocalOverride
+    case relinkGlobal
     case moveUp
     case moveDown
     case outdent
@@ -268,6 +270,14 @@ struct WebCanvasView: NSViewRepresentable {
           if (window.foundryCanvasInstalled) return;
           window.foundryCanvasInstalled = true;
           const selector = '[data-foundry-id]';
+          const interactionStyles = document.createElement('style');
+          interactionStyles.textContent = `
+            [data-foundry-inline-property]:not([contenteditable="true"]) {
+              -webkit-user-select: none !important;
+              user-select: none !important;
+            }
+          `;
+          document.documentElement.appendChild(interactionStyles);
           let placement = null;
           let selectedComponentIDs = [];
           let selectedPrimitiveSelection = null;
@@ -282,8 +292,6 @@ struct WebCanvasView: NSViewRepresentable {
             return raw.split(',').map(Number).filter(Number.isInteger);
           };
           let activeDragSources = [];
-          let globalMenuTarget = null;
-          let globalMenuRelinks = false;
 
           const chromeHost = document.createElement('div');
           chromeHost.setAttribute('popover', 'manual');
@@ -299,27 +307,8 @@ struct WebCanvasView: NSViewRepresentable {
           const chromeStyles = document.createElement('style');
           chromeStyles.textContent = `
             *, *::before, *::after { box-sizing: border-box; }
-            .foundry-global-menu {
-              display: none; position: fixed; z-index: 2; min-width: 190px; padding: 5px;
-              border: 1px solid rgba(0,0,0,.12); border-radius: 9px; background: rgba(255,255,255,.98);
-              box-shadow: 0 10px 30px rgba(0,0,0,.2); color: #171719; pointer-events: auto;
-            }
-            .foundry-global-menu.is-visible { display: block; }
-            .foundry-global-menu button {
-              display: block; width: 100%; padding: 7px 10px; border: 0; border-radius: 6px;
-              background: transparent; color: inherit; font: 13px system-ui; text-align: left; cursor: default;
-            }
-            .foundry-global-menu button:hover { background: rgba(0,0,0,.08); }
           `;
           chromeRoot.appendChild(chromeStyles);
-
-          const globalMenu = document.createElement('div');
-          globalMenu.className = 'foundry-global-menu';
-          globalMenu.setAttribute('role', 'menu');
-          const globalMenuAction = document.createElement('button');
-          globalMenuAction.type = 'button';
-          globalMenuAction.setAttribute('role', 'menuitem');
-          globalMenu.appendChild(globalMenuAction);
 
           const chromeLayer = document.createElement('div');
           chromeLayer.setAttribute('data-foundry-editor-chrome', 'layer');
@@ -330,7 +319,7 @@ struct WebCanvasView: NSViewRepresentable {
           Object.entries(chromeLayerStyles).forEach(([property, value]) => {
             chromeLayer.style.setProperty(property.replace(/[A-Z]/g, match => '-' + match.toLowerCase()), value, 'important');
           });
-          chromeRoot.append(chromeLayer, globalMenu);
+          chromeRoot.appendChild(chromeLayer);
           document.documentElement.appendChild(chromeHost);
           if (typeof chromeHost.showPopover === 'function') chromeHost.showPopover();
 
@@ -382,17 +371,7 @@ struct WebCanvasView: NSViewRepresentable {
           const editableChrome = document.createElement('div');
           editableChrome.setAttribute('data-foundry-editor-chrome', 'editable');
           applyOutlineBaseStyles(editableChrome);
-          const editableBadge = document.createElement('div');
-          editableBadge.innerHTML = '<svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true"><path d="M11.7 1.3a1 1 0 0 1 1.4 0l1.6 1.6a1 1 0 0 1 0 1.4L6 13l-4 1 1-4zM10.6 2.4 4.4 8.6l3 3 6.2-6.2z" fill="currentColor"/></svg>';
-          const editableBadgeStyles = {
-            all: 'initial', position: 'fixed', display: 'none', width: '22px', height: '22px',
-            boxSizing: 'border-box', borderRadius: '11px', color: 'white', pointerEvents: 'none',
-            alignItems: 'center', justifyContent: 'center', zIndex: '2147483647'
-          };
-          Object.entries(editableBadgeStyles).forEach(([property, value]) => {
-            editableBadge.style.setProperty(property.replace(/[A-Z]/g, match => '-' + match.toLowerCase()), value, 'important');
-          });
-          chromeLayer.append(editableChrome, editableBadge);
+          chromeLayer.appendChild(editableChrome);
           let chromeFrame = null;
 
           const editorChromeColor = '#0A84FF';
@@ -493,13 +472,11 @@ struct WebCanvasView: NSViewRepresentable {
             const target = hoveredEditable;
             if (!target?.isConnected || target.isContentEditable || isDragging || !editorOptions.showsOutlines) {
               editableChrome.style.setProperty('display', 'none', 'important');
-              editableBadge.style.setProperty('display', 'none', 'important');
               return;
             }
             const rect = chromeRect(target);
             if (rect.width <= 0 || rect.height <= 0 || rect.bottom < 0 || rect.top > window.innerHeight) {
               editableChrome.style.setProperty('display', 'none', 'important');
-              editableBadge.style.setProperty('display', 'none', 'important');
               return;
             }
             const color = componentChromeColor(target);
@@ -509,10 +486,6 @@ struct WebCanvasView: NSViewRepresentable {
             editableChrome.style.setProperty('height', rect.height + 'px', 'important');
             editableChrome.style.setProperty('background', color + '14', 'important');
             editableChrome.style.setProperty('display', 'block', 'important');
-            editableBadge.style.setProperty('left', Math.max(2, Math.min(rect.right - 24, window.innerWidth - 24)) + 'px', 'important');
-            editableBadge.style.setProperty('top', Math.max(2, rect.top + 2) + 'px', 'important');
-            editableBadge.style.setProperty('background', color, 'important');
-            editableBadge.style.setProperty('display', 'flex', 'important');
           };
 
           const updateChromeTitle = () => {
@@ -563,48 +536,6 @@ struct WebCanvasView: NSViewRepresentable {
           }, true);
           document.addEventListener('scroll', scheduleChromeTitleUpdate, true);
           window.addEventListener('resize', scheduleChromeTitleUpdate);
-
-          const dismissGlobalMenu = () => {
-            globalMenu.classList.remove('is-visible');
-            globalMenuTarget = null;
-          };
-
-          globalMenuAction.addEventListener('click', event => {
-            event.preventDefault();
-            event.stopPropagation();
-            if (!globalMenuTarget) return;
-            window.webkit.messageHandlers.foundryCanvas.postMessage({
-              version: 1,
-              event: 'setGlobalLink',
-              componentID: globalMenuTarget.dataset.foundryId,
-              isGlobalLinked: globalMenuRelinks
-            });
-            dismissGlobalMenu();
-          });
-
-          document.addEventListener('contextmenu', event => {
-            if (webInspectorEnabled || event.altKey) return;
-            const element = event.target.closest(selector);
-            if (!element?.dataset.foundryGlobal) return;
-            event.preventDefault();
-            event.stopPropagation();
-            const overrideOwner = element.closest('[data-foundry-global-override="true"]');
-            globalMenuTarget = overrideOwner || element;
-            globalMenuRelinks = Boolean(overrideOwner);
-            globalMenuAction.textContent = globalMenuRelinks ? 'Relink to Global' : 'Make Local Override';
-            globalMenu.classList.add('is-visible');
-            const width = globalMenu.offsetWidth;
-            const height = globalMenu.offsetHeight;
-            globalMenu.style.left = Math.max(8, Math.min(event.clientX, window.innerWidth - width - 8)) + 'px';
-            globalMenu.style.top = Math.max(8, Math.min(event.clientY, window.innerHeight - height - 8)) + 'px';
-          });
-          document.addEventListener('click', event => {
-            if (!globalMenu.contains(event.target)) dismissGlobalMenu();
-          }, true);
-          document.addEventListener('keydown', event => {
-            if (event.key === 'Escape') dismissGlobalMenu();
-          });
-          document.addEventListener('scroll', dismissGlobalMenu, true);
 
           const clearDrop = () => {
             document.querySelectorAll('.foundry-drop-before,.foundry-drop-after,.foundry-drop-inside')
@@ -1070,11 +1001,29 @@ struct WebCanvasView: NSViewRepresentable {
             });
           }, true);
 
+          const selectedEditableElement = component => {
+            if (!component || !selectedComponentIDs.includes(component.dataset.foundryId)) return null;
+            if (selectedPrimitiveSelection?.componentID === component.dataset.foundryId) {
+              const expectedPath = Array.isArray(selectedPrimitiveSelection.propertyPath)
+                ? selectedPrimitiveSelection.propertyPath.join(',')
+                : '';
+              const property = selectedPrimitiveSelection.propertyKey || '';
+              const candidates = [
+                ...(component.matches('[data-foundry-inline-property]') ? [component] : []),
+                ...component.querySelectorAll('[data-foundry-inline-property]')
+              ];
+              return candidates.find(candidate =>
+                candidate.dataset.foundryInlineProperty === property
+                && (candidate.dataset.foundryPropertyPath || '') === expectedPath
+                && candidate.closest(selector) === component
+              ) ?? null;
+            }
+            return component.matches('[data-foundry-inline-property]') ? component : null;
+          };
+
           window.foundryEditComponent = componentID => {
             const component = document.querySelector('[data-foundry-id="' + CSS.escape(componentID) + '"]');
-            const editable = component?.matches('[data-foundry-inline-property]')
-              ? component
-              : component?.querySelector('[data-foundry-inline-property]');
+            const editable = selectedEditableElement(component);
             if (!editable) return;
             editable.dispatchEvent(new MouseEvent('dblclick', { bubbles: true, cancelable: true }));
           };
@@ -1083,8 +1032,34 @@ struct WebCanvasView: NSViewRepresentable {
             if (event.altKey) return;
             const component = event.target.closest(selector);
             if (!component) return;
-            const editable = component.matches('[data-foundry-inline-property]')
-              || component.querySelector('[data-foundry-inline-property]') !== null;
+            const clickedPrimitiveCandidate = event.target.closest('[data-foundry-primitive-property]');
+            const clickedPrimitive = clickedPrimitiveCandidate?.closest(selector) === component
+              ? clickedPrimitiveCandidate
+              : null;
+            const primitiveProperty = clickedPrimitive?.dataset.foundryPrimitiveProperty;
+            const primitivePath = propertyPath(clickedPrimitive);
+            const primitiveWasSelected = Boolean(
+              primitiveProperty
+              && selectedPrimitiveSelection?.componentID === component.dataset.foundryId
+              && selectedPrimitiveSelection?.propertyKey === primitiveProperty
+              && (selectedPrimitiveSelection?.propertyPath || []).join(',') === primitivePath.join(',')
+            );
+            const componentWasSelected = selectedComponentIDs.includes(component.dataset.foundryId);
+            const preservesSelection = clickedPrimitive
+              ? primitiveWasSelected
+              : componentWasSelected && selectedPrimitiveSelection?.componentID !== component.dataset.foundryId;
+            const selectionCount = preservesSelection ? selectedComponentIDs.length : 1;
+            const parentComponent = component.parentElement?.closest(selector) ?? null;
+            const siblings = [...document.querySelectorAll(selector)].filter(candidate =>
+              (candidate.parentElement?.closest(selector) ?? null) === parentComponent
+            );
+            const siblingIndex = siblings.indexOf(component);
+            const clickedEditable = event.target.closest('[data-foundry-inline-property]');
+            const editable = selectionCount === 1
+              && clickedEditable?.closest(selector) === component
+              && (!clickedPrimitive || clickedEditable === clickedPrimitive);
+            const overrideOwner = component.closest('[data-foundry-global-override="true"]');
+            const globalTarget = overrideOwner || (component.dataset.foundryGlobal ? component : null);
             const clickedImageZone = event.target.closest('[data-foundry-image-drop-zone]');
             const imageZone = clickedImageZone?.closest(selector) === component ? clickedImageZone : null;
             window.webkit.messageHandlers.foundryCanvas.postMessage({
@@ -1096,10 +1071,19 @@ struct WebCanvasView: NSViewRepresentable {
               componentAuthor: component.dataset.foundryAuthor,
               componentVersion: component.dataset.foundryVersion,
               canEdit: editable,
-              hasImage: imageZone?.tagName === 'IMG',
-              imageProperty: imageZone?.dataset.foundryImageProperty,
-              imagePropertyPath: propertyPath(imageZone),
-              preservesSelection: selectedComponentIDs.includes(component.dataset.foundryId)
+              primitiveProperty: primitiveProperty,
+              primitivePath: primitivePath,
+              selectionCount: selectionCount,
+              canMoveUp: selectionCount === 1 && siblingIndex > 0,
+              canMoveDown: selectionCount === 1 && siblingIndex >= 0 && siblingIndex < siblings.length - 1,
+              canOutdent: selectionCount === 1 && parentComponent !== null,
+              canSaveAsComponent: selectionCount === 1 && !component.dataset.foundryGlobal,
+              globalTargetID: selectionCount === 1 ? globalTarget?.dataset.foundryId : undefined,
+              isGlobalLinked: Boolean(globalTarget && !overrideOwner && selectionCount === 1),
+              hasImage: selectionCount === 1 && imageZone?.tagName === 'IMG',
+              imageProperty: selectionCount === 1 ? imageZone?.dataset.foundryImageProperty : undefined,
+              imagePropertyPath: selectionCount === 1 ? propertyPath(imageZone) : [],
+              preservesSelection: preservesSelection
             });
             if (webInspectorEnabled) return;
             event.preventDefault();
@@ -1147,6 +1131,7 @@ struct WebCanvasView: NSViewRepresentable {
         var requestFullReconciliation: () -> Void
         private var contextMenuComponentID: UUID?
         private var contextMenuImageProperty: ComponentProperty.Key?
+        private var contextMenuGlobalTargetID: UUID?
         private var pendingHTML: (html: String, revision: UInt64)?
         private var pendingComponent: (subtree: RenderedComponentSubtree, revision: UInt64)?
         private var loadedHTML: String?
@@ -1225,10 +1210,21 @@ struct WebCanvasView: NSViewRepresentable {
             contextMenuRequest = request
             contextMenuComponentID = componentID
             contextMenuImageProperty = (request["imageProperty"] as? String).map(ComponentProperty.Key.init(rawValue:))
+            contextMenuGlobalTargetID = (request["globalTargetID"] as? String).flatMap(UUID.init(uuidString:))
             contextMenuImagePropertyPath = (request["imagePropertyPath"] as? [NSNumber])?.map(\.intValue) ?? []
             if request["preservesSelection"] as? Bool != true {
                 pendingCanvasSelection = [componentID]
-                handleMessage(.init(event: .selectComponent, componentID: componentID, extendsSelection: false))
+                if let property = request["primitiveProperty"] as? String {
+                    let path = (request["primitivePath"] as? [NSNumber])?.map(\.intValue) ?? []
+                    handleMessage(.init(
+                        event: .selectPrimitive,
+                        componentID: componentID,
+                        propertyKey: .init(rawValue: property),
+                        propertyPath: path
+                    ))
+                } else {
+                    handleMessage(.init(event: .selectComponent, componentID: componentID, extendsSelection: false))
+                }
             }
 
             if webView.isInspectable {
@@ -1277,24 +1273,48 @@ struct WebCanvasView: NSViewRepresentable {
                 menu.addItem(menuItem("Edit", action: #selector(editComponent), key: "\r", modifiers: []))
                 menu.addItem(.separator())
             }
-            menu.addItem(menuItem("Duplicate", action: #selector(performContextAction(_:)), representedAction: .duplicate, key: "d"))
+            if contextMenuGlobalTargetID != nil {
+                let isLinked = request["isGlobalLinked"] as? Bool == true
+                menu.addItem(menuItem(
+                    isLinked ? "Make Local Override" : "Relink to Global",
+                    action: #selector(performContextAction(_:)),
+                    representedAction: isLinked ? .makeLocalOverride : .relinkGlobal
+                ))
+                menu.addItem(.separator())
+            }
+            let duplicate = menuItem("Duplicate", action: #selector(performContextAction(_:)), representedAction: .duplicate, key: "d")
+            duplicate.isEnabled = (request["selectionCount"] as? Int ?? 1) > 0
+            menu.addItem(duplicate)
             menu.addItem(menuItem("Copy", action: #selector(performContextAction(_:)), representedAction: .copy, key: "c"))
             let paste = menuItem("Paste", action: #selector(performContextAction(_:)), representedAction: .paste, key: "v")
             paste.isEnabled = canPasteComponent
             menu.addItem(paste)
             menu.addItem(.separator())
-            menu.addItem(menuItem("Save as Reusable Component…", action: #selector(performContextAction(_:)), representedAction: .saveReusable))
-            menu.addItem(menuItem("Save as Global Component…", action: #selector(performContextAction(_:)), representedAction: .saveGlobal))
+            let saveReusable = menuItem("Save as Reusable Component…", action: #selector(performContextAction(_:)), representedAction: .saveReusable)
+            let saveGlobal = menuItem("Save as Global Component…", action: #selector(performContextAction(_:)), representedAction: .saveGlobal)
+            saveReusable.isEnabled = request["canSaveAsComponent"] as? Bool == true
+            saveGlobal.isEnabled = request["canSaveAsComponent"] as? Bool == true
+            menu.addItem(saveReusable)
+            menu.addItem(saveGlobal)
             menu.addItem(.separator())
-            menu.addItem(menuItem("Move Up", action: #selector(performContextAction(_:)), representedAction: .moveUp))
-            menu.addItem(menuItem("Move Down", action: #selector(performContextAction(_:)), representedAction: .moveDown))
-            menu.addItem(menuItem("Move Out of Container", action: #selector(performContextAction(_:)), representedAction: .outdent))
+            let moveUp = menuItem("Move Up", action: #selector(performContextAction(_:)), representedAction: .moveUp)
+            let moveDown = menuItem("Move Down", action: #selector(performContextAction(_:)), representedAction: .moveDown)
+            let outdent = menuItem("Move Out of Container", action: #selector(performContextAction(_:)), representedAction: .outdent)
+            moveUp.isEnabled = request["canMoveUp"] as? Bool == true
+            moveDown.isEnabled = request["canMoveDown"] as? Bool == true
+            outdent.isEnabled = request["canOutdent"] as? Bool == true
+            menu.addItem(moveUp)
+            menu.addItem(moveDown)
+            menu.addItem(outdent)
             menu.addItem(.separator())
             menu.addItem(menuItem("Delete", action: #selector(performContextAction(_:)), representedAction: .delete, key: String(Character(UnicodeScalar(NSDeleteCharacter)!)), modifiers: []))
         }
 
         private func contextMenuHeader(for request: [String: Any]) -> NSMenuItem {
-            let title = request["componentType"] as? String ?? "Component"
+            let selectionCount = request["selectionCount"] as? Int ?? 1
+            let title = selectionCount > 1
+                ? "\(selectionCount) Components"
+                : request["componentType"] as? String ?? "Component"
             let author = request["componentAuthor"] as? String ?? "Foundry"
             let version = request["componentVersion"] as? String ?? ""
             let subtitle = version.isEmpty ? author : "\(author)  v\(version)"
@@ -1379,7 +1399,15 @@ struct WebCanvasView: NSViewRepresentable {
             guard let contextMenuComponentID,
                   let rawValue = sender.representedObject as? String,
                   let action = CanvasContextMenuAction(rawValue: rawValue) else { return }
-            handleContextMenuAction(action, contextMenuComponentID, contextMenuImageProperty, contextMenuImagePropertyPath)
+            let targetID: UUID
+            switch action {
+            case .makeLocalOverride, .relinkGlobal:
+                guard let contextMenuGlobalTargetID else { return }
+                targetID = contextMenuGlobalTargetID
+            default:
+                targetID = contextMenuComponentID
+            }
+            handleContextMenuAction(action, targetID, contextMenuImageProperty, contextMenuImagePropertyPath)
         }
 
         func apply(_ operation: CanvasWebOperation, in webView: WKWebView) {

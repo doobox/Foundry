@@ -617,9 +617,11 @@ private struct ComponentInspector: View {
     var body: some View {
         ScrollView {
             LazyVStack(spacing: 14) {
-                if let reusableDefinition {
-                    InspectorCard(title: "Global Component") {
-                        LabeledContent("Definition", value: reusableDefinition.name)
+                InspectorCard {
+                    componentIdentityHeader
+
+                    if reusableDefinition != nil {
+                        Divider()
                         Toggle(
                             "Local Override",
                             isOn: Binding(
@@ -633,10 +635,6 @@ private struct ComponentInspector: View {
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
-                }
-
-                InspectorCard {
-                    componentIdentityHeader
                 }
 
                 ForEach(inspectorGroups, id: \.rawValue) { group in
@@ -711,7 +709,7 @@ private struct ComponentInspector: View {
             .clipShape(RoundedRectangle(cornerRadius: 32 * 0.16))
 
             VStack(alignment: .leading, spacing: 3) {
-                Text(component.type.displayName)
+                Text(reusableDefinition?.name ?? component.type.displayName)
                     .font(.headline)
                 Text(componentDeveloper)
                     .font(.subheadline)

@@ -3,6 +3,7 @@ import SwiftUI
 
 struct StructureOutlineView: NSViewRepresentable {
     let components: [ComponentNode]
+    let globalComponentNames: [UUID: String]
     @Binding var selectedComponentIDs: Set<UUID>
     @Binding var primarySelectedComponentID: UUID?
     let renameComponent: (UUID, String) -> Void
@@ -106,11 +107,12 @@ struct StructureOutlineView: NSViewRepresentable {
             let identifier = NSUserInterfaceItemIdentifier.componentCell
             let cell = outlineView.makeView(withIdentifier: identifier, owner: nil) as? NSTableCellView
                 ?? makeCell(identifier: identifier)
-            cell.textField?.stringValue = item.component.name
+            let name = displayName(for: item.component)
+            cell.textField?.stringValue = name
             cell.textField?.identifier = NSUserInterfaceItemIdentifier(item.id.uuidString)
             cell.textField?.delegate = self
             cell.imageView?.image = componentIcon(for: item.component)
-            cell.imageView?.setAccessibilityLabel(item.component.name)
+            cell.imageView?.setAccessibilityLabel(name)
             return cell
         }
 
@@ -463,8 +465,14 @@ struct StructureOutlineView: NSViewRepresentable {
             return nil
         }
 
+        private func displayName(for component: ComponentNode) -> String {
+            component.reusableDefinitionID.flatMap { parent.globalComponentNames[$0] } ?? component.name
+        }
+
         private func flattenedSignature(_ components: [ComponentNode]) -> [String] {
-            components.flatMap { ["\($0.id.uuidString):\($0.name)"] + flattenedSignature($0.children) }
+            components.flatMap {
+                ["\($0.id.uuidString):\(displayName(for: $0))"] + flattenedSignature($0.children)
+            }
         }
     }
 }

@@ -653,7 +653,10 @@ nonisolated struct HTMLPageRenderer: PageRendering {
             " data-foundry-global=\"\($0.uuidString)\" data-foundry-global-override=\"\(node.overridesGlobalDefinition == true)\""
         } ?? ""
         let anchorAttribute = validAnchor(for: node).map { " id=\"\(escapeAttribute($0))\"" } ?? ""
-        return "data-foundry-id=\"\(node.id.uuidString)\"\(anchorAttribute)\(customAttributes(for: node)) data-foundry-component-type=\"\(escapeAttribute(node.type.rawValue))\" data-foundry-type=\"\(escapeAttribute(node.type.displayName))\" data-foundry-name=\"\(escapeAttribute(node.name))\" data-foundry-author=\"\(escapeAttribute(attribution))\" data-foundry-version=\"\(escapeAttribute(version))\" data-foundry-accepts-children=\"\(acceptsChildren)\"\(globalAttributes)"
+        let userFacingName = node.reusableDefinitionID.flatMap { definitionID in
+            site?.globalComponents.first(where: { $0.id == definitionID })?.name
+        } ?? node.name
+        return "data-foundry-id=\"\(node.id.uuidString)\"\(anchorAttribute)\(customAttributes(for: node)) data-foundry-component-type=\"\(escapeAttribute(node.type.rawValue))\" data-foundry-type=\"\(escapeAttribute(node.type.displayName))\" data-foundry-name=\"\(escapeAttribute(userFacingName))\" data-foundry-author=\"\(escapeAttribute(attribution))\" data-foundry-version=\"\(escapeAttribute(version))\" data-foundry-accepts-children=\"\(acceptsChildren)\"\(globalAttributes)"
     }
 
     private func validAnchor(for node: ComponentNode) -> String? {

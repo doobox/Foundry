@@ -46,6 +46,23 @@ extension ProjectEditor {
         }
     }
 
+    func removePageFolder(id: UUID) {
+        let item = PageTreeItem.folder(id)
+        guard document.site.pageFolders.contains(where: { $0.id == id }) else { return }
+        let folderParent = parent(of: item)
+        var replacementSiblings = childItems(of: folderParent)
+        guard let folderIndex = replacementSiblings.firstIndex(of: item) else { return }
+        replacementSiblings.replaceSubrange(
+            folderIndex...folderIndex,
+            with: childItems(of: .folder(id))
+        )
+
+        mutate(actionName: "Delete Page Folder") { site in
+            site.pageFolders.removeAll(where: { $0.id == id })
+            site.applyPageTreeOrder(replacementSiblings, parent: folderParent)
+        }
+    }
+
     func setPageFolderSlug(id: UUID, slug: String) {
         let normalized = Page.slugify(slug)
         mutate(actionName: "Edit Page Folder Slug") { site in
