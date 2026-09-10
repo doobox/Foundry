@@ -171,6 +171,7 @@ struct WebCanvasView: NSViewRepresentable {
     let packages: [String: LoadedComponentPackage]
     let assetRevision: UInt64
     let selectedComponentIDs: Set<UUID>
+    let primarySelectedComponentID: UUID?
     let selectedPrimitive: CanvasPrimitiveSelection?
     let editorOptions: CanvasEditorOptions
     let enablesWebInspector: Bool
@@ -246,6 +247,7 @@ struct WebCanvasView: NSViewRepresentable {
         context.coordinator.canClearImage = canClearImage
         context.coordinator.canPasteComponent = canPasteComponent
         context.coordinator.selectedComponentIDs = selectedComponentIDs
+        context.coordinator.primarySelectedComponentID = primarySelectedComponentID
         context.coordinator.selectedPrimitive = selectedPrimitive
         context.coordinator.editorOptions = editorOptions
         context.coordinator.requestFullReconciliation = requestFullReconciliation
@@ -647,11 +649,32 @@ struct WebCanvasView: NSViewRepresentable {
             selectedComponentIDs.forEach(componentID => {
               const element = document.querySelector('[data-foundry-id="' + CSS.escape(componentID) + '"]');
               if (!element) return;
-              if (!firstElement) firstElement = element;
+              let selectionElement = element;
+              let isPrimitive = false;
+              if (selectedPrimitiveSelection?.componentID === componentID) {
+                const expectedPath = Array.isArray(selectedPrimitiveSelection.propertyPath)
+                  ? selectedPrimitiveSelection.propertyPath.join(',')
+                  : '';
+                const primitiveSelector = '[data-foundry-primitive-property="'
+                  + CSS.escape(selectedPrimitiveSelection.propertyKey || '') + '"]';
+                const candidates = [
+                  ...(element.matches(primitiveSelector) ? [element] : []),
+                  ...element.querySelectorAll(primitiveSelector)
+                ];
+                const primitive = candidates.find(candidate =>
+                  candidate.closest(selector) === element
+                  && (candidate.dataset.foundryPropertyPath || '') === expectedPath
+                );
+                if (primitive) {
+                  selectionElement = primitive;
+                  isPrimitive = true;
+                }
+              }
+              if (!firstElement) firstElement = selectionElement;
               selectedChromeTargets.push({
-                element,
+                element: selectionElement,
                 color: editorChromeColor,
-                isPrimitive: false
+                isPrimitive
               });
             });
             scheduleChromeTitleUpdate();
@@ -1063,6 +1086,7 @@ struct WebCanvasView: NSViewRepresentable {
         var lastHTML: String?
         var assetRevision: UInt64?
         var selectedComponentIDs: Set<UUID> = []
+        var primarySelectedComponentID: UUID?
         var selectedPrimitive: CanvasPrimitiveSelection?
         var editorOptions = CanvasEditorOptions()
         var canPasteComponent = false
@@ -1082,6 +1106,7 @@ struct WebCanvasView: NSViewRepresentable {
         private var contextMenuRequest: [String: Any]?
         private var pendingCanvasSelection: Set<UUID>?
         private var lastAppliedSelection: Set<UUID>?
+        private var lastAppliedPrimarySelection: UUID?
         private var scrollPositionBeforeLoad: CGPoint?
         private var isCapturingScrollPosition = false
         private var isPatchingHTML = false
@@ -1471,7 +1496,13 @@ struct WebCanvasView: NSViewRepresentable {
 
         func applyCanvasState() {
             guard let webView else { return }
-            let componentIDs = selectedComponentIDs.map(\.uuidString)
+            let componentIDs = selectedComponentIDs
+                .sorted { lhs, rhs in
+                    if lhs == primarySelectedComponentID { return true }
+                    if rhs == primarySelectedComponentID { return false }
+                    return lhs.uuidString < rhs.uuidString
+                }
+                .map(\.uuidString)
             let primitiveSelection: [String: Any] = selectedPrimitive.map {
                 [
                     "componentID": $0.componentID.uuidString,
@@ -1480,10 +1511,12 @@ struct WebCanvasView: NSViewRepresentable {
                 ]
             } ?? [:]
             let selectionChanged = lastAppliedSelection != selectedComponentIDs
+                || lastAppliedPrimarySelection != primarySelectedComponentID
             let selectionOriginatedInCanvas = pendingCanvasSelection == selectedComponentIDs
             let shouldScrollToSelection = selectionChanged && !selectionOriginatedInCanvas
             pendingCanvasSelection = nil
             lastAppliedSelection = selectedComponentIDs
+            lastAppliedPrimarySelection = primarySelectedComponentID
             let scrollPosition = scrollPositionBeforeLoad.map {
                 ["x": $0.x, "y": $0.y]
             } ?? [:]

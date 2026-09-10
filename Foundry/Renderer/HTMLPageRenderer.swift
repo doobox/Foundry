@@ -61,7 +61,7 @@ nonisolated struct HTMLPageRenderer: PageRendering {
             .foundry-container { width: 100%; max-width: var(--foundry-container-width) !important; }
             [data-foundry-id] {
               --foundry-editor-chrome: var(--foundry-editor-component);
-              position: relative; cursor: default;
+              cursor: default;
             }
             [data-foundry-global] { --foundry-editor-chrome: var(--foundry-editor-global); }
             [data-foundry-global-override="true"],

@@ -376,7 +376,7 @@ struct CanvasBridgeTests {
         #expect(WebCanvasView.Coordinator.interactionScript.contains("foundrySetEditorOptions"))
         #expect(WebCanvasView.Coordinator.interactionScript.contains("scrollsToSelection"))
         #expect(WebCanvasView.Coordinator.interactionScript.contains("shouldScroll"))
-        #expect(!WebCanvasView.Coordinator.interactionScript.contains("attachShadow"))
+        #expect(WebCanvasView.Coordinator.interactionScript.contains("attachShadow"))
         #expect(WebCanvasView.Coordinator.interactionScript.contains("data-foundry-editor-chrome"))
         #expect(WebCanvasView.Coordinator.interactionScript.contains("data-foundry-editor-chrome', 'selection"))
         #expect(WebCanvasView.Coordinator.interactionScript.contains("position: 'fixed'"))
@@ -384,10 +384,11 @@ struct CanvasBridgeTests {
         #expect(WebCanvasView.Coordinator.interactionScript.contains("pointerEvents: 'none'"))
         #expect(WebCanvasView.Coordinator.interactionScript.contains("if (event.altKey) return;"))
         #expect(WebCanvasView.Coordinator.interactionScript.contains("selectedChromeTargets.push({"))
-        #expect(WebCanvasView.Coordinator.interactionScript.contains("element,\n        color: editorChromeColor"))
-        #expect(!WebCanvasView.Coordinator.interactionScript.contains("const selectedElement = primitive || element"))
+        #expect(WebCanvasView.Coordinator.interactionScript.contains("element: selectionElement"))
+        #expect(WebCanvasView.Coordinator.interactionScript.contains("candidate.dataset.foundryPropertyPath"))
         #expect(!html.contains("[data-foundry-id]:hover:not(:has([data-foundry-id]:hover))"))
         #expect(!html.contains("data-foundry-name); position: absolute"))
+        #expect(!html.contains("position: relative; cursor: default"))
     }
 
     @Test

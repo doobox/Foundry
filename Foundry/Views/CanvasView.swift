@@ -46,6 +46,7 @@ struct CanvasView: View {
     let componentPackageRevision: Int
     let isComponentCatalogReady: Bool
     let selectedComponentIDs: Set<UUID>
+    let primarySelectedComponentID: UUID?
     let selectedPrimitive: CanvasPrimitiveSelection?
     let editorOptions: CanvasEditorOptions
     let renderer: any PageRendering
@@ -101,6 +102,7 @@ struct CanvasView: View {
                                             packages: canvasPackages(for: page),
                                             assetRevision: assetRevision,
                                             selectedComponentIDs: selectedComponentIDs,
+                                            primarySelectedComponentID: primarySelectedComponentID,
                                             selectedPrimitive: selectedPrimitive,
                                             editorOptions: editorOptions,
                                             enablesWebInspector: enablesCanvasWebInspector,

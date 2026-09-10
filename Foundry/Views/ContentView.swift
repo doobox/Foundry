@@ -420,6 +420,7 @@ struct ContentView: View {
                 componentPackageRevision: componentCatalog.revision,
                 isComponentCatalogReady: !componentCatalog.isInitialLoading,
                 selectedComponentIDs: selectedComponentIDs,
+                primarySelectedComponentID: selectedComponentID,
                 selectedPrimitive: selectedPrimitive,
                 editorOptions: canvasEditorOptions,
                 renderer: renderer,
