@@ -125,6 +125,82 @@ struct CanvasBridgeTests {
     }
 
     @Test @MainActor
+    func subtreeRendererMatchesAuthoritativePageOutput() throws {
+        var paragraph = ComponentNode.make(.paragraph)
+        paragraph.setProperty(.init(rawValue: "content1"), value: .string("Subtree value"))
+        let page = Page(title: "Subtree", slug: "subtree", components: [paragraph])
+        let renderer = HTMLPageRenderer()
+
+        let subtree = try #require(renderer.renderSubtree(
+            componentID: paragraph.id,
+            page: page,
+            theme: .standard,
+            assets: [:],
+            breakpoint: .extraLarge
+        ))
+        let fullPage = renderer.render(page: page, theme: .standard)
+
+        #expect(fullPage.contains(subtree.html))
+        if !subtree.instanceCSS.isEmpty {
+            #expect(fullPage.contains(subtree.instanceCSS))
+        }
+    }
+
+    @Test @MainActor
+    func subtreeRendererIncludesNestedDescendantsAndTheirStyles() throws {
+        var child = ComponentNode.make(.paragraph)
+        child.setProperty(.init(rawValue: "content1"), value: .string("Nested value"))
+        var container = ComponentNode.make(.container)
+        container.children = [child]
+        let page = Page(title: "Nested", slug: "nested", components: [container])
+        let renderer = HTMLPageRenderer()
+
+        let subtree = try #require(renderer.renderSubtree(
+            componentID: container.id,
+            page: page,
+            theme: .standard,
+            assets: [:],
+            breakpoint: .extraLarge
+        ))
+        let fullPage = renderer.render(page: page, theme: .standard)
+
+        #expect(subtree.html.contains("data-foundry-id=\"\(child.id.uuidString)\""))
+        #expect(fullPage.contains(subtree.html))
+        if !subtree.instanceCSS.isEmpty {
+            #expect(fullPage.contains(subtree.instanceCSS))
+        }
+    }
+
+    @Test @MainActor
+    func subtreeRendererPreservesInheritedGlobalIdentity() throws {
+        let definitionID = UUID()
+        let child = ComponentNode.make(.paragraph)
+        var globalContainer = ComponentNode.make(.container)
+        globalContainer.reusableDefinitionID = definitionID
+        globalContainer.children = [child]
+        let page = Page(title: "Global", slug: "global", components: [globalContainer])
+        let renderer = HTMLPageRenderer()
+
+        let subtree = try #require(renderer.renderSubtree(
+            componentID: child.id,
+            page: page,
+            theme: .standard,
+            assets: [:],
+            breakpoint: .extraLarge
+        ))
+
+        #expect(subtree.html.contains("data-foundry-global=\"\(definitionID.uuidString)\""))
+        #expect(renderer.render(page: page, theme: .standard).contains(subtree.html))
+        #expect(renderer.renderSubtree(
+            componentID: UUID(),
+            page: page,
+            theme: .standard,
+            assets: [:],
+            breakpoint: .extraLarge
+        ) == nil)
+    }
+
+    @Test @MainActor
     func rendererMarksGlobalsNestedInsideNormalComponents() {
         let definitionID = UUID()
         var global = ComponentNode.make(.paragraph)

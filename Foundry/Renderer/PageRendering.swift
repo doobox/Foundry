@@ -1,5 +1,11 @@
 import Foundation
 
+struct RenderedComponentSubtree: Equatable, Sendable {
+    let componentID: UUID
+    let html: String
+    let instanceCSS: String
+}
+
 @MainActor
 protocol PageRendering {
     func render(

@@ -155,6 +155,32 @@ struct HTMLPageRenderer: PageRendering {
         """
     }
 
+    func renderSubtree(
+        componentID: UUID,
+        page: Page,
+        theme: Theme,
+        assets: [UUID: ProjectAssetContent],
+        breakpoint: ResponsiveBreakpoint
+    ) -> RenderedComponentSubtree? {
+        guard let target = subtreeTarget(componentID: componentID, in: page.components) else { return nil }
+        return RenderedComponentSubtree(
+            componentID: componentID,
+            html: render(
+                target.node,
+                theme: theme,
+                assets: assets,
+                globalDefinitionID: target.inheritedGlobalDefinitionID,
+                breakpoint: breakpoint
+            ),
+            instanceCSS: componentStyles(
+                for: flattened(target.node),
+                theme: theme,
+                assets: assets,
+                breakpoint: breakpoint
+            )
+        )
+    }
+
     private func packageScripts(
         for page: Page,
         theme: Theme,
@@ -360,6 +386,40 @@ struct HTMLPageRenderer: PageRendering {
         breakpoint: ResponsiveBreakpoint
     ) -> String {
         let nodes = page.components.flatMap(flattened)
+        let componentStyles = componentStyles(
+            for: nodes,
+            theme: theme,
+            assets: assets,
+            breakpoint: breakpoint
+        )
+        var seenPackages: Set<String> = []
+        let pageStyles = page.components.flatMap(flattened).compactMap { node -> String? in
+            guard let package = node.type.definition.package,
+                  (!package.pageCSS.isEmpty || !package.siteCSS.isEmpty),
+                  seenPackages.insert(package.manifest.identifier).inserted else { return nil }
+            return ComponentTemplateRenderer.render(
+                [package.pageCSS, package.siteCSS].filter { !$0.isEmpty }.joined(separator: "\n"),
+                context: .init(
+                    instanceID: UUID(uuid: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)),
+                    packageIdentifier: package.manifest.identifier,
+                    properties: [:],
+                    slots: [:],
+                    assetBasePath: canvasAssetBasePath(for: package),
+                    assetPaths: canvasAssetPaths(for: package),
+                    environment: .canvas,
+                    repeatMaximums: package.repeatMaximums
+                )
+            )
+        }.joined(separator: "\n")
+        return [componentStyles, pageStyles].filter { !$0.isEmpty }.joined(separator: "\n")
+    }
+
+    private func componentStyles(
+        for nodes: [ComponentNode],
+        theme: Theme,
+        assets: [UUID: ProjectAssetContent],
+        breakpoint: ResponsiveBreakpoint
+    ) -> String {
         let instanceStyles = nodes.compactMap { sourceNode in
             let node = sourceNode.resolved(at: breakpoint)
             guard let package = node.type.definition.package else { return nil }
@@ -383,26 +443,28 @@ struct HTMLPageRenderer: PageRendering {
         }
             .filter { !$0.isEmpty }
             .joined(separator: "\n")
-        var seenPackages: Set<String> = []
-        let pageStyles = page.components.flatMap(flattened).compactMap { node -> String? in
-            guard let package = node.type.definition.package,
-                  (!package.pageCSS.isEmpty || !package.siteCSS.isEmpty),
-                  seenPackages.insert(package.manifest.identifier).inserted else { return nil }
-            return ComponentTemplateRenderer.render(
-                [package.pageCSS, package.siteCSS].filter { !$0.isEmpty }.joined(separator: "\n"),
-                context: .init(
-                    instanceID: UUID(uuid: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)),
-                    packageIdentifier: package.manifest.identifier,
-                    properties: [:],
-                    slots: [:],
-                    assetBasePath: canvasAssetBasePath(for: package),
-                    assetPaths: canvasAssetPaths(for: package),
-                    environment: .canvas,
-                    repeatMaximums: package.repeatMaximums
-                )
-            )
-        }.joined(separator: "\n")
-        return [instanceStyles, htmlStyles, pageStyles].filter { !$0.isEmpty }.joined(separator: "\n")
+        return [instanceStyles, htmlStyles].filter { !$0.isEmpty }.joined(separator: "\n")
+    }
+
+    private func subtreeTarget(
+        componentID: UUID,
+        in nodes: [ComponentNode],
+        inheritedGlobalDefinitionID: UUID? = nil
+    ) -> (node: ComponentNode, inheritedGlobalDefinitionID: UUID?)? {
+        for node in nodes {
+            if node.id == componentID {
+                return (node, inheritedGlobalDefinitionID)
+            }
+            let globalDefinitionID = node.reusableDefinitionID ?? inheritedGlobalDefinitionID
+            if let target = subtreeTarget(
+                componentID: componentID,
+                in: node.children,
+                inheritedGlobalDefinitionID: globalDefinitionID
+            ) {
+                return target
+            }
+        }
+        return nil
     }
 
     private func canvasAssetBasePath(for package: LoadedComponentPackage) -> String {
