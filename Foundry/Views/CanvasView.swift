@@ -1,5 +1,8 @@
 import AppKit
 import SwiftUI
+#if DEBUG
+import OSLog
+#endif
 
 nonisolated struct CanvasEditorOptions: Equatable, Sendable {
     var showsTitles = true
@@ -304,8 +307,25 @@ private final class CanvasHTMLCache {
     private var renderedHTML = ""
 
     func html(for input: CanvasHTMLRenderInput, render: () -> String) -> String {
-        guard self.input != input else { return renderedHTML }
+#if DEBUG
+        let comparisonStartedAt = ContinuousClock.now
+#endif
+        let isCacheHit = self.input == input
+#if DEBUG
+        let comparisonCompletedAt = ContinuousClock.now
+#endif
+        guard !isCacheHit else { return renderedHTML }
+#if DEBUG
+        let renderStartedAt = ContinuousClock.now
+        Logger.foundryPerformance.debug("Canvas full-page render started")
+#endif
         renderedHTML = render()
+#if DEBUG
+        let renderCompletedAt = ContinuousClock.now
+        Logger.foundryPerformance.debug(
+            "Canvas full-page render completed: inputEquality=\(comparisonStartedAt.milliseconds(to: comparisonCompletedAt), format: .fixed(precision: 3))ms, render=\(renderStartedAt.milliseconds(to: renderCompletedAt), format: .fixed(precision: 3))ms, bytes=\(self.renderedHTML.utf8.count)"
+        )
+#endif
         self.input = input
         return renderedHTML
     }

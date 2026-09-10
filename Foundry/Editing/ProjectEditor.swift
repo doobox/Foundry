@@ -1,4 +1,7 @@
 import Foundation
+#if DEBUG
+import OSLog
+#endif
 
 @MainActor
 struct ProjectEditor {
@@ -669,15 +672,45 @@ struct ProjectEditor {
     }
 
     func mutate(actionName: String, mutation: (inout Site) -> Void) {
+#if DEBUG
+        let receivedAt = ContinuousClock.now
+        Logger.foundryPerformance.debug("Inspector mutation received: \(actionName, privacy: .public)")
+#endif
         var updatedSite = document.site
         mutation(&updatedSite)
+#if DEBUG
+        let mutationCompletedAt = ContinuousClock.now
+#endif
         document.replaceSite(
             with: updatedSite,
             undoManager: undoManager,
             actionName: actionName
         )
+#if DEBUG
+        let completedAt = ContinuousClock.now
+        Logger.foundryPerformance.debug(
+            "Document mutation completed: \(actionName, privacy: .public), mutate=\(receivedAt.milliseconds(to: mutationCompletedAt), format: .fixed(precision: 3))ms, replace=\(mutationCompletedAt.milliseconds(to: completedAt), format: .fixed(precision: 3))ms, total=\(receivedAt.milliseconds(to: completedAt), format: .fixed(precision: 3))ms"
+        )
+#endif
     }
 }
+
+#if DEBUG
+extension Logger {
+    static let foundryPerformance = Logger(
+        subsystem: Bundle.main.bundleIdentifier ?? "Foundry",
+        category: "InspectorCanvasPerformance"
+    )
+}
+
+extension ContinuousClock.Instant {
+    func milliseconds(to later: Self) -> Double {
+        let duration = duration(to: later)
+        return Double(duration.components.seconds) * 1_000
+            + Double(duration.components.attoseconds) / 1_000_000_000_000_000
+    }
+}
+#endif
 
 nonisolated extension Site {
     func component(withID id: UUID) -> ComponentNode? {
