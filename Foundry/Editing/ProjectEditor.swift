@@ -123,6 +123,33 @@ struct ProjectEditor {
         }
     }
 
+    func setComponentAnchor(id: UUID, anchor: String) {
+        mutate(actionName: "Edit Component Anchor") { site in
+            site.updateComponent(id: id) {
+                let value = anchor.trimmingCharacters(in: .whitespacesAndNewlines)
+                $0.anchor = value.isEmpty ? nil : value
+            }
+        }
+    }
+
+    func setComponentClasses(id: UUID, classes: String) {
+        mutate(actionName: "Edit Component Classes") { site in
+            site.updateComponent(id: id) {
+                $0.customClasses = classes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                    ? nil
+                    : classes
+            }
+        }
+    }
+
+    func setComponentRootAttributes(id: UUID, attributes: [ComponentHTMLAttribute]) {
+        mutate(actionName: "Edit Component Attributes") { site in
+            site.updateComponent(id: id) {
+                $0.rootAttributes = attributes.isEmpty ? nil : attributes
+            }
+        }
+    }
+
     func setProperty(
         id: UUID,
         key: ComponentProperty.Key,

@@ -1,1 +1,1 @@
-#{{ id }} { width: 100%; margin-block: 1.5rem; border: 0; border-top: {{ control.borderWidth }}px solid {{ control.borderColor }}; }
+[data-foundry-id="{{ instance.uuid }}"] { width: 100%; margin-block: 1.5rem; border: 0; border-top: {{ control.borderWidth }}px solid {{ control.borderColor }}; }

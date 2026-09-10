@@ -394,6 +394,11 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
                 let children = node.children.filter { ($0.slotID ?? package.manifest.slots.first?.id) == slot.id }
                 return (slot.id, children.map { render($0, page: page, theme: theme, assetPrefix: assetPrefix, packageAssetPrefix: packageAssetPrefix, assets: assets, site: site) }.joined())
             })
+            let anchor = ComponentAnchorValidator.validated(node.anchor)
+            let anchorAttribute = anchor.map { " id=\"\(escapeAttribute($0))\"" } ?? ""
+            let customAttributes = ComponentRootAttributeValidator.validAttributes(node.rootAttributes ?? []).map {
+                " \($0.name)=\"\(escapeAttribute($0.value))\""
+            }.joined()
             let rendered = ComponentTemplateRenderer.render(
                 package.htmlTemplate,
                 context: .init(
@@ -403,7 +408,7 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
                     slots: slots,
                     componentClass: componentClass(node) + " " +
                         ComponentTemplateRenderer.packageClass(for: package.manifest.identifier),
-                    componentAttributes: "id=\"foundry-\(node.id.uuidString.lowercased())\"",
+                    componentAttributes: "data-foundry-id=\"\(node.id.uuidString)\"\(anchorAttribute)\(customAttributes)",
                     assetBasePath: packageAssetPrefix,
                     assetPaths: templateAssetPaths(for: package, pageAssetPrefix: packageAssetPrefix, siteAssetPrefix: assetPrefix),
                     siteBaseURL: siteBaseURL(for: site),
@@ -425,7 +430,7 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
                 package.htmlTemplate.contains("{{component.attributes}}") {
                 return rendered
             }
-            return "<div id=\"foundry-\(node.id.uuidString.lowercased())\" class=\"\(componentClass(node)) \(ComponentTemplateRenderer.packageClass(for: package.manifest.identifier))\">\(rendered)</div>"
+            return "<div data-foundry-id=\"\(node.id.uuidString)\" class=\"\(componentClass(node)) \(ComponentTemplateRenderer.packageClass(for: package.manifest.identifier))\">\(rendered)</div>"
         case .unavailable:
             return missingPackageHTML(
                 node,
@@ -638,7 +643,9 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
     }
 
     private func componentClass(_ node: ComponentNode) -> String {
-        "c-" + node.id.uuidString.lowercased()
+        ["c-" + node.id.uuidString.lowercased(), ComponentRootAttributeValidator.normalizedClasses(node.customClasses)]
+            .filter { !$0.isEmpty }
+            .joined(separator: " ")
     }
 
     private func pageStyles(

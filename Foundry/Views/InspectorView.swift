@@ -657,6 +657,13 @@ private struct ComponentInspector: View {
                         importImage: importImage
                     )
                 }
+
+                ComponentAdvancedInspectorCard(
+                    anchor: componentAnchorBinding,
+                    classes: componentClassesBinding,
+                    attributes: componentAttributesBinding,
+                    isDuplicateAnchor: componentAnchorIsDuplicate
+                )
             }
             .padding(16)
         }
@@ -737,6 +744,124 @@ private struct ComponentInspector: View {
         component.type.definition.package?.manifest.author.flatMap { author in
             author.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : author
         } ?? "Unknown Developer"
+    }
+
+    private var componentAnchorBinding: Binding<String> {
+        Binding(
+            get: { component.anchor ?? "" },
+            set: { editor.setComponentAnchor(id: component.id, anchor: $0) }
+        )
+    }
+
+    private var componentClassesBinding: Binding<String> {
+        Binding(
+            get: { component.customClasses ?? "" },
+            set: { editor.setComponentClasses(id: component.id, classes: $0) }
+        )
+    }
+
+    private var componentAttributesBinding: Binding<[ComponentHTMLAttribute]> {
+        Binding(
+            get: { component.rootAttributes ?? [] },
+            set: { editor.setComponentRootAttributes(id: component.id, attributes: $0) }
+        )
+    }
+
+    private var componentAnchorIsDuplicate: Bool {
+        guard let anchor = component.anchor, !anchor.isEmpty, let currentPage else { return false }
+        return currentPage.components.reduce(0) { $0 + anchorCount(anchor, in: $1) } > 1
+    }
+
+    private func anchorCount(_ anchor: String, in node: ComponentNode) -> Int {
+        let matches = node.anchor == anchor
+        return (matches ? 1 : 0) + node.children.reduce(0) { $0 + anchorCount(anchor, in: $1) }
+    }
+}
+
+private struct ComponentAdvancedInspectorCard: View {
+    @Binding var anchor: String
+    @Binding var classes: String
+    @Binding var attributes: [ComponentHTMLAttribute]
+    let isDuplicateAnchor: Bool
+    @State private var selectedAttributeID: UUID?
+
+    var body: some View {
+        InspectorCard(title: "Advanced") {
+            InspectorGrid {
+                InspectorRow(title: "Anchor") {
+                    VStack(alignment: .leading, spacing: 4) {
+                        TextField("Anchor", text: $anchor)
+                        if !anchor.isEmpty && !ComponentAnchorValidator.isValid(anchor) {
+                            Text("Enter a valid anchor.")
+                                .font(.caption)
+                                .foregroundStyle(.red)
+                        } else if isDuplicateAnchor {
+                            Text("Anchor already in use.")
+                                .font(.caption)
+                                .foregroundStyle(.orange)
+                        }
+                    }
+                }
+
+                InspectorRow(title: "Classes") {
+                    TextField("Classes", text: $classes)
+                }
+            }
+
+            Text("Attributes")
+                .font(.callout.weight(.medium))
+
+            Table($attributes, selection: $selectedAttributeID) {
+                TableColumn("Name") { $attribute in
+                    TextField("Name", text: $attribute.name)
+                        .labelsHidden()
+                        .textFieldStyle(.plain)
+                }
+                TableColumn("Value") { $attribute in
+                    TextField("Value", text: $attribute.value)
+                        .labelsHidden()
+                        .textFieldStyle(.plain)
+                }
+            }
+            .frame(minHeight: 110)
+
+            if hasInvalidAttributes {
+                Text("Enter valid attributes.")
+                    .font(.caption)
+                    .foregroundStyle(.red)
+            }
+
+            HStack(spacing: 4) {
+                Button {
+                    let attribute = ComponentHTMLAttribute()
+                    attributes.append(attribute)
+                    selectedAttributeID = attribute.id
+                } label: {
+                    Image(systemName: "plus")
+                }
+                .help("Add attribute")
+
+                Button {
+                    guard let selectedAttributeID else { return }
+                    attributes.removeAll { $0.id == selectedAttributeID }
+                    self.selectedAttributeID = nil
+                } label: {
+                    Image(systemName: "minus")
+                }
+                .disabled(selectedAttributeID == nil)
+                .help("Remove selected attribute")
+            }
+            .buttonStyle(.bordered)
+        }
+    }
+
+    private var hasInvalidAttributes: Bool {
+        var seen = Set<String>()
+        return attributes.contains { attribute in
+            let name = attribute.name.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !name.isEmpty else { return false }
+            return !ComponentRootAttributeValidator.isValidName(name) || !seen.insert(name.lowercased()).inserted
+        }
     }
 }
 

@@ -1,5 +1,54 @@
 import Foundation
 
+nonisolated enum ComponentAnchorValidator {
+    static func isValid(_ value: String) -> Bool {
+        guard let first = value.unicodeScalars.first,
+              isASCIILetter(first) else { return false }
+        return value.unicodeScalars.dropFirst().allSatisfy {
+            isASCIILetter($0) || (48...57).contains($0.value) || $0 == "-" || $0 == "_"
+        }
+    }
+
+    static func validated(_ value: String?) -> String? {
+        guard let value = value?.trimmingCharacters(in: .whitespacesAndNewlines),
+              isValid(value) else { return nil }
+        return value
+    }
+
+    private static func isASCIILetter(_ scalar: UnicodeScalar) -> Bool {
+        (65...90).contains(scalar.value) || (97...122).contains(scalar.value)
+    }
+}
+
+nonisolated enum ComponentRootAttributeValidator {
+    static func isValidName(_ value: String) -> Bool {
+        let name = value.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !name.isEmpty,
+              !["id", "class", "style"].contains(name),
+              !name.hasPrefix("data-foundry-"),
+              !name.hasPrefix("on") else { return false }
+        return name.unicodeScalars.allSatisfy { scalar in
+            scalar.value > 32 && ![34, 39, 47, 61, 62].contains(scalar.value)
+        }
+    }
+
+    static func normalizedClasses(_ value: String?) -> String {
+        value?.split(whereSeparator: \Character.isWhitespace).joined(separator: " ") ?? ""
+    }
+
+    static func validAttributes(_ attributes: [ComponentHTMLAttribute]) -> [ComponentHTMLAttribute] {
+        var seen = Set<String>()
+        return attributes.compactMap { attribute in
+            let name = attribute.name.trimmingCharacters(in: .whitespacesAndNewlines)
+            let normalizedName = name.lowercased()
+            guard isValidName(name), seen.insert(normalizedName).inserted else { return nil }
+            var result = attribute
+            result.name = name
+            return result
+        }
+    }
+}
+
 nonisolated struct ComponentNode: Codable, Equatable, Identifiable, Sendable {
     let id: UUID
     var type: ComponentType
@@ -12,6 +61,9 @@ nonisolated struct ComponentNode: Codable, Equatable, Identifiable, Sendable {
     var packageLock: ComponentPackageLock?
     var missingPackageSnapshot: MissingComponentSnapshot?
     var slotID: String?
+    var anchor: String?
+    var customClasses: String?
+    var rootAttributes: [ComponentHTMLAttribute]?
 
     init(
         id: UUID = UUID(),
@@ -24,7 +76,10 @@ nonisolated struct ComponentNode: Codable, Equatable, Identifiable, Sendable {
         responsiveOverrides: [ResponsivePropertyOverride]? = nil,
         packageLock: ComponentPackageLock? = nil,
         missingPackageSnapshot: MissingComponentSnapshot? = nil,
-        slotID: String? = nil
+        slotID: String? = nil,
+        anchor: String? = nil,
+        customClasses: String? = nil,
+        rootAttributes: [ComponentHTMLAttribute]? = nil
     ) {
         self.id = id
         self.type = type
@@ -37,6 +92,9 @@ nonisolated struct ComponentNode: Codable, Equatable, Identifiable, Sendable {
         self.packageLock = packageLock
         self.missingPackageSnapshot = missingPackageSnapshot
         self.slotID = slotID
+        self.anchor = anchor
+        self.customClasses = customClasses
+        self.rootAttributes = rootAttributes
     }
 
     static func make(_ type: ComponentType) -> ComponentNode {

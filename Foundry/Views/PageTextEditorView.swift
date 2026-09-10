@@ -152,6 +152,8 @@ struct PageTextEditorView: View {
                     pages: pages,
                     folders: folders,
                     assets: assets,
+                    assetLibrary: assets.map(ProjectAssetNode.asset),
+                    anchorsForPage: { _ in [] },
                     publicURL: publicURL,
                     absoluteURL: false,
                     remove: selectionHasLink ? {

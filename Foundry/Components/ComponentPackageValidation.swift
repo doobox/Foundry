@@ -254,12 +254,29 @@ nonisolated enum ComponentPackageValidator {
         let propertyIDs = Set(manifest.properties.filter { $0.control.type != .divider }.map(\.id))
         let slotIDs = Set(manifest.slots.map(\.id))
 
-        if requiresEditorAttributes && !template.matches(#"\{\{\s*component\.attributes\s*\}\}"#) {
-            diagnostics.append(.init(
-                severity: .error,
-                location: templateLocation,
-                message: "The root element must include {{ component.attributes }} so Foundry can select and edit the component."
-            ))
+        if requiresEditorAttributes {
+            let rootTag = template.firstRootOpeningTag ?? ""
+            if !rootTag.matches(#"\{\{\s*component\.attributes\s*\}\}"#) {
+                diagnostics.append(.init(
+                    severity: .error,
+                    location: templateLocation,
+                    message: "The root element must include {{ component.attributes }}."
+                ))
+            }
+            if !rootTag.matches(#"(?i)\bclass\s*=\s*([\"'])[^\"']*\{\{\s*component\.class\s*\}\}[^\"']*\1"#) {
+                diagnostics.append(.init(
+                    severity: .error,
+                    location: templateLocation,
+                    message: "The root class must include {{ component.class }}."
+                ))
+            }
+            if rootTag.matches(#"(?i)\sid\s*="#) {
+                diagnostics.append(.init(
+                    severity: .error,
+                    location: templateLocation,
+                    message: "The component root cannot declare an id."
+                ))
+            }
         }
 
         let supportedFilters: Set<String> = [
@@ -1067,6 +1084,14 @@ private nonisolated struct ComponentTemplateReference {
 }
 
 private nonisolated extension String {
+    var firstRootOpeningTag: String? {
+        let pattern = #"(?is)\A\s*(?:(?:<!--.*?-->)|(?:<!DOCTYPE.*?>)|(?:<\?.*?\?>))*\s*(<(?!!|/)[^>]+>)"#
+        let expression = try! NSRegularExpression(pattern: pattern)
+        guard let match = expression.firstMatch(in: self, range: NSRange(startIndex..., in: self)),
+              let range = Range(match.range(at: 1), in: self) else { return nil }
+        return String(self[range])
+    }
+
     func matches(_ pattern: String) -> Bool {
         matchCount(pattern) > 0
     }

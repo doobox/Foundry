@@ -1,4 +1,4 @@
-#{{ id }} {
+[data-foundry-id="{{ instance.uuid }}"] {
     box-sizing: border-box;
     display: grid;
     grid-template-columns: repeat({{ control.columnCount }}, minmax(0, 1fr));

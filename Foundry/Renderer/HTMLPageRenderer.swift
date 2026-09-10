@@ -321,6 +321,8 @@ struct HTMLPageRenderer: PageRendering {
                     packageIdentifier: package.manifest.identifier,
                     properties: packageProperties(node, theme: theme, assets: assets),
                     slots: slots,
+                    componentClass: componentClass(node) + " " +
+                        ComponentTemplateRenderer.packageClass(for: package.manifest.identifier),
                     componentAttributes: canvasAttributes,
                     assetBasePath: canvasAssetBasePath(for: package),
                     assetPaths: canvasAssetPaths(for: package),
@@ -586,7 +588,24 @@ struct HTMLPageRenderer: PageRendering {
         let globalAttributes = globalDefinitionID.map {
             " data-foundry-global=\"\($0.uuidString)\" data-foundry-global-override=\"\(node.overridesGlobalDefinition == true)\""
         } ?? ""
-        return "id=\"foundry-\(node.id.uuidString.lowercased())\" data-foundry-id=\"\(node.id.uuidString)\" data-foundry-component-type=\"\(escapeAttribute(node.type.rawValue))\" data-foundry-type=\"\(escapeAttribute(node.type.displayName))\" data-foundry-name=\"\(escapeAttribute(node.name))\" data-foundry-author=\"\(escapeAttribute(attribution))\" data-foundry-version=\"\(escapeAttribute(version))\" data-foundry-accepts-children=\"\(acceptsChildren)\"\(globalAttributes)"
+        let anchorAttribute = validAnchor(for: node).map { " id=\"\(escapeAttribute($0))\"" } ?? ""
+        return "data-foundry-id=\"\(node.id.uuidString)\"\(anchorAttribute)\(customAttributes(for: node)) data-foundry-component-type=\"\(escapeAttribute(node.type.rawValue))\" data-foundry-type=\"\(escapeAttribute(node.type.displayName))\" data-foundry-name=\"\(escapeAttribute(node.name))\" data-foundry-author=\"\(escapeAttribute(attribution))\" data-foundry-version=\"\(escapeAttribute(version))\" data-foundry-accepts-children=\"\(acceptsChildren)\"\(globalAttributes)"
+    }
+
+    private func validAnchor(for node: ComponentNode) -> String? {
+        ComponentAnchorValidator.validated(node.anchor)
+    }
+
+    private func customAttributes(for node: ComponentNode) -> String {
+        ComponentRootAttributeValidator.validAttributes(node.rootAttributes ?? []).map {
+            " \($0.name)=\"\(escapeAttribute($0.value))\""
+        }.joined()
+    }
+
+    private func componentClass(_ node: ComponentNode) -> String {
+        ["c-" + node.id.uuidString.lowercased(), ComponentRootAttributeValidator.normalizedClasses(node.customClasses)]
+            .filter { !$0.isEmpty }
+            .joined(separator: " ")
     }
 
     private func escape(_ value: String) -> String {

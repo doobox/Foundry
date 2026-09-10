@@ -91,8 +91,8 @@ struct StaticSiteRendererTests {
         #expect(css.contains("max-width: 800px"))
         #expect(css.contains("max-width: 900px"))
         #expect(css.contains("max-width: 1000px"))
-        #expect(html.contains("id=\"foundry-\(componentID.uuidString.lowercased())\""))
-        #expect(!html.contains("data-foundry"))
+        #expect(html.contains("data-foundry-id=\"\(componentID.uuidString)\""))
+        #expect(!html.contains("data-foundry-component-type"))
     }
 
     @Test

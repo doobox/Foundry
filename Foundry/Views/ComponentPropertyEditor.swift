@@ -285,16 +285,7 @@ struct ComponentPropertyEditor: View {
     }
 
     private static func anchorIDs(in html: String) -> [String] {
-        guard let expression = try? NSRegularExpression(
-            pattern: #"\bid\s*=\s*([\"'])(.*?)\1"#,
-            options: [.caseInsensitive]
-        ) else { return [] }
-        var seen = Set<String>()
-        return expression.matches(in: html, range: NSRange(html.startIndex..., in: html)).compactMap { match in
-            guard let range = Range(match.range(at: 2), in: html) else { return nil }
-            let identifier = String(html[range])
-            return identifier.isEmpty || !seen.insert(identifier).inserted ? nil : identifier
-        }
+        ComponentAnchorDiscovery.identifiers(in: html)
     }
 
     private var previewImage: NSImage? {

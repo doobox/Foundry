@@ -224,6 +224,17 @@ struct ComponentPackageTests {
     }
 
     @Test
+    func linkAnchorDiscoveryIncludesOnlyComponentRootAnchors() {
+        let html = """
+        <section data-foundry-id="ONE" id="hero"><span id="internal-label"></span></section>
+        <div id="developer-id"></div>
+        <article data-foundry-id="TWO" id="contact"></article>
+        """
+
+        #expect(ComponentAnchorDiscovery.identifiers(in: html) == ["hero", "contact"])
+    }
+
+    @Test
     func controlArraysDecodePersistAndRenderIndexedValues() throws {
         let plist = """
         <?xml version="1.0" encoding="UTF-8"?>
@@ -1659,6 +1670,31 @@ struct ComponentPackageTests {
     }
 
     @Test
+    func validatorReservesRootIDAndRequiresRootClassHook() throws {
+        let packageURL = try makePackage(
+            manifest: validManifest,
+            template: #"<section id="developer-root" {{ component.attributes }}>{{ slot id="content" }}</section>"#
+        )
+        defer { try? FileManager.default.removeItem(at: packageURL) }
+        let templateURL = packageURL.appending(path: "Contents/Resources/component.html")
+        try #"<section id="developer-root" {{ component.attributes }}>{{ slot id="content" }}</section>"#
+            .write(to: templateURL, atomically: true, encoding: .utf8)
+        let manifest = try PropertyListDecoder().decode(
+            ComponentPackageManifest.self,
+            from: Data(validManifest.utf8)
+        )
+
+        let diagnostics = ComponentPackageValidator.validate(
+            manifest,
+            rootURL: packageURL.appending(path: "Contents/Resources", directoryHint: .isDirectory)
+        )
+        let messages = diagnostics.map(\.message)
+
+        #expect(messages.contains("The component root cannot declare an id."))
+        #expect(messages.contains("The root class must include {{ component.class }}."))
+    }
+
+    @Test
     func validatorRejectsMoreThanFiveTags() throws {
         let manifestText = validManifest.replacingOccurrences(
             of: "<key>description</key><string>A test card.</string>",
@@ -1710,7 +1746,7 @@ struct ComponentPackageTests {
         )
         let packageURL = try makePackage(
             manifest: manifest,
-            template: "<section id=\"{{ id }}\" {{ component.attributes }}>{{ slot id=\"content\" }}</section>",
+            template: "<section {{ component.attributes }}>{{ slot id=\"content\" }}</section>",
             additionalFiles: [
                 "instance.css": "#{{ id }} { color: red; }",
                 "default-scope.css": "#{{ id }} { display: block; }"
@@ -1738,7 +1774,7 @@ struct ComponentPackageTests {
         )
         let packageURL = try makePackage(
             manifest: manifestText,
-            template: "<section id=\"{{ id }}\" {{ component.attributes }}>{{ slot id=\"content\" }}</section>",
+            template: "<section {{ component.attributes }}>{{ slot id=\"content\" }}</section>",
             additionalFiles: ["component.scss": ":host {}"]
         )
         defer { try? FileManager.default.removeItem(at: packageURL) }
@@ -1768,7 +1804,7 @@ struct ComponentPackageTests {
             .replacingOccurrences(of: instanceCSSDeclaration, with: declaration)
         let packageURL = try makePackage(
             manifest: manifestText,
-            template: "<section id=\"{{ id }}\" {{ component.attributes }}>{{ slot id=\"content\" }}</section>",
+            template: "<section {{ component.attributes }}>{{ slot id=\"content\" }}</section>",
             additionalFiles: [
                 "instance.js": "document.querySelector('#{{ id }}');",
                 "page.js": "console.log('{{ package.id }} page');"
@@ -1781,7 +1817,7 @@ struct ComponentPackageTests {
         #expect(package.instanceJavaScript.hasPrefix("(function (component) {"))
         #expect(package.instanceJavaScript.contains("\"use strict\";"))
         #expect(package.instanceJavaScript.contains("{{ id }}"))
-        #expect(package.instanceJavaScript.contains("document.getElementById('{{ id }}')"))
+        #expect(package.instanceJavaScript.contains(#"document.querySelector('[data-foundry-id=\"{{ instance.uuid }}\"]')"#))
         #expect(package.pageJavaScript.contains("page"))
         #expect(!package.pageJavaScript.contains("(function ()"))
     }
@@ -1848,8 +1884,64 @@ struct ComponentPackageTests {
         let html = try #require(bundle.file(at: "index.html")?.contents)
         let pageJavaScript = try #require(bundle.file(at: "files/page.js")?.contents)
 
-        #expect(html.contains("id=\"foundry-\(node.id.uuidString.lowercased())\""))
-        #expect(pageJavaScript.contains("document.getElementById('foundry-\(node.id.uuidString.lowercased())')"))
+        #expect(html.contains("data-foundry-id=\"\(node.id.uuidString)\""))
+        #expect(!html.contains("id=\"foundry-"))
+        #expect(pageJavaScript.contains(##"document.querySelector('[data-foundry-id=\"\##(node.id.uuidString)\"]')"##))
+    }
+
+    @Test @MainActor
+    func renderersAddValidUniversalRootValuesAndOmitInvalidOnes() throws {
+        let identifier = "com.example.anchor\(UUID().uuidString.replacingOccurrences(of: "-", with: "").lowercased())"
+        let packageURL = try makePackage(
+            manifest: validManifest.replacingOccurrences(of: "com.example.card", with: identifier),
+            template: "<section {{ component.attributes }}>{{ slot id=\"content\" }}</section>"
+        )
+        defer { try? FileManager.default.removeItem(at: packageURL) }
+
+        let package = try ComponentPackageLoader.load(from: packageURL)
+        ComponentRegistry.register(package)
+        let node = ComponentNode(
+            type: ComponentType(rawValue: identifier),
+            anchor: "contact-us",
+            customClasses: "featured wide",
+            rootAttributes: [.init(name: "aria-label", value: "Contact & help")]
+        )
+        let invalidNode = ComponentNode(
+            type: ComponentType(rawValue: identifier),
+            anchor: "123 invalid!",
+            rootAttributes: [
+                .init(name: "onclick", value: "alert(1)"),
+                .init(name: "data-foundry-test", value: "reserved")
+            ]
+        )
+        let site = Site(
+            name: "Anchor",
+            pages: [Page(title: "Home", slug: "index", components: [node, invalidNode])]
+        )
+        let html = try #require(StaticSiteRenderer().render(site: site).file(at: "index.html")?.contents)
+        let canvasHTML = HTMLPageRenderer().render(page: site.pages[0], theme: .standard)
+
+        #expect(html.contains("data-foundry-id=\"\(node.id.uuidString)\""))
+        #expect(html.contains("id=\"contact-us\""))
+        #expect(html.contains("featured wide"))
+        #expect(html.contains("aria-label=\"Contact &amp; help\""))
+        #expect(html.contains("data-foundry-id=\"\(invalidNode.id.uuidString)\""))
+        #expect(!html.contains("id=\"123 invalid!\""))
+        #expect(!html.contains("onclick="))
+        #expect(!html.contains("data-foundry-test="))
+        #expect(canvasHTML.contains("id=\"contact-us\""))
+        #expect(!canvasHTML.contains("id=\"123 invalid!\""))
+    }
+
+    @Test
+    func manifestRejectsRemovedAnchorOptInKey() throws {
+        let manifestText = validManifest.replacingOccurrences(
+            of: "<key>minimumAPIVersion</key>",
+            with: "<key>anchor</key><true/>\n            <key>minimumAPIVersion</key>"
+        )
+        let diagnostics = try ComponentPackageManifestSchema.diagnostics(for: Data(manifestText.utf8))
+
+        #expect(diagnostics.contains { $0.location == "Info.plist:anchor" && $0.message.contains("Unknown key") })
     }
 
     @Test
@@ -1868,7 +1960,7 @@ struct ComponentPackageTests {
             .replacingOccurrences(of: instanceCSSDeclaration, with: declaration)
         let packageURL = try makePackage(
             manifest: manifestText,
-            template: "<section id=\"{{ id }}\" {{ component.attributes }}>{{ slot id=\"content\" }}</section>",
+            template: "<section {{ component.attributes }}>{{ slot id=\"content\" }}</section>",
             additionalFiles: [
                 "instance.php": "<?php $componentIDs[] = '{{ id }}'; ?>",
                 "page.php": "<?php $package = '{{ package.id }}'; ?>"
@@ -3207,8 +3299,15 @@ struct ComponentPackageTests {
             at: resourcesURL.appending(path: "images", directoryHint: .isDirectory),
             withIntermediateDirectories: true
         )
+        let compatibleTemplate = template.contains("{{ component.attributes }}") &&
+            !template.contains("{{ component.class }}")
+            ? template.replacingOccurrences(
+                of: "{{ component.attributes }}",
+                with: "class=\"{{ component.class }}\" {{ component.attributes }}"
+            )
+            : template
         let files = [
-            "component.html": template,
+            "component.html": compatibleTemplate,
             "component.css": ":host { display: block; }",
             "icon.svg": "<svg xmlns=\"http://www.w3.org/2000/svg\"></svg>",
             "images/icon.svg": "<svg xmlns=\"http://www.w3.org/2000/svg\"></svg>"

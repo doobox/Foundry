@@ -1,4 +1,4 @@
-#{{ id }} {
+[data-foundry-id="{{ instance.uuid }}"] {
     position: relative;
     width: 100%;
     overflow: hidden;
@@ -6,41 +6,41 @@
     background: color-mix(in srgb, var(--foundry-color-text) 7%, var(--foundry-color-surface));
 }
 
-#{{ id }} .foundry-image-slider__viewport,
-#{{ id }} .foundry-image-slider__track,
-#{{ id }} .foundry-image-slider__slide,
-#{{ id }} .foundry-image-slider__media {
+[data-foundry-id="{{ instance.uuid }}"] .foundry-image-slider__viewport,
+[data-foundry-id="{{ instance.uuid }}"] .foundry-image-slider__track,
+[data-foundry-id="{{ instance.uuid }}"] .foundry-image-slider__slide,
+[data-foundry-id="{{ instance.uuid }}"] .foundry-image-slider__media {
     position: relative;
     width: 100%;
 }
 
-#{{ id }} .foundry-image-slider__slide {
+[data-foundry-id="{{ instance.uuid }}"] .foundry-image-slider__slide {
     display: none;
     margin: 0;
 }
 
-#{{ id }} .foundry-image-slider__slide:first-child,
-#{{ id }} .foundry-image-slider__slide.is-active {
+[data-foundry-id="{{ instance.uuid }}"] .foundry-image-slider__slide:first-child,
+[data-foundry-id="{{ instance.uuid }}"] .foundry-image-slider__slide.is-active {
     display: block;
 }
 
-#{{ id }} .foundry-image-slider__slide[hidden] {
+[data-foundry-id="{{ instance.uuid }}"] .foundry-image-slider__slide[hidden] {
     display: none;
 }
 
-#{{ id }} .foundry-image-slider__media {
+[data-foundry-id="{{ instance.uuid }}"] .foundry-image-slider__media {
     aspect-ratio: {{ control.aspectRatio }};
     overflow: hidden;
 }
 
-#{{ id }} .foundry-image-slider__media > .foundry-image {
+[data-foundry-id="{{ instance.uuid }}"] .foundry-image-slider__media > .foundry-image {
     display: block;
     width: 100%;
     height: 100%;
     object-fit: cover;
 }
 
-#{{ id }} figcaption {
+[data-foundry-id="{{ instance.uuid }}"] figcaption {
     position: absolute;
     right: 0;
     bottom: 0;
@@ -53,7 +53,7 @@
     text-shadow: 0 1px 2px rgb(0 0 0 / 55%);
 }
 
-#{{ id }} .foundry-image-slider__arrow {
+[data-foundry-id="{{ instance.uuid }}"] .foundry-image-slider__arrow {
     position: absolute;
     z-index: 2;
     top: 50%;
@@ -72,21 +72,21 @@
     cursor: pointer;
 }
 
-#{{ id }} .foundry-image-slider__arrow:hover,
-#{{ id }} .foundry-image-slider__arrow:focus-visible {
+[data-foundry-id="{{ instance.uuid }}"] .foundry-image-slider__arrow:hover,
+[data-foundry-id="{{ instance.uuid }}"] .foundry-image-slider__arrow:focus-visible {
     background: rgb(0 0 0 / 76%);
 }
 
-#{{ id }} .foundry-image-slider__arrow:focus-visible,
-#{{ id }} .foundry-image-slider__dots button:focus-visible {
+[data-foundry-id="{{ instance.uuid }}"] .foundry-image-slider__arrow:focus-visible,
+[data-foundry-id="{{ instance.uuid }}"] .foundry-image-slider__dots button:focus-visible {
     outline: 3px solid white;
     outline-offset: 2px;
 }
 
-#{{ id }} .foundry-image-slider__arrow--previous { left: 16px; }
-#{{ id }} .foundry-image-slider__arrow--next { right: 16px; }
+[data-foundry-id="{{ instance.uuid }}"] .foundry-image-slider__arrow--previous { left: 16px; }
+[data-foundry-id="{{ instance.uuid }}"] .foundry-image-slider__arrow--next { right: 16px; }
 
-#{{ id }} .foundry-image-slider__dots {
+[data-foundry-id="{{ instance.uuid }}"] .foundry-image-slider__dots {
     position: absolute;
     z-index: 3;
     right: 0;
@@ -98,7 +98,7 @@
     pointer-events: none;
 }
 
-#{{ id }} .foundry-image-slider__dots button {
+[data-foundry-id="{{ instance.uuid }}"] .foundry-image-slider__dots button {
     width: 10px;
     height: 10px;
     padding: 0;
@@ -110,16 +110,16 @@
     cursor: pointer;
 }
 
-#{{ id }} .foundry-image-slider__dots button.is-active {
+[data-foundry-id="{{ instance.uuid }}"] .foundry-image-slider__dots button.is-active {
     background: white;
     transform: scale(1.2);
 }
 
-#{{ id }}[data-transition="fade"] .foundry-image-slider__slide.is-active {
+[data-foundry-id="{{ instance.uuid }}"][data-transition="fade"] .foundry-image-slider__slide.is-active {
     animation: foundry-slider-fade-{{ instance.uuid }} 420ms ease both;
 }
 
-#{{ id }}[data-transition="slide"] .foundry-image-slider__slide.is-active {
+[data-foundry-id="{{ instance.uuid }}"][data-transition="slide"] .foundry-image-slider__slide.is-active {
     animation: foundry-slider-slide-{{ instance.uuid }} 420ms cubic-bezier(.22, .72, .2, 1) both;
 }
 
@@ -134,5 +134,5 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-    #{{ id }} .foundry-image-slider__slide.is-active { animation: none; }
+    [data-foundry-id="{{ instance.uuid }}"] .foundry-image-slider__slide.is-active { animation: none; }
 }

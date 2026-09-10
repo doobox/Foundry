@@ -47,9 +47,9 @@
         </dict>
         <dict>
             <key>id</key><string>wideMessage</string>
-            <key>label</key><string>Width is at least 600 px</string>
+            <key>body</key><string>Width is at least 600 px</string>
             <key>group</key><string>Enable Demo</string>
-            <key>type</key><string>info</string>
+            <key>type</key><string>note</string>
             <key>enable</key><dict><key>id</key><string>width</string><key>operation</key><string>&gt;=</string><key>value</key><integer>600</integer></dict>
         </dict>
         <dict>
@@ -64,9 +64,9 @@
         </dict>
         <dict>
             <key>id</key><string>thirdTitleMessage</string>
-            <key>label</key><string>Third title contains “featured”</string>
+            <key>body</key><string>Third title contains “featured”</string>
             <key>group</key><string>Enable Demo</string>
-            <key>type</key><string>info</string>
+            <key>type</key><string>note</string>
             <key>enable</key><dict><key>id</key><string>titles[2]</string><key>operation</key><string>containsInsensitive</string><key>value</key><string>featured</string></dict>
         </dict>
         <dict>
@@ -79,9 +79,9 @@
         </dict>
         <dict>
             <key>id</key><string>emptyMessage</string>
-            <key>label</key><string>The optional note is empty</string>
+            <key>body</key><string>The optional note is empty</string>
             <key>group</key><string>Enable Demo</string>
-            <key>type</key><string>info</string>
+            <key>type</key><string>note</string>
             <key>enable</key><dict><key>id</key><string>note</string><key>operation</key><string>isEmpty</string></dict>
         </dict>
         <dict>
