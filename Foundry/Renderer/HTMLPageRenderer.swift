@@ -463,7 +463,11 @@ nonisolated struct HTMLPageRenderer: PageRendering {
                     loopMaximums: package.loopMaximums
                 )
             )
-            return ComponentTemplateRenderer.scopedCSS(css, packageIdentifier: package.manifest.identifier)
+            return ComponentTemplateRenderer.scopedCSS(
+                css,
+                packageIdentifier: package.manifest.identifier,
+                instanceID: node.id
+            )
         }.joined(separator: "\n")
         let htmlStyles = nodes.map {
             ComponentArtifactPlan.htmlArtifact(for: $0.resolved(at: breakpoint), suffix: "CSS")

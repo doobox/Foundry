@@ -1,46 +1,46 @@
-#{{ id }} {
+[data-foundry-id="{{ instance.uuid }}"] {
     border: 1px solid #d8dee9;
     border-radius: 16px;
     padding: 24px;
 }
 
-#{{ id }} header,
-#{{ id }} .asset-examples {
+[data-foundry-id="{{ instance.uuid }}"] header,
+[data-foundry-id="{{ instance.uuid }}"] .asset-examples {
     display: flex;
     gap: 20px;
     align-items: center;
 }
 
-#{{ id }} header > img {
+[data-foundry-id="{{ instance.uuid }}"] header > img {
     width: 64px;
     height: 64px;
 }
 
-#{{ id }} .asset-examples {
+[data-foundry-id="{{ instance.uuid }}"] .asset-examples {
     margin-block: 24px;
 }
 
-#{{ id }} figure {
+[data-foundry-id="{{ instance.uuid }}"] figure {
     margin: 0;
 }
 
-#{{ id }} figure img {
+[data-foundry-id="{{ instance.uuid }}"] figure img {
     display: block;
     width: 160px;
     height: 96px;
     margin-bottom: 8px;
 }
 
-#{{ id }} dl {
+[data-foundry-id="{{ instance.uuid }}"] dl {
     display: grid;
     grid-template-columns: max-content 1fr;
     gap: 8px 16px;
 }
 
-#{{ id }} dt {
+[data-foundry-id="{{ instance.uuid }}"] dt {
     font-weight: 700;
 }
 
-#{{ id }} dd {
+[data-foundry-id="{{ instance.uuid }}"] dd {
     margin: 0;
 }

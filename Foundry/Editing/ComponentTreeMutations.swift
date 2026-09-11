@@ -176,7 +176,7 @@ nonisolated extension Array where Element == ComponentNode {
         if destination.flatMap(slotContext(for:)) == sourceContext {
             return true
         }
-        if slot.containment == .locked {
+        if destination != nil, slot.containment == .locked {
             return false
         }
         return children(in: sourceContext).count > slot.minimum

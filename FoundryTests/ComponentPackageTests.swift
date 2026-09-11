@@ -1841,6 +1841,7 @@ struct ComponentPackageTests {
               {{ control.missing }}
               {{ slot id="unknown" }}
               {{ asset.../secret.txt }}
+              {{ id }}
               {{ mystery }}
               {{ if control.title }}
             </section>
@@ -1863,6 +1864,7 @@ struct ComponentPackageTests {
         #expect(messages.contains(where: { $0.contains("Slot macros are not supported") }))
         #expect(messages.contains(where: { $0.contains("childPicker 'content'") }))
         #expect(messages.contains(where: { $0.contains("Asset paths must be relative") }))
+        #expect(messages.contains(where: { $0.contains("Unknown value 'id'") }))
         #expect(messages.contains(where: { $0.contains("unbalanced") }))
         #expect(messages.contains(where: { $0.contains("Unknown template macro 'mystery'") }))
         #expect(diagnostics.contains(where: { $0.location == "component.html:2" }))
@@ -1872,7 +1874,7 @@ struct ComponentPackageTests {
     func validatorRequiresNamedFunctionSyntaxForPersistentTemplateMacros() throws {
         let packageURL = try makePackage(
             manifest: validManifest,
-            template: #"<section class="sample{{ component.class }}" {{ component.attributes }}>{{ text }}{{ html="<p>Old</p>" }}{{ image }}{{ dropZone "content" }}{{ control.content }}</section>"#
+            template: #"<section class="sample {{ component.class }}" {{ component.attributes }}>{{ text }}{{ html="<p>Old</p>" }}{{ image }}{{ dropZone "content" }}{{ control.content }}</section>"#
         )
         defer { try? FileManager.default.removeItem(at: packageURL) }
         let manifest = try PropertyListDecoder().decode(
@@ -1893,7 +1895,7 @@ struct ComponentPackageTests {
     func validatorRequiresUniquePersistentTemplateNames() throws {
         let packageURL = try makePackage(
             manifest: validManifest,
-            template: #"<section class="sample{{ component.class }}" {{ component.attributes }}>{{ text("shared") }}{{ image("shared") }}{{ dropZone("shared") }}{{ control.content }}</section>"#
+            template: #"<section class="sample {{ component.class }}" {{ component.attributes }}>{{ text("shared") }}{{ image("shared") }}{{ dropZone("shared") }}{{ control.content }}</section>"#
         )
         defer { try? FileManager.default.removeItem(at: packageURL) }
         let manifest = try PropertyListDecoder().decode(
@@ -1934,6 +1936,28 @@ struct ComponentPackageTests {
 
         #expect(messages.contains("The component root cannot declare an id."))
         #expect(messages.contains("The root class must include {{ component.class }}."))
+    }
+
+    @Test
+    func validatorRequiresWhitespaceAroundRootClassHook() throws {
+        let packageURL = try makePackage(
+            manifest: validManifest,
+            template: #"<section class="sample{{ component.class }}" {{ component.attributes }}>{{ control.content }}</section>"#
+        )
+        defer { try? FileManager.default.removeItem(at: packageURL) }
+        let manifest = try PropertyListDecoder().decode(
+            ComponentPackageManifest.self,
+            from: Data(validManifest.utf8)
+        )
+
+        let messages = ComponentPackageValidator.validate(
+            manifest,
+            rootURL: packageURL.appending(path: "Contents/Resources", directoryHint: .isDirectory)
+        ).map(\.message)
+
+        #expect(messages.contains(
+            "Separate {{ component.class }} from adjacent class names with literal whitespace."
+        ))
     }
 
     @Test
@@ -1990,8 +2014,8 @@ struct ComponentPackageTests {
             manifest: manifest,
             template: "<section {{ component.attributes }}>{{ control.content }}</section>",
             additionalFiles: [
-                "instance.css": "#{{ id }} { color: red; }",
-                "default-scope.css": "#{{ id }} { display: block; }"
+                "instance.css": ":host { color: red; }",
+                "default-scope.css": ":instance { display: block; }"
             ]
         )
         defer { try? FileManager.default.removeItem(at: packageURL) }
@@ -2048,7 +2072,7 @@ struct ComponentPackageTests {
             manifest: manifestText,
             template: "<section {{ component.attributes }}>{{ control.content }}</section>",
             additionalFiles: [
-                "instance.js": "document.querySelector('#{{ id }}');",
+                "instance.js": "document.querySelector('[data-foundry-id=\"{{ instance.uuid }}\"]');",
                 "page.js": "console.log('{{ package.id }} page');"
             ]
         )
@@ -2058,7 +2082,6 @@ struct ComponentPackageTests {
 
         #expect(package.instanceJavaScript.hasPrefix("(function (component) {"))
         #expect(package.instanceJavaScript.contains("\"use strict\";"))
-        #expect(package.instanceJavaScript.contains("{{ id }}"))
         #expect(package.instanceJavaScript.contains(#"document.querySelector('[data-foundry-id=\"{{ instance.uuid }}\"]')"#))
         #expect(package.instanceJavaScript.contains("const foundry = Object.freeze"))
         #expect(package.instanceJavaScript.contains("children: foundryChildren"))
@@ -2117,7 +2140,7 @@ struct ComponentPackageTests {
             .replacingOccurrences(of: instanceCSSDeclaration, with: declaration)
         let packageURL = try makePackage(
             manifest: manifestText,
-            template: "<section class=\"test{{ component.class }}\" {{ component.attributes }}><button>Test</button>{{ control.content }}</section>",
+            template: "<section class=\"test {{ component.class }}\" {{ component.attributes }}><button>Test</button>{{ control.content }}</section>",
             additionalFiles: ["instance.js": "component.querySelector('button');"]
         )
         defer { try? FileManager.default.removeItem(at: packageURL) }
@@ -2209,7 +2232,7 @@ struct ComponentPackageTests {
             manifest: manifestText,
             template: "<section {{ component.attributes }}>{{ control.content }}</section>",
             additionalFiles: [
-                "instance.php": "<?php $componentIDs[] = '{{ id }}'; ?>",
+                "instance.php": "<?php $componentIDs[] = '{{ instance.uuid }}'; ?>",
                 "page.php": "<?php $package = '{{ package.id }}'; ?>"
             ]
         )
@@ -2733,7 +2756,7 @@ struct ComponentPackageTests {
         let invalidURL = try makePackage(
             manifest: manifestText,
             template: "<section {{ component.attributes }}>{{ control.content }}</section>",
-            additionalFiles: ["site.css": "#{{ id }} { display: none; }"]
+            additionalFiles: ["site.css": "[data-foundry-id=\"{{ instance.uuid }}\"] { display: none; }"]
         )
         defer { try? FileManager.default.removeItem(at: invalidURL) }
         #expect(throws: ComponentPackageLoadingError.self) {
@@ -2764,7 +2787,7 @@ struct ComponentPackageTests {
         let invalidURL = try makePackage(
             manifest: manifestText,
             template: "<section {{ component.attributes }}>{{ control.content }}</section>",
-            additionalFiles: ["page.css": "#{{ id }} { color: {{ control.title }}; }"]
+            additionalFiles: ["page.css": "[data-foundry-id=\"{{ instance.uuid }}\"] { color: {{ control.title }}; }"]
         )
         defer { try? FileManager.default.removeItem(at: invalidURL) }
         #expect(throws: ComponentPackageLoadingError.self) {
@@ -2824,12 +2847,18 @@ struct ComponentPackageTests {
         let insertedThirdParagraph = tree.insert(ComponentNode.make(.paragraph), at: .insideSlot(parentID, "content"))
         let movedOutside = tree.moveNode(withID: firstID, to: .end)
         let reorderedInside = tree.moveNode(withID: firstID, to: .insideSlot(parentID, "content"))
+        let canDeleteAboveMinimum = tree.permitsRemoving(firstID)
+        var treeAtMinimum = tree
+        _ = treeAtMinimum.extractNode(withID: firstID)
+        let remainingChildID = try #require(treeAtMinimum.first?.children.first?.id)
 
         #expect(!insertedButton)
         #expect(insertedSecondParagraph)
         #expect(!insertedThirdParagraph)
         #expect(!movedOutside)
         #expect(reorderedInside)
+        #expect(canDeleteAboveMinimum)
+        #expect(!treeAtMinimum.permitsRemoving(remainingChildID))
     }
 
     @Test
@@ -2993,7 +3022,7 @@ struct ComponentPackageTests {
             .replacingOccurrences(of: defaultCustomItemsDeclaration, with: "")
         let packageURL = try makePackage(
             manifest: manifest,
-            template: "<section class=\"container{{ component.class }}\" {{ component.attributes }}>{{ dropzone(\"content\") }}</section>"
+            template: "<section class=\"container {{ component.class }}\" {{ component.attributes }}>{{ dropzone(\"content\") }}</section>"
         )
         defer { try? FileManager.default.removeItem(at: packageURL) }
         let package = try ComponentPackageLoader.load(from: packageURL)
@@ -3019,11 +3048,11 @@ struct ComponentPackageTests {
             .replacingOccurrences(of: defaultCustomItemsDeclaration, with: "")
         let originalURL = try makePackage(
             manifest: manifest,
-            template: "<main class=\"layout{{ component.class }}\" {{ component.attributes }}>{{ dropZone(\"content\") }}{{ dropZone(\"sidebar\") }}</main>"
+            template: "<main class=\"layout {{ component.class }}\" {{ component.attributes }}>{{ dropZone(\"content\") }}{{ dropZone(\"sidebar\") }}</main>"
         )
         let updatedURL = try makePackage(
             manifest: manifest,
-            template: "<main class=\"layout{{ component.class }}\" {{ component.attributes }}>{{ dropZone(\"content\") }}</main>"
+            template: "<main class=\"layout {{ component.class }}\" {{ component.attributes }}>{{ dropZone(\"content\") }}</main>"
         )
         defer {
             ComponentRegistry.unregisterPackage(identifier: identifier)
@@ -3069,11 +3098,11 @@ struct ComponentPackageTests {
             )
         let parentURL = try makePackage(
             manifest: parentManifest,
-            template: "<section class=\"container{{ component.class }}\" {{ component.attributes }}>{{ dropZone(\"content\") }}</section>"
+            template: "<section class=\"container {{ component.class }}\" {{ component.attributes }}>{{ dropZone(\"content\") }}</section>"
         )
         let childURL = try makePackage(
             manifest: childManifest,
-            template: "<article class=\"card{{ component.class }}\" {{ component.attributes }}>{{ control.content }}</article>"
+            template: "<article class=\"card {{ component.class }}\" {{ component.attributes }}>{{ control.content }}</article>"
         )
         defer {
             try? FileManager.default.removeItem(at: parentURL)

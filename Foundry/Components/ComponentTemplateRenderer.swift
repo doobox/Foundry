@@ -221,8 +221,11 @@ nonisolated enum ComponentTemplateRenderer {
         } ?? []
     }
 
-    static func scopedCSS(_ css: String, packageIdentifier: String) -> String {
+    static func scopedCSS(_ css: String, packageIdentifier: String, instanceID: UUID) -> String {
         css.replacingOccurrences(
+            of: ":instance",
+            with: "[data-foundry-id=\"\(instanceID.uuidString)\"]"
+        ).replacingOccurrences(
             of: ":host",
             with: ":is([data-foundry-package=\"\(escapeAttribute(packageIdentifier))\"], .\(packageClass(for: packageIdentifier)))"
         )
@@ -483,7 +486,7 @@ nonisolated enum ComponentTemplateRenderer {
            let filteredColor = filteredColor(for: key, filters: filters, context: context) {
             return escape(filteredColor)
         }
-        let simpleValue = #"^(?:id|instance\.(?:id|uuid)|package\.id|site\.baseURL|page\.url|path\.(?:siteRoot|siteAssets)|component\.(?:class|attributes)|asset\.[^\s]+|control\.[A-Za-z][A-Za-z0-9_.-]*(?:\[[0-9]+\])?)$"#
+        let simpleValue = #"^(?:instance\.uuid|package\.id|site\.baseURL|page\.url|path\.(?:siteRoot|siteAssets)|component\.(?:class|attributes)|asset\.[^\s]+|control\.[A-Za-z][A-Za-z0-9_.-]*(?:\[[0-9]+\])?)$"#
         var result: String
         if key.range(of: simpleValue, options: .regularExpression) != nil {
             result = value(for: key, context: context)
@@ -537,9 +540,6 @@ nonisolated enum ComponentTemplateRenderer {
     }
 
     private static func value(for key: String, context: ComponentTemplateContext) -> String {
-        if key == "id" || key == "instance.id" {
-            return "foundry-" + context.instanceID.uuidString.lowercased()
-        }
         if key == "instance.uuid" {
             return context.instanceID.uuidString
         }
@@ -549,7 +549,7 @@ nonisolated enum ComponentTemplateRenderer {
         if key == "path.siteRoot" { return escapeAttribute(context.siteRootPath) }
         if key == "path.siteAssets" { return escapeAttribute(context.siteAssetsPath) }
         if key == "component.class" {
-            return context.componentClass.isEmpty ? "" : " " + escapeAttribute(context.componentClass)
+            return escapeAttribute(context.componentClass)
         }
         if key == "component.attributes" { return context.componentAttributes }
         if key.hasPrefix("asset.") {

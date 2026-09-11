@@ -649,7 +649,8 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
                     )
                     let scopedCSS = ComponentTemplateRenderer.scopedCSS(
                         css,
-                        packageIdentifier: package.manifest.identifier
+                        packageIdentifier: package.manifest.identifier,
+                        instanceID: resolved.id
                     )
                     return scopedCSS
                 }
@@ -699,7 +700,11 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
                     environment: environment
                 )
             )
-            return ComponentTemplateRenderer.scopedCSS(css, packageIdentifier: package.manifest.identifier)
+            return ComponentTemplateRenderer.scopedCSS(
+                css,
+                packageIdentifier: package.manifest.identifier,
+                instanceID: node.id
+            )
         }.joined(separator: "\n")
         let pagePackageStyles = ComponentArtifactPlan(page: page).packages.compactMap { package -> String? in
             guard !package.pageCSS.isEmpty else { return nil }

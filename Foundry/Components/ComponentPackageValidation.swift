@@ -224,6 +224,13 @@ nonisolated enum ComponentPackageValidator {
                     message: "Page- and site-scoped templates cannot use instance, component, control, slot, or editable-content macros."
                 ))
             }
+            if template.matches(#":(?:host|instance)\b"#) {
+                diagnostics.append(.init(
+                    severity: .error,
+                    location: file.path,
+                    message: ":host and :instance are available only in instance CSS and editor CSS."
+                ))
+            }
             if file.scope == .site, template.matches(#"\{\{\s*page\."#) {
                 diagnostics.append(.init(
                     severity: .error,
@@ -271,6 +278,13 @@ nonisolated enum ComponentPackageValidator {
                     severity: .error,
                     location: templateLocation,
                     message: "The root class must include {{ component.class }}."
+                ))
+            } else if rootTag.matches(#"[^\s\"']\{\{\s*component\.class\s*\}\}"#) ||
+                        rootTag.matches(#"\{\{\s*component\.class\s*\}\}[^\s\"']"#) {
+                diagnostics.append(.init(
+                    severity: .error,
+                    location: templateLocation,
+                    message: "Separate {{ component.class }} from adjacent class names with literal whitespace."
                 ))
             }
             if rootTag.matches(#"(?i)\sid\s*="#) {
@@ -590,7 +604,7 @@ nonisolated enum ComponentPackageValidator {
                 source.hasPrefix("loop ") || source == "endloop" || source.hasPrefix("loop.") ||
                 source.hasPrefix("slot ") || source.hasPrefix("text(") || source.hasPrefix("html(") ||
                 source.hasPrefix("image(") || source.hasPrefix("dropZone(") || source.hasPrefix("dropzone(") ||
-                ["text", "html", "image", "id", "instance.id", "instance.uuid", "package.id", "site.baseURL", "page.url", "path.siteRoot", "path.siteAssets", "component.class", "component.attributes", "dropZone", "dropzone"].contains(source) ||
+                ["text", "html", "image", "instance.uuid", "package.id", "site.baseURL", "page.url", "path.siteRoot", "path.siteAssets", "component.class", "component.attributes", "dropZone", "dropzone"].contains(source) ||
                 source.hasPrefix("asset.") {
                 continue
             }

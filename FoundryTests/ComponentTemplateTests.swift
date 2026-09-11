@@ -4,6 +4,23 @@ import Testing
 
 struct ComponentTemplateTests {
     @Test
+    func cssSelectorsDistinguishPackageFromInstance() {
+        let instanceID = UUID(uuidString: "AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE")!
+        let css = ":host { display: block; } :instance { color: red; }"
+
+        let rendered = ComponentTemplateRenderer.scopedCSS(
+            css,
+            packageIdentifier: "com.example.card",
+            instanceID: instanceID
+        )
+
+        #expect(rendered.contains(":is([data-foundry-package=\"com.example.card\"], .foundry-package-com-example-card)"))
+        #expect(rendered.contains("[data-foundry-id=\"AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE\"]"))
+        #expect(!rendered.contains(":host"))
+        #expect(!rendered.contains(":instance"))
+    }
+
+    @Test
     func dropZoneSpellingsRenderTheSameContent() {
         let context = ComponentTemplateContext(
             instanceID: UUID(),
@@ -55,7 +72,7 @@ struct ComponentTemplateTests {
         )
         let template = """
         /* {{ instance.uuid }} */
-        #{{ id }} {
+        [data-foundry-id="{{ instance.uuid }}"] {
           padding: {{ control.padding }}px;
           color: {{ control.accent }};
           border-color: {{ control.accent | lighten(20) }};
@@ -65,7 +82,7 @@ struct ComponentTemplateTests {
 
         let rendered = ComponentTemplateRenderer.render(template, context: context)
 
-        #expect(rendered.contains("#foundry-aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"))
+        #expect(rendered.contains("[data-foundry-id=\"AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE\"]"))
         #expect(rendered.contains("/* AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE */"))
         #expect(rendered.contains("padding: 24px"))
         #expect(rendered.contains("color: #336699"))
@@ -89,7 +106,7 @@ struct ComponentTemplateTests {
             assetBasePath: "assets/components/com.example.card"
         )
         let template = """
-        <article class="card{{ component.class }}" {{ component.attributes }}>
+        <article class="card {{ component.class }}" {{ component.attributes }}>
           <h2>{{ control.title }}</h2>
           {{ if control.visible }}<span>Shown</span>{{ else }}<span>Hidden</span>{{ endif }}
           {{ if control.alignment == "center" }}<b>Centered</b>{{ endif }}
