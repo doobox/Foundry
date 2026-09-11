@@ -711,6 +711,7 @@ struct ProjectEditor {
 
     func removeComponents(ids: [UUID]) {
         guard !ids.isEmpty,
+              canRemoveComponents(ids: ids),
               let sharedRemoval = document.site.sharedGlobalRemoval(componentIDs: ids) else { return }
         mutate(actionName: ids.count == 1 ? "Delete Component" : "Delete Components", impact: .componentStructure(ownerID: nil)) { site in
             for id in ids {
@@ -722,6 +723,18 @@ struct ProjectEditor {
             }
             site.synchronizeGlobalsAfterStructureMove(sharedRemoval)
         }
+    }
+
+    func canRemoveComponents(ids: [UUID]) -> Bool {
+        var pages = document.site.pages
+        for id in ids {
+            guard let pageIndex = pages.firstIndex(where: { $0.components.node(withID: id) != nil }),
+                  pages[pageIndex].components.permitsRemoving(id) else {
+                return false
+            }
+            _ = pages[pageIndex].components.extractNode(withID: id)
+        }
+        return true
     }
 
     func mutate(

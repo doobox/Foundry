@@ -27,13 +27,13 @@ struct CanvasInlineEditingMessageTests {
             "version": 1,
             "event": "editHTMLComponent",
             "componentID": id.uuidString,
-            "propertyKey": "html1",
+            "propertyKey": "content",
             "propertyValue": source
         ])
 
         #expect(message?.event == .editHTMLComponent)
         #expect(message?.componentID == id)
-        #expect(message?.propertyKey?.rawValue == "html1")
+        #expect(message?.propertyKey?.rawValue == "content")
         #expect(message?.propertyValue == source)
     }
 

@@ -656,6 +656,7 @@ private struct ComponentInspector: View {
                     ComponentInspectorGroup(
                         group: group,
                         properties: properties(in: group),
+                        childPickers: childPickers(in: group),
                         component: component,
                         currentPage: currentPage,
                         theme: theme,
@@ -685,17 +686,38 @@ private struct ComponentInspector: View {
     }
 
     private var inspectorGroups: [ComponentPropertySection] {
-        component.type.definition.properties.reduce(into: []) { groups, property in
+        var groups: [ComponentPropertySection] = component.type.definition.properties.reduce(into: []) { groups, property in
             guard isVisible(property),
                   !groups.contains(property.section) else { return }
             groups.append(property.section)
         }
+        for slot in componentSlots where isVisible(slot) {
+            let section = ComponentPropertySection(rawValue: slot.group)
+            if !groups.contains(section) {
+                groups.append(section)
+            }
+        }
+        return groups
+    }
+
+    private var componentSlots: [ComponentPackageSlot] {
+        component.type.definition.package?.manifest.slots ?? []
     }
 
     private func properties(in section: ComponentPropertySection) -> [ComponentPropertyDefinition] {
         component.type.definition.properties.filter {
             $0.section == section && isVisible($0)
         }
+    }
+
+    private func childPickers(in section: ComponentPropertySection) -> [ComponentPackageSlot] {
+        componentSlots.filter {
+            $0.group == section.rawValue && isVisible($0)
+        }
+    }
+
+    private func isVisible(_ slot: ComponentPackageSlot) -> Bool {
+        ComponentPackageEnableEvaluator.isVisible(slot.enable, for: component, at: breakpoint)
     }
 
     private func isVisible(_ property: ComponentPropertyDefinition) -> Bool {
@@ -796,6 +818,61 @@ private struct ComponentInspector: View {
     private func anchorCount(_ anchor: String, in node: ComponentNode) -> Int {
         let matches = node.anchor == anchor
         return (matches ? 1 : 0) + node.children.reduce(0) { $0 + anchorCount(anchor, in: $1) }
+    }
+}
+
+private struct ComponentSlotInspectorCard: View {
+    let slot: ComponentPackageSlot
+    let component: ComponentNode
+    let pageID: UUID
+    let editor: ProjectEditor
+
+    @State private var selectedType: ComponentType?
+
+    private var availableTypes: [ComponentType] {
+        ComponentRegistry.availableTypes
+            .filter {
+                slot.offersInPicker($0) &&
+                    ($0.definition.package?.manifest.permits(parent: component.type) ?? true)
+            }
+            .sorted { lhs, rhs in
+                lhs.displayName.localizedCaseInsensitiveCompare(rhs.displayName) == .orderedAscending
+            }
+    }
+
+    private var children: [ComponentNode] {
+        let package = component.type.definition.package
+        let defaultSlotID = package?.dropZoneNames.first.map { package?.dropZoneSlotID(for: $0) ?? "" }
+            ?? package?.manifest.slots.first?.id
+        return component.children.filter { child in
+            (child.slotID ?? defaultSlotID) == slot.id
+        }
+    }
+
+    var body: some View {
+        ChildPickerComponentControl(
+            label: slot.title,
+            options: availableTypes,
+            childCount: children.count,
+            maximum: slot.maximum,
+            help: slot.toolTip,
+            selection: $selectedType,
+            add: addSelectedType
+        )
+        .task(id: availableTypes) {
+            if selectedType.map({ !availableTypes.contains($0) }) ?? true {
+                selectedType = availableTypes.first
+            }
+        }
+    }
+
+    private func addSelectedType() {
+        guard let selectedType else { return }
+        _ = editor.insertComponent(
+            type: selectedType,
+            on: pageID,
+            placement: .insideSlot(component.id, slot.id)
+        )
     }
 }
 
@@ -913,6 +990,7 @@ private struct ComponentAdvancedInspectorCard: View {
 private struct ComponentInspectorGroup: View {
     let group: ComponentPropertySection
     let properties: [ComponentPropertyDefinition]
+    let childPickers: [ComponentPackageSlot]
     let component: ComponentNode
     let currentPage: Page?
     let theme: Theme
@@ -940,6 +1018,25 @@ private struct ComponentInspectorGroup: View {
                         )
                     ) {
                         propertyEditor(for: definition)
+                    }
+                }
+                if let pageID = currentPage?.id {
+                    ForEach(childPickers) { slot in
+                        InspectorGrid(
+                            contentInsets: EdgeInsets(
+                                top: 0,
+                                leading: InspectorMetrics.horizontalSectionPadding,
+                                bottom: 0,
+                                trailing: InspectorMetrics.horizontalSectionPadding
+                            )
+                        ) {
+                            ComponentSlotInspectorCard(
+                                slot: slot,
+                                component: component,
+                                pageID: pageID,
+                                editor: editor
+                            )
+                        }
                     }
                 }
             }

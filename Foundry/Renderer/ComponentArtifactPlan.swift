@@ -24,7 +24,12 @@ nonisolated struct ComponentArtifactPlan {
     static func htmlArtifact(for node: ComponentNode, suffix: String) -> String {
         guard let package = node.type.definition.package else { return "" }
         let source = ComponentTemplateRenderer.htmlPrimitives(in: package.htmlTemplate)
-            .map { node.property(.init(rawValue: $0.key + suffix)) }
+            .map { primitive in
+                let key = suffix == "CSS"
+                    ? ComponentPackageAdapter.htmlCSSKey(for: primitive.key)
+                    : ComponentPackageAdapter.htmlJavaScriptKey(for: primitive.key)
+                return node.property(key)
+            }
             .filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
             .joined(separator: "\n")
         return source

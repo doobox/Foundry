@@ -128,8 +128,6 @@
 	<string>Adds a paragraph of body text to the page.</string>
 	<key>group</key>
 	<string>Content</string>
-	<key>slots</key>
-	<array/>
 	<key>tags</key>
 	<array>
 		<string>Foundry</string>

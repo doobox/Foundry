@@ -74,7 +74,7 @@ struct ComponentDefinitionTests {
     func missingStoredPropertiesUsePackageDefaults() {
         let text = ComponentNode(
             type: .paragraph,
-            properties: [.init(key: .init(rawValue: "content1"), value: .string("Hello"))]
+            properties: [.init(key: .init(rawValue: "content"), value: .string("Hello"))]
         )
 
         #expect(text.property(.init(rawValue: "typeface")) == "body")
@@ -88,7 +88,7 @@ struct ComponentDefinitionTests {
     func packagePropertiesAreOrganizedIntoInspectorSections() {
         let buttonProperties = ComponentType.button.definition.properties
 
-        #expect(buttonProperties.first(where: { $0.key.rawValue == "content1" })?.section == .content)
+        #expect(buttonProperties.first(where: { $0.key.rawValue == "label" })?.section == .content)
         #expect(buttonProperties.first(where: { $0.key.rawValue == "textSize" })?.section == .typography)
         #expect(buttonProperties.first(where: { $0.key == .backgroundColor })?.section == .appearance)
         #expect(buttonProperties.first(where: { $0.key == .destination })?.section == .link)

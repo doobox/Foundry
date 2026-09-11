@@ -70,7 +70,7 @@ struct CanvasBridgeTests {
     @Test @MainActor
     func ordinaryLocalPropertyMutationUsesAuthoritativeComponentPatch() throws {
         var paragraph = ComponentNode.make(.paragraph)
-        let propertyKey = ComponentProperty.Key(rawValue: "content1")
+        let propertyKey = ComponentProperty.Key(rawValue: "content")
         paragraph.setProperty(propertyKey, value: .string("Patched value"))
         let page = Page(title: "Patch", slug: "patch", components: [paragraph])
         let snapshot = CanvasRenderSnapshot(
@@ -97,7 +97,7 @@ struct CanvasBridgeTests {
     func reusablePropertyMutationUsesPageFallback() {
         var paragraph = ComponentNode.make(.paragraph)
         paragraph.reusableDefinitionID = UUID()
-        let propertyKey = ComponentProperty.Key(rawValue: "content1")
+        let propertyKey = ComponentProperty.Key(rawValue: "content")
         let page = Page(title: "Fallback", slug: "fallback", components: [paragraph])
         let snapshot = CanvasRenderSnapshot(
             renderer: HTMLPageRenderer(),
@@ -254,6 +254,8 @@ struct CanvasBridgeTests {
         for id in componentIDs {
             #expect(html.contains("data-foundry-id=\"\(id)\""))
         }
+        #expect(html.contains("data-foundry-component"))
+        #expect(html.contains("data-foundry-package="))
         #expect(html.contains("data-foundry-type=\"Container\""))
         #expect(html.contains("data-foundry-type=\"Paragraph\""))
         #expect(html.contains("data-foundry-type=\"Button\""))
@@ -262,7 +264,7 @@ struct CanvasBridgeTests {
     @Test @MainActor
     func subtreeRendererMatchesAuthoritativePageOutput() throws {
         var paragraph = ComponentNode.make(.paragraph)
-        paragraph.setProperty(.init(rawValue: "content1"), value: .string("Subtree value"))
+        paragraph.setProperty(.init(rawValue: "content"), value: .string("Subtree value"))
         let page = Page(title: "Subtree", slug: "subtree", components: [paragraph])
         let renderer = HTMLPageRenderer()
 
@@ -284,7 +286,7 @@ struct CanvasBridgeTests {
     @Test @MainActor
     func subtreeRendererIncludesNestedDescendantsAndTheirStyles() throws {
         var child = ComponentNode.make(.paragraph)
-        child.setProperty(.init(rawValue: "content1"), value: .string("Nested value"))
+        child.setProperty(.init(rawValue: "content"), value: .string("Nested value"))
         var container = ComponentNode.make(.container)
         container.children = [child]
         let page = Page(title: "Nested", slug: "nested", components: [container])
@@ -300,6 +302,7 @@ struct CanvasBridgeTests {
         let fullPage = renderer.render(page: page, theme: .standard)
 
         #expect(subtree.html.contains("data-foundry-id=\"\(child.id.uuidString)\""))
+        #expect(subtree.html.contains("data-foundry-parent=\"\(container.id.uuidString)\""))
         #expect(fullPage.contains(subtree.html))
         if !subtree.instanceCSS.isEmpty {
             #expect(fullPage.contains(subtree.instanceCSS))

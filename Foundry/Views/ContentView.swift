@@ -830,9 +830,9 @@ struct ContentView: View {
                 propertyPath: message.propertyPath ?? [],
                 source: .init(
                     html: source,
-                    css: component.propertyValue(.init(rawValue: propertyKey.rawValue + "CSS"))
+                    css: component.propertyValue(ComponentPackageAdapter.htmlCSSKey(for: propertyKey.rawValue))
                         .value(at: message.propertyPath ?? [])?.stringValue ?? "",
-                    javaScript: component.propertyValue(.init(rawValue: propertyKey.rawValue + "JavaScript"))
+                    javaScript: component.propertyValue(ComponentPackageAdapter.htmlJavaScriptKey(for: propertyKey.rawValue))
                         .value(at: message.propertyPath ?? [])?.stringValue ?? ""
                 )
             )
@@ -1104,8 +1104,8 @@ struct ContentView: View {
               }) else { return }
         let values: [(ComponentProperty.Key, String)] = [
             (request.propertyKey, source.html),
-            (.init(rawValue: request.propertyKey.rawValue + "CSS"), source.css),
-            (.init(rawValue: request.propertyKey.rawValue + "JavaScript"), source.javaScript)
+            (ComponentPackageAdapter.htmlCSSKey(for: request.propertyKey.rawValue), source.css),
+            (ComponentPackageAdapter.htmlJavaScriptKey(for: request.propertyKey.rawValue), source.javaScript)
         ]
         undoManager?.beginUndoGrouping()
         for (key, value) in values {

@@ -4,6 +4,47 @@ import Testing
 
 struct ComponentTemplateTests {
     @Test
+    func dropZoneSpellingsRenderTheSameContent() {
+        let context = ComponentTemplateContext(
+            instanceID: UUID(),
+            packageIdentifier: "com.example.container",
+            properties: [:],
+            slots: [:],
+            dropZones: ["content": "<p>Child</p>"]
+        )
+
+        #expect(ComponentTemplateRenderer.render("{{ dropZone(\"content\") }}", context: context) == "<p>Child</p>")
+        #expect(ComponentTemplateRenderer.render("{{ dropzone(\"content\") }}", context: context) == "<p>Child</p>")
+    }
+
+    @Test
+    func namedEditableMacrosKeepValuesWhenTheirTemplateOrderChanges() {
+        let context = ComponentTemplateContext(
+            instanceID: UUID(),
+            packageIdentifier: "com.example.article",
+            properties: [
+                "heading": .string("Saved heading"),
+                "body": .string("Saved body")
+            ],
+            slots: [:]
+        )
+        let original = #"<h2>{{ text("heading") }}</h2><p>{{ text("body") }}</p>"#
+        let reordered = #"<p>{{ text("body") }}</p><h2>{{ text("heading") }}</h2>"#
+
+        #expect(ComponentTemplateRenderer.render(original, context: context) == "<h2>Saved heading</h2><p>Saved body</p>")
+        #expect(ComponentTemplateRenderer.render(reordered, context: context) == "<p>Saved body</p><h2>Saved heading</h2>")
+    }
+
+    @Test
+    func editableMacroDefaultsSupportEscapedStringCharacters() throws {
+        let template = #"<p>{{ text("caption", default: "Say \"hello\"") }}</p>"#
+        let primitive = try #require(ComponentTemplateRenderer.textPrimitives(in: template).first)
+
+        #expect(primitive.key == "caption")
+        #expect(primitive.defaultValue == #"Say "hello""#)
+    }
+
+    @Test
     func developerExpressionsResolveInstanceControlsAndReadableColorFilters() {
         let id = UUID(uuidString: "AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE")!
         let context = ComponentTemplateContext(
@@ -53,7 +94,7 @@ struct ComponentTemplateTests {
           {{ if control.visible }}<span>Shown</span>{{ else }}<span>Hidden</span>{{ endif }}
           {{ if control.alignment == "center" }}<b>Centered</b>{{ endif }}
           <img src="{{ asset.images/icon.svg }}">
-          {{ slot id="content" }}
+          {{ control.content }}
         </article>
         """
 

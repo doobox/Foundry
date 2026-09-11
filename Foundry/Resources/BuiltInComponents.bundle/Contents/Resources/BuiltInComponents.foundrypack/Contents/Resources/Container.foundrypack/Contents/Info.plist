@@ -152,21 +152,6 @@
 	<string>Groups components inside a constrained, styled wrapper.</string>
 	<key>group</key>
 	<string>Layout</string>
-	<key>slots</key>
-	<array>
-		<dict>
-			<key>accepts</key>
-			<array>
-				<string>*</string>
-			</array>
-			<key>id</key>
-			<string>content</string>
-			<key>minimum</key>
-			<integer>0</integer>
-			<key>title</key>
-			<string>Content</string>
-		</dict>
-	</array>
 	<key>tags</key>
 	<array>
 		<string>Foundry</string>

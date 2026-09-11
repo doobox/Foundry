@@ -21,7 +21,7 @@ struct ComponentPackageTests {
     func successfulValidationIsCachedButTemplateChangesAreStillValidated() throws {
         let packageURL = try makePackage(
             manifest: validManifest,
-            template: "<section {{ component.attributes }}>{{ slot id=\"content\" }}</section>"
+            template: "<section {{ component.attributes }}>{{ control.content }}</section>"
         )
         defer { try? FileManager.default.removeItem(at: packageURL) }
 
@@ -34,7 +34,7 @@ struct ComponentPackageTests {
         let templateURL = packageURL.appending(
             path: "Contents/Resources/\(first.package.manifest.render.html)"
         )
-        try "<section {{ component.attributes }}>{{ slot id=\"missing\" }}</section>"
+        try "<section {{ component.attributes }}>{{ control.missing }}</section>"
             .write(to: templateURL, atomically: true, encoding: .utf8)
 
         #expect(throws: ComponentPackageLoadingError.self) {
@@ -49,7 +49,7 @@ struct ComponentPackageTests {
                 of: "com.example.card",
                 with: "com.example.focal-point-hero"
             ),
-            template: "<section {{ component.attributes }}>{{ slot id=\"content\" }}</section>"
+            template: "<section {{ component.attributes }}>{{ control.content }}</section>"
         )
         defer { try? FileManager.default.removeItem(at: validURL) }
         #expect(try ComponentPackageLoader.load(from: validURL).manifest.identifier == "com.example.focal-point-hero")
@@ -57,7 +57,7 @@ struct ComponentPackageTests {
         for identifier in ["com.example.focal_point", "com.example.-hero", "com.example.hero-", "Com.example.hero"] {
             let invalidURL = try makePackage(
                 manifest: validManifest.replacingOccurrences(of: "com.example.card", with: identifier),
-                template: "<section {{ component.attributes }}>{{ slot id=\"content\" }}</section>"
+                template: "<section {{ component.attributes }}>{{ control.content }}</section>"
             )
             defer { try? FileManager.default.removeItem(at: invalidURL) }
             #expect(throws: ComponentPackageLoadingError.self) {
@@ -154,7 +154,7 @@ struct ComponentPackageTests {
                     "base": .number(10),
                     "offset": .number(6),
                     "multiplier": .number(3),
-                    "label": .array([.string("Alpha"), .string("Beta")])
+                    "labels": .array([.string("Alpha"), .string("Beta")])
                 ],
                 slots: [:],
                 environment: .canvas
@@ -243,7 +243,7 @@ struct ComponentPackageTests {
         <key>id</key><string>com.example.arrays</string>
         <key>title</key><string>Arrays</string><key>description</key><string>Array controls</string>
         <key>author</key><string>Foundry</string><key>version</key><string>1.0.0</string><key>group</key><string>Other</string>
-        <key>tags</key><array/><key>assets</key><array/><key>slots</key><array/>
+        <key>tags</key><array/><key>assets</key><array/>
         <key>customItems</key><array><dict>
         <key>id</key><string>palette</string><key>label</key><string>Palette</string><key>group</key><string>Appearance</string>
         <key>subtitle</key><array><string>First</string><string>Second</string><string>Third</string><string>Fourth</string></array>
@@ -282,7 +282,7 @@ struct ComponentPackageTests {
         <key>id</key><string>com.example.theme-values</string>
         <key>title</key><string>Theme Values</string><key>description</key><string>Named theme sources</string>
         <key>author</key><string>Foundry</string><key>version</key><string>1.0.0</string><key>group</key><string>Other</string>
-        <key>tags</key><array/><key>assets</key><array/><key>slots</key><array/>
+        <key>tags</key><array/><key>assets</key><array/>
         <key>customItems</key><array><dict>
         <key>id</key><string>tone</string><key>label</key><string>Tone</string><key>group</key><string>Appearance</string>
         <key>type</key><string>select</string><key>themeValues</key><string>spacing</string>
@@ -523,7 +523,7 @@ struct ComponentPackageTests {
         <key>id</key><string>com.example.enable</string>
         <key>title</key><string>Enable</string><key>description</key><string>Conditional controls</string>
         <key>version</key><string>1.0.0</string><key>group</key><string>Other</string>
-        <key>assets</key><array/><key>slots</key><array/>
+        <key>assets</key><array/>
         <key>customItems</key><array>
         <dict><key>id</key><string>mode</string><key>label</key><string>Mode</string><key>type</key><string>select</string><key>options</key><array><dict><key>value</key><string>featured</string><key>title</key><string>Featured</string></dict></array><key>default</key><string>featured</string><key>responsive</key><false/></dict>
         <dict><key>id</key><string>titles</string><key>label</key><string>Titles</string><key>type</key><string>text</string><key>count</key><integer>3</integer><key>default</key><array><string>One</string><string>Two</string><string>Featured story</string></array><key>responsive</key><false/></dict>
@@ -559,7 +559,7 @@ struct ComponentPackageTests {
         <key>id</key><string>com.example.derived</string>
         <key>title</key><string>Derived</string><key>description</key><string>Derived controls</string>
         <key>version</key><string>1.0.0</string>
-        <key>group</key><string>Other</string><key>assets</key><array/><key>slots</key><array/>
+        <key>group</key><string>Other</string><key>assets</key><array/>
         <key>customItems</key><array>
         <dict><key>id</key><string>amount</string><key>label</key><string>Amount</string><key>group</key><string>Test</string><key>type</key><string>number</string><key>default</key><real>21</real><key>responsive</key><false/></dict>
         <dict><key>id</key><string>action</string><key>label</key><string>Action</string><key>group</key><string>Test</string><key>type</key><string>button</string><key>trueValue</key><string>active</string><key>falseValue</key><string>ready</string><key>default</key><false/><key>responsive</key><false/></dict>
@@ -585,7 +585,7 @@ struct ComponentPackageTests {
         <key>id</key><string>com.example.buttons</string>
         <key>title</key><string>Buttons</string><key>description</key><string>Button contract</string>
         <key>version</key><string>1.0.0</string>
-        <key>group</key><string>Other</string><key>assets</key><array/><key>slots</key><array/>
+        <key>group</key><string>Other</string><key>assets</key><array/>
         <key>customItems</key><array>
         <dict><key>id</key><string>plain</string><key>subtitle</key><string>Optional help</string><key>type</key><string>button</string><key>default</key><false/></dict>
         <dict><key>id</key><string>mapped</string><key>type</key><string>button</string><key>buttonText</key><string>Apply</string><key>buttonIcon</key><string>bolt.fill</string><key>trueValue</key><string>active</string><key>falseValue</key><string>idle</string><key>default</key><true/></dict>
@@ -651,7 +651,7 @@ struct ComponentPackageTests {
         <key>id</key><string>com.example.color-formats</string>
         <key>title</key><string>Colour formats</string><key>description</key><string>Colour output contract</string>
         <key>version</key><string>1.0.0</string>
-        <key>group</key><string>Other</string><key>assets</key><array/><key>slots</key><array/>
+        <key>group</key><string>Other</string><key>assets</key><array/>
         <key>customItems</key><array>
         \(declarations)
         <dict><key>id</key><string>defaultHex</string><key>type</key><string>color</string><key>default</key><string>#FF3366</string></dict>
@@ -736,7 +736,7 @@ struct ComponentPackageTests {
         <key>id</key><string>com.example.dates</string>
         <key>title</key><string>Dates</string><key>description</key><string>Date contract</string>
         <key>version</key><string>1.0.0</string>
-        <key>group</key><string>Other</string><key>assets</key><array/><key>slots</key><array/>
+        <key>group</key><string>Other</string><key>assets</key><array/>
         <key>customItems</key><array>
         <dict><key>id</key><string>published</string><key>type</key><string>date</string><key>minimum</key><string>2026-01-01</string><key>maximum</key><string>2026-12-31</string><key>default</key><string>2026-09-08</string></dict>
         <dict><key>id</key><string>schedule</string><key>type</key><string>date</string><key>count</key><integer>2</integer><key>default</key><array><string>2026-10-01</string><string>2026-10-20</string></array></dict>
@@ -856,6 +856,25 @@ struct ComponentPackageTests {
     }
 
     @Test
+    func componentLibraryVisibilityDefaultsToShownAndCanBeHidden() throws {
+        let defaultManifest = try PropertyListDecoder().decode(
+            ComponentPackageManifest.self,
+            from: Data(validManifest.utf8)
+        )
+        #expect(defaultManifest.showsInComponentLibrary)
+
+        let hiddenManifestText = validManifest.replacingOccurrences(
+            of: "<key>templates</key>",
+            with: "<key>showsInComponentLibrary</key><false/>\n            <key>templates</key>"
+        )
+        let hiddenManifest = try PropertyListDecoder().decode(
+            ComponentPackageManifest.self,
+            from: Data(hiddenManifestText.utf8)
+        )
+        #expect(!hiddenManifest.showsInComponentLibrary)
+    }
+
+    @Test
     func phpCapabilityForcesPageExtensionWithoutAnInlinePHPTemplate() throws {
         let defaultManifest = try PropertyListDecoder().decode(
             ComponentPackageManifest.self,
@@ -876,7 +895,7 @@ struct ComponentPackageTests {
             )
         let packageURL = try makePackage(
             manifest: manifest,
-            template: "<section {{ component.attributes }}>{{ slot id=\"content\" }}</section>",
+            template: "<section {{ component.attributes }}>{{ control.content }}</section>",
             additionalFiles: ["server/endpoint.php": "<?php echo 'ready'; ?>"]
         )
         defer { try? FileManager.default.removeItem(at: packageURL) }
@@ -908,7 +927,7 @@ struct ComponentPackageTests {
                 """
             )
         let template = """
-        <div {{ component.attributes }}>{{ asset.images/icon.svg }}|{{ asset.shared/icons/star.svg }}|{{ path.siteAssets }}|{{ site.baseURL }}|{{ page.url }}|{{ if preview }}preview{{ elseif published }}published{{ endif }}{{ slot id="content" }}</div>
+        <div {{ component.attributes }}>{{ asset.images/icon.svg }}|{{ asset.shared/icons/star.svg }}|{{ path.siteAssets }}|{{ site.baseURL }}|{{ page.url }}|{{ if preview }}preview{{ elseif published }}published{{ endif }}{{ control.content }}</div>
         """
         let packageURL = try makePackage(
             manifest: manifest,
@@ -954,7 +973,7 @@ struct ComponentPackageTests {
             )
         let packageURL = try makePackage(
             manifest: manifest,
-            template: "<div {{ component.attributes }}><img src=\"{{ asset.images/icon.svg }}\"><img src=\"{{ asset.shared/icons/star.svg }}\">{{ slot id=\"content\" }}</div>",
+            template: "<div {{ component.attributes }}><img src=\"{{ asset.images/icon.svg }}\"><img src=\"{{ asset.shared/icons/star.svg }}\">{{ control.content }}</div>",
             additionalFiles: ["shared/icons/star.svg": "<svg>star</svg>"]
         )
         defer { try? FileManager.default.removeItem(at: packageURL) }
@@ -1075,7 +1094,7 @@ struct ComponentPackageTests {
             <nav {{ component.attributes }}>{{ loop navigation.items as item }}
             <a href="{{ item.href }}">{{ item.title }}</a>
             {{ loop item.children as child }}<a href="{{ child.href }}"{{ if child.current }} aria-current="page"{{ endif }}>{{ child.title }}</a>{{ endloop }}
-            {{ endloop }}{{ slot id="content" }}</nav>
+            {{ endloop }}{{ control.content }}</nav>
             """
         )
         defer { try? FileManager.default.removeItem(at: packageURL) }
@@ -1086,7 +1105,9 @@ struct ComponentPackageTests {
         let hidden = Page(title: "Hidden", slug: "hidden", parentPageID: home.id, includeInNavigation: false)
         let about = Page(title: "About", slug: "about", order: 2)
         let contact = Page(title: "Contact", slug: "contact", order: 1)
-        let component = ComponentNode(type: .init(rawValue: identifier))
+        let childComponent = ComponentNode(type: .init(rawValue: identifier))
+        var component = ComponentNode(type: .init(rawValue: identifier))
+        component.children = [childComponent]
         let current = Page(
             title: "Current & Selected", slug: "current", components: [component], parentPageID: hidden.id
         )
@@ -1125,6 +1146,9 @@ struct ComponentPackageTests {
         #expect(html.contains("href=\"/\">Home</a>"))
         #expect(html.contains("href=\"/hidden/current/\" aria-current=\"page\">Current &amp; Selected</a>"))
         #expect(!html.contains(">Hidden</a>"))
+        #expect(html.contains("data-foundry-component"))
+        #expect(html.contains("data-foundry-package=\"\(identifier)\""))
+        #expect(html.contains("data-foundry-parent=\"\(component.id.uuidString)\""))
 
         let decodedHidden = try JSONDecoder().decode(Page.self, from: JSONEncoder().encode(hidden))
         #expect(decodedHidden.includeInNavigation == false)
@@ -1133,12 +1157,12 @@ struct ComponentPackageTests {
     @Test
     func controlLoopKeepsPrimitiveKeysStableAcrossCountChanges() {
         let template = """
-        {{ loop control.itemCount }}<article>{{ text="Card" }}{{ image }}</article>{{ endloop }}
-        <footer>{{ text="Footer" }}</footer>
+        {{ loop control.itemCount }}<article>{{ text("card", default: "Card") }}{{ image("photo") }}</article>{{ endloop }}
+        <footer>{{ text("footer", default: "Footer") }}</footer>
         """
         let maximums = ["itemCount": 4]
         let textPrimitives = ComponentTemplateRenderer.textPrimitives(in: template, loopMaximums: maximums)
-        #expect(textPrimitives.map(\.key) == ["content1", "content2"])
+        #expect(textPrimitives.map(\.key) == ["card", "footer"])
         #expect(textPrimitives.first?.isRepeated == true)
         #expect(ComponentTemplateRenderer.imagePrimitives(in: template).first?.isRepeated == true)
 
@@ -1147,9 +1171,9 @@ struct ComponentPackageTests {
             packageIdentifier: "com.example.loop",
             properties: [
                 "itemCount": .number(2),
-                "content1": .array([.string("One"), .string("Two")]),
-                "content2": .string("Footer value"),
-                "image1": .array([.string("one.jpg"), .string("two.jpg")])
+                "card": .array([.string("One"), .string("Two")]),
+                "footer": .string("Footer value"),
+                "photo": .array([.string("one.jpg"), .string("two.jpg")])
             ],
             slots: [:],
             loopMaximums: maximums
@@ -1171,8 +1195,8 @@ struct ComponentPackageTests {
             loopMaximums: maximums
         )
         let editorHTML = ComponentTemplateRenderer.render(template, context: editorContext)
-        #expect(editorHTML.contains("data-foundry-primitive-property=\"content1\""))
-        #expect(editorHTML.contains("data-foundry-primitive-property=\"image1\""))
+        #expect(editorHTML.contains("data-foundry-primitive-property=\"card\""))
+        #expect(editorHTML.contains("data-foundry-primitive-property=\"photo\""))
         #expect(editorHTML.contains("data-foundry-property-path=\"0\""))
 
         let empty: ComponentProperty.Value = .array([])
@@ -1204,7 +1228,7 @@ struct ComponentPackageTests {
         let manifestText = manifest(withCustomItems: item)
         let validURL = try makePackage(
             manifest: manifestText,
-            template: "<section {{ component.attributes }}>{{ loop control.itemCount reversed }}<b>{{ loop.position }}</b>{{ endloop }}{{ slot id=\"content\" }}</section>"
+            template: "<section {{ component.attributes }}>{{ loop control.itemCount reversed }}<b>{{ loop.position }}</b>{{ endloop }}{{ control.content }}</section>"
         )
         defer { try? FileManager.default.removeItem(at: validURL) }
         let package = try ComponentPackageLoader.load(from: validURL)
@@ -1212,7 +1236,7 @@ struct ComponentPackageTests {
 
         let invalidURL = try makePackage(
             manifest: manifestText.replacingOccurrences(of: "<key>maximum</key><real>12</real>", with: ""),
-            template: "<section {{ component.attributes }}>{{ loop control.itemCount }}<b></b>{{ slot id=\"content\" }}</section>"
+            template: "<section {{ component.attributes }}>{{ loop control.itemCount }}<b></b>{{ control.content }}</section>"
         )
         defer { try? FileManager.default.removeItem(at: invalidURL) }
         #expect(throws: ComponentPackageLoadingError.self) {
@@ -1221,7 +1245,7 @@ struct ComponentPackageTests {
 
         let legacyURL = try makePackage(
             manifest: manifestText,
-            template: "<section {{ component.attributes }}>{{ repeat 2 }}<b></b>{{ endrepeat }}{{ slot id=\"content\" }}</section>"
+            template: "<section {{ component.attributes }}>{{ repeat 2 }}<b></b>{{ endrepeat }}{{ control.content }}</section>"
         )
         defer { try? FileManager.default.removeItem(at: legacyURL) }
         #expect(throws: ComponentPackageLoadingError.self) {
@@ -1230,7 +1254,7 @@ struct ComponentPackageTests {
 
         let invalidFilterURL = try makePackage(
             manifest: manifestText,
-            template: "<section {{ component.attributes }}>{{ loop navigation.items as item where item.current && }}<b></b>{{ endloop }}{{ slot id=\"content\" }}</section>"
+            template: "<section {{ component.attributes }}>{{ loop navigation.items as item where item.current && }}<b></b>{{ endloop }}{{ control.content }}</section>"
         )
         defer { try? FileManager.default.removeItem(at: invalidFilterURL) }
         #expect(throws: ComponentPackageLoadingError.self) {
@@ -1259,8 +1283,8 @@ struct ComponentPackageTests {
     }
 
     @Test
-    func textPrimitivesUseAutomaticUniqueKeysAndStoredValues() throws {
-        let template = #"<h2>{{ text="Start here" }}</h2><p>{{ text }}</p><small>{{ text="Note" }}</small>"#
+    func textPrimitivesUseDeclaredUniqueNamesAndStoredValues() throws {
+        let template = #"<h2>{{ text("heading", default: "Start here") }}</h2><p>{{ text("body") }}</p><small>{{ text("note", default: "Note") }}</small>"#
         let defaultContext = ComponentTemplateContext(
             instanceID: UUID(),
             packageIdentifier: "com.example.text",
@@ -1271,9 +1295,9 @@ struct ComponentPackageTests {
             instanceID: UUID(),
             packageIdentifier: "com.example.text",
             properties: [
-                "content1": .string("Edited & ready"),
-                "content2": .string("A shorter paragraph."),
-                "content3": .string("Updated note")
+                "heading": .string("Edited & ready"),
+                "body": .string("A shorter paragraph."),
+                "note": .string("Updated note")
             ],
             slots: [:]
         )
@@ -1287,7 +1311,7 @@ struct ComponentPackageTests {
         )
 
         let primitives = ComponentTemplateRenderer.textPrimitives(in: template)
-        #expect(primitives.map(\.key) == ["content1", "content2", "content3"])
+        #expect(primitives.map(\.key) == ["heading", "body", "note"])
         let first = try #require(primitives.first)
         let paragraph = try #require(primitives.dropFirst().first)
         #expect(first.defaultValue == "Start here")
@@ -1299,18 +1323,18 @@ struct ComponentPackageTests {
         #expect(edited.contains("Updated note"))
         let editorHTML = ComponentTemplateRenderer.render(template, context: editorContext)
         #expect(editorHTML.components(separatedBy: "data-foundry-inline-property=").count - 1 == 3)
-        #expect(editorHTML.contains("data-foundry-inline-property=\"content1\""))
-        #expect(editorHTML.contains("data-foundry-inline-property=\"content2\""))
-        #expect(editorHTML.contains("data-foundry-inline-property=\"content3\""))
+        #expect(editorHTML.contains("data-foundry-inline-property=\"heading\""))
+        #expect(editorHTML.contains("data-foundry-inline-property=\"body\""))
+        #expect(editorHTML.contains("data-foundry-inline-property=\"note\""))
         #expect(editorHTML.components(separatedBy: "data-foundry-primitive-property=").count - 1 == 3)
-        #expect(editorHTML.contains("data-foundry-primitive-property=\"content1\""))
-        #expect(editorHTML.contains("data-foundry-primitive-property=\"content2\""))
-        #expect(editorHTML.contains("data-foundry-primitive-property=\"content3\""))
+        #expect(editorHTML.contains("data-foundry-primitive-property=\"heading\""))
+        #expect(editorHTML.contains("data-foundry-primitive-property=\"body\""))
+        #expect(editorHTML.contains("data-foundry-primitive-property=\"note\""))
     }
 
     @Test
-    func bareTextPrimitiveUsesOneLoremParagraphWithoutAnExportedWrapper() {
-        let template = "<p>{{ text }}</p>"
+    func namedTextPrimitiveWithoutDefaultUsesOneLoremParagraphWithoutAnExportedWrapper() {
+        let template = "<p>{{ text(\"body\") }}</p>"
         let context = ComponentTemplateContext(
             instanceID: UUID(),
             packageIdentifier: "com.example.text",
@@ -1319,7 +1343,7 @@ struct ComponentPackageTests {
         )
 
         let primitive = ComponentTemplateRenderer.textPrimitives(in: template)[0]
-        #expect(primitive.key == "content1")
+        #expect(primitive.key == "body")
         #expect(primitive.defaultValue.components(separatedBy: ".").count >= 6)
         let rendered = ComponentTemplateRenderer.render(template, context: context)
         #expect(rendered.hasPrefix("<p>Lorem ipsum"))
@@ -1328,13 +1352,13 @@ struct ComponentPackageTests {
 
     @Test
     func textPrimitivesRenderVersionedRichTextWithoutChangingPlainTextEscaping() {
-        let template = #"<p>{{ text="Start here" }}</p>"#
+        let template = #"<p>{{ text("body", default: "Start here") }}</p>"#
         let fragment = #"<strong>Hello</strong> <a href="https://example.com">world</a>"#
         let richValue = FoundryRichTextCodec.storageValue(forHTMLFragment: fragment)
         let richContext = ComponentTemplateContext(
             instanceID: UUID(),
             packageIdentifier: "com.example.text",
-            properties: ["content1": .string(richValue)],
+            properties: ["body": .string(richValue)],
             slots: [:],
             componentAttributes: "data-foundry-id=\"test-component\"",
             enablesEditorMarkup: true
@@ -1342,13 +1366,13 @@ struct ComponentPackageTests {
         let plainContext = ComponentTemplateContext(
             instanceID: UUID(),
             packageIdentifier: "com.example.text",
-            properties: ["content1": .string("<script>alert('no')</script>")],
+            properties: ["body": .string("<script>alert('no')</script>")],
             slots: [:]
         )
 
         let richHTML = ComponentTemplateRenderer.render(template, context: richContext)
         #expect(richHTML.contains(fragment))
-        #expect(richHTML.contains("data-foundry-inline-property=\"content1\""))
+        #expect(richHTML.contains("data-foundry-inline-property=\"body\""))
         #expect(richHTML.contains("data-foundry-inline-source=\"\(Data(richValue.utf8).base64EncodedString())\""))
 
         let plainHTML = ComponentTemplateRenderer.render(template, context: plainContext)
@@ -1374,7 +1398,7 @@ struct ComponentPackageTests {
         let context = ComponentTemplateContext(
             instanceID: UUID(),
             packageIdentifier: "com.example.rich-link",
-            properties: ["content1": .string(richValue)],
+            properties: ["body": .string(richValue)],
             slots: [:],
             richTextLinkContext: .init(
                 pages: [page],
@@ -1386,7 +1410,7 @@ struct ComponentPackageTests {
             )
         )
 
-        let rendered = ComponentTemplateRenderer.render(#"<p>{{ text }}</p>"#, context: context)
+        let rendered = ComponentTemplateRenderer.render(#"<p>{{ text("body") }}</p>"#, context: context)
         #expect(rendered.contains(#"href="/about/#details""#))
         #expect(rendered.contains(#"target="_blank""#))
         #expect(rendered.contains(#"data-source="rich text""#))
@@ -1396,28 +1420,28 @@ struct ComponentPackageTests {
 
     @Test
     func htmlPrimitivePreservesMarkupAndSupportsCanvasEditing() throws {
-        let template = #"<div {{ component.attributes }}>{{ html="<strong>Start here</strong>" }}</div>"#
+        let template = #"<div {{ component.attributes }}>{{ html("content", default: "<strong>Start here</strong>") }}</div>"#
         let editorContext = ComponentTemplateContext(
             instanceID: UUID(), packageIdentifier: "com.example.html",
-            properties: ["html1": .string("<em>Edited & ready</em>")], slots: [:],
+            properties: ["content": .string("<em>Edited & ready</em>")], slots: [:],
             componentAttributes: "data-foundry-id=\"test-component\"",
             enablesEditorMarkup: true
         )
 
         let primitive = try #require(ComponentTemplateRenderer.htmlPrimitives(in: template).first)
-        #expect(primitive.key == "html1")
+        #expect(primitive.key == "content")
         #expect(primitive.defaultValue == "<strong>Start here</strong>")
         let rendered = ComponentTemplateRenderer.render(template, context: editorContext)
         #expect(rendered.contains("<em>Edited & ready</em>"))
-        #expect(rendered.contains("data-foundry-inline-property=\"html1\""))
+        #expect(rendered.contains("data-foundry-inline-property=\"content\""))
         #expect(rendered.contains("data-foundry-inline-html"))
         let encodedSource = Data("<em>Edited & ready</em>".utf8).base64EncodedString()
         #expect(rendered.contains("data-foundry-inline-source=\"\(encodedSource)\""))
     }
 
     @Test
-    func bareHTMLPrimitiveUsesAnEditableListDefault() throws {
-        let primitive = try #require(ComponentTemplateRenderer.htmlPrimitives(in: "<div>{{ html }}</div>").first)
+    func namedHTMLPrimitiveWithoutDefaultUsesAnEditableListDefault() throws {
+        let primitive = try #require(ComponentTemplateRenderer.htmlPrimitives(in: "<div>{{ html(\"content\") }}</div>").first)
 
         #expect(primitive.defaultValue.contains("<ul>"))
         #expect(primitive.defaultValue.components(separatedBy: "<li>").count - 1 == 3)
@@ -1425,7 +1449,7 @@ struct ComponentPackageTests {
 
     @Test
     func namedImagePrimitiveRendersItsDeclaredProperty() {
-        let template = "<figure {{ component.attributes }}>{{ image }}</figure>"
+        let template = "<figure {{ component.attributes }}>{{ image(\"hero\") }}</figure>"
         let editorContext = ComponentTemplateContext(
             instanceID: UUID(), packageIdentifier: "com.example.image",
             properties: [:], slots: [:], componentAttributes: "data-editor=\"true\"",
@@ -1433,7 +1457,7 @@ struct ComponentPackageTests {
         )
         let exportContext = ComponentTemplateContext(
             instanceID: UUID(), packageIdentifier: "com.example.image",
-            properties: ["image1": .string("assets/hero & wide.jpg")], slots: [:]
+            properties: ["hero": .string("assets/hero & wide.jpg")], slots: [:]
         )
 
         #expect(ComponentTemplateRenderer.hasImagePrimitive(in: template))
@@ -1534,7 +1558,7 @@ struct ComponentPackageTests {
                     </array>
                 </dict>
                 """).replacingOccurrences(of: "com.example.card", with: identifier),
-            template: #"<figure {{ component.attributes }}><img src="{{ control.source.rendition.thumbnail.href }}">{{ slot id="content" }}</figure>"#
+            template: #"<figure {{ component.attributes }}><img src="{{ control.source.rendition.thumbnail.href }}">{{ control.content }}</figure>"#
         )
         defer { try? FileManager.default.removeItem(at: packageURL) }
         let package = try ComponentPackageLoader.load(from: packageURL)
@@ -1577,7 +1601,7 @@ struct ComponentPackageTests {
         let identifier = "com.example.repeatedimages\(UUID().uuidString.replacingOccurrences(of: "-", with: "").lowercased())"
         let packageURL = try makePackage(
             manifest: manifest(withCustomItems: "").replacingOccurrences(of: "com.example.card", with: identifier),
-            template: "<section {{ component.attributes }}>{{ loop 2 }}{{ image }}{{ endloop }}{{ slot id=\"content\" }}</section>"
+            template: "<section {{ component.attributes }}>{{ loop 2 }}{{ image(\"photo\") }}{{ endloop }}{{ control.content }}</section>"
         )
         defer { try? FileManager.default.removeItem(at: packageURL) }
         ComponentRegistry.register(try ComponentPackageLoader.load(from: packageURL))
@@ -1586,7 +1610,7 @@ struct ComponentPackageTests {
         let second = ProjectAsset(filename: "second.png", mediaType: "image/png", byteCount: 1)
         var component = ComponentNode(type: .init(rawValue: identifier))
         component.setProperty(
-            .init(rawValue: "image1"),
+            .init(rawValue: "photo"),
             value: .array([.url(first.reference), .url(second.reference)])
         )
         let site = Site(
@@ -1622,7 +1646,7 @@ struct ComponentPackageTests {
                 </dict>
                 """),
             template: """
-                <figure {{ component.attributes }}><img src="{{ control.source.href }}" width="{{ control.source.width }}" height="{{ control.source.height }}" data-type="{{ control.source.mimeType }}" data-bytes="{{ control.source.byteCount }}" data-name="{{ control.source.filename }}" data-extension="{{ control.source.extension }}" data-ratio="{{ control.source.aspectRatio }}" data-x="{{ control.source.focalPointX }}" data-y="{{ control.source.focalPointY }}" style="object-position: {{ control.source.position }}" alt="{{ control.source.alt }}">{{ slot id="content" }}</figure>
+                <figure {{ component.attributes }}><img src="{{ control.source.href }}" width="{{ control.source.width }}" height="{{ control.source.height }}" data-type="{{ control.source.mimeType }}" data-bytes="{{ control.source.byteCount }}" data-name="{{ control.source.filename }}" data-extension="{{ control.source.extension }}" data-ratio="{{ control.source.aspectRatio }}" data-x="{{ control.source.focalPointX }}" data-y="{{ control.source.focalPointY }}" style="object-position: {{ control.source.position }}" alt="{{ control.source.alt }}">{{ control.content }}</figure>
                 """
         )
         defer { try? FileManager.default.removeItem(at: packageURL) }
@@ -1686,7 +1710,7 @@ struct ComponentPackageTests {
     }
 
     @Test
-    func imageMacroRequiresANamedImageProperty() throws {
+    func imageMacroRequiresADeclaredPersistentName() throws {
         let manifestText = manifest(withCustomItems: """
             <dict>
                 <key>id</key><string>title</string>
@@ -1699,18 +1723,20 @@ struct ComponentPackageTests {
             """)
         let barePackage = try makePackage(
             manifest: manifestText,
-            template: "<figure {{ component.attributes }}>{{ image }}{{ slot id=\"content\" }}</figure>"
+            template: "<figure {{ component.attributes }}>{{ image }}{{ control.content }}</figure>"
         )
         let wrongTypePackage = try makePackage(
             manifest: manifestText,
-            template: "<figure {{ component.attributes }}>{{ image title }}{{ slot id=\"content\" }}</figure>"
+            template: "<figure {{ component.attributes }}>{{ image title }}{{ control.content }}</figure>"
         )
         defer {
             try? FileManager.default.removeItem(at: barePackage)
             try? FileManager.default.removeItem(at: wrongTypePackage)
         }
 
-        _ = try ComponentPackageLoader.load(from: barePackage)
+        #expect(throws: ComponentPackageLoadingError.self) {
+            try ComponentPackageLoader.load(from: barePackage)
+        }
         #expect(throws: ComponentPackageLoadingError.self) {
             try ComponentPackageLoader.load(from: wrongTypePackage)
         }
@@ -1729,7 +1755,7 @@ struct ComponentPackageTests {
             """)
         let packageURL = try makePackage(
             manifest: validImageManifest,
-            template: "<figure {{ component.attributes }}><img src=\"{{ control.source }}\" alt=\"\">{{ slot id=\"content\" }}</figure>"
+            template: "<figure {{ component.attributes }}><img src=\"{{ control.source }}\" alt=\"\">{{ control.content }}</figure>"
         )
         defer { try? FileManager.default.removeItem(at: packageURL) }
         let package = try ComponentPackageLoader.load(from: packageURL)
@@ -1753,7 +1779,7 @@ struct ComponentPackageTests {
         )
         let invalidPackage = try makePackage(
             manifest: invalidManifest,
-            template: "<figure {{ component.attributes }}><img src=\"{{ control.source }}\" alt=\"\">{{ slot id=\"content\" }}</figure>"
+            template: "<figure {{ component.attributes }}><img src=\"{{ control.source }}\" alt=\"\">{{ control.content }}</figure>"
         )
         defer { try? FileManager.default.removeItem(at: invalidPackage) }
         #expect(throws: ComponentPackageLoadingError.self) {
@@ -1763,11 +1789,11 @@ struct ComponentPackageTests {
 
     @Test
     func textPrimitivePreservesEditedLineBreaks() {
-        let template = "<p>{{ text }}</p>"
+        let template = "<p>{{ text(\"body\") }}</p>"
         let context = ComponentTemplateContext(
             instanceID: UUID(),
             packageIdentifier: "com.example.text",
-            properties: ["content1": .string("First line\nSecond & final line")],
+            properties: ["body": .string("First line\nSecond & final line")],
             slots: [:]
         )
 
@@ -1778,7 +1804,7 @@ struct ComponentPackageTests {
     }
 
     @Test
-    func dottedSlotSyntaxIsRejectedAndNotRendered() throws {
+    func removedSlotSyntaxIsRejectedAndNotRendered() throws {
         let packageURL = try makePackage(
             manifest: validManifest,
             template: "<section {{ component.attributes }}>{{ slot.content }}</section>"
@@ -1800,7 +1826,8 @@ struct ComponentPackageTests {
         )
 
         #expect(diagnostics.contains {
-            $0.severity == .error && $0.message == "Slot macros must use {{ slot id=\"…\" }}."
+            $0.severity == .error
+                && $0.message == "Slot macros are not supported. Declare a childPicker and render it with {{ control.id }}."
         })
         #expect(!ComponentTemplateRenderer.render("{{ slot.content }}", context: context).contains("Child"))
     }
@@ -1833,8 +1860,8 @@ struct ComponentPackageTests {
 
         #expect(messages.contains(where: { $0.contains("component.attributes") }))
         #expect(messages.contains(where: { $0.contains("Unknown property 'missing'") }))
-        #expect(messages.contains(where: { $0.contains("Unknown slot 'unknown'") }))
-        #expect(messages.contains(where: { $0.contains("Declared slot 'content'") }))
+        #expect(messages.contains(where: { $0.contains("Slot macros are not supported") }))
+        #expect(messages.contains(where: { $0.contains("childPicker 'content'") }))
         #expect(messages.contains(where: { $0.contains("Asset paths must be relative") }))
         #expect(messages.contains(where: { $0.contains("unbalanced") }))
         #expect(messages.contains(where: { $0.contains("Unknown template macro 'mystery'") }))
@@ -1842,14 +1869,57 @@ struct ComponentPackageTests {
     }
 
     @Test
+    func validatorRequiresNamedFunctionSyntaxForPersistentTemplateMacros() throws {
+        let packageURL = try makePackage(
+            manifest: validManifest,
+            template: #"<section class="sample{{ component.class }}" {{ component.attributes }}>{{ text }}{{ html="<p>Old</p>" }}{{ image }}{{ dropZone "content" }}{{ control.content }}</section>"#
+        )
+        defer { try? FileManager.default.removeItem(at: packageURL) }
+        let manifest = try PropertyListDecoder().decode(
+            ComponentPackageManifest.self,
+            from: Data(validManifest.utf8)
+        )
+
+        let messages = ComponentPackageValidator.validate(
+            manifest,
+            rootURL: packageURL.appending(path: "Contents/Resources", directoryHint: .isDirectory)
+        ).map(\.message)
+
+        #expect(messages.contains { $0.contains("Every editable macro must have a permanent quoted name") })
+        #expect(messages.contains { $0.contains("Every drop zone must have a permanent quoted name") })
+    }
+
+    @Test
+    func validatorRequiresUniquePersistentTemplateNames() throws {
+        let packageURL = try makePackage(
+            manifest: validManifest,
+            template: #"<section class="sample{{ component.class }}" {{ component.attributes }}>{{ text("shared") }}{{ image("shared") }}{{ dropZone("shared") }}{{ control.content }}</section>"#
+        )
+        defer { try? FileManager.default.removeItem(at: packageURL) }
+        let manifest = try PropertyListDecoder().decode(
+            ComponentPackageManifest.self,
+            from: Data(validManifest.utf8)
+        )
+
+        let messages = ComponentPackageValidator.validate(
+            manifest,
+            rootURL: packageURL.appending(path: "Contents/Resources", directoryHint: .isDirectory)
+        ).map(\.message)
+
+        #expect(messages.contains {
+            $0 == "Editable macro and drop-zone names must be unique; 'shared' is used more than once."
+        })
+    }
+
+    @Test
     func validatorReservesRootIDAndRequiresRootClassHook() throws {
         let packageURL = try makePackage(
             manifest: validManifest,
-            template: #"<section id="developer-root" {{ component.attributes }}>{{ slot id="content" }}</section>"#
+            template: #"<section id="developer-root" {{ component.attributes }}>{{ control.content }}</section>"#
         )
         defer { try? FileManager.default.removeItem(at: packageURL) }
         let templateURL = packageURL.appending(path: "Contents/Resources/component.html")
-        try #"<section id="developer-root" {{ component.attributes }}>{{ slot id="content" }}</section>"#
+        try #"<section id="developer-root" {{ component.attributes }}>{{ control.content }}</section>"#
             .write(to: templateURL, atomically: true, encoding: .utf8)
         let manifest = try PropertyListDecoder().decode(
             ComponentPackageManifest.self,
@@ -1881,7 +1951,7 @@ struct ComponentPackageTests {
         )
         let packageURL = try makePackage(
             manifest: manifestText,
-            template: "<section {{ component.attributes }}>{{ slot id=\"content\" }}</section>"
+            template: "<section {{ component.attributes }}>{{ control.content }}</section>"
         )
         defer { try? FileManager.default.removeItem(at: packageURL) }
         let manifest = try PropertyListDecoder().decode(
@@ -1918,7 +1988,7 @@ struct ComponentPackageTests {
         )
         let packageURL = try makePackage(
             manifest: manifest,
-            template: "<section {{ component.attributes }}>{{ slot id=\"content\" }}</section>",
+            template: "<section {{ component.attributes }}>{{ control.content }}</section>",
             additionalFiles: [
                 "instance.css": "#{{ id }} { color: red; }",
                 "default-scope.css": "#{{ id }} { display: block; }"
@@ -1946,7 +2016,7 @@ struct ComponentPackageTests {
         )
         let packageURL = try makePackage(
             manifest: manifestText,
-            template: "<section {{ component.attributes }}>{{ slot id=\"content\" }}</section>",
+            template: "<section {{ component.attributes }}>{{ control.content }}</section>",
             additionalFiles: ["component.scss": ":host {}"]
         )
         defer { try? FileManager.default.removeItem(at: packageURL) }
@@ -1976,7 +2046,7 @@ struct ComponentPackageTests {
             .replacingOccurrences(of: instanceCSSDeclaration, with: declaration)
         let packageURL = try makePackage(
             manifest: manifestText,
-            template: "<section {{ component.attributes }}>{{ slot id=\"content\" }}</section>",
+            template: "<section {{ component.attributes }}>{{ control.content }}</section>",
             additionalFiles: [
                 "instance.js": "document.querySelector('#{{ id }}');",
                 "page.js": "console.log('{{ package.id }} page');"
@@ -1990,6 +2060,11 @@ struct ComponentPackageTests {
         #expect(package.instanceJavaScript.contains("\"use strict\";"))
         #expect(package.instanceJavaScript.contains("{{ id }}"))
         #expect(package.instanceJavaScript.contains(#"document.querySelector('[data-foundry-id=\"{{ instance.uuid }}\"]')"#))
+        #expect(package.instanceJavaScript.contains("const foundry = Object.freeze"))
+        #expect(package.instanceJavaScript.contains("children: foundryChildren"))
+        #expect(package.instanceJavaScript.contains("descendants: foundryDescendants"))
+        #expect(package.instanceJavaScript.contains("ancestors: foundryAncestors"))
+        #expect(package.instanceJavaScript.contains("closest: (packageIdentifier)"))
         #expect(package.pageJavaScript.contains("page"))
         #expect(!package.pageJavaScript.contains("(function ()"))
     }
@@ -2008,7 +2083,7 @@ struct ComponentPackageTests {
             .replacingOccurrences(of: instanceCSSDeclaration, with: declaration)
         let packageURL = try makePackage(
             manifest: manifestText,
-            template: "<section {{ component.attributes }}>{{ slot id=\"content\" }}</section>",
+            template: "<section {{ component.attributes }}>{{ control.content }}</section>",
             additionalFiles: [
                 "site.js": "console.log('site');",
                 "site.php": "<?php $site = true; ?>"
@@ -2042,7 +2117,7 @@ struct ComponentPackageTests {
             .replacingOccurrences(of: instanceCSSDeclaration, with: declaration)
         let packageURL = try makePackage(
             manifest: manifestText,
-            template: "<section class=\"test{{ component.class }}\" {{ component.attributes }}><button>Test</button>{{ slot id=\"content\" }}</section>",
+            template: "<section class=\"test{{ component.class }}\" {{ component.attributes }}><button>Test</button>{{ control.content }}</section>",
             additionalFiles: ["instance.js": "component.querySelector('button');"]
         )
         defer { try? FileManager.default.removeItem(at: packageURL) }
@@ -2066,7 +2141,7 @@ struct ComponentPackageTests {
         let identifier = "com.example.anchor\(UUID().uuidString.replacingOccurrences(of: "-", with: "").lowercased())"
         let packageURL = try makePackage(
             manifest: validManifest.replacingOccurrences(of: "com.example.card", with: identifier),
-            template: "<section {{ component.attributes }}>{{ slot id=\"content\" }}</section>"
+            template: "<section {{ component.attributes }}>{{ control.content }}</section>"
         )
         defer { try? FileManager.default.removeItem(at: packageURL) }
 
@@ -2132,7 +2207,7 @@ struct ComponentPackageTests {
             .replacingOccurrences(of: instanceCSSDeclaration, with: declaration)
         let packageURL = try makePackage(
             manifest: manifestText,
-            template: "<section {{ component.attributes }}>{{ slot id=\"content\" }}</section>",
+            template: "<section {{ component.attributes }}>{{ control.content }}</section>",
             additionalFiles: [
                 "instance.php": "<?php $componentIDs[] = '{{ id }}'; ?>",
                 "page.php": "<?php $package = '{{ package.id }}'; ?>"
@@ -2166,7 +2241,7 @@ struct ComponentPackageTests {
         let manifestText = validManifest.replacingOccurrences(of: instanceCSSDeclaration, with: declaration)
         let packageURL = try makePackage(
             manifest: manifestText,
-            template: "<section {{ component.attributes }}>{{ slot id=\"content\" }}</section>",
+            template: "<section {{ component.attributes }}>{{ control.content }}</section>",
             additionalFiles: ["component.php": "<?php return; ?>"]
         )
         defer { try? FileManager.default.removeItem(at: packageURL) }
@@ -2195,7 +2270,7 @@ struct ComponentPackageTests {
         let manifestText = manifest(withCustomItems: item)
         let packageURL = try makePackage(
             manifest: manifestText,
-            template: "<section {{ component.attributes }} style=\"text-align: {{ control.alignment }}\">{{ slot id=\"content\" }}</section>"
+            template: "<section {{ component.attributes }} style=\"text-align: {{ control.alignment }}\">{{ control.content }}</section>"
         )
         defer { try? FileManager.default.removeItem(at: packageURL) }
 
@@ -2303,7 +2378,7 @@ struct ComponentPackageTests {
         let manifestText = manifest(withCustomItems: sliderItem)
         let packageURL = try makePackage(
             manifest: manifestText,
-            template: "<output {{ component.attributes }}>{{ control.opacity }}{{ slot id=\"content\" }}</output>"
+            template: "<output {{ component.attributes }}>{{ control.opacity }}{{ control.content }}</output>"
         )
         defer { try? FileManager.default.removeItem(at: packageURL) }
 
@@ -2339,7 +2414,7 @@ struct ComponentPackageTests {
         let manifestText = manifest(withCustomItems: item)
         let packageURL = try makePackage(
             manifest: manifestText,
-            template: "<output {{ component.attributes }}>{{ control.dimensions[0] }}{{ slot id=\"content\" }}</output>"
+            template: "<output {{ component.attributes }}>{{ control.dimensions[0] }}{{ control.content }}</output>"
         )
         defer { try? FileManager.default.removeItem(at: packageURL) }
 
@@ -2397,7 +2472,7 @@ struct ComponentPackageTests {
         let manifestText = manifest(withCustomItems: item)
         let packageURL = try makePackage(
             manifest: manifestText,
-            template: "<output {{ component.attributes }}>{{ control.slider }}{{ slot id=\"content\" }}</output>"
+            template: "<output {{ component.attributes }}>{{ control.slider }}{{ control.content }}</output>"
         )
         defer { try? FileManager.default.removeItem(at: packageURL) }
 
@@ -2464,7 +2539,7 @@ struct ComponentPackageTests {
         let manifestText = manifest(withCustomItems: item)
         let packageURL = try makePackage(
             manifest: manifestText,
-            template: "<section {{ component.attributes }}>{{ slot id=\"content\" }}</section>"
+            template: "<section {{ component.attributes }}>{{ control.content }}</section>"
         )
         defer { try? FileManager.default.removeItem(at: packageURL) }
 
@@ -2479,7 +2554,7 @@ struct ComponentPackageTests {
 
         let invalidPackageURL = try makePackage(
             manifest: manifestText,
-            template: "<section {{ component.attributes }}>{{ control.contentDivider }}{{ slot id=\"content\" }}</section>"
+            template: "<section {{ component.attributes }}>{{ control.contentDivider }}{{ control.content }}</section>"
         )
         defer { try? FileManager.default.removeItem(at: invalidPackageURL) }
         let diagnostics = ComponentPackageValidator.validate(
@@ -2620,7 +2695,7 @@ struct ComponentPackageTests {
         let manifestText = validManifest.replacingOccurrences(of: instanceCSSDeclaration, with: declaration)
         let packageURL = try makePackage(
             manifest: manifestText,
-            template: "<section {{ component.attributes }}>{{ slot id=\"content\" }}</section>",
+            template: "<section {{ component.attributes }}>{{ control.content }}</section>",
             additionalFiles: [
                 "head.html": "<meta name=\"package\" content=\"{{ package.id }}\">",
                 "body.html": "<div data-package=\"{{ package.id }}\"></div>"
@@ -2645,7 +2720,7 @@ struct ComponentPackageTests {
         let manifestText = validManifest.replacingOccurrences(of: instanceCSSDeclaration, with: declaration)
         let validURL = try makePackage(
             manifest: manifestText,
-            template: "<section {{ component.attributes }}>{{ slot id=\"content\" }}</section>",
+            template: "<section {{ component.attributes }}>{{ control.content }}</section>",
             additionalFiles: ["site.css": ".package-{{ package.id }} { box-sizing: border-box; }"]
         )
         defer { try? FileManager.default.removeItem(at: validURL) }
@@ -2657,7 +2732,7 @@ struct ComponentPackageTests {
 
         let invalidURL = try makePackage(
             manifest: manifestText,
-            template: "<section {{ component.attributes }}>{{ slot id=\"content\" }}</section>",
+            template: "<section {{ component.attributes }}>{{ control.content }}</section>",
             additionalFiles: ["site.css": "#{{ id }} { display: none; }"]
         )
         defer { try? FileManager.default.removeItem(at: invalidURL) }
@@ -2677,7 +2752,7 @@ struct ComponentPackageTests {
         let manifestText = validManifest.replacingOccurrences(of: instanceCSSDeclaration, with: declaration)
         let validURL = try makePackage(
             manifest: manifestText,
-            template: "<section {{ component.attributes }}>{{ slot id=\"content\" }}</section>",
+            template: "<section {{ component.attributes }}>{{ control.content }}</section>",
             additionalFiles: ["page.css": "[data-foundry-package=\"{{ package.id }}\"] { display: block; }"]
         )
         defer { try? FileManager.default.removeItem(at: validURL) }
@@ -2688,7 +2763,7 @@ struct ComponentPackageTests {
 
         let invalidURL = try makePackage(
             manifest: manifestText,
-            template: "<section {{ component.attributes }}>{{ slot id=\"content\" }}</section>",
+            template: "<section {{ component.attributes }}>{{ control.content }}</section>",
             additionalFiles: ["page.css": "#{{ id }} { color: {{ control.title }}; }"]
         )
         defer { try? FileManager.default.removeItem(at: invalidURL) }
@@ -2698,16 +2773,328 @@ struct ComponentPackageTests {
     }
 
     @Test
-    func insertingIntoNamedSlotStoresTheSlotOnTheChild() throws {
+    func insertingThroughChildPickerStoresItsIdentifierOnTheChild() throws {
+        let packageURL = try makePackage(
+            manifest: validManifest.replacingOccurrences(of: "com.example.card", with: "com.example.named-slot-parent"),
+            template: "<section {{ component.attributes }}>{{ control.content }}</section>"
+        )
+        defer { try? FileManager.default.removeItem(at: packageURL) }
+        let package = try ComponentPackageLoader.load(from: packageURL)
+        ComponentRegistry.register(package)
+        defer { ComponentRegistry.unregisterPackage(identifier: package.manifest.identifier) }
         let parentID = UUID()
-        var tree = [ComponentNode(id: parentID, type: .container)]
+        var tree = [ComponentNode(id: parentID, type: ComponentType(rawValue: package.manifest.identifier))]
         let child = ComponentNode.make(.paragraph)
 
-        let didInsert = tree.insert(child, at: .insideSlot(parentID, "sidebar"))
+        let didInsert = tree.insert(child, at: .insideSlot(parentID, "content"))
 
         #expect(didInsert)
         let insertedChild = try #require(tree.first?.children.first)
-        #expect(insertedChild.slotID == "sidebar")
+        #expect(insertedChild.slotID == "content")
+    }
+
+    @Test
+    func childPickersEnforceAcceptedTypesMaximumAndLockedContainment() throws {
+        let manifest = validManifest
+            .replacingOccurrences(of: "com.example.card", with: "com.example.managed-parent")
+            .replacingOccurrences(of: "<key>label</key><string>Content</string>", with: "<key>label</key><string>Cards</string>")
+            .replacingOccurrences(
+                of: "<key>accepts</key><array><string>*</string></array>",
+                with: "<key>accepts</key><array><string>foundry.content.paragraph</string></array><key>initial</key><array><string>foundry.content.paragraph</string></array><key>minimum</key><integer>1</integer><key>maximum</key><integer>2</integer><key>containment</key><string>locked</string>"
+            )
+        let packageURL = try makePackage(
+            manifest: manifest,
+            template: "<section {{ component.attributes }}>{{ control.content }}</section>"
+        )
+        defer { try? FileManager.default.removeItem(at: packageURL) }
+        let package = try ComponentPackageLoader.load(from: packageURL)
+        ComponentRegistry.register(package)
+        defer { ComponentRegistry.unregisterPackage(identifier: package.manifest.identifier) }
+
+        let parentID = UUID()
+        let firstID = UUID()
+        var tree = [ComponentNode(
+            id: parentID,
+            type: ComponentType(rawValue: package.manifest.identifier),
+            children: [ComponentNode(id: firstID, type: .paragraph, slotID: "content")]
+        )]
+
+        let insertedButton = tree.insert(ComponentNode.make(.button), at: .insideSlot(parentID, "content"))
+        let insertedSecondParagraph = tree.insert(ComponentNode.make(.paragraph), at: .insideSlot(parentID, "content"))
+        let insertedThirdParagraph = tree.insert(ComponentNode.make(.paragraph), at: .insideSlot(parentID, "content"))
+        let movedOutside = tree.moveNode(withID: firstID, to: .end)
+        let reorderedInside = tree.moveNode(withID: firstID, to: .insideSlot(parentID, "content"))
+
+        #expect(!insertedButton)
+        #expect(insertedSecondParagraph)
+        #expect(!insertedThirdParagraph)
+        #expect(!movedOutside)
+        #expect(reorderedInside)
+    }
+
+    @Test
+    func childPickerCreatesInitialChildrenRecursively() throws {
+        let grandchildIdentifier = "com.example.initial-grandchild"
+        let childIdentifier = "com.example.initial-child"
+        let parentIdentifier = "com.example.initial-parent"
+        let acceptsDeclaration = "<key>accepts</key><array><string>*</string></array>"
+
+        let grandchildURL = try makePackage(
+            manifest: validManifest.replacingOccurrences(of: "com.example.card", with: grandchildIdentifier),
+            template: "<section {{ component.attributes }}>{{ control.content }}</section>"
+        )
+        defer { try? FileManager.default.removeItem(at: grandchildURL) }
+        let grandchildPackage = try ComponentPackageLoader.load(from: grandchildURL)
+        ComponentRegistry.register(grandchildPackage)
+        defer { ComponentRegistry.unregisterPackage(identifier: grandchildIdentifier) }
+
+        let childInitial = """
+        \(acceptsDeclaration)
+        <key>pickerItems</key>
+        <array><string>\(grandchildIdentifier)</string></array>
+        <key>initial</key>
+        <array>
+            <string>\(grandchildIdentifier)</string>
+            <string>\(grandchildIdentifier)</string>
+        </array>
+        """
+        let childURL = try makePackage(
+            manifest: validManifest
+                .replacingOccurrences(of: "com.example.card", with: childIdentifier)
+                .replacingOccurrences(of: acceptsDeclaration, with: childInitial),
+            template: "<section {{ component.attributes }}>{{ control.content }}</section>"
+        )
+        defer { try? FileManager.default.removeItem(at: childURL) }
+        let childPackage = try ComponentPackageLoader.load(from: childURL)
+        ComponentRegistry.register(childPackage)
+        defer { ComponentRegistry.unregisterPackage(identifier: childIdentifier) }
+
+        let parentInitial = """
+        \(acceptsDeclaration)
+        <key>pickerItems</key>
+        <array><string>\(childIdentifier)</string></array>
+        <key>initial</key>
+        <array>
+            <string>\(childIdentifier)</string>
+            <string>\(grandchildIdentifier)</string>
+            <string>\(childIdentifier)</string>
+        </array>
+        """
+        let parentURL = try makePackage(
+            manifest: validManifest
+                .replacingOccurrences(of: "com.example.card", with: parentIdentifier)
+                .replacingOccurrences(of: acceptsDeclaration, with: parentInitial),
+            template: "<section {{ component.attributes }}>{{ control.content }}</section>"
+        )
+        defer { try? FileManager.default.removeItem(at: parentURL) }
+        let parentPackage = try ComponentPackageLoader.load(from: parentURL)
+        ComponentRegistry.register(parentPackage)
+        defer { ComponentRegistry.unregisterPackage(identifier: parentIdentifier) }
+
+        let parent = ComponentNode.make(ComponentType(rawValue: parentIdentifier))
+
+        #expect(parent.children.map(\.type.rawValue) == [
+            childIdentifier,
+            grandchildIdentifier,
+            childIdentifier
+        ])
+        #expect(parent.children.allSatisfy { $0.slotID == "content" })
+        #expect(parent.children.first?.children.map(\.type.rawValue) == [
+            grandchildIdentifier,
+            grandchildIdentifier
+        ])
+        #expect(parent.children.first?.children.allSatisfy { $0.slotID == "content" } == true)
+    }
+
+    @Test
+    func childPickerCanOfferFewerTypesThanItAccepts() throws {
+        let childIdentifier = "com.example.picker-child"
+        let parentIdentifier = "com.example.picker-parent"
+        let acceptsDeclaration = "<key>accepts</key><array><string>*</string></array>"
+        let pickerDeclaration = """
+        \(acceptsDeclaration)
+        <key>pickerItems</key>
+        <array><string>\(childIdentifier)</string></array>
+        """
+        let parentURL = try makePackage(
+            manifest: validManifest
+                .replacingOccurrences(of: "com.example.card", with: parentIdentifier)
+                .replacingOccurrences(of: acceptsDeclaration, with: pickerDeclaration),
+            template: "<section {{ component.attributes }}>{{ control.content }}</section>"
+        )
+        defer { try? FileManager.default.removeItem(at: parentURL) }
+        let parentPackage = try ComponentPackageLoader.load(from: parentURL)
+        let slot = try #require(parentPackage.manifest.slots.first)
+
+        #expect(slot.acceptsComponent(.paragraph))
+        #expect(!slot.offersInPicker(.paragraph))
+        #expect(slot.offersInPicker(ComponentType(rawValue: childIdentifier)))
+    }
+
+    @Test
+    func childPickerValidatesInitialChildren() throws {
+        let wrongShape = validManifest.replacingOccurrences(
+            of: "<key>accepts</key><array><string>*</string></array>",
+            with: "<key>accepts</key><array><string>*</string></array><key>initial</key><integer>2</integer>"
+        )
+        let invalidValues = validManifest.replacingOccurrences(
+            of: "<key>accepts</key><array><string>*</string></array>",
+            with: "<key>accepts</key><array><string>com.example.child</string></array><key>pickerItems</key><array><string>Invalid</string><string>com.example.child</string></array><key>initial</key><array><string>com.example.child</string><string>com.example.other</string></array><key>maximum</key><integer>1</integer>"
+        )
+
+        let wrongShapeDiagnostics = try ComponentPackageManifestSchema.diagnostics(for: Data(wrongShape.utf8))
+        let invalidValueDiagnostics = try ComponentPackageManifestSchema.diagnostics(for: Data(invalidValues.utf8))
+
+        #expect(wrongShapeDiagnostics.contains { $0.location.contains("initial") && $0.message.contains("strings") })
+        #expect(invalidValueDiagnostics.contains { $0.location.contains("pickerItems[0]") })
+        #expect(invalidValueDiagnostics.contains { $0.location.contains("initial") && $0.message.contains("maximum") })
+        #expect(invalidValueDiagnostics.contains { $0.location.contains("initial[1]") && $0.message.contains("permitted") })
+    }
+
+    @Test
+    func childPickerContainmentDefaultsToOpenAndDecodesLocked() throws {
+        let openManifest = try PropertyListDecoder().decode(
+            ComponentPackageManifest.self,
+            from: Data(validManifest.utf8)
+        )
+        #expect(openManifest.slots.first?.containment == .open)
+
+        let lockedText = validManifest.replacingOccurrences(
+            of: "<key>accepts</key><array><string>*</string></array>",
+            with: "<key>accepts</key><array><string>*</string></array><key>containment</key><string>locked</string>"
+        )
+        let lockedManifest = try PropertyListDecoder().decode(
+            ComponentPackageManifest.self,
+            from: Data(lockedText.utf8)
+        )
+        #expect(lockedManifest.slots.first?.containment == .locked)
+    }
+
+    @Test
+    func childPickerAddPresentationIsOwnedByFoundry() throws {
+        let manifest = validManifest.replacingOccurrences(
+            of: "<key>accepts</key><array><string>*</string></array>",
+            with: "<key>accepts</key><array><string>*</string></array><key>buttonText</key><string>Add Card</string>"
+        )
+
+        let diagnostics = try ComponentPackageManifestSchema.diagnostics(for: Data(manifest.utf8))
+
+        #expect(diagnostics.contains {
+            $0.location.contains("buttonText")
+                && $0.message == "A childPicker control does not support buttonText."
+        })
+    }
+
+    @Test
+    func dropZoneCreatesAnOrdinaryUnslottedChildArea() throws {
+        let identifier = "com.example.drop-zone-parent"
+        let manifest = validManifest
+            .replacingOccurrences(of: "com.example.card", with: identifier)
+            .replacingOccurrences(of: defaultCustomItemsDeclaration, with: "")
+        let packageURL = try makePackage(
+            manifest: manifest,
+            template: "<section class=\"container{{ component.class }}\" {{ component.attributes }}>{{ dropzone(\"content\") }}</section>"
+        )
+        defer { try? FileManager.default.removeItem(at: packageURL) }
+        let package = try ComponentPackageLoader.load(from: packageURL)
+        ComponentRegistry.register(package)
+        defer { ComponentRegistry.unregisterPackage(identifier: identifier) }
+
+        let parentID = UUID()
+        var tree = [ComponentNode(id: parentID, type: ComponentType(rawValue: identifier))]
+        let child = ComponentNode(type: ComponentType(rawValue: "com.example.any-child"))
+
+        #expect(package.hasDropZone)
+        #expect(ComponentPackageAdapter.definition(from: package).allowsChildren)
+        let inserted = tree.insert(child, at: .inside(parentID))
+        #expect(inserted)
+        #expect(tree.node(withID: child.id)?.slotID == package.dropZoneSlotID(for: "content"))
+    }
+
+    @Test
+    func removedNamedDropZonePreservesItsChildrenUntilTheNameReturns() throws {
+        let identifier = "com.example.updated-drop-zone-parent"
+        let manifest = validManifest
+            .replacingOccurrences(of: "com.example.card", with: identifier)
+            .replacingOccurrences(of: defaultCustomItemsDeclaration, with: "")
+        let originalURL = try makePackage(
+            manifest: manifest,
+            template: "<main class=\"layout{{ component.class }}\" {{ component.attributes }}>{{ dropZone(\"content\") }}{{ dropZone(\"sidebar\") }}</main>"
+        )
+        let updatedURL = try makePackage(
+            manifest: manifest,
+            template: "<main class=\"layout{{ component.class }}\" {{ component.attributes }}>{{ dropZone(\"content\") }}</main>"
+        )
+        defer {
+            ComponentRegistry.unregisterPackage(identifier: identifier)
+            try? FileManager.default.removeItem(at: originalURL)
+            try? FileManager.default.removeItem(at: updatedURL)
+        }
+
+        let originalPackage = try ComponentPackageLoader.load(from: originalURL)
+        ComponentRegistry.register(originalPackage)
+        let parentID = UUID()
+        let child = ComponentNode(type: ComponentType(rawValue: "com.example.sidebar-child"))
+        var tree = [ComponentNode(id: parentID, type: ComponentType(rawValue: identifier))]
+        let inserted = tree.insert(
+            child,
+            at: .insideSlot(parentID, originalPackage.dropZoneSlotID(for: "sidebar"))
+        )
+        #expect(inserted)
+
+        let updatedPackage = try ComponentPackageLoader.load(from: updatedURL)
+        ComponentRegistry.register(updatedPackage)
+        let preservedSlotID = tree.node(withID: child.id)?.slotID
+        #expect(preservedSlotID == LoadedComponentPackage.dropZoneSlotPrefix + "sidebar")
+        #expect(updatedPackage.isDropZoneSlotID(preservedSlotID ?? "") == false)
+        #expect(LoadedComponentPackage.dropZoneName(forSlotID: preservedSlotID ?? "") == "sidebar")
+        #expect(tree.node(withID: child.id) != nil)
+
+        ComponentRegistry.register(originalPackage)
+        #expect(originalPackage.isDropZoneSlotID(tree.node(withID: child.id)?.slotID ?? ""))
+    }
+
+    @Test
+    func allowedParentsRestrictsChildPlacement() throws {
+        let parentIdentifier = "com.example.allowed-parent"
+        let childIdentifier = "com.example.restricted-child"
+        let parentManifest = validManifest
+            .replacingOccurrences(of: "com.example.card", with: parentIdentifier)
+            .replacingOccurrences(of: defaultCustomItemsDeclaration, with: "")
+        let childManifest = validManifest
+            .replacingOccurrences(of: "com.example.card", with: childIdentifier)
+            .replacingOccurrences(
+                of: "<key>title</key><string>Card</string>",
+                with: "<key>title</key><string>Card</string><key>allowedParents</key><array><string>\(parentIdentifier)</string></array>"
+            )
+        let parentURL = try makePackage(
+            manifest: parentManifest,
+            template: "<section class=\"container{{ component.class }}\" {{ component.attributes }}>{{ dropZone(\"content\") }}</section>"
+        )
+        let childURL = try makePackage(
+            manifest: childManifest,
+            template: "<article class=\"card{{ component.class }}\" {{ component.attributes }}>{{ control.content }}</article>"
+        )
+        defer {
+            try? FileManager.default.removeItem(at: parentURL)
+            try? FileManager.default.removeItem(at: childURL)
+        }
+        let parentPackage = try ComponentPackageLoader.load(from: parentURL)
+        let childPackage = try ComponentPackageLoader.load(from: childURL)
+        ComponentRegistry.register(parentPackage)
+        ComponentRegistry.register(childPackage)
+        defer {
+            ComponentRegistry.unregisterPackage(identifier: parentIdentifier)
+            ComponentRegistry.unregisterPackage(identifier: childIdentifier)
+        }
+
+        let parentID = UUID()
+        let child = ComponentNode.make(ComponentType(rawValue: childIdentifier))
+        var tree = [ComponentNode(id: parentID, type: ComponentType(rawValue: parentIdentifier))]
+
+        #expect(!tree.accepts(child, at: .end))
+        let inserted = tree.insert(child, at: .inside(parentID))
+        #expect(inserted)
     }
 
     @Test @MainActor
@@ -2750,7 +3137,7 @@ struct ComponentPackageTests {
         #expect(bundledIdentifiers.isSubset(of: Set(ComponentType.allCases.map(\.rawValue))))
         let html = try #require(catalog.packages["foundry.content.html"])
         let htmlDefinition = ComponentPackageAdapter.definition(from: html)
-        #expect(htmlDefinition.properties.contains { $0.key.rawValue == "html1" && !$0.isInspectorVisible })
+        #expect(htmlDefinition.properties.contains { $0.key.rawValue == "content" && !$0.isInspectorVisible })
     }
 
     @Test @MainActor
@@ -2844,7 +3231,7 @@ struct ComponentPackageTests {
     func catalogIndexRestoresPreparedDefinitionsWithoutLoadingRuntimePayloads() throws {
         let packageURL = try makePackage(
             manifest: validManifest,
-            template: "<div {{ component.attributes }}>{{ text=\"Cached text\" }}</div>"
+            template: "<div {{ component.attributes }}>{{ text(\"content\", default: \"Cached text\") }}</div>"
         )
         defer { try? FileManager.default.removeItem(at: packageURL) }
 
@@ -3004,7 +3391,7 @@ struct ComponentPackageTests {
     func loadedComponentsKnowWhenTheyBelongToADevelopmentPack() throws {
         let packageURL = try makePackage(
             manifest: validManifest,
-            template: "<section {{ component.attributes }}>Development{{ slot id=\"content\" }}</section>",
+            template: "<section {{ component.attributes }}>Development{{ control.content }}</section>",
             pathExtension: "foundrydevpack"
         )
         defer { try? FileManager.default.removeItem(at: packageURL) }
@@ -3066,7 +3453,7 @@ struct ComponentPackageTests {
         for testCase in cases {
             let packageURL = try makePackage(
                 manifest: testCase.manifest,
-                template: "<section {{ component.attributes }}>{{ slot id=\"content\" }}</section>"
+                template: "<section {{ component.attributes }}>{{ control.content }}</section>"
             )
             defer { try? FileManager.default.removeItem(at: packageURL) }
             do {
@@ -3193,7 +3580,7 @@ struct ComponentPackageTests {
             )
         let packageURL = try makePackage(
             manifest: manifest,
-            template: "<section {{ component.attributes }}><i class=\"bi bi-alarm\"></i>{{ slot id=\"content\" }}</section>"
+            template: "<section {{ component.attributes }}><i class=\"bi bi-alarm\"></i>{{ control.content }}</section>"
         )
         defer { try? FileManager.default.removeItem(at: packageURL) }
         let package = try ComponentPackageLoader.load(from: packageURL)
@@ -3226,7 +3613,7 @@ struct ComponentPackageTests {
         let manifest = manifest(withCustomItems: item)
         let packageURL = try makePackage(
             manifest: manifest,
-            template: "<span {{ component.attributes }}><i class=\"bi bi-{{ control.symbol }}\"></i>{{ slot id=\"content\" }}</span>"
+            template: "<span {{ component.attributes }}><i class=\"bi bi-{{ control.symbol }}\"></i>{{ control.content }}</span>"
         )
         defer { try? FileManager.default.removeItem(at: packageURL) }
 
@@ -3356,15 +3743,6 @@ struct ComponentPackageTests {
             <key>version</key><string>1.0.0</string>
             <key>description</key><string>A test card.</string>
             <key>group</key><string>Content component</string>
-            <key>slots</key>
-            <array>
-                <dict>
-                    <key>id</key><string>content</string>
-                    <key>title</key><string>Content</string>
-                    <key>accepts</key><array><string>*</string></array>
-                    <key>minimum</key><integer>0</integer>
-                </dict>
-            </array>
             \(defaultCustomItemsDeclaration)
             <key>templates</key>
             <dict>
@@ -3389,6 +3767,13 @@ struct ComponentPackageTests {
                 <key>default</key><string>Hello</string>
                 <key>responsive</key><false/>
             </dict>
+            <dict>
+                <key>type</key><string>childPicker</string>
+                <key>id</key><string>content</string>
+                <key>label</key><string>Content</string>
+                <key>pickerItems</key><array><string>com.example.child</string></array>
+                <key>accepts</key><array><string>*</string></array>
+            </dict>
         </array>
         """
     }
@@ -3398,6 +3783,13 @@ struct ComponentPackageTests {
         <key>customItems</key>
         <array>
             \(items)
+            <dict>
+                <key>type</key><string>childPicker</string>
+                <key>id</key><string>content</string>
+                <key>label</key><string>Content</string>
+                <key>pickerItems</key><array><string>com.example.child</string></array>
+                <key>accepts</key><array><string>*</string></array>
+            </dict>
         </array>
         """
         return validManifest.replacingOccurrences(of: defaultCustomItemsDeclaration, with: replacement)
@@ -3423,7 +3815,7 @@ struct ComponentPackageTests {
         ) + "</svg>"
         let packageURL = try makePackage(
             manifest: validManifest,
-            template: "<div {{ component.attributes }}>{{ slot id=\"content\" }}</div>",
+            template: "<div {{ component.attributes }}>{{ control.content }}</div>",
             additionalFiles: ["icon.svg": oversizedIcon]
         )
         defer { try? FileManager.default.removeItem(at: packageURL) }

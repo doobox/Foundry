@@ -7,6 +7,10 @@ nonisolated enum FoundryComponentAPI {
 }
 
 nonisolated enum ComponentPackageManifestSchema {
+    private static let componentIdentifierExpression = try! NSRegularExpression(
+        pattern: #"^[a-z](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)+$"#
+    )
+
     enum Kind: Sendable {
         case collection
         case component
@@ -39,19 +43,18 @@ nonisolated enum ComponentPackageManifestSchema {
 
     private static let componentKeys: Set<String> = [
         "minimumAPIVersion", "id", "title", "description", "author", "version", "group",
-        "tags", "slots", "customItems", "templates", "assets", "helpURL", "missingComponent",
+        "tags", "showsInComponentLibrary", "allowedParents", "customItems", "templates", "assets", "helpURL", "missingComponent",
         "requiresPhp", "libraries", "collection", "updates"
     ]
     private static let collectionKeys: Set<String> = [
         "collection", "minimumAPIVersion", "id", "title", "author", "version", "updates"
     ]
     private static let updateKeys: Set<String> = ["appcastURL", "publicKey"]
-    private static let slotKeys: Set<String> = ["id", "title", "accepts", "minimum", "maximum"]
     private static let propertyKeys: Set<String> = [
         "id", "label", "title", "body", "systemImage", "group", "default", "responsive", "subtitle", "buttonText", "units", "toolTip",
         "type", "minimum", "maximum", "step", "options", "themeValues", "allowsCustom", "colorMath", "opacity", "outputFormat",
         "customColor", "count", "ticks", "showsValueField", "trueValue", "falseValue",
-        "buttonIcon", "activeButtonText", "activeButtonIcon", "selectionMode", "fontSize", "argument1", "argument2", "operation", "round", "absoluteURL", "enable", "alt", "focalPoint", "renditions"
+        "buttonIcon", "activeButtonText", "activeButtonIcon", "selectionMode", "fontSize", "argument1", "argument2", "operation", "round", "absoluteURL", "enable", "alt", "focalPoint", "renditions", "accepts", "pickerItems", "initial", "containment"
     ]
     private static let enableKeys: Set<String> = ["id", "operation", "value"]
     private static let optionKeys: Set<String> = ["value", "title"]
@@ -112,17 +115,6 @@ nonisolated enum ComponentPackageManifestSchema {
         validateReleaseVersion(in: dictionary, into: &diagnostics)
         validateUpdates(in: dictionary, into: &diagnostics)
 
-        validateDictionaryArray(dictionary["slots"], key: "slots", parent: "Info.plist", into: &diagnostics)
-        dictionaries(in: dictionary["slots"]).enumerated().forEach { index, slot in
-            let location = "Info.plist:slots[\(index)]"
-            unknownKeys(
-                in: slot,
-                allowed: slotKeys,
-                location: location,
-                into: &diagnostics
-            )
-            validateSlot(slot, location: location, into: &diagnostics)
-        }
         validateDictionaryArray(dictionary["customItems"], key: "customItems", parent: "Info.plist", into: &diagnostics)
         dictionaries(in: dictionary["customItems"]).enumerated().forEach { index, property in
             let location = "Info.plist:customItems[\(index)]"
@@ -284,18 +276,24 @@ nonisolated enum ComponentPackageManifestSchema {
         optionalString("group", in: dictionary, location: "Info.plist", into: &diagnostics)
         optionalString("helpURL", in: dictionary, location: "Info.plist", into: &diagnostics)
         optionalBoolean("requiresPhp", in: dictionary, location: "Info.plist", into: &diagnostics)
+        optionalBoolean("showsInComponentLibrary", in: dictionary, location: "Info.plist", into: &diagnostics)
         optionalStringArray("tags", in: dictionary, location: "Info.plist", into: &diagnostics)
+        optionalStringArray("allowedParents", in: dictionary, location: "Info.plist", into: &diagnostics)
+        if let identifiers = dictionary["allowedParents"] as? [String] {
+            for (index, identifier) in identifiers.enumerated() where componentIdentifierExpression.firstMatch(
+                in: identifier,
+                range: NSRange(identifier.startIndex..., in: identifier)
+            ) == nil {
+                diagnostics.append(.init(
+                    severity: .error,
+                    location: "Info.plist:allowedParents[\(index)]",
+                    message: "Use a lowercase reverse-DNS component identifier."
+                ))
+            }
+        }
         if dictionary["templates"] == nil {
             appendMissing("templates", expected: "dictionary", location: "Info.plist", into: &diagnostics)
         }
-    }
-
-    private static func validateSlot(_ slot: [String: Any], location: String, into diagnostics: inout [ComponentPackageDiagnostic]) {
-        requireString("id", in: slot, location: location, into: &diagnostics)
-        requireString("title", in: slot, location: location, into: &diagnostics)
-        requireStringArray("accepts", in: slot, location: location, into: &diagnostics)
-        requireInteger("minimum", in: slot, location: location, into: &diagnostics)
-        optionalInteger("maximum", in: slot, location: location, into: &diagnostics)
     }
 
     private static func validateProperty(_ property: [String: Any], location: String, into diagnostics: inout [ComponentPackageDiagnostic]) {
@@ -343,6 +341,94 @@ nonisolated enum ComponentPackageManifestSchema {
         }
         guard let type = ComponentPackageControl.Kind(rawValue: typeName) else {
             diagnostics.append(.init(severity: .error, location: "\(location):type", message: "Unknown control type '\(typeName)'."))
+            return
+        }
+        if type == .childPicker {
+            let supportedKeys: Set<String> = [
+                "type", "id", "label", "group", "toolTip", "enable",
+                "accepts", "pickerItems", "initial", "minimum", "maximum", "containment"
+            ]
+            for key in property.keys where !supportedKeys.contains(key) {
+                diagnostics.append(.init(
+                    severity: .error,
+                    location: "\(location):\(key)",
+                    message: "A childPicker control does not support \(key)."
+                ))
+            }
+            if property["pickerItems"] == nil {
+                appendMissing("pickerItems", expected: "array of component identifiers", location: location, into: &diagnostics)
+            }
+            optionalStringArray("accepts", in: property, location: location, into: &diagnostics)
+            optionalStringArray("pickerItems", in: property, location: location, into: &diagnostics)
+            optionalStringArray("initial", in: property, location: location, into: &diagnostics)
+            if let pickerItems = property["pickerItems"] as? [String], pickerItems.isEmpty {
+                diagnostics.append(.init(
+                    severity: .error,
+                    location: "\(location):pickerItems",
+                    message: "pickerItems must contain at least one component identifier."
+                ))
+            }
+            optionalInteger("minimum", in: property, location: location, into: &diagnostics)
+            optionalInteger("maximum", in: property, location: location, into: &diagnostics)
+            optionalEnumString(
+                "containment",
+                values: ["open", "locked"],
+                in: property,
+                location: location,
+                into: &diagnostics
+            )
+            if let minimum = property["minimum"].flatMap(integer), minimum < 0 {
+                diagnostics.append(.init(severity: .error, location: "\(location):minimum", message: "minimum cannot be negative."))
+            }
+            if let maximum = property["maximum"].flatMap(integer), maximum < 1 {
+                diagnostics.append(.init(severity: .error, location: "\(location):maximum", message: "maximum must be greater than zero."))
+            }
+            if let minimum = property["minimum"].flatMap(integer),
+               let maximum = property["maximum"].flatMap(integer), minimum > maximum {
+                diagnostics.append(.init(severity: .error, location: "\(location):minimum", message: "minimum cannot exceed maximum."))
+            }
+            let initial = property["initial"] as? [String] ?? []
+            if let maximum = property["maximum"].flatMap(integer), initial.count > maximum {
+                diagnostics.append(.init(severity: .error, location: "\(location):initial", message: "initial cannot exceed maximum."))
+            }
+            if let minimum = property["minimum"].flatMap(integer), initial.count < minimum {
+                diagnostics.append(.init(
+                    severity: .error,
+                    location: "\(location):initial",
+                    message: "initial must contain at least minimum children."
+                ))
+            }
+            for key in ["pickerItems", "initial"] {
+                guard let identifiers = property[key] as? [String] else { continue }
+                for (index, identifier) in identifiers.enumerated() where componentIdentifierExpression.firstMatch(
+                    in: identifier,
+                    range: NSRange(identifier.startIndex..., in: identifier)
+                ) == nil {
+                    diagnostics.append(.init(
+                        severity: .error,
+                        location: "\(location):\(key)[\(index)]",
+                        message: "Use a lowercase reverse-DNS component identifier."
+                    ))
+                }
+            }
+            let accepts = property["accepts"] as? [String] ?? (property["pickerItems"] as? [String] ?? [])
+            for (index, value) in accepts.enumerated() where value != "*" && componentIdentifierExpression.firstMatch(
+                in: value,
+                range: NSRange(value.startIndex..., in: value)
+            ) == nil {
+                diagnostics.append(.init(
+                    severity: .error,
+                    location: "\(location):accepts[\(index)]",
+                    message: "Use '*' or a lowercase reverse-DNS component identifier."
+                ))
+            }
+            for (index, identifier) in initial.enumerated() where !accepts.contains("*") && !accepts.contains(identifier) {
+                diagnostics.append(.init(
+                    severity: .error,
+                    location: "\(location):initial[\(index)]",
+                    message: "Every initial component must be permitted by accepts."
+                ))
+            }
             return
         }
         if type == .divider {

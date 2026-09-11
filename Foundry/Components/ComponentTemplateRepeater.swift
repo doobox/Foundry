@@ -84,9 +84,6 @@ nonisolated enum ComponentTemplateLoop {
     }
 
     private struct PreparationState {
-        var textIndex = 0
-        var htmlIndex = 0
-        var imageIndex = 0
         var declarations: [PrimitiveDeclaration] = []
     }
 
@@ -98,23 +95,17 @@ nonisolated enum ComponentTemplateLoop {
         nodes.map { node in
             switch node {
             case .text(let source):
-                var result = replacePrimitives(in: source, expression: textExpression) { defaultValue in
-                    state.textIndex += 1
-                    let key = "content\(state.textIndex)"
-                    state.declarations.append(.init(kind: .text, key: key, defaultValue: defaultValue, isRepeated: depth > 0))
-                    return token(name: "__foundry_text", key: key, value: defaultValue, isRepeated: depth > 0)
+                var result = replacePrimitives(in: source, expression: textExpression) { name, defaultValue in
+                    state.declarations.append(.init(kind: .text, key: name, defaultValue: defaultValue, isRepeated: depth > 0))
+                    return token(name: "__foundry_text", key: name, value: defaultValue, isRepeated: depth > 0)
                 }
-                result = replacePrimitives(in: result, expression: htmlExpression) { defaultValue in
-                    state.htmlIndex += 1
-                    let key = "html\(state.htmlIndex)"
-                    state.declarations.append(.init(kind: .html, key: key, defaultValue: defaultValue, isRepeated: depth > 0))
-                    return token(name: "__foundry_html", key: key, value: defaultValue, isRepeated: depth > 0)
+                result = replacePrimitives(in: result, expression: htmlExpression) { name, defaultValue in
+                    state.declarations.append(.init(kind: .html, key: name, defaultValue: defaultValue, isRepeated: depth > 0))
+                    return token(name: "__foundry_html", key: name, value: defaultValue, isRepeated: depth > 0)
                 }
-                result = replacePrimitives(in: result, expression: imageExpression) { _ in
-                    state.imageIndex += 1
-                    let key = "image\(state.imageIndex)"
-                    state.declarations.append(.init(kind: .image, key: key, defaultValue: nil, isRepeated: depth > 0))
-                    return token(name: "__foundry_image", key: key, value: nil, isRepeated: depth > 0)
+                result = replacePrimitives(in: result, expression: imageExpression) { name, _ in
+                    state.declarations.append(.init(kind: .image, key: name, defaultValue: nil, isRepeated: depth > 0))
+                    return token(name: "__foundry_image", key: name, value: nil, isRepeated: depth > 0)
                 }
                 return .text(result)
             case .loop(let source, let children):
@@ -405,15 +396,17 @@ nonisolated enum ComponentTemplateLoop {
     private static func replacePrimitives(
         in source: String,
         expression: NSRegularExpression,
-        replacement: (String?) -> String
+        replacement: (String, String?) -> String
     ) -> String {
         var result = source
         let replacements = expression.matches(in: result, range: NSRange(result.startIndex..., in: result)).compactMap { match -> (Range<String.Index>, String)? in
             guard let range = Range(match.range(at: 0), in: result) else { return nil }
-            let value = match.numberOfRanges > 1
-                ? Range(match.range(at: 1), in: result).map { String(result[$0]) }
+            guard let nameRange = Range(match.range(at: 1), in: result) else { return nil }
+            let name = String(result[nameRange])
+            let value = match.numberOfRanges > 2
+                ? Range(match.range(at: 2), in: result).map { decodeStringLiteral(String(result[$0])) }
                 : nil
-            return (range, replacement(value))
+            return (range, replacement(name, value))
         }
         for (range, value) in replacements.reversed() { result.replaceSubrange(range, with: value) }
         return result
@@ -426,10 +419,15 @@ nonisolated enum ComponentTemplateLoop {
         return "{{ \(name) key=\"\(key)\"\(defaultMarker)\(repeatedMarker) }}"
     }
 
+    private static func decodeStringLiteral(_ source: String) -> String {
+        let json = "\"\(source)\""
+        return (try? JSONDecoder().decode(String.self, from: Data(json.utf8))) ?? source
+    }
+
     private static let directiveExpression = try! NSRegularExpression(pattern: #"\{\{\s*(loop\s+([^{}]+?)|endloop)\s*\}\}"#)
-    private static let imageExpression = try! NSRegularExpression(pattern: #"\{\{\s*image\s*\}\}"#)
-    private static let textExpression = try! NSRegularExpression(pattern: #"\{\{\s*text(?:\s*=\s*\"([^\"]*)\")?\s*\}\}"#)
-    private static let htmlExpression = try! NSRegularExpression(pattern: #"\{\{\s*html(?:\s*=\s*\"([^\"]*)\")?\s*\}\}"#)
+    private static let imageExpression = try! NSRegularExpression(pattern: #"\{\{\s*image\(\s*\"([A-Za-z][A-Za-z0-9_-]*)\"\s*\)\s*\}\}"#)
+    private static let textExpression = try! NSRegularExpression(pattern: #"\{\{\s*text\(\s*\"([A-Za-z][A-Za-z0-9_-]*)\"\s*(?:,\s*default\s*:\s*\"((?:\\.|[^\"\\])*)\"\s*)?\)\s*\}\}"#)
+    private static let htmlExpression = try! NSRegularExpression(pattern: #"\{\{\s*html\(\s*\"([A-Za-z][A-Za-z0-9_-]*)\"\s*(?:,\s*default\s*:\s*\"((?:\\.|[^\"\\])*)\"\s*)?\)\s*\}\}"#)
 
     private struct Parser {
         let source: String

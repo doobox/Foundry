@@ -20,10 +20,12 @@ nonisolated enum ComponentPackageAdapter {
             )
         }
         let implicitHTMLArtifactProperties = package.preparedPrimitives.html.flatMap { primitive in
-            ["CSS", "JavaScript"].map { suffix in
+            [
+                (htmlCSSKey(for: primitive.key), "CSS"),
+                (htmlJavaScriptKey(for: primitive.key), "JavaScript")
+            ].map { key, label in
                 ComponentPropertyDefinition(
-                    key: .init(rawValue: primitive.key + suffix), label: suffix, section: .content,
-                    control: .multilineText,
+                    key: key, label: label, section: .content, control: .multilineText,
                     defaultValue: primitive.isRepeated ? .array([]) : .string(""),
                     isResponsive: false, isInspectorVisible: false
                 )
@@ -42,9 +44,9 @@ nonisolated enum ComponentPackageAdapter {
             displayName: manifest.name,
             systemImage: "shippingbox",
             category: ComponentCategory(rawValue: ComponentPackageGroup.resolve(manifest.category).rawValue),
-            allowsChildren: !manifest.slots.isEmpty,
+            allowsChildren: package.hasDropZone || !manifest.slots.isEmpty,
             renderKind: .package,
-            properties: manifest.properties.flatMap(propertyDefinitions) + implicitTextProperties + implicitHTMLProperties + implicitHTMLArtifactProperties + implicitImageProperties,
+            properties: manifest.properties.filter { $0.control.type != .childPicker }.flatMap(propertyDefinitions) + implicitTextProperties + implicitHTMLProperties + implicitHTMLArtifactProperties + implicitImageProperties,
             package: package
         )
     }
@@ -170,6 +172,14 @@ nonisolated enum ComponentPackageAdapter {
         .init(rawValue: "__foundry_image_alt_\(propertyID)")
     }
 
+    static func htmlCSSKey(for name: String) -> ComponentProperty.Key {
+        .init(rawValue: "__foundry_html_css_\(name)")
+    }
+
+    static func htmlJavaScriptKey(for name: String) -> ComponentProperty.Key {
+        .init(rawValue: "__foundry_html_javascript_\(name)")
+    }
+
     static func imageFocalPointKey(for propertyID: String) -> ComponentProperty.Key {
         .init(rawValue: "__foundry_image_focal_point_\(propertyID)")
     }
@@ -272,6 +282,7 @@ nonisolated enum ComponentPackageAdapter {
         case .image: .image
         case .math: .derived
         case .shadow: .packageShadow
+        case .childPicker: .derived
         }
     }
 

@@ -99,6 +99,9 @@ nonisolated enum ComponentPackageValidator {
             if slot.minimum < 0 || (slot.maximum.map { $0 < slot.minimum } == true) {
                 diagnostics.append(.init(severity: .error, location: "Info.plist:slots.\(slot.id)", message: "Slot minimum and maximum values are inconsistent."))
             }
+            if slot.accepts.isEmpty {
+                diagnostics.append(.init(severity: .error, location: "Info.plist:customItems.\(slot.id)", message: "A childPicker must accept at least one component identifier, category, or '*'."))
+            }
         }
 
         let declaredFiles = ["icon.svg", manifest.render.html, manifest.render.editorCSS]
@@ -252,7 +255,7 @@ nonisolated enum ComponentPackageValidator {
         into diagnostics: inout [ComponentPackageDiagnostic]
     ) {
         let propertyIDs = Set(manifest.properties.filter { $0.control.type != .divider }.map(\.id))
-        let slotIDs = Set(manifest.slots.map(\.id))
+        let childPickerIDs = Set(manifest.slots.map(\.id))
 
         if requiresEditorAttributes {
             let rootTag = template.firstRootOpeningTag ?? ""
@@ -314,35 +317,59 @@ nonisolated enum ComponentPackageValidator {
             }
         }
 
-        let slotReferences = template.references(
-            matching: #"\{\{\s*slot\s+id\s*=\s*[\"']([A-Za-z][A-Za-z0-9_.-]*)[\"']"#
-        )
-        let invalidSlotReferences = template.references(
-            matching: #"\{\{\s*slot\.([A-Za-z][A-Za-z0-9_.-]*)\s*\}\}"#
-        )
-        for reference in slotReferences where !slotIDs.contains(reference.value) {
+        for reference in template.references(matching: #"\{\{\s*(slot)(?:\s|\.)"#) {
             diagnostics.append(templateDiagnostic(
                 templateLocation,
                 template: template,
                 offset: reference.offset,
-                message: "Unknown slot '\(reference.value)'. Declare it in Info.plist."
+                message: "Slot macros are not supported. Declare a childPicker and render it with {{ control.id }}."
             ))
         }
-        for reference in invalidSlotReferences {
-            diagnostics.append(templateDiagnostic(
-                templateLocation,
-                template: template,
-                offset: reference.offset,
-                message: "Slot macros must use {{ slot id=\"…\" }}."
+        let primitiveDeclarations = (try? ComponentTemplateLoop.declarations(in: template)) ?? []
+        let primitiveNames = primitiveDeclarations.map(\.key)
+        let primitiveCandidateCount = template.matchCount(#"\{\{\s*(?:text|html|image)\b[^}]*\}\}"#)
+        if primitiveCandidateCount != primitiveNames.count {
+            diagnostics.append(.init(
+                severity: .error,
+                location: templateLocation,
+                message: "Every editable macro must have a permanent quoted name, for example {{ text(\"heading\", default: \"Heading\") }} or {{ image(\"hero\") }}."
             ))
         }
         if requiresEditorAttributes {
-            let referencedSlotIDs = Set(slotReferences.map(\.value))
-            for slotID in slotIDs.subtracting(referencedSlotIDs).sorted() {
+            let dropZoneNames = ComponentTemplateRenderer.dropZoneNames(in: template)
+            let dropZoneCandidateCount = template.matchCount(#"\{\{\s*(?:dropZone|dropzone)\b[^}]*\}\}"#)
+            if dropZoneCandidateCount != dropZoneNames.count {
                 diagnostics.append(.init(
                     severity: .error,
                     location: templateLocation,
-                    message: "Declared slot '\(slotID)' is not placed in the template."
+                    message: "Every drop zone must have a permanent quoted name, for example {{ dropZone(\"content\") }}."
+                ))
+            }
+            let persistentNames = primitiveNames + dropZoneNames
+            let duplicatePersistentNames = Dictionary(grouping: persistentNames, by: { $0 })
+                .filter { $0.value.count > 1 }.keys.sorted()
+            for name in duplicatePersistentNames {
+                diagnostics.append(.init(
+                    severity: .error,
+                    location: templateLocation,
+                    message: "Editable macro and drop-zone names must be unique; '\(name)' is used more than once."
+                ))
+            }
+            for name in Set(persistentNames).intersection(propertyIDs).sorted() {
+                diagnostics.append(.init(
+                    severity: .error,
+                    location: templateLocation,
+                    message: "Persistent template name '\(name)' conflicts with a custom control id."
+                ))
+            }
+            let childReferences = Set(template.references(
+                matching: #"\{\{\s*control\.([A-Za-z][A-Za-z0-9_-]*)\s*\}\}"#
+            ).map(\.value))
+            for childPickerID in childPickerIDs.subtracting(childReferences).sorted() {
+                diagnostics.append(.init(
+                    severity: .error,
+                    location: templateLocation,
+                    message: "childPicker '\(childPickerID)' is not rendered with {{ control.\(childPickerID) }}."
                 ))
             }
         }
@@ -561,9 +588,9 @@ nonisolated enum ComponentPackageValidator {
             let source = String(template[sourceRange]).trimmingCharacters(in: .whitespacesAndNewlines)
             if source.hasPrefix("if ") || source.hasPrefix("elseif ") || source == "else" || source == "endif" ||
                 source.hasPrefix("loop ") || source == "endloop" || source.hasPrefix("loop.") ||
-                source.hasPrefix("slot ") || source.hasPrefix("text ") || source.hasPrefix("text=") ||
-                source.hasPrefix("html ") || source.hasPrefix("html=") ||
-                ["text", "html", "image", "id", "instance.id", "instance.uuid", "package.id", "site.baseURL", "page.url", "path.siteRoot", "path.siteAssets", "component.class", "component.attributes"].contains(source) ||
+                source.hasPrefix("slot ") || source.hasPrefix("text(") || source.hasPrefix("html(") ||
+                source.hasPrefix("image(") || source.hasPrefix("dropZone(") || source.hasPrefix("dropzone(") ||
+                ["text", "html", "image", "id", "instance.id", "instance.uuid", "package.id", "site.baseURL", "page.url", "path.siteRoot", "path.siteAssets", "component.class", "component.attributes", "dropZone", "dropzone"].contains(source) ||
                 source.hasPrefix("asset.") {
                 continue
             }
@@ -592,7 +619,7 @@ nonisolated enum ComponentPackageValidator {
         }
 
         let supportedMacroNames: Set<String> = [
-            "id", "instance", "package", "site", "page", "path", "component", "control", "asset", "slot",
+            "id", "instance", "package", "site", "page", "path", "component", "control", "asset", "slot", "dropZone", "dropzone",
             "if", "elseif", "else", "endif", "loop", "endloop", "text", "html", "image", "canvas", "preview", "published", "navigation", "pages", "assets"
         ]
         for reference in template.references(matching: #"\{\{\s*([A-Za-z]+)(?:\.|\s|\}\})"#)

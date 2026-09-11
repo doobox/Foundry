@@ -10,7 +10,6 @@
     <key>version</key><string>1.0.0</string>
     <key>group</key><string>Content</string>
     <key>tags</key><array><string>Foundry</string><string>built-in</string><string>link</string></array>
-    <key>slots</key><array/>
     <key>customItems</key>
     <array>
         <dict><key>id</key><string>destination</string><key>label</key><string>Destination</string><key>group</key><string>Link</string><key>type</key><string>link</string><key>absoluteURL</key><false/><key>default</key><string>#</string><key>responsive</key><false/></dict>

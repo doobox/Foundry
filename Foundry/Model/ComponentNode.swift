@@ -98,8 +98,18 @@ nonisolated struct ComponentNode: Codable, Equatable, Identifiable, Sendable {
     }
 
     static func make(_ type: ComponentType) -> ComponentNode {
+        var ancestry: Set<ComponentType> = []
+        var remainingNodeCount = 1_000
+        return make(type, ancestry: &ancestry, remainingNodeCount: &remainingNodeCount)
+    }
+
+    private static func make(
+        _ type: ComponentType,
+        ancestry: inout Set<ComponentType>,
+        remainingNodeCount: inout Int
+    ) -> ComponentNode {
         let definition = type.definition
-        return ComponentNode(
+        var node = ComponentNode(
             type: type,
             properties: definition.properties.map {
                 ComponentProperty(key: $0.key, value: $0.defaultValue)
@@ -114,6 +124,34 @@ nonisolated struct ComponentNode: Codable, Equatable, Identifiable, Sendable {
                 )
             }
         )
+        guard remainingNodeCount > 0,
+              let package = definition.package,
+              ancestry.insert(type).inserted else { return node }
+        remainingNodeCount -= 1
+        defer { ancestry.remove(type) }
+
+        for slot in package.manifest.slots {
+            for identifier in slot.initial where remainingNodeCount > 0 {
+                let childType = ComponentType(rawValue: identifier)
+                guard !ancestry.contains(childType),
+                      slot.acceptsComponent(childType),
+                      childType.definition.package?.manifest.permits(parent: type) != false else { continue }
+                var child = make(
+                    childType,
+                    ancestry: &ancestry,
+                    remainingNodeCount: &remainingNodeCount
+                )
+                child.slotID = slot.id
+                node.children.append(child)
+            }
+        }
+        return node
+    }
+
+    var packageLocks: Set<ComponentPackageLock> {
+        var locks = Set(children.flatMap(\.packageLocks))
+        if let packageLock { locks.insert(packageLock) }
+        return locks
     }
 
     func propertyValue(_ key: ComponentProperty.Key) -> ComponentProperty.Value {

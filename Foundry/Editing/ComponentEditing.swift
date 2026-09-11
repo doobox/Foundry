@@ -15,9 +15,10 @@ extension ProjectEditor {
         mutate(actionName: "Add \(type.displayName)") { site in
             guard let index = site.pages.firstIndex(where: { $0.id == pageID }) else { return }
             inserted = site.pages[index].components.insert(component, at: placement)
-            if inserted, let packageLock = component.packageLock,
-               !site.componentPackages.contains(packageLock) {
-                site.componentPackages.append(packageLock)
+            if inserted {
+                site.componentPackages.append(contentsOf: component.packageLocks.filter {
+                    !site.componentPackages.contains($0)
+                })
                 site.componentPackages.sort { $0.identifier < $1.identifier }
             }
             if inserted {
@@ -35,14 +36,17 @@ extension ProjectEditor {
         }
         let duplicate = source.duplicated()
         let sharedInsertion = document.site.sharedGlobalInsertion(on: page, at: .after(id))
+        var inserted = false
         mutate(actionName: "Duplicate Component") { site in
             guard let index = site.pages.firstIndex(where: { $0.id == pageID }) else {
                 return
             }
-            site.pages[index].components.insert(duplicate, at: .after(id))
-            site.synchronizeGlobalsAfterStructureMove(sharedInsertion)
+            inserted = site.pages[index].components.insert(duplicate, at: .after(id))
+            if inserted {
+                site.synchronizeGlobalsAfterStructureMove(sharedInsertion)
+            }
         }
-        return duplicate.id
+        return inserted ? duplicate.id : nil
     }
 
     @discardableResult
@@ -57,14 +61,19 @@ extension ProjectEditor {
             on: page,
             at: pairs.map { .after($0.0) }
         ) else { return [] }
+        var insertedIDs: [UUID] = []
         mutate(actionName: pairs.count == 1 ? "Duplicate Component" : "Duplicate Components") { site in
             guard let index = site.pages.firstIndex(where: { $0.id == pageID }) else { return }
             for (sourceID, duplicate) in pairs.reversed() {
-                site.pages[index].components.insert(duplicate, at: .after(sourceID))
+                if site.pages[index].components.insert(duplicate, at: .after(sourceID)) {
+                    insertedIDs.append(duplicate.id)
+                }
             }
-            site.synchronizeGlobalsAfterStructureMove(sharedInsertion)
+            if !insertedIDs.isEmpty {
+                site.synchronizeGlobalsAfterStructureMove(sharedInsertion)
+            }
         }
-        return pairs.map { $0.1.id }
+        return pairs.compactMap { insertedIDs.contains($0.1.id) ? $0.1.id : nil }
     }
 
     @discardableResult

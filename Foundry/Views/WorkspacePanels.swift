@@ -167,6 +167,8 @@ struct ComponentLibraryPanel: View {
     private var iconSizeValue = ComponentLibraryIconSize.small.rawValue
     @AppStorage(AppPreferenceKey.componentLibraryArrangement)
     private var arrangementValue = ComponentLibraryArrangement.group.rawValue
+    @AppStorage(AppPreferenceKey.showsHiddenComponents)
+    private var showsHiddenComponents = false
 
     var body: some View {
         let _ = catalog.revision
@@ -266,6 +268,12 @@ struct ComponentLibraryPanel: View {
             selectedType = availableTypes.first
         }
         .onChange(of: componentSource) {
+            selectedType = availableTypes.first
+        }
+        .onChange(of: showsHiddenComponents) {
+            if let selectedType, availableTypes.contains(selectedType) {
+                return
+            }
             selectedType = availableTypes.first
         }
     }
@@ -372,12 +380,17 @@ struct ComponentLibraryPanel: View {
     private var availableTypes: [ComponentType] {
         ComponentType.allCases.filter { type in
             let isDevelopmentPack = type.definition.package?.isDevelopmentPack == true
-            return componentSource == .development ? isDevelopmentPack : !isDevelopmentPack
+            let showsInLibrary = type.definition.package?.manifest.showsInComponentLibrary ?? true
+            return (showsInLibrary || showsHiddenComponents)
+                && (componentSource == .development ? isDevelopmentPack : !isDevelopmentPack)
         }
     }
 
     private var hasDevelopmentComponents: Bool {
-        ComponentType.allCases.contains { $0.definition.package?.isDevelopmentPack == true }
+        ComponentType.allCases.contains {
+            $0.definition.package?.isDevelopmentPack == true
+                && (($0.definition.package?.manifest.showsInComponentLibrary ?? true) || showsHiddenComponents)
+        }
     }
 
     private var iconSize: ComponentLibraryIconSize {

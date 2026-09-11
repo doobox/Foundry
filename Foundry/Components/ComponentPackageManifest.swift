@@ -9,7 +9,8 @@ nonisolated struct ComponentPackageManifest: Codable, Equatable, Sendable {
     let version: String
     let category: String
     let tags: [String]
-    let slots: [ComponentPackageSlot]
+    let showsInComponentLibrary: Bool
+    let allowedParents: [String]
     let properties: [ComponentPackageProperty]
     let render: ComponentPackageRender
     let assets: [ComponentPackageAsset]
@@ -28,7 +29,8 @@ nonisolated struct ComponentPackageManifest: Codable, Equatable, Sendable {
         case version
         case category = "group"
         case tags
-        case slots
+        case showsInComponentLibrary
+        case allowedParents
         case properties = "customItems"
         case render = "templates"
         case assets
@@ -48,7 +50,8 @@ nonisolated struct ComponentPackageManifest: Codable, Equatable, Sendable {
         version: String,
         category: String = "Other",
         tags: [String] = [],
-        slots: [ComponentPackageSlot] = [],
+        showsInComponentLibrary: Bool = true,
+        allowedParents: [String] = [],
         properties: [ComponentPackageProperty] = [],
         render: ComponentPackageRender,
         assets: [ComponentPackageAsset] = [],
@@ -66,7 +69,8 @@ nonisolated struct ComponentPackageManifest: Codable, Equatable, Sendable {
         self.version = version
         self.category = category
         self.tags = tags
-        self.slots = slots
+        self.showsInComponentLibrary = showsInComponentLibrary
+        self.allowedParents = allowedParents
         self.properties = properties
         self.render = render
         self.assets = assets
@@ -87,7 +91,8 @@ nonisolated struct ComponentPackageManifest: Codable, Equatable, Sendable {
         version = try container.decode(String.self, forKey: .version)
         category = try container.decodeIfPresent(String.self, forKey: .category) ?? "Other"
         tags = try container.decodeIfPresent([String].self, forKey: .tags) ?? []
-        slots = try container.decodeIfPresent([ComponentPackageSlot].self, forKey: .slots) ?? []
+        showsInComponentLibrary = try container.decodeIfPresent(Bool.self, forKey: .showsInComponentLibrary) ?? true
+        allowedParents = try container.decodeIfPresent([String].self, forKey: .allowedParents) ?? []
         properties = try container.decodeIfPresent([ComponentPackageProperty].self, forKey: .properties) ?? []
         render = try container.decode(ComponentPackageRender.self, forKey: .render)
         assets = try container.decodeIfPresent([ComponentPackageAsset].self, forKey: .assets) ?? []
@@ -139,6 +144,14 @@ nonisolated struct ComponentPackageAsset: Codable, Equatable, Hashable, Sendable
 }
 
 extension ComponentPackageManifest {
+    nonisolated var slots: [ComponentPackageSlot] {
+        properties.compactMap(\.childSlot)
+    }
+
+    nonisolated func permits(parent type: ComponentType) -> Bool {
+        allowedParents.isEmpty || allowedParents.contains(type.rawValue)
+    }
+
     nonisolated func assetDeclaration(containing path: String) -> ComponentPackageAsset? {
         assets.first { asset in
             path == asset.path || path.hasPrefix(asset.path + "/")
@@ -156,12 +169,49 @@ nonisolated struct ComponentPackageLibraryRequirement: Codable, Equatable, Hasha
     }
 }
 
-nonisolated struct ComponentPackageSlot: Codable, Equatable, Identifiable, Sendable {
+nonisolated struct ComponentPackageSlot: Equatable, Identifiable, Sendable {
+    enum Containment: String, Codable, Sendable {
+        case open
+        case locked
+    }
+
     let id: String
     let title: String
     let accepts: [String]
+    let pickerItems: [String]
+    let initial: [String]
     let minimum: Int
     let maximum: Int?
+    let containment: Containment
+    let group: String
+    let toolTip: String?
+    let enable: ComponentPackageEnable?
+
+    init(
+        id: String,
+        title: String,
+        accepts: [String],
+        pickerItems: [String] = [],
+        initial: [String] = [],
+        minimum: Int,
+        maximum: Int? = nil,
+        containment: Containment = .open,
+        group: String = "Settings",
+        toolTip: String? = nil,
+        enable: ComponentPackageEnable? = nil
+    ) {
+        self.id = id
+        self.title = title
+        self.accepts = accepts
+        self.pickerItems = pickerItems
+        self.initial = initial
+        self.minimum = minimum
+        self.maximum = maximum
+        self.containment = containment
+        self.group = group
+        self.toolTip = toolTip
+        self.enable = enable
+    }
 }
 
 nonisolated struct ComponentPackageImageRendition: Codable, Equatable, Identifiable, Sendable {
@@ -194,6 +244,10 @@ nonisolated struct ComponentPackageProperty: Codable, Equatable, Identifiable, S
     let alt: String
     let focalPoint: Bool
     let renditions: [ComponentPackageImageRendition]
+    let accepts: [String]
+    let pickerItems: [String]
+    let initial: [String]
+    let containment: ComponentPackageSlot.Containment
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -215,6 +269,10 @@ nonisolated struct ComponentPackageProperty: Codable, Equatable, Identifiable, S
         case alt
         case focalPoint
         case renditions
+        case accepts
+        case pickerItems
+        case initial
+        case containment
     }
 
     init(from decoder: Decoder) throws {
@@ -227,6 +285,12 @@ nonisolated struct ComponentPackageProperty: Codable, Equatable, Identifiable, S
         alt = try container.decodeIfPresent(String.self, forKey: .alt) ?? ""
         focalPoint = try container.decodeIfPresent(Bool.self, forKey: .focalPoint) ?? false
         renditions = try container.decodeIfPresent([ComponentPackageImageRendition].self, forKey: .renditions) ?? []
+        let declaredAccepts = try container.decodeIfPresent([String].self, forKey: .accepts)
+        let declaredPickerItems = try container.decodeIfPresent([String].self, forKey: .pickerItems)
+        pickerItems = declaredPickerItems ?? []
+        accepts = declaredAccepts ?? pickerItems
+        initial = try container.decodeIfPresent([String].self, forKey: .initial) ?? []
+        containment = try container.decodeIfPresent(ComponentPackageSlot.Containment.self, forKey: .containment) ?? .open
 
         if control.count != nil {
             subtitles = try container.decodeIfPresent([String].self, forKey: .subtitle) ?? []
@@ -254,7 +318,7 @@ nonisolated struct ComponentPackageProperty: Codable, Equatable, Identifiable, S
             ? try container.decodeIfPresent(String.self, forKey: .systemImage)
             : nil
 
-        if control.type == .divider || control.type == .note || control.type == .image || control.type == .math {
+        if control.type == .divider || control.type == .note || control.type == .image || control.type == .math || control.type == .childPicker {
             defaultValue = try container.decodeIfPresent(ComponentPackageValue.self, forKey: .defaultValue) ?? .string("")
             responsive = control.type == .image && focalPoint
                 ? true
@@ -328,6 +392,29 @@ nonisolated struct ComponentPackageProperty: Codable, Equatable, Identifiable, S
         if control.type == .image, !renditions.isEmpty {
             try container.encode(renditions, forKey: .renditions)
         }
+        if control.type == .childPicker {
+            try container.encode(pickerItems, forKey: .pickerItems)
+            if accepts != pickerItems { try container.encode(accepts, forKey: .accepts) }
+            if !initial.isEmpty { try container.encode(initial, forKey: .initial) }
+            if containment != .open { try container.encode(containment, forKey: .containment) }
+        }
+    }
+
+    var childSlot: ComponentPackageSlot? {
+        guard control.type == .childPicker else { return nil }
+        return .init(
+            id: id,
+            title: label.isEmpty ? id : label,
+            accepts: accepts,
+            pickerItems: pickerItems,
+            initial: initial,
+            minimum: Int(control.minimum ?? 0),
+            maximum: control.maximum.map(Int.init),
+            containment: containment,
+            group: group,
+            toolTip: toolTip,
+            enable: enable
+        )
     }
 }
 
@@ -394,6 +481,7 @@ nonisolated struct ComponentPackageControl: Codable, Equatable, Sendable {
         case image
         case math
         case shadow
+        case childPicker
     }
 
     let type: Kind

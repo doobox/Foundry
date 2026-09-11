@@ -84,8 +84,6 @@
 	<string>Displays a responsive project image.</string>
 	<key>group</key>
 	<string>Media</string>
-	<key>slots</key>
-	<array/>
 	<key>tags</key>
 	<array>
 		<string>Foundry</string>

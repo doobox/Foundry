@@ -39,7 +39,6 @@ struct StructureOutlineView: NSViewRepresentable {
         outlineView.headerView = nil
         outlineView.rowHeight = 24
         outlineView.indentationPerLevel = 14
-        outlineView.style = .sourceList
         outlineView.selectionHighlightStyle = .regular
         outlineView.allowsMultipleSelection = true
         outlineView.dataSource = context.coordinator
@@ -136,6 +135,22 @@ struct StructureOutlineView: NSViewRepresentable {
                 : nil
             cell.globalIndicator.isHidden = !isLinkedToGlobal
             cell.globalIndicator.toolTip = isGlobalRoot ? "Global component" : "Child of global component"
+            if let unavailableArea = unavailableChildArea(for: item) {
+                cell.unavailableDropZoneLabel.stringValue = unavailableArea.label
+                cell.unavailableDropZoneLabel.isHidden = false
+                cell.warningIndicator.image = NSImage(
+                    systemSymbolName: "exclamationmark.triangle.fill",
+                    accessibilityDescription: unavailableArea.label
+                )
+                cell.warningIndicator.isHidden = false
+                cell.warningIndicator.toolTip = "This content is preserved but is not rendered because its parent no longer declares this child area."
+            } else {
+                cell.unavailableDropZoneLabel.stringValue = ""
+                cell.unavailableDropZoneLabel.isHidden = true
+                cell.warningIndicator.image = nil
+                cell.warningIndicator.isHidden = true
+                cell.warningIndicator.toolTip = nil
+            }
             return cell
         }
 
@@ -175,6 +190,9 @@ struct StructureOutlineView: NSViewRepresentable {
             let rename = menuItem("Rename", action: #selector(renameFromContextMenu(_:)), item: item, key: "\r", modifiers: [])
             rename.isEnabled = isSingleSelection
             menu.addItem(rename)
+            if let recoveryMenu = unavailableChildAreaRecoveryMenu(for: item) {
+                menu.addItem(recoveryMenu)
+            }
             menu.addItem(.separator())
 
             if let globalContext = selectedGlobalContext {
@@ -188,7 +206,9 @@ struct StructureOutlineView: NSViewRepresentable {
                 menu.addItem(.separator())
             }
 
-            menu.addItem(menuItem("Duplicate", action: #selector(duplicateFromContextMenu(_:)), item: item, key: "d"))
+            let duplicate = menuItem("Duplicate", action: #selector(duplicateFromContextMenu(_:)), item: item, key: "d")
+            duplicate.isEnabled = canDuplicateSelection
+            menu.addItem(duplicate)
             menu.addItem(menuItem("Copy", action: #selector(copyFromContextMenu(_:)), item: item, key: "c"))
             let pasteItem = menuItem("Paste", action: #selector(pasteFromContextMenu(_:)), item: item, key: "v")
             pasteItem.isEnabled = parent.canPasteComponent
@@ -213,8 +233,26 @@ struct StructureOutlineView: NSViewRepresentable {
             menu.addItem(moveDown)
             menu.addItem(outdent)
             menu.addItem(.separator())
-            menu.addItem(menuItem("Delete", action: #selector(deleteFromContextMenu(_:)), item: item, key: String(Character(UnicodeScalar(NSDeleteCharacter)!)), modifiers: []))
+            let delete = menuItem("Delete", action: #selector(deleteFromContextMenu(_:)), item: item, key: String(Character(UnicodeScalar(NSDeleteCharacter)!)), modifiers: [])
+            delete.isEnabled = canDeleteSelection
+            menu.addItem(delete)
             return menu
+        }
+
+        private var canDuplicateSelection: Bool {
+            guard let id = parent.primarySelectedComponentID,
+                  parent.selectedComponentIDs.count == 1,
+                  let source = parent.components.node(withID: id) else { return false }
+            return parent.components.accepts(source, at: .after(id))
+        }
+
+        private var canDeleteSelection: Bool {
+            var candidate = parent.components
+            for id in parent.selectedComponentIDs {
+                guard candidate.permitsRemoving(id) else { return false }
+                _ = candidate.extractNode(withID: id)
+            }
+            return !parent.selectedComponentIDs.isEmpty
         }
 
         private struct MovementAvailability {
@@ -326,7 +364,7 @@ struct StructureOutlineView: NSViewRepresentable {
 
             if modifiers == .command {
                 switch character {
-                case "d": parent.duplicateComponent(); return true
+                case "d" where canDuplicateSelection: parent.duplicateComponent(); return true
                 case "c": parent.copyComponent(); return true
                 case "v" where parent.canPasteComponent: parent.pasteComponent(); return true
                 default: break
@@ -359,7 +397,7 @@ struct StructureOutlineView: NSViewRepresentable {
                 }
                 return true
             case 51, 117:
-                parent.deleteComponent()
+                if canDeleteSelection { parent.deleteComponent() }
                 return true
             default:
                 return false
@@ -434,6 +472,56 @@ struct StructureOutlineView: NSViewRepresentable {
 
         @objc private func deleteFromContextMenu(_ sender: NSMenuItem) {
             perform(sender, action: parent.deleteComponent)
+        }
+
+        @objc private func moveToAvailableDropZone(_ sender: NSMenuItem) {
+            guard let destination = sender.representedObject as? DropZoneRecoveryDestination else { return }
+            _ = parent.moveComponents(
+                [destination.componentID],
+                .insideSlot(destination.parentID, destination.slotID)
+            )
+        }
+
+        private func unavailableChildAreaRecoveryMenu(for item: Item) -> NSMenuItem? {
+            guard unavailableChildArea(for: item) != nil,
+                  let parentItem = item.parent,
+                  let package = parentItem.component.type.definition.package else { return nil }
+            let submenu = NSMenu(title: "Move to Child Area")
+            for name in package.dropZoneNames {
+                let slotID = package.dropZoneSlotID(for: name)
+                guard parent.components.accepts(item.component, at: .insideSlot(parentItem.id, slotID)) else { continue }
+                let menuItem = NSMenuItem(
+                    title: "Drop zone: \(name)",
+                    action: #selector(moveToAvailableDropZone(_:)),
+                    keyEquivalent: ""
+                )
+                menuItem.target = self
+                menuItem.representedObject = DropZoneRecoveryDestination(
+                    componentID: item.id,
+                    parentID: parentItem.id,
+                    slotID: slotID
+                )
+                submenu.addItem(menuItem)
+            }
+            for slot in package.manifest.slots {
+                guard parent.components.accepts(item.component, at: .insideSlot(parentItem.id, slot.id)) else { continue }
+                let menuItem = NSMenuItem(
+                    title: "Child picker: \(slot.title)",
+                    action: #selector(moveToAvailableDropZone(_:)),
+                    keyEquivalent: ""
+                )
+                menuItem.target = self
+                menuItem.representedObject = DropZoneRecoveryDestination(
+                    componentID: item.id,
+                    parentID: parentItem.id,
+                    slotID: slot.id
+                )
+                submenu.addItem(menuItem)
+            }
+            guard !submenu.items.isEmpty else { return nil }
+            let rootItem = NSMenuItem(title: "Move to Child Area", action: nil, keyEquivalent: "")
+            rootItem.submenu = submenu
+            return rootItem
         }
 
         private func perform(_ sender: NSMenuItem, action: () -> Void) {
@@ -602,7 +690,9 @@ struct StructureOutlineView: NSViewRepresentable {
             if !item.children.isEmpty {
                 return item.children.map(\.component).endPlacement(in: item.id)
             }
-            if let slotID = item.component.type.definition.package?.manifest.slots.first?.id {
+            if let package = item.component.type.definition.package,
+               let slotID = package.dropZoneNames.first.map(package.dropZoneSlotID(for:))
+                    ?? package.manifest.slots.first?.id {
                 return .insideSlot(item.id, slotID)
             }
             return .inside(item.id)
@@ -703,8 +793,18 @@ struct StructureOutlineView: NSViewRepresentable {
             cell.globalIndicator.symbolConfiguration = .init(pointSize: 11, weight: .regular)
             cell.globalIndicator.imageScaling = .scaleProportionallyUpOrDown
             cell.globalIndicator.translatesAutoresizingMaskIntoConstraints = false
+            cell.warningIndicator.symbolConfiguration = .init(pointSize: 11, weight: .semibold)
+            cell.warningIndicator.contentTintColor = .systemOrange
+            cell.warningIndicator.imageScaling = .scaleProportionallyUpOrDown
+            cell.warningIndicator.translatesAutoresizingMaskIntoConstraints = false
+            cell.unavailableDropZoneLabel.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
+            cell.unavailableDropZoneLabel.textColor = .systemOrange
+            cell.unavailableDropZoneLabel.lineBreakMode = .byTruncatingTail
+            cell.unavailableDropZoneLabel.translatesAutoresizingMaskIntoConstraints = false
             cell.addSubview(imageView)
             cell.addSubview(textField)
+            cell.addSubview(cell.unavailableDropZoneLabel)
+            cell.addSubview(cell.warningIndicator)
             cell.addSubview(cell.globalIndicator)
             cell.imageView = imageView
             cell.textField = textField
@@ -714,10 +814,16 @@ struct StructureOutlineView: NSViewRepresentable {
                 imageView.widthAnchor.constraint(equalToConstant: 18),
                 imageView.heightAnchor.constraint(equalToConstant: 18),
                 textField.leadingAnchor.constraint(equalTo: imageView.trailingAnchor, constant: 5),
-                textField.trailingAnchor.constraint(equalTo: cell.globalIndicator.leadingAnchor, constant: -5),
+                textField.trailingAnchor.constraint(lessThanOrEqualTo: cell.unavailableDropZoneLabel.leadingAnchor, constant: -5),
                 textField.centerYAnchor.constraint(equalTo: cell.centerYAnchor),
+                cell.unavailableDropZoneLabel.trailingAnchor.constraint(equalTo: cell.warningIndicator.leadingAnchor, constant: -4),
+                cell.unavailableDropZoneLabel.centerYAnchor.constraint(equalTo: cell.centerYAnchor),
+                cell.warningIndicator.trailingAnchor.constraint(equalTo: cell.globalIndicator.leadingAnchor, constant: -5),
+                cell.warningIndicator.centerYAnchor.constraint(equalTo: cell.centerYAnchor),
+                cell.warningIndicator.widthAnchor.constraint(equalToConstant: 14),
                 cell.globalIndicator.trailingAnchor.constraint(equalTo: cell.trailingAnchor, constant: -8),
-                cell.globalIndicator.centerYAnchor.constraint(equalTo: cell.centerYAnchor)
+                cell.globalIndicator.centerYAnchor.constraint(equalTo: cell.centerYAnchor),
+                cell.globalIndicator.widthAnchor.constraint(equalToConstant: 14)
             ])
             return cell
         }
@@ -788,10 +894,27 @@ struct StructureOutlineView: NSViewRepresentable {
             component.reusableDefinitionID.flatMap { parent.globalComponentNames[$0] } ?? component.name
         }
 
+        private struct UnavailableChildArea {
+            let label: String
+        }
+
+        private func unavailableChildArea(for item: Item) -> UnavailableChildArea? {
+            guard let slotID = item.component.slotID,
+                  let parentPackage = item.parent?.component.type.definition.package else { return nil }
+            if let name = LoadedComponentPackage.dropZoneName(forSlotID: slotID) {
+                return parentPackage.isDropZoneSlotID(slotID)
+                    ? nil
+                    : UnavailableChildArea(label: "Unavailable drop zone: \(name)")
+            }
+            return parentPackage.manifest.slots.contains(where: { $0.id == slotID })
+                ? nil
+                : UnavailableChildArea(label: "Unavailable child picker: \(slotID)")
+        }
+
         private func flattenedSignature(_ components: [ComponentNode], parentID: UUID?) -> [String] {
             components.flatMap {
                 [
-                    "\($0.id.uuidString):\(parentID?.uuidString ?? "root"):\($0.slotID ?? "default"):\(displayName(for: $0)):\($0.type.rawValue):\($0.type.systemImage):\($0.type.definition.package?.iconURL.path ?? "system"):\($0.reusableDefinitionID?.uuidString ?? "local"):\($0.overridesGlobalDefinition == true)"
+                    "\($0.id.uuidString):\(parentID?.uuidString ?? "root"):\($0.slotID ?? "default"):\(displayName(for: $0)):\($0.type.rawValue):\($0.type.systemImage):\($0.type.definition.package?.iconURL.path ?? "system"):\($0.type.definition.package?.dropZoneNames.joined(separator: ",") ?? "none"):\($0.reusableDefinitionID?.uuidString ?? "local"):\($0.overridesGlobalDefinition == true)"
                 ] + flattenedSignature($0.children, parentID: $0.id)
             }
         }
@@ -845,6 +968,20 @@ private final class Item: NSObject {
 
 private final class StructureOutlineCell: NSTableCellView {
     let globalIndicator = NSImageView()
+    let warningIndicator = NSImageView()
+    let unavailableDropZoneLabel = NSTextField(labelWithString: "")
+}
+
+private final class DropZoneRecoveryDestination: NSObject {
+    let componentID: UUID
+    let parentID: UUID
+    let slotID: String
+
+    init(componentID: UUID, parentID: UUID, slotID: String) {
+        self.componentID = componentID
+        self.parentID = parentID
+        self.slotID = slotID
+    }
 }
 
 private extension ComponentDragPayload {

@@ -320,31 +320,46 @@ nonisolated struct HTMLPageRenderer: PageRendering {
         return baseURL + "/" + slugs.joined(separator: "/") + "/"
     }
 
-    private func render(_ sourceNode: ComponentNode, page: Page, theme: Theme, assets: [UUID: ProjectAssetContent], globalDefinitionID: UUID?, breakpoint: ResponsiveBreakpoint) -> String {
+    private func render(_ sourceNode: ComponentNode, page: Page, theme: Theme, assets: [UUID: ProjectAssetContent], globalDefinitionID: UUID?, breakpoint: ResponsiveBreakpoint, parentComponentID: UUID? = nil, parentSlot: ComponentPackageSlot? = nil, parentDropZoneSlotID: String? = nil) -> String {
         let node = sourceNode.resolved(at: breakpoint)
         let globalDefinitionID = node.reusableDefinitionID ?? globalDefinitionID
         switch node.type.definition.renderKind {
         case .package:
             guard let package = node.type.definition.package else {
-                return unavailableComponent(node, page: page, theme: theme, assets: assets, globalDefinitionID: globalDefinitionID, breakpoint: breakpoint)
+                return unavailableComponent(node, page: page, theme: theme, assets: assets, globalDefinitionID: globalDefinitionID, breakpoint: breakpoint, parentComponentID: parentComponentID)
             }
             do {
                 try package.preparePayload()
             } catch {
-                return failedComponent(node, page: page, package: package, theme: theme, assets: assets, globalDefinitionID: globalDefinitionID, breakpoint: breakpoint)
+                return failedComponent(node, page: page, package: package, theme: theme, assets: assets, globalDefinitionID: globalDefinitionID, breakpoint: breakpoint, parentComponentID: parentComponentID)
             }
             let slots = Dictionary(uniqueKeysWithValues: package.manifest.slots.map { slot in
-                let children = node.children.filter { ($0.slotID ?? package.manifest.slots.first?.id) == slot.id }
+                let children = node.children.filter {
+                    ($0.slotID ?? (package.hasDropZone ? nil : package.manifest.slots.first?.id)) == slot.id
+                }
                 let html = children.map {
-                    render($0, page: page, theme: theme, assets: assets, globalDefinitionID: globalDefinitionID, breakpoint: breakpoint)
+                    render($0, page: page, theme: theme, assets: assets, globalDefinitionID: globalDefinitionID, breakpoint: breakpoint, parentComponentID: node.id, parentSlot: slot)
                 }.joined()
                 return (slot.id, html.isEmpty ? "<div class=\"foundry-empty-drop-zone\" data-foundry-empty-parent=\"\(node.id.uuidString)\" data-foundry-slot-id=\"\(escapeAttribute(slot.id))\">Drop component here</div>" : html)
             })
-            let adjacentDropAttribute = package.manifest.slots.isEmpty
+            let dropZones = Dictionary(uniqueKeysWithValues: package.dropZoneNames.enumerated().map { index, name in
+                let slotID = package.dropZoneSlotID(for: name)
+                let children = node.children.filter { $0.slotID == slotID || (index == 0 && $0.slotID == nil) }
+                let html = children.map {
+                    render($0, page: page, theme: theme, assets: assets, globalDefinitionID: globalDefinitionID, breakpoint: breakpoint, parentComponentID: node.id, parentDropZoneSlotID: slotID)
+                }.joined()
+                let output = html.isEmpty
+                    ? "<div class=\"foundry-empty-drop-zone\" data-foundry-empty-parent=\"\(node.id.uuidString)\" data-foundry-slot-id=\"\(escapeAttribute(slotID))\">Drop component here</div>"
+                    : html
+                return (name, output)
+            })
+            let adjacentDropAttribute = !package.hasDropZone && package.manifest.slots.isEmpty
                 ? " data-foundry-adjacent-target=\"\(node.id.uuidString)\""
                 : ""
-            let canvasAttributes = attributes(for: node, globalDefinitionID: globalDefinitionID) +
-                " data-foundry-package=\"\(escapeAttribute(package.manifest.identifier))\"" +
+            let defaultSlotID = package.dropZoneNames.first.map(package.dropZoneSlotID(for:))
+                ?? package.manifest.slots.first?.id
+            let canvasAttributes = attributes(for: node, globalDefinitionID: globalDefinitionID, parentComponentID: parentComponentID, parentSlot: parentSlot, parentDropZoneSlotID: parentDropZoneSlotID) +
+                (defaultSlotID.map { " data-foundry-default-slot=\"\(escapeAttribute($0))\"" } ?? "") +
                 adjacentDropAttribute
             let rendered = ComponentTemplateRenderer.render(
                 package.htmlTemplate,
@@ -354,6 +369,7 @@ nonisolated struct HTMLPageRenderer: PageRendering {
                     properties: packageProperties(node, theme: theme, assets: assets),
                     templateValues: site.map { ComponentNavigationTemplateValues.values(site: $0, currentPage: page) } ?? [:],
                     slots: slots,
+                    dropZones: dropZones,
                     componentClass: componentClass(node) + " " +
                         ComponentTemplateRenderer.packageClass(for: package.manifest.identifier),
                     componentAttributes: canvasAttributes,
@@ -371,7 +387,7 @@ nonisolated struct HTMLPageRenderer: PageRendering {
             }
             return "<div \(canvasAttributes)>\(rendered)</div>"
         case .unavailable:
-            return unavailableComponent(node, page: page, theme: theme, assets: assets, globalDefinitionID: globalDefinitionID, breakpoint: breakpoint)
+            return unavailableComponent(node, page: page, theme: theme, assets: assets, globalDefinitionID: globalDefinitionID, breakpoint: breakpoint, parentComponentID: parentComponentID)
         }
     }
 
@@ -624,15 +640,15 @@ nonisolated struct HTMLPageRenderer: PageRendering {
         }
     }
 
-    private func unavailableComponent(_ node: ComponentNode, page: Page, theme: Theme, assets: [UUID: ProjectAssetContent], globalDefinitionID: UUID?, breakpoint: ResponsiveBreakpoint) -> String {
-        let children = node.children.map { render($0, page: page, theme: theme, assets: assets, globalDefinitionID: globalDefinitionID, breakpoint: breakpoint) }.joined()
+    private func unavailableComponent(_ node: ComponentNode, page: Page, theme: Theme, assets: [UUID: ProjectAssetContent], globalDefinitionID: UUID?, breakpoint: ResponsiveBreakpoint, parentComponentID: UUID?) -> String {
+        let children = node.children.map { render($0, page: page, theme: theme, assets: assets, globalDefinitionID: globalDefinitionID, breakpoint: breakpoint, parentComponentID: node.id) }.joined()
         let name = node.missingPackageSnapshot?.name ?? node.type.rawValue
-        return "<div class=\"unavailable\" \(attributes(for: node, globalDefinitionID: globalDefinitionID))>Missing component: \(escape(name))\(children)</div>"
+        return "<div class=\"unavailable\" \(attributes(for: node, globalDefinitionID: globalDefinitionID, parentComponentID: parentComponentID))>Missing component: \(escape(name))\(children)</div>"
     }
 
-    private func failedComponent(_ node: ComponentNode, page: Page, package: LoadedComponentPackage, theme: Theme, assets: [UUID: ProjectAssetContent], globalDefinitionID: UUID?, breakpoint: ResponsiveBreakpoint) -> String {
-        let children = node.children.map { render($0, page: page, theme: theme, assets: assets, globalDefinitionID: globalDefinitionID, breakpoint: breakpoint) }.joined()
-        return "<div class=\"unavailable\" \(attributes(for: node, globalDefinitionID: globalDefinitionID))>Component files could not be loaded: \(escape(package.manifest.name))\(children)</div>"
+    private func failedComponent(_ node: ComponentNode, page: Page, package: LoadedComponentPackage, theme: Theme, assets: [UUID: ProjectAssetContent], globalDefinitionID: UUID?, breakpoint: ResponsiveBreakpoint, parentComponentID: UUID?) -> String {
+        let children = node.children.map { render($0, page: page, theme: theme, assets: assets, globalDefinitionID: globalDefinitionID, breakpoint: breakpoint, parentComponentID: node.id) }.joined()
+        return "<div class=\"unavailable\" \(attributes(for: node, globalDefinitionID: globalDefinitionID, parentComponentID: parentComponentID))>Component files could not be loaded: \(escape(package.manifest.name))\(children)</div>"
     }
 
     private var rootDropZone: String {
@@ -644,7 +660,7 @@ nonisolated struct HTMLPageRenderer: PageRendering {
         return assets[id] == nil ? "" : source
     }
 
-    private func attributes(for node: ComponentNode, globalDefinitionID: UUID?) -> String {
+    private func attributes(for node: ComponentNode, globalDefinitionID: UUID?, parentComponentID: UUID?, parentSlot: ComponentPackageSlot? = nil, parentDropZoneSlotID: String? = nil) -> String {
         let definition = node.type.definition
         let acceptsChildren = definition.allowsChildren ? "true" : "false"
         let manifest = definition.package?.manifest
@@ -654,11 +670,17 @@ nonisolated struct HTMLPageRenderer: PageRendering {
         let globalAttributes = globalDefinitionID.map {
             " data-foundry-global=\"\($0.uuidString)\" data-foundry-global-override=\"\(node.overridesGlobalDefinition == true)\""
         } ?? ""
+        let parentAttribute = parentComponentID.map { " data-foundry-parent=\"\($0.uuidString)\"" } ?? ""
+        let slotAttributes = parentSlot.map {
+            " data-foundry-slot=\"\(escapeAttribute($0.id))\" data-foundry-slot-containment=\"\($0.containment.rawValue)\""
+        } ?? parentDropZoneSlotID.map {
+            " data-foundry-slot=\"\(escapeAttribute($0))\" data-foundry-slot-containment=\"open\""
+        } ?? ""
         let anchorAttribute = validAnchor(for: node).map { " id=\"\(escapeAttribute($0))\"" } ?? ""
         let userFacingName = node.reusableDefinitionID.flatMap { definitionID in
             site?.globalComponents.first(where: { $0.id == definitionID })?.name
         } ?? node.name
-        return "data-foundry-id=\"\(node.id.uuidString)\"\(anchorAttribute)\(customAttributes(for: node)) data-foundry-component-type=\"\(escapeAttribute(node.type.rawValue))\" data-foundry-type=\"\(escapeAttribute(node.type.displayName))\" data-foundry-name=\"\(escapeAttribute(userFacingName))\" data-foundry-author=\"\(escapeAttribute(attribution))\" data-foundry-version=\"\(escapeAttribute(version))\" data-foundry-accepts-children=\"\(acceptsChildren)\"\(globalAttributes)"
+        return "data-foundry-id=\"\(node.id.uuidString)\" data-foundry-component data-foundry-package=\"\(escapeAttribute(node.type.rawValue))\"\(parentAttribute)\(slotAttributes)\(anchorAttribute)\(customAttributes(for: node)) data-foundry-component-type=\"\(escapeAttribute(node.type.rawValue))\" data-foundry-type=\"\(escapeAttribute(node.type.displayName))\" data-foundry-name=\"\(escapeAttribute(userFacingName))\" data-foundry-author=\"\(escapeAttribute(attribution))\" data-foundry-version=\"\(escapeAttribute(version))\" data-foundry-accepts-children=\"\(acceptsChildren)\"\(globalAttributes)"
     }
 
     private func validAnchor(for node: ComponentNode) -> String? {

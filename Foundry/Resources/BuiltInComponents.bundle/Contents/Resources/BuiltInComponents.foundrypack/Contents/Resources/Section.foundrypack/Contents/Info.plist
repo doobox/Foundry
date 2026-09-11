@@ -23,21 +23,6 @@
 		<string>layout</string>
 		<string>region</string>
 	</array>
-	<key>slots</key>
-	<array>
-		<dict>
-			<key>id</key>
-			<string>content</string>
-			<key>title</key>
-			<string>Content</string>
-			<key>accepts</key>
-			<array>
-				<string>*</string>
-			</array>
-			<key>minimum</key>
-			<integer>0</integer>
-		</dict>
-	</array>
 	<key>customItems</key>
 	<array>
 		<dict>

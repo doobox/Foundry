@@ -559,6 +559,38 @@ struct WebCanvasView: NSViewRepresentable {
             });
           };
 
+          const slotContextForPlacement = candidate => {
+            if (!candidate || candidate.kind === 'end') return null;
+            if (candidate.kind === 'inside') {
+              const parent = document.querySelector(
+                '[data-foundry-id="' + CSS.escape(candidate.targetID || '') + '"]'
+              );
+              return {
+                parentID: candidate.targetID,
+                slotID: candidate.slotID || parent?.dataset.foundryDefaultSlot
+              };
+            }
+            const target = document.querySelector(
+              '[data-foundry-id="' + CSS.escape(candidate.targetID || '') + '"]'
+            );
+            return target ? {
+              parentID: target.dataset.foundryParent,
+              slotID: target.dataset.foundrySlot
+            } : null;
+          };
+
+          const respectsLockedContainment = candidate => {
+            const lockedSources = activeDragSources.filter(
+              source => source.dataset.foundrySlotContainment === 'locked'
+            );
+            if (lockedSources.length === 0) return true;
+            const destination = slotContextForPlacement(candidate);
+            return destination && lockedSources.every(source =>
+              destination.parentID === source.dataset.foundryParent
+              && destination.slotID === source.dataset.foundrySlot
+            );
+          };
+
           const intendedPlacement = event => {
             const emptyParent = event.target.closest('[data-foundry-empty-parent]');
             if (emptyParent) {
@@ -911,7 +943,13 @@ struct WebCanvasView: NSViewRepresentable {
               event.dataTransfer.dropEffect = 'copy';
               return;
             }
-            placement = intendedPlacement(event);
+            const candidate = intendedPlacement(event);
+            if (!respectsLockedContainment(candidate)) {
+              placement = null;
+              event.dataTransfer.dropEffect = 'none';
+              return;
+            }
+            placement = candidate;
             if (placement.element) placement.element.classList.add('foundry-drop-' + placement.kind);
             const allowedEffect = event.dataTransfer.effectAllowed;
             event.dataTransfer.dropEffect = allowedEffect === 'move' ? 'move' : 'copy';

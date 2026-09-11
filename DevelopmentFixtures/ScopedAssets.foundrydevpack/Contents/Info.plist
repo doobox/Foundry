@@ -24,7 +24,6 @@
             <key>scope</key><string>site</string>
         </dict>
     </array>
-    <key>slots</key><array/>
     <key>customItems</key><array/>
     <key>templates</key>
     <dict>

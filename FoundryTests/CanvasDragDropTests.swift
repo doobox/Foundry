@@ -176,6 +176,6 @@ struct CanvasInsertionEditingTests {
 
         let didMove = components.moveNode(withID: moving.id, to: .inside(parent.id))
         #expect(didMove)
-        #expect(components.node(withID: moving.id)?.slotID == nil)
+        #expect(components.node(withID: moving.id)?.slotID == LoadedComponentPackage.dropZoneSlotPrefix + "content")
     }
 }

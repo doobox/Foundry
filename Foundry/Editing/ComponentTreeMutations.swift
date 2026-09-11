@@ -21,6 +21,11 @@ nonisolated struct ComponentLocation: Equatable, Sendable {
 }
 
 nonisolated extension Array where Element == ComponentNode {
+    struct SlotContext: Equatable, Sendable {
+        let parentID: UUID
+        let slotID: String
+    }
+
     func endPlacement(in parentID: UUID) -> ComponentPlacement {
         if let slotID = last?.slotID {
             return .insideSlot(parentID, slotID)
@@ -113,6 +118,7 @@ nonisolated extension Array where Element == ComponentNode {
         _ node: ComponentNode,
         at placement: ComponentPlacement
     ) -> Bool {
+        guard accepts(node, at: placement) else { return false }
         switch placement {
         case .end:
             append(node)
@@ -122,7 +128,9 @@ nonisolated extension Array where Element == ComponentNode {
                 return false
             }
             var child = node
-            child.slotID = nil
+            let package = self.node(withID: parentID)?.type.definition.package
+            child.slotID = package?.dropZoneNames.first.map { package?.dropZoneSlotID(for: $0) ?? "" }
+                ?? package?.manifest.slots.first?.id
             return updateNode(withID: parentID) { $0.children.append(child) }
         case .insideSlot(let parentID, let slotID):
             guard self.node(withID: parentID)?.type.definition.allowsChildren == true else {
@@ -145,7 +153,8 @@ nonisolated extension Array where Element == ComponentNode {
     ) -> Bool {
         guard let source = node(withID: id),
               !placement.references(id),
-              !placement.referencesNode(in: source) else {
+              !placement.referencesNode(in: source),
+              permitsRemoving(id, for: placement) else {
             return false
         }
 
@@ -156,6 +165,86 @@ nonisolated extension Array where Element == ComponentNode {
         }
         self = candidate
         return true
+    }
+
+    func permitsRemoving(_ id: UUID, for destination: ComponentPlacement? = nil) -> Bool {
+        guard let sourceContext = slotContext(of: id),
+              let parent = node(withID: sourceContext.parentID),
+              let slot = parent.type.definition.package?.manifest.slots.first(where: { $0.id == sourceContext.slotID }) else {
+            return true
+        }
+        if destination.flatMap(slotContext(for:)) == sourceContext {
+            return true
+        }
+        if slot.containment == .locked {
+            return false
+        }
+        return children(in: sourceContext).count > slot.minimum
+    }
+
+    func accepts(_ node: ComponentNode, at placement: ComponentPlacement) -> Bool {
+        let destinationParentID: UUID? = switch placement {
+        case .inside(let parentID), .insideSlot(let parentID, _): parentID
+        case .before(let targetID), .after(let targetID): location(of: targetID)?.parentID
+        case .end: nil
+        }
+        let allowedParents = node.type.definition.package?.manifest.allowedParents ?? []
+        if !allowedParents.isEmpty {
+            guard let destinationParentID,
+                  let parent = self.node(withID: destinationParentID),
+                  allowedParents.contains(parent.type.rawValue) else { return false }
+        }
+        if case .insideSlot(let parentID, let slotID) = placement,
+           let package = self.node(withID: parentID)?.type.definition.package,
+           !package.isDropZoneSlotID(slotID),
+           !package.manifest.slots.contains(where: { $0.id == slotID }) {
+            return false
+        }
+        guard let context = slotContext(for: placement),
+              let parent = self.node(withID: context.parentID),
+              let slot = parent.type.definition.package?.manifest.slots.first(where: { $0.id == context.slotID }) else {
+            return true
+        }
+        guard slot.acceptsComponent(node.type) else { return false }
+        return slot.maximum.map { children(in: context).count < $0 } ?? true
+    }
+
+    func slotContext(of childID: UUID) -> SlotContext? {
+        guard let location = location(of: childID),
+              let parentID = location.parentID,
+              let parent = node(withID: parentID),
+              let child = node(withID: childID),
+              let package = parent.type.definition.package,
+              let slotID = child.slotID
+                ?? package.dropZoneNames.first.map(package.dropZoneSlotID(for:))
+                ?? package.manifest.slots.first?.id else {
+            return nil
+        }
+        return SlotContext(parentID: parentID, slotID: slotID)
+    }
+
+    func slotContext(for placement: ComponentPlacement) -> SlotContext? {
+        switch placement {
+        case .insideSlot(let parentID, let slotID):
+            return SlotContext(parentID: parentID, slotID: slotID)
+        case .inside(let parentID):
+            guard let package = node(withID: parentID)?.type.definition.package,
+                  let slotID = package.dropZoneNames.first.map(package.dropZoneSlotID(for:))
+                    ?? package.manifest.slots.first?.id else { return nil }
+            return SlotContext(parentID: parentID, slotID: slotID)
+        case .before(let targetID), .after(let targetID):
+            return slotContext(of: targetID)
+        case .end:
+            return nil
+        }
+    }
+
+    func children(in context: SlotContext) -> [ComponentNode] {
+        guard let parent = node(withID: context.parentID) else { return [] }
+        let package = parent.type.definition.package
+        let defaultSlotID = package?.dropZoneNames.first.map { package?.dropZoneSlotID(for: $0) ?? "" }
+            ?? package?.manifest.slots.first?.id
+        return parent.children.filter { ($0.slotID ?? defaultSlotID) == context.slotID }
     }
 
     private mutating func insert(
@@ -175,6 +264,16 @@ nonisolated extension Array where Element == ComponentNode {
             }
         }
         return false
+    }
+}
+
+nonisolated extension ComponentPackageSlot {
+    func acceptsComponent(_ type: ComponentType) -> Bool {
+        accepts.contains("*") || accepts.contains(type.rawValue)
+    }
+
+    func offersInPicker(_ type: ComponentType) -> Bool {
+        acceptsComponent(type) && pickerItems.contains(type.rawValue)
     }
 }
 

@@ -105,12 +105,19 @@ private struct DeveloperSettingsView: View {
     private var enablesCanvasWebInspector = false
     @AppStorage(AppPreferenceKey.componentValidationMode)
     private var componentValidationMode = ComponentValidationPreference.mode
+    @AppStorage(AppPreferenceKey.showsHiddenComponents)
+    private var showsHiddenComponents = false
 
     var body: some View {
         Form {
             Section("Components") {
                 Toggle("Enable Developer Tools", isOn: $enablesDeveloperTools)
                 Text("Adds component development tools, including the developer panel and pack conversion controls.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                Toggle("Show Hidden Components", isOn: $showsHiddenComponents)
+                Text("Shows components whose manifest sets showsInComponentLibrary to false, so supporting components can be inspected and tested directly.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
 

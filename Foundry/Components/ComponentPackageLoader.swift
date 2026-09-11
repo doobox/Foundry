@@ -12,6 +12,8 @@ extension Notification.Name {
 }
 
 nonisolated struct LoadedComponentPackage: Sendable {
+    static let dropZoneSlotPrefix = "__foundry_drop_zone:"
+
     let manifest: ComponentPackageManifest
     let rootURL: URL
     let updateSourceURL: URL?
@@ -31,6 +33,22 @@ nonisolated struct LoadedComponentPackage: Sendable {
     var imageMetadata: [String: ComponentImageMetadata] { payloadStorage.payload.imageMetadata }
     var isPayloadLoaded: Bool { payloadStorage.isLoaded }
     var payloadFailure: ComponentPackagePayloadFailure? { payloadStorage.failure }
+    var dropZoneNames: [String] { preparedPrimitives.dropZoneNames ?? [] }
+    var hasDropZone: Bool { !dropZoneNames.isEmpty }
+
+    func dropZoneSlotID(for name: String) -> String {
+        Self.dropZoneSlotPrefix + name
+    }
+
+    func isDropZoneSlotID(_ id: String) -> Bool {
+        dropZoneNames.contains { dropZoneSlotID(for: $0) == id }
+    }
+
+    static func dropZoneName(forSlotID id: String) -> String? {
+        guard id.hasPrefix(dropZoneSlotPrefix) else { return nil }
+        let name = String(id.dropFirst(dropZoneSlotPrefix.count))
+        return name.isEmpty ? nil : name
+    }
 
     func preparePayload() throws {
         try payloadStorage.prepare()
@@ -149,21 +167,25 @@ nonisolated struct ComponentPreparedPrimitives: Codable, Equatable, Sendable {
     let text: [ComponentTextPrimitive]
     let html: [ComponentHTMLPrimitive]
     let images: [ComponentImagePrimitive]
+    let dropZoneNames: [String]?
 
     init(
         text: [ComponentTextPrimitive],
         html: [ComponentHTMLPrimitive],
-        images: [ComponentImagePrimitive]
+        images: [ComponentImagePrimitive],
+        dropZoneNames: [String]? = nil
     ) {
         self.text = text
         self.html = html
         self.images = images
+        self.dropZoneNames = dropZoneNames
     }
 
     init(template: String, loopMaximums: [String: Int]) {
         text = ComponentTemplateRenderer.textPrimitives(in: template, loopMaximums: loopMaximums)
         html = ComponentTemplateRenderer.htmlPrimitives(in: template, loopMaximums: loopMaximums)
         images = ComponentTemplateRenderer.imagePrimitives(in: template)
+        dropZoneNames = ComponentTemplateRenderer.dropZoneNames(in: template)
     }
 }
 
@@ -556,6 +578,37 @@ nonisolated enum ComponentPackageLoader {
             guard file.path.lowercased().hasSuffix(".html"), let placement = file.placement else { return nil }
             return LoadedPlacedHTMLTemplate(placement: placement, contents: try read(file.path, from: resourceRootURL))
         }
+        let instanceHierarchyHelper = """
+            const foundryMatchesPackage = (element, packageIdentifier) =>
+                !packageIdentifier || element.dataset.foundryPackage === packageIdentifier;
+            const foundryParent = () =>
+                component?.parentElement?.closest("[data-foundry-component]") || null;
+            const foundryDescendants = (packageIdentifier) =>
+                component
+                    ? Array.from(component.querySelectorAll("[data-foundry-component]"))
+                        .filter((element) => foundryMatchesPackage(element, packageIdentifier))
+                    : [];
+            const foundryChildren = (packageIdentifier) =>
+                foundryDescendants(packageIdentifier).filter((element) =>
+                    element.parentElement?.closest("[data-foundry-component]") === component
+                );
+            const foundryAncestors = (packageIdentifier) => {
+                const result = [];
+                let ancestor = foundryParent();
+                while (ancestor) {
+                    if (foundryMatchesPackage(ancestor, packageIdentifier)) result.push(ancestor);
+                    ancestor = ancestor.parentElement?.closest("[data-foundry-component]") || null;
+                }
+                return result;
+            };
+            const foundry = Object.freeze({
+                children: foundryChildren,
+                descendants: foundryDescendants,
+                parent: foundryParent,
+                ancestors: foundryAncestors,
+                closest: (packageIdentifier) => foundryAncestors(packageIdentifier)[0] || null
+            });
+        """
         func javascript(scope: ComponentPackageTemplateFile.Scope) throws -> String {
             try manifest.render.files
                 .filter { $0.scope == scope && $0.path.lowercased().hasSuffix(".js") }
@@ -569,6 +622,7 @@ nonisolated enum ComponentPackageLoader {
                     return """
                     (function (\(parameter)) {
                         "use strict";
+                    \(scope == .instance ? instanceHierarchyHelper : "")
                     \(source)
                     })(\(argument));
                     """

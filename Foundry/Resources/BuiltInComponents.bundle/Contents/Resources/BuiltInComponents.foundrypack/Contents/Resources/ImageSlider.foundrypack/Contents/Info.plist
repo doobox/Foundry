@@ -203,8 +203,6 @@
     <string>foundry.media.imageslider</string>
     <key>minimumAPIVersion</key>
     <integer>1</integer>
-    <key>slots</key>
-    <array/>
     <key>tags</key>
     <array><string>Foundry</string><string>built-in</string><string>image</string><string>slider</string><string>gallery</string></array>
     <key>templates</key>

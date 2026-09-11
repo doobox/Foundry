@@ -368,7 +368,7 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
         return lines.joined(separator: "\n") + "\n"
     }
 
-    private func render(_ node: ComponentNode, page: Page, theme: Theme, assetPrefix: String, packageAssetPrefix: String, assets: [UUID: ProjectAssetContent], site: Site) -> String {
+    private func render(_ node: ComponentNode, page: Page, theme: Theme, assetPrefix: String, packageAssetPrefix: String, assets: [UUID: ProjectAssetContent], site: Site, parentComponentID: UUID? = nil) -> String {
         switch node.type.definition.renderKind {
         case .package:
             guard let package = node.type.definition.package else {
@@ -394,14 +394,25 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
                 )
             }
             let slots = Dictionary(uniqueKeysWithValues: package.manifest.slots.map { slot in
-                let children = node.children.filter { ($0.slotID ?? package.manifest.slots.first?.id) == slot.id }
-                return (slot.id, children.map { render($0, page: page, theme: theme, assetPrefix: assetPrefix, packageAssetPrefix: packageAssetPrefix, assets: assets, site: site) }.joined())
+                let children = node.children.filter {
+                    ($0.slotID ?? (package.hasDropZone ? nil : package.manifest.slots.first?.id)) == slot.id
+                }
+                return (slot.id, children.map { render($0, page: page, theme: theme, assetPrefix: assetPrefix, packageAssetPrefix: packageAssetPrefix, assets: assets, site: site, parentComponentID: node.id) }.joined())
+            })
+            let dropZones = Dictionary(uniqueKeysWithValues: package.dropZoneNames.enumerated().map { index, name in
+                let slotID = package.dropZoneSlotID(for: name)
+                let children = node.children.filter { $0.slotID == slotID || (index == 0 && $0.slotID == nil) }
+                return (name, children.map {
+                    render($0, page: page, theme: theme, assetPrefix: assetPrefix, packageAssetPrefix: packageAssetPrefix, assets: assets, site: site, parentComponentID: node.id)
+                }.joined())
             })
             let anchor = ComponentAnchorValidator.validated(node.anchor)
             let anchorAttribute = anchor.map { " id=\"\(escapeAttribute($0))\"" } ?? ""
             let customAttributes = ComponentRootAttributeValidator.validAttributes(node.rootAttributes ?? []).map {
                 " \($0.name)=\"\(escapeAttribute($0.value))\""
             }.joined()
+            let relationshipAttributes = "data-foundry-component data-foundry-package=\"\(escapeAttribute(package.manifest.identifier))\"" +
+                (parentComponentID.map { " data-foundry-parent=\"\($0.uuidString)\"" } ?? "")
             let rendered = ComponentTemplateRenderer.render(
                 package.htmlTemplate,
                 context: .init(
@@ -410,9 +421,10 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
                     properties: packageProperties(node, theme: theme, assetPrefix: assetPrefix, assets: assets, site: site),
                     templateValues: ComponentNavigationTemplateValues.values(site: site, currentPage: page),
                     slots: slots,
+                    dropZones: dropZones,
                     componentClass: componentClass(node) + " " +
                         ComponentTemplateRenderer.packageClass(for: package.manifest.identifier),
-                    componentAttributes: "data-foundry-id=\"\(node.id.uuidString)\"\(anchorAttribute)\(customAttributes)",
+                    componentAttributes: "data-foundry-id=\"\(node.id.uuidString)\" \(relationshipAttributes)\(anchorAttribute)\(customAttributes)",
                     assetBasePath: packageAssetPrefix,
                     assetPaths: templateAssetPaths(for: package, pageAssetPrefix: packageAssetPrefix, siteAssetPrefix: assetPrefix),
                     siteBaseURL: siteBaseURL(for: site),
@@ -434,7 +446,7 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
                 package.htmlTemplate.contains("{{component.attributes}}") {
                 return rendered
             }
-            return "<div data-foundry-id=\"\(node.id.uuidString)\" class=\"\(componentClass(node)) \(ComponentTemplateRenderer.packageClass(for: package.manifest.identifier))\">\(rendered)</div>"
+            return "<div data-foundry-id=\"\(node.id.uuidString)\" \(relationshipAttributes) class=\"\(componentClass(node)) \(ComponentTemplateRenderer.packageClass(for: package.manifest.identifier))\">\(rendered)</div>"
         case .unavailable:
             return missingPackageHTML(
                 node,

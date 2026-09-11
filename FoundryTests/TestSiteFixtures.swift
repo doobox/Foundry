@@ -10,14 +10,14 @@ enum TestSiteFixtures {
                     type: .paragraph,
                     name: "Paragraph",
                     properties: [
-                        .init(key: .init(rawValue: "content1"), value: .string("Build something remarkable."))
+                        .init(key: .init(rawValue: "content"), value: .string("Build something remarkable."))
                     ]
                 ),
                 ComponentNode(
                     type: .button,
                     name: "Call to action",
                     properties: [
-                        .init(key: .init(rawValue: "content1"), value: .string("Get started")),
+                        .init(key: .init(rawValue: "label"), value: .string("Get started")),
                         .init(key: .destination, value: .link(.init(destination: .url("#get-started"))))
                     ]
                 )

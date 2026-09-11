@@ -8,7 +8,7 @@ struct ProjectMutationImpactTests {
     func componentPropertyEditCarriesItsIdentityAndKey() throws {
         let document = TestSiteFixtures.populatedDocument()
         let component = try #require(document.site.pages.first?.components.first)
-        let key = ComponentProperty.Key(rawValue: "content1")
+        let key = ComponentProperty.Key(rawValue: "content")
 
         ProjectEditor(document: document, undoManager: nil).setProperty(
             id: component.id,

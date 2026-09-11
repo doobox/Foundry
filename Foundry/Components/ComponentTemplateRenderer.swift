@@ -12,6 +12,7 @@ nonisolated struct ComponentTemplateContext: Sendable {
     let properties: [String: ComponentPackageValue]
     let templateValues: [String: ComponentPackageValue]
     let slots: [String: String]
+    let dropZones: [String: String]
     let componentClass: String
     let componentAttributes: String
     let assetBasePath: String
@@ -35,6 +36,7 @@ nonisolated struct ComponentTemplateContext: Sendable {
         properties: [String: ComponentPackageValue],
         templateValues: [String: ComponentPackageValue] = [:],
         slots: [String: String],
+        dropZones: [String: String] = [:],
         componentClass: String = "",
         componentAttributes: String = "",
         assetBasePath: String = "",
@@ -53,6 +55,7 @@ nonisolated struct ComponentTemplateContext: Sendable {
         self.properties = properties
         self.templateValues = templateValues
         self.slots = slots
+        self.dropZones = dropZones
         self.componentClass = componentClass
         self.componentAttributes = componentAttributes
         self.assetBasePath = assetBasePath
@@ -73,6 +76,7 @@ nonisolated struct ComponentTemplateContext: Sendable {
         properties: [String: ComponentPackageValue],
         templateValues: [String: ComponentPackageValue] = [:],
         slots: [String: String],
+        dropZones: [String: String] = [:],
         componentClass: String = "",
         componentAttributes: String = "",
         assetBasePath: String = "",
@@ -91,6 +95,7 @@ nonisolated struct ComponentTemplateContext: Sendable {
             properties: properties,
             templateValues: templateValues,
             slots: slots,
+            dropZones: dropZones,
             componentClass: componentClass,
             componentAttributes: componentAttributes,
             assetBasePath: assetBasePath,
@@ -125,18 +130,27 @@ nonisolated struct ComponentImagePrimitive: Codable, Equatable, Sendable {
 }
 
 nonisolated enum ComponentTemplateRenderer {
+    private static let dropZoneExpression = try! NSRegularExpression(
+        pattern: #"^\s*(?:dropZone|dropzone)\(\s*\"([A-Za-z][A-Za-z0-9_-]*)\"\s*\)\s*$"#
+    )
+
+    static func dropZoneNames(in template: String) -> [String] {
+        let expression = try! NSRegularExpression(
+            pattern: #"\{\{\s*(?:dropZone|dropzone)\(\s*\"([A-Za-z][A-Za-z0-9_-]*)\"\s*\)\s*\}\}"#
+        )
+        return expression.matches(in: template, range: NSRange(template.startIndex..., in: template)).compactMap {
+            Range($0.range(at: 1), in: template).map { String(template[$0]) }
+        }
+    }
     private static let loremParagraph = "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum."
     private static let templateExpression = try! NSRegularExpression(pattern: #"\{\{\s*([^{}]+?)\s*\}\}"#)
-    private static let imageExpression = try! NSRegularExpression(pattern: #"\{\{\s*image\s*\}\}"#)
-    private static let textExpression = try! NSRegularExpression(pattern: #"\{\{\s*text(?:\s*=\s*"([^"]*)")?\s*\}\}"#)
-    private static let htmlExpression = try! NSRegularExpression(pattern: #"\{\{\s*html(?:\s*=\s*"([^"]*)")?\s*\}\}"#)
+    private static let imageExpression = try! NSRegularExpression(pattern: #"\{\{\s*image\(\s*\"[A-Za-z][A-Za-z0-9_-]*\"\s*\)\s*\}\}"#)
     private static let filterCallExpression = try! NSRegularExpression(pattern: #"^([A-Za-z][A-Za-z0-9_-]*)\(\s*(.*?)\s*\)$"#)
     private static let outputEncodingFilters: Set<String> = [
         "escapeHTML", "escapeHTMLAttribute", "encodeURL", "encodeURIComponent", "encodeJSON"
     ]
     private static let conditionBlockExpression = try! NSRegularExpression(pattern: #"\{\{\s*if\s+([^{}]+?)\s*\}\}([\s\S]*?)\{\{\s*endif\s*\}\}"#)
     private static let conditionBranchExpression = try! NSRegularExpression(pattern: #"\{\{\s*(elseif\s+([^{}]+?)|else)\s*\}\}"#)
-    private static let slotExpression = try! NSRegularExpression(pattern: #"\{\{\s*slot\s+id\s*=\s*[\"']([A-Za-z][A-Za-z0-9_.-]*)[\"'](?:\s+[^}]*?)?\s*\}\}"#)
     private static let keyedTextExpression = try! NSRegularExpression(pattern: #"\{\{\s*__foundry_text\s+key=\"([^\"]+)\"\s+default=\"([^\"]*)\"(?:\s+repeated=\"(true)\"\s+path=\"([0-9,]+)\")?\s*\}\}"#)
     private static let keyedHTMLExpression = try! NSRegularExpression(pattern: #"\{\{\s*__foundry_html\s+key=\"([^\"]+)\"\s+default=\"([^\"]*)\"(?:\s+repeated=\"(true)\"\s+path=\"([0-9,]+)\")?\s*\}\}"#)
     private static let keyedImageExpression = try! NSRegularExpression(pattern: #"\{\{\s*__foundry_image\s+key=\"([^\"]+)\"(?:\s+repeated=\"(true)\"\s+path=\"([0-9,]+)\")?\s*\}\}"#)
@@ -159,15 +173,13 @@ nonisolated enum ComponentTemplateRenderer {
         result = renderText(in: result, context: context)
         result = renderImage(in: result, context: context)
         result = renderConditions(in: result, context: context)
-        result = renderSlots(in: result, context: context)
         let matches = templateExpression.matches(in: result, range: NSRange(result.startIndex..., in: result)).reversed()
         for match in matches {
             guard let wholeRange = Range(match.range(at: 0), in: result),
                   let expressionRange = Range(match.range(at: 1), in: result) else { continue }
             let templateExpression = String(result[expressionRange])
             let trimmedExpression = templateExpression.trimmingCharacters(in: .whitespacesAndNewlines)
-            if trimmedExpression == "html" || trimmedExpression.hasPrefix("html=") || trimmedExpression.hasPrefix("html =") ||
-                trimmedExpression.hasPrefix("__foundry_html ") {
+            if trimmedExpression.hasPrefix("__foundry_html ") {
                 continue
             }
             let replacement = value(forExpression: templateExpression, context: context)
@@ -242,24 +254,6 @@ nonisolated enum ComponentTemplateRenderer {
                     inlineSource: currentValue,
                     marksSelectablePrimitive: true,
                     indexPath: path,
-                    to: &result
-                )
-            }
-        }
-        let matches = primitiveMatches(in: result)
-        for (index, match) in matches.enumerated().reversed() {
-            guard let wholeRange = Range(match.range(at: 0), in: result) else { continue }
-            let key = "content\(index + 1)"
-            let declaredDefault = primitiveDefault(match: match, in: result)
-            let currentValue = stringValue(context.allProperties[key]) ?? declaredDefault
-            let renderedValue = renderedText(currentValue, context: context)
-            result.replaceSubrange(wholeRange, with: renderedValue)
-            if context.enablesEditorMarkup {
-                addInlineEditingAttribute(
-                    for: key,
-                    atUTF16Offset: match.range.location,
-                    inlineSource: currentValue,
-                    marksSelectablePrimitive: true,
                     to: &result
                 )
             }
@@ -358,45 +352,7 @@ nonisolated enum ComponentTemplateRenderer {
                 )
             }
         }
-        let matches = htmlPrimitiveMatches(in: result)
-        for (index, match) in matches.enumerated().reversed() {
-            guard let wholeRange = Range(match.range(at: 0), in: result) else { continue }
-            let key = "html\(index + 1)"
-            let currentValue = stringValue(context.allProperties[key]) ?? htmlPrimitiveDefault(match: match, in: result)
-            result.replaceSubrange(wholeRange, with: currentValue)
-            if context.enablesEditorMarkup {
-                addInlineEditingAttribute(
-                    for: key,
-                    atUTF16Offset: match.range.location,
-                    rendersHTML: true,
-                    inlineSource: currentValue,
-                    to: &result
-                )
-            }
-        }
         return result
-    }
-
-    private static func primitiveMatches(in template: String) -> [NSTextCheckingResult] {
-        textExpression.matches(in: template, range: NSRange(template.startIndex..., in: template))
-    }
-
-    private static func primitiveDefault(match: NSTextCheckingResult, in template: String) -> String {
-        if let textRange = Range(match.range(at: 1), in: template) {
-            return String(template[textRange])
-        }
-        return loremParagraph
-    }
-
-    private static func htmlPrimitiveMatches(in template: String) -> [NSTextCheckingResult] {
-        htmlExpression.matches(in: template, range: NSRange(template.startIndex..., in: template))
-    }
-
-    private static func htmlPrimitiveDefault(match: NSTextCheckingResult, in template: String) -> String {
-        if let htmlRange = Range(match.range(at: 1), in: template) {
-            return String(template[htmlRange])
-        }
-        return htmlDefault
     }
 
     private static let htmlDefault = """
@@ -505,6 +461,11 @@ nonisolated enum ComponentTemplateRenderer {
     }
 
     private static func value(forExpression expression: String, context: ComponentTemplateContext) -> String {
+        let expressionRange = NSRange(expression.startIndex..., in: expression)
+        if let match = dropZoneExpression.firstMatch(in: expression, range: expressionRange),
+           let nameRange = Range(match.range(at: 1), in: expression) {
+            return context.dropZones[String(expression[nameRange])] ?? ""
+        }
         let parts = ComponentTemplateExpression.templateParts(expression)
         guard let key = parts.first else { return "" }
         let filters = Array(parts.dropFirst())
@@ -522,7 +483,7 @@ nonisolated enum ComponentTemplateRenderer {
            let filteredColor = filteredColor(for: key, filters: filters, context: context) {
             return escape(filteredColor)
         }
-            let simpleValue = #"^(?:id|instance\.(?:id|uuid)|package\.id|site\.baseURL|page\.url|path\.(?:siteRoot|siteAssets)|component\.(?:class|attributes)|asset\.[^\s]+|control\.[A-Za-z][A-Za-z0-9_.-]*(?:\[[0-9]+\])?)$"#
+        let simpleValue = #"^(?:id|instance\.(?:id|uuid)|package\.id|site\.baseURL|page\.url|path\.(?:siteRoot|siteAssets)|component\.(?:class|attributes)|asset\.[^\s]+|control\.[A-Za-z][A-Za-z0-9_.-]*(?:\[[0-9]+\])?)$"#
         var result: String
         if key.range(of: simpleValue, options: .regularExpression) != nil {
             result = value(for: key, context: context)
@@ -608,6 +569,7 @@ nonisolated enum ComponentTemplateRenderer {
         }
         guard key.hasPrefix("control.") else { return "" }
         let reference = String(key.dropFirst("control.".count))
+        if let children = context.slots[reference] { return children }
         let value: ComponentPackageValue
         if let bracket = reference.lastIndex(of: "["), reference.hasSuffix("]"),
            let index = Int(reference[reference.index(after: bracket)..<reference.index(before: reference.endIndex)]),
@@ -919,17 +881,6 @@ nonisolated enum ComponentTemplateRenderer {
                 environment: context.environment
               ) else { return false }
         return value.isTruthy
-    }
-
-    private static func renderSlots(in template: String, context: ComponentTemplateContext) -> String {
-        var result = template
-        let matches = slotExpression.matches(in: result, range: NSRange(result.startIndex..., in: result)).reversed()
-        for match in matches {
-            guard let wholeRange = Range(match.range(at: 0), in: result),
-                  let keyRange = Range(match.range(at: 1), in: result) else { continue }
-            result.replaceSubrange(wholeRange, with: context.slots[String(result[keyRange])] ?? "")
-        }
-        return result
     }
 
     private static func isTruthy(_ value: ComponentPackageValue?) -> Bool {

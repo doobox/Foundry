@@ -7,9 +7,9 @@ struct StaticSiteRendererTests {
     func deletingAComponentRemovesItsHTMLCSSAndJavaScriptArtifacts() throws {
         _ = ComponentPackageCatalog.shared
         var html = ComponentNode.make(.init(rawValue: "foundry.content.html"))
-        html.setProperty(.init(rawValue: "html1"), value: "<div>unique-deleted-html</div>")
-        html.setProperty(.init(rawValue: "html1CSS"), value: ".unique-deleted-css { color: red; }")
-        html.setProperty(.init(rawValue: "html1JavaScript"), value: "window.uniqueDeletedJavaScript = true;")
+        html.setProperty(.init(rawValue: "content"), value: "<div>unique-deleted-html</div>")
+        html.setProperty(ComponentPackageAdapter.htmlCSSKey(for: "content"), value: ".unique-deleted-css { color: red; }")
+        html.setProperty(ComponentPackageAdapter.htmlJavaScriptKey(for: "content"), value: "window.uniqueDeletedJavaScript = true;")
         let page = Page(title: "Home", slug: "index", components: [html])
         let document = FoundryDocument(site: Site(name: "Deletion", pages: [page]))
         let before = StaticSiteRenderer().render(site: document.site)
@@ -219,7 +219,7 @@ struct StaticSiteRendererTests {
     func escapesPageTitlesAndComponentContent() throws {
         let text = ComponentNode(
             type: .paragraph,
-            properties: [.init(key: .init(rawValue: "content1"), value: .string("<Hello & goodbye>"))]
+            properties: [.init(key: .init(rawValue: "content"), value: .string("<Hello & goodbye>"))]
         )
         let site = Site(name: "Test", pages: [Page(title: "A < B", slug: "index", components: [text])])
 
