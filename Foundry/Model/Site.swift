@@ -156,6 +156,20 @@ nonisolated struct Site: Codable, Equatable, Identifiable, Sendable {
         }
     }
 
+    mutating func replaceComponentThemeReference(_ reference: String, with replacement: String) {
+        for pageIndex in pages.indices {
+            for componentIndex in pages[pageIndex].components.indices {
+                pages[pageIndex].components[componentIndex].replaceThemeReference(reference, with: replacement)
+            }
+        }
+        for index in reusableComponents.indices {
+            reusableComponents[index].root.replaceThemeReference(reference, with: replacement)
+        }
+        for index in globalComponents.indices {
+            globalComponents[index].root.replaceThemeReference(reference, with: replacement)
+        }
+    }
+
     init(
         id: UUID = UUID(),
         schemaVersion: Int = currentSchemaVersion,

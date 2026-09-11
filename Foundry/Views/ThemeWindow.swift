@@ -111,7 +111,6 @@ private struct ThemeWindowContent: View {
 private enum ThemeWindowSection: String, CaseIterable, Identifiable, Hashable {
     case themes
     case screens
-    case page
     case colors
     case fontFamily
     case fontSize
@@ -119,35 +118,30 @@ private enum ThemeWindowSection: String, CaseIterable, Identifiable, Hashable {
     case shadows
     case borderWidth
     case borderRadius
-    case typography
 
     var id: String { rawValue }
 
     static let settings: [ThemeWindowSection] = [
-        .page,
         .colors,
         .fontFamily,
         .fontSize,
         .spacing,
         .shadows,
         .borderWidth,
-        .borderRadius,
-        .typography
+        .borderRadius
     ]
 
     var title: String {
         switch self {
         case .themes: "Theme"
-        case .screens: "Screens"
-        case .page: "Page"
-        case .colors: "Colors"
+        case .screens: "Breakpoints"
+        case .colors: "Colours"
         case .fontFamily: "Font Family"
-        case .fontSize: "Font Size"
+        case .fontSize: "Type Scale"
         case .spacing: "Spacing"
         case .shadows: "Shadows"
         case .borderWidth: "Border Width"
         case .borderRadius: "Border Radius"
-        case .typography: "Typography"
         }
     }
 
@@ -155,7 +149,6 @@ private enum ThemeWindowSection: String, CaseIterable, Identifiable, Hashable {
         switch self {
         case .themes: "theatermask.and.paintbrush"
         case .screens: "rectangle.on.rectangle"
-        case .page: "doc"
         case .colors: "paintpalette"
         case .fontFamily: "text.alignleft"
         case .fontSize: "textformat.size"
@@ -163,7 +156,6 @@ private enum ThemeWindowSection: String, CaseIterable, Identifiable, Hashable {
         case .shadows: "square.stack"
         case .borderWidth: "square"
         case .borderRadius: "circle"
-        case .typography: "textformat"
         }
     }
 }
@@ -183,6 +175,7 @@ private struct ThemeSettingsDetail: View {
     let assets: [ProjectAsset]
     let session: ThemeEditorSession
     @State private var selectedFontSizeID: String?
+    @State private var fontSizePendingDeletion: ThemeFontSize?
     private var editor: ProjectEditor { session.editor }
 
     var body: some View {
@@ -197,21 +190,31 @@ private struct ThemeSettingsDetail: View {
                 ThemeSpacingSettings(spacing: theme.spacing, editor: editor)
             } else if section == .shadows {
                 ThemeShadowSettings(shadows: theme.shadows, editor: editor)
+            } else if section == .borderWidth {
+                ThemeDimensionSettings(
+                    title: "Border Width",
+                    explanation: "Set the width represented by each theme border token.",
+                    tokens: theme.borderWidths,
+                    range: 0...20,
+                    reset: editor.resetThemeBorderWidths,
+                    setValue: editor.setThemeBorderWidth
+                )
+            } else if section == .borderRadius {
+                ThemeDimensionSettings(
+                    title: "Border Radius",
+                    explanation: "Set the corner radius represented by each theme radius token.",
+                    tokens: theme.borderRadii,
+                    range: 0...100,
+                    reset: editor.resetThemeBorderRadii,
+                    setValue: editor.setThemeBorderRadius
+                )
             } else {
                 Form {
                     switch section {
                     case .screens:
                         EmptyView()
-                    case .page:
-                        Section("Canvas") {
-                            ColorPicker(
-                                "Background",
-                                selection: colorBinding(for: .backgroundColor),
-                                supportsOpacity: false
-                            )
-                        }
                     case .colors:
-                        Section("Theme Colors") {
+                        Section("Theme Colours") {
                             ForEach(DesignToken.colorTokens) { token in
                                 ColorPicker(
                                     token.displayName,
@@ -224,14 +227,8 @@ private struct ThemeSettingsDetail: View {
                         EmptyView()
                     case .shadows:
                         EmptyView()
-                    case .borderWidth:
-                        pendingSettings("The theme border-width scale will be configured here.")
-                    case .borderRadius:
-                        pendingSettings("The theme corner-radius scale will be configured here.")
-                    case .typography:
-                        Section("Base Typography") {
-                            TextField("Body Font", text: bodyFontBinding)
-                        }
+                    case .borderWidth, .borderRadius:
+                        EmptyView()
                     case .themes, .fontFamily, .fontSize:
                         EmptyView()
                     }
@@ -240,6 +237,22 @@ private struct ThemeSettingsDetail: View {
             }
         }
         .navigationTitle(section.title)
+        .confirmationDialog(
+            "Choose a replacement for \(fontSizePendingDeletion?.title ?? "this custom size")",
+            isPresented: fontSizeDeletionPresented,
+            titleVisibility: .visible
+        ) {
+            ForEach(theme.typography.fontSizes.filter { $0.id != fontSizePendingDeletion?.id }) { replacement in
+                Button("Replace with \(replacement.title)") {
+                    guard let pending = fontSizePendingDeletion else { return }
+                    editor.removeThemeFontSize(id: pending.id, replacingWith: replacement.id)
+                    fontSizePendingDeletion = nil
+                }
+            }
+            Button("Cancel", role: .cancel) { fontSizePendingDeletion = nil }
+        } message: {
+            Text("Foundry will update every component using this size before deleting it.")
+        }
     }
 
     private var fontSizeSettings: some View {
@@ -257,9 +270,9 @@ private struct ThemeSettingsDetail: View {
                     )
                 } else {
                     ContentUnavailableView(
-                        "Select a Text Style",
+                        "Select a Size",
                         systemImage: "textformat.size",
-                        description: Text("Choose a theme or custom text style to edit its size.")
+                        description: Text("Choose a theme or custom size to edit its size and line height.")
                     )
                 }
             }
@@ -275,16 +288,16 @@ private struct ThemeSettingsDetail: View {
     private var fontSizeStyleList: some View {
         ScrollView {
             VStack(spacing: 0) {
-                fontSizeListHeader("Custom Text Styles") {
+                fontSizeListHeader("Custom Sizes") {
                     let id = editor.addThemeFontSize()
                     selectedFontSizeID = id
                 }
                 fontSizeRows(theme.typography.customFontSizes, allowsDeletion: true)
 
-                fontSizeListHeader("Theme Text Styles") {
+                fontSizeListHeader("Theme Scale") {
                     editor.resetThemeFontSizeScale()
                 } actionLabel: {
-                    Label("Reset Theme Text Styles", systemImage: "arrow.counterclockwise")
+                    Label("Reset Theme Scale", systemImage: "arrow.counterclockwise")
                 }
                 fontSizeRows(theme.typography.predefinedFontSizes, allowsDeletion: false)
             }
@@ -296,7 +309,7 @@ private struct ThemeSettingsDetail: View {
         _ title: LocalizedStringKey,
         action: @escaping () -> Void,
         @ViewBuilder actionLabel: () -> some View = {
-            Label("Add Custom Text Style", systemImage: "plus")
+            Label("Add Custom Size", systemImage: "plus")
         }
     ) -> some View {
         HStack {
@@ -329,9 +342,9 @@ private struct ThemeSettingsDetail: View {
 
                 if allowsDeletion {
                     Button(role: .destructive) {
-                        editor.removeThemeFontSize(id: token.id)
+                        fontSizePendingDeletion = token
                     } label: {
-                        Label("Delete Custom Text Style", systemImage: "trash")
+                        Label("Delete Custom Size", systemImage: "trash")
                     }
                     .labelStyle(.iconOnly)
                     .buttonStyle(.borderless)
@@ -356,32 +369,23 @@ private struct ThemeSettingsDetail: View {
         return theme.typography.fontSizes.first { $0.id == selectedFontSizeID }
     }
 
+    private var fontSizeDeletionPresented: Binding<Bool> {
+        Binding(
+            get: { fontSizePendingDeletion != nil },
+            set: { if !$0 { fontSizePendingDeletion = nil } }
+        )
+    }
+
     private func selectInitialFontSizeIfNeeded() {
         guard theme.typography.fontSizes.contains(where: { $0.id == selectedFontSizeID }) == false else { return }
         selectedFontSizeID = theme.typography.customFontSizes.first?.id
             ?? theme.typography.predefinedFontSizes.first?.id
     }
 
-    @ViewBuilder
-    private func pendingSettings(_ message: String) -> some View {
-        Section {
-            Label(message, systemImage: section.systemImage)
-                .foregroundStyle(.secondary)
-                .frame(maxWidth: .infinity, minHeight: 120)
-        }
-    }
-
     private func colorBinding(for token: DesignToken) -> Binding<Color> {
         Binding(
             get: { Color(hex: theme.color(for: token) ?? "#FFFFFF") ?? .white },
             set: { editor.setThemeColor(token, value: $0.hexString ?? "#FFFFFF") }
-        )
-    }
-
-    private var bodyFontBinding: Binding<String> {
-        Binding(
-            get: { theme.typography.bodyFont.family },
-            set: editor.setThemeBodyFont
         )
     }
 
@@ -421,7 +425,7 @@ private struct ThemeSettingsDetail: View {
                 fontSizeGridLabel("Name")
                 Group {
                     if isCustom {
-                        TextField("Text Style Name", text: fontSizeTitleBinding(for: token.id))
+                        TextField("Size Name", text: fontSizeTitleBinding(for: token.id))
                             .frame(maxWidth: 200)
                     } else {
                         Text(token.title)
@@ -494,10 +498,81 @@ private struct ThemeSettingsDetail: View {
     }
 }
 
+private struct ThemeDimensionSettings: View {
+    let title: LocalizedStringKey
+    let explanation: LocalizedStringKey
+    let tokens: ThemeDimensionTokens
+    let range: ClosedRange<Double>
+    let reset: () -> Void
+    let setValue: (String, Double) -> Void
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 24) {
+                ThemeSettingsHeader(
+                    title: title,
+                    explanation: explanation,
+                    reset: reset
+                )
+
+                Grid(alignment: .leading, horizontalSpacing: 16, verticalSpacing: 14) {
+                    ForEach(tokens.predefined) { token in
+                        GridRow {
+                            Text(token.title)
+                                .frame(width: 64, alignment: .trailing)
+                            Slider(value: valueBinding(for: token), in: range, step: 0.5)
+                            TextField(
+                                "Pixels",
+                                value: valueBinding(for: token),
+                                format: .number.precision(.fractionLength(0...1))
+                            )
+                            .labelsHidden()
+                            .multilineTextAlignment(.trailing)
+                            .frame(width: 76)
+                            Text("px")
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+                .frame(maxWidth: 720)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(32)
+        }
+    }
+
+    private func valueBinding(for token: ThemeDimensionToken) -> Binding<Double> {
+        Binding(
+            get: { token.value },
+            set: { setValue(token.id, $0) }
+        )
+    }
+}
+
+private struct ThemeSettingsHeader: View {
+    let title: LocalizedStringKey
+    let explanation: LocalizedStringKey
+    let reset: () -> Void
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 16) {
+            VStack(alignment: .leading, spacing: 6) {
+                Text(title)
+                    .font(.title2.bold())
+                Text(explanation)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer()
+            Button("Reset", systemImage: "arrow.counterclockwise", action: reset)
+        }
+    }
+}
+
 private struct ThemeShadowSettings: View {
     let shadows: ShadowTokens
     let editor: ProjectEditor
     @State private var selectedShadowID: String?
+    @State private var shadowPendingDeletion: ThemeShadow?
 
     var body: some View {
         HStack(spacing: 0) {
@@ -523,6 +598,22 @@ private struct ThemeShadowSettings: View {
         }
         .onAppear(perform: selectInitialShadowIfNeeded)
         .onChange(of: shadows.shadows.map(\.id)) { _, _ in selectInitialShadowIfNeeded() }
+        .confirmationDialog(
+            "Choose a replacement for \(shadowPendingDeletion?.title ?? "this custom shadow")",
+            isPresented: shadowDeletionPresented,
+            titleVisibility: .visible
+        ) {
+            ForEach(shadows.shadows.filter { $0.id != shadowPendingDeletion?.id }) { replacement in
+                Button("Replace with \(replacement.title)") {
+                    guard let pending = shadowPendingDeletion else { return }
+                    editor.removeThemeShadow(id: pending.id, replacingWith: replacement.id)
+                    shadowPendingDeletion = nil
+                }
+            }
+            Button("Cancel", role: .cancel) { shadowPendingDeletion = nil }
+        } message: {
+            Text("Foundry will update every component using this shadow before deleting it.")
+        }
     }
 
     private var shadowList: some View {
@@ -578,7 +669,7 @@ private struct ThemeShadowSettings: View {
                 .buttonStyle(.plain)
                 if allowsDeletion {
                     Button("Delete Custom Shadow", systemImage: "trash", role: .destructive) {
-                        editor.removeThemeShadow(id: shadow.id)
+                        shadowPendingDeletion = shadow
                     }
                     .labelStyle(.iconOnly)
                     .buttonStyle(.borderless)
@@ -600,10 +691,17 @@ private struct ThemeShadowSettings: View {
         shadows.shadows.first { $0.id == selectedShadowID }
     }
 
+    private var shadowDeletionPresented: Binding<Bool> {
+        Binding(
+            get: { shadowPendingDeletion != nil },
+            set: { if !$0 { shadowPendingDeletion = nil } }
+        )
+    }
+
     private func selectInitialShadowIfNeeded() {
         guard shadows.shadows.contains(where: { $0.id == selectedShadowID }) == false else { return }
         selectedShadowID = shadows.custom.first?.id
-            ?? shadows.predefined.first(where: { $0.id == "default" })?.id
+            ?? shadows.predefined.first(where: { $0.id == "sm" })?.id
             ?? shadows.predefined.first?.id
     }
 }
@@ -813,11 +911,15 @@ private struct ThemeSpacingSettings: View {
 
             Section {
                 ForEach(spacing.custom) { token in
-                    ThemeCustomSpacingRow(token: token, editor: editor)
+                    ThemeCustomSpacingRow(
+                        token: token,
+                        replacements: spacingReplacementChoices(excluding: token.id),
+                        editor: editor
+                    )
                 }
             } header: {
                 HStack {
-                    Text("Custom Spacings")
+                    Text("Custom Values")
                     Spacer()
                     Button("Add Spacing", systemImage: "plus") {
                         editor.addThemeSpacing()
@@ -833,6 +935,19 @@ private struct ThemeSpacingSettings: View {
             }
         }
         .listStyle(.inset)
+    }
+
+    private func spacingReplacementChoices(excluding id: UUID) -> [ComponentPropertyChoice] {
+        let standardIDs = ["3xs", "2xs", "xs", "sm", "md", "lg", "xl", "2xl", "3xl"]
+        let standard = zip(standardIDs, DesignToken.spacingTokens).map {
+            ComponentPropertyChoice(value: $0.0, label: $0.1.displayName)
+        }
+        return standard + spacing.custom.filter { $0.id != id }.map {
+            ComponentPropertyChoice(
+                value: "custom:\($0.id.uuidString.lowercased())",
+                label: $0.name
+            )
+        }
     }
 }
 
@@ -859,7 +974,9 @@ private struct ThemePredefinedSpacingRow: View {
 
 private struct ThemeCustomSpacingRow: View {
     let token: ThemeSpacing
+    let replacements: [ComponentPropertyChoice]
     let editor: ProjectEditor
+    @State private var isChoosingReplacement = false
 
     var body: some View {
         HStack(spacing: 12) {
@@ -872,11 +989,25 @@ private struct ThemeCustomSpacingRow: View {
                 accessibilityLabel: token.name
             )
             Button("Delete Spacing", systemImage: "trash", role: .destructive) {
-                editor.removeThemeSpacing(id: token.id)
+                isChoosingReplacement = true
             }
             .labelStyle(.iconOnly)
             .buttonStyle(.borderless)
             .help("Delete Custom Spacing")
+        }
+        .confirmationDialog(
+            "Choose a replacement for \(token.name)",
+            isPresented: $isChoosingReplacement,
+            titleVisibility: .visible
+        ) {
+            ForEach(replacements) { replacement in
+                Button("Replace with \(replacement.label)") {
+                    editor.removeThemeSpacing(id: token.id, replacingWith: replacement.value)
+                }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Foundry will update every component using this spacing before deleting it.")
         }
     }
 
@@ -934,6 +1065,7 @@ private struct ThemeFontFamilyEditor: View {
     let assets: [ProjectAsset]
     let session: ThemeEditorSession
     @State private var selection: ThemeFontReference = .role(.body)
+    @State private var fontPendingDeletion: ThemeCustomFont?
     @AppStorage("themeEditor.fontAssignmentRatio") private var assignmentRatio = 0.28
 
     private var editor: ProjectEditor { session.editor }
@@ -961,6 +1093,23 @@ private struct ThemeFontFamilyEditor: View {
         .onDisappear {
             session.discardFontPreview()
         }
+        .confirmationDialog(
+            "Choose a replacement for \(fontPendingDeletion?.name ?? "this custom font")",
+            isPresented: fontDeletionPresented,
+            titleVisibility: .visible
+        ) {
+            ForEach(fontReplacementChoices) { replacement in
+                Button("Replace with \(replacement.label)") {
+                    guard let pending = fontPendingDeletion else { return }
+                    editor.removeThemeCustomFont(id: pending.id, replacingWith: replacement.value)
+                    selection = .role(.body)
+                    fontPendingDeletion = nil
+                }
+            }
+            Button("Cancel", role: .cancel) { fontPendingDeletion = nil }
+        } message: {
+            Text("Foundry will update every component using this font before deleting it.")
+        }
     }
 
     private var themeFontSidebar: some View {
@@ -987,8 +1136,7 @@ private struct ThemeFontFamilyEditor: View {
                         .tag(ThemeFontReference.custom(font.id))
                         .contextMenu {
                             Button("Delete", role: .destructive) {
-                                editor.removeThemeCustomFont(id: font.id)
-                                selection = .role(.body)
+                                fontPendingDeletion = font
                             }
                         }
                 }
@@ -1007,6 +1155,18 @@ private struct ThemeFontFamilyEditor: View {
     private var selectionTitle: String {
         guard case .role(let role) = selection else { return "Custom Font" }
         return role.title
+    }
+
+    private var fontReplacementChoices: [ComponentPropertyChoice] {
+        let pendingReference = fontPendingDeletion.map { "custom:\($0.id.uuidString.lowercased())" }
+        return theme.fontFamilyChoices.filter { $0.value != pendingReference }
+    }
+
+    private var fontDeletionPresented: Binding<Bool> {
+        Binding(
+            get: { fontPendingDeletion != nil },
+            set: { if !$0 { fontPendingDeletion = nil } }
+        )
     }
 
     private func definition(for reference: ThemeFontReference) -> ThemeFontDefinition {
@@ -1465,6 +1625,7 @@ private struct ThemeLibraryBrowser: View {
     @State private var isCreatingTheme = false
     @State private var selectedThemeID: UUID?
     @State private var themePendingUpdate: SavedTheme?
+    @State private var themePendingDeletion: SavedTheme?
     @State private var errorMessage: String?
     private let columns = [GridItem(.adaptive(minimum: 230, maximum: 320), spacing: 20)]
 
@@ -1490,7 +1651,7 @@ private struct ThemeLibraryBrowser: View {
                         } export: {
                             exportTheme(savedTheme)
                         } delete: {
-                            deleteTheme(savedTheme)
+                            themePendingDeletion = savedTheme
                         }
                     }
                 }
@@ -1531,6 +1692,20 @@ private struct ThemeLibraryBrowser: View {
         } message: {
             Text("Replace this theme’s saved settings with the current project theme? Its title and preview image will be kept.")
         }
+        .confirmationDialog(
+            "Delete \(themePendingDeletion?.metadata.name ?? "Theme")?",
+            isPresented: themeDeletionConfirmationBinding,
+            titleVisibility: .visible
+        ) {
+            Button("Delete Theme", role: .destructive) {
+                guard let theme = themePendingDeletion else { return }
+                deleteTheme(theme)
+                themePendingDeletion = nil
+            }
+            Button("Cancel", role: .cancel) { themePendingDeletion = nil }
+        } message: {
+            Text("This removes the saved theme from your library. Projects already using it keep their current theme values.")
+        }
         .alert("Theme Error", isPresented: errorBinding) {
             Button("OK", role: .cancel) {}
         } message: {
@@ -1549,6 +1724,13 @@ private struct ThemeLibraryBrowser: View {
         Binding(
             get: { themePendingUpdate != nil },
             set: { if !$0 { themePendingUpdate = nil } }
+        )
+    }
+
+    private var themeDeletionConfirmationBinding: Binding<Bool> {
+        Binding(
+            get: { themePendingDeletion != nil },
+            set: { if !$0 { themePendingDeletion = nil } }
         )
     }
 

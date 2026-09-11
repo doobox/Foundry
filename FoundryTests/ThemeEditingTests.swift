@@ -147,10 +147,64 @@ struct ThemeEditingTests {
         #expect(decoded.theme.spacing.custom == [spacing])
 
         undoManager.removeAllActions()
-        editor.removeThemeSpacing(id: id)
+        editor.removeThemeSpacing(id: id, replacingWith: "md")
         #expect(document.site.theme.spacing.custom.isEmpty)
         undoManager.undo()
         #expect(document.site.theme.spacing.custom == [spacing])
+    }
+
+    @Test
+    func deletingCustomThemeValueReplacesComponentReferencesAtomically() throws {
+        let document = FoundryDocument()
+        let editor = ProjectEditor(document: document, undoManager: UndoManager())
+        let id = editor.addThemeFontSize()
+        var component = ComponentNode.make(.paragraph)
+        component.setProperty(.fontSize, value: .packageFontSize(.init(
+            source: id,
+            customValue: "1rem",
+            customLineHeight: "1.5"
+        )))
+        document.site.pages[0].components = [component]
+
+        editor.removeThemeFontSize(id: id, replacingWith: "base")
+
+        let updated = try #require(document.site.pages.first?.components.first)
+        #expect(updated.propertyValue(.fontSize).stringValue == "base")
+        #expect(!document.site.theme.typography.customFontSizes.contains { $0.id == id })
+    }
+
+    @Test
+    func borderScalesPersistAndEmitCSSVariables() throws {
+        let document = FoundryDocument()
+        let editor = ProjectEditor(document: document, undoManager: UndoManager())
+
+        editor.setThemeBorderWidth(id: "md", value: 3)
+        editor.setThemeBorderRadius(id: "lg", value: 14)
+
+        let data = try FoundryDocument.encoder.encode(document.site)
+        let decoded = try FoundryDocument.decoder.decode(Site.self, from: data)
+        #expect(decoded.theme.borderWidths.predefined.first { $0.id == "md" }?.value == 3)
+        #expect(decoded.theme.borderRadii.predefined.first { $0.id == "lg" }?.value == 14)
+        #expect(decoded.theme.borderCSSVariables.contains("--foundry-border-width-md:3px"))
+        #expect(decoded.theme.borderCSSVariables.contains("--foundry-border-radius-lg:14px"))
+    }
+
+    @Test
+    func legacyDefaultShadowLoadsAsSMAndStillResolves() throws {
+        var theme = Theme.standard
+        theme.shadows.predefined.removeAll { $0.id == "sm" }
+        theme.shadows.predefined.append(.init(
+            id: "default",
+            title: "Default",
+            layers: [.init(x: 0, y: 2, blur: 5, opacity: 0.2)]
+        ))
+
+        let data = try FoundryDocument.encoder.encode(theme)
+        let decoded = try FoundryDocument.decoder.decode(Theme.self, from: data)
+
+        #expect(!decoded.shadows.predefined.contains { $0.id == "default" })
+        #expect(decoded.shadows.predefined.contains { $0.id == "sm" })
+        #expect(decoded.shadowCSSVariable(for: "default") == decoded.shadowCSSVariable(for: "sm"))
     }
 
     @Test

@@ -15,7 +15,7 @@ nonisolated enum ComponentPackageValidator {
     static let maximumIconByteCount = 64 * 1024
     private static let maximumTagCount = 5
     private static let identifierExpression = try! NSRegularExpression(
-        pattern: #"^[a-z](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)+$"#
+        pattern: #"^[a-z](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?){2,}$"#
     )
     private static let propertyExpression = try! NSRegularExpression(
         pattern: #"^[A-Za-z][A-Za-z0-9_-]*$"#

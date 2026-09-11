@@ -187,6 +187,23 @@ nonisolated struct ComponentProperty: Codable, Equatable, Identifiable, Sendable
             return value
         }
 
+        func replacingThemeReference(_ reference: String, with replacement: String) -> Value {
+            switch self {
+            case .string(let value): return .string(value == reference ? replacement : value)
+            case .choice(let value): return .choice(value == reference ? replacement : value)
+            case .array(let values):
+                return .array(values.map { $0.replacingThemeReference(reference, with: replacement) })
+            case .packageFontSize(var value):
+                if value.source == reference { value.source = replacement }
+                return .packageFontSize(value)
+            case .packageShadow(var value):
+                if value.source == reference { value.source = replacement }
+                return .packageShadow(value)
+            case .url, .number, .color, .boolean, .token, .link, .packageColor:
+                return self
+            }
+        }
+
         func value(at indexPath: [Int]) -> Value? {
             guard let index = indexPath.first else { return self }
             guard case .array(let values) = self, values.indices.contains(index) else { return nil }

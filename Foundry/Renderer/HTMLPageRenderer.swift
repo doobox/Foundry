@@ -54,6 +54,7 @@ nonisolated struct HTMLPageRenderer: PageRendering {
               --foundry-editor-primitive: #0A84FF;
               \(theme.spacingCSSVariables)
               \(theme.shadowCSSVariables)
+              \(theme.borderCSSVariables)
             }
             *, *::before, *::after { box-sizing: border-box; }
             a { color: var(--foundry-color-links); }
@@ -173,7 +174,10 @@ nonisolated struct HTMLPageRenderer: PageRendering {
                 theme: theme,
                 assets: assets,
                 globalDefinitionID: target.inheritedGlobalDefinitionID,
-                breakpoint: breakpoint
+                breakpoint: breakpoint,
+                parentComponentID: target.parentComponentID,
+                parentSlot: target.parentSlot,
+                parentDropZoneSlotID: target.parentDropZoneSlotID
             ),
             instanceCSS: componentStyles(
                 for: flattened(target.node),
@@ -480,19 +484,53 @@ nonisolated struct HTMLPageRenderer: PageRendering {
     private func subtreeTarget(
         componentID: UUID,
         in nodes: [ComponentNode],
-        inheritedGlobalDefinitionID: UUID? = nil
-    ) -> (node: ComponentNode, inheritedGlobalDefinitionID: UUID?)? {
+        inheritedGlobalDefinitionID: UUID? = nil,
+        parentComponentID: UUID? = nil,
+        parentSlot: ComponentPackageSlot? = nil,
+        parentDropZoneSlotID: String? = nil
+    ) -> (
+        node: ComponentNode,
+        inheritedGlobalDefinitionID: UUID?,
+        parentComponentID: UUID?,
+        parentSlot: ComponentPackageSlot?,
+        parentDropZoneSlotID: String?
+    )? {
         for node in nodes {
             if node.id == componentID {
-                return (node, inheritedGlobalDefinitionID)
+                return (
+                    node,
+                    inheritedGlobalDefinitionID,
+                    parentComponentID,
+                    parentSlot,
+                    parentDropZoneSlotID
+                )
             }
             let globalDefinitionID = node.reusableDefinitionID ?? inheritedGlobalDefinitionID
-            if let target = subtreeTarget(
-                componentID: componentID,
-                in: node.children,
-                inheritedGlobalDefinitionID: globalDefinitionID
-            ) {
-                return target
+            let package = node.type.definition.package
+            for child in node.children {
+                let slot = package.flatMap { package in
+                    if let slotID = child.slotID {
+                        return package.manifest.slots.first { $0.id == slotID }
+                    }
+                    return package.hasDropZone ? nil : package.manifest.slots.first
+                }
+                let dropZoneSlotID: String? = package.flatMap { package -> String? in
+                    guard slot == nil else { return nil }
+                    return package.dropZoneNames.enumerated().first { index, name in
+                        let slotID = package.dropZoneSlotID(for: name)
+                        return child.slotID == slotID || (index == 0 && child.slotID == nil)
+                    }.map { package.dropZoneSlotID(for: $0.element) }
+                }
+                if let target = subtreeTarget(
+                    componentID: componentID,
+                    in: [child],
+                    inheritedGlobalDefinitionID: globalDefinitionID,
+                    parentComponentID: node.id,
+                    parentSlot: slot,
+                    parentDropZoneSlotID: dropZoneSlotID
+                ) {
+                    return target
+                }
             }
         }
         return nil

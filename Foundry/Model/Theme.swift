@@ -6,23 +6,29 @@ nonisolated struct Theme: Codable, Equatable, Sendable {
     var shadows: ShadowTokens
     var typography: TypographyTokens
     var screens: ScreenTokens
+    var borderWidths: ThemeDimensionTokens
+    var borderRadii: ThemeDimensionTokens
 
     init(
         colors: ColorTokens,
         spacing: SpacingTokens,
         shadows: ShadowTokens = .standard,
         typography: TypographyTokens,
-        screens: ScreenTokens = .standard
+        screens: ScreenTokens = .standard,
+        borderWidths: ThemeDimensionTokens = .standardBorderWidths,
+        borderRadii: ThemeDimensionTokens = .standardBorderRadii
     ) {
         self.colors = colors
         self.spacing = spacing
         self.shadows = shadows
         self.typography = typography
         self.screens = screens
+        self.borderWidths = borderWidths
+        self.borderRadii = borderRadii
     }
 
     enum CodingKeys: String, CodingKey {
-        case colors, spacing, shadows, typography, screens
+        case colors, spacing, shadows, typography, screens, borderWidths, borderRadii
     }
 
     init(from decoder: Decoder) throws {
@@ -32,6 +38,8 @@ nonisolated struct Theme: Codable, Equatable, Sendable {
         shadows = try container.decodeIfPresent(ShadowTokens.self, forKey: .shadows) ?? .standard
         typography = try container.decode(TypographyTokens.self, forKey: .typography)
         screens = try container.decode(ScreenTokens.self, forKey: .screens)
+        borderWidths = try container.decodeIfPresent(ThemeDimensionTokens.self, forKey: .borderWidths) ?? .standardBorderWidths
+        borderRadii = try container.decodeIfPresent(ThemeDimensionTokens.self, forKey: .borderRadii) ?? .standardBorderRadii
     }
 
     static let standard = Theme(
@@ -53,6 +61,36 @@ nonisolated struct Theme: Codable, Equatable, Sendable {
     )
 }
 
+nonisolated struct ThemeDimensionToken: Codable, Equatable, Identifiable, Sendable {
+    let id: String
+    let title: String
+    var value: Double
+}
+
+nonisolated struct ThemeDimensionTokens: Codable, Equatable, Sendable {
+    var predefined: [ThemeDimensionToken]
+
+    static let standardBorderWidths = ThemeDimensionTokens(predefined: [
+        .init(id: "none", title: "None", value: 0),
+        .init(id: "xs", title: "XS", value: 0.5),
+        .init(id: "sm", title: "SM", value: 1),
+        .init(id: "md", title: "MD", value: 2),
+        .init(id: "lg", title: "LG", value: 4),
+        .init(id: "xl", title: "XL", value: 8)
+    ])
+
+    static let standardBorderRadii = ThemeDimensionTokens(predefined: [
+        .init(id: "none", title: "None", value: 0),
+        .init(id: "xs", title: "XS", value: 2),
+        .init(id: "sm", title: "SM", value: 4),
+        .init(id: "md", title: "MD", value: 8),
+        .init(id: "lg", title: "LG", value: 12),
+        .init(id: "xl", title: "XL", value: 16),
+        .init(id: "2xl", title: "2XL", value: 24),
+        .init(id: "full", title: "Full", value: 9_999)
+    ])
+}
+
 nonisolated enum ThemeScreenID: String, Codable, CaseIterable, Identifiable, Sendable {
     case mobile, small, medium, large, extraLarge, doubleExtraLarge
 
@@ -64,7 +102,7 @@ nonisolated enum ThemeScreenID: String, Codable, CaseIterable, Identifiable, Sen
         case .medium: "MD"
         case .large: "LG"
         case .extraLarge: "XL"
-        case .doubleExtraLarge: "XXL"
+        case .doubleExtraLarge: "2XL"
         }
     }
     var systemImage: String {
@@ -87,7 +125,7 @@ nonisolated enum ThemeContainerUnit: String, Codable, CaseIterable, Identifiable
         switch self {
         case .auto: "Auto"
         case .pixels: "Pixels"
-        case .viewportWidth: "View Width"
+        case .viewportWidth: "Viewport Width"
         case .percent: "%"
         }
     }
@@ -333,41 +371,63 @@ nonisolated struct ShadowTokens: Codable, Equatable, Sendable {
 
     static let standard = ShadowTokens(
         predefined: [
-            .init(id: "default", title: "Default", layers: [
-                .init(x: 0, y: 1, blur: 3, opacity: 0.10),
-                .init(x: 0, y: 1, blur: 2, opacity: 0.10)
-            ]),
-            .init(id: "none", title: "none", layers: []),
-            .init(id: "inner", title: "inner", layers: [
+            .init(id: "none", title: "None", layers: []),
+            .init(id: "inner", title: "Inner", layers: [
                 .init(x: 0, y: 2, blur: 4, opacity: 0.06, isInset: true)
             ]),
-            .init(id: "xs", title: "xs", layers: [
+            .init(id: "xs", title: "XS", layers: [
                 .init(x: 0, y: 1, blur: 2, opacity: 0.05)
             ]),
-            .init(id: "sm", title: "sm", layers: [
+            .init(id: "sm", title: "SM", layers: [
                 .init(x: 0, y: 1, blur: 3, opacity: 0.10),
                 .init(x: 0, y: 1, blur: 2, opacity: 0.10)
             ]),
-            .init(id: "md", title: "md", layers: [
+            .init(id: "md", title: "MD", layers: [
                 .init(x: 0, y: 4, blur: 6, opacity: 0.10),
                 .init(x: 0, y: 2, blur: 4, opacity: 0.10)
             ]),
-            .init(id: "lg", title: "lg", layers: [
+            .init(id: "lg", title: "LG", layers: [
                 .init(x: 0, y: 10, blur: 15, opacity: 0.10),
                 .init(x: 0, y: 4, blur: 6, opacity: 0.10)
             ]),
-            .init(id: "xl", title: "xl", layers: [
+            .init(id: "xl", title: "XL", layers: [
                 .init(x: 0, y: 20, blur: 25, opacity: 0.10),
                 .init(x: 0, y: 8, blur: 10, opacity: 0.10)
             ]),
-            .init(id: "2xl", title: "2xl", layers: [
+            .init(id: "2xl", title: "2XL", layers: [
                 .init(x: 0, y: 25, blur: 50, opacity: 0.25)
             ])
         ],
         custom: []
     )
 
+    init(predefined: [ThemeShadow], custom: [ThemeShadow]) {
+        self.predefined = Self.migratingLegacyDefault(in: predefined)
+        self.custom = custom
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case predefined, custom
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        predefined = Self.migratingLegacyDefault(
+            in: try container.decode([ThemeShadow].self, forKey: .predefined)
+        )
+        custom = try container.decodeIfPresent([ThemeShadow].self, forKey: .custom) ?? []
+    }
+
     var shadows: [ThemeShadow] { custom + predefined }
+
+    private static func migratingLegacyDefault(in values: [ThemeShadow]) -> [ThemeShadow] {
+        var result = values.filter { $0.id != "default" }
+        if !result.contains(where: { $0.id == "sm" }),
+           let legacyDefault = values.first(where: { $0.id == "default" }) {
+            result.append(.init(id: "sm", title: "SM", layers: legacyDefault.layers))
+        }
+        return result
+    }
 }
 
 nonisolated struct ThemeShadow: Codable, Equatable, Identifiable, Sendable {
@@ -458,19 +518,19 @@ nonisolated struct TypographyTokens: Codable, Equatable, Sendable {
     var customFontSizes: [ThemeFontSize]
 
     static let standardFontSizes: [ThemeFontSize] = [
-        .init(id: "xs", title: "xs", size: 0.75, lineHeight: 4 / 3),
-        .init(id: "sm", title: "sm", size: 0.875, lineHeight: 10 / 7),
-        .init(id: "base", title: "base", size: 1, lineHeight: 1.5),
-        .init(id: "lg", title: "lg", size: 1.125, lineHeight: 14 / 9),
-        .init(id: "xl", title: "xl", size: 1.25, lineHeight: 1.4),
-        .init(id: "2xl", title: "2xl", size: 1.5, lineHeight: 4 / 3),
-        .init(id: "3xl", title: "3xl", size: 1.875, lineHeight: 1.2),
-        .init(id: "4xl", title: "4xl", size: 2.25, lineHeight: 10 / 9),
-        .init(id: "5xl", title: "5xl", size: 3, lineHeight: 1),
-        .init(id: "6xl", title: "6xl", size: 3.75, lineHeight: 1),
-        .init(id: "7xl", title: "7xl", size: 4.5, lineHeight: 1),
-        .init(id: "8xl", title: "8xl", size: 6, lineHeight: 1),
-        .init(id: "9xl", title: "9xl", size: 8, lineHeight: 1)
+        .init(id: "xs", title: "XS", size: 0.75, lineHeight: 4 / 3),
+        .init(id: "sm", title: "SM", size: 0.875, lineHeight: 10 / 7),
+        .init(id: "base", title: "MD", size: 1, lineHeight: 1.5),
+        .init(id: "lg", title: "LG", size: 1.125, lineHeight: 14 / 9),
+        .init(id: "xl", title: "XL", size: 1.25, lineHeight: 1.4),
+        .init(id: "2xl", title: "2XL", size: 1.5, lineHeight: 4 / 3),
+        .init(id: "3xl", title: "3XL", size: 1.875, lineHeight: 1.2),
+        .init(id: "4xl", title: "4XL", size: 2.25, lineHeight: 10 / 9),
+        .init(id: "5xl", title: "5XL", size: 3, lineHeight: 1),
+        .init(id: "6xl", title: "6XL", size: 3.75, lineHeight: 1),
+        .init(id: "7xl", title: "7XL", size: 4.5, lineHeight: 1),
+        .init(id: "8xl", title: "8XL", size: 6, lineHeight: 1),
+        .init(id: "9xl", title: "9XL", size: 8, lineHeight: 1)
     ]
 
     init(
@@ -649,11 +709,11 @@ nonisolated extension Theme {
         let predefined: [(String, String, Double)] = [
             ("3xs", "3XS", spacing.threeExtraSmall),
             ("2xs", "2XS", spacing.doubleExtraSmall),
-            ("xs", "Extra Small", spacing.extraSmall),
-            ("sm", "Small", spacing.small),
-            ("md", "Medium", spacing.medium),
-            ("lg", "Large", spacing.large),
-            ("xl", "Extra Large", spacing.extraLarge),
+            ("xs", "XS", spacing.extraSmall),
+            ("sm", "SM", spacing.small),
+            ("md", "MD", spacing.medium),
+            ("lg", "LG", spacing.large),
+            ("xl", "XL", spacing.extraLarge),
             ("2xl", "2XL", spacing.doubleExtraLarge),
             ("3xl", "3XL", spacing.threeExtraLarge)
         ]
@@ -682,12 +742,23 @@ nonisolated extension Theme {
     }
 
     func shadowCSSVariable(for reference: String) -> String? {
-        guard let shadow = shadows.shadows.first(where: { $0.id == reference }) else { return nil }
+        let migratedReference = reference == "default" ? "sm" : reference
+        guard let shadow = shadows.shadows.first(where: { $0.id == migratedReference }) else { return nil }
         return "var(\(shadow.cssVariable))"
     }
 
     var shadowCSSVariables: String {
         shadows.shadows.map { "\($0.cssVariable):\($0.cssValue);" }.joined()
+    }
+
+    var borderCSSVariables: String {
+        let widths = borderWidths.predefined.map {
+            "--foundry-border-width-\($0.id):\($0.value.cssNumber)px;"
+        }.joined()
+        let radii = borderRadii.predefined.map {
+            "--foundry-border-radius-\($0.id):\($0.value.cssNumber)px;"
+        }.joined()
+        return widths + radii
     }
 
     func spacingCSSVariable(for reference: String) -> String? {

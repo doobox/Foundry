@@ -246,4 +246,20 @@ nonisolated struct ComponentNode: Codable, Equatable, Identifiable, Sendable {
             : .string(value)
         setProperty(key, value: propertyValue)
     }
+
+    mutating func replaceThemeReference(_ reference: String, with replacement: String) {
+        for index in properties.indices {
+            properties[index].value = properties[index].value.replacingThemeReference(reference, with: replacement)
+        }
+        if var overrides = responsiveOverrides {
+            for index in overrides.indices {
+                overrides[index].value = overrides[index].value
+                    .replacingThemeReference(reference, with: replacement)
+            }
+            responsiveOverrides = overrides
+        }
+        for index in children.indices {
+            children[index].replaceThemeReference(reference, with: replacement)
+        }
+    }
 }

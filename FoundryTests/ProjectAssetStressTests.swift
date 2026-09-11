@@ -5,11 +5,10 @@ import Testing
 struct ProjectAssetStressTests {
     @Test
     func externalLargeProjectLoadTime() throws {
-        let environmentPath = ProcessInfo.processInfo.environment["FOUNDRY_ASSET_STRESS_PROJECT"]
-        let defaultStressPath = "/Users/garysimpson/Desktop/Foundry Asset Stress 10x.foundry"
-        let fallbackPath = "/Users/garysimpson/Desktop/Untitled 2.foundry"
-        let selectedPath = environmentPath
-            ?? (FileManager.default.fileExists(atPath: defaultStressPath) ? defaultStressPath : fallbackPath)
+        guard let selectedPath = ProcessInfo.processInfo.environment["FOUNDRY_ASSET_STRESS_PROJECT"] else {
+            print("Large-project benchmark skipped. Set FOUNDRY_ASSET_STRESS_PROJECT to a current .foundry package.")
+            return
+        }
         let projectURL = URL(filePath: selectedPath, directoryHint: .isDirectory)
         guard FileManager.default.fileExists(atPath: projectURL.path) else {
             print("Large-project benchmark skipped. Set FOUNDRY_ASSET_STRESS_PROJECT to a .foundry package.")
@@ -50,11 +49,10 @@ struct ProjectAssetStressTests {
 
     @Test
     func externalLargeProjectStaticPreviewPreparationTime() async throws {
-        let environmentPath = ProcessInfo.processInfo.environment["FOUNDRY_ASSET_STRESS_PROJECT"]
-        let defaultStressPath = "/Users/garysimpson/Desktop/Foundry Asset Stress 10x.foundry"
-        let fallbackPath = "/Users/garysimpson/Desktop/Untitled 2.foundry"
-        let selectedPath = environmentPath
-            ?? (FileManager.default.fileExists(atPath: defaultStressPath) ? defaultStressPath : fallbackPath)
+        guard let selectedPath = ProcessInfo.processInfo.environment["FOUNDRY_ASSET_STRESS_PROJECT"] else {
+            print("Large-project preview benchmark skipped. Set FOUNDRY_ASSET_STRESS_PROJECT to a current .foundry package.")
+            return
+        }
         let projectURL = URL(filePath: selectedPath, directoryHint: .isDirectory)
         guard FileManager.default.fileExists(atPath: projectURL.path) else {
             print("Large-project preview benchmark skipped. Set FOUNDRY_ASSET_STRESS_PROJECT to a .foundry package.")
@@ -99,11 +97,10 @@ struct ProjectAssetStressTests {
 
     @Test
     func externalLargeProjectRepeatedPHPPreviewTime() async throws {
-        let environmentPath = ProcessInfo.processInfo.environment["FOUNDRY_ASSET_STRESS_PROJECT"]
-        let defaultStressPath = "/Users/garysimpson/Desktop/Foundry Asset Stress 10x.foundry"
-        let fallbackPath = "/Users/garysimpson/Desktop/Untitled 2.foundry"
-        let selectedPath = environmentPath
-            ?? (FileManager.default.fileExists(atPath: defaultStressPath) ? defaultStressPath : fallbackPath)
+        guard let selectedPath = ProcessInfo.processInfo.environment["FOUNDRY_ASSET_STRESS_PROJECT"] else {
+            print("Large-project PHP preview benchmark skipped. Set FOUNDRY_ASSET_STRESS_PROJECT to a current .foundry package.")
+            return
+        }
         let projectURL = URL(filePath: selectedPath, directoryHint: .isDirectory)
         guard FileManager.default.fileExists(atPath: projectURL.path) else {
             print("Large-project PHP preview benchmark skipped. Set FOUNDRY_ASSET_STRESS_PROJECT to a .foundry package.")

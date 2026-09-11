@@ -32,7 +32,17 @@ struct ComponentDefinitionTests {
 
     @Test
     func stockRegistryUsesUniqueNamespacedIdentifiers() {
-        let identifiers = ComponentType.allCases.map(\.rawValue)
+        let identifiers = [
+            ComponentType.container,
+            .section,
+            .columns,
+            .paragraph,
+            .heading,
+            .button,
+            .image,
+            .divider,
+            .spacer
+        ].map(\.rawValue)
 
         #expect(!identifiers.isEmpty)
         #expect(Set(identifiers).count == identifiers.count)

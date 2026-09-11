@@ -337,9 +337,58 @@ struct ProjectEditor {
         }
     }
 
-    func removeThemeSpacing(id: UUID) {
-        mutate(actionName: "Delete Theme Spacing", impact: .theme) {
-            $0.theme.spacing.custom.removeAll(where: { $0.id == id })
+    func removeThemeSpacing(id: UUID, replacingWith replacement: String) {
+        let reference = "custom:\(id.uuidString.lowercased())"
+        mutate(actionName: "Replace and Delete Theme Spacing", impact: .theme) { site in
+            site.replaceComponentThemeReference(reference, with: replacement)
+            site.theme.spacing.custom.removeAll(where: { $0.id == id })
+            site.projectThemeValues.spacing.removeAll(where: { $0.id == id })
+            for index in site.themeStates.indices {
+                site.themeStates[index].theme.spacing.custom.removeAll(where: { $0.id == id })
+            }
+        }
+    }
+
+    func setThemeBorderWidth(id: String, value: Double) {
+        setThemeDimension(
+            id: id,
+            value: value,
+            actionName: "Edit Theme Border Width",
+            keyPath: \Theme.borderWidths
+        )
+    }
+
+    func setThemeBorderRadius(id: String, value: Double) {
+        setThemeDimension(
+            id: id,
+            value: value,
+            actionName: "Edit Theme Border Radius",
+            keyPath: \Theme.borderRadii
+        )
+    }
+
+    func resetThemeBorderWidths() {
+        mutate(actionName: "Reset Theme Border Widths", impact: .theme) {
+            $0.theme.borderWidths = .standardBorderWidths
+        }
+    }
+
+    func resetThemeBorderRadii() {
+        mutate(actionName: "Reset Theme Border Radii", impact: .theme) {
+            $0.theme.borderRadii = .standardBorderRadii
+        }
+    }
+
+    private func setThemeDimension(
+        id: String,
+        value: Double,
+        actionName: String,
+        keyPath: WritableKeyPath<Theme, ThemeDimensionTokens>
+    ) {
+        guard value.isFinite, value >= 0 else { return }
+        mutate(actionName: actionName, impact: .theme) { site in
+            guard let index = site.theme[keyPath: keyPath].predefined.firstIndex(where: { $0.id == id }) else { return }
+            site.theme[keyPath: keyPath].predefined[index].value = value
         }
     }
 
@@ -355,9 +404,14 @@ struct ProjectEditor {
         return id
     }
 
-    func removeThemeShadow(id: String) {
-        mutate(actionName: "Delete Theme Shadow", impact: .theme) {
-            $0.theme.shadows.custom.removeAll { $0.id == id }
+    func removeThemeShadow(id: String, replacingWith replacement: String) {
+        mutate(actionName: "Replace and Delete Theme Shadow", impact: .theme) { site in
+            site.replaceComponentThemeReference(id, with: replacement)
+            site.theme.shadows.custom.removeAll { $0.id == id }
+            site.projectThemeValues.shadows.removeAll { $0.id == id }
+            for index in site.themeStates.indices {
+                site.themeStates[index].theme.shadows.custom.removeAll { $0.id == id }
+            }
         }
     }
 
@@ -540,9 +594,15 @@ struct ProjectEditor {
         }
     }
 
-    func removeThemeCustomFont(id: UUID) {
-        mutate(actionName: "Delete Theme Font", impact: .theme) {
-            $0.theme.typography.customFonts.removeAll(where: { $0.id == id })
+    func removeThemeCustomFont(id: UUID, replacingWith replacement: String) {
+        let reference = "custom:\(id.uuidString.lowercased())"
+        mutate(actionName: "Replace and Delete Theme Font", impact: .theme) { site in
+            site.replaceComponentThemeReference(reference, with: replacement)
+            site.theme.typography.customFonts.removeAll(where: { $0.id == id })
+            site.projectThemeValues.fonts.removeAll(where: { $0.id == id })
+            for index in site.themeStates.indices {
+                site.themeStates[index].theme.typography.customFonts.removeAll(where: { $0.id == id })
+            }
         }
     }
 
@@ -621,9 +681,14 @@ struct ProjectEditor {
         return newID
     }
 
-    func removeThemeFontSize(id: String) {
-        mutate(actionName: "Delete Theme Font Size", impact: .theme) {
-            $0.theme.typography.customFontSizes.removeAll { $0.id == id }
+    func removeThemeFontSize(id: String, replacingWith replacement: String) {
+        mutate(actionName: "Replace and Delete Theme Type Size", impact: .theme) { site in
+            site.replaceComponentThemeReference(id, with: replacement)
+            site.theme.typography.customFontSizes.removeAll { $0.id == id }
+            site.projectThemeValues.fontSizes.removeAll { $0.id == id }
+            for index in site.themeStates.indices {
+                site.themeStates[index].theme.typography.customFontSizes.removeAll { $0.id == id }
+            }
         }
     }
 
