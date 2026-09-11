@@ -1,1 +1,1 @@
-[data-foundry-id="{{ instance.uuid }}"] { display: block; min-height: {{ control.height }}px; }
+:instance { display: block; min-height: {{ control.height }}px; }

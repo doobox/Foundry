@@ -10,7 +10,7 @@
     <key>version</key><string>1.0.0</string>
     <key>group</key><string>Content</string>
     <key>tags</key><array><string>Foundry</string><string>built-in</string><string>link</string></array>
-    <key>customItems</key>
+    <key>controls</key>
     <array>
         <dict><key>id</key><string>destination</string><key>label</key><string>Destination</string><key>group</key><string>Link</string><key>type</key><string>link</string><key>absoluteURL</key><false/><key>default</key><string>#</string><key>responsive</key><false/></dict>
         <dict><key>id</key><string>textColor</string><key>label</key><string>Text colour</string><key>group</key><string>Typography</string><key>type</key><string>themeColor</string><key>allowsCustom</key><true/><key>colorMath</key><true/><key>opacity</key><true/><key>customColor</key><string>#FFFFFF</string><key>default</key><string>custom</string><key>responsive</key><true/></dict>

@@ -1,4 +1,4 @@
-[data-foundry-id="{{ instance.uuid }}"] {
+:instance {
     box-sizing: border-box;
     display: flex;
     flex-direction: column;

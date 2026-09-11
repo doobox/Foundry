@@ -10,7 +10,7 @@
 	<array/>
 	<key>author</key>
 	<string>Foundry</string>
-	<key>customItems</key>
+	<key>controls</key>
 	<array>
 		<dict>
 			<key>default</key>

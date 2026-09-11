@@ -1,4 +1,4 @@
-[data-foundry-id="{{ instance.uuid }}"] {
+:instance {
     color: {{ control.textColor }};
     font-family: {{ control.typeface }};
     font-size: {{ control.textSize }};

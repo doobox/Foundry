@@ -131,12 +131,18 @@ nonisolated struct ComponentImagePrimitive: Codable, Equatable, Sendable {
 
 nonisolated enum ComponentTemplateRenderer {
     private static let dropZoneExpression = try! NSRegularExpression(
-        pattern: #"^\s*(?:dropZone|dropzone)\(\s*\"([A-Za-z][A-Za-z0-9_-]*)\"\s*\)\s*$"#
+        pattern: #"^\s*dropZone\(\s*\"([A-Za-z][A-Za-z0-9_-]*)\"\s*\)\s*$"#
+    )
+    private static let childAreaExpression = try! NSRegularExpression(
+        pattern: #"^\s*childArea\(\s*\"([A-Za-z][A-Za-z0-9_-]*)\"\s*\)\s*$"#
+    )
+    private static let assetExpression = try! NSRegularExpression(
+        pattern: #"^\s*asset\(\s*\"([^\"]+)\"\s*\)\s*$"#
     )
 
     static func dropZoneNames(in template: String) -> [String] {
         let expression = try! NSRegularExpression(
-            pattern: #"\{\{\s*(?:dropZone|dropzone)\(\s*\"([A-Za-z][A-Za-z0-9_-]*)\"\s*\)\s*\}\}"#
+            pattern: #"\{\{\s*dropZone\(\s*\"([A-Za-z][A-Za-z0-9_-]*)\"\s*\)\s*\}\}"#
         )
         return expression.matches(in: template, range: NSRange(template.startIndex..., in: template)).compactMap {
             Range($0.range(at: 1), in: template).map { String(template[$0]) }
@@ -469,6 +475,14 @@ nonisolated enum ComponentTemplateRenderer {
            let nameRange = Range(match.range(at: 1), in: expression) {
             return context.dropZones[String(expression[nameRange])] ?? ""
         }
+        if let match = childAreaExpression.firstMatch(in: expression, range: expressionRange),
+           let nameRange = Range(match.range(at: 1), in: expression) {
+            return context.slots[String(expression[nameRange])] ?? ""
+        }
+        if let match = assetExpression.firstMatch(in: expression, range: expressionRange),
+           let pathRange = Range(match.range(at: 1), in: expression) {
+            return assetPath(String(expression[pathRange]), context: context)
+        }
         let parts = ComponentTemplateExpression.templateParts(expression)
         guard let key = parts.first else { return "" }
         let filters = Array(parts.dropFirst())
@@ -486,7 +500,7 @@ nonisolated enum ComponentTemplateRenderer {
            let filteredColor = filteredColor(for: key, filters: filters, context: context) {
             return escape(filteredColor)
         }
-        let simpleValue = #"^(?:instance\.uuid|package\.id|site\.baseURL|page\.url|path\.(?:siteRoot|siteAssets)|component\.(?:class|attributes)|asset\.[^\s]+|control\.[A-Za-z][A-Za-z0-9_.-]*(?:\[[0-9]+\])?)$"#
+        let simpleValue = #"^(?:instance\.id|package\.id|site\.baseURL|page\.url|path\.(?:siteRoot|siteAssets)|component\.(?:class|attributes)|control\.[A-Za-z][A-Za-z0-9_.-]*(?:\[[0-9]+\])?)$"#
         var result: String
         if key.range(of: simpleValue, options: .regularExpression) != nil {
             result = value(for: key, context: context)
@@ -540,7 +554,7 @@ nonisolated enum ComponentTemplateRenderer {
     }
 
     private static func value(for key: String, context: ComponentTemplateContext) -> String {
-        if key == "instance.uuid" {
+        if key == "instance.id" {
             return context.instanceID.uuidString
         }
         if key == "package.id" { return escape(context.packageIdentifier) }
@@ -552,24 +566,8 @@ nonisolated enum ComponentTemplateRenderer {
             return escapeAttribute(context.componentClass)
         }
         if key == "component.attributes" { return context.componentAttributes }
-        if key.hasPrefix("asset.") {
-            let path = String(key.dropFirst("asset.".count))
-            guard isSafeRelativePath(path) else { return "" }
-            if let resolvedPath = context.assetPaths[path] {
-                return escapeAttribute(resolvedPath)
-            }
-            if let declarationPath = context.assetPaths.keys
-                .filter({ path.hasPrefix($0 + "/") })
-                .max(by: { $0.count < $1.count }),
-               let resolvedBasePath = context.assetPaths[declarationPath] {
-                let suffix = String(path.dropFirst(declarationPath.count + 1))
-                return escapeAttribute(join(resolvedBasePath, suffix))
-            }
-            return escapeAttribute(join(context.assetBasePath, path))
-        }
         guard key.hasPrefix("control.") else { return "" }
         let reference = String(key.dropFirst("control.".count))
-        if let children = context.slots[reference] { return children }
         let value: ComponentPackageValue
         if let bracket = reference.lastIndex(of: "["), reference.hasSuffix("]"),
            let index = Int(reference[reference.index(after: bracket)..<reference.index(before: reference.endIndex)]),
@@ -593,6 +591,21 @@ nonisolated enum ComponentTemplateRenderer {
         case .array(let values): return values.map(packageValueString).joined(separator: ", ")
         case .object: return ""
         }
+    }
+
+    private static func assetPath(_ path: String, context: ComponentTemplateContext) -> String {
+        guard isSafeRelativePath(path) else { return "" }
+        if let resolvedPath = context.assetPaths[path] {
+            return escapeAttribute(resolvedPath)
+        }
+        if let declarationPath = context.assetPaths.keys
+            .filter({ path.hasPrefix($0 + "/") })
+            .max(by: { $0.count < $1.count }),
+           let resolvedBasePath = context.assetPaths[declarationPath] {
+            let suffix = String(path.dropFirst(declarationPath.count + 1))
+            return escapeAttribute(join(resolvedBasePath, suffix))
+        }
+        return escapeAttribute(join(context.assetBasePath, path))
     }
 
 

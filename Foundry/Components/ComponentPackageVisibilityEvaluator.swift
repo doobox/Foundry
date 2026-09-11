@@ -1,8 +1,8 @@
 import Foundation
 
-nonisolated enum ComponentPackageEnableEvaluator {
+nonisolated enum ComponentPackageVisibilityEvaluator {
     static func isVisible(
-        _ condition: ComponentPackageEnable?,
+        _ condition: ComponentPackageVisibilityCondition?,
         for component: ComponentNode,
         at breakpoint: ResponsiveBreakpoint
     ) -> Bool {

@@ -11,7 +11,7 @@
     <key>group</key><string>Other</string>
     <key>tags</key><array><string>Development</string><string>Theme</string></array>
     <key>assets</key><array><dict><key>path</key><string>icon.svg</string></dict></array>
-    <key>customItems</key><array>
+    <key>controls</key><array>
         <dict>
             <key>id</key><string>foreground</string><key>label</key><string>Foreground</string><key>group</key><string>Theme Values</string>
             <key>type</key><string>themeColor</string><key>allowsCustom</key><true/>

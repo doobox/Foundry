@@ -43,20 +43,20 @@ nonisolated enum ComponentPackageManifestSchema {
 
     private static let componentKeys: Set<String> = [
         "minimumAPIVersion", "id", "title", "description", "author", "version", "group",
-        "tags", "showsInComponentLibrary", "allowedParents", "customItems", "templates", "assets", "helpURL", "missingComponent",
-        "requiresPhp", "libraries", "collection", "updates"
+        "tags", "showsInComponentLibrary", "allowedParents", "controls", "templates", "assets", "helpURL", "missingComponent",
+        "requiresPHP", "libraries", "collection", "updates"
     ]
     private static let collectionKeys: Set<String> = [
         "collection", "minimumAPIVersion", "id", "title", "author", "version", "updates"
     ]
     private static let updateKeys: Set<String> = ["appcastURL", "publicKey"]
     private static let propertyKeys: Set<String> = [
-        "id", "label", "title", "body", "systemImage", "group", "default", "responsive", "subtitle", "buttonText", "units", "toolTip",
+        "id", "label", "title", "body", "systemImage", "group", "default", "responsive", "subtitle", "buttonText", "units", "tooltip",
         "type", "minimum", "maximum", "step", "options", "themeValues", "allowsCustom", "colorMath", "opacity", "outputFormat",
         "customColor", "count", "ticks", "showsValueField", "trueValue", "falseValue",
-        "buttonIcon", "activeButtonText", "activeButtonIcon", "selectionMode", "fontSize", "argument1", "argument2", "operation", "round", "absoluteURL", "enable", "alt", "focalPoint", "renditions", "accepts", "pickerItems", "initial", "containment"
+        "buttonIcon", "activeButtonText", "activeButtonIcon", "selectionMode", "fontSize", "argument1", "argument2", "operation", "round", "absoluteURL", "visibleWhen", "alt", "focalPoint", "renditions", "accepts", "pickerItems", "initial", "containment"
     ]
-    private static let enableKeys: Set<String> = ["id", "operation", "value"]
+    private static let visibleWhenKeys: Set<String> = ["id", "operation", "value"]
     private static let optionKeys: Set<String> = ["value", "title"]
     private static let templateKeys: Set<String> = ["html", "editorCSS", "files"]
     private static let templateFileKeys: Set<String> = ["path", "scope", "placement", "closure"]
@@ -115,9 +115,9 @@ nonisolated enum ComponentPackageManifestSchema {
         validateReleaseVersion(in: dictionary, into: &diagnostics)
         validateUpdates(in: dictionary, into: &diagnostics)
 
-        validateDictionaryArray(dictionary["customItems"], key: "customItems", parent: "Info.plist", into: &diagnostics)
-        dictionaries(in: dictionary["customItems"]).enumerated().forEach { index, property in
-            let location = "Info.plist:customItems[\(index)]"
+        validateDictionaryArray(dictionary["controls"], key: "controls", parent: "Info.plist", into: &diagnostics)
+        dictionaries(in: dictionary["controls"]).enumerated().forEach { index, property in
+            let location = "Info.plist:controls[\(index)]"
             unknownKeys(in: property, allowed: propertyKeys, location: location, into: &diagnostics)
             validateProperty(property, location: location, into: &diagnostics)
             if let themeValues = property["themeValues"], !(themeValues is String) {
@@ -160,12 +160,12 @@ nonisolated enum ComponentPackageManifestSchema {
                     message: "Use type shadow instead of a select control requesting shadow theme values."
                 ))
             }
-            if let enable = property["enable"] as? [String: Any] {
-                unknownKeys(in: enable, allowed: enableKeys, location: "\(location).enable", into: &diagnostics)
-                validateEnable(enable, location: "\(location).enable", into: &diagnostics)
+            if let visibleWhen = property["visibleWhen"] as? [String: Any] {
+                unknownKeys(in: visibleWhen, allowed: visibleWhenKeys, location: "\(location).visibleWhen", into: &diagnostics)
+                validateVisibility(visibleWhen, location: "\(location).visibleWhen", into: &diagnostics)
             }
-            if let enable = property["enable"], !(enable is [String: Any]) {
-                appendTypeError(key: "enable", expected: "a dictionary", location: location, into: &diagnostics)
+            if let visibleWhen = property["visibleWhen"], !(visibleWhen is [String: Any]) {
+                appendTypeError(key: "visibleWhen", expected: "a dictionary", location: location, into: &diagnostics)
             }
             validateDictionaryArray(property["options"], key: "options", parent: location, into: &diagnostics)
             dictionaries(in: property["options"]).enumerated().forEach { optionIndex, option in
@@ -275,7 +275,7 @@ nonisolated enum ComponentPackageManifestSchema {
         optionalString("author", in: dictionary, location: "Info.plist", into: &diagnostics)
         optionalString("group", in: dictionary, location: "Info.plist", into: &diagnostics)
         optionalString("helpURL", in: dictionary, location: "Info.plist", into: &diagnostics)
-        optionalBoolean("requiresPhp", in: dictionary, location: "Info.plist", into: &diagnostics)
+        optionalBoolean("requiresPHP", in: dictionary, location: "Info.plist", into: &diagnostics)
         optionalBoolean("showsInComponentLibrary", in: dictionary, location: "Info.plist", into: &diagnostics)
         optionalStringArray("tags", in: dictionary, location: "Info.plist", into: &diagnostics)
         optionalStringArray("allowedParents", in: dictionary, location: "Info.plist", into: &diagnostics)
@@ -299,7 +299,7 @@ nonisolated enum ComponentPackageManifestSchema {
     private static func validateProperty(_ property: [String: Any], location: String, into diagnostics: inout [ComponentPackageDiagnostic]) {
         requireString("id", in: property, location: location, into: &diagnostics)
         optionalString("group", in: property, location: location, into: &diagnostics)
-        optionalString("toolTip", in: property, location: location, into: &diagnostics)
+        optionalString("tooltip", in: property, location: location, into: &diagnostics)
         optionalString("alt", in: property, location: location, into: &diagnostics)
         optionalBoolean("focalPoint", in: property, location: location, into: &diagnostics)
         if let rawRenditions = property["renditions"] {
@@ -345,7 +345,7 @@ nonisolated enum ComponentPackageManifestSchema {
         }
         if type == .childPicker {
             let supportedKeys: Set<String> = [
-                "type", "id", "label", "group", "toolTip", "enable",
+                "type", "id", "label", "group", "tooltip", "visibleWhen",
                 "accepts", "pickerItems", "initial", "minimum", "maximum", "containment"
             ]
             for key in property.keys where !supportedKeys.contains(key) {
@@ -432,7 +432,7 @@ nonisolated enum ComponentPackageManifestSchema {
             return
         }
         if type == .divider {
-            let supportedKeys: Set<String> = ["type", "id", "group", "enable"]
+            let supportedKeys: Set<String> = ["type", "id", "group", "visibleWhen"]
             for key in property.keys where !supportedKeys.contains(key) {
                 diagnostics.append(.init(
                     severity: .error,
@@ -442,7 +442,7 @@ nonisolated enum ComponentPackageManifestSchema {
             }
         }
         if type == .note {
-            let supportedKeys: Set<String> = ["type", "id", "title", "body", "systemImage", "group", "enable"]
+            let supportedKeys: Set<String> = ["type", "id", "title", "body", "systemImage", "group", "visibleWhen"]
             for key in property.keys where !supportedKeys.contains(key) {
                 diagnostics.append(.init(
                     severity: .error,
@@ -596,10 +596,10 @@ nonisolated enum ComponentPackageManifestSchema {
         }
     }
 
-    private static func validateEnable(_ enable: [String: Any], location: String, into diagnostics: inout [ComponentPackageDiagnostic]) {
-        requireString("id", in: enable, location: location, into: &diagnostics)
-        optionalString("operation", in: enable, location: location, into: &diagnostics)
-        optionalComponentValue("value", in: enable, location: location, into: &diagnostics)
+    private static func validateVisibility(_ visibleWhen: [String: Any], location: String, into diagnostics: inout [ComponentPackageDiagnostic]) {
+        requireString("id", in: visibleWhen, location: location, into: &diagnostics)
+        optionalString("operation", in: visibleWhen, location: location, into: &diagnostics)
+        optionalComponentValue("value", in: visibleWhen, location: location, into: &diagnostics)
     }
 
     private static func validateTemplateFile(_ file: [String: Any], location: String, into diagnostics: inout [ComponentPackageDiagnostic]) {

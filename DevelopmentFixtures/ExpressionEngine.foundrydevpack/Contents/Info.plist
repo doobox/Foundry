@@ -15,7 +15,7 @@
         <string>Expressions</string>
     </array>
     <key>assets</key><array><dict><key>path</key><string>icon.svg</string></dict></array>
-    <key>customItems</key>
+    <key>controls</key>
     <array>
         <dict>
             <key>id</key><string>status</string>

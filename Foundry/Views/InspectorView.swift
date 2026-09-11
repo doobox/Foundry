@@ -578,7 +578,7 @@ private struct PageInspector: View {
     }
 
     private var exportFilePath: String {
-        let fileExtension = StaticSiteRenderer.requiresPhp(page) ? "php" : "html"
+        let fileExtension = StaticSiteRenderer.requiresPHP(page) ? "php" : "html"
         return exportPath + "index.\(fileExtension)"
     }
 
@@ -605,6 +605,7 @@ private struct PageInspector: View {
 
 private struct ComponentInspector: View {
     @State private var loadedComponentIcon: NSImage?
+    @State private var showsAddAttributePopover = false
     let component: ComponentNode
     let currentPage: Page?
     let theme: Theme
@@ -627,29 +628,19 @@ private struct ComponentInspector: View {
                 InspectorCard {
                     componentIdentityHeader
 
-                    if reusableDefinition != nil {
-                        Divider()
-                        HStack(spacing: 8) {
-                            Toggle(
-                                "Local Override",
-                                isOn: Binding(
-                                    get: { isGlobalOverride },
-                                    set: setGlobalOverride
-                                )
-                            )
-
-                            Spacer(minLength: 8)
-
-                            if !isGlobalOverride {
-                                Text(globalIndicatorLabel)
-                                    .font(.caption2.weight(.semibold))
-                                    .foregroundStyle(globalIndicatorColor)
-                                    .padding(.horizontal, 6)
-                                    .padding(.vertical, 2)
-                                    .background(globalIndicatorColor.opacity(0.14), in: Capsule())
-                            }
-                        }
-                    }
+                    Divider()
+                    ComponentIdentityFields(
+                        anchor: componentAnchorBinding,
+                        classes: componentClassesBinding,
+                        attributes: componentAttributesBinding,
+                        isDuplicateAnchor: componentAnchorIsDuplicate,
+                        localOverride: reusableDefinition == nil ? nil : Binding(
+                            get: { isGlobalOverride },
+                            set: setGlobalOverride
+                        ),
+                        globalLabel: isGlobalOverride ? nil : globalIndicatorLabel,
+                        globalColor: globalIndicatorColor
+                    )
                 }
 
                 ForEach(inspectorGroups, id: \.rawValue) { group in
@@ -671,13 +662,6 @@ private struct ComponentInspector: View {
                         importImage: importImage
                     )
                 }
-
-                ComponentAdvancedInspectorCard(
-                    anchor: componentAnchorBinding,
-                    classes: componentClassesBinding,
-                    attributes: componentAttributesBinding,
-                    isDuplicateAnchor: componentAnchorIsDuplicate
-                )
             }
             .padding(16)
         }
@@ -717,19 +701,19 @@ private struct ComponentInspector: View {
     }
 
     private func isVisible(_ slot: ComponentPackageSlot) -> Bool {
-        ComponentPackageEnableEvaluator.isVisible(slot.enable, for: component, at: breakpoint)
+        ComponentPackageVisibilityEvaluator.isVisible(slot.visibleWhen, for: component, at: breakpoint)
     }
 
     private func isVisible(_ property: ComponentPropertyDefinition) -> Bool {
-        property.isInspectorVisible && ComponentPackageEnableEvaluator.isVisible(
-            property.enable,
+        property.isInspectorVisible && ComponentPackageVisibilityEvaluator.isVisible(
+            property.visibleWhen,
             for: component,
             at: property.isResponsive ? breakpoint : .mobile
         )
     }
 
     private var componentIdentityHeader: some View {
-        HStack(spacing: 12) {
+        HStack(alignment: .top, spacing: 12) {
             Group {
                 if let icon = displayedComponentIcon {
                     Image(nsImage: icon)
@@ -754,6 +738,30 @@ private struct ComponentInspector: View {
             }
 
             Spacer(minLength: 0)
+
+            Menu {
+                Button("Add Attribute…") {
+                    showsAddAttributePopover = true
+                }
+            } label: {
+                Image(systemName: "gearshape")
+                    .foregroundStyle(.secondary)
+            }
+            .menuStyle(.borderlessButton)
+            .menuIndicator(.hidden)
+            .fixedSize()
+            .padding(.top, 1)
+            .help("Component options")
+            .popover(isPresented: $showsAddAttributePopover, arrowEdge: .trailing) {
+                ComponentAttributePopover(
+                    attribute: nil,
+                    existingAttributes: component.rootAttributes ?? []
+                ) { attribute in
+                    var attributes = component.rootAttributes ?? []
+                    attributes.append(attribute)
+                    editor.setComponentRootAttributes(id: component.id, attributes: attributes)
+                }
+            }
         }
         .padding(.vertical, 4)
         .task(id: component.type.definition.package?.iconURL) {
@@ -855,7 +863,7 @@ private struct ComponentSlotInspectorCard: View {
             options: availableTypes,
             childCount: children.count,
             maximum: slot.maximum,
-            help: slot.toolTip,
+            help: slot.tooltip,
             selection: $selectedType,
             add: addSelectedType
         )
@@ -876,114 +884,238 @@ private struct ComponentSlotInspectorCard: View {
     }
 }
 
-private struct ComponentAdvancedInspectorCard: View {
+private struct ComponentIdentityFields: View {
     @Binding var anchor: String
     @Binding var classes: String
     @Binding var attributes: [ComponentHTMLAttribute]
     let isDuplicateAnchor: Bool
-    @State private var selectedAttributeID: UUID?
-    @State private var isExpanded = true
+    let localOverride: Binding<Bool>?
+    let globalLabel: String?
+    let globalColor: Color
 
     var body: some View {
-        DisclosureGroup(isExpanded: $isExpanded) {
-            VStack(alignment: .leading, spacing: InspectorMetrics.controlSpacing) {
-                Grid(
-                    alignment: .leading,
-                    horizontalSpacing: InspectorMetrics.columnSpacing,
-                    verticalSpacing: InspectorMetrics.rowSpacing
-                ) {
-                    GridRow(alignment: .firstTextBaseline) {
-                        Text("ID")
-                            .foregroundStyle(.secondary)
-                            .gridColumnAlignment(.trailing)
+        InspectorGrid(contentInsets: EdgeInsets()) {
+            InspectorRow(title: "ID") {
+                VStack(alignment: .leading, spacing: 4) {
+                    TextField("ID", text: $anchor)
+                        .frame(maxWidth: .infinity)
+                    if !anchor.isEmpty && !ComponentAnchorValidator.isValid(anchor) {
+                        Text("Enter a valid ID.")
+                            .font(.caption)
+                            .foregroundStyle(.red)
+                    } else if isDuplicateAnchor {
+                        Text("ID already in use.")
+                            .font(.caption)
+                            .foregroundStyle(.orange)
+                    }
+                }
+            }
 
-                        VStack(alignment: .leading, spacing: 4) {
-                            TextField("ID", text: $anchor)
-                                .frame(maxWidth: .infinity)
-                            if !anchor.isEmpty && !ComponentAnchorValidator.isValid(anchor) {
-                                Text("Enter a valid ID.")
-                                    .font(.caption)
-                                    .foregroundStyle(.red)
-                            } else if isDuplicateAnchor {
-                                Text("ID already in use.")
-                                    .font(.caption)
-                                    .foregroundStyle(.orange)
-                            }
+            InspectorRow(title: "Classes") {
+                TextField("Classes", text: $classes)
+                    .frame(maxWidth: .infinity)
+            }
+
+            if !attributes.isEmpty {
+                GridRow {
+                    Divider()
+                        .gridCellColumns(2)
+                }
+
+                InspectorRow(title: "Attributes") {
+                    ComponentAttributeRows(attributes: $attributes)
+                }
+            }
+
+            if let localOverride {
+                GridRow {
+                    Divider()
+                        .gridCellColumns(2)
+                }
+
+                InspectorRow(title: "Local Override", alignment: .center) {
+                    HStack(spacing: 8) {
+                        Toggle("Local Override", isOn: localOverride)
+                            .labelsHidden()
+                            .toggleStyle(.switch)
+                            .controlSize(.mini)
+
+                        Spacer(minLength: 8)
+
+                        if let globalLabel {
+                            Text(globalLabel)
+                                .font(.caption2.weight(.semibold))
+                                .foregroundStyle(globalColor)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(globalColor.opacity(0.14), in: Capsule())
                         }
                     }
-
-                    GridRow(alignment: .firstTextBaseline) {
-                        Text("Classes")
-                            .foregroundStyle(.secondary)
-
-                        TextField("Classes", text: $classes)
-                            .frame(maxWidth: .infinity)
-                    }
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
-
-                Text("Attributes")
-                    .font(.callout.weight(.medium))
-
-                Table($attributes, selection: $selectedAttributeID) {
-                    TableColumn("Name") { $attribute in
-                        TextField("Name", text: $attribute.name)
-                            .labelsHidden()
-                            .textFieldStyle(.plain)
-                    }
-                    TableColumn("Value") { $attribute in
-                        TextField("Value", text: $attribute.value)
-                            .labelsHidden()
-                            .textFieldStyle(.plain)
-                    }
-                }
-                .frame(minHeight: 110)
-
-                if hasInvalidAttributes {
-                    Text("Enter valid attributes.")
-                        .font(.caption)
-                        .foregroundStyle(.red)
-                }
-
-                HStack(spacing: 4) {
-                    Button {
-                        let attribute = ComponentHTMLAttribute()
-                        attributes.append(attribute)
-                        selectedAttributeID = attribute.id
-                    } label: {
-                        Image(systemName: "plus")
-                    }
-                    .help("Add attribute")
-
-                    Button {
-                        guard let selectedAttributeID else { return }
-                        attributes.removeAll { $0.id == selectedAttributeID }
-                        self.selectedAttributeID = nil
-                    } label: {
-                        Image(systemName: "minus")
-                    }
-                    .disabled(selectedAttributeID == nil)
-                    .help("Remove selected attribute")
-                }
-                .buttonStyle(.bordered)
             }
-            .controlSize(.small)
-            .font(.callout)
-            .padding(.horizontal, InspectorMetrics.horizontalSectionPadding)
-            .padding(.vertical, InspectorMetrics.verticalSectionPadding)
-        } label: {
-            Text("Advanced")
         }
-        .disclosureGroupStyle(ComponentInspectorDisclosureStyle())
+    }
+}
+
+private struct ComponentAttributeRows: View {
+    @Binding var attributes: [ComponentHTMLAttribute]
+    @State private var editingAttribute: ComponentHTMLAttribute?
+
+    var body: some View {
+        VStack(spacing: InspectorMetrics.rowSpacing) {
+            ForEach(attributes) { attribute in
+                HStack(spacing: 6) {
+                    Button {
+                        editingAttribute = attribute
+                    } label: {
+                        Text(verbatim: #"\#(attribute.name) = "\#(attribute.value)""#)
+                            .lineLimit(1)
+                            .frame(maxWidth: .infinity, minHeight: 22, alignment: .leading)
+                            .padding(.horizontal, 7)
+                            .background(.quaternary, in: RoundedRectangle(cornerRadius: 5))
+                    }
+                    .buttonStyle(.plain)
+                    .help(renderedAttribute(attribute))
+
+                    Button(role: .destructive) {
+                        attributes.removeAll { $0.id == attribute.id }
+                    } label: {
+                        Image(systemName: "trash")
+                    }
+                    .buttonStyle(.borderless)
+                    .help("Delete attribute")
+                }
+                .contextMenu {
+                    Button("Move Up", systemImage: "arrow.up") {
+                        move(attribute, by: -1)
+                    }
+                    .disabled(isFirst(attribute))
+
+                    Button("Move Down", systemImage: "arrow.down") {
+                        move(attribute, by: 1)
+                    }
+                    .disabled(isLast(attribute))
+
+                    Divider()
+
+                    Button("Add New Attribute…", systemImage: "plus") {
+                        editingAttribute = ComponentHTMLAttribute()
+                    }
+
+                    Divider()
+
+                    Button("Delete", systemImage: "trash", role: .destructive) {
+                        attributes.removeAll { $0.id == attribute.id }
+                    }
+                }
+            }
+        }
+        .popover(item: $editingAttribute, arrowEdge: .trailing) { attribute in
+            ComponentAttributePopover(
+                attribute: attribute,
+                existingAttributes: attributes
+            ) { updatedAttribute in
+                if let index = attributes.firstIndex(where: { $0.id == updatedAttribute.id }) {
+                    attributes[index] = updatedAttribute
+                } else {
+                    attributes.append(updatedAttribute)
+                }
+            }
+        }
     }
 
-    private var hasInvalidAttributes: Bool {
-        var seen = Set<String>()
-        return attributes.contains { attribute in
-            let name = attribute.name.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !name.isEmpty else { return false }
-            return !ComponentRootAttributeValidator.isValidName(name) || !seen.insert(name.lowercased()).inserted
+    private func renderedAttribute(_ attribute: ComponentHTMLAttribute) -> String {
+        let escapedValue = attribute.value
+            .replacingOccurrences(of: "&", with: "&amp;")
+            .replacingOccurrences(of: "\"", with: "&quot;")
+            .replacingOccurrences(of: "<", with: "&lt;")
+            .replacingOccurrences(of: ">", with: "&gt;")
+        return "\(attribute.name)=\"\(escapedValue)\""
+    }
+
+    private func move(_ attribute: ComponentHTMLAttribute, by offset: Int) {
+        guard let index = attributes.firstIndex(where: { $0.id == attribute.id }) else {
+            return
         }
+        let destination = index + offset
+        guard attributes.indices.contains(destination) else {
+            return
+        }
+        attributes.swapAt(index, destination)
+    }
+
+    private func isFirst(_ attribute: ComponentHTMLAttribute) -> Bool {
+        attributes.first?.id == attribute.id
+    }
+
+    private func isLast(_ attribute: ComponentHTMLAttribute) -> Bool {
+        attributes.last?.id == attribute.id
+    }
+}
+
+private struct ComponentAttributePopover: View {
+    @Environment(\.dismiss) private var dismiss
+    @State private var name: String
+    @State private var value: String
+
+    let attributeID: UUID
+    let existingAttributes: [ComponentHTMLAttribute]
+    let save: (ComponentHTMLAttribute) -> Void
+
+    init(
+        attribute: ComponentHTMLAttribute?,
+        existingAttributes: [ComponentHTMLAttribute],
+        save: @escaping (ComponentHTMLAttribute) -> Void
+    ) {
+        attributeID = attribute?.id ?? UUID()
+        self.existingAttributes = existingAttributes
+        self.save = save
+        _name = State(initialValue: attribute?.name ?? "")
+        _value = State(initialValue: attribute?.value ?? "")
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 14) {
+                GridRow {
+                    Text("Name")
+                    TextField("Name", text: $name)
+                        .frame(width: 190)
+                }
+                GridRow {
+                    Text("Value")
+                    TextField("Value", text: $value)
+                        .frame(width: 190)
+                }
+            }
+
+            HStack(spacing: 12) {
+                Button("Cancel", role: .cancel) {
+                    dismiss()
+                }
+                .keyboardShortcut(.cancelAction)
+
+                Button("Save") {
+                    save(ComponentHTMLAttribute(id: attributeID, name: trimmedName, value: value))
+                    dismiss()
+                }
+                .keyboardShortcut(.defaultAction)
+                .disabled(!canSave)
+            }
+        }
+        .padding(20)
+    }
+
+    private var trimmedName: String {
+        name.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private var canSave: Bool {
+        ComponentRootAttributeValidator.isValidName(trimmedName) &&
+            !existingAttributes.contains {
+                $0.id != attributeID &&
+                    $0.name.caseInsensitiveCompare(trimmedName) == .orderedSame
+            }
     }
 }
 

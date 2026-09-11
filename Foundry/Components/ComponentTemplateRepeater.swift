@@ -184,7 +184,7 @@ nonisolated enum ComponentTemplateLoop {
                 let iterations = Array(orderedCandidates.prefix(maximumIterationCount))
                 for (emissionIndex, candidate) in iterations.enumerated() {
                     let frame = LoopFrame(
-                        index: candidate.index,
+                        index: emissionIndex,
                         emissionIndex: emissionIndex,
                         pathIndex: candidate.pathIndex,
                         count: iterations.count,
@@ -313,6 +313,8 @@ nonisolated enum ComponentTemplateLoop {
         guard let current = stack.last else { return source }
         var result = source
         let values: [(String, String)] = [
+            ("loop.sourceIndex", String(current.pathIndex)),
+            ("loop.sourcePosition", String(current.pathIndex + 1)),
             ("loop.index", String(current.index)),
             ("loop.position", String(current.index + 1)),
             ("loop.count", String(current.count)),
@@ -322,6 +324,8 @@ nonisolated enum ComponentTemplateLoop {
         for (key, value) in values { result = result.replacingOccurrences(of: key, with: value) }
         if stack.count > 1 {
             let parent = stack[stack.count - 2]
+            result = result.replacingOccurrences(of: "loop.parent.sourceIndex", with: String(parent.pathIndex))
+            result = result.replacingOccurrences(of: "loop.parent.sourcePosition", with: String(parent.pathIndex + 1))
             result = result.replacingOccurrences(of: "loop.parent.index", with: String(parent.index))
             result = result.replacingOccurrences(of: "loop.parent.position", with: String(parent.index + 1))
             result = result.replacingOccurrences(of: "loop.parent.count", with: String(parent.count))

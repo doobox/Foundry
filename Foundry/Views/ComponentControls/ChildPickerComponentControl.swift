@@ -9,6 +9,17 @@ struct ChildPickerComponentControl: View {
     @Binding var selection: ComponentType?
     let add: () -> Void
 
+    private var effectiveSelection: ComponentType? {
+        selection ?? options.first
+    }
+
+    private var pickerSelection: Binding<ComponentType?> {
+        Binding(
+            get: { effectiveSelection },
+            set: { selection = $0 }
+        )
+    }
+
     private var canAdd: Bool {
         selection != nil && (maximum.map { childCount < $0 } ?? true)
     }
@@ -20,7 +31,7 @@ struct ChildPickerComponentControl: View {
                     .foregroundStyle(.secondary)
             } else {
                 VStack(alignment: .leading, spacing: 8) {
-                    Picker("Component", selection: $selection) {
+                    Picker("Component", selection: pickerSelection) {
                         ForEach(options) { type in
                             Text(type.displayName).tag(Optional(type))
                         }

@@ -1,6 +1,6 @@
 [data-foundry-package="{{ package.id }}"] .eyebrow {
     padding-left: 28px;
-    background: url("{{ asset.shared/brand/mark.svg }}") left center / 20px 20px no-repeat;
+    background: url("{{ asset("shared/brand/mark.svg") }}") left center / 20px 20px no-repeat;
     color: #6252c7;
     font-size: 0.75rem;
     font-weight: 700;

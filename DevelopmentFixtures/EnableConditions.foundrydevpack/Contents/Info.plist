@@ -4,19 +4,19 @@
 <dict>
     <key>minimumAPIVersion</key><integer>1</integer>
     <key>id</key><string>dev.foundry.enable-conditions</string>
-    <key>title</key><string>Enable Conditions Demo</string>
+    <key>title</key><string>Visibility Conditions Demo</string>
     <key>description</key><string>Demonstrates conditional control visibility.</string>
     <key>author</key><string>Foundry Development</string>
     <key>version</key><string>1.0.0</string>
     <key>group</key><string>Other</string>
     <key>tags</key><array><string>Development</string><string>Conditional</string></array>
     <key>assets</key><array><dict><key>path</key><string>icon.svg</string></dict></array>
-    <key>customItems</key>
+    <key>controls</key>
     <array>
         <dict>
             <key>id</key><string>mode</string>
             <key>label</key><string>Mode</string>
-            <key>group</key><string>Enable Demo</string>
+            <key>group</key><string>Visibility Demo</string>
             <key>type</key><string>select</string>
             <key>options</key><array>
                 <dict><key>value</key><string>standard</string><key>title</key><string>Standard</string></dict>
@@ -28,16 +28,16 @@
         <dict>
             <key>id</key><string>featuredTitle</string>
             <key>label</key><string>Featured title</string>
-            <key>group</key><string>Enable Demo</string>
+            <key>group</key><string>Visibility Demo</string>
             <key>type</key><string>text</string>
             <key>default</key><string>A featured title</string>
             <key>responsive</key><false/>
-            <key>enable</key><dict><key>id</key><string>mode</string><key>value</key><string>featured</string></dict>
+            <key>visibleWhen</key><dict><key>id</key><string>mode</string><key>value</key><string>featured</string></dict>
         </dict>
         <dict>
             <key>id</key><string>width</string>
             <key>label</key><string>Width</string>
-            <key>group</key><string>Enable Demo</string>
+            <key>group</key><string>Visibility Demo</string>
             <key>type</key><string>number</string>
             <key>minimum</key><integer>0</integer><key>maximum</key><integer>1000</integer><key>step</key><integer>10</integer>
             <key>units</key><string>px</string>
@@ -47,15 +47,15 @@
         <dict>
             <key>id</key><string>wideMessage</string>
             <key>body</key><string>Width is at least 600 px</string>
-            <key>group</key><string>Enable Demo</string>
+            <key>group</key><string>Visibility Demo</string>
             <key>type</key><string>note</string>
-            <key>enable</key><dict><key>id</key><string>width</string><key>operation</key><string>&gt;=</string><key>value</key><integer>600</integer></dict>
+            <key>visibleWhen</key><dict><key>id</key><string>width</string><key>operation</key><string>&gt;=</string><key>value</key><integer>600</integer></dict>
         </dict>
         <dict>
             <key>id</key><string>titles</string>
             <key>label</key><string>Titles</string>
             <key>subtitle</key><array><string>Title 1</string><string>Title 2</string><string>Title 3</string></array>
-            <key>group</key><string>Enable Demo</string>
+            <key>group</key><string>Visibility Demo</string>
             <key>type</key><string>text</string>
             <key>count</key><integer>3</integer>
             <key>default</key><array><string>Alpha</string><string>Beta</string><string>Ordinary</string></array>
@@ -64,14 +64,14 @@
         <dict>
             <key>id</key><string>thirdTitleMessage</string>
             <key>body</key><string>Third title contains “featured”</string>
-            <key>group</key><string>Enable Demo</string>
+            <key>group</key><string>Visibility Demo</string>
             <key>type</key><string>note</string>
-            <key>enable</key><dict><key>id</key><string>titles[2]</string><key>operation</key><string>containsInsensitive</string><key>value</key><string>featured</string></dict>
+            <key>visibleWhen</key><dict><key>id</key><string>titles[2]</string><key>operation</key><string>containsInsensitive</string><key>value</key><string>featured</string></dict>
         </dict>
         <dict>
             <key>id</key><string>note</string>
             <key>label</key><string>Optional note</string>
-            <key>group</key><string>Enable Demo</string>
+            <key>group</key><string>Visibility Demo</string>
             <key>type</key><string>text</string>
             <key>default</key><string></string>
             <key>responsive</key><false/>
@@ -79,18 +79,18 @@
         <dict>
             <key>id</key><string>emptyMessage</string>
             <key>body</key><string>The optional note is empty</string>
-            <key>group</key><string>Enable Demo</string>
+            <key>group</key><string>Visibility Demo</string>
             <key>type</key><string>note</string>
-            <key>enable</key><dict><key>id</key><string>note</string><key>operation</key><string>isEmpty</string></dict>
+            <key>visibleWhen</key><dict><key>id</key><string>note</string><key>operation</key><string>isEmpty</string></dict>
         </dict>
         <dict>
             <key>id</key><string>noteDetail</string>
             <key>label</key><string>Note detail</string>
-            <key>group</key><string>Enable Demo</string>
+            <key>group</key><string>Visibility Demo</string>
             <key>type</key><string>textArea</string>
             <key>default</key><string>This appears after entering a note.</string>
             <key>responsive</key><false/>
-            <key>enable</key><dict><key>id</key><string>note</string><key>operation</key><string>isNotEmpty</string></dict>
+            <key>visibleWhen</key><dict><key>id</key><string>note</string><key>operation</key><string>isNotEmpty</string></dict>
         </dict>
     </array>
     <key>templates</key><dict><key>html</key><string>component.html</string></dict>

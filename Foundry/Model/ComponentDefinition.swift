@@ -76,7 +76,7 @@ nonisolated struct ComponentPropertyDefinition: Identifiable, Sendable {
     let defaultValue: ComponentProperty.Value
     let isResponsive: Bool
     let isInspectorVisible: Bool
-    let enable: ComponentPackageEnable?
+    let visibleWhen: ComponentPackageVisibilityCondition?
     let themeValueSource: ComponentPackageThemeValueSource?
     let allowsCustomThemeValue: Bool
     let supportsImageFocalPoint: Bool
@@ -94,7 +94,7 @@ nonisolated struct ComponentPropertyDefinition: Identifiable, Sendable {
         defaultValue: ComponentProperty.Value,
         isResponsive: Bool? = nil,
         isInspectorVisible: Bool = true,
-        enable: ComponentPackageEnable? = nil,
+        visibleWhen: ComponentPackageVisibilityCondition? = nil,
         themeValueSource: ComponentPackageThemeValueSource? = nil,
         allowsCustomThemeValue: Bool = false,
         supportsImageFocalPoint: Bool = false,
@@ -109,7 +109,7 @@ nonisolated struct ComponentPropertyDefinition: Identifiable, Sendable {
         self.defaultValue = defaultValue
         self.isResponsive = isResponsive ?? Self.builtInResponsiveKeys.contains(key)
         self.isInspectorVisible = isInspectorVisible
-        self.enable = enable
+        self.visibleWhen = visibleWhen
         self.themeValueSource = themeValueSource
         self.allowsCustomThemeValue = allowsCustomThemeValue
         self.supportsImageFocalPoint = supportsImageFocalPoint

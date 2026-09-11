@@ -16,7 +16,7 @@ nonisolated struct ComponentPackageManifest: Codable, Equatable, Sendable {
     let assets: [ComponentPackageAsset]
     let helpURL: URL?
     let missingComponent: ComponentPackageMissingComponent?
-    let requiresPhp: Bool
+    let requiresPHP: Bool
     let libraries: [ComponentPackageLibraryRequirement]
     let updates: FoundryPackUpdateConfiguration?
 
@@ -31,12 +31,12 @@ nonisolated struct ComponentPackageManifest: Codable, Equatable, Sendable {
         case tags
         case showsInComponentLibrary
         case allowedParents
-        case properties = "customItems"
+        case properties = "controls"
         case render = "templates"
         case assets
         case helpURL
         case missingComponent
-        case requiresPhp
+        case requiresPHP
         case libraries
         case updates
     }
@@ -57,7 +57,7 @@ nonisolated struct ComponentPackageManifest: Codable, Equatable, Sendable {
         assets: [ComponentPackageAsset] = [],
         helpURL: URL? = nil,
         missingComponent: ComponentPackageMissingComponent? = nil,
-        requiresPhp: Bool = false,
+        requiresPHP: Bool = false,
         libraries: [ComponentPackageLibraryRequirement] = [],
         updates: FoundryPackUpdateConfiguration? = nil
     ) {
@@ -76,7 +76,7 @@ nonisolated struct ComponentPackageManifest: Codable, Equatable, Sendable {
         self.assets = assets
         self.helpURL = helpURL
         self.missingComponent = missingComponent
-        self.requiresPhp = requiresPhp
+        self.requiresPHP = requiresPHP
         self.libraries = libraries
         self.updates = updates
     }
@@ -98,7 +98,7 @@ nonisolated struct ComponentPackageManifest: Codable, Equatable, Sendable {
         assets = try container.decodeIfPresent([ComponentPackageAsset].self, forKey: .assets) ?? []
         helpURL = try container.decodeIfPresent(URL.self, forKey: .helpURL)
         missingComponent = try container.decodeIfPresent(ComponentPackageMissingComponent.self, forKey: .missingComponent)
-        requiresPhp = try container.decodeIfPresent(Bool.self, forKey: .requiresPhp) ?? false
+        requiresPHP = try container.decodeIfPresent(Bool.self, forKey: .requiresPHP) ?? false
         libraries = try container.decodeIfPresent(
             [ComponentPackageLibraryRequirement].self,
             forKey: .libraries
@@ -184,8 +184,8 @@ nonisolated struct ComponentPackageSlot: Equatable, Identifiable, Sendable {
     let maximum: Int?
     let containment: Containment
     let group: String
-    let toolTip: String?
-    let enable: ComponentPackageEnable?
+    let tooltip: String?
+    let visibleWhen: ComponentPackageVisibilityCondition?
 
     init(
         id: String,
@@ -197,8 +197,8 @@ nonisolated struct ComponentPackageSlot: Equatable, Identifiable, Sendable {
         maximum: Int? = nil,
         containment: Containment = .open,
         group: String = "Settings",
-        toolTip: String? = nil,
-        enable: ComponentPackageEnable? = nil
+        tooltip: String? = nil,
+        visibleWhen: ComponentPackageVisibilityCondition? = nil
     ) {
         self.id = id
         self.title = title
@@ -209,8 +209,8 @@ nonisolated struct ComponentPackageSlot: Equatable, Identifiable, Sendable {
         self.maximum = maximum
         self.containment = containment
         self.group = group
-        self.toolTip = toolTip
-        self.enable = enable
+        self.tooltip = tooltip
+        self.visibleWhen = visibleWhen
     }
 }
 
@@ -239,8 +239,8 @@ nonisolated struct ComponentPackageProperty: Codable, Equatable, Identifiable, S
     let activeButtonTexts: [String]
     let activeButtonIcons: [String]
     let units: [String]
-    let toolTip: String?
-    let enable: ComponentPackageEnable?
+    let tooltip: String?
+    let visibleWhen: ComponentPackageVisibilityCondition?
     let alt: String
     let focalPoint: Bool
     let renditions: [ComponentPackageImageRendition]
@@ -264,8 +264,8 @@ nonisolated struct ComponentPackageProperty: Codable, Equatable, Identifiable, S
         case activeButtonText
         case activeButtonIcon
         case units
-        case toolTip
-        case enable
+        case tooltip
+        case visibleWhen
         case alt
         case focalPoint
         case renditions
@@ -280,8 +280,8 @@ nonisolated struct ComponentPackageProperty: Codable, Equatable, Identifiable, S
         id = try container.decode(String.self, forKey: .id)
         group = try container.decodeIfPresent(String.self, forKey: .group) ?? "Settings"
         control = try ComponentPackageControl(from: decoder)
-        toolTip = try container.decodeIfPresent(String.self, forKey: .toolTip)
-        enable = try container.decodeIfPresent(ComponentPackageEnable.self, forKey: .enable)
+        tooltip = try container.decodeIfPresent(String.self, forKey: .tooltip)
+        visibleWhen = try container.decodeIfPresent(ComponentPackageVisibilityCondition.self, forKey: .visibleWhen)
         alt = try container.decodeIfPresent(String.self, forKey: .alt) ?? ""
         focalPoint = try container.decodeIfPresent(Bool.self, forKey: .focalPoint) ?? false
         renditions = try container.decodeIfPresent([ComponentPackageImageRendition].self, forKey: .renditions) ?? []
@@ -381,8 +381,8 @@ nonisolated struct ComponentPackageProperty: Codable, Equatable, Identifiable, S
             if let value = activeButtonTexts.first, !value.isEmpty { try container.encode(value, forKey: .activeButtonText) }
             if let value = activeButtonIcons.first, !value.isEmpty { try container.encode(value, forKey: .activeButtonIcon) }
         }
-        try container.encodeIfPresent(toolTip, forKey: .toolTip)
-        try container.encodeIfPresent(enable, forKey: .enable)
+        try container.encodeIfPresent(tooltip, forKey: .tooltip)
+        try container.encodeIfPresent(visibleWhen, forKey: .visibleWhen)
         if control.type == .image, !alt.isEmpty {
             try container.encode(alt, forKey: .alt)
         }
@@ -412,13 +412,13 @@ nonisolated struct ComponentPackageProperty: Codable, Equatable, Identifiable, S
             maximum: control.maximum.map(Int.init),
             containment: containment,
             group: group,
-            toolTip: toolTip,
-            enable: enable
+            tooltip: tooltip,
+            visibleWhen: visibleWhen
         )
     }
 }
 
-nonisolated struct ComponentPackageEnable: Codable, Equatable, Sendable {
+nonisolated struct ComponentPackageVisibilityCondition: Codable, Equatable, Sendable {
     let id: String
     let operation: String
     let value: ComponentPackageValue?

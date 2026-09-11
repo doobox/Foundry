@@ -10,7 +10,7 @@
     <key>version</key><string>1.0.0</string>
     <key>group</key><string>Layout</string>
     <key>tags</key><array><string>Foundry</string><string>built-in</string><string>grid</string></array>
-    <key>customItems</key>
+    <key>controls</key>
     <array>
         <dict>
             <key>id</key><string>columnCount</string>

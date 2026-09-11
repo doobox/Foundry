@@ -18,7 +18,7 @@
     <string>Content</string>
     <key>tags</key>
     <array><string>Foundry</string><string>built-in</string></array>
-    <key>customItems</key>
+    <key>controls</key>
     <array/>
     <key>assets</key>
     <array/>

@@ -23,7 +23,7 @@
 		<string>layout</string>
 		<string>region</string>
 	</array>
-	<key>customItems</key>
+	<key>controls</key>
 	<array>
 		<dict>
 			<key>id</key>
@@ -125,7 +125,7 @@
 			</array>
 			<key>responsive</key>
 			<false/>
-			<key>toolTip</key>
+			<key>tooltip</key>
 			<string>The semantic HTML element used for this page region.</string>
 		</dict>
 	</array>

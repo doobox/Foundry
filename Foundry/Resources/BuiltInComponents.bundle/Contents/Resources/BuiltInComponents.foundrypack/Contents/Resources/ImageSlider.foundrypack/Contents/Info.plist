@@ -6,7 +6,7 @@
     <array/>
     <key>author</key>
     <string>Foundry</string>
-    <key>customItems</key>
+    <key>controls</key>
     <array>
         <dict>
             <key>id</key><string>slide-1</string>
@@ -86,7 +86,7 @@
             <key>ticks</key><integer>8</integer>
             <key>default</key><integer>1</integer>
             <key>responsive</key><false/>
-            <key>toolTip</key><string>Chooses which slide is visible and editable on the canvas.</string>
+            <key>tooltip</key><string>Chooses which slide is visible and editable on the canvas.</string>
         </dict>
         <dict>
             <key>id</key><string>showCaptions</string>
@@ -139,7 +139,7 @@
             <key>default</key><integer>5</integer>
             <key>units</key><string>s</string>
             <key>responsive</key><false/>
-            <key>enable</key>
+            <key>visibleWhen</key>
             <dict><key>id</key><string>autoplay</string><key>value</key><true/></dict>
         </dict>
         <dict>
@@ -149,7 +149,7 @@
             <key>type</key><string>toggle</string>
             <key>default</key><true/>
             <key>responsive</key><false/>
-            <key>enable</key>
+            <key>visibleWhen</key>
             <dict><key>id</key><string>autoplay</string><key>value</key><true/></dict>
         </dict>
         <dict>

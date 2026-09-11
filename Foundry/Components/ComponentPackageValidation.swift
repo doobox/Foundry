@@ -89,18 +89,18 @@ nonisolated enum ComponentPackageValidator {
         validateUnique(manifest.properties.map(\.id), kind: "property", into: &diagnostics)
         validateUnique(manifest.slots.map(\.id), kind: "slot", into: &diagnostics)
         for property in manifest.properties {
-            validate(property.id, expression: propertyExpression, location: "Info.plist:customItems.\(property.id)", message: "Property IDs must start with a letter and contain only letters, numbers, underscores, or hyphens.", into: &diagnostics)
+            validate(property.id, expression: propertyExpression, location: "Info.plist:controls.\(property.id)", message: "Property IDs must start with a letter and contain only letters, numbers, underscores, or hyphens.", into: &diagnostics)
             validate(property, into: &diagnostics)
-            validateEnable(property, properties: manifest.properties, into: &diagnostics)
+            validateVisibility(property, properties: manifest.properties, into: &diagnostics)
         }
-        validateEnableCycles(manifest.properties, into: &diagnostics)
+        validateVisibilityCycles(manifest.properties, into: &diagnostics)
         for slot in manifest.slots {
             validate(slot.id, expression: propertyExpression, location: "Info.plist:slots.\(slot.id)", message: "Slot IDs must start with a letter and contain only letters, numbers, underscores, or hyphens.", into: &diagnostics)
             if slot.minimum < 0 || (slot.maximum.map { $0 < slot.minimum } == true) {
                 diagnostics.append(.init(severity: .error, location: "Info.plist:slots.\(slot.id)", message: "Slot minimum and maximum values are inconsistent."))
             }
             if slot.accepts.isEmpty {
-                diagnostics.append(.init(severity: .error, location: "Info.plist:customItems.\(slot.id)", message: "A childPicker must accept at least one component identifier, category, or '*'."))
+                diagnostics.append(.init(severity: .error, location: "Info.plist:controls.\(slot.id)", message: "A childPicker must accept at least one component identifier, category, or '*'."))
             }
         }
 
@@ -177,11 +177,11 @@ nonisolated enum ComponentPackageValidator {
         }
         let declaresPHP = manifest.render.files.contains { $0.path.lowercased().hasSuffix(".php") }
             || manifest.assets.contains { $0.path.lowercased().hasSuffix(".php") }
-        if !manifest.requiresPhp, declaresPHP {
+        if !manifest.requiresPHP, declaresPHP {
             diagnostics.append(.init(
                 severity: .error,
-                location: "Info.plist:requiresPhp",
-                message: "Components with PHP templates or assets must set requiresPhp to true."
+                location: "Info.plist:requiresPHP",
+                message: "Components with PHP templates or assets must set requiresPHP to true."
             ))
         }
         let templates: [(path: String?, requiresEditorAttributes: Bool)] = [
@@ -217,6 +217,7 @@ nonisolated enum ComponentPackageValidator {
                 continue
             }
             if template.matches(#"\{\{\s*(?:id|instance\.|component\.|control\.|slot\.)"#) ||
+                template.matches(#"\{\{\s*(?:text|html|image|dropZone|childArea)\s*\("#) ||
                 template.matches(#"\{\{\s*(?:slot\s+id|text(?:\s*=|\s*\}\})|html(?:\s*=|\s*\}\})|image(?:\s+[^}]+)?\s*\}\})"#) {
                 diagnostics.append(.init(
                     severity: .error,
@@ -239,7 +240,7 @@ nonisolated enum ComponentPackageValidator {
                 ))
             }
             if file.scope == .site {
-                for reference in template.references(matching: #"\{\{\s*asset\.([^\s}]+)\s*\}\}"#) {
+                for reference in template.references(matching: #"\{\{\s*asset\(\s*\"([^\"]+)\"\s*\)\s*\}\}"#) {
                     if let asset = manifest.assetDeclaration(containing: reference.value), asset.scope != .site {
                         diagnostics.append(templateDiagnostic(
                             file.path,
@@ -336,7 +337,7 @@ nonisolated enum ComponentPackageValidator {
                 templateLocation,
                 template: template,
                 offset: reference.offset,
-                message: "Slot macros are not supported. Declare a childPicker and render it with {{ control.id }}."
+                message: "Slot macros are not supported. Declare a childPicker and render it with {{ childArea(\"id\") }}."
             ))
         }
         let primitiveDeclarations = (try? ComponentTemplateLoop.declarations(in: template)) ?? []
@@ -351,7 +352,7 @@ nonisolated enum ComponentPackageValidator {
         }
         if requiresEditorAttributes {
             let dropZoneNames = ComponentTemplateRenderer.dropZoneNames(in: template)
-            let dropZoneCandidateCount = template.matchCount(#"\{\{\s*(?:dropZone|dropzone)\b[^}]*\}\}"#)
+            let dropZoneCandidateCount = template.matchCount(#"\{\{\s*dropZone\b[^}]*\}\}"#)
             if dropZoneCandidateCount != dropZoneNames.count {
                 diagnostics.append(.init(
                     severity: .error,
@@ -377,18 +378,18 @@ nonisolated enum ComponentPackageValidator {
                 ))
             }
             let childReferences = Set(template.references(
-                matching: #"\{\{\s*control\.([A-Za-z][A-Za-z0-9_-]*)\s*\}\}"#
+                matching: #"\{\{\s*childArea\(\s*\"([A-Za-z][A-Za-z0-9_-]*)\"\s*\)\s*\}\}"#
             ).map(\.value))
             for childPickerID in childPickerIDs.subtracting(childReferences).sorted() {
                 diagnostics.append(.init(
                     severity: .error,
                     location: templateLocation,
-                    message: "childPicker '\(childPickerID)' is not rendered with {{ control.\(childPickerID) }}."
+                    message: "childPicker '\(childPickerID)' is not rendered with {{ childArea(\"\(childPickerID)\") }}."
                 ))
             }
         }
 
-        for reference in template.references(matching: #"\{\{\s*asset\.([^\s}]+)\s*\}\}"#) {
+        for reference in template.references(matching: #"\{\{\s*asset\(\s*\"([^\"]+)\"\s*\)\s*\}\}"#) {
             if !isSafeRelativePath(reference.value) {
                 diagnostics.append(templateDiagnostic(
                     templateLocation,
@@ -411,7 +412,7 @@ nonisolated enum ComponentPackageValidator {
             if !defaultPath.isEmpty && manifest.assetDeclaration(containing: defaultPath) == nil {
                 diagnostics.append(.init(
                     severity: .error,
-                    location: "Info.plist:customItems[\(index)].default",
+                    location: "Info.plist:controls[\(index)].default",
                     message: "The default image '\(defaultPath)' must reference a declared package asset."
                 ))
             }
@@ -553,7 +554,7 @@ nonisolated enum ComponentPackageValidator {
                     templateLocation,
                     template: template,
                     offset: reference.offset,
-                    message: "Unknown property '\(propertyID)'. Declare it in Info.plist customItems."
+                    message: "Unknown property '\(propertyID)'. Declare it in Info.plist controls."
                 ))
                 continue
             }
@@ -583,7 +584,7 @@ nonisolated enum ComponentPackageValidator {
                         templateLocation,
                         template: template,
                         offset: reference.offset,
-                        message: "Unknown property '\(propertyID)'. Declare it in Info.plist customItems."
+                        message: "Unknown property '\(propertyID)'. Declare it in Info.plist controls."
                     ))
                 }
             } catch {
@@ -603,9 +604,8 @@ nonisolated enum ComponentPackageValidator {
             if source.hasPrefix("if ") || source.hasPrefix("elseif ") || source == "else" || source == "endif" ||
                 source.hasPrefix("loop ") || source == "endloop" || source.hasPrefix("loop.") ||
                 source.hasPrefix("slot ") || source.hasPrefix("text(") || source.hasPrefix("html(") ||
-                source.hasPrefix("image(") || source.hasPrefix("dropZone(") || source.hasPrefix("dropzone(") ||
-                ["text", "html", "image", "instance.uuid", "package.id", "site.baseURL", "page.url", "path.siteRoot", "path.siteAssets", "component.class", "component.attributes", "dropZone", "dropzone"].contains(source) ||
-                source.hasPrefix("asset.") {
+                source.hasPrefix("image(") || source.hasPrefix("dropZone(") || source.hasPrefix("childArea(") || source.hasPrefix("asset(") ||
+                ["text", "html", "image", "instance.id", "package.id", "site.baseURL", "page.url", "path.siteRoot", "path.siteAssets", "component.class", "component.attributes", "dropZone", "childArea", "asset"].contains(source) {
                 continue
             }
             if loopAliases.contains(where: { source == $0 || source.hasPrefix($0 + ".") }) { continue }
@@ -619,7 +619,7 @@ nonisolated enum ComponentPackageValidator {
                         templateLocation,
                         template: template,
                         offset: match.range.location,
-                        message: "Unknown property '\(propertyID)'. Declare it in Info.plist customItems."
+                        message: "Unknown property '\(propertyID)'. Declare it in Info.plist controls."
                     ))
                 }
             } catch {
@@ -633,7 +633,7 @@ nonisolated enum ComponentPackageValidator {
         }
 
         let supportedMacroNames: Set<String> = [
-            "id", "instance", "package", "site", "page", "path", "component", "control", "asset", "slot", "dropZone", "dropzone",
+            "id", "instance", "package", "site", "page", "path", "component", "control", "asset", "slot", "dropZone", "childArea",
             "if", "elseif", "else", "endif", "loop", "endloop", "text", "html", "image", "canvas", "preview", "published", "navigation", "pages", "assets"
         ]
         for reference in template.references(matching: #"\{\{\s*([A-Za-z]+)(?:\.|\s|\}\})"#)
@@ -672,7 +672,7 @@ nonisolated enum ComponentPackageValidator {
     }
 
     private static func validate(_ property: ComponentPackageProperty, into diagnostics: inout [ComponentPackageDiagnostic]) {
-        let location = "Info.plist:customItems.\(property.id)"
+        let location = "Info.plist:controls.\(property.id)"
         validateThemeValues(property, location: location, into: &diagnostics)
         validateDateBounds(property, location: location, into: &diagnostics)
         if let count = property.control.count {
@@ -968,7 +968,7 @@ nonisolated enum ComponentPackageValidator {
             if !value.matches(pattern) {
                 diagnostics.append(.init(severity: .error, location: location, message: property.control.opacity == true
                     ? "A color default must be a six- or eight-digit hexadecimal colour."
-                    : "A color default must be a six-digit hexadecimal colour; enable opacity to use alpha."))
+                    : "A color default must be a six-digit hexadecimal colour; visibleWhen opacity to use alpha."))
             }
         case .themeColor:
             guard case .string(let value) = defaultValue else {
@@ -1060,61 +1060,61 @@ nonisolated enum ComponentPackageValidator {
         }
     }
 
-    private static func validateEnable(
+    private static func validateVisibility(
         _ property: ComponentPackageProperty,
         properties: [ComponentPackageProperty],
         into diagnostics: inout [ComponentPackageDiagnostic]
     ) {
-        guard let enable = property.enable else { return }
-        let location = "Info.plist:customItems.\(property.id).enable"
+        guard let visibleWhen = property.visibleWhen else { return }
+        let location = "Info.plist:controls.\(property.id).visibleWhen"
         let expression = try! NSRegularExpression(pattern: #"^([A-Za-z][A-Za-z0-9_-]*)(?:\[([0-9]+)\])?$"#)
-        guard let match = expression.firstMatch(in: enable.id, range: NSRange(enable.id.startIndex..., in: enable.id)),
-              let keyRange = Range(match.range(at: 1), in: enable.id) else {
-            diagnostics.append(.init(severity: .error, location: location, message: "Enable id must reference a control, optionally followed by a zero-based array index."))
+        guard let match = expression.firstMatch(in: visibleWhen.id, range: NSRange(visibleWhen.id.startIndex..., in: visibleWhen.id)),
+              let keyRange = Range(match.range(at: 1), in: visibleWhen.id) else {
+            diagnostics.append(.init(severity: .error, location: location, message: "visibleWhen id must reference a control, optionally followed by a zero-based array index."))
             return
         }
-        let key = String(enable.id[keyRange])
+        let key = String(visibleWhen.id[keyRange])
         guard key != property.id else {
-            diagnostics.append(.init(severity: .error, location: location, message: "A control cannot enable itself."))
+            diagnostics.append(.init(severity: .error, location: location, message: "A control's visibleWhen condition cannot reference itself."))
             return
         }
         guard let source = properties.first(where: { $0.id == key }) else {
-            diagnostics.append(.init(severity: .error, location: location, message: "Enable references unknown control '\(key)'."))
+            diagnostics.append(.init(severity: .error, location: location, message: "visibleWhen references unknown control '\(key)'."))
             return
         }
-        if let indexRange = Range(match.range(at: 2), in: enable.id), let index = Int(enable.id[indexRange]) {
+        if let indexRange = Range(match.range(at: 2), in: visibleWhen.id), let index = Int(visibleWhen.id[indexRange]) {
             guard let count = source.control.count else {
-                diagnostics.append(.init(severity: .error, location: location, message: "Enable index requires '\(key)' to be a multi-control."))
+                diagnostics.append(.init(severity: .error, location: location, message: "visibleWhen index requires '\(key)' to be a multi-control."))
                 return
             }
             if index >= count {
-                diagnostics.append(.init(severity: .error, location: location, message: "Enable index \(index) is outside '\(key)' count \(count)."))
+                diagnostics.append(.init(severity: .error, location: location, message: "visibleWhen index \(index) is outside '\(key)' count \(count)."))
             }
         }
 
-        let operation = ComponentPackageEnableEvaluator.canonicalOperation(enable.operation)
+        let operation = ComponentPackageVisibilityEvaluator.canonicalOperation(visibleWhen.operation)
         let supported = Set(["==", "!=", "<", "<=", ">", ">=", "contains", "notContains",
                              "containsInsensitive", "notContainsInsensitive", "matches", "notMatches",
                              "matchesInsensitive", "notMatchesInsensitive", "containsValue", "notContainsValue",
                              "isEmpty", "isNotEmpty"])
         guard supported.contains(operation) else {
-            diagnostics.append(.init(severity: .error, location: location, message: "Unknown enable operation '\(enable.operation)'."))
+            diagnostics.append(.init(severity: .error, location: location, message: "Unknown visibleWhen operation '\(visibleWhen.operation)'."))
             return
         }
         let needsValue = operation != "isEmpty" && operation != "isNotEmpty"
-        if needsValue && enable.value == nil {
-            diagnostics.append(.init(severity: .error, location: location, message: "Enable operation '\(operation)' requires a value."))
-        } else if !needsValue && enable.value != nil {
-            diagnostics.append(.init(severity: .error, location: location, message: "Enable operation '\(operation)' does not accept a value."))
+        if needsValue && visibleWhen.value == nil {
+            diagnostics.append(.init(severity: .error, location: location, message: "visibleWhen operation '\(operation)' requires a value."))
+        } else if !needsValue && visibleWhen.value != nil {
+            diagnostics.append(.init(severity: .error, location: location, message: "visibleWhen operation '\(operation)' does not accept a value."))
         }
     }
 
-    private static func validateEnableCycles(
+    private static func validateVisibilityCycles(
         _ properties: [ComponentPackageProperty],
         into diagnostics: inout [ComponentPackageDiagnostic]
     ) {
         let dependencies = Dictionary(uniqueKeysWithValues: properties.compactMap { property -> (String, String)? in
-            guard let id = property.enable?.id else { return nil }
+            guard let id = property.visibleWhen?.id else { return nil }
             return (property.id, String(id.prefix { $0 != "[" }))
         })
         for property in properties {
@@ -1122,7 +1122,7 @@ nonisolated enum ComponentPackageValidator {
             var current: String? = property.id
             while let value = current, let next = dependencies[value] {
                 guard visited.insert(value).inserted else {
-                    diagnostics.append(.init(severity: .error, location: "Info.plist:customItems.\(property.id).enable", message: "Enable conditions contain a dependency cycle."))
+                    diagnostics.append(.init(severity: .error, location: "Info.plist:controls.\(property.id).visibleWhen", message: "visibleWhen conditions contain a dependency cycle."))
                     break
                 }
                 current = next

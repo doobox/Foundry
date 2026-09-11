@@ -1,15 +1,15 @@
-[data-foundry-id="{{ instance.uuid }}"] .foundry-image-slider__arrow,
-[data-foundry-id="{{ instance.uuid }}"] .foundry-image-slider__dots {
+:instance .foundry-image-slider__arrow,
+:instance .foundry-image-slider__dots {
     pointer-events: none;
 }
 
-[data-foundry-id="{{ instance.uuid }}"] .foundry-image-slider__media > .foundry-image-drop-zone {
+:instance .foundry-image-slider__media > .foundry-image-drop-zone {
     width: 100%;
     height: 100%;
     min-height: 240px;
     border-radius: 0;
 }
 
-[data-foundry-id="{{ instance.uuid }}"] .foundry-image-slider__slide {
+:instance .foundry-image-slider__slide {
     display: block;
 }

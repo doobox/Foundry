@@ -21,17 +21,18 @@ struct ComponentTemplateTests {
     }
 
     @Test
-    func dropZoneSpellingsRenderTheSameContent() {
+    func namedDropZoneAndChildAreaRenderTheirOwnContent() {
         let context = ComponentTemplateContext(
             instanceID: UUID(),
             packageIdentifier: "com.example.container",
             properties: [:],
-            slots: [:],
+            slots: ["content": "<strong>Child</strong>"],
             dropZones: ["content": "<p>Child</p>"]
         )
 
         #expect(ComponentTemplateRenderer.render("{{ dropZone(\"content\") }}", context: context) == "<p>Child</p>")
-        #expect(ComponentTemplateRenderer.render("{{ dropzone(\"content\") }}", context: context) == "<p>Child</p>")
+        #expect(ComponentTemplateRenderer.render("{{ childArea(\"content\") }}", context: context) == "<strong>Child</strong>")
+        #expect(ComponentTemplateRenderer.render("{{ dropzone(\"content\") }}", context: context).isEmpty)
     }
 
     @Test
@@ -71,8 +72,8 @@ struct ComponentTemplateTests {
             slots: [:]
         )
         let template = """
-        /* {{ instance.uuid }} */
-        [data-foundry-id="{{ instance.uuid }}"] {
+        /* {{ instance.id }} */
+        [data-foundry-id="{{ instance.id }}"] {
           padding: {{ control.padding }}px;
           color: {{ control.accent }};
           border-color: {{ control.accent | lighten(20) }};
@@ -110,8 +111,8 @@ struct ComponentTemplateTests {
           <h2>{{ control.title }}</h2>
           {{ if control.visible }}<span>Shown</span>{{ else }}<span>Hidden</span>{{ endif }}
           {{ if control.alignment == "center" }}<b>Centered</b>{{ endif }}
-          <img src="{{ asset.images/icon.svg }}">
-          {{ control.content }}
+          <img src="{{ asset("images/icon.svg") }}">
+          {{ childArea("content") }}
         </article>
         """
 
@@ -202,7 +203,7 @@ struct ComponentTemplateTests {
         )
 
         let rendered = ComponentTemplateRenderer.render(
-            "{{ site.baseURL }}|{{ page.url }}|{{ path.siteRoot }}|{{ path.siteAssets }}|{{ asset.images/badge.svg }}|{{ asset.shared/icons/star.svg }}",
+            "{{ site.baseURL }}|{{ page.url }}|{{ path.siteRoot }}|{{ path.siteAssets }}|{{ asset(\"images/badge.svg\") }}|{{ asset(\"shared/icons/star.svg\") }}",
             context: context
         )
 

@@ -115,14 +115,14 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
         }
     }
 
-    static func requiresPhp(_ page: Page) -> Bool {
+    static func requiresPHP(_ page: Page) -> Bool {
         ComponentArtifactPlan(page: page).nodes.contains {
-            ComponentRegistry.definition(for: $0.type).package?.manifest.requiresPhp == true
+            ComponentRegistry.definition(for: $0.type).package?.manifest.requiresPHP == true
         }
     }
 
     static func outputPath(for page: Page, in site: Site) -> String {
-        let pageExtension = requiresPhp(page) ? "php" : "html"
+        let pageExtension = requiresPHP(page) ? "php" : "html"
         guard page.slug != "index" else { return "index.\(pageExtension)" }
         let directory = PageRouteResolver.pathSegments(
             for: page,

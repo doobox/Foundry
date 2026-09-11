@@ -1,4 +1,4 @@
-[data-foundry-id="{{ instance.uuid }}"] {
+:instance {
     box-sizing: border-box;
     display: block;
     width: 100%;
@@ -10,6 +10,6 @@
     box-shadow: 0 12px 40px rgb(0 0 0 / 0.08);
 }
 
-[data-foundry-id="{{ instance.uuid }}"][data-alignment="leading"] { margin-inline: 0 auto; }
-[data-foundry-id="{{ instance.uuid }}"][data-alignment="center"] { margin-inline: auto; }
-[data-foundry-id="{{ instance.uuid }}"][data-alignment="trailing"] { margin-inline: auto 0; }
+:instance[data-alignment="leading"] { margin-inline: 0 auto; }
+:instance[data-alignment="center"] { margin-inline: auto; }
+:instance[data-alignment="trailing"] { margin-inline: auto 0; }

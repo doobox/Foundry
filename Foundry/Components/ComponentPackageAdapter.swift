@@ -61,7 +61,7 @@ nonisolated enum ComponentPackageAdapter {
                     control: .image,
                     defaultValue: value(property.defaultValue, control: .image),
                     isResponsive: false,
-                    enable: property.enable,
+                    visibleWhen: property.visibleWhen,
                     supportsImageFocalPoint: property.focalPoint
                 ),
                 ComponentPropertyDefinition(
@@ -72,7 +72,7 @@ nonisolated enum ComponentPackageAdapter {
                     defaultValue: .string(property.alt),
                     isResponsive: false,
                     isInspectorVisible: false,
-                    enable: property.enable
+                    visibleWhen: property.visibleWhen
                 )
             ]
             if property.focalPoint {
@@ -84,7 +84,7 @@ nonisolated enum ComponentPackageAdapter {
                     defaultValue: .array([.number(50), .number(50)]),
                     isResponsive: property.responsive,
                     isInspectorVisible: false,
-                    enable: property.enable
+                    visibleWhen: property.visibleWhen
                 ))
             }
             return definitions
@@ -119,13 +119,13 @@ nonisolated enum ComponentPackageAdapter {
                     activeButtonIcons: activeButtonIcons,
                     buttonSelectionMode: property.control.selectionMode ?? .multiple,
                     units: Array(property.units.prefix(count)),
-                    help: property.toolTip
+                    help: property.tooltip
                 ),
                 defaultValue: .array(paddedDefaults.prefix(count).map {
                     value($0, control: property.control.type)
                 }),
                 isResponsive: property.responsive,
-                enable: property.enable,
+                visibleWhen: property.visibleWhen,
                 themeValueSource: property.control.themeValueSource,
                 allowsCustomThemeValue: property.control.allowsCustom == true,
                 dateMinimum: property.control.minimumDate.flatMap(ComponentDateValue.init).map(\.date),
@@ -159,7 +159,7 @@ nonisolated enum ComponentPackageAdapter {
             isResponsive: property.control.type != .note && property.responsive,
             isInspectorVisible: property.control.type != .math &&
                 (property.control.type != .note || !property.noteBody.isEmpty),
-            enable: property.enable,
+            visibleWhen: property.visibleWhen,
             themeValueSource: property.control.themeValueSource,
             allowsCustomThemeValue: property.control.allowsCustom == true
                 && property.control.themeValueSource != .fontFamilies,
@@ -196,7 +196,7 @@ nonisolated enum ComponentPackageAdapter {
                 ),
                 defaultValue: .packageFontSize(.init(source: source, customValue: "1rem")),
                 isResponsive: property.responsive,
-                enable: property.enable,
+                visibleWhen: property.visibleWhen,
                 themeValueSource: property.control.themeValueSource,
                 allowsCustomThemeValue: property.control.allowsCustom == true
             )
@@ -223,7 +223,7 @@ nonisolated enum ComponentPackageAdapter {
                     opacity: 1
                 )),
                 isResponsive: property.responsive,
-                enable: property.enable,
+                visibleWhen: property.visibleWhen,
                 themeValueSource: property.control.themeValueSource,
                 allowsCustomThemeValue: property.control.allowsCustom == true
             )
@@ -244,7 +244,7 @@ nonisolated enum ComponentPackageAdapter {
                 customLayers: ComponentPackageShadowValue.defaultCustom.customLayers
             )),
             isResponsive: property.responsive,
-            enable: property.enable,
+            visibleWhen: property.visibleWhen,
             themeValueSource: .shadows,
             allowsCustomThemeValue: property.control.allowsCustom == true
         )]
