@@ -6,6 +6,20 @@ import Observation
 final class ThemeEditorSession {
     let document: FoundryDocument
     let editor: ProjectEditor
+    private var colourEditSession: UUID?
+    private var colourEditRevision: UInt64?
+
+    func setColourPalettes(_ palettes: [ColourPalette], session: UUID?) {
+        guard document.site.theme.colourPalettes != palettes else { return }
+        let coalescing = session != nil && session == colourEditSession
+            && colourEditRevision == document.mutationEvent.revision
+        let writer = ProjectEditor(document: document, undoManager: coalescing ? nil : editor.undoManager)
+        writer.mutate(actionName: "Edit Colours", impact: .theme) { site in
+            site.theme.colourPalettes = palettes
+        }
+        colourEditSession = session
+        colourEditRevision = document.mutationEvent.revision
+    }
 
     private(set) var previewReference: ThemeFontReference?
     private(set) var previewFont: ThemeFontDefinition?

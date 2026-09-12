@@ -487,6 +487,7 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
             exportedSource: { "../" + site.publishedPath(for: $0) }
         ))
         :root{font-size:16px;--foundry-color-background:\(theme.colors.background);--foundry-color-surface:\(theme.colors.surface);--foundry-color-text:\(theme.colors.text);--foundry-color-accent:\(theme.colors.accent);--foundry-color-links:\(theme.colors.links);--foundry-font-body:\(theme.typography.bodyFont.cssFamily);--foundry-font-heading:\(theme.typography.headingFont.cssFamily);--foundry-font-monospace:\(theme.typography.monospacedFont.cssFamily);\(theme.customFontCSSVariables)\(theme.fontSizeCSSVariables)\(theme.spacingCSSVariables)\(theme.shadowCSSVariables)\(theme.borderCSSVariables)}
+        :root{--foundry-color-muted-text:\(theme.color(for: .mutedText))}
         \(theme.screens.containerCSS)
         *,*::before,*::after{box-sizing:border-box}
         html,body{min-height:100%}

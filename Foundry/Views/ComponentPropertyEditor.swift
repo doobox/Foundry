@@ -214,6 +214,7 @@ struct ComponentPropertyEditor: View {
                 allowsCustom: definition.allowsCustomThemeValue,
                 theme: theme,
                 source: packageColorSourceBinding,
+                shade: packageColorShadeBinding,
                 customColor: packageCustomColorBinding,
                 adjustment: colorMath ? packageColorAdjustmentBinding : nil,
                 allowsOpacity: opacity,
@@ -479,9 +480,18 @@ struct ComponentPropertyEditor: View {
             set: { source in
                 var value = packageColorValue
                 value.source = source
+                value.shade = .default
                 setProperty(.packageColor(value))
             }
         )
+    }
+
+    private var packageColorShadeBinding: Binding<ColourShadeSelection> {
+        Binding(get: { packageColorValue.shade }, set: { shade in
+            var value = packageColorValue
+            value.shade = shade
+            setProperty(.packageColor(value))
+        })
     }
 
     private var packageCustomColorBinding: Binding<Color> {

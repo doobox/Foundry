@@ -10,8 +10,8 @@ nonisolated enum ComponentPackageColorResolver {
         let baseColor: String
         if ComponentThemeValueSelection.isManualCustom(value.source) {
             baseColor = value.customColor
-        } else if let role = ThemeColorRole(rawValue: value.source) {
-            baseColor = theme.color(for: role)
+        } else if let resolved = value.selection.resolve(in: theme.colourPalettes) {
+            baseColor = resolved
         } else {
             baseColor = value.customColor
         }

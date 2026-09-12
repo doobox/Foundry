@@ -44,6 +44,7 @@ nonisolated struct HTMLPageRenderer: PageRendering {
               --foundry-color-text: \(theme.colors.text);
               --foundry-color-accent: \(theme.colors.accent);
               --foundry-color-links: \(theme.colors.links);
+              --foundry-color-muted-text: \(theme.color(for: .mutedText));
               --foundry-font-body: \(theme.typography.bodyFont.cssFamily);
               --foundry-font-heading: \(theme.typography.headingFont.cssFamily);
               --foundry-font-monospace: \(theme.typography.monospacedFont.cssFamily);

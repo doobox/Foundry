@@ -7,6 +7,45 @@ import Testing
 @Suite(.serialized)
 struct ThemeEditorPresentationTests {
     @Test
+    func previewUsesStoredPalettesAndPreservesEditingSettings() throws {
+        let model = ThemeColourPreviewModel()
+        let source = model.palettes.first { $0.group == .custom }!
+        var edit = PreviewShadeEdit(palette: source, index: 10)
+        edit.setHex("#250C42")
+        edit.setSoftening(0.7)
+        edit.setReversed(true)
+        model.update(edit.palette, session: UUID(), undoManager: nil)
+        let encoded = try JSONEncoder().encode(model.storedPalettes)
+        let reloaded = ThemeColourPreviewModel(storedPalettes: try JSONDecoder().decode([ColourPalette].self, from: encoded))
+        #expect(reloaded.storedPalettes == model.storedPalettes)
+        let restored = reloaded.palettes.first { $0.id == source.id }!
+        #expect(restored == edit.palette)
+        for index in 0..<11 {
+            #expect(restored.colour(at: index).hexString == edit.palette.colour(at: index).hexString)
+        }
+        var custom = restored
+        custom.generated = false
+        custom.setColour(Color(hex: "#FF0000")!, at: 3)
+        reloaded.update(custom, session: UUID(), undoManager: nil)
+        let record = reloaded.storedPalettes.first { $0.id == custom.id }!
+        #expect(record.generation?.enabled == false)
+        #expect(record.shades[3] == "#FF0000")
+        #expect(PreviewColourPalette(stored: record).storedValue == record)
+    }
+
+    @Test
+    func storedShadesAreNotRegeneratedOnReadOrRename() throws {
+        let original = PreviewColourPalette.samples.first { $0.group == .theme }!.storedValue
+        var record = original
+        try record.replaceShades(Array(repeating: "#123456", count: 11))
+        var adapter = PreviewColourPalette(stored: record)
+        adapter.name = "Renamed"
+        #expect(adapter.storedValue.shades == record.shades)
+        #expect(adapter.storedValue.id == record.id)
+        #expect(PreviewColourPalette.samples.first { $0.group == .theme }!.id == original.id)
+    }
+
+    @Test
     func deletedColourBindingsRemainSafe() {
         let model = ThemeColourPreviewModel()
         let custom = model.palettes.first { $0.group == .custom }!
@@ -212,7 +251,7 @@ struct ThemeEditorPresentationTests {
         try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
 
         let sections: [ThemeWindowSection] = [
-            .colors, .colourPreview, .screens, .fontFamily, .fontSize, .spacing,
+            .colors, .screens, .fontFamily, .fontSize, .spacing,
             .shadows, .borderWidth, .borderRadius
         ].filter {
             let requested = ProcessInfo.processInfo.environment["FOUNDRY_THEME_UI_SECTION"]
@@ -237,7 +276,7 @@ struct ThemeEditorPresentationTests {
                     let name = "\(section.rawValue)\(variant)-\(configuration.name)"
                     let previewModel = ThemeColourPreviewModel()
                     previewModel.palettes.insert(PreviewColourPalette(name: "Purple test", hex: "#250C42", group: .theme, anchor: 4, defaultShade: 4), at: 0)
-                    let root = (section == .colourPreview
+                    let root = (section == .colors
                         ? AnyView(ThemeColoursPreview(model: previewModel))
                         : AnyView(ThemeSettingsDetail(
                         section: section,

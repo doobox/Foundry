@@ -5,6 +5,55 @@ import Testing
 @MainActor
 struct ThemeEditingTests {
     @Test
+    func paletteEditsPersistResolveAndUndoAsOneSession() throws {
+        let document = FoundryDocument()
+        let undo = UndoManager()
+        undo.groupsByEvent = false
+        let session = ThemeEditorSession(document: document, undoManager: undo)
+        let original = document.site.theme.colourPalettes
+        #expect(!original.contains { $0.origin == .custom })
+        #expect(original.filter { $0.origin == .standard }.count == 24)
+        var values = original
+        let index = try #require(values.firstIndex { $0.id == "theme.accent" })
+        var shades = values[index].shades
+        shades[10] = "#123456"
+        try values[index].replaceShades(shades)
+        values[index].setDefault(.eleven)
+        let editID = UUID()
+        undo.beginUndoGrouping()
+        session.setColourPalettes(values, session: editID)
+        undo.endUndoGrouping()
+        #expect(document.site.theme.colors.accent == "#123456")
+        values[index].name = "Renamed Accent"
+        session.setColourPalettes(values, session: editID)
+        #expect(document.mutationEvent.impact == .theme)
+        let saved = try JSONEncoder().encode(document.site)
+        let reopened = try JSONDecoder().decode(Site.self, from: saved)
+        #expect(reopened.theme.colourPalettes == values)
+        #expect(reopened.theme.colors.accent == "#123456")
+        undo.undo()
+        #expect(document.site.theme.colourPalettes == original)
+        #expect(!undo.canUndo)
+        undo.redo()
+        #expect(document.site.theme.colourPalettes == values)
+    }
+
+    @Test
+    func customPalettesSurviveThemeSwitchAndDeletion() throws {
+        let document = FoundryDocument()
+        let session = ThemeEditorSession(document: document, undoManager: UndoManager())
+        let originalTheme = document.site.theme
+        let originalID = document.site.themeSourceID
+        let copy = try originalTheme.colourPalettes[0].duplicated()
+        session.setColourPalettes(originalTheme.colourPalettes + [copy], session: nil)
+        session.editor.selectTheme(originalTheme, sourceID: UUID())
+        #expect(document.site.theme.colourPalettes.contains { $0.id == copy.id })
+        session.setColourPalettes(document.site.theme.colourPalettes.filter { $0.id != copy.id }, session: nil)
+        session.editor.selectTheme(originalTheme, sourceID: originalID)
+        #expect(!document.site.theme.colourPalettes.contains { $0.id == copy.id })
+    }
+
+    @Test
     func switchingThemesPreservesPerThemeEditsAndProjectThemeValues() throws {
         let document = FoundryDocument()
         let editor = ProjectEditor(document: document, undoManager: UndoManager())

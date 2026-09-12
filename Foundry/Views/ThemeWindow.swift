@@ -54,7 +54,6 @@ struct ThemeWindowContent: View {
     @ObservedObject private var document: FoundryDocument
     @AppStorage("themeEditor.selectedSection") private var selectedSectionRawValue = ThemeWindowSection.themes.rawValue
     @AppStorage("themeEditor.sidebarVisible") private var isSidebarVisible = true
-    @State private var colourPreview = ThemeColourPreviewModel()
 
     init(session: ThemeEditorSession) {
         self.session = session
@@ -83,8 +82,8 @@ struct ThemeWindowContent: View {
             .navigationSplitViewColumnWidth(min: 180, ideal: 210, max: 240)
         } detail: {
             switch selectedSection {
-            case .colourPreview:
-                ThemeColoursPreview(model: colourPreview)
+            case .colors:
+                ProjectColourSettings(session: session)
             case .themes:
                 ThemeLibraryBrowser(document: document, undoManager: session.editor.undoManager)
             default:
@@ -99,7 +98,7 @@ struct ThemeWindowContent: View {
     }
 
     private var selectedSection: ThemeWindowSection {
-        ThemeWindowSection(rawValue: selectedSectionRawValue) ?? .themes
+        selectedSectionRawValue == "colourPreview" ? .colors : (ThemeWindowSection(rawValue: selectedSectionRawValue) ?? .themes)
     }
 
     private var selection: Binding<ThemeWindowSection> {
@@ -121,7 +120,6 @@ enum ThemeWindowSection: String, CaseIterable, Identifiable, Hashable {
     case themes
     case screens
     case colors
-    case colourPreview
     case fontFamily
     case fontSize
     case spacing
@@ -133,7 +131,6 @@ enum ThemeWindowSection: String, CaseIterable, Identifiable, Hashable {
 
     static let settings: [ThemeWindowSection] = [
         .colors,
-        .colourPreview,
         .fontFamily,
         .fontSize,
         .spacing,
@@ -147,7 +144,6 @@ enum ThemeWindowSection: String, CaseIterable, Identifiable, Hashable {
         case .themes: "Themes"
         case .screens: "Breakpoints"
         case .colors: "Colours"
-        case .colourPreview: "Colours Preview"
         case .fontFamily: "Fonts"
         case .fontSize: "Type Scale"
         case .spacing: "Spacing"
@@ -162,7 +158,6 @@ enum ThemeWindowSection: String, CaseIterable, Identifiable, Hashable {
         case .themes: "theatermask.and.paintbrush"
         case .screens: "ruler"
         case .colors: "paintpalette"
-        case .colourPreview: "paintpalette"
         case .fontFamily: "text.alignleft"
         case .fontSize: "textformat.size"
         case .spacing: "arrow.left.and.right"
@@ -180,8 +175,6 @@ enum ThemeWindowSection: String, CaseIterable, Identifiable, Hashable {
             "Define responsive breakpoints and the maximum container width at each size."
         case .colors:
             "Set the core colours shared by pages, components and editable text."
-        case .colourPreview:
-            "A colour editor prototype. Changes stay in this window only."
         case .fontFamily:
             "Choose the typefaces used for body text, headings and monospaced content."
         case .fontSize:
@@ -263,8 +256,8 @@ struct ThemeSettingsDetail: View {
         case .borderRadius:
             ThemeDimensionSettings(tokens: theme.borderRadii, isRadius: true, setValue: editor.setThemeBorderRadius)
         case .colors:
-            ThemeColourSettings(theme: theme, editor: editor)
-        case .themes, .colourPreview:
+            ProjectColourSettings(session: session)
+        case .themes:
             EmptyView()
         }
     }
@@ -276,7 +269,7 @@ struct ThemeSettingsDetail: View {
         case .shadows: editor.resetThemeShadowScale
         case .borderWidth: editor.resetThemeBorderWidths
         case .borderRadius: editor.resetThemeBorderRadii
-        case .themes, .screens, .colors, .colourPreview, .fontFamily: nil
+        case .themes, .screens, .colors, .fontFamily: nil
         }
     }
 }

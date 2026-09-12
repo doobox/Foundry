@@ -1,7 +1,8 @@
 import AppKit
 import SwiftUI
 
-/// Experimental UI-preview generator, deliberately not wired to Theme or CSS output.
+/// Palette editing generator. Its resolved sRGB shades are stored with the theme;
+/// rendering and export read those stored values rather than rerunning this algorithm.
 /// Oklab matrices: Björn Ottosson's public-domain reference implementation:
 /// https://bottosson.github.io/posts/oklab/
 enum PreviewPerceptualRamp {

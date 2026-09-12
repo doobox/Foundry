@@ -5,9 +5,10 @@ nonisolated struct ProjectThemeValues: Codable, Equatable, Sendable {
     var fonts: [ThemeCustomFont] = []
     var fontSizes: [ThemeFontSize] = []
     var shadows: [ThemeShadow] = []
+    var colours: [ColourPalette] = []
 
     private enum CodingKeys: String, CodingKey {
-        case spacing, fonts, fontSizes, shadows
+        case spacing, fonts, fontSizes, shadows, colours
     }
 
     init() {}
@@ -18,6 +19,7 @@ nonisolated struct ProjectThemeValues: Codable, Equatable, Sendable {
         fonts = try container.decodeIfPresent([ThemeCustomFont].self, forKey: .fonts) ?? []
         fontSizes = try container.decodeIfPresent([ThemeFontSize].self, forKey: .fontSizes) ?? []
         shadows = try container.decodeIfPresent([ThemeShadow].self, forKey: .shadows) ?? []
+        colours = try container.decodeIfPresent([ColourPalette].self, forKey: .colours) ?? []
     }
 
     mutating func absorb(_ theme: Theme) {
@@ -25,6 +27,7 @@ nonisolated struct ProjectThemeValues: Codable, Equatable, Sendable {
         fonts = theme.typography.customFonts
         fontSizes = theme.typography.customFontSizes
         shadows = theme.shadows.custom
+        colours = theme.colourPalettes.filter { $0.origin == .custom }
     }
 
     mutating func include(_ theme: Theme) {
@@ -32,6 +35,7 @@ nonisolated struct ProjectThemeValues: Codable, Equatable, Sendable {
         Self.mergeKeepingExisting(theme.typography.customFonts, into: &fonts, id: \.id)
         Self.mergeKeepingExisting(theme.typography.customFontSizes, into: &fontSizes, id: \.id)
         Self.mergeKeepingExisting(theme.shadows.custom, into: &shadows, id: \.id)
+        Self.mergeKeepingExisting(theme.colourPalettes.filter { $0.origin == .custom }, into: &colours, id: \.id)
     }
 
     func applied(to theme: Theme) -> Theme {
@@ -40,6 +44,8 @@ nonisolated struct ProjectThemeValues: Codable, Equatable, Sendable {
         Self.mergeReplacingExisting(fonts, into: &result.typography.customFonts, id: \.id)
         Self.mergeReplacingExisting(fontSizes, into: &result.typography.customFontSizes, id: \.id)
         Self.mergeReplacingExisting(shadows, into: &result.shadows.custom, id: \.id)
+        result.colourPalettes.removeAll { $0.origin == .custom }
+        result.colourPalettes.append(contentsOf: colours)
         return result
     }
 

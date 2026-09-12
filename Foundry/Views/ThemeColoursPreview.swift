@@ -2,50 +2,78 @@ import AppKit
 import Observation
 import SwiftUI
 
-/// Deliberately independent of Theme, ProjectEditor, persistence and CSS export.
+/// Palette editing state. The project view supplies document persistence through onChange;
+/// previews and tests can still use this independently.
 @Observable
 final class ThemeColourPreviewModel {
-    var palettes = PreviewColourPalette.samples
+    private(set) var storedPalettes: [ColourPalette] {
+        didSet {
+            if !synchronizing, oldValue != storedPalettes { onChange?(storedPalettes, pendingSession) }
+        }
+    }
+    @ObservationIgnored var onChange: (([ColourPalette], UUID?) -> Void)?
+    private var synchronizing = false
+    private var pendingSession: UUID?
+
+    func synchronize(_ values: [ColourPalette]) {
+        guard values != storedPalettes else { return }
+        synchronizing = true
+        storedPalettes = values
+        lastEditSession = nil
+        synchronizing = false
+    }
+    var palettes: [PreviewColourPalette] {
+        get { storedPalettes.map { PreviewColourPalette(stored: $0) } }
+        set { storedPalettes = newValue.map { $0.storedValue } }
+    }
     private var lastEditSession: UUID?
+
+    init(storedPalettes: [ColourPalette]? = nil) {
+        self.storedPalettes = storedPalettes ?? PreviewColourPalette.samples.map { $0.storedValue }
+    }
 
     func binding(for snapshot: PreviewColourPalette) -> Binding<PreviewColourPalette> {
         let id = snapshot.id
         return Binding(
-            get: { self.palettes.first(where: { $0.id == id }) ?? snapshot },
+            get: { self.storedPalettes.first(where: { $0.id == id }).map { PreviewColourPalette(stored: $0) } ?? snapshot },
             set: { value in
-                guard let index = self.palettes.firstIndex(where: { $0.id == id }) else { return }
-                self.palettes[index] = value
+                guard let index = self.storedPalettes.firstIndex(where: { $0.id == id }) else { return }
+                self.storedPalettes[index] = value.storedValue
             })
     }
 
-    func delete(id: UUID) {
-        palettes.removeAll { $0.id == id && $0.group == .custom }
+    func delete(id: String) {
+        storedPalettes.removeAll { $0.id == id && $0.origin == .custom }
     }
 
     func update(_ palette: PreviewColourPalette, session: UUID, undoManager: UndoManager?) {
-        guard let index = palettes.firstIndex(where: { $0.id == palette.id }), palettes[index] != palette else { return }
-        if lastEditSession != session {
-            registerRestore(palettes[index], undoManager: undoManager)
+        guard let index = storedPalettes.firstIndex(where: { $0.id == palette.id }) else { return }
+        let stored = palette.storedValue
+        guard storedPalettes[index] != stored else { return }
+        if onChange == nil && lastEditSession != session {
+            registerRestore(storedPalettes[index], undoManager: undoManager)
             lastEditSession = session
         }
-        palettes[index] = palette
+        pendingSession = session
+        storedPalettes[index] = stored
+        pendingSession = nil
     }
 
-    private func registerRestore(_ value: PreviewColourPalette, undoManager: UndoManager?) {
+    private func registerRestore(_ value: ColourPalette, undoManager: UndoManager?) {
         undoManager?.registerUndo(withTarget: self) { model in
-            guard let index = model.palettes.firstIndex(where: { $0.id == value.id }) else { return }
-            model.registerRestore(model.palettes[index], undoManager: undoManager)
-            model.palettes[index] = value
+            guard let index = model.storedPalettes.firstIndex(where: { $0.id == value.id }) else { return }
+            model.registerRestore(model.storedPalettes[index], undoManager: undoManager)
+            model.storedPalettes[index] = value
             model.lastEditSession = nil
         }
         undoManager?.setActionName("Edit Colour")
     }
 
     func add() {
-        let names = Set(palettes.map(\.name))
+        let names = Set(storedPalettes.map(\.name))
         var number = 1
         while names.contains("New Colour \(number)") { number += 1 }
-        palettes.insert(PreviewColourPalette(name: "New Colour \(number)", hex: "#F97316", group: .custom), at: 0)
+        storedPalettes.insert(PreviewColourPalette(name: "New Colour \(number)", hex: "#F97316", group: .custom).storedValue, at: 0)
     }
 
     func duplicate(_ palette: PreviewColourPalette) {
@@ -56,10 +84,10 @@ final class ThemeColourPreviewModel {
             })
             copy.generated = false
         }
-        copy.id = UUID()
+        copy.id = "custom.\(UUID().uuidString.lowercased())"
         copy.name += " Copy"
         copy.group = .custom
-        palettes.insert(copy, at: 0)
+        storedPalettes.insert(copy.storedValue, at: 0)
     }
 }
 
@@ -68,7 +96,7 @@ struct PreviewColourPalette: Identifiable, Equatable {
         case custom = "Custom Colours", theme = "Theme Colours", standard = "Standard Colours"
     }
     static let steps = Array(1...11)
-    var id = UUID()
+    var id = "custom.\(UUID().uuidString.lowercased())"
     var name: String
     var hex: String
     var group: Group
@@ -79,8 +107,63 @@ struct PreviewColourPalette: Identifiable, Equatable {
     var single = false
     var softening = 0.0
     var reversed = false
+    private var snapshot: ColourPalette?
+
+    init(id: String = "custom.\(UUID().uuidString.lowercased())", name: String, hex: String,
+         group: Group, anchor: Int = 5, defaultShade: Int = 5, generated: Bool = true,
+         overrides: [Int: String] = [:], single: Bool = false, softening: Double = 0,
+         reversed: Bool = false) {
+        self.id = id; self.name = name; self.hex = hex; self.group = group
+        self.anchor = anchor; self.defaultShade = defaultShade; self.generated = generated
+        self.overrides = overrides; self.single = single; self.softening = softening
+        self.reversed = reversed
+    }
+
+    init(stored: ColourPalette) {
+        id = stored.id; name = stored.name
+        switch stored.origin {
+        case .custom: group = .custom
+        case .theme: group = .theme
+        case .standard: group = .standard
+        }
+        defaultShade = stored.defaultShade.rawValue - 1
+        single = stored.single
+        hex = stored.generation?.anchorHex ?? stored.colour(at: .default)
+        anchor = (stored.generation?.anchor.rawValue ?? stored.defaultShade.rawValue) - 1
+        generated = stored.generation?.enabled ?? false
+        softening = stored.generation?.softening ?? 0
+        reversed = stored.generation?.reversed ?? false
+        overrides = stored.generation?.overrides ?? Dictionary(uniqueKeysWithValues: stored.shades.enumerated().map { ($0.offset, $0.element) })
+        snapshot = stored
+    }
+
+    private var generationSettings: ColourPalette.Generation {
+        .init(algorithm: snapshot?.generation?.algorithm ?? "foundry.rgb-soften.v1",
+              anchor: ColourShade(rawValue: anchor + 1)!, anchorHex: hex,
+              softening: softening, reversed: reversed, enabled: generated, overrides: overrides)
+    }
+
+    var storedValue: ColourPalette {
+        let origin: ColourPalette.Origin = group == .custom ? .custom : (group == .theme ? .theme : .standard)
+        // Eleven values are always produced, and shade indices are editor-controlled.
+        var value = try! ColourPalette(id: id, name: name, origin: origin,
+            shades: (0..<11).map { colour(at: $0).hexString ?? "#000000" },
+            defaultShade: ColourShade(rawValue: defaultShade + 1)!, generation: generationSettings)
+        value.single = single
+        return value
+    }
+
+    static func == (lhs: Self, rhs: Self) -> Bool {
+        lhs.id == rhs.id && lhs.name == rhs.name && lhs.hex == rhs.hex && lhs.group == rhs.group
+        && lhs.anchor == rhs.anchor && lhs.defaultShade == rhs.defaultShade
+        && lhs.generated == rhs.generated && lhs.overrides == rhs.overrides
+        && lhs.single == rhs.single && lhs.softening == rhs.softening && lhs.reversed == rhs.reversed
+    }
 
     func colour(at index: Int) -> Color {
+        if let snapshot, snapshot.generation == generationSettings, snapshot.single == single {
+            return Color(hex: snapshot.shades[index]) ?? .gray
+        }
         if let value = overrides[index], !generated { return Color(hex: value) ?? .gray }
         guard let base = Color(hex: hex), let rgb = NSColor(base).usingColorSpace(.sRGB) else { return .gray }
         if single || index == anchor { return base }
@@ -148,7 +231,14 @@ struct PreviewColourPalette: Identifiable, Equatable {
          Self(name: "Grey", hex: "#6B7280", group: .standard),
          Self(name: "Zinc", hex: "#71717A", group: .standard),
          Self(name: "Neutral", hex: "#737373", group: .standard),
-         Self(name: "Stone", hex: "#78716C", group: .standard)]
+         Self(name: "Stone", hex: "#78716C", group: .standard)].map { palette in
+             var palette = palette
+             if palette.group != .custom {
+                 let prefix = palette.group == .theme ? "theme" : "standard"
+                 palette.id = prefix + "." + palette.name.lowercased().replacingOccurrences(of: " ", with: "-")
+             }
+             return palette
+         }
     }
 }
 
@@ -178,9 +268,6 @@ struct ThemeColoursPreview: View {
                                 if group == .custom {
                                     Button("Add Colour", systemImage: "plus", action: model.add)
                                 }
-                            }
-                            if group == .standard {
-                                Text("Sample palettes · read-only").font(.caption).foregroundStyle(.secondary)
                             }
                         }
                         .padding(.top, group == .custom ? 0 : 18)

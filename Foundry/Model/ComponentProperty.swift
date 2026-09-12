@@ -18,6 +18,35 @@ nonisolated struct ComponentPackageColorValue: Codable, Equatable, Sendable {
     var customColor: String
     var adjustment: Double
     var opacity: Double
+    var shade: ColourShadeSelection
+
+    init(source: String, customColor: String, adjustment: Double, opacity: Double,
+         shade: ColourShadeSelection = .default) {
+        self.source = source
+        self.customColor = customColor
+        self.adjustment = adjustment
+        self.opacity = opacity
+        self.shade = shade
+    }
+
+    var paletteID: String {
+        ThemeColorRole(rawValue: source) != nil ? "theme." + source : source
+    }
+
+    var selection: PaletteColourValue {
+        ComponentThemeValueSelection.isManualCustom(source) ? .custom(hex: customColor)
+            : .palette(id: paletteID, selection: shade)
+    }
+
+    private enum CodingKeys: String, CodingKey { case source, customColor, adjustment, opacity, shade }
+    init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        source = try values.decode(String.self, forKey: .source)
+        customColor = try values.decode(String.self, forKey: .customColor)
+        adjustment = try values.decode(Double.self, forKey: .adjustment)
+        opacity = try values.decode(Double.self, forKey: .opacity)
+        shade = try values.decodeIfPresent(ColourShadeSelection.self, forKey: .shade) ?? .default
+    }
 }
 
 nonisolated struct ComponentPackageFontSizeValue: Codable, Equatable, Sendable {

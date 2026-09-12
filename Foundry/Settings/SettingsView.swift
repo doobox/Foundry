@@ -138,7 +138,7 @@ private struct DeveloperSettingsView: View {
             Section("Themes") {
                 Toggle("Edit Themes", isOn: $editsThemes)
                     .controlSize(.small)
-                Text("Allows direct editing of theme colours in Colours Preview. Otherwise, duplicate a colour to customise it.")
+                Text("Allows direct editing of theme colours. Otherwise, duplicate a colour to customise it.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

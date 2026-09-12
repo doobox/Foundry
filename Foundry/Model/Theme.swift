@@ -1,7 +1,28 @@
 import Foundation
 
 nonisolated struct Theme: Codable, Equatable, Sendable {
-    var colors: ColorTokens
+    var colourPalettes: [ColourPalette]
+    var colors: ColorTokens {
+        get {
+            func value(_ id: String) -> String {
+                colourPalettes.first { $0.id == "theme." + id }?.colour(at: .default) ?? "#000000"
+            }
+            return .init(background: value("background"), surface: value("surface"), text: value("text"),
+                         accent: value("accent"), links: value("links"))
+        }
+        set {
+            let values = [("background", newValue.background), ("surface", newValue.surface),
+                          ("text", newValue.text), ("accent", newValue.accent), ("links", newValue.links)]
+            for (id, hex) in values {
+                guard let index = colourPalettes.firstIndex(where: { $0.id == "theme." + id }),
+                      colourPalettes[index].colour(at: .default) != hex else { continue }
+                var shades = colourPalettes[index].shades
+                shades[colourPalettes[index].defaultShade.rawValue - 1] = hex
+                try? colourPalettes[index].replaceShades(shades)
+                colourPalettes[index].generation = nil
+            }
+        }
+    }
     var spacing: SpacingTokens
     var shadows: ShadowTokens
     var typography: TypographyTokens
@@ -18,7 +39,7 @@ nonisolated struct Theme: Codable, Equatable, Sendable {
         borderWidths: ThemeDimensionTokens = .standardBorderWidths,
         borderRadii: ThemeDimensionTokens = .standardBorderRadii
     ) {
-        self.colors = colors
+        self.colourPalettes = ColourPaletteDefaults.make(colors: colors)
         self.spacing = spacing
         self.shadows = shadows
         self.typography = typography
@@ -28,18 +49,34 @@ nonisolated struct Theme: Codable, Equatable, Sendable {
     }
 
     enum CodingKeys: String, CodingKey {
-        case colors, spacing, shadows, typography, screens, borderWidths, borderRadii
+        case colors, colourPalettes, spacing, shadows, typography, screens, borderWidths, borderRadii
     }
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        colors = try container.decode(ColorTokens.self, forKey: .colors)
+        if let palettes = try container.decodeIfPresent([ColourPalette].self, forKey: .colourPalettes) {
+            colourPalettes = palettes
+        } else {
+            // Bundled theme definitions may still provide the concise role colours.
+            colourPalettes = ColourPaletteDefaults.make(colors: try container.decode(ColorTokens.self, forKey: .colors))
+        }
         spacing = try container.decode(SpacingTokens.self, forKey: .spacing)
         shadows = try container.decodeIfPresent(ShadowTokens.self, forKey: .shadows) ?? .standard
         typography = try container.decode(TypographyTokens.self, forKey: .typography)
         screens = try container.decode(ScreenTokens.self, forKey: .screens)
         borderWidths = try container.decodeIfPresent(ThemeDimensionTokens.self, forKey: .borderWidths) ?? .standardBorderWidths
         borderRadii = try container.decodeIfPresent(ThemeDimensionTokens.self, forKey: .borderRadii) ?? .standardBorderRadii
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var values = encoder.container(keyedBy: CodingKeys.self)
+        try values.encode(colourPalettes, forKey: .colourPalettes)
+        try values.encode(spacing, forKey: .spacing)
+        try values.encode(shadows, forKey: .shadows)
+        try values.encode(typography, forKey: .typography)
+        try values.encode(screens, forKey: .screens)
+        try values.encode(borderWidths, forKey: .borderWidths)
+        try values.encode(borderRadii, forKey: .borderRadii)
     }
 
     static let standard = Theme(
@@ -253,11 +290,12 @@ nonisolated enum ThemeColorRole: String, Codable, CaseIterable, Identifiable, Se
     case background
     case surface
     case text
+    case mutedText = "muted-text"
     case accent
     case links
 
     var id: String { rawValue }
-    var title: String { rawValue.capitalized }
+    var title: String { self == .mutedText ? "Muted Text" : rawValue.capitalized }
 }
 
 nonisolated struct SpacingTokens: Codable, Equatable, Sendable {
@@ -676,6 +714,7 @@ nonisolated extension Theme {
         case .background: colors.background
         case .surface: colors.surface
         case .text: colors.text
+        case .mutedText: colourPalettes.first { $0.id == "theme.muted-text" }?.colour(at: .default) ?? colors.text
         case .accent: colors.accent
         case .links: colors.links
         }
