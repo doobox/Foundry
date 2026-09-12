@@ -487,11 +487,11 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
             exportedSource: { "../" + site.publishedPath(for: $0) }
         ))
         :root{font-size:16px;--foundry-color-background:\(theme.colors.background);--foundry-color-surface:\(theme.colors.surface);--foundry-color-text:\(theme.colors.text);--foundry-color-accent:\(theme.colors.accent);--foundry-color-links:\(theme.colors.links);--foundry-font-body:\(theme.typography.bodyFont.cssFamily);--foundry-font-heading:\(theme.typography.headingFont.cssFamily);--foundry-font-monospace:\(theme.typography.monospacedFont.cssFamily);\(theme.customFontCSSVariables)\(theme.fontSizeCSSVariables)\(theme.spacingCSSVariables)\(theme.shadowCSSVariables)\(theme.borderCSSVariables)}
-        :root{--foundry-color-muted-text:\(theme.color(for: .mutedText))}
+        :root{--foundry-color-page:\(theme.color(for: .page));--foundry-color-muted-text:\(theme.color(for: .mutedText))}
         \(theme.screens.containerCSS)
         *,*::before,*::after{box-sizing:border-box}
         html,body{min-height:100%}
-        body{margin:0;background:var(--foundry-color-background);color:var(--foundry-color-text);font-family:var(--foundry-font-body);font-size:var(--foundry-font-size-base);line-height:var(--foundry-font-size-base-line-height);display:flex;flex-direction:column;align-items:stretch}
+        body{margin:0;background:var(--foundry-color-page);color:var(--foundry-color-text);font-family:var(--foundry-font-body);font-size:var(--foundry-font-size-base);line-height:var(--foundry-font-size-base-line-height);display:flex;flex-direction:column;align-items:stretch}
         a{color:var(--foundry-color-links)}
         h1,h2,h3,h4,h5,h6,.foundry-heading{font-family:var(--foundry-font-heading)}code,pre,kbd,samp{font-family:var(--foundry-font-monospace)}
         .foundry-container{width:100%;max-width:var(--foundry-container-width)!important}.foundry-button{display:block;width:fit-content;text-decoration:none;font-weight:600}.foundry-columns{display:grid}.foundry-image{display:block;width:100%;height:auto}.foundry-spacer{min-height:8px}
@@ -812,13 +812,13 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
             if case .color = definition.control {
                 return (definition.key.rawValue, .string(node.colorProperty(definition.key, theme: theme)))
             }
-            if case .packageColor(_, let colorMath, let opacity) = definition.control,
+            if case .packageColor(_, let opacity, _) = definition.control,
                case .packageColor(let colorValue) = value {
                 return (
                     definition.key.rawValue,
                     .string(ComponentPackageColorResolver.resolve(
                         colorValue, theme: theme,
-                        colorMath: colorMath, opacity: opacity
+                        opacity: opacity
                     ))
                 )
             }

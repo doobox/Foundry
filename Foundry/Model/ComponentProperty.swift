@@ -16,17 +16,16 @@ nonisolated enum ComponentThemeValueSelection {
 nonisolated struct ComponentPackageColorValue: Codable, Equatable, Sendable {
     var source: String
     var customColor: String
-    var adjustment: Double
     var opacity: Double
-    var shade: ColourShadeSelection
+    var shade: ColourShade
 
-    init(source: String, customColor: String, adjustment: Double, opacity: Double,
-         shade: ColourShadeSelection = .default) {
+    init(source: String, customColor: String, opacity: Double,
+         shade: ColourShade? = nil) {
         self.source = source
         self.customColor = customColor
-        self.adjustment = adjustment
         self.opacity = opacity
-        self.shade = shade
+        let id = ThemeColorRole(rawValue: source) != nil ? "theme." + source : source
+        self.shade = shade ?? Theme.standard.colourPalettes.resolvedPalette(id: id)?.defaultShade ?? .six
     }
 
     var paletteID: String {
@@ -35,17 +34,16 @@ nonisolated struct ComponentPackageColorValue: Codable, Equatable, Sendable {
 
     var selection: PaletteColourValue {
         ComponentThemeValueSelection.isManualCustom(source) ? .custom(hex: customColor)
-            : .palette(id: paletteID, selection: shade)
+            : .palette(id: paletteID, selection: .shade(shade))
     }
 
-    private enum CodingKeys: String, CodingKey { case source, customColor, adjustment, opacity, shade }
+    private enum CodingKeys: String, CodingKey { case source, customColor, opacity, shade }
     init(from decoder: Decoder) throws {
         let values = try decoder.container(keyedBy: CodingKeys.self)
         source = try values.decode(String.self, forKey: .source)
         customColor = try values.decode(String.self, forKey: .customColor)
-        adjustment = try values.decode(Double.self, forKey: .adjustment)
         opacity = try values.decode(Double.self, forKey: .opacity)
-        shade = try values.decodeIfPresent(ColourShadeSelection.self, forKey: .shade) ?? .default
+        shade = try values.decode(ColourShade.self, forKey: .shade)
     }
 }
 
@@ -228,7 +226,10 @@ nonisolated struct ComponentProperty: Codable, Equatable, Identifiable, Sendable
             case .packageShadow(var value):
                 if value.source == reference { value.source = replacement }
                 return .packageShadow(value)
-            case .url, .number, .color, .boolean, .token, .link, .packageColor:
+            case .packageColor(var value):
+                if value.paletteID == reference { value.source = replacement }
+                return .packageColor(value)
+            case .url, .number, .color, .boolean, .token, .link:
                 return self
             }
         }

@@ -896,7 +896,6 @@ struct WebCanvasView: NSViewRepresentable {
             installComponentDragHandlers();
             hoveredComponent = null;
             hoveredPrimitive = null;
-            dismissGlobalMenu();
             window.foundrySetEditorOptions(editorOptions);
             window.foundrySetSelection(selectedComponentIDs, selectedPrimitiveSelection, false);
             scheduleChromeTitleUpdate();

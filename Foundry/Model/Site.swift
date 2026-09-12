@@ -35,7 +35,6 @@ nonisolated struct ProjectThemeValues: Codable, Equatable, Sendable {
         Self.mergeKeepingExisting(theme.typography.customFonts, into: &fonts, id: \.id)
         Self.mergeKeepingExisting(theme.typography.customFontSizes, into: &fontSizes, id: \.id)
         Self.mergeKeepingExisting(theme.shadows.custom, into: &shadows, id: \.id)
-        Self.mergeKeepingExisting(theme.colourPalettes.filter { $0.origin == .custom }, into: &colours, id: \.id)
     }
 
     func applied(to theme: Theme) -> Theme {

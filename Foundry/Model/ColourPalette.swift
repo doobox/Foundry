@@ -55,7 +55,7 @@ nonisolated struct ColourPalette: Codable, Equatable, Identifiable, Sendable {
 
     func duplicated() throws -> Self {
         // Preserve resolved shades and settings exactly, but create a new identity.
-        var copy = try Self(id: "custom.\(UUID().uuidString.lowercased())", name: name + " Copy",
+        var copy = try Self(id: "custom.\(UUID().uuidString.lowercased())", name: origin == .custom ? name + " Copy" : name,
                          origin: .custom, shades: shades, defaultShade: defaultShade, generation: generation)
         copy.single = single
         return copy
@@ -101,7 +101,17 @@ nonisolated enum PaletteColourValue: Codable, Equatable, Sendable {
         switch self {
         case .custom(let hex): return hex
         case .palette(let id, let selection):
-            return palettes.first { $0.id == id }?.colour(at: selection)
+            return palettes.resolvedPalette(id: id)?.colour(at: selection)
         }
+    }
+}
+
+nonisolated extension Array where Element == ColourPalette {
+    /// Exact-name custom overrides leave the original palette and its stable ID intact.
+    /// Custom palettes are newest-first, so the first matching override takes priority.
+    func resolvedPalette(id: String) -> ColourPalette? {
+        guard let original = first(where: { $0.id == id }) else { return nil }
+        guard original.origin != .custom else { return original }
+        return first { $0.origin == .custom && $0.name == original.name } ?? original
     }
 }

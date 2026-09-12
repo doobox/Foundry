@@ -99,7 +99,8 @@ nonisolated enum ThemeBundleStore {
         let previewURL = bundleURL.appending(path: "Contents/Resources/\(metadata.previewFilename)")
         guard FileManager.default.fileExists(atPath: previewURL.path) else { throw ThemeBundleError.missingPreview }
         _ = try preview(from: previewURL)
-        let theme = try JSONDecoder().decode(Theme.self, from: Data(contentsOf: themeURL))
+        var theme = try JSONDecoder().decode(Theme.self, from: Data(contentsOf: themeURL))
+        theme.colourPalettes = theme.fixedThemeColourPalettes + ColourPaletteDefaults.standard
         let resourcesURL = bundleURL.appending(path: "Contents/Resources/Assets", directoryHint: .isDirectory)
         let resources = metadata.resources.compactMap { resource -> ProjectAssetContent? in
             guard let data = try? Data(contentsOf: resourcesURL.appending(path: resource.storageFilename)) else {
@@ -128,6 +129,8 @@ nonisolated enum ThemeBundleStore {
     ) throws -> SavedTheme {
         let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedName.isEmpty else { throw ThemeBundleError.invalidName }
+        var bundleTheme = theme
+        bundleTheme.colourPalettes = theme.fixedThemeColourPalettes
         let contentsURL = bundleURL.appending(path: "Contents", directoryHint: .isDirectory)
         let resourcesURL = contentsURL.appending(path: "Resources", directoryHint: .isDirectory)
         let assetsURL = resourcesURL.appending(path: "Assets", directoryHint: .isDirectory)
@@ -157,14 +160,16 @@ nonisolated enum ThemeBundleStore {
         try plistEncoder.encode(metadata).write(to: contentsURL.appending(path: "Info.plist"), options: .atomic)
         let themeEncoder = JSONEncoder()
         themeEncoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
-        try themeEncoder.encode(theme).write(to: resourcesURL.appending(path: "theme.json"), options: .atomic)
+        try themeEncoder.encode(bundleTheme).write(to: resourcesURL.appending(path: "theme.json"), options: .atomic)
         try preview.data.write(to: resourcesURL.appending(path: preview.filename), options: .atomic)
         for content in bundledResources {
             try content.data.write(to: assetsURL.appending(path: content.asset.storageFilename), options: .atomic)
         }
+        // Standard palettes are supplied by Foundry, never by the theme bundle.
+        bundleTheme.colourPalettes += ColourPaletteDefaults.standard
         return SavedTheme(
             metadata: metadata,
-            theme: theme,
+            theme: bundleTheme,
             bundleURL: bundleURL,
             resources: bundledResources,
             isBuiltIn: false

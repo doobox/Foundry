@@ -112,8 +112,6 @@
 			<string>Colour</string>
 			<key>responsive</key>
 			<true/>
-			<key>colorMath</key>
-			<true/>
 			<key>customColor</key>
 			<string>#000000</string>
 			<key>opacity</key>

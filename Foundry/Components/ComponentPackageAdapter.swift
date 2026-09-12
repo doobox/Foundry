@@ -211,16 +211,16 @@ nonisolated enum ComponentPackageAdapter {
                 key: key, label: property.label, section: section,
                 control: .packageColor(
                     themeValues: true,
-                    colorMath: property.control.colorMath ?? false,
-                    opacity: property.control.opacity ?? false
+                    opacity: property.control.opacity ?? false,
+                    initialShade: property.control.shade.flatMap(ColourShade.init(rawValue:))
                 ),
                 defaultValue: .packageColor(.init(
                     source: ComponentThemeValueSelection.storedSource(
                         forManifestValue: property.defaultValue.stringValue
                     ),
                     customColor: property.control.customColor ?? "#000000",
-                    adjustment: 0,
-                    opacity: 1
+                    opacity: 1,
+                    shade: property.control.shade.flatMap(ColourShade.init(rawValue:))
                 )),
                 isResponsive: property.responsive,
                 visibleWhen: property.visibleWhen,

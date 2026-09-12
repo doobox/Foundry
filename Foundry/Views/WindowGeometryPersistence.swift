@@ -37,7 +37,12 @@ struct WindowGeometryPersistence: NSViewRepresentable {
             self.window = window
             guard let window else { return }
 
-            restoreFrame(of: window)
+            // Attaching the hosting view can happen during AppKit layout.
+            // Restore on the next main-queue turn to avoid re-entering layout.
+            DispatchQueue.main.async { [weak self, weak window] in
+                guard let self, let window, self.window === window else { return }
+                self.restoreFrame(of: window)
+            }
 
             let center = NotificationCenter.default
             observers = [NSWindow.didMoveNotification, NSWindow.didEndLiveResizeNotification].map { name in

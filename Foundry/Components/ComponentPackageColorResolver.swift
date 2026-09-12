@@ -4,7 +4,6 @@ nonisolated enum ComponentPackageColorResolver {
     static func resolve(
         _ value: ComponentPackageColorValue,
         theme: Theme,
-        colorMath: Bool,
         opacity: Bool
     ) -> String {
         let baseColor: String
@@ -15,20 +14,9 @@ nonisolated enum ComponentPackageColorResolver {
         } else {
             baseColor = value.customColor
         }
-        let adjustedColor: String
-        if colorMath {
-            let adjustment = min(max(value.adjustment, -100), 100)
-            adjustedColor = ComponentTemplateRenderer.transformColor(
-                baseColor,
-                target: adjustment < 0 ? 0 : 255,
-                amount: abs(adjustment) / 100
-            )
-        } else {
-            adjustedColor = baseColor
-        }
-        guard opacity, ComponentThemeValueSelection.isManualCustom(value.source) else { return adjustedColor }
+        guard opacity, ComponentThemeValueSelection.isManualCustom(value.source) else { return baseColor }
         return ComponentTemplateRenderer.colorWithAlpha(
-            adjustedColor,
+            baseColor,
             alpha: min(max(value.opacity, 0), 1)
         )
     }

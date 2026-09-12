@@ -3,6 +3,33 @@ import Testing
 @testable import Foundry
 
 struct ColourPaletteTests {
+    @Test func exactNameOverridesPreserveOriginalReferencesAndRestoreOnRemoval() throws {
+        for original in [Theme.standard.colourPalettes[0], ColourPaletteDefaults.standard[2]] {
+            var custom = try original.duplicated()
+            #expect(custom.name == original.name)
+            try custom.replaceShades((1...11).map { String(format: "#1234%02X", $0) })
+            custom.setDefault(.four)
+            let following = PaletteColourValue.palette(id: original.id, selection: .default)
+            let fixed = PaletteColourValue.palette(id: original.id, selection: .shade(.eight))
+            #expect(following.resolve(in: [custom, original]) == "#123404")
+            #expect(fixed.resolve(in: [custom, original]) == "#123408")
+            #expect(following.resolve(in: [original]) == original.colour(at: .default))
+            custom.name += " Different"
+            #expect(following.resolve(in: [custom, original]) == original.colour(at: .default))
+        }
+    }
+
+    @Test func pageIsTheFirstFixedRoleAndCustomOverridesStayOutOfSavedThemeColours() throws {
+        var theme = Theme.standard
+        #expect(ThemeColorRole.allCases.first == .page)
+        #expect(theme.colourPalettes.first?.id == "theme.page")
+        let original = try #require(theme.colourPalettes.first)
+        var custom = try original.duplicated()
+        try custom.replaceShades(Array(repeating: "#ABCDEF", count: 11))
+        theme.colourPalettes.insert(custom, at: 0)
+        #expect(theme.color(for: .page) == "#ABCDEF")
+        #expect(theme.fixedThemeColourPalettes.first == original)
+    }
     @Test func defaultReferencesFollowButExplicitShadesDoNot() throws {
         var palette = try ColourPalette(id: "theme.accent", name: "Accent", origin: .theme,
             shades: (1...11).map { String(format: "#%06X", $0) }, defaultShade: .six)

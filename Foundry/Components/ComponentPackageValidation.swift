@@ -311,7 +311,7 @@ nonisolated enum ComponentPackageValidator {
             ))
         }
         for property in manifest.properties
-            where property.control.type != .color && property.control.colorMath != true {
+            where property.control.type != .color && property.control.type != .themeColor {
             let escapedID = NSRegularExpression.escapedPattern(for: property.id)
             if template.matches(#"\{\{\s*control\."# + escapedID + #"\s*\|\s*(?:lighten|darken|withAlpha|mix)\s*\("#) {
                 diagnostics.append(.init(
@@ -745,6 +745,15 @@ nonisolated enum ComponentPackageValidator {
         let supportsCustomThemeValue = property.control.type == .shadow
             || property.control.type == .themeColor
             || (property.control.type == .select && property.control.themeValueSource != nil)
+        if let shade = property.control.shade {
+            if property.control.type != .themeColor {
+                diagnostics.append(.init(severity: .error, location: "\(location).shade", message: "shade is only available on a themeColor control."))
+            } else if !(1...11).contains(shade) {
+                diagnostics.append(.init(severity: .error, location: "\(location).shade", message: "shade must be an integer from 1 to 11."))
+            } else if property.defaultValue.stringValue == ComponentThemeValueSelection.manifestCustom {
+                diagnostics.append(.init(severity: .error, location: "\(location).shade", message: "shade requires a theme-role default, not custom."))
+            }
+        }
         if property.control.allowsCustom.orFalse, !supportsCustomThemeValue {
             diagnostics.append(.init(
                 severity: .error,
@@ -780,13 +789,6 @@ nonisolated enum ComponentPackageValidator {
                     severity: .error,
                     location: "\(location).customColor",
                     message: "A color control declares its initial colour in default; remove customColor."
-                ))
-            }
-            if property.control.colorMath != nil {
-                diagnostics.append(.init(
-                    severity: .error,
-                    location: "\(location).colorMath",
-                    message: "colorMath is only available on a themeColor control."
                 ))
             }
             return
@@ -978,7 +980,7 @@ nonisolated enum ComponentPackageValidator {
             let isThemeRole = ThemeColorRole(rawValue: value) != nil
             let isCustom = value == ComponentThemeValueSelection.manifestCustom && property.control.allowsCustom.orFalse
             if !isThemeRole && !isCustom {
-                diagnostics.append(.init(severity: .error, location: location, message: "A themeColor default must be background, surface, text, accent, links, or custom when allowsCustom is true."))
+                diagnostics.append(.init(severity: .error, location: location, message: "A themeColor default must be page, background, surface, text, muted-text, accent, links, or custom when allowsCustom is true."))
             }
             if value == ComponentThemeValueSelection.manifestCustom && property.control.customColor == nil {
                 diagnostics.append(.init(severity: .error, location: location, message: "customColor is required when a themeColor default is custom."))

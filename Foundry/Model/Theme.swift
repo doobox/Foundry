@@ -2,10 +2,17 @@ import Foundation
 
 nonisolated struct Theme: Codable, Equatable, Sendable {
     var colourPalettes: [ColourPalette]
+
+    /// The shared colour roles that a reusable theme owns. Project custom colours
+    /// and Foundry's standard library are not part of a saved theme.
+    var fixedThemeColourPalettes: [ColourPalette] {
+        let ids = Set(ThemeColorRole.allCases.map { "theme." + $0.rawValue })
+        return colourPalettes.filter { $0.origin == .theme && ids.contains($0.id) }
+    }
     var colors: ColorTokens {
         get {
             func value(_ id: String) -> String {
-                colourPalettes.first { $0.id == "theme." + id }?.colour(at: .default) ?? "#000000"
+                colourPalettes.resolvedPalette(id: "theme." + id)?.colour(at: .default) ?? "#000000"
             }
             return .init(background: value("background"), surface: value("surface"), text: value("text"),
                          accent: value("accent"), links: value("links"))
@@ -287,6 +294,7 @@ nonisolated struct ColorTokens: Codable, Equatable, Sendable {
 }
 
 nonisolated enum ThemeColorRole: String, Codable, CaseIterable, Identifiable, Sendable {
+    case page
     case background
     case surface
     case text
@@ -711,10 +719,11 @@ nonisolated extension Theme {
 
     func color(for role: ThemeColorRole) -> String {
         switch role {
+        case .page: colourPalettes.resolvedPalette(id: "theme.page")?.colour(at: .default) ?? "#000000"
         case .background: colors.background
         case .surface: colors.surface
         case .text: colors.text
-        case .mutedText: colourPalettes.first { $0.id == "theme.muted-text" }?.colour(at: .default) ?? colors.text
+        case .mutedText: colourPalettes.resolvedPalette(id: "theme.muted-text")?.colour(at: .default) ?? colors.text
         case .accent: colors.accent
         case .links: colors.links
         }

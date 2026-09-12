@@ -85,7 +85,7 @@ final class ThemeColourPreviewModel {
             copy.generated = false
         }
         copy.id = "custom.\(UUID().uuidString.lowercased())"
-        copy.name += " Copy"
+        if palette.group == .custom { copy.name += " Copy" }
         copy.group = .custom
         storedPalettes.insert(copy.storedValue, at: 0)
     }
@@ -199,7 +199,8 @@ struct PreviewColourPalette: Identifiable, Equatable {
     }
 
     static var samples: [Self] {
-        [Self(name: "Background", hex: "#F8FAFC", group: .theme, anchor: 0, defaultShade: 0),
+        [Self(name: "Page", hex: "#F8FAFC", group: .theme, anchor: 0, defaultShade: 0),
+         Self(name: "Background", hex: "#F8FAFC", group: .theme, anchor: 0, defaultShade: 0),
          Self(name: "Surface", hex: "#FFFFFF", group: .theme, anchor: 0, defaultShade: 0),
          Self(name: "Text", hex: "#1E293B", group: .theme, anchor: 9, defaultShade: 9),
          Self(name: "Muted Text", hex: "#64748B", group: .theme),
@@ -244,7 +245,9 @@ struct PreviewColourPalette: Identifiable, Equatable {
 
 struct ThemeColoursPreview: View {
     @Bindable var model: ThemeColourPreviewModel
+    var requestDelete: ((PreviewColourPalette) -> Void)? = nil
     @Environment(\.undoManager) private var undoManager
+    @State private var scrollPosition = ScrollPosition(edge: .top)
 
     var body: some View {
         ScrollView {
@@ -254,8 +257,14 @@ struct ThemeColoursPreview: View {
                         ForEach(model.palettes.filter { $0.group == group }) { palette in
                                 PreviewColourRibbon(palette: model.binding(for: palette),
                                     update: { value, session in model.update(value, session: session, undoManager: undoManager) },
-                                    duplicate: { model.duplicate(palette) },
-                                    delete: { model.delete(id: palette.id) })
+                                    duplicate: {
+                                        model.duplicate(palette)
+                                        withAnimation { scrollPosition.scrollTo(edge: .top) }
+                                    },
+                                    delete: {
+                                        if let requestDelete { requestDelete(palette) }
+                                        else { model.delete(id: palette.id) }
+                                    })
                         }
                         if group == .custom && !model.palettes.contains(where: { $0.group == .custom }) {
                             Text("Add a named colour to try your own palette.").foregroundStyle(.secondary)
@@ -277,6 +286,7 @@ struct ThemeColoursPreview: View {
             .padding(28)
         }
         .controlSize(.small)
+        .scrollPosition($scrollPosition)
     }
 }
 
@@ -296,7 +306,6 @@ private struct PreviewColourRibbon: View {
     @State private var editingShade: Int?
     @State private var editSession = UUID()
     @State private var confirmGenerated = false
-    @State private var confirmDelete = false
 
     private var isEditable: Bool {
         palette.group == .custom || (palette.group == .theme && editsThemes)
@@ -329,9 +338,6 @@ private struct PreviewColourRibbon: View {
                 palette.generated = true
             }
         } message: { Text("Individual shade edits will be discarded.") }
-        .confirmationDialog("Delete \(palette.name)?", isPresented: $confirmDelete) {
-            Button("Delete Colour", role: .destructive, action: delete)
-        }
         .onChange(of: editsThemes) {
             if !isEditable {
                 closeEditor()
@@ -355,7 +361,7 @@ private struct PreviewColourRibbon: View {
                 .help("Duplicate to Custom Colours")
                 .accessibilityLabel("Duplicate \(palette.name) to Custom Colours")
                 if palette.group == .custom {
-                    Button { confirmDelete = true } label: {
+                    Button(action: delete) {
                         Image(systemName: "trash")
                     }
                     .buttonStyle(.borderless)
@@ -398,50 +404,46 @@ private struct PreviewColourRibbon: View {
         let colour = displayed.colour(at: index)
         let rgb = NSColor(colour).usingColorSpace(.sRGB)
         let light = (rgb.map { 0.2126 * $0.redComponent + 0.7152 * $0.greenComponent + 0.0722 * $0.blueComponent } ?? 0) > 0.57
-        return Button { editSession = UUID(); editingShade = index } label: {
-            VStack(spacing: 4) {
-                VStack(spacing: 0) {
-                    if !palette.single && palette.group != .standard {
-                        if index == displayed.defaultShade {
-                            Image(systemName: "star.fill")
-                                .accessibilityHidden(true)
+        let content = VStack(spacing: 4) {
+            VStack(spacing: 0) {
+                if !palette.single && palette.group != .standard {
+                    if index == displayed.defaultShade {
+                        Image(systemName: "star.fill")
+                            .accessibilityHidden(true)
+                    }
+                }
+            }.font(.system(size: 9, weight: .medium)).frame(height: 12)
+            Text(palette.single ? palette.name : String(PreviewColourPalette.steps[index]))
+                .font(.caption2.monospacedDigit())
+        }
+        .foregroundStyle(light ? Color.black : Color.white)
+        .frame(maxWidth: .infinity).frame(height: 62)
+        .background { Rectangle().fill(colour) }
+        .contentShape(Rectangle())
+        return Group {
+            if isEditable {
+                Button { editSession = UUID(); editingShade = index } label: { content }
+                    .buttonStyle(PreviewSwatchButtonStyle())
+                    .popover(isPresented: Binding(get: { editingShade == index }, set: { if !$0 { closeEditor() } })) {
+                        PreviewShadeEditor(
+                            original: palette,
+                            index: index,
+                            change: {
+                                guard editingShade == index, isEditable else { return }
+                                update($0, editSession)
+                            }
+                        )
+                        .onDisappear {
+                            guard editingShade == index else { return }
+                            closeEditor()
                         }
                     }
-                }.font(.system(size: 9, weight: .medium)).frame(height: 12)
-                Text(palette.single ? palette.name : String(PreviewColourPalette.steps[index]))
-                    .font(.caption2.monospacedDigit())
+            } else {
+                content
             }
-            .foregroundStyle(light ? Color.black : Color.white)
-            .frame(maxWidth: .infinity).frame(height: 62)
-            .background { Rectangle().fill(colour) }
-            .contentShape(Rectangle())
         }
-        .buttonStyle(PreviewSwatchButtonStyle())
         .help("\(palette.name) · \(colour.hexString ?? "")\(index == displayed.defaultShade ? " · Default" : "")")
         .accessibilityLabel("\(palette.name), shade \(PreviewColourPalette.steps[index])\(index == displayed.defaultShade ? ", default" : "")")
-        .popover(isPresented: Binding(get: { editingShade == index }, set: { if !$0 { closeEditor() } })) {
-            if !isEditable {
-                VStack(alignment: .leading, spacing: 14) {
-                    Text(palette.single ? palette.name : "\(palette.name) · \(PreviewColourPalette.steps[index])").font(.headline)
-                    Text(colour.hexString ?? "").monospaced().textSelection(.enabled)
-                    Button("Duplicate to Edit") { closeEditor(); duplicate() }
-                }
-                .padding(16).frame(width: 270).controlSize(.small)
-            } else {
-                PreviewShadeEditor(
-                    original: palette,
-                    index: index,
-                    change: {
-                        guard editingShade == index, isEditable else { return }
-                        update($0, editSession)
-                    }
-                )
-                .onDisappear {
-                    guard editingShade == index else { return }
-                    closeEditor()
-                }
-            }
-        }
     }
 
     private func closeEditor() {
@@ -454,8 +456,6 @@ struct PreviewShadeEdit {
     var palette: PreviewColourPalette
     var index: Int
     var hex: String
-    private var hasChangedColour = false
-    private var defaultWasChosen = false
     private var originalDefault: Int
     var isOriginalDefault: Bool { originalDefault == index }
 
@@ -479,15 +479,10 @@ struct PreviewShadeEdit {
         guard let normalized = Self.normalizedHex(input), let colour = Color(hex: normalized) else { return }
         // Merely entering the existing value must not move the base shade.
         guard normalized != palette.colour(at: index).hexString?.uppercased() else { return }
-        if palette.generated && !hasChangedColour && !defaultWasChosen {
-            palette.defaultShade = index
-        }
-        hasChangedColour = true
         palette.setColour(colour, at: index)
     }
 
     mutating func setUseAsDefault(_ enabled: Bool) {
-        defaultWasChosen = true
         palette.defaultShade = enabled ? index : originalDefault
     }
 
@@ -537,7 +532,18 @@ struct PreviewShadeEditor: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text("\(original.name) · \(PreviewColourPalette.steps[edit.index])").font(.headline)
+            HStack {
+                Text("\(original.name) · \(PreviewColourPalette.steps[edit.index])").font(.headline)
+                Spacer()
+                Button { dismiss() } label: {
+                    Image(systemName: "xmark")
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.borderless)
+                .keyboardShortcut(.cancelAction)
+                .accessibilityLabel("Close")
+                .help("Close the popover. Live changes are kept.")
+            }
             HStack(spacing: 10) {
                 ColorPicker("Colour", selection: Binding(
                     get: { edit.palette.colour(at: edit.index) },
@@ -561,36 +567,38 @@ struct PreviewShadeEditor: View {
                 Text("Enter 3 or 6 hexadecimal digits.").font(.caption).foregroundStyle(.red)
             }
             if !original.single {
-                if original.generated {
-                    VStack(alignment: .leading, spacing: 6) {
-                        HStack {
-                            Text("Soften")
-                            Spacer()
-                            Text(edit.palette.softening, format: .percent.precision(.fractionLength(0)))
-                                .monospacedDigit().foregroundStyle(.secondary)
-                        }
-                        Slider(value: Binding(get: { edit.palette.softening }, set: {
-                            focus = nil; edit.setSoftening($0); change(edit.palette)
-                        }), in: 0...1)
-                        .accessibilityLabel("Soften")
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack {
+                        Text("Soften")
+                        Spacer()
+                        Text(edit.palette.softening, format: .percent.precision(.fractionLength(0)))
+                            .monospacedDigit().foregroundStyle(.secondary)
                     }
+                    Slider(value: Binding(get: { edit.palette.softening }, set: {
+                        focus = nil; edit.setSoftening($0); change(edit.palette)
+                    }), in: 0...1)
+                    .accessibilityLabel("Soften")
                 }
-                Toggle("Reverse shades", isOn: Binding(get: { edit.palette.reversed }, set: {
-                    focus = nil; edit.setReversed($0); change(edit.palette)
-                })).toggleStyle(.checkbox)
+                .disabled(!edit.palette.generated)
+                .help(edit.palette.generated ? "Soften the shade range" : "Soften is available in Generated mode")
             }
             Divider()
             HStack {
+                if !original.single {
+                    Toggle("Reverse", isOn: Binding(get: { edit.palette.reversed }, set: {
+                        focus = nil; edit.setReversed($0); change(edit.palette)
+                    }))
+                    .toggleStyle(.switch)
+                    .accessibilityLabel("Reverse shades")
+                    .fixedSize()
+                }
+                Spacer()
                 Button(edit.isOriginalDefault ? "Default" : (edit.palette.defaultShade == edit.index ? "Undo Default" : "Set Default")) {
                     focus = nil
                     edit.setUseAsDefault(edit.palette.defaultShade != edit.index)
                     change(edit.palette)
                 }
                 .disabled(edit.isOriginalDefault)
-                Spacer()
-                Button("Cancel") { dismiss() }
-                    .keyboardShortcut(.cancelAction)
-                    .help("Close the popover. Live changes are kept.")
             }
         }
         .padding(16)

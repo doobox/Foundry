@@ -156,8 +156,8 @@ nonisolated enum ComponentPropertyControl: Sendable {
     case icon
     case packageColor(
         themeValues: Bool,
-        colorMath: Bool,
-        opacity: Bool
+        opacity: Bool,
+        initialShade: ColourShade? = nil
     )
     case choice([ComponentPropertyChoice])
     case themeFontSize

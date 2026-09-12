@@ -9,6 +9,28 @@ final class ThemeEditorSession {
     private var colourEditSession: UUID?
     private var colourEditRevision: UInt64?
 
+    func colourIsInUse(_ id: String) -> Bool {
+        var probe = document.site
+        probe.replaceComponentThemeReference(id, with: "foundry:usage-check")
+        return probe != document.site
+    }
+
+    func deleteColour(_ id: String, replacement: String?) {
+        guard document.site.theme.colourPalettes.contains(where: { $0.id == id && $0.origin == .custom }) else { return }
+        if let replacement {
+            guard replacement != id,
+                  document.site.theme.colourPalettes.contains(where: { $0.id == replacement }) else { return }
+        } else if colourIsInUse(id) { return }
+        editor.mutate(actionName: "Delete Colour", impact: .theme) { site in
+            if let replacement { site.replaceComponentThemeReference(id, with: replacement) }
+            site.theme.colourPalettes.removeAll { $0.id == id }
+            site.projectThemeValues.colours.removeAll { $0.id == id }
+            for index in site.themeStates.indices {
+                site.themeStates[index].theme.colourPalettes.removeAll { $0.id == id }
+            }
+        }
+    }
+
     func setColourPalettes(_ palettes: [ColourPalette], session: UUID?) {
         guard document.site.theme.colourPalettes != palettes else { return }
         let coalescing = session != nil && session == colourEditSession

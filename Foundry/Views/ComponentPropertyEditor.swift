@@ -207,7 +207,7 @@ struct ComponentPropertyEditor: View {
             )
         case .icon:
             IconComponentControl(label: definition.label, indicator: responsiveIndicator, selection: stringBinding(as: .choice))
-        case .packageColor(let themeValues, let colorMath, let opacity):
+        case .packageColor(let themeValues, let opacity, _):
             ThemeColorComponentControl(
                 label: definition.label,
                 choices: themeValues ? theme.colorChoices : [],
@@ -216,7 +216,6 @@ struct ComponentPropertyEditor: View {
                 source: packageColorSourceBinding,
                 shade: packageColorShadeBinding,
                 customColor: packageCustomColorBinding,
-                adjustment: colorMath ? packageColorAdjustmentBinding : nil,
                 allowsOpacity: opacity,
                 indicator: responsiveIndicator
             )
@@ -471,7 +470,7 @@ struct ComponentPropertyEditor: View {
     private var packageColorValue: ComponentPackageColorValue {
         if case .packageColor(let value) = displayComponent.propertyValue(definition.key) { return value }
         if case .packageColor(let value) = definition.defaultValue { return value }
-        return .init(source: ComponentThemeValueSelection.manualCustom, customColor: "#000000", adjustment: 0, opacity: 1)
+        return .init(source: ComponentThemeValueSelection.manualCustom, customColor: "#000000", opacity: 1)
     }
 
     private var packageColorSourceBinding: Binding<String> {
@@ -480,13 +479,15 @@ struct ComponentPropertyEditor: View {
             set: { source in
                 var value = packageColorValue
                 value.source = source
-                value.shade = .default
+                if let palette = theme.colourPalettes.resolvedPalette(id: value.paletteID) {
+                    value.shade = palette.defaultShade
+                }
                 setProperty(.packageColor(value))
             }
         )
     }
 
-    private var packageColorShadeBinding: Binding<ColourShadeSelection> {
+    private var packageColorShadeBinding: Binding<ColourShade> {
         Binding(get: { packageColorValue.shade }, set: { shade in
             var value = packageColorValue
             value.shade = shade
@@ -504,17 +505,6 @@ struct ComponentPropertyEditor: View {
                 var value = packageColorValue
                 value.customColor = color.hexString ?? "#000000"
                 value.opacity = Double(NSColor(color).usingColorSpace(.sRGB)?.alphaComponent ?? 1)
-                setProperty(.packageColor(value))
-            }
-        )
-    }
-
-    private var packageColorAdjustmentBinding: Binding<Double> {
-        Binding(
-            get: { packageColorValue.adjustment },
-            set: { adjustment in
-                var value = packageColorValue
-                value.adjustment = adjustment
                 setProperty(.packageColor(value))
             }
         )

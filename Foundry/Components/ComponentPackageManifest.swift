@@ -493,10 +493,10 @@ nonisolated struct ComponentPackageControl: Codable, Equatable, Sendable {
     let options: [ComponentPackageOption]?
     let themeValues: ComponentPackageThemeValues?
     let allowsCustom: Bool?
-    let colorMath: Bool?
     let opacity: Bool?
     let outputFormat: ColorOutputFormat?
     let customColor: String?
+    let shade: Int?
     let count: Int?
     let ticks: Int?
     let showsValueField: Bool?
@@ -510,8 +510,8 @@ nonisolated struct ComponentPackageControl: Codable, Equatable, Sendable {
     let absoluteURL: Bool?
 
     enum CodingKeys: String, CodingKey {
-        case type, minimum, maximum, step, options, themeValues, allowsCustom, colorMath
-        case opacity, outputFormat, customColor, count, ticks, showsValueField
+        case type, minimum, maximum, step, options, themeValues, allowsCustom
+        case opacity, outputFormat, customColor, shade, count, ticks, showsValueField
         case trueValue, falseValue, selectionMode, argument1, argument2, operation, round, absoluteURL
     }
 
@@ -533,10 +533,10 @@ nonisolated struct ComponentPackageControl: Codable, Equatable, Sendable {
         options = try container.decodeIfPresent([ComponentPackageOption].self, forKey: .options)
         themeValues = try container.decodeIfPresent(ComponentPackageThemeValues.self, forKey: .themeValues)
         allowsCustom = try container.decodeIfPresent(Bool.self, forKey: .allowsCustom)
-        colorMath = try container.decodeIfPresent(Bool.self, forKey: .colorMath)
         opacity = try container.decodeIfPresent(Bool.self, forKey: .opacity)
         outputFormat = try container.decodeIfPresent(ColorOutputFormat.self, forKey: .outputFormat)
         customColor = try container.decodeIfPresent(String.self, forKey: .customColor)
+        shade = try container.decodeIfPresent(Int.self, forKey: .shade)
         count = try container.decodeIfPresent(Int.self, forKey: .count)
         ticks = try container.decodeIfPresent(Int.self, forKey: .ticks)
         showsValueField = try container.decodeIfPresent(Bool.self, forKey: .showsValueField)
@@ -564,10 +564,10 @@ nonisolated struct ComponentPackageControl: Codable, Equatable, Sendable {
         try container.encodeIfPresent(options, forKey: .options)
         try container.encodeIfPresent(themeValues, forKey: .themeValues)
         try container.encodeIfPresent(allowsCustom, forKey: .allowsCustom)
-        try container.encodeIfPresent(colorMath, forKey: .colorMath)
         try container.encodeIfPresent(opacity, forKey: .opacity)
         try container.encodeIfPresent(outputFormat, forKey: .outputFormat)
         try container.encodeIfPresent(customColor, forKey: .customColor)
+        try container.encodeIfPresent(shade, forKey: .shade)
         try container.encodeIfPresent(count, forKey: .count)
         try container.encodeIfPresent(ticks, forKey: .ticks)
         try container.encodeIfPresent(showsValueField, forKey: .showsValueField)

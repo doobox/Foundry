@@ -6,9 +6,8 @@ struct ThemeColorComponentControl: View {
     let allowsCustom: Bool
     let theme: Theme
     @Binding var source: String
-    @Binding var shade: ColourShadeSelection
+    @Binding var shade: ColourShade
     @Binding var customColor: Color
-    let adjustment: Binding<Double>?
     let allowsOpacity: Bool
     let indicator: InspectorRowIndicator
     @State private var showsPalettes = false
@@ -17,13 +16,10 @@ struct ThemeColorComponentControl: View {
         ThemeColorRole(rawValue: source) != nil ? "theme." + source : source
     }
     private var palette: ColourPalette? {
-        theme.colourPalettes.first { $0.id == paletteID }
+        theme.colourPalettes.resolvedPalette(id: paletteID)
     }
     private var selectedShade: ColourShade? {
-        switch shade {
-        case .default: palette?.defaultShade
-        case .shade(let value): value
-        }
+        shade
     }
 
     var body: some View {
@@ -33,12 +29,15 @@ struct ThemeColorComponentControl: View {
                     if let palette {
                         HStack(spacing: 0) {
                             ForEach(palette.single ? [palette.defaultShade] : ColourShade.allCases, id: \.self) { step in
-                                Button { shade = .shade(step) } label: {
+                                Button {
+                                    guard !palette.single else { return }
+                                    shade = step
+                                } label: {
                                     Rectangle()
                                         .fill(Color(hex: palette.colour(at: .shade(step))) ?? .clear)
                                         .frame(maxWidth: .infinity, minHeight: 24, maxHeight: 24)
                                         .overlay {
-                                            if selectedShade == step {
+                                            if !palette.single && selectedShade == step {
                                                 Rectangle().strokeBorder(.white, lineWidth: 2)
                                                     .padding(1)
                                                     .overlay { Rectangle().strokeBorder(.black.opacity(0.7), lineWidth: 1) }
@@ -52,14 +51,19 @@ struct ThemeColorComponentControl: View {
                             }
                         }
                         .clipShape(RoundedRectangle(cornerRadius: 4))
+                        .overlay {
+                            RoundedRectangle(cornerRadius: 4)
+                                .strokeBorder(.secondary.opacity(0.25), lineWidth: 1)
+                                .allowsHitTesting(false)
+                        }
                         .accessibilityLabel("\(label) shades")
-                        Button { shade = .default } label: {
-                            Image(systemName: shade == .default ? "star.fill" : "star")
+                        Button { shade = palette.defaultShade } label: {
+                            Image(systemName: palette.single || shade == palette.defaultShade ? "star.fill" : "star")
                         }
                         .buttonStyle(.borderless)
-                        .help("Follow \(palette.name)’s default shade")
-                        .accessibilityLabel("Follow default shade")
-                        .accessibilityValue(shade == .default ? "On" : "Off")
+                        .help("Select \(palette.name)’s current default shade")
+                        .accessibilityLabel("Select default shade")
+                        .accessibilityValue(palette.single || shade == palette.defaultShade ? "Selected" : "Not selected")
                     } else {
                         Button(ComponentThemeValueSelection.isManualCustom(source) ? "Custom Colour" : "Missing Colour") {
                             showsPalettes = true
@@ -88,22 +92,6 @@ struct ThemeColorComponentControl: View {
             if allowsCustom && ComponentThemeValueSelection.isManualCustom(source) {
                 InspectorRow(title: "", alignment: .center) {
                     InspectorColorWell(color: $customColor, supportsAlpha: allowsOpacity)
-                }
-            }
-            if let adjustment {
-                InspectorRow(title: "Lighter or darker", alignment: .center) {
-                    HStack {
-                        InspectorSlider(
-                            value: adjustment,
-                            range: -100...100,
-                            step: 1,
-                            accessibilityLabel: "Lighter or darker",
-                            help: "Adjust the selected colour"
-                        )
-                        Text(adjustment.wrappedValue.formatted() + "%")
-                            .monospacedDigit()
-                            .frame(minWidth: 42, alignment: .trailing)
-                    }
                 }
             }
         }
@@ -144,7 +132,7 @@ private struct InspectorPaletteMenu: View {
                                 Button { select(palette.id) } label: {
                                     HStack(spacing: 8) {
                                         RoundedRectangle(cornerRadius: 4)
-                                            .fill(Color(hex: palette.colour(at: .default)) ?? .clear)
+                                            .fill(Color(hex: (palettes.resolvedPalette(id: palette.id) ?? palette).colour(at: .default)) ?? .clear)
                                             .overlay { RoundedRectangle(cornerRadius: 4).strokeBorder(.secondary.opacity(0.3)) }
                                             .frame(width: 20, height: 20)
                                         Text(palette.name).lineLimit(1)
@@ -180,8 +168,7 @@ private struct InspectorPaletteMenu: View {
 #Preview("Theme colour") {
     @Previewable @State var source = ThemeColorRole.accent.rawValue
     @Previewable @State var color = Color.blue.opacity(0.75)
-    @Previewable @State var adjustment = 0.0
-    @Previewable @State var shade = ColourShadeSelection.default
+    @Previewable @State var shade = ColourShade.six
 
     ComponentControlPreview {
         ThemeColorComponentControl(
@@ -192,7 +179,6 @@ private struct InspectorPaletteMenu: View {
             source: $source,
             shade: $shade,
             customColor: $color,
-            adjustment: $adjustment,
             allowsOpacity: true,
             indicator: .preview
         )

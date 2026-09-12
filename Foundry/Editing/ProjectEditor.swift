@@ -742,8 +742,10 @@ struct ProjectEditor {
 
     func commitTheme(_ theme: Theme, sourceID: UUID) {
         mutate(actionName: "Update Theme Defaults", impact: .theme) { site in
+            let projectColours = site.theme.colourPalettes.filter { $0.origin == .custom }
             site.themeStates.removeAll { $0.sourceID == sourceID }
             site.projectThemeValues.absorb(theme)
+            site.projectThemeValues.colours = projectColours
             site.theme = site.projectThemeValues.applied(to: theme)
             site.themeSourceID = sourceID
         }
@@ -755,7 +757,7 @@ struct ProjectEditor {
         to pageID: UUID,
         parentID: UUID?
     ) -> UUID {
-        let node = ComponentNode.make(type)
+        let node = ComponentNode.make(type, theme: document.site.theme)
         let page = document.site.pages.first(where: { $0.id == pageID })
         let sharedInsertion = page.map {
             document.site.sharedGlobalInsertion(on: $0, at: parentID.map(ComponentPlacement.inside) ?? .end)

@@ -133,11 +133,16 @@ struct ThemeEditorPresentationTests {
     }
 
     @Test
-    func generatedDraftSuggestsDefaultButRespectsOptOut() {
+    func colourEditsKeepDefaultUntilExplicitlyChanged() {
         let palette = PreviewColourPalette(name: "Test", hex: "#6366F1", group: .custom)
         var edit = PreviewShadeEdit(palette: palette, index: 4)
         #expect(edit.palette.defaultShade == 5)
         edit.setHex("#250C42")
+        #expect(edit.palette.defaultShade == 5)
+        #expect(edit.palette.anchor == 4)
+        edit.setUseAsDefault(true)
+        #expect(edit.palette.defaultShade == 4)
+        edit.setColour(Color(hex: "#450C42")!)
         #expect(edit.palette.defaultShade == 4)
         edit.setUseAsDefault(false)
         edit.setHex("#350C42")

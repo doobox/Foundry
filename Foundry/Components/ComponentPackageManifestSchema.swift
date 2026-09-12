@@ -52,8 +52,8 @@ nonisolated enum ComponentPackageManifestSchema {
     private static let updateKeys: Set<String> = ["appcastURL", "publicKey"]
     private static let propertyKeys: Set<String> = [
         "id", "label", "title", "body", "systemImage", "group", "default", "responsive", "subtitle", "buttonText", "units", "tooltip",
-        "type", "minimum", "maximum", "step", "options", "themeValues", "allowsCustom", "colorMath", "opacity", "outputFormat",
-        "customColor", "count", "ticks", "showsValueField", "trueValue", "falseValue",
+        "type", "minimum", "maximum", "step", "options", "themeValues", "allowsCustom", "opacity", "outputFormat",
+        "customColor", "shade", "count", "ticks", "showsValueField", "trueValue", "falseValue",
         "buttonIcon", "activeButtonText", "activeButtonIcon", "selectionMode", "fontSize", "argument1", "argument2", "operation", "round", "absoluteURL", "visibleWhen", "alt", "focalPoint", "renditions", "accepts", "pickerItems", "initial", "containment"
     ]
     private static let visibleWhenKeys: Set<String> = ["id", "operation", "value"]
@@ -535,10 +535,10 @@ nonisolated enum ComponentPackageManifestSchema {
             for key in ["minimum", "maximum"] { optionalNumber(key, in: property, location: location, into: &diagnostics) }
         }
         optionalNumber("step", in: property, location: location, into: &diagnostics)
-        for key in ["allowsCustom", "colorMath", "opacity", "showsValueField", "round", "absoluteURL"] {
+        for key in ["allowsCustom", "opacity", "showsValueField", "round", "absoluteURL"] {
             optionalBoolean(key, in: property, location: location, into: &diagnostics)
         }
-        for key in ["ticks"] { optionalInteger(key, in: property, location: location, into: &diagnostics) }
+        for key in ["ticks", "shade"] { optionalInteger(key, in: property, location: location, into: &diagnostics) }
         for key in ["customColor", "operation"] { optionalString(key, in: property, location: location, into: &diagnostics) }
         optionalEnumString("selectionMode", values: ["multiple", "single"], in: property, location: location, into: &diagnostics)
         optionalEnumString(

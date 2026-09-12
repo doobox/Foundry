@@ -39,6 +39,7 @@ nonisolated struct HTMLPageRenderer: PageRendering {
             \(theme.fontSourceCSS(assets: assets, destination: .canvas))
             :root {
               font-size: 16px;
+              --foundry-color-page: \(theme.color(for: .page));
               --foundry-color-background: \(theme.colors.background);
               --foundry-color-surface: \(theme.colors.surface);
               --foundry-color-text: \(theme.colors.text);
@@ -117,7 +118,7 @@ nonisolated struct HTMLPageRenderer: PageRendering {
             [data-foundry-global].foundry-editing { outline-color: var(--foundry-editor-chrome) !important; }
             html, body { min-height: 100%; }
             body {
-              margin: 0; background: var(--foundry-color-background);
+              margin: 0; background: var(--foundry-color-page);
               color: var(--foundry-color-text); font-family: var(--foundry-font-body);
               font-size: var(--foundry-font-size-base); line-height: var(--foundry-font-size-base-line-height);
               display: flex; flex-direction: column; align-items: stretch;
@@ -578,13 +579,13 @@ nonisolated struct HTMLPageRenderer: PageRendering {
             if case .color = definition.control {
                 return (definition.key.rawValue, .string(node.colorProperty(definition.key, theme: theme)))
             }
-            if case .packageColor(_, let colorMath, let opacity) = definition.control,
+            if case .packageColor(_, let opacity, _) = definition.control,
                case .packageColor(let colorValue) = value {
                 return (
                     definition.key.rawValue,
                     .string(ComponentPackageColorResolver.resolve(
                         colorValue, theme: theme,
-                        colorMath: colorMath, opacity: opacity
+                        opacity: opacity
                     ))
                 )
             }

@@ -54,6 +54,93 @@ struct ThemeEditingTests {
     }
 
     @Test
+    func deletingUsedColourReplacesAllReferencesAndUndoesAtomically() throws {
+        let document = FoundryDocument()
+        let undo = UndoManager()
+        undo.groupsByEvent = false
+        let session = ThemeEditorSession(document: document, undoManager: undo)
+        let original = try #require(document.site.theme.colourPalettes.first)
+        let custom = try original.duplicated()
+        document.site.theme.colourPalettes.insert(custom, at: 0)
+        let value = ComponentPackageColorValue(source: custom.id, customColor: "#000000",
+                                              opacity: 1, shade: .eight)
+        var child = ComponentNode.make(.container)
+        child.setProperty(.backgroundColor, value: .packageColor(value))
+        var following = value
+        following.shade = .one
+        child.setResponsiveProperty(.backgroundColor, value: .packageColor(following), at: .medium)
+        var parent = ComponentNode.make(.container)
+        parent.children = [child]
+        document.site.pages[0].components = [parent]
+        document.site.reusableComponents = [.init(name: "Reusable", root: child)]
+        document.site.globalComponents = [.init(name: "Global", root: child)]
+        let before = document.site
+        #expect(session.colourIsInUse(custom.id))
+        session.deleteColour(custom.id, replacement: nil)
+        #expect(document.site == before)
+        undo.beginUndoGrouping()
+        session.deleteColour(custom.id, replacement: original.id)
+        undo.endUndoGrouping()
+        #expect(!session.colourIsInUse(custom.id))
+        #expect(!document.site.theme.colourPalettes.contains { $0.id == custom.id })
+        var expected = value
+        expected.source = original.id
+        var expectedFollowing = following
+        expectedFollowing.source = original.id
+        for node in [document.site.pages[0].components[0].children[0],
+                     document.site.reusableComponents[0].root, document.site.globalComponents[0].root] {
+            #expect(node.propertyValue(.backgroundColor) == .packageColor(expected))
+            #expect(node.propertyValue(.backgroundColor, at: .medium) == .packageColor(expectedFollowing))
+        }
+        let after = document.site
+        undo.undo()
+        #expect(document.site == before)
+        undo.redo()
+        #expect(document.site == after)
+    }
+
+    @Test
+    func savedThemesExcludeProjectAndStandardColoursWithoutLosingProjectColours() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appending(path: "\(UUID().uuidString).foundrytheme", directoryHint: .isDirectory)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let document = FoundryDocument()
+        let editor = ProjectEditor(document: document, undoManager: UndoManager())
+        let session = ThemeEditorSession(document: document, undoManager: nil)
+        let originalTheme = document.site.theme
+        let originalID = document.site.themeSourceID
+        let custom = try originalTheme.colourPalettes[0].duplicated()
+        session.setColourPalettes(originalTheme.colourPalettes + [custom], session: nil)
+        let systemTheme = try #require(ThemeBundleStore.builtInThemes().first)
+        let preview = try ThemeBundleStore.preview(from: systemTheme.previewURL)
+        let id = UUID()
+
+        // Both initial creation and replacement use the same bundle writer.
+        for name in ["Created", "Updated"] {
+            let saved = try ThemeBundleStore.write(
+                theme: document.site.theme, name: name, preview: preview, id: id, to: root
+            )
+            let payload = try JSONDecoder().decode(Theme.self, from: Data(contentsOf:
+                root.appending(path: "Contents/Resources/theme.json")))
+            #expect(payload.colourPalettes == document.site.theme.fixedThemeColourPalettes)
+            #expect(payload.colourPalettes.count == ThemeColorRole.allCases.count)
+            let loaded = try ThemeBundleStore.load(from: root)
+            #expect(loaded.theme == saved.theme)
+            #expect(loaded.theme.colourPalettes.filter { $0.origin == .standard } == ColourPaletteDefaults.standard)
+            #expect(!loaded.theme.colourPalettes.contains { $0.origin == .custom })
+
+            editor.commitTheme(saved.theme, sourceID: id)
+            #expect(document.site.theme.colourPalettes.first { $0.id == custom.id } == custom)
+            #expect(document.site.projectThemeValues.colours == [custom])
+            editor.selectTheme(originalTheme, sourceID: originalID)
+            editor.selectTheme(loaded.theme, sourceID: id)
+            #expect(document.site.theme.colourPalettes.first { $0.id == custom.id } == custom)
+            let restored = try JSONDecoder().decode(Site.self, from: JSONEncoder().encode(document.site))
+            #expect(restored.projectThemeValues.colours == [custom])
+        }
+    }
+
+    @Test
     func switchingThemesPreservesPerThemeEditsAndProjectThemeValues() throws {
         let document = FoundryDocument()
         let editor = ProjectEditor(document: document, undoManager: UndoManager())
@@ -121,7 +208,6 @@ struct ThemeEditingTests {
         container.setProperty(.backgroundColor, value: .packageColor(.init(
             source: ThemeColorRole.accent.rawValue,
             customColor: "#000000",
-            adjustment: 0,
             opacity: 1
         )))
         let page = Page(title: "Tokens", slug: "tokens", components: [container])
@@ -138,21 +224,18 @@ struct ThemeEditingTests {
         paragraph.setProperty(.init(rawValue: "textColor"), value: .packageColor(.init(
             source: ThemeColorRole.accent.rawValue,
             customColor: "#000000",
-            adjustment: -20,
             opacity: 0.5
         )))
 
-        let darkened = ComponentTemplateRenderer.transformColor("#5B5BD6", target: 0, amount: 0.2)
         let page = Page(title: "Colour", slug: "colour", components: [paragraph])
         let themedHTML = HTMLPageRenderer().render(page: page, theme: .standard)
 
-        #expect(themedHTML.contains("color: \(darkened)"))
+        #expect(themedHTML.contains("color: #5B5BD6"))
         #expect(!themedHTML.contains("color: rgb("))
 
         paragraph.setProperty(.init(rawValue: "textColor"), value: .packageColor(.init(
             source: ComponentThemeValueSelection.manualCustom,
             customColor: "#123456",
-            adjustment: 0,
             opacity: 0.5
         )))
         let customPage = Page(title: "Colour", slug: "colour", components: [paragraph])

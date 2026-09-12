@@ -97,10 +97,28 @@ nonisolated struct ComponentNode: Codable, Equatable, Identifiable, Sendable {
         self.rootAttributes = rootAttributes
     }
 
-    static func make(_ type: ComponentType) -> ComponentNode {
+    static func make(_ type: ComponentType, theme: Theme = .standard) -> ComponentNode {
         var ancestry: Set<ComponentType> = []
         var remainingNodeCount = 1_000
-        return make(type, ancestry: &ancestry, remainingNodeCount: &remainingNodeCount)
+        var node = make(type, ancestry: &ancestry, remainingNodeCount: &remainingNodeCount)
+        node.selectInitialColourShades(from: theme)
+        return node
+    }
+
+    mutating func selectInitialColourShades(from theme: Theme) {
+        for index in properties.indices {
+            if case .packageColor(var value) = properties[index].value,
+               let palette = theme.colourPalettes.resolvedPalette(id: value.paletteID) {
+                if let definition = type.definition.properties.first(where: { $0.key == properties[index].key }),
+                   case .packageColor(_, _, let initialShade) = definition.control {
+                    value.shade = initialShade ?? palette.defaultShade
+                } else {
+                    value.shade = palette.defaultShade
+                }
+                properties[index].value = .packageColor(value)
+            }
+        }
+        for index in children.indices { children[index].selectInitialColourShades(from: theme) }
     }
 
     private static func make(

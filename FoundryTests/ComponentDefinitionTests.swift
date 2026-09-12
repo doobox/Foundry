@@ -75,7 +75,6 @@ struct ComponentDefinitionTests {
         #expect(decoded.propertyValue(.init(rawValue: "textColor")) == .packageColor(.init(
             source: ComponentThemeValueSelection.manualCustom,
             customColor: "#000000",
-            adjustment: 0,
             opacity: 1
         )))
     }

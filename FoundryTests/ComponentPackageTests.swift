@@ -5,6 +5,45 @@ import Testing
 
 struct ComponentPackageTests {
     @Test
+    func themeColourAcceptsAnOptionalInitialShade() throws {
+        for shade in [nil, 1, 8, 11] as [Int?] {
+            let item = """
+            <dict><key>id</key><string>colour</string>
+            <key>type</key><string>themeColor</string>
+            <key>default</key><string>accent</string>
+            \(shade.map { "<key>shade</key><integer>\($0)</integer>" } ?? "")</dict>
+            """
+            let url = try makePackage(manifest: manifest(withControls: item),
+                                      template: "<div {{ component.attributes }}>{{ childArea(\"content\") }}</div>")
+            defer { try? FileManager.default.removeItem(at: url) }
+            let package = try ComponentPackageLoader.load(from: url)
+            let definition = try #require(ComponentPackageAdapter.definition(from: package).properties.first { $0.key.rawValue == "colour" })
+            guard case .packageColor(_, _, let initial) = definition.control,
+                  case .packageColor(let value) = definition.defaultValue else {
+                Issue.record("Expected theme colour control"); continue
+            }
+            #expect(initial?.rawValue == shade)
+            if let shade { #expect(value.shade.rawValue == shade) }
+        }
+        for (type, value, initial) in [("themeColor", "accent", 0), ("themeColor", "accent", 12),
+                                       ("themeColor", "custom", 3), ("color", "#000000", 3)] {
+            let item = """
+            <dict><key>id</key><string>colour</string><key>type</key><string>\(type)</string>
+            <key>default</key><string>\(value)</string><key>shade</key><integer>\(initial)</integer></dict>
+            """
+            let decoded = try PropertyListDecoder().decode(ComponentPackageManifest.self,
+                from: Data(manifest(withControls: item).utf8))
+            #expect(ComponentPackageValidator.validate(decoded, rootURL: FileManager.default.temporaryDirectory)
+                .contains { $0.location.hasSuffix(".shade") && $0.severity == .error })
+        }
+        for invalid in ["<string>8</string>", "<true/>", "<real>2.5</real>"] {
+            let item = "<dict><key>id</key><string>colour</string><key>type</key><string>themeColor</string><key>default</key><string>accent</string><key>shade</key>\(invalid)</dict>"
+            #expect(try ComponentPackageManifestSchema.diagnostics(for: Data(manifest(withControls: item).utf8))
+                .contains { $0.message == "shade must be an integer." })
+        }
+    }
+
+    @Test
     func componentValidationModesSelectTheIntendedPackKinds() {
         let releaseComponent = URL(filePath: "/Packs/Example.foundrypack/Components/Card.foundrycomponent")
         let developmentComponent = URL(filePath: "/Packs/Example.foundrydevpack/Components/Card.foundrycomponent")
@@ -451,6 +490,12 @@ struct ComponentPackageTests {
         </dict>
         """
         let cases: [(replacement: String, locationSuffix: String, message: String)] = [
+            (
+                validItem
+                    .replacingOccurrences(of: "<string>text</string>", with: "<string>themeColor</string>")
+                    .replacingOccurrences(of: "<string>Hello</string>", with: "<string>accent</string><key>colorMath</key><true/>"),
+                ":colorMath", "Unknown key 'colorMath'. Check the spelling or remove it."
+            ),
             (
                 validItem.replacingOccurrences(of: "<key>type</key><string>text</string>", with: "<key>type</key><integer>1</integer>"),
                 ":type", "type must be a string."
@@ -3321,12 +3366,10 @@ struct ComponentPackageTests {
         #expect(color.defaultValue == .packageColor(.init(
             source: ComponentThemeValueSelection.manualCustom,
             customColor: "#000000",
-            adjustment: 0,
             opacity: 1
         )))
-        if case .packageColor(let themeValues, let colorMath, let opacity) = color.control {
+        if case .packageColor(let themeValues, let opacity, _) = color.control {
             #expect(themeValues)
-            #expect(colorMath)
             #expect(opacity)
         } else {
             Issue.record("Paragraph should use the package colour control")
