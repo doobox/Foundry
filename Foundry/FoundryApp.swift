@@ -34,9 +34,9 @@ struct FoundryApp: App {
         WindowGroup("Theme", id: "theme-editor", for: UUID.self) { $presentationID in
             ThemeWindowSceneContent(presentationID: presentationID)
                 .frame(
-                    minWidth: 760,
+                    minWidth: 962,
                     idealWidth: 1_204,
-                    minHeight: 661,
+                    minHeight: 504,
                     idealHeight: 661,
                     maxHeight: .infinity
                 )

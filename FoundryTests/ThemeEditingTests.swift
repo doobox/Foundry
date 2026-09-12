@@ -64,7 +64,8 @@ struct ThemeEditingTests {
     }
 
     @Test
-    func rendererResolvesComponentTokensThroughTheme() throws {
+    func rendererResolvesComponentTokensThroughTheme() async throws {
+        await ComponentPackageCatalog.shared.waitUntilLoaded()
         var theme = Theme.standard
         theme.colors.accent = "#123ABC"
         var container = ComponentNode.make(.container)
@@ -82,8 +83,8 @@ struct ThemeEditingTests {
     }
 
     @Test @MainActor
-    func paragraphColorAppliesPickerOpacityOnlyToCustomColors() {
-        _ = ComponentPackageCatalog.shared
+    func paragraphColorAppliesPickerOpacityOnlyToCustomColors() async {
+        await ComponentPackageCatalog.shared.waitUntilLoaded()
         var paragraph = ComponentNode.make(.paragraph)
         paragraph.setProperty(.init(rawValue: "textColor"), value: .packageColor(.init(
             source: ThemeColorRole.accent.rawValue,

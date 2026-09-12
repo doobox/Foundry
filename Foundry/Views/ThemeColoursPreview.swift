@@ -1,0 +1,537 @@
+import AppKit
+import Observation
+import SwiftUI
+
+/// Deliberately independent of Theme, ProjectEditor, persistence and CSS export.
+@Observable
+final class ThemeColourPreviewModel {
+    var palettes = PreviewColourPalette.samples
+    private var lastEditSession: UUID?
+
+    func binding(for snapshot: PreviewColourPalette) -> Binding<PreviewColourPalette> {
+        let id = snapshot.id
+        return Binding(
+            get: { self.palettes.first(where: { $0.id == id }) ?? snapshot },
+            set: { value in
+                guard let index = self.palettes.firstIndex(where: { $0.id == id }) else { return }
+                self.palettes[index] = value
+            })
+    }
+
+    func delete(id: UUID) {
+        palettes.removeAll { $0.id == id && $0.group == .custom }
+    }
+
+    func update(_ palette: PreviewColourPalette, session: UUID, undoManager: UndoManager?) {
+        guard let index = palettes.firstIndex(where: { $0.id == palette.id }), palettes[index] != palette else { return }
+        if lastEditSession != session {
+            registerRestore(palettes[index], undoManager: undoManager)
+            lastEditSession = session
+        }
+        palettes[index] = palette
+    }
+
+    private func registerRestore(_ value: PreviewColourPalette, undoManager: UndoManager?) {
+        undoManager?.registerUndo(withTarget: self) { model in
+            guard let index = model.palettes.firstIndex(where: { $0.id == value.id }) else { return }
+            model.registerRestore(model.palettes[index], undoManager: undoManager)
+            model.palettes[index] = value
+            model.lastEditSession = nil
+        }
+        undoManager?.setActionName("Edit Colour")
+    }
+
+    func add() {
+        let names = Set(palettes.map(\.name))
+        var number = 1
+        while names.contains("New Colour \(number)") { number += 1 }
+        palettes.insert(PreviewColourPalette(name: "New Colour \(number)", hex: "#F97316", group: .custom), at: 0)
+    }
+
+    func duplicate(_ palette: PreviewColourPalette) {
+        var copy = palette
+        if palette.group == .standard && !palette.single {
+            copy.overrides = Dictionary(uniqueKeysWithValues: (0..<11).map {
+                ($0, palette.colour(at: $0).hexString ?? "#000000")
+            })
+            copy.generated = false
+        }
+        copy.id = UUID()
+        copy.name += " Copy"
+        copy.group = .custom
+        palettes.insert(copy, at: 0)
+    }
+}
+
+struct PreviewColourPalette: Identifiable, Equatable {
+    enum Group: String, CaseIterable {
+        case custom = "Custom Colours", theme = "Theme Colours", standard = "Standard Colours"
+    }
+    static let steps = Array(1...11)
+    var id = UUID()
+    var name: String
+    var hex: String
+    var group: Group
+    var anchor = 5
+    var defaultShade = 5
+    var generated = true
+    var overrides: [Int: String] = [:]
+    var single = false
+    var softening = 0.0
+    var reversed = false
+
+    func colour(at index: Int) -> Color {
+        if let value = overrides[index], !generated { return Color(hex: value) ?? .gray }
+        guard let base = Color(hex: hex), let rgb = NSColor(base).usingColorSpace(.sRGB) else { return .gray }
+        if single || index == anchor { return base }
+        let position = reversed ? 10 - index : index
+        let origin = reversed ? 10 - anchor : anchor
+        // Keep the existing read-only sample palettes stable during generator experiments.
+        let lighter = position < origin
+        let fraction = lighter
+            ? Double(origin - position) / Double(max(origin, 1)) * 0.94
+            : Double(position - origin) / Double(max(10 - origin, 1)) * 0.85
+        let target = lighter ? 1.0 : 0.0
+        let fullRange = Color(.sRGB,
+                     red: rgb.redComponent + (target - rgb.redComponent) * fraction,
+                     green: rgb.greenComponent + (target - rgb.greenComponent) * fraction,
+                     blue: rgb.blueComponent + (target - rgb.blueComponent) * fraction)
+        guard group != .standard && softening > 0 else { return fullRange }
+        let adaptive = PreviewPerceptualRamp.colour(base: rgb, offset: origin - position)
+        return PreviewPerceptualRamp.blend(fullRange, adaptive, amount: softening)
+    }
+
+    mutating func reverseShades() {
+        guard !single else { return }
+        reversed.toggle()
+        anchor = 10 - anchor
+        defaultShade = 10 - defaultShade
+        overrides = Dictionary(uniqueKeysWithValues: overrides.map { (10 - $0.key, $0.value) })
+    }
+
+    mutating func setColour(_ colour: Color, at index: Int) {
+        guard let value = colour.hexString else { return }
+        if generated { hex = value; anchor = index }
+        else { overrides[index] = value }
+    }
+
+    static var samples: [Self] {
+        [Self(name: "Background", hex: "#F8FAFC", group: .theme, anchor: 0, defaultShade: 0),
+         Self(name: "Surface", hex: "#FFFFFF", group: .theme, anchor: 0, defaultShade: 0),
+         Self(name: "Text", hex: "#1E293B", group: .theme, anchor: 9, defaultShade: 9),
+         Self(name: "Muted Text", hex: "#64748B", group: .theme),
+         Self(name: "Accent", hex: "#6366F1", group: .theme),
+         Self(name: "Links", hex: "#2563EB", group: .theme, anchor: 6, defaultShade: 6),
+         Self(name: "Brand", hex: "#F97316", group: .custom),
+         Self(name: "Black", hex: "#000000", group: .standard, single: true),
+         Self(name: "White", hex: "#FFFFFF", group: .standard, single: true),
+         // Familiar colour families, with shades generated by Foundry rather
+         // than importing a framework's individually specified shade values.
+         Self(name: "Red", hex: "#EF4444", group: .standard),
+         Self(name: "Orange", hex: "#F97316", group: .standard),
+         Self(name: "Amber", hex: "#F59E0B", group: .standard),
+         Self(name: "Yellow", hex: "#EAB308", group: .standard),
+         Self(name: "Lime", hex: "#84CC16", group: .standard),
+         Self(name: "Green", hex: "#22C55E", group: .standard),
+         Self(name: "Emerald", hex: "#10B981", group: .standard),
+         Self(name: "Teal", hex: "#14B8A6", group: .standard),
+         Self(name: "Cyan", hex: "#06B6D4", group: .standard),
+         Self(name: "Sky", hex: "#0EA5E9", group: .standard),
+         Self(name: "Blue", hex: "#3B82F6", group: .standard),
+         Self(name: "Indigo", hex: "#6366F1", group: .standard),
+         Self(name: "Violet", hex: "#8B5CF6", group: .standard),
+         Self(name: "Purple", hex: "#A855F7", group: .standard),
+         Self(name: "Fuchsia", hex: "#D946EF", group: .standard),
+         Self(name: "Pink", hex: "#EC4899", group: .standard),
+         Self(name: "Rose", hex: "#F43F5E", group: .standard),
+         Self(name: "Slate", hex: "#64748B", group: .standard),
+         Self(name: "Grey", hex: "#6B7280", group: .standard),
+         Self(name: "Zinc", hex: "#71717A", group: .standard),
+         Self(name: "Neutral", hex: "#737373", group: .standard),
+         Self(name: "Stone", hex: "#78716C", group: .standard)]
+    }
+}
+
+struct ThemeColoursPreview: View {
+    @Bindable var model: ThemeColourPreviewModel
+    @Environment(\.undoManager) private var undoManager
+
+    var body: some View {
+        ScrollView {
+            LazyVStack(alignment: .leading, spacing: 10) {
+                ForEach(PreviewColourPalette.Group.allCases, id: \.self) { group in
+                    Section {
+                        ForEach(model.palettes.filter { $0.group == group }) { palette in
+                                PreviewColourRibbon(palette: model.binding(for: palette),
+                                    update: { value, session in model.update(value, session: session, undoManager: undoManager) },
+                                    duplicate: { model.duplicate(palette) },
+                                    delete: { model.delete(id: palette.id) })
+                        }
+                        if group == .custom && !model.palettes.contains(where: { $0.group == .custom }) {
+                            Text("Add a named colour to try your own palette.").foregroundStyle(.secondary)
+                        }
+                    } header: {
+                        VStack(alignment: .leading, spacing: 10) {
+                            HStack {
+                                Text(group.rawValue).font(.headline).accessibilityAddTraits(.isHeader)
+                                Spacer()
+                                if group == .custom {
+                                    Button("Add Colour", systemImage: "plus", action: model.add)
+                                }
+                            }
+                            if group == .standard {
+                                Text("Sample palettes · read-only").font(.caption).foregroundStyle(.secondary)
+                            }
+                        }
+                        .padding(.top, group == .custom ? 0 : 18)
+                    }
+                }
+            }
+            .padding(28)
+        }
+        .controlSize(.small)
+    }
+}
+
+/// Colour samples must stay accurate while pressed, not dim like ordinary buttons.
+private struct PreviewSwatchButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+    }
+}
+
+private struct PreviewColourRibbon: View {
+    @AppStorage(AppPreferenceKey.editsThemes) private var editsThemes = false
+    @Binding var palette: PreviewColourPalette
+    let update: (PreviewColourPalette, UUID) -> Void
+    let duplicate: () -> Void
+    let delete: () -> Void
+    @State private var editingShade: Int?
+    @State private var editSession = UUID()
+    @State private var confirmGenerated = false
+    @State private var confirmDelete = false
+
+    private var isEditable: Bool {
+        palette.group == .custom || (palette.group == .theme && editsThemes)
+    }
+
+    var body: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 12) {
+                identity.frame(width: 150, alignment: .leading)
+                    .padding(.leading, 12)
+                    .padding(.vertical, 6)
+                ribbon.frame(minWidth: 440)
+            }
+            VStack(alignment: .leading, spacing: 10) {
+                identity
+                    .padding(.horizontal, 8)
+                    .padding(.top, 6)
+                ribbon
+            }
+        }
+        .background {
+            RoundedRectangle(cornerRadius: 12)
+                .fill(.background.secondary)
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .confirmationDialog("Regenerate this palette?", isPresented: $confirmGenerated) {
+            Button("Regenerate Shades", role: .destructive) {
+                guard isEditable else { return }
+                palette.overrides = [:]
+                palette.generated = true
+            }
+        } message: { Text("Individual shade edits will be discarded.") }
+        .confirmationDialog("Delete \(palette.name)?", isPresented: $confirmDelete) {
+            Button("Delete Colour", role: .destructive, action: delete)
+        }
+        .onChange(of: editsThemes) {
+            if !isEditable {
+                closeEditor()
+                confirmGenerated = false
+            }
+        }
+    }
+
+    private var identity: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                if palette.group == .custom {
+                    TextField("Colour name", text: $palette.name).textFieldStyle(.roundedBorder)
+                } else { Text(palette.name).fontWeight(.medium) }
+            }
+            HStack(spacing: 6) {
+                Button(action: duplicate) {
+                    Image(systemName: "plus.square.on.square")
+                }
+                .buttonStyle(.borderless)
+                .help("Duplicate to Custom Colours")
+                .accessibilityLabel("Duplicate \(palette.name) to Custom Colours")
+                if palette.group == .custom {
+                    Button { confirmDelete = true } label: {
+                        Image(systemName: "trash")
+                    }
+                    .buttonStyle(.borderless)
+                    .help("Delete Colour")
+                    .accessibilityLabel("Delete \(palette.name)")
+                }
+                if isEditable {
+                Picker("Palette mode", selection: Binding(
+                    get: { palette.generated },
+                    set: { generated in
+                        if generated { confirmGenerated = true }
+                        else { palette.generated = false }
+                    })) {
+                    Text("Generated").tag(true)
+                    Text("Custom").tag(false)
+                }.labelsHidden()
+                } else {
+                    Spacer(minLength: 0)
+                }
+            }
+        }
+    }
+
+    private var ribbon: some View {
+        HStack(spacing: 0) {
+            ForEach(palette.single ? [5] : Array(0..<11), id: \.self) { index in
+                swatch(index)
+            }
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .overlay {
+            RoundedRectangle(cornerRadius: 12)
+                .strokeBorder(.secondary.opacity(0.25), lineWidth: 1)
+                .allowsHitTesting(false)
+        }
+    }
+
+    private func swatch(_ index: Int) -> some View {
+        let displayed = palette
+        let colour = displayed.colour(at: index)
+        let rgb = NSColor(colour).usingColorSpace(.sRGB)
+        let light = (rgb.map { 0.2126 * $0.redComponent + 0.7152 * $0.greenComponent + 0.0722 * $0.blueComponent } ?? 0) > 0.57
+        return Button { editSession = UUID(); editingShade = index } label: {
+            VStack(spacing: 4) {
+                VStack(spacing: 0) {
+                    if !palette.single && palette.group != .standard {
+                        if index == displayed.defaultShade {
+                            Image(systemName: "star.fill")
+                                .accessibilityHidden(true)
+                        }
+                    }
+                }.font(.system(size: 9, weight: .medium)).frame(height: 12)
+                Text(palette.single ? palette.name : String(PreviewColourPalette.steps[index]))
+                    .font(.caption2.monospacedDigit())
+            }
+            .foregroundStyle(light ? Color.black : Color.white)
+            .frame(maxWidth: .infinity).frame(height: 62)
+            .background { Rectangle().fill(colour) }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(PreviewSwatchButtonStyle())
+        .help("\(palette.name) · \(colour.hexString ?? "")\(index == displayed.defaultShade ? " · Default" : "")")
+        .accessibilityLabel("\(palette.name), shade \(PreviewColourPalette.steps[index])\(index == displayed.defaultShade ? ", default" : "")")
+        .popover(isPresented: Binding(get: { editingShade == index }, set: { if !$0 { closeEditor() } })) {
+            if !isEditable {
+                VStack(alignment: .leading, spacing: 14) {
+                    Text(palette.single ? palette.name : "\(palette.name) · \(PreviewColourPalette.steps[index])").font(.headline)
+                    Text(colour.hexString ?? "").monospaced().textSelection(.enabled)
+                    Button("Duplicate to Edit") { closeEditor(); duplicate() }
+                }
+                .padding(16).frame(width: 270).controlSize(.small)
+            } else {
+                PreviewShadeEditor(
+                    original: palette,
+                    index: index,
+                    change: {
+                        guard editingShade == index, isEditable else { return }
+                        update($0, editSession)
+                    }
+                )
+                .onDisappear {
+                    guard editingShade == index else { return }
+                    closeEditor()
+                }
+            }
+        }
+    }
+
+    private func closeEditor() {
+        editingShade = nil
+    }
+}
+
+/// Validates transient text input before publishing live palette changes.
+struct PreviewShadeEdit {
+    var palette: PreviewColourPalette
+    var index: Int
+    var hex: String
+    private var hasChangedColour = false
+    private var defaultWasChosen = false
+    private var originalDefault: Int
+    var isOriginalDefault: Bool { originalDefault == index }
+
+    init(palette: PreviewColourPalette, index: Int) {
+        self.palette = palette
+        self.index = index
+        originalDefault = palette.defaultShade
+        hex = palette.colour(at: index).hexString ?? "#000000"
+    }
+
+    static func normalizedHex(_ input: String) -> String? {
+        var value = input.trimmingCharacters(in: .whitespacesAndNewlines)
+        if value.hasPrefix("#") { value.removeFirst() }
+        guard [3, 6].contains(value.count), value.allSatisfy({ $0.isASCII && $0.isHexDigit }) else { return nil }
+        if value.count == 3 { value = value.map { "\($0)\($0)" }.joined() }
+        return "#" + value.uppercased()
+    }
+
+    mutating func setHex(_ input: String) {
+        hex = input
+        guard let normalized = Self.normalizedHex(input), let colour = Color(hex: normalized) else { return }
+        // Merely entering the existing value must not move the base shade.
+        guard normalized != palette.colour(at: index).hexString?.uppercased() else { return }
+        if palette.generated && !hasChangedColour && !defaultWasChosen {
+            palette.defaultShade = index
+        }
+        hasChangedColour = true
+        palette.setColour(colour, at: index)
+    }
+
+    mutating func setUseAsDefault(_ enabled: Bool) {
+        defaultWasChosen = true
+        palette.defaultShade = enabled ? index : originalDefault
+    }
+
+    mutating func setColour(_ colour: Color) {
+        guard let value = colour.hexString else { return }
+        setHex(value)
+    }
+
+    mutating func setSoftening(_ amount: Double) {
+        let amount = min(1, max(0, amount))
+        guard amount != palette.softening else { return }
+        // Preserve the selected swatch when Soften is the first edit,
+        // without moving the default or changing anything on opening.
+        if palette.generated && palette.anchor != index {
+            palette.setColour(palette.colour(at: index), at: index)
+        }
+        palette.softening = amount
+        hex = palette.colour(at: index).hexString ?? hex
+    }
+
+    mutating func setReversed(_ value: Bool) {
+        guard value != palette.reversed && !palette.single else { return }
+        palette.reverseShades()
+        index = 10 - index
+        originalDefault = 10 - originalDefault
+        hex = palette.colour(at: index).hexString ?? hex
+    }
+}
+
+struct PreviewShadeEditor: View {
+    private enum FocusTarget: Hashable { case hex }
+    @Environment(\.dismiss) private var dismiss
+    @FocusState private var focus: FocusTarget?
+    @State private var hexFrame = CGRect.zero
+    let original: PreviewColourPalette
+    let index: Int
+    let change: (PreviewColourPalette) -> Void
+    @State private var edit: PreviewShadeEdit
+
+    init(original: PreviewColourPalette, index: Int,
+         change: @escaping (PreviewColourPalette) -> Void) {
+        self.original = original
+        self.index = index
+        self.change = change
+        _edit = State(initialValue: PreviewShadeEdit(palette: original, index: index))
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("\(original.name) · \(PreviewColourPalette.steps[edit.index])").font(.headline)
+            HStack(spacing: 10) {
+                ColorPicker("Colour", selection: Binding(
+                    get: { edit.palette.colour(at: edit.index) },
+                    set: { focus = nil; edit.setColour($0); change(edit.palette) }), supportsOpacity: false)
+                    .labelsHidden()
+                    .accessibilityLabel("Colour")
+                    .fixedSize()
+                TextField("#RRGGBB", text: Binding(
+                    get: { edit.hex },
+                    set: { edit.setHex($0); change(edit.palette) }))
+                    .font(.system(.body, design: .monospaced))
+                    .textFieldStyle(.roundedBorder)
+                    .frame(maxWidth: .infinity)
+                    .accessibilityLabel("Hex colour")
+                    .focused($focus, equals: .hex)
+                    .onGeometryChange(for: CGRect.self) { proxy in
+                        proxy.frame(in: .named("shadeEditor"))
+                    } action: { hexFrame = $0 }
+            }
+            if PreviewShadeEdit.normalizedHex(edit.hex) == nil {
+                Text("Enter 3 or 6 hexadecimal digits.").font(.caption).foregroundStyle(.red)
+            }
+            if !original.single {
+                if original.generated {
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack {
+                            Text("Soften")
+                            Spacer()
+                            Text(edit.palette.softening, format: .percent.precision(.fractionLength(0)))
+                                .monospacedDigit().foregroundStyle(.secondary)
+                        }
+                        Slider(value: Binding(get: { edit.palette.softening }, set: {
+                            focus = nil; edit.setSoftening($0); change(edit.palette)
+                        }), in: 0...1)
+                        .accessibilityLabel("Soften")
+                    }
+                }
+                Toggle("Reverse shades", isOn: Binding(get: { edit.palette.reversed }, set: {
+                    focus = nil; edit.setReversed($0); change(edit.palette)
+                })).toggleStyle(.checkbox)
+            }
+            Divider()
+            HStack {
+                Button(edit.isOriginalDefault ? "Default" : (edit.palette.defaultShade == edit.index ? "Undo Default" : "Set Default")) {
+                    focus = nil
+                    edit.setUseAsDefault(edit.palette.defaultShade != edit.index)
+                    change(edit.palette)
+                }
+                .disabled(edit.isOriginalDefault)
+                Spacer()
+                Button("Cancel") { dismiss() }
+                    .keyboardShortcut(.cancelAction)
+                    .help("Close the popover. Live changes are kept.")
+            }
+        }
+        .padding(16)
+        .frame(width: 300)
+        .controlSize(.small)
+        .coordinateSpace(name: "shadeEditor")
+        .task {
+            // Let presentation assign its initial focus before clearing it.
+            // Run only on appearance, never in response to later user focus.
+            await Task.yield()
+            guard !Task.isCancelled else { return }
+            focus = nil
+        }
+        .simultaneousGesture(SpatialTapGesture(coordinateSpace: .named("shadeEditor")).onEnded { value in
+            if !hexFrame.contains(value.location), focus == .hex {
+                focus = nil
+            }
+        })
+        .onChange(of: original) { _, value in
+            // Keep an open editor in sync with Undo/Redo without replacing
+            // partially typed hex input after our own live updates.
+            if value != edit.palette {
+                edit = PreviewShadeEdit(palette: value, index: edit.index)
+            }
+        }
+    }
+}
+
+#Preview {
+    ThemeColoursPreview(model: ThemeColourPreviewModel()).frame(width: 760, height: 650)
+}
