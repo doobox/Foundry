@@ -31,6 +31,15 @@ struct FoundryApp: App {
         .windowResizability(.contentMinSize)
         .windowToolbarStyle(.unified)
 
+        Window("Welcome to Foundry", id: "welcome") {
+            WelcomeView()
+        }
+        .defaultLaunchBehavior(.presented)
+        .restorationBehavior(.disabled)
+        .windowResizability(.contentSize)
+        .windowStyle(.hiddenTitleBar)
+        .windowBackgroundDragBehavior(.enabled)
+
         WindowGroup("Theme", id: "theme-editor", for: UUID.self) { $presentationID in
             ThemeWindowSceneContent(presentationID: presentationID)
                 .frame(
