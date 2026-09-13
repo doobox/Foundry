@@ -35,7 +35,7 @@ nonisolated enum FoundryPackLoader {
         }
         do {
             let data = try Data(contentsOf: manifestURL)
-            let inspection = try BlockPackageManifestSchema.inspect(data)
+            let inspection = try PartPackageManifestSchema.inspect(data)
             let metadata = try PropertyListDecoder().decode(FoundryPackMetadata.self, from: data)
             return FoundryPack(
                 isCollection: inspection.kind == .collection,

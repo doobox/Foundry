@@ -5,17 +5,17 @@ import UniformTypeIdentifiers
 private struct HTMLSourceEditRequest: Identifiable {
     let id = UUID()
     let pageID: UUID
-    let blockID: UUID
-    let propertyKey: BlockProperty.Key
+    let partID: UUID
+    let propertyKey: PartProperty.Key
     let propertyPath: [Int]
-    let source: HTMLBlockSource
+    let source: HTMLPartSource
 }
 
 private struct PageTextEditRequest: Identifiable {
     let id = UUID()
     let pageID: UUID
-    let blockID: UUID
-    let propertyKey: BlockProperty.Key
+    let partID: UUID
+    let propertyKey: PartProperty.Key
     let propertyPath: [Int]
     let value: String
 }
@@ -37,12 +37,12 @@ struct ContentView: View {
     @State private var selectedPageAssetID: UUID?
     @State private var expandedPageTreeItemIDs: Set<UUID> = []
     @State private var selectedAssetLibraryNodeID: UUID?
-    @State private var selectedBlockIDs: Set<UUID> = []
-    @State private var selectedBlockID: UUID?
-    @State private var expandedStructureBlockIDs: Set<UUID> = []
+    @State private var selectedPartIDs: Set<UUID> = []
+    @State private var selectedPartID: UUID?
+    @State private var expandedStructurePartIDs: Set<UUID> = []
     @State private var selectedPrimitive: CanvasPrimitiveSelection?
-    @State private var selectedLibraryBlockType: BlockType?
-    @State private var copiedBlocks: [BlockNode] = []
+    @State private var selectedLibraryPartType: PartType?
+    @State private var copiedParts: [PartNode] = []
     @State private var editsSharedReusableDefinition = false
     @State private var workspaceLayout = WorkspacePresetStore.initialLayoutForNewDocument()
     @State private var detachedPanelWindows = DetachedPanelWindowCoordinator()
@@ -61,7 +61,7 @@ struct ContentView: View {
     @State private var isPreviewSessionOpen = false
     @State private var previewRefreshTask: Task<Void, Never>?
     @State private var canvasEditorOptions = CanvasEditorOptions()
-    @State private var blockCatalog = BlockPackageCatalog.shared
+    @State private var partCatalog = PartPackageCatalog.shared
     @State private var canvasViewportWidth = 390.0
     @State private var selectedAppearance = SiteAppearance.light
     private var canvasAppearance: SiteAppearance {
@@ -71,21 +71,21 @@ struct ContentView: View {
     @State private var htmlSourceEditRequest: HTMLSourceEditRequest?
     @State private var pageTextEditRequest: PageTextEditRequest?
     @State private var pageDeletionRequest: PageDeletionRequest?
-    @State private var canvasReusableBlockName: String?
-    @State private var canvasGlobalBlockName: String?
+    @State private var canvasReusablePartName: String?
+    @State private var canvasGlobalPartName: String?
     @AppStorage(AppPreferenceKey.appearance)
     private var appearance: AppAppearance = .system
     @AppStorage(AppPreferenceKey.externalPreviewAutoReload)
     private var externalPreviewAutoReload = false
     @AppStorage(AppPreferenceKey.previewApplication)
     private var previewApplicationIdentifier = PreviewApplicationSelection.systemDefault
-    @AppStorage(AppPreferenceKey.automaticallyChecksBlockUpdates)
-    private var automaticallyChecksBlockUpdates = false
+    @AppStorage(AppPreferenceKey.automaticallyChecksPartUpdates)
+    private var automaticallyChecksPartUpdates = false
 
     private var renderer: any PageRendering { HTMLPageRenderer(site: document.site, appearance: canvasAppearance) }
 
     var body: some View {
-        let _ = blockCatalog.revision
+        let _ = partCatalog.revision
         DockingWorkspaceView(
             layout: $workspaceLayout,
             canvasEditorOptions: $canvasEditorOptions,
@@ -107,8 +107,8 @@ struct ContentView: View {
             },
             previewSite: previewSite,
             publishSite: { publishSite() },
-            showBlockUpdates: {
-                openWindow(id: "available-block-updates")
+            showPartUpdates: {
+                openWindow(id: "available-part-updates")
             }
         ) { panel in
             workspacePanel(panel)
@@ -123,8 +123,8 @@ struct ContentView: View {
             maxHeight: .infinity
         )
         .task {
-            guard automaticallyChecksBlockUpdates else { return }
-            _ = await BlockUpdateManager.shared.automaticCheckIfNeeded()
+            guard automaticallyChecksPartUpdates else { return }
+            _ = await PartUpdateManager.shared.automaticCheckIfNeeded()
         }
         .onChange(of: workspaceLayout) {
             workspaceLayout.persist()
@@ -160,37 +160,37 @@ struct ContentView: View {
                 return
             }
             selectedPageID = pageIDs.first
-            selectedBlockID = nil
+            selectedPartID = nil
         }
-        .onChange(of: selectedBlockID) { _, blockID in
+        .onChange(of: selectedPartID) { _, partID in
             editsSharedReusableDefinition = false
-            if selectedPrimitive?.blockID != blockID {
+            if selectedPrimitive?.partID != partID {
                 selectedPrimitive = nil
             }
-            guard let blockID else {
-                selectedBlockIDs = []
+            guard let partID else {
+                selectedPartIDs = []
                 return
             }
-            if !selectedBlockIDs.contains(blockID) {
-                selectedBlockIDs = [blockID]
+            if !selectedPartIDs.contains(partID) {
+                selectedPartIDs = [partID]
             }
-            selectedLibraryBlockType = nil
+            selectedLibraryPartType = nil
             inspectedPageID = nil
             selectedPageFolderID = nil
             selectedPageAssetID = nil
             selectedAssetLibraryNodeID = nil
         }
-        .onChange(of: selectedBlockIDs) { _, blockIDs in
-            if blockIDs.count != 1 || selectedPrimitive.map({ !blockIDs.contains($0.blockID) }) == true {
+        .onChange(of: selectedPartIDs) { _, partIDs in
+            if partIDs.count != 1 || selectedPrimitive.map({ !partIDs.contains($0.partID) }) == true {
                 selectedPrimitive = nil
             }
-            if let selectedBlockID, !blockIDs.contains(selectedBlockID) {
-                self.selectedBlockID = blockIDs.first
-            } else if selectedBlockID == nil {
-                selectedBlockID = blockIDs.first
+            if let selectedPartID, !partIDs.contains(selectedPartID) {
+                self.selectedPartID = partIDs.first
+            } else if selectedPartID == nil {
+                selectedPartID = partIDs.first
             }
-            guard !blockIDs.isEmpty else { return }
-            selectedLibraryBlockType = nil
+            guard !partIDs.isEmpty else { return }
+            selectedLibraryPartType = nil
             inspectedPageID = nil
             selectedPageFolderID = nil
             selectedPageAssetID = nil
@@ -198,8 +198,8 @@ struct ContentView: View {
         }
         .onDeleteCommand {
             if selectedPrimitive != nil { return }
-            guard !selectedBlockIDs.isEmpty else { return }
-            deleteBlock()
+            guard !selectedPartIDs.isEmpty else { return }
+            deletePart()
         }
         .focusedSceneValue(\.publishingCommandDispatcher, publishingCommandDispatcher)
         .onChange(of: publishingCommandDispatcher.request?.id) {
@@ -209,7 +209,7 @@ struct ContentView: View {
         .onChange(of: document.mutationEvent.revision) {
             handleMutationImpact(document.mutationEvent.impact)
         }
-        .onChange(of: blockCatalog.revision) {
+        .onChange(of: partCatalog.revision) {
             handleMutationImpact(.package)
         }
         .onDisappear {
@@ -313,27 +313,27 @@ struct ContentView: View {
         }
         .alert("Save Template", isPresented: canvasReusableAlertBinding) {
             TextField("Name", text: canvasReusableNameBinding)
-            Button("Cancel", role: .cancel) { canvasReusableBlockName = nil }
+            Button("Cancel", role: .cancel) { canvasReusablePartName = nil }
             Button("Save") {
-                guard let name = canvasReusableBlockName else { return }
-                saveReusableBlock(name)
-                canvasReusableBlockName = nil
+                guard let name = canvasReusablePartName else { return }
+                saveReusablePart(name)
+                canvasReusablePartName = nil
             }
-            .disabled(canvasReusableBlockName?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty != false)
+            .disabled(canvasReusablePartName?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty != false)
         } message: {
-            Text("The selected block and its children will be available in the Project library.")
+            Text("The selected part and its children will be available in the Project library.")
         }
-        .alert("Save Global Block", isPresented: canvasGlobalAlertBinding) {
+        .alert("Save Global Part", isPresented: canvasGlobalAlertBinding) {
             TextField("Name", text: canvasGlobalNameBinding)
-            Button("Cancel", role: .cancel) { canvasGlobalBlockName = nil }
+            Button("Cancel", role: .cancel) { canvasGlobalPartName = nil }
             Button("Save") {
-                guard let name = canvasGlobalBlockName else { return }
-                saveGlobalBlock(name)
-                canvasGlobalBlockName = nil
+                guard let name = canvasGlobalPartName else { return }
+                saveGlobalPart(name)
+                canvasGlobalPartName = nil
             }
-            .disabled(canvasGlobalBlockName?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty != false)
+            .disabled(canvasGlobalPartName?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty != false)
         } message: {
-            Text("Every linked instance will update when this global block is edited.")
+            Text("Every linked instance will update when this global part is edited.")
         }
     }
 
@@ -362,52 +362,52 @@ struct ContentView: View {
                 moveTreeItem: { editor.movePageTreeItem($0, to: $1) },
                 importURLs: importPageTreeURLs
             )
-        case .blocks:
-            BlockLibraryPanel(
-                selectedType: inspectableLibraryBlockSelection,
-                addToPageEnd: addBlockToPageEnd
+        case .parts:
+            PartLibraryPanel(
+                selectedType: inspectableLibraryPartSelection,
+                addToPageEnd: addPartToPageEnd
             )
-        case .reusableBlocks:
-            ReusableBlockLibraryPanel(
-                definitions: document.site.reusableBlocks,
-                renameDefinition: renameReusableBlock,
-                deleteDefinition: deleteReusableBlock
+        case .reusableParts:
+            ReusablePartLibraryPanel(
+                definitions: document.site.reusableParts,
+                renameDefinition: renameReusablePart,
+                deleteDefinition: deleteReusablePart
             )
-        case .globalBlocks:
-            GlobalBlockLibraryPanel(
-                definitions: document.site.globalBlocks,
-                renameDefinition: renameGlobalBlock,
-                deleteDefinition: deleteGlobalBlock,
-                saveDraggedBlocks: saveDraggedBlocksAsGlobals
+        case .globalParts:
+            GlobalPartLibraryPanel(
+                definitions: document.site.globalParts,
+                renameDefinition: renameGlobalPart,
+                deleteDefinition: deleteGlobalPart,
+                saveDraggedParts: saveDraggedPartsAsGlobals
             )
         case .structure:
             StructurePanel(
                 page: selectedPage,
-                globalBlockNames: Dictionary(
-                    uniqueKeysWithValues: document.site.globalBlocks.map { ($0.id, $0.name) }
+                globalPartNames: Dictionary(
+                    uniqueKeysWithValues: document.site.globalParts.map { ($0.id, $0.name) }
                 ),
-                selectedBlockIDs: $selectedBlockIDs,
-                selectedBlockID: inspectableBlockSelection,
-                expandedBlockIDs: $expandedStructureBlockIDs,
-                renameBlock: renameBlock,
-                canMoveBlocksToPlacement: canMoveBlocksFromStructure,
-                moveBlocksToPlacement: moveBlocksFromStructure,
-                insertBlock: insertBlockFromLibrary,
-                insertReusableBlock: insertReusableBlockFromLibrary,
-                insertGlobalBlock: insertGlobalBlockFromLibrary,
-                duplicateBlock: duplicateBlock,
-                copyBlock: copyBlock,
-                pasteBlock: pasteBlock,
-                moveBlock: moveBlock,
-                outdentBlock: outdentBlock,
-                deleteBlock: deleteBlock,
-                canPasteBlock: !copiedBlocks.isEmpty,
-                saveReusableBlock: saveReusableBlock,
-                saveGlobalBlock: saveGlobalBlock,
-                setGlobalBlockLinked: { blockID, isLinked in
-                    editor.setGlobalBlockLinked(blockID: blockID, isLinked: isLinked)
-                    selectedBlockIDs = [blockID]
-                    selectedBlockID = blockID
+                selectedPartIDs: $selectedPartIDs,
+                selectedPartID: inspectablePartSelection,
+                expandedPartIDs: $expandedStructurePartIDs,
+                renamePart: renamePart,
+                canMovePartsToPlacement: canMovePartsFromStructure,
+                movePartsToPlacement: movePartsFromStructure,
+                insertPart: insertPartFromLibrary,
+                insertReusablePart: insertReusablePartFromLibrary,
+                insertGlobalPart: insertGlobalPartFromLibrary,
+                duplicatePart: duplicatePart,
+                copyPart: copyPart,
+                pastePart: pastePart,
+                movePart: movePart,
+                outdentPart: outdentPart,
+                deletePart: deletePart,
+                canPastePart: !copiedParts.isEmpty,
+                saveReusablePart: saveReusablePart,
+                saveGlobalPart: saveGlobalPart,
+                setGlobalPartLinked: { partID, isLinked in
+                    editor.setGlobalPartLinked(partID: partID, isLinked: isLinked)
+                    selectedPartIDs = [partID]
+                    selectedPartID = partID
                 }
             )
         case .assets:
@@ -427,7 +427,7 @@ struct ContentView: View {
                 guard selectedID != nil else { return }
                 selectedPageFolderID = nil
                 selectedPageAssetID = nil
-                selectedBlockID = nil
+                selectedPartID = nil
             }
         case .developer:
             DeveloperPanel()
@@ -440,23 +440,23 @@ struct ContentView: View {
                 assets: document.assetContents,
                 assetRevision: document.assetRevision,
                 mutationEvent: document.mutationEvent,
-                blockPackageRevision: blockCatalog.revision,
-                isBlockCatalogReady: !blockCatalog.isInitialLoading,
-                selectedBlockIDs: selectedBlockIDs,
-                primarySelectedBlockID: selectedBlockID,
+                partPackageRevision: partCatalog.revision,
+                isPartCatalogReady: !partCatalog.isInitialLoading,
+                selectedPartIDs: selectedPartIDs,
+                primarySelectedPartID: selectedPartID,
                 selectedPrimitive: selectedPrimitive,
                 editorOptions: canvasEditorOptions,
                 renderer: renderer,
-                canPasteBlock: !copiedBlocks.isEmpty,
+                canPastePart: !copiedParts.isEmpty,
                 canClearImage: canClearCanvasImage,
                 handleMessage: handleCanvasMessage,
                 handleContextMenuAction: handleCanvasContextMenuAction,
                 viewportWidth: $canvasViewportWidth
             )
         case .inspector:
-            if blockCatalog.isInitialLoading,
-               selectedBlock != nil || selectedLibraryBlockType != nil {
-                BlockCatalogLoadingView()
+            if partCatalog.isInitialLoading,
+               selectedPart != nil || selectedLibraryPartType != nil {
+                PartCatalogLoadingView()
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 InspectorView(
@@ -470,9 +470,9 @@ struct ContentView: View {
                     folders: document.site.pageFolders,
                     pages: document.site.pages,
                     publicURL: document.site.publicURL,
-                    block: selectedBlock,
-                    blockSelectionCount: selectedBlockIDs.count,
-                    libraryBlockType: selectedLibraryBlockType,
+                    part: selectedPart,
+                    partSelectionCount: selectedPartIDs.count,
+                    libraryPartType: selectedLibraryPartType,
                     theme: document.site.theme,
                     assets: document.site.assets,
                     editor: editor,
@@ -543,15 +543,15 @@ struct ContentView: View {
         }
 
         switch impact {
-        case .blockProperty(let blockID, _):
-            if let page = document.site.pages.first(where: { $0.blocks.node(withID: blockID) != nil }) {
+        case .partProperty(let partID, _):
+            if let page = document.site.pages.first(where: { $0.parts.node(withID: partID) != nil }) {
                 markModified(page.id)
             } else {
                 markAllPages()
             }
-        case .blockStructure(let ownerID):
+        case .partStructure(let ownerID):
             if let ownerID,
-               let page = document.site.pages.first(where: { $0.blocks.node(withID: ownerID) != nil }) {
+               let page = document.site.pages.first(where: { $0.parts.node(withID: ownerID) != nil }) {
                 markModified(page.id)
             } else {
                 markAllPages()
@@ -580,8 +580,8 @@ struct ContentView: View {
                 selectedPageFolderID = nil
                 selectedPageAssetID = nil
                 selectedAssetLibraryNodeID = nil
-                selectedBlockID = nil
-                selectedLibraryBlockType = nil
+                selectedPartID = nil
+                selectedLibraryPartType = nil
             }
         )
     }
@@ -595,8 +595,8 @@ struct ContentView: View {
                 inspectedPageID = nil
                 selectedPageAssetID = nil
                 selectedAssetLibraryNodeID = nil
-                selectedBlockID = nil
-                selectedLibraryBlockType = nil
+                selectedPartID = nil
+                selectedLibraryPartType = nil
             }
         )
     }
@@ -610,8 +610,8 @@ struct ContentView: View {
                 inspectedPageID = nil
                 selectedPageFolderID = nil
                 selectedAssetLibraryNodeID = nil
-                selectedBlockID = nil
-                selectedLibraryBlockType = nil
+                selectedPartID = nil
+                selectedLibraryPartType = nil
             }
         )
     }
@@ -625,39 +625,39 @@ struct ContentView: View {
                 inspectedPageID = nil
                 selectedPageFolderID = nil
                 selectedPageAssetID = nil
-                selectedBlockID = nil
-                selectedLibraryBlockType = nil
+                selectedPartID = nil
+                selectedLibraryPartType = nil
             }
         )
     }
 
-    private var inspectableBlockSelection: Binding<UUID?> {
+    private var inspectablePartSelection: Binding<UUID?> {
         Binding(
-            get: { selectedBlockID },
-            set: { blockID in
+            get: { selectedPartID },
+            set: { partID in
                 selectedPrimitive = nil
-                selectedBlockID = blockID
-                guard blockID != nil else { return }
+                selectedPartID = partID
+                guard partID != nil else { return }
                 inspectedPageID = nil
                 selectedPageFolderID = nil
                 selectedPageAssetID = nil
                 selectedAssetLibraryNodeID = nil
-                selectedLibraryBlockType = nil
+                selectedLibraryPartType = nil
             }
         )
     }
 
-    private var inspectableLibraryBlockSelection: Binding<BlockType?> {
+    private var inspectableLibraryPartSelection: Binding<PartType?> {
         Binding(
-            get: { selectedLibraryBlockType },
+            get: { selectedLibraryPartType },
             set: { type in
-                selectedLibraryBlockType = type
+                selectedLibraryPartType = type
                 guard type != nil else { return }
                 inspectedPageID = nil
                 selectedPageFolderID = nil
                 selectedPageAssetID = nil
                 selectedAssetLibraryNodeID = nil
-                selectedBlockID = nil
+                selectedPartID = nil
                 selectedPrimitive = nil
             }
         )
@@ -699,156 +699,156 @@ struct ContentView: View {
         ResponsiveBreakpoint.forViewportWidth(canvasViewportWidth, screens: document.site.theme.screens)
     }
 
-    private var selectedBlock: BlockNode? {
-        guard let selectedBlockID else {
+    private var selectedPart: PartNode? {
+        guard let selectedPartID else {
             return nil
         }
-        return selectedPage?.blocks.node(withID: selectedBlockID)
+        return selectedPage?.parts.node(withID: selectedPartID)
     }
 
-    private var topLevelSelectedBlockIDs: [UUID] {
-        topLevelBlockIDs(from: selectedBlockIDs)
+    private var topLevelSelectedPartIDs: [UUID] {
+        topLevelPartIDs(from: selectedPartIDs)
     }
 
-    private func topLevelBlockIDs(from requestedIDs: Set<UUID>) -> [UUID] {
+    private func topLevelPartIDs(from requestedIDs: Set<UUID>) -> [UUID] {
         guard let selectedPage else { return [] }
-        func flattenedIDs(_ nodes: [BlockNode]) -> [UUID] {
+        func flattenedIDs(_ nodes: [PartNode]) -> [UUID] {
             nodes.flatMap { [$0.id] + flattenedIDs($0.children) }
         }
-        return flattenedIDs(selectedPage.blocks).filter { id in
+        return flattenedIDs(selectedPage.parts).filter { id in
             guard requestedIDs.contains(id) else { return false }
-            return Set(selectedPage.blocks.ancestorIDs(of: id)).isDisjoint(with: requestedIDs)
+            return Set(selectedPage.parts.ancestorIDs(of: id)).isDisjoint(with: requestedIDs)
         }
     }
 
-    private var selectedReusableDefinition: ReusableBlockDefinition? {
+    private var selectedReusableDefinition: ReusablePartDefinition? {
         guard let definitionID = selectedGlobalContext?.definitionID else { return nil }
-        return document.site.globalBlocks.first(where: { $0.id == definitionID })
+        return document.site.globalParts.first(where: { $0.id == definitionID })
     }
 
     private var selectedGlobalContext: (definitionID: UUID, path: [Int], isOverridden: Bool, overrideOwnerID: UUID?)? {
-        guard let selectedBlockID else { return nil }
-        return document.site.globalBlockContext(containing: selectedBlockID)
+        guard let selectedPartID else { return nil }
+        return document.site.globalPartContext(containing: selectedPartID)
     }
 
     private func setSelectedGlobalOverride(_ isOverridden: Bool) {
-        guard let selectedBlockID else { return }
-        editor.setGlobalBlockLinked(blockID: selectedBlockID, isLinked: !isOverridden)
+        guard let selectedPartID else { return }
+        editor.setGlobalPartLinked(partID: selectedPartID, isLinked: !isOverridden)
     }
 
     private func handleCanvasMessage(_ message: CanvasMessage) {
         guard let page = selectedPage else { return }
 
         switch message.event {
-        case .selectBlock:
+        case .selectPart:
             selectedPrimitive = nil
-            guard let blockID = message.blockID,
-                  page.blocks.node(withID: blockID) != nil else { return }
-            selectedLibraryBlockType = nil
+            guard let partID = message.partID,
+                  page.parts.node(withID: partID) != nil else { return }
+            selectedLibraryPartType = nil
             if message.extendsSelection == true {
-                if selectedBlockIDs.contains(blockID) {
-                    selectedBlockIDs.remove(blockID)
+                if selectedPartIDs.contains(partID) {
+                    selectedPartIDs.remove(partID)
                 } else {
-                    selectedBlockIDs.insert(blockID)
-                    selectedBlockID = blockID
+                    selectedPartIDs.insert(partID)
+                    selectedPartID = partID
                 }
             } else {
-                selectedBlockIDs = [blockID]
-                selectedBlockID = blockID
+                selectedPartIDs = [partID]
+                selectedPartID = partID
             }
             workspaceLayout.activate(.structure)
         case .selectPrimitive:
-            guard let blockID = message.blockID,
+            guard let partID = message.partID,
                   let propertyKey = message.propertyKey,
-                  let block = page.blocks.node(withID: blockID),
-                  block.type.definition.properties.contains(where: { $0.key == propertyKey }) else { return }
-            selectedBlockIDs = [blockID]
-            selectedBlockID = blockID
+                  let part = page.parts.node(withID: partID),
+                  part.type.definition.properties.contains(where: { $0.key == propertyKey }) else { return }
+            selectedPartIDs = [partID]
+            selectedPartID = partID
             selectedPrimitive = .init(
-                blockID: blockID,
+                partID: partID,
                 propertyKey: propertyKey,
                 propertyPath: message.propertyPath ?? []
             )
             workspaceLayout.activate(.structure)
-        case .deleteBlocks:
-            deleteBlocks(message.blockIDs ?? [])
-        case .duplicateBlocks:
-            guard selectCanvasBlocks(message.blockIDs, on: page) else { return }
-            duplicateBlock()
-        case .copyBlocks:
-            guard selectCanvasBlocks(message.blockIDs, on: page) else { return }
-            copyBlock()
-        case .pasteBlocks:
-            guard selectCanvasBlocks(message.blockIDs, on: page) else { return }
-            pasteBlock()
-        case .insertBlock:
-            guard let type = message.blockType,
+        case .deleteParts:
+            deleteParts(message.partIDs ?? [])
+        case .duplicateParts:
+            guard selectCanvasParts(message.partIDs, on: page) else { return }
+            duplicatePart()
+        case .copyParts:
+            guard selectCanvasParts(message.partIDs, on: page) else { return }
+            copyPart()
+        case .pasteParts:
+            guard selectCanvasParts(message.partIDs, on: page) else { return }
+            pastePart()
+        case .insertPart:
+            guard let type = message.partType,
                   let placement = validatedPlacement(message.placement, on: page),
-                  let id = editor.insertBlock(type: type, on: page.id, placement: placement) else { return }
-            selectedBlockID = id
-        case .insertReusableBlock:
+                  let id = editor.insertPart(type: type, on: page.id, placement: placement) else { return }
+            selectedPartID = id
+        case .insertReusablePart:
             guard let definitionID = message.reusableDefinitionID,
                   let placement = validatedPlacement(message.placement, on: page),
-                  let id = editor.insertReusableBlock(
+                  let id = editor.insertReusablePart(
                     definitionID: definitionID,
                     on: page.id,
                     placement: placement
                   ) else { return }
-            selectedBlockID = id
-        case .insertGlobalBlock:
+            selectedPartID = id
+        case .insertGlobalPart:
             guard let definitionID = message.globalDefinitionID,
                   let placement = validatedPlacement(message.placement, on: page),
-                  let id = editor.insertGlobalBlock(
+                  let id = editor.insertGlobalPart(
                     definitionID: definitionID,
                     on: page.id,
                     placement: placement
                   ) else { return }
-            selectedBlockID = id
+            selectedPartID = id
         case .setGlobalLink:
-            guard let blockID = message.blockID,
+            guard let partID = message.partID,
                   let isLinked = message.isGlobalLinked,
-                  document.site.globalBlockContext(containing: blockID) != nil else { return }
-            editor.setGlobalBlockLinked(blockID: blockID, isLinked: isLinked)
-            selectedBlockID = blockID
-        case .moveBlock:
-            let blockIDs = message.blockIDs ?? message.blockID.map { [$0] } ?? []
-            guard blockIDs.allSatisfy({ page.blocks.node(withID: $0) != nil }),
+                  document.site.globalPartContext(containing: partID) != nil else { return }
+            editor.setGlobalPartLinked(partID: partID, isLinked: isLinked)
+            selectedPartID = partID
+        case .movePart:
+            let partIDs = message.partIDs ?? message.partID.map { [$0] } ?? []
+            guard partIDs.allSatisfy({ page.parts.node(withID: $0) != nil }),
                   let placement = validatedPlacement(message.placement, on: page),
-                  moveBlocksFromStructure(blockIDs, placement) else { return }
+                  movePartsFromStructure(partIDs, placement) else { return }
             workspaceLayout.activate(.structure)
-        case .editHTMLBlock:
-            guard let blockID = message.blockID,
+        case .editHTMLPart:
+            guard let partID = message.partID,
                   let propertyKey = message.propertyKey,
                   let source = message.propertyValue,
-                  let block = page.blocks.node(withID: blockID),
-                  let package = block.type.definition.package,
-                  BlockTemplateRenderer.htmlPrimitives(
+                  let part = page.parts.node(withID: partID),
+                  let package = part.type.definition.package,
+                  PartTemplateRenderer.htmlPrimitives(
                       in: package.htmlTemplate,
                       loopMaximums: package.loopMaximums
                   ).contains(where: {
                       $0.key == propertyKey.rawValue
                   }) else { return }
-            selectedBlockIDs = [blockID]
-            selectedBlockID = blockID
-            selectedPrimitive = .init(blockID: blockID, propertyKey: propertyKey)
+            selectedPartIDs = [partID]
+            selectedPartID = partID
+            selectedPrimitive = .init(partID: partID, propertyKey: propertyKey)
             htmlSourceEditRequest = HTMLSourceEditRequest(
                 pageID: page.id,
-                blockID: blockID,
+                partID: partID,
                 propertyKey: propertyKey,
                 propertyPath: message.propertyPath ?? [],
                 source: .init(
                     html: source,
-                    css: block.propertyValue(BlockPackageAdapter.htmlCSSKey(for: propertyKey.rawValue))
+                    css: part.propertyValue(PartPackageAdapter.htmlCSSKey(for: propertyKey.rawValue))
                         .value(at: message.propertyPath ?? [])?.stringValue ?? "",
-                    javaScript: block.propertyValue(BlockPackageAdapter.htmlJavaScriptKey(for: propertyKey.rawValue))
+                    javaScript: part.propertyValue(PartPackageAdapter.htmlJavaScriptKey(for: propertyKey.rawValue))
                         .value(at: message.propertyPath ?? [])?.stringValue ?? ""
                 )
             )
-        case .editBlock:
-            guard let blockID = message.blockID,
+        case .editPart:
+            guard let partID = message.partID,
                   let propertyKey = message.propertyKey,
-                  let block = page.blocks.node(withID: blockID),
-                  block.type.definition.properties.contains(where: { definition in
+                  let part = page.parts.node(withID: partID),
+                  part.type.definition.properties.contains(where: { definition in
                       guard definition.key == propertyKey else { return false }
                       switch definition.control {
                       case .singleLineText, .multilineText: return true
@@ -856,29 +856,29 @@ struct ContentView: View {
                       }
                   }),
                   let value = message.propertyValue else { return }
-            selectedBlockIDs = [blockID]
-            selectedBlockID = blockID
-            if block.type.definition.properties.contains(where: {
+            selectedPartIDs = [partID]
+            selectedPartID = partID
+            if part.type.definition.properties.contains(where: {
                 $0.key == propertyKey && !$0.isInspectorVisible
             }) {
                 selectedPrimitive = .init(
-                    blockID: blockID,
+                    partID: partID,
                     propertyKey: propertyKey,
                     propertyPath: message.propertyPath ?? []
                 )
             }
             pageTextEditRequest = PageTextEditRequest(
                 pageID: page.id,
-                blockID: blockID,
+                partID: partID,
                 propertyKey: propertyKey,
                 propertyPath: message.propertyPath ?? [],
                 value: value
             )
         case .importImageAsset:
             guard let propertyKey = message.propertyKey,
-                  let blockID = message.blockID,
-                  let block = page.blocks.node(withID: blockID),
-                  block.type.definition.properties.contains(where: {
+                  let partID = message.partID,
+                  let part = page.parts.node(withID: partID),
+                  part.type.definition.properties.contains(where: {
                       guard $0.key == propertyKey else { return false }
                       if case .image = $0.control { return true }
                       return false
@@ -918,7 +918,7 @@ struct ContentView: View {
                 asset = importedAsset
             }
             setCanvasProperty(
-                blockID: blockID,
+                partID: partID,
                 key: propertyKey,
                 value: .url(asset.reference),
                 at: message.propertyPath ?? [],
@@ -926,10 +926,10 @@ struct ContentView: View {
             )
             undoManager?.endUndoGrouping()
             undoManager?.setActionName("Import Image")
-            selectedBlockID = blockID
+            selectedPartID = partID
             selectedPrimitive = nil
             workspaceLayout.activate(.structure)
-        case .insertImageBlock:
+        case .insertImagePart:
             guard let placement = validatedPlacement(message.placement, on: page) else { return }
             let asset: ProjectAsset
             undoManager?.beginUndoGrouping()
@@ -965,63 +965,63 @@ struct ContentView: View {
                 }
                 asset = importedAsset
             }
-            guard let blockID = editor.insertBlock(type: .image, on: page.id, placement: placement) else {
+            guard let partID = editor.insertPart(type: .image, on: page.id, placement: placement) else {
                 undoManager?.endUndoGrouping()
                 return
             }
-            guard let imageProperty = BlockType.image.definition.properties.first(where: {
+            guard let imageProperty = PartType.image.definition.properties.first(where: {
                       if case .image = $0.control { return true }
                       return false
                   }) else {
                 undoManager?.endUndoGrouping()
                 return
             }
-            editor.setProperty(id: blockID, key: imageProperty.key, value: .url(asset.reference))
+            editor.setProperty(id: partID, key: imageProperty.key, value: .url(asset.reference))
             undoManager?.endUndoGrouping()
             undoManager?.setActionName("Add Image")
-            selectedBlockIDs = [blockID]
-            selectedBlockID = blockID
+            selectedPartIDs = [partID]
+            selectedPartID = partID
             workspaceLayout.activate(.structure)
         }
     }
 
     @discardableResult
-    private func selectCanvasBlocks(_ blockIDs: [UUID]?, on page: Page) -> Bool {
-        guard let blockIDs, !blockIDs.isEmpty,
-              blockIDs.allSatisfy({ page.blocks.node(withID: $0) != nil }) else { return false }
-        selectedBlockIDs = Set(blockIDs)
-        selectedBlockID = blockIDs.last
+    private func selectCanvasParts(_ partIDs: [UUID]?, on page: Page) -> Bool {
+        guard let partIDs, !partIDs.isEmpty,
+              partIDs.allSatisfy({ page.parts.node(withID: $0) != nil }) else { return false }
+        selectedPartIDs = Set(partIDs)
+        selectedPartID = partIDs.last
         return true
     }
 
     private func handleCanvasContextMenuAction(
         _ action: CanvasContextMenuAction,
-        blockID: UUID,
-        imageProperty: BlockProperty.Key?,
+        partID: UUID,
+        imageProperty: PartProperty.Key?,
         imagePropertyPath: [Int]
     ) {
-        guard let block = selectedPage?.blocks.node(withID: blockID) else { return }
+        guard let part = selectedPage?.parts.node(withID: partID) else { return }
         selectedPrimitive = nil
-        selectedLibraryBlockType = nil
-        if !selectedBlockIDs.contains(blockID) {
-            selectedBlockIDs = [blockID]
+        selectedLibraryPartType = nil
+        if !selectedPartIDs.contains(partID) {
+            selectedPartIDs = [partID]
         }
-        selectedBlockID = blockID
+        selectedPartID = partID
 
         switch action {
         case .clearImage:
             guard let imageProperty,
-                  let definition = block.type.definition.properties.first(where: {
+                  let definition = part.type.definition.properties.first(where: {
                       guard $0.key == imageProperty else { return false }
                       if case .image = $0.control { return true }
                       return false
                   }) else { return }
             undoManager?.beginUndoGrouping()
-            let defaultLeafValue: BlockProperty.Value = definition.defaultValue.arrayValue == nil
+            let defaultLeafValue: PartProperty.Value = definition.defaultValue.arrayValue == nil
                 ? definition.defaultValue
                 : .url("")
             setCanvasProperty(
-                blockID: blockID,
+                partID: partID,
                 key: imageProperty,
                 value: defaultLeafValue,
                 at: imagePropertyPath,
@@ -1030,43 +1030,43 @@ struct ContentView: View {
             undoManager?.endUndoGrouping()
             undoManager?.setActionName("Clear Image")
         case .duplicate:
-            duplicateBlock()
+            duplicatePart()
         case .copy:
-            copyBlock()
+            copyPart()
         case .paste:
-            pasteBlock()
+            pastePart()
         case .saveReusable:
-            canvasReusableBlockName = block.name
+            canvasReusablePartName = part.name
         case .saveGlobal:
-            canvasGlobalBlockName = block.name
+            canvasGlobalPartName = part.name
         case .makeLocalOverride:
-            editor.setGlobalBlockLinked(blockID: blockID, isLinked: false)
+            editor.setGlobalPartLinked(partID: partID, isLinked: false)
         case .relinkGlobal:
-            editor.setGlobalBlockLinked(blockID: blockID, isLinked: true)
+            editor.setGlobalPartLinked(partID: partID, isLinked: true)
         case .moveUp:
-            moveBlock(-1)
+            movePart(-1)
         case .moveDown:
-            moveBlock(1)
+            movePart(1)
         case .outdent:
-            outdentBlock()
+            outdentPart()
         case .delete:
-            deleteBlock()
+            deletePart()
         }
     }
 
     private func canClearCanvasImage(
-        blockID: UUID,
-        imageProperty: BlockProperty.Key,
+        partID: UUID,
+        imageProperty: PartProperty.Key,
         imagePropertyPath: [Int]
     ) -> Bool {
-        guard let block = selectedPage?.blocks.node(withID: blockID),
-              let definition = block.type.definition.properties.first(where: {
+        guard let part = selectedPage?.parts.node(withID: partID),
+              let definition = part.type.definition.properties.first(where: {
                   guard $0.key == imageProperty else { return false }
                   if case .image = $0.control { return true }
                   return false
               }) else { return false }
-        let currentValue = block.propertyValue(imageProperty).value(at: imagePropertyPath)
-        let defaultLeafValue: BlockProperty.Value = definition.defaultValue.arrayValue == nil
+        let currentValue = part.propertyValue(imageProperty).value(at: imagePropertyPath)
+        let defaultLeafValue: PartProperty.Value = definition.defaultValue.arrayValue == nil
             ? definition.defaultValue
             : .url("")
         return currentValue != nil && currentValue != defaultLeafValue
@@ -1074,52 +1074,52 @@ struct ContentView: View {
 
     private var canvasReusableAlertBinding: Binding<Bool> {
         Binding(
-            get: { canvasReusableBlockName != nil },
-            set: { if !$0 { canvasReusableBlockName = nil } }
+            get: { canvasReusablePartName != nil },
+            set: { if !$0 { canvasReusablePartName = nil } }
         )
     }
 
     private var canvasGlobalAlertBinding: Binding<Bool> {
         Binding(
-            get: { canvasGlobalBlockName != nil },
-            set: { if !$0 { canvasGlobalBlockName = nil } }
+            get: { canvasGlobalPartName != nil },
+            set: { if !$0 { canvasGlobalPartName = nil } }
         )
     }
 
     private var canvasReusableNameBinding: Binding<String> {
         Binding(
-            get: { canvasReusableBlockName ?? "" },
-            set: { canvasReusableBlockName = $0 }
+            get: { canvasReusablePartName ?? "" },
+            set: { canvasReusablePartName = $0 }
         )
     }
 
     private var canvasGlobalNameBinding: Binding<String> {
         Binding(
-            get: { canvasGlobalBlockName ?? "" },
-            set: { canvasGlobalBlockName = $0 }
+            get: { canvasGlobalPartName ?? "" },
+            set: { canvasGlobalPartName = $0 }
         )
     }
 
-    private func saveHTMLSource(_ source: HTMLBlockSource, request: HTMLSourceEditRequest) {
+    private func saveHTMLSource(_ source: HTMLPartSource, request: HTMLSourceEditRequest) {
         guard let page = document.site.pages.first(where: { $0.id == request.pageID }),
-              let block = page.blocks.node(withID: request.blockID),
-              let package = block.type.definition.package,
-              BlockTemplateRenderer.htmlPrimitives(
+              let part = page.parts.node(withID: request.partID),
+              let package = part.type.definition.package,
+              PartTemplateRenderer.htmlPrimitives(
                   in: package.htmlTemplate,
                   loopMaximums: package.loopMaximums
               ).contains(where: {
                   $0.key == request.propertyKey.rawValue
               }) else { return }
-        let values: [(BlockProperty.Key, String)] = [
+        let values: [(PartProperty.Key, String)] = [
             (request.propertyKey, source.html),
-            (BlockPackageAdapter.htmlCSSKey(for: request.propertyKey.rawValue), source.css),
-            (BlockPackageAdapter.htmlJavaScriptKey(for: request.propertyKey.rawValue), source.javaScript)
+            (PartPackageAdapter.htmlCSSKey(for: request.propertyKey.rawValue), source.css),
+            (PartPackageAdapter.htmlJavaScriptKey(for: request.propertyKey.rawValue), source.javaScript)
         ]
         undoManager?.beginUndoGrouping()
         for (key, value) in values {
-            let defaultLeafValue: BlockProperty.Value
+            let defaultLeafValue: PartProperty.Value
             if key == request.propertyKey,
-               let primitive = BlockTemplateRenderer.htmlPrimitives(
+               let primitive = PartTemplateRenderer.htmlPrimitives(
                    in: package.htmlTemplate,
                    loopMaximums: package.loopMaximums
                ).first(where: { $0.key == key.rawValue }) {
@@ -1128,7 +1128,7 @@ struct ContentView: View {
                 defaultLeafValue = .string("")
             }
             setCanvasProperty(
-                blockID: request.blockID,
+                partID: request.partID,
                 key: key,
                 value: .string(value),
                 at: request.propertyPath,
@@ -1136,13 +1136,13 @@ struct ContentView: View {
             )
         }
         undoManager?.endUndoGrouping()
-        undoManager?.setActionName("Edit HTML Block")
+        undoManager?.setActionName("Edit HTML Part")
     }
 
     private func savePageText(_ value: String, request: PageTextEditRequest) {
         guard let page = document.site.pages.first(where: { $0.id == request.pageID }),
-              let block = page.blocks.node(withID: request.blockID),
-              block.type.definition.properties.contains(where: { definition in
+              let part = page.parts.node(withID: request.partID),
+              part.type.definition.properties.contains(where: { definition in
                   guard definition.key == request.propertyKey else { return false }
                   switch definition.control {
                   case .singleLineText, .multilineText: return true
@@ -1150,14 +1150,14 @@ struct ContentView: View {
                   }
               }) else { return }
         undoManager?.beginUndoGrouping()
-        let defaultLeafValue = block.type.definition.package.flatMap { package in
-            BlockTemplateRenderer.textPrimitives(
+        let defaultLeafValue = part.type.definition.package.flatMap { package in
+            PartTemplateRenderer.textPrimitives(
                 in: package.htmlTemplate,
                 loopMaximums: package.loopMaximums
             ).first(where: { $0.key == request.propertyKey.rawValue })?.defaultValue
         } ?? ""
         setCanvasProperty(
-            blockID: request.blockID,
+            partID: request.partID,
             key: request.propertyKey,
             value: .string(value),
             at: request.propertyPath,
@@ -1168,24 +1168,24 @@ struct ContentView: View {
     }
 
     private func setCanvasProperty(
-        blockID: UUID,
-        key: BlockProperty.Key,
-        value: BlockProperty.Value,
+        partID: UUID,
+        key: PartProperty.Key,
+        value: PartProperty.Value,
         at indexPath: [Int],
-        defaultLeafValue: BlockProperty.Value
+        defaultLeafValue: PartProperty.Value
     ) {
-        guard let block = selectedPage?.blocks.node(withID: blockID) else { return }
+        guard let part = selectedPage?.parts.node(withID: partID) else { return }
         let rootValue = indexPath.isEmpty
             ? value
-            : block.propertyValue(key).settingValue(
+            : part.propertyValue(key).settingValue(
                 value,
                 at: indexPath,
                 defaultLeafValue: defaultLeafValue
             )
-        if let context = document.site.globalBlockContext(containing: blockID), !context.isOverridden {
-            editor.setSharedReusableProperty(blockID: blockID, key: key, value: rootValue)
+        if let context = document.site.globalPartContext(containing: partID), !context.isOverridden {
+            editor.setSharedReusableProperty(partID: partID, key: key, value: rootValue)
         } else {
-            editor.setProperty(id: blockID, key: key, value: rootValue)
+            editor.setProperty(id: partID, key: key, value: rootValue)
         }
     }
 
@@ -1193,10 +1193,10 @@ struct ContentView: View {
         UTType(mimeType: mediaType) ?? UTType(filenameExtension: URL(fileURLWithPath: filename).pathExtension)
     }
 
-    private func validatedPlacement(_ value: CanvasMessage.Placement?, on page: Page) -> BlockPlacement? {
-        guard let value, let placement = value.blockPlacement else { return nil }
+    private func validatedPlacement(_ value: CanvasMessage.Placement?, on page: Page) -> PartPlacement? {
+        guard let value, let placement = value.partPlacement else { return nil }
         if let targetID = value.targetID,
-           page.blocks.node(withID: targetID) == nil {
+           page.parts.node(withID: targetID) == nil {
             return nil
         }
         return placement
@@ -1215,7 +1215,7 @@ struct ContentView: View {
         selectedPageFolderID = nil
         selectedPageAssetID = nil
         inspectedPageID = pageID
-        selectedBlockID = nil
+        selectedPartID = nil
     }
 
     private func addPageFolder(_ name: String, at placement: PageTreePlacement?) {
@@ -1233,7 +1233,7 @@ struct ContentView: View {
         let duplicatedPageID = editor.duplicatePage(id: pageID)
         selectedPageID = duplicatedPageID
         inspectedPageID = duplicatedPageID
-        selectedBlockID = nil
+        selectedPartID = nil
     }
 
     private func deletePage(_ pageID: UUID) {
@@ -1257,7 +1257,7 @@ struct ContentView: View {
         ) else { return }
         selectedPageID = nextPageID
         inspectedPageID = nextPageID
-        selectedBlockID = nil
+        selectedPartID = nil
     }
 
     private func descendantPageIDs(of pageID: UUID) -> Set<UUID> {
@@ -1291,212 +1291,212 @@ struct ContentView: View {
         inspectedPageID = pageID
     }
 
-    private func addBlockToPageEnd(_ type: BlockType) {
-        guard insertBlockFromLibrary(type, .end) else { return }
+    private func addPartToPageEnd(_ type: PartType) {
+        guard insertPartFromLibrary(type, .end) else { return }
         workspaceLayout.activate(.structure)
     }
 
-    private func insertBlockFromLibrary(_ type: BlockType, _ placement: BlockPlacement) -> Bool {
+    private func insertPartFromLibrary(_ type: PartType, _ placement: PartPlacement) -> Bool {
         guard let pageID = selectedPage?.id,
-              let id = editor.insertBlock(type: type, on: pageID, placement: placement) else { return false }
-        selectedBlockID = id
+              let id = editor.insertPart(type: type, on: pageID, placement: placement) else { return false }
+        selectedPartID = id
         return true
     }
 
-    private func insertReusableBlockFromLibrary(
+    private func insertReusablePartFromLibrary(
         _ definitionID: UUID,
-        _ placement: BlockPlacement
+        _ placement: PartPlacement
     ) -> Bool {
         guard let pageID = selectedPage?.id,
-              let id = editor.insertReusableBlock(
+              let id = editor.insertReusablePart(
                 definitionID: definitionID,
                 on: pageID,
                 placement: placement
               ) else { return false }
-        selectedBlockID = id
+        selectedPartID = id
         return true
     }
 
-    private func insertGlobalBlockFromLibrary(
+    private func insertGlobalPartFromLibrary(
         _ definitionID: UUID,
-        _ placement: BlockPlacement
+        _ placement: PartPlacement
     ) -> Bool {
         guard let pageID = selectedPage?.id,
-              let id = editor.insertGlobalBlock(
+              let id = editor.insertGlobalPart(
                 definitionID: definitionID,
                 on: pageID,
                 placement: placement
               ) else { return false }
-        selectedBlockID = id
+        selectedPartID = id
         return true
     }
 
-    private func saveReusableBlock(_ name: String) {
-        guard let blockID = selectedBlockID else { return }
-        _ = editor.saveReusableBlock(
-            blockID: blockID,
+    private func saveReusablePart(_ name: String) {
+        guard let partID = selectedPartID else { return }
+        _ = editor.saveReusablePart(
+            partID: partID,
             name: name.trimmingCharacters(in: .whitespacesAndNewlines)
         )
-        workspaceLayout.activate(.reusableBlocks)
+        workspaceLayout.activate(.reusableParts)
     }
 
-    private func saveGlobalBlock(_ name: String) {
-        guard let blockID = selectedBlockID else { return }
-        _ = editor.saveGlobalBlock(
-            blockID: blockID,
+    private func saveGlobalPart(_ name: String) {
+        guard let partID = selectedPartID else { return }
+        _ = editor.saveGlobalPart(
+            partID: partID,
             name: name.trimmingCharacters(in: .whitespacesAndNewlines)
         )
         editsSharedReusableDefinition = true
-        workspaceLayout.activate(.globalBlocks)
+        workspaceLayout.activate(.globalParts)
     }
 
-    private func saveDraggedBlocksAsGlobals(_ blockIDs: [UUID]) -> Bool {
+    private func saveDraggedPartsAsGlobals(_ partIDs: [UUID]) -> Bool {
         guard let selectedPage else { return false }
-        let requestedIDs = Set(blockIDs)
-        func flattenedIDs(_ nodes: [BlockNode]) -> [UUID] {
+        let requestedIDs = Set(partIDs)
+        func flattenedIDs(_ nodes: [PartNode]) -> [UUID] {
             nodes.flatMap { [$0.id] + flattenedIDs($0.children) }
         }
-        let orderedTopLevelIDs = flattenedIDs(selectedPage.blocks).filter { id in
+        let orderedTopLevelIDs = flattenedIDs(selectedPage.parts).filter { id in
             guard requestedIDs.contains(id) else { return false }
-            return Set(selectedPage.blocks.ancestorIDs(of: id)).isDisjoint(with: requestedIDs)
+            return Set(selectedPage.parts.ancestorIDs(of: id)).isDisjoint(with: requestedIDs)
         }
         guard !orderedTopLevelIDs.isEmpty else { return false }
-        let createdIDs = editor.saveGlobalBlocks(blockIDs: orderedTopLevelIDs)
+        let createdIDs = editor.saveGlobalParts(partIDs: orderedTopLevelIDs)
         if !createdIDs.isEmpty {
             editsSharedReusableDefinition = true
         }
         return createdIDs.count == orderedTopLevelIDs.count
     }
 
-    private func renameBlock(_ blockID: UUID, _ name: String) {
-        if let definitionID = document.site.block(withID: blockID)?.reusableDefinitionID,
-           document.site.globalBlocks.contains(where: { $0.id == definitionID }) {
-            editor.renameGlobalBlock(definitionID: definitionID, name: name)
+    private func renamePart(_ partID: UUID, _ name: String) {
+        if let definitionID = document.site.part(withID: partID)?.reusableDefinitionID,
+           document.site.globalParts.contains(where: { $0.id == definitionID }) {
+            editor.renameGlobalPart(definitionID: definitionID, name: name)
         } else {
-            editor.renameBlock(id: blockID, name: name)
+            editor.renamePart(id: partID, name: name)
         }
     }
 
-    private func renameGlobalBlock(_ definitionID: UUID, _ name: String) {
-        editor.renameGlobalBlock(definitionID: definitionID, name: name)
+    private func renameGlobalPart(_ definitionID: UUID, _ name: String) {
+        editor.renameGlobalPart(definitionID: definitionID, name: name)
     }
 
-    private func deleteGlobalBlock(_ definitionID: UUID) {
-        editor.removeGlobalBlock(definitionID: definitionID)
-        if selectedBlock?.reusableDefinitionID == nil {
+    private func deleteGlobalPart(_ definitionID: UUID) {
+        editor.removeGlobalPart(definitionID: definitionID)
+        if selectedPart?.reusableDefinitionID == nil {
             editsSharedReusableDefinition = false
         }
     }
 
-    private func renameReusableBlock(_ definitionID: UUID, _ name: String) {
-        editor.renameReusableBlock(definitionID: definitionID, name: name)
+    private func renameReusablePart(_ definitionID: UUID, _ name: String) {
+        editor.renameReusablePart(definitionID: definitionID, name: name)
     }
 
-    private func deleteReusableBlock(_ definitionID: UUID) {
-        editor.removeReusableBlock(definitionID: definitionID)
-        if selectedBlock?.reusableDefinitionID == nil {
+    private func deleteReusablePart(_ definitionID: UUID) {
+        editor.removeReusablePart(definitionID: definitionID)
+        if selectedPart?.reusableDefinitionID == nil {
             editsSharedReusableDefinition = false
         }
     }
 
-    private func updateReusableBlock() {
-        guard let blockID = selectedBlockID else { return }
-        _ = editor.updateReusableBlock(from: blockID)
+    private func updateReusablePart() {
+        guard let partID = selectedPartID else { return }
+        _ = editor.updateReusablePart(from: partID)
     }
 
-    private func detachReusableBlock() {
-        guard let blockID = selectedBlockID else { return }
-        editor.detachReusableBlock(blockID: blockID)
+    private func detachReusablePart() {
+        guard let partID = selectedPartID else { return }
+        editor.detachReusablePart(partID: partID)
     }
 
-    private func duplicateBlock() {
+    private func duplicatePart() {
         guard let pageID = selectedPage?.id else { return }
-        let duplicateIDs = editor.duplicateBlocks(
-            ids: topLevelSelectedBlockIDs,
+        let duplicateIDs = editor.duplicateParts(
+            ids: topLevelSelectedPartIDs,
             on: pageID
         )
-        selectedBlockIDs = Set(duplicateIDs)
-        selectedBlockID = duplicateIDs.last
+        selectedPartIDs = Set(duplicateIDs)
+        selectedPartID = duplicateIDs.last
     }
 
-    private func copyBlock() {
+    private func copyPart() {
         guard let selectedPage else {
-            copiedBlocks = []
+            copiedParts = []
             return
         }
-        copiedBlocks = topLevelSelectedBlockIDs.compactMap {
-            selectedPage.blocks.node(withID: $0)
+        copiedParts = topLevelSelectedPartIDs.compactMap {
+            selectedPage.parts.node(withID: $0)
         }
     }
 
-    private func pasteBlock() {
-        guard let pageID = selectedPage?.id, !copiedBlocks.isEmpty else { return }
-        let placement = topLevelSelectedBlockIDs.last
-            .map(BlockPlacement.after)
+    private func pastePart() {
+        guard let pageID = selectedPage?.id, !copiedParts.isEmpty else { return }
+        let placement = topLevelSelectedPartIDs.last
+            .map(PartPlacement.after)
             ?? .end
-        let pastedIDs = editor.pasteBlocks(
-            copiedBlocks,
+        let pastedIDs = editor.pasteParts(
+            copiedParts,
             on: pageID,
             placement: placement
         )
-        selectedBlockIDs = Set(pastedIDs)
-        selectedBlockID = pastedIDs.last
+        selectedPartIDs = Set(pastedIDs)
+        selectedPartID = pastedIDs.last
     }
 
-    private func moveBlock(_ offset: Int) {
+    private func movePart(_ offset: Int) {
         guard let pageID = selectedPage?.id,
-              let blockID = selectedBlockID else {
+              let partID = selectedPartID else {
             return
         }
-        editor.moveBlockBySiblingOffset(
-            id: blockID,
+        editor.movePartBySiblingOffset(
+            id: partID,
             on: pageID,
             offset: offset
         )
     }
 
-    private func outdentBlock() {
+    private func outdentPart() {
         guard let pageID = selectedPage?.id,
-              let blockID = selectedBlockID else {
+              let partID = selectedPartID else {
             return
         }
-        editor.outdentBlock(id: blockID, on: pageID)
+        editor.outdentPart(id: partID, on: pageID)
     }
 
-    private func moveBlocksFromStructure(_ sourceIDs: [UUID], _ placement: BlockPlacement) -> Bool {
+    private func movePartsFromStructure(_ sourceIDs: [UUID], _ placement: PartPlacement) -> Bool {
         guard let pageID = selectedPage?.id else { return false }
         let requestedIDs = Set(sourceIDs)
-        let orderedIDs = topLevelSelectedBlockIDs.filter { requestedIDs.contains($0) }
-        let blockIDs = orderedIDs.isEmpty ? sourceIDs : orderedIDs
-        guard !blockIDs.isEmpty else { return false }
+        let orderedIDs = topLevelSelectedPartIDs.filter { requestedIDs.contains($0) }
+        let partIDs = orderedIDs.isEmpty ? sourceIDs : orderedIDs
+        guard !partIDs.isEmpty else { return false }
         if let targetID = placement.targetID {
-            let targetAncestors = Set(selectedPage?.blocks.ancestorIDs(of: targetID) ?? [])
-            guard !blockIDs.contains(targetID),
-                  targetAncestors.isDisjoint(with: blockIDs) else { return false }
+            let targetAncestors = Set(selectedPage?.parts.ancestorIDs(of: targetID) ?? [])
+            guard !partIDs.contains(targetID),
+                  targetAncestors.isDisjoint(with: partIDs) else { return false }
         }
-        if editor.moveBlocks(ids: blockIDs, on: pageID, to: placement) {
-            selectedBlockIDs = Set(blockIDs)
-            selectedBlockID = blockIDs.last
+        if editor.moveParts(ids: partIDs, on: pageID, to: placement) {
+            selectedPartIDs = Set(partIDs)
+            selectedPartID = partIDs.last
             return true
         }
         return false
     }
 
-    private func canMoveBlocksFromStructure(_ sourceIDs: [UUID], _ placement: BlockPlacement) -> Bool {
+    private func canMovePartsFromStructure(_ sourceIDs: [UUID], _ placement: PartPlacement) -> Bool {
         guard let pageID = selectedPage?.id else { return false }
-        return editor.canMoveBlocks(ids: sourceIDs, on: pageID, to: placement)
+        return editor.canMoveParts(ids: sourceIDs, on: pageID, to: placement)
     }
 
-    private func deleteBlock() {
-        deleteBlocks(Array(selectedBlockIDs))
+    private func deletePart() {
+        deleteParts(Array(selectedPartIDs))
     }
 
-    private func deleteBlocks(_ requestedIDs: [UUID]) {
-        let blockIDs = topLevelBlockIDs(from: Set(requestedIDs))
-        guard !blockIDs.isEmpty else { return }
-        editor.removeBlocks(ids: blockIDs)
-        selectedBlockIDs = []
-        selectedBlockID = nil
+    private func deleteParts(_ requestedIDs: [UUID]) {
+        let partIDs = topLevelPartIDs(from: Set(requestedIDs))
+        guard !partIDs.isEmpty else { return }
+        editor.removeParts(ids: partIDs)
+        selectedPartIDs = []
+        selectedPartID = nil
     }
 
     private func previewSite() {
@@ -1586,8 +1586,8 @@ struct ContentView: View {
     }
 
     private func previewURL(for outputPath: String, relativeTo serverURL: URL) -> URL {
-        outputPath.split(separator: "/").reduce(serverURL) { url, block in
-            url.appending(path: String(block))
+        outputPath.split(separator: "/").reduce(serverURL) { url, part in
+            url.appending(path: String(part))
         }
     }
 
@@ -1896,11 +1896,11 @@ struct ContentView: View {
 
     private func assetUsageCount(_ id: UUID) -> Int {
         document.site.pages.reduce(0) { total, page in
-            total + page.blocks.reduce(0) { $0 + assetUsageCount(id, in: $1) }
+            total + page.parts.reduce(0) { $0 + assetUsageCount(id, in: $1) }
         }
     }
 
-    private func assetUsageCount(_ id: UUID, in node: BlockNode) -> Int {
+    private func assetUsageCount(_ id: UUID, in node: PartNode) -> Int {
         (node.property(.source).foundryAssetID == id ? 1 : 0) + node.children.reduce(0) { $0 + assetUsageCount(id, in: $1) }
     }
 }

@@ -23,18 +23,18 @@ struct CanvasBridgeTests {
     }
 
     @Test
-    func canvasDefinesDistinctBlockReconciliationAndReloadOperations() {
+    func canvasDefinesDistinctPartReconciliationAndReloadOperations() {
         let id = UUID()
-        let subtree = RenderedBlockSubtree(blockID: id, html: "<div></div>", instanceCSS: "")
+        let subtree = RenderedPartSubtree(partID: id, html: "<div></div>", instanceCSS: "")
         let operations: [CanvasWebOperation] = [
-            .block(subtree, revision: 4),
+            .part(subtree, revision: 4),
             .reconcilePage(html: "page", revision: 5),
             .reloadDocument(html: "page", revision: 6)
         ]
         let interactionScript = WebCanvasView.Coordinator.interactionScript
 
         #expect(operations.map(\.revision) == [4, 5, 6])
-        #expect(interactionScript.contains("foundryReplaceBlock"))
+        #expect(interactionScript.contains("foundryReplacePart"))
         #expect(interactionScript.contains("data-foundry-instance-style"))
         #expect(interactionScript.contains("revision < latestFoundryRevision"))
     }
@@ -68,11 +68,11 @@ struct CanvasBridgeTests {
     }
 
     @Test @MainActor
-    func ordinaryLocalPropertyMutationUsesAuthoritativeBlockPatch() throws {
-        var paragraph = BlockNode.make(.paragraph)
-        let propertyKey = BlockProperty.Key(rawValue: "content")
+    func ordinaryLocalPropertyMutationUsesAuthoritativePartPatch() throws {
+        var paragraph = PartNode.make(.paragraph)
+        let propertyKey = PartProperty.Key(rawValue: "content")
         paragraph.setProperty(propertyKey, value: .string("Patched value"))
-        let page = Page(title: "Patch", slug: "patch", blocks: [paragraph])
+        let page = Page(title: "Patch", slug: "patch", parts: [paragraph])
         let snapshot = CanvasRenderSnapshot(
             renderer: HTMLPageRenderer(),
             page: page,
@@ -80,25 +80,25 @@ struct CanvasBridgeTests {
             theme: .standard,
             assets: [:],
             breakpoint: .extraLarge,
-            impact: .blockProperty(blockID: paragraph.id, propertyKey: propertyKey),
+            impact: .partProperty(partID: paragraph.id, propertyKey: propertyKey),
             forcesReconciliation: false
         )
 
         let result = snapshot.render()
-        guard case .block(let subtree) = result else {
-            Issue.record("Expected a targeted block render")
+        guard case .part(let subtree) = result else {
+            Issue.record("Expected a targeted part render")
             return
         }
-        #expect(subtree.blockID == paragraph.id)
+        #expect(subtree.partID == paragraph.id)
         #expect(HTMLPageRenderer().render(page: page, theme: .standard).contains(subtree.html))
     }
 
     @Test @MainActor
     func reusablePropertyMutationUsesPageFallback() {
-        var paragraph = BlockNode.make(.paragraph)
+        var paragraph = PartNode.make(.paragraph)
         paragraph.reusableDefinitionID = UUID()
-        let propertyKey = BlockProperty.Key(rawValue: "content")
-        let page = Page(title: "Fallback", slug: "fallback", blocks: [paragraph])
+        let propertyKey = PartProperty.Key(rawValue: "content")
+        let page = Page(title: "Fallback", slug: "fallback", parts: [paragraph])
         let snapshot = CanvasRenderSnapshot(
             renderer: HTMLPageRenderer(),
             page: page,
@@ -106,7 +106,7 @@ struct CanvasBridgeTests {
             theme: .standard,
             assets: [:],
             breakpoint: .extraLarge,
-            impact: .blockProperty(blockID: paragraph.id, propertyKey: propertyKey),
+            impact: .partProperty(partID: paragraph.id, propertyKey: propertyKey),
             forcesReconciliation: false
         )
 
@@ -121,37 +121,37 @@ struct CanvasBridgeTests {
         let id = UUID()
         let body: [String: Any] = [
             "version": CanvasMessage.currentVersion,
-            "event": "selectBlock",
-            "blockID": id.uuidString
+            "event": "selectPart",
+            "partID": id.uuidString
         ]
 
         let message = CanvasMessage.decode(body)
 
-        #expect(message?.event == .selectBlock)
-        #expect(message?.blockID == id)
+        #expect(message?.event == .selectPart)
+        #expect(message?.partID == id)
     }
 
     @Test
     func decodesPrimitiveSelectionMessage() {
-        let blockID = UUID()
-        let propertyKey = BlockProperty.Key(rawValue: "sourceRepeat3")
+        let partID = UUID()
+        let propertyKey = PartProperty.Key(rawValue: "sourceRepeat3")
 
         let message = CanvasMessage.decode([
             "version": CanvasMessage.currentVersion,
             "event": "selectPrimitive",
-            "blockID": blockID.uuidString,
+            "partID": partID.uuidString,
             "propertyKey": propertyKey.rawValue,
             "propertyPath": [2, 4]
         ])
 
         #expect(message?.event == .selectPrimitive)
-        #expect(message?.blockID == blockID)
+        #expect(message?.partID == partID)
         #expect(message?.propertyKey == propertyKey)
         #expect(message?.propertyPath == [2, 4])
         #expect(CanvasMessage.decode([
             "version": CanvasMessage.currentVersion,
             "event": "selectPrimitive",
-            "blockID": blockID.uuidString
+            "partID": partID.uuidString
         ]) == nil)
     }
 
@@ -161,13 +161,13 @@ struct CanvasBridgeTests {
 
         #expect(CanvasMessage.decode([
             "version": 999,
-            "event": "selectBlock",
-            "blockID": id
+            "event": "selectPart",
+            "partID": id
         ]) == nil)
         #expect(CanvasMessage.decode([
             "version": CanvasMessage.currentVersion,
             "event": "unknown",
-            "blockID": id
+            "partID": id
         ]) == nil)
         #expect(CanvasMessage.decode("not an object") == nil)
     }
@@ -175,11 +175,11 @@ struct CanvasBridgeTests {
     @Test
     func decodesCanvasImageImportMessage() {
         let id = UUID()
-        let propertyKey = BlockProperty.Key(rawValue: "sourceRepeat1")
+        let propertyKey = PartProperty.Key(rawValue: "sourceRepeat1")
         let message = CanvasMessage.decode([
             "version": CanvasMessage.currentVersion,
             "event": "importImageAsset",
-            "blockID": id.uuidString,
+            "partID": id.uuidString,
             "propertyKey": propertyKey.rawValue,
             "propertyPath": [3],
             "assetFilename": "hero.png",
@@ -188,7 +188,7 @@ struct CanvasBridgeTests {
         ])
 
         #expect(message?.event == .importImageAsset)
-        #expect(message?.blockID == id)
+        #expect(message?.partID == id)
         #expect(message?.propertyKey == propertyKey)
         #expect(message?.propertyPath == [3])
         #expect(message?.assetFilename == "hero.png")
@@ -197,7 +197,7 @@ struct CanvasBridgeTests {
         let existingAssetMessage = CanvasMessage.decode([
             "version": CanvasMessage.currentVersion,
             "event": "importImageAsset",
-            "blockID": id.uuidString,
+            "partID": id.uuidString,
             "propertyKey": propertyKey.rawValue,
             "assetID": assetID.uuidString
         ])
@@ -206,20 +206,20 @@ struct CanvasBridgeTests {
     }
 
     @Test
-    func decodesCanvasBlockDeletionAndRejectsEmptyDeletion() {
+    func decodesCanvasPartDeletionAndRejectsEmptyDeletion() {
         let ids = [UUID(), UUID()]
         let message = CanvasMessage.decode([
             "version": CanvasMessage.currentVersion,
-            "event": "deleteBlocks",
-            "blockIDs": ids.map(\.uuidString)
+            "event": "deleteParts",
+            "partIDs": ids.map(\.uuidString)
         ])
 
-        #expect(message?.event == .deleteBlocks)
-        #expect(message?.blockIDs == ids)
+        #expect(message?.event == .deleteParts)
+        #expect(message?.partIDs == ids)
         #expect(CanvasMessage.decode([
             "version": CanvasMessage.currentVersion,
-            "event": "deleteBlocks",
-            "blockIDs": []
+            "event": "deleteParts",
+            "partIDs": []
         ]) == nil)
     }
 
@@ -227,34 +227,34 @@ struct CanvasBridgeTests {
     func decodesCanvasKeyboardSelectionActions() {
         let ids = [UUID(), UUID()]
         let actions: [(String, CanvasMessage.Event)] = [
-            ("duplicateBlocks", .duplicateBlocks),
-            ("copyBlocks", .copyBlocks),
-            ("pasteBlocks", .pasteBlocks)
+            ("duplicateParts", .duplicateParts),
+            ("copyParts", .copyParts),
+            ("pasteParts", .pasteParts)
         ]
         for (event, expectedEvent) in actions {
             let message = CanvasMessage.decode([
                 "version": CanvasMessage.currentVersion,
                 "event": event,
-                "blockIDs": ids.map(\.uuidString)
+                "partIDs": ids.map(\.uuidString)
             ])
 
             #expect(message?.event == expectedEvent)
-            #expect(message?.blockIDs == ids)
+            #expect(message?.partIDs == ids)
         }
         #expect(WebCanvasView.Coordinator.interactionScript.contains("event.metaKey"))
-        #expect(WebCanvasView.Coordinator.interactionScript.contains("window.foundryEditBlock(blockID)"))
+        #expect(WebCanvasView.Coordinator.interactionScript.contains("window.foundryEditPart(partID)"))
     }
 
     @Test @MainActor
-    func rendererEmitsStableIdentityForEveryBlock() {
+    func rendererEmitsStableIdentityForEveryPart() {
         let page = TestSiteFixtures.populatedSite().pages[0]
         let html = HTMLPageRenderer().render(page: page, theme: .standard)
-        let blockIDs = flattened(page.blocks).map(\.id.uuidString)
+        let partIDs = flattened(page.parts).map(\.id.uuidString)
 
-        for id in blockIDs {
+        for id in partIDs {
             #expect(html.contains("data-foundry-id=\"\(id)\""))
         }
-        #expect(html.contains("data-foundry-block"))
+        #expect(html.contains("data-foundry-part"))
         #expect(html.contains("data-foundry-package="))
         #expect(html.contains("data-foundry-type=\"Container\""))
         #expect(html.contains("data-foundry-type=\"Paragraph\""))
@@ -263,13 +263,13 @@ struct CanvasBridgeTests {
 
     @Test @MainActor
     func subtreeRendererMatchesAuthoritativePageOutput() throws {
-        var paragraph = BlockNode.make(.paragraph)
+        var paragraph = PartNode.make(.paragraph)
         paragraph.setProperty(.init(rawValue: "content"), value: .string("Subtree value"))
-        let page = Page(title: "Subtree", slug: "subtree", blocks: [paragraph])
+        let page = Page(title: "Subtree", slug: "subtree", parts: [paragraph])
         let renderer = HTMLPageRenderer()
 
         let subtree = try #require(renderer.renderSubtree(
-            blockID: paragraph.id,
+            partID: paragraph.id,
             page: page,
             theme: .standard,
             assets: [:],
@@ -285,15 +285,15 @@ struct CanvasBridgeTests {
 
     @Test @MainActor
     func subtreeRendererIncludesNestedDescendantsAndTheirStyles() throws {
-        var child = BlockNode.make(.paragraph)
+        var child = PartNode.make(.paragraph)
         child.setProperty(.init(rawValue: "content"), value: .string("Nested value"))
-        var container = BlockNode.make(.container)
+        var container = PartNode.make(.container)
         container.children = [child]
-        let page = Page(title: "Nested", slug: "nested", blocks: [container])
+        let page = Page(title: "Nested", slug: "nested", parts: [container])
         let renderer = HTMLPageRenderer()
 
         let subtree = try #require(renderer.renderSubtree(
-            blockID: container.id,
+            partID: container.id,
             page: page,
             theme: .standard,
             assets: [:],
@@ -312,15 +312,15 @@ struct CanvasBridgeTests {
     @Test @MainActor
     func subtreeRendererPreservesInheritedGlobalIdentity() throws {
         let definitionID = UUID()
-        let child = BlockNode.make(.paragraph)
-        var globalContainer = BlockNode.make(.container)
+        let child = PartNode.make(.paragraph)
+        var globalContainer = PartNode.make(.container)
         globalContainer.reusableDefinitionID = definitionID
         globalContainer.children = [child]
-        let page = Page(title: "Global", slug: "global", blocks: [globalContainer])
+        let page = Page(title: "Global", slug: "global", parts: [globalContainer])
         let renderer = HTMLPageRenderer()
 
         let subtree = try #require(renderer.renderSubtree(
-            blockID: child.id,
+            partID: child.id,
             page: page,
             theme: .standard,
             assets: [:],
@@ -330,7 +330,7 @@ struct CanvasBridgeTests {
         #expect(subtree.html.contains("data-foundry-global=\"\(definitionID.uuidString)\""))
         #expect(renderer.render(page: page, theme: .standard).contains(subtree.html))
         #expect(renderer.renderSubtree(
-            blockID: UUID(),
+            partID: UUID(),
             page: page,
             theme: .standard,
             assets: [:],
@@ -339,13 +339,13 @@ struct CanvasBridgeTests {
     }
 
     @Test @MainActor
-    func rendererMarksGlobalsNestedInsideNormalBlocks() {
+    func rendererMarksGlobalsNestedInsideNormalParts() {
         let definitionID = UUID()
-        var global = BlockNode.make(.paragraph)
+        var global = PartNode.make(.paragraph)
         global.reusableDefinitionID = definitionID
-        var container = BlockNode.make(.container)
+        var container = PartNode.make(.container)
         container.children = [global]
-        let page = Page(title: "Nested Global", slug: "nested-global", blocks: [container])
+        let page = Page(title: "Nested Global", slug: "nested-global", parts: [container])
 
         let html = HTMLPageRenderer().render(page: page, theme: .standard)
 
@@ -355,9 +355,9 @@ struct CanvasBridgeTests {
 
     @Test @MainActor
     func emptyImageRendersAsAnExplicitDropTarget() {
-        var image = BlockNode.make(.image)
+        var image = PartNode.make(.image)
         image.setProperty(.source, value: .url(""))
-        let page = Page(title: "Images", slug: "images", blocks: [image])
+        let page = Page(title: "Images", slug: "images", parts: [image])
 
         let html = HTMLPageRenderer().render(page: page, theme: .standard)
 
@@ -369,9 +369,9 @@ struct CanvasBridgeTests {
     func canvasServesAStillFirstFrameForManagedGIFsWithoutInliningIt() throws {
         let gifData = try #require(Data(base64Encoded: "R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw=="))
         let asset = ProjectAsset(filename: "animation.gif", mediaType: "image/gif", byteCount: gifData.count)
-        var image = BlockNode.make(.image)
+        var image = PartNode.make(.image)
         image.setProperty(.source, value: .url(asset.reference))
-        let page = Page(title: "GIF", slug: "gif", blocks: [image])
+        let page = Page(title: "GIF", slug: "gif", parts: [image])
 
         let html = HTMLPageRenderer().render(
             page: page,
@@ -417,7 +417,7 @@ struct CanvasBridgeTests {
         #expect(interactionScript.contains("data-foundry-editor-chrome', 'editable"))
         #expect(interactionScript.contains("[data-foundry-inline-property]"))
         #expect(interactionScript.contains("const clickedEditable = event.target.closest('[data-foundry-inline-property]')"))
-        #expect(!interactionScript.contains("block.querySelector('[data-foundry-inline-property]') !== null"))
+        #expect(!interactionScript.contains("part.querySelector('[data-foundry-inline-property]') !== null"))
         #expect(!html.contains("[data-foundry-id]:hover:not(:has([data-foundry-id]:hover))"))
         #expect(!html.contains("data-foundry-name); position: absolute"))
         #expect(!html.contains("position: relative; cursor: default"))
@@ -432,7 +432,7 @@ struct CanvasBridgeTests {
         #expect(layout.columns[0].selectedPanel == .structure)
     }
 
-    private func flattened(_ nodes: [BlockNode]) -> [BlockNode] {
+    private func flattened(_ nodes: [PartNode]) -> [PartNode] {
         nodes.flatMap { [$0] + flattened($0.children) }
     }
 }

@@ -587,8 +587,8 @@ private enum ShadowColorCodec {
         ]
         guard parts.allSatisfy(\.isFinite) else { return nil }
 
-        func byte(_ block: CGFloat) -> Int {
-            Int((min(1, max(0, block)) * 255).rounded())
+        func byte(_ part: CGFloat) -> Int {
+            Int((min(1, max(0, part)) * 255).rounded())
         }
 
         return (

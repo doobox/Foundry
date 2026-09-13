@@ -12,7 +12,7 @@ struct DockingWorkspaceView<PanelContent: View>: View {
     let openThemeEditor: () -> Void
     let previewSite: () -> Void
     let publishSite: () -> Void
-    let showBlockUpdates: () -> Void
+    let showPartUpdates: () -> Void
     @ViewBuilder let panelContent: (WorkspacePanel) -> PanelContent
     @Environment(WorkspacePresetLibrary.self) private var workspaceLibrary
     @SceneStorage("foundry.workspace.selectedPresetID") private var selectedWorkspaceIDValue = ""
@@ -22,7 +22,7 @@ struct DockingWorkspaceView<PanelContent: View>: View {
     @State private var presetName = ""
     @State private var inspectorIsTransitioning = false
     @State private var workspacePresentationID = UUID()
-    @State private var blockUpdateManager = BlockUpdateManager.shared
+    @State private var partUpdateManager = PartUpdateManager.shared
 
     var body: some View {
         AppKitWorkspaceSplitView(
@@ -31,7 +31,7 @@ struct DockingWorkspaceView<PanelContent: View>: View {
             showsInspector: layout.showsInspector,
             toolbarContent: WorkspaceToolbarContent(
                 sidebarToggle: AnyView(sidebarToggleButton),
-                blockUpdates: AnyView(blockUpdatesButton),
+                partUpdates: AnyView(partUpdatesButton),
                 workspaces: AnyView(workspacePresetsMenu),
                 preview: AnyView(previewSiteButton),
                 settings: AnyView(projectSettingsButton),
@@ -188,21 +188,21 @@ struct DockingWorkspaceView<PanelContent: View>: View {
         .help(layout.showsSidebar ? "Hide Sidebar" : "Show Sidebar")
     }
 
-    private var blockUpdatesButton: some View {
-        Button(action: showBlockUpdates) {
+    private var partUpdatesButton: some View {
+        Button(action: showPartUpdates) {
             Label(
-                "Block Updates",
-                systemImage: blockUpdateManager.hasActionableUpdates
+                "Part Updates",
+                systemImage: partUpdateManager.hasActionableUpdates
                     ? "exclamationmark.arrow.trianglehead.2.clockwise.rotate.90"
                     : "arrow.trianglehead.2.clockwise.rotate.90"
             )
             .labelStyle(.iconOnly)
-            .foregroundStyle(blockUpdateManager.hasActionableUpdates ? Color.red : Color.primary)
+            .foregroundStyle(partUpdateManager.hasActionableUpdates ? Color.red : Color.primary)
         }
         .help(
-            blockUpdateManager.hasActionableUpdates
-                ? "Block Updates Available"
-                : "Check for Block Updates"
+            partUpdateManager.hasActionableUpdates
+                ? "Part Updates Available"
+                : "Check for Part Updates"
         )
     }
 
@@ -410,7 +410,7 @@ private struct WorkspaceManagementRow: View {
 
 private struct WorkspaceToolbarContent {
     let sidebarToggle: AnyView
-    let blockUpdates: AnyView?
+    let partUpdates: AnyView?
     let workspaces: AnyView
     let preview: AnyView
     let settings: AnyView
@@ -500,7 +500,7 @@ private final class AppKitWorkspaceSplitViewController: NSSplitViewController, N
         static let toolbar = NSToolbar.Identifier("foundry.editor.toolbar")
         static let trailingSeparator = NSToolbarItem.Identifier("foundry.toolbar.inspector-separator")
         static let sidebarToggle = NSToolbarItem.Identifier("foundry.toolbar.sidebar-toggle")
-        static let blockUpdates = NSToolbarItem.Identifier("foundry.toolbar.block-updates")
+        static let partUpdates = NSToolbarItem.Identifier("foundry.toolbar.part-updates")
         static let leadingSeparator = NSToolbarItem.Identifier("foundry.toolbar.sidebar-separator")
         static let workspaces = NSToolbarItem.Identifier("foundry.toolbar.workspaces")
         static let preview = NSToolbarItem.Identifier("foundry.toolbar.preview")
@@ -955,23 +955,23 @@ private final class AppKitWorkspaceSplitViewController: NSSplitViewController, N
     }
 
     private func updateToolbarHostingViews() {
-        updateBlockUpdatesToolbarItem()
+        updatePartUpdatesToolbarItem()
         for (identifier, hostingView) in toolbarHostingViews {
             guard let content = toolbarView(for: identifier) else { continue }
             hostingView.rootView = content
         }
     }
 
-    private func updateBlockUpdatesToolbarItem() {
-        let identifier = ToolbarIdentifier.blockUpdates
+    private func updatePartUpdatesToolbarItem() {
+        let identifier = ToolbarIdentifier.partUpdates
         let existingIndex = editorToolbar.items.firstIndex { $0.itemIdentifier == identifier }
-        if toolbarContent?.blockUpdates != nil, existingIndex == nil {
+        if toolbarContent?.partUpdates != nil, existingIndex == nil {
             let sidebarIndex = editorToolbar.items.firstIndex {
                 $0.itemIdentifier == ToolbarIdentifier.sidebarToggle
             } ?? -1
             editorToolbar.insertItem(withItemIdentifier: .space, at: sidebarIndex + 1)
             editorToolbar.insertItem(withItemIdentifier: identifier, at: sidebarIndex + 2)
-        } else if toolbarContent?.blockUpdates == nil, let existingIndex {
+        } else if toolbarContent?.partUpdates == nil, let existingIndex {
             editorToolbar.removeItem(at: existingIndex)
             let spacerIndex = existingIndex - 1
             if editorToolbar.items.indices.contains(spacerIndex),
@@ -986,7 +986,7 @@ private final class AppKitWorkspaceSplitViewController: NSSplitViewController, N
         guard let toolbarContent else { return nil }
         switch identifier {
         case ToolbarIdentifier.sidebarToggle: return toolbarContent.sidebarToggle
-        case ToolbarIdentifier.blockUpdates: return toolbarContent.blockUpdates
+        case ToolbarIdentifier.partUpdates: return toolbarContent.partUpdates
         case ToolbarIdentifier.workspaces: return toolbarContent.workspaces
         case ToolbarIdentifier.preview: return toolbarContent.preview
         case ToolbarIdentifier.settings: return toolbarContent.settings
@@ -1016,8 +1016,8 @@ private final class AppKitWorkspaceSplitViewController: NSSplitViewController, N
             .space,
             ToolbarIdentifier.inspectorToggle
         ]
-        if toolbarContent?.blockUpdates != nil {
-            identifiers.insert(contentsOf: [.space, ToolbarIdentifier.blockUpdates], at: 1)
+        if toolbarContent?.partUpdates != nil {
+            identifiers.insert(contentsOf: [.space, ToolbarIdentifier.partUpdates], at: 1)
         }
         return identifiers
     }
@@ -1061,7 +1061,7 @@ private final class AppKitWorkspaceSplitViewController: NSSplitViewController, N
     private func toolbarLabel(for identifier: NSToolbarItem.Identifier) -> String {
         switch identifier {
         case ToolbarIdentifier.sidebarToggle: "Sidebar"
-        case ToolbarIdentifier.blockUpdates: "Block Updates"
+        case ToolbarIdentifier.partUpdates: "Part Updates"
         case ToolbarIdentifier.workspaces: "Workspaces"
         case ToolbarIdentifier.preview: "Preview"
         case ToolbarIdentifier.settings: "Settings"
@@ -1746,7 +1746,7 @@ nonisolated private struct PanelSizing {
         switch panel {
         case .pages:
             self.init(minimum: 180, ideal: 230, maximum: 300)
-        case .blocks, .reusableBlocks, .globalBlocks:
+        case .parts, .reusableParts, .globalParts:
             self.init(minimum: 210, ideal: 260, maximum: 330)
         case .structure:
             self.init(minimum: 230, ideal: 290, maximum: 380)
@@ -2313,7 +2313,7 @@ private struct WorkspaceColumnView<PanelContent: View>: View {
             if column.panels.isEmpty {
                 emptyDockContent
             } else {
-                if column.selectedPanel != .pages && column.selectedPanel != .blocks {
+                if column.selectedPanel != .pages && column.selectedPanel != .parts {
                     HStack {
                         Text(column.selectedPanel.title)
                             .font(.headline)

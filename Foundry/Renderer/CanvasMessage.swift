@@ -1,12 +1,12 @@
 import Foundation
 
 nonisolated struct CanvasPrimitiveSelection: Equatable, Sendable {
-    let blockID: UUID
-    let propertyKey: BlockProperty.Key
+    let partID: UUID
+    let propertyKey: PartProperty.Key
     let propertyPath: [Int]
 
-    init(blockID: UUID, propertyKey: BlockProperty.Key, propertyPath: [Int] = []) {
-        self.blockID = blockID
+    init(partID: UUID, propertyKey: PartProperty.Key, propertyPath: [Int] = []) {
+        self.partID = partID
         self.propertyKey = propertyKey
         self.propertyPath = propertyPath
     }
@@ -17,15 +17,15 @@ nonisolated struct CanvasMessage: Codable, Equatable, Sendable {
 
     let version: Int
     let event: Event
-    let blockID: UUID?
-    let blockIDs: [UUID]?
+    let partID: UUID?
+    let partIDs: [UUID]?
     let extendsSelection: Bool?
-    let blockType: BlockType?
+    let partType: PartType?
     let reusableDefinitionID: UUID?
     let globalDefinitionID: UUID?
     let isGlobalLinked: Bool?
     let placement: Placement?
-    let propertyKey: BlockProperty.Key?
+    let propertyKey: PartProperty.Key?
     let propertyPath: [Int]?
     let propertyValue: String?
     let assetFilename: String?
@@ -36,15 +36,15 @@ nonisolated struct CanvasMessage: Codable, Equatable, Sendable {
     init(
         version: Int = currentVersion,
         event: Event,
-        blockID: UUID? = nil,
-        blockIDs: [UUID]? = nil,
+        partID: UUID? = nil,
+        partIDs: [UUID]? = nil,
         extendsSelection: Bool? = nil,
-        blockType: BlockType? = nil,
+        partType: PartType? = nil,
         reusableDefinitionID: UUID? = nil,
         globalDefinitionID: UUID? = nil,
         isGlobalLinked: Bool? = nil,
         placement: Placement? = nil,
-        propertyKey: BlockProperty.Key? = nil,
+        propertyKey: PartProperty.Key? = nil,
         propertyPath: [Int]? = nil,
         propertyValue: String? = nil,
         assetFilename: String? = nil,
@@ -54,10 +54,10 @@ nonisolated struct CanvasMessage: Codable, Equatable, Sendable {
     ) {
         self.version = version
         self.event = event
-        self.blockID = blockID
-        self.blockIDs = blockIDs
+        self.partID = partID
+        self.partIDs = partIDs
         self.extendsSelection = extendsSelection
-        self.blockType = blockType
+        self.partType = partType
         self.reusableDefinitionID = reusableDefinitionID
         self.globalDefinitionID = globalDefinitionID
         self.isGlobalLinked = isGlobalLinked
@@ -72,21 +72,21 @@ nonisolated struct CanvasMessage: Codable, Equatable, Sendable {
     }
 
     nonisolated enum Event: String, Codable, Sendable {
-        case selectBlock
+        case selectPart
         case selectPrimitive
-        case deleteBlocks
-        case duplicateBlocks
-        case copyBlocks
-        case pasteBlocks
-        case insertBlock
-        case insertReusableBlock
-        case insertGlobalBlock
+        case deleteParts
+        case duplicateParts
+        case copyParts
+        case pasteParts
+        case insertPart
+        case insertReusablePart
+        case insertGlobalPart
         case setGlobalLink
-        case moveBlock
-        case editBlock
-        case editHTMLBlock
+        case movePart
+        case editPart
+        case editHTMLPart
         case importImageAsset
-        case insertImageBlock
+        case insertImagePart
     }
 
     nonisolated struct Placement: Codable, Equatable, Sendable {
@@ -107,17 +107,17 @@ nonisolated struct CanvasMessage: Codable, Equatable, Sendable {
             case end
         }
 
-        var blockPlacement: BlockPlacement? {
+        var partPlacement: PartPlacement? {
             switch kind {
             case .before:
-                targetID.map(BlockPlacement.before)
+                targetID.map(PartPlacement.before)
             case .after:
-                targetID.map(BlockPlacement.after)
+                targetID.map(PartPlacement.after)
             case .inside:
                 if let targetID, let slotID, !slotID.isEmpty {
                     .insideSlot(targetID, slotID)
                 } else {
-                    targetID.map(BlockPlacement.inside)
+                    targetID.map(PartPlacement.inside)
                 }
             case .end:
                 .end
@@ -139,43 +139,43 @@ nonisolated struct CanvasMessage: Codable, Equatable, Sendable {
     private var isValid: Bool {
         guard propertyPath?.allSatisfy({ $0 >= 0 }) != false else { return false }
         return switch event {
-        case .selectBlock:
-            blockID != nil && blockType == nil && reusableDefinitionID == nil && globalDefinitionID == nil && placement == nil &&
+        case .selectPart:
+            partID != nil && partType == nil && reusableDefinitionID == nil && globalDefinitionID == nil && placement == nil &&
                 propertyKey == nil && propertyValue == nil && hasNoAssetPayload
         case .selectPrimitive:
-            blockID != nil && blockIDs == nil && extendsSelection == nil && blockType == nil &&
+            partID != nil && partIDs == nil && extendsSelection == nil && partType == nil &&
                 reusableDefinitionID == nil && globalDefinitionID == nil && isGlobalLinked == nil && placement == nil &&
                 propertyKey != nil && propertyValue == nil && hasNoAssetPayload
-        case .deleteBlocks, .duplicateBlocks, .copyBlocks, .pasteBlocks:
-            blockID == nil && blockIDs?.isEmpty == false && extendsSelection == nil && blockType == nil &&
+        case .deleteParts, .duplicateParts, .copyParts, .pasteParts:
+            partID == nil && partIDs?.isEmpty == false && extendsSelection == nil && partType == nil &&
                 reusableDefinitionID == nil && globalDefinitionID == nil && isGlobalLinked == nil && placement == nil &&
                 propertyKey == nil && propertyValue == nil && hasNoAssetPayload
-        case .insertBlock:
-            blockID == nil && blockType != nil && reusableDefinitionID == nil && globalDefinitionID == nil && placement?.blockPlacement != nil &&
+        case .insertPart:
+            partID == nil && partType != nil && reusableDefinitionID == nil && globalDefinitionID == nil && placement?.partPlacement != nil &&
                 propertyKey == nil && propertyValue == nil && hasNoAssetPayload
-        case .insertReusableBlock:
-            blockID == nil && blockType == nil && reusableDefinitionID != nil &&
-                globalDefinitionID == nil && placement?.blockPlacement != nil && propertyKey == nil && propertyValue == nil && hasNoAssetPayload
-        case .insertGlobalBlock:
-            blockID == nil && blockType == nil && reusableDefinitionID == nil && globalDefinitionID != nil &&
-                placement?.blockPlacement != nil && propertyKey == nil && propertyValue == nil && hasNoAssetPayload
+        case .insertReusablePart:
+            partID == nil && partType == nil && reusableDefinitionID != nil &&
+                globalDefinitionID == nil && placement?.partPlacement != nil && propertyKey == nil && propertyValue == nil && hasNoAssetPayload
+        case .insertGlobalPart:
+            partID == nil && partType == nil && reusableDefinitionID == nil && globalDefinitionID != nil &&
+                placement?.partPlacement != nil && propertyKey == nil && propertyValue == nil && hasNoAssetPayload
         case .setGlobalLink:
-            blockID != nil && blockType == nil && reusableDefinitionID == nil && globalDefinitionID == nil &&
+            partID != nil && partType == nil && reusableDefinitionID == nil && globalDefinitionID == nil &&
                 isGlobalLinked != nil && placement == nil && propertyKey == nil && propertyValue == nil && hasNoAssetPayload
-        case .moveBlock:
-            (blockID != nil || blockIDs?.isEmpty == false) && blockType == nil && reusableDefinitionID == nil && globalDefinitionID == nil && placement?.blockPlacement != nil &&
+        case .movePart:
+            (partID != nil || partIDs?.isEmpty == false) && partType == nil && reusableDefinitionID == nil && globalDefinitionID == nil && placement?.partPlacement != nil &&
                 propertyKey == nil && propertyValue == nil && hasNoAssetPayload
-        case .editBlock, .editHTMLBlock:
-            blockID != nil && blockType == nil && reusableDefinitionID == nil && globalDefinitionID == nil && placement == nil &&
+        case .editPart, .editHTMLPart:
+            partID != nil && partType == nil && reusableDefinitionID == nil && globalDefinitionID == nil && placement == nil &&
                 propertyKey != nil && propertyValue != nil && hasNoAssetPayload
         case .importImageAsset:
-            blockID != nil && blockType == nil && reusableDefinitionID == nil && globalDefinitionID == nil && placement == nil &&
+            partID != nil && partType == nil && reusableDefinitionID == nil && globalDefinitionID == nil && placement == nil &&
                 propertyValue == nil && (
                     (assetID != nil && assetFilename == nil && assetMediaType == nil && assetData == nil) ||
                     (assetID == nil && assetFilename != nil && assetMediaType != nil && assetData != nil)
                 )
-        case .insertImageBlock:
-            blockID == nil && blockType == nil && reusableDefinitionID == nil && globalDefinitionID == nil && placement?.blockPlacement != nil &&
+        case .insertImagePart:
+            partID == nil && partType == nil && reusableDefinitionID == nil && globalDefinitionID == nil && placement?.partPlacement != nil &&
                 propertyKey == nil && propertyValue == nil && (
                     (assetID != nil && assetFilename == nil && assetMediaType == nil && assetData == nil) ||
                     (assetID == nil && assetFilename != nil && assetMediaType != nil && assetData != nil)

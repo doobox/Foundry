@@ -16,9 +16,9 @@ struct WorkspacePanelDragPayload: Codable, Transferable {
 
 nonisolated enum WorkspacePanel: String, Codable, CaseIterable, Identifiable, Sendable {
     case pages
-    case blocks
-    case reusableBlocks
-    case globalBlocks
+    case parts
+    case reusableParts
+    case globalParts
     case structure
     case assets
     case developer
@@ -30,9 +30,9 @@ nonisolated enum WorkspacePanel: String, Codable, CaseIterable, Identifiable, Se
     var title: String {
         switch self {
         case .pages: "Pages"
-        case .blocks: "Blocks"
-        case .reusableBlocks: "Templates"
-        case .globalBlocks: "Global Blocks"
+        case .parts: "Parts"
+        case .reusableParts: "Templates"
+        case .globalParts: "Global Parts"
         case .structure: "Structure"
         case .assets: "Assets"
         case .developer: "Developer"
@@ -44,9 +44,9 @@ nonisolated enum WorkspacePanel: String, Codable, CaseIterable, Identifiable, Se
     var systemImage: String {
         switch self {
         case .pages: "doc.on.doc"
-        case .blocks: "rectangle.grid.2x2"
-        case .reusableBlocks: "rectangle.3.group"
-        case .globalBlocks: "globe"
+        case .parts: "rectangle.grid.2x2"
+        case .reusableParts: "rectangle.3.group"
+        case .globalParts: "globe"
         case .structure: "list.bullet.indent"
         case .assets: "folder"
         case .developer: "terminal"
@@ -163,7 +163,7 @@ nonisolated struct WorkspaceLayout: Codable, Equatable, Sendable {
     static let standard = WorkspaceLayout(columns: [
         WorkspaceColumn(
             role: .sidebarDock,
-            panels: [.pages, .blocks, .reusableBlocks, .globalBlocks, .structure, .assets],
+            panels: [.pages, .parts, .reusableParts, .globalParts, .structure, .assets],
             selectedPanel: .pages
         ),
         WorkspaceColumn(role: .canvas, panels: [.canvas]),

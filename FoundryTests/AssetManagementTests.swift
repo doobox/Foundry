@@ -35,7 +35,7 @@ struct AssetManagementTests {
     @Test
     func canonicalizesOversizedStillImagesAndCreatesSmallerRenditionsWithoutUpscaling() throws {
         let data = try testPNG(width: 5_000, height: 2)
-        let canonical = BlockImageProcessor.canonicalize(
+        let canonical = PartImageProcessor.canonicalize(
             data: data,
             filename: "wide.png",
             mimeType: "image/png"
@@ -43,14 +43,14 @@ struct AssetManagementTests {
         #expect(canonical.metadata.width == 3_840)
         #expect(canonical.metadata.height == 2)
 
-        let rendition = try #require(BlockImageProcessor.rendition(
+        let rendition = try #require(PartImageProcessor.rendition(
             data: canonical.data,
             filename: "wide.png",
             mimeType: "image/png",
             maximumDimension: 1_000
         ))
         #expect(rendition.metadata.width == 1_000)
-        #expect(BlockImageProcessor.rendition(
+        #expect(PartImageProcessor.rendition(
             data: rendition.data,
             filename: "wide.png",
             mimeType: "image/png",
@@ -111,11 +111,11 @@ struct AssetManagementTests {
     func staticExportIncludesManagedImageAndRewritesItsSource() {
         let data = Data([0x89, 0x50, 0x4E, 0x47])
         let asset = ProjectAsset(filename: "hero.png", mediaType: "image/png", byteCount: data.count)
-        var image = BlockNode.make(.image)
+        var image = PartNode.make(.image)
         image.setProperty(.source, value: .url(asset.reference))
         let site = Site(
             name: "Assets",
-            pages: [Page(title: "Home", slug: "index", blocks: [image])],
+            pages: [Page(title: "Home", slug: "index", parts: [image])],
             assets: [asset]
         )
 

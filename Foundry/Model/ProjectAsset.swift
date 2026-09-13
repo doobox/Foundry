@@ -2,12 +2,12 @@ import Foundation
 import ImageIO
 import UniformTypeIdentifiers
 
-nonisolated enum BlockImageProcessor {
+nonisolated enum PartImageProcessor {
     static let canonicalMaximumDimension = 3_840
 
     struct Result: Sendable {
         let data: Data
-        let metadata: BlockImageMetadata
+        let metadata: PartImageMetadata
     }
 
     static func canonicalize(data: Data, filename: String, mimeType: String) -> Result {
@@ -17,7 +17,7 @@ nonisolated enum BlockImageProcessor {
 
     static func rendition(data: Data, filename: String, mimeType: String, maximumDimension: Int) -> Result? {
         let dimension = min(max(maximumDimension, 1), canonicalMaximumDimension)
-        let metadata = BlockImageMetadata.inspect(data: data, filename: filename, mimeType: mimeType)
+        let metadata = PartImageMetadata.inspect(data: data, filename: filename, mimeType: mimeType)
         guard let width = metadata.width, let height = metadata.height, max(width, height) > dimension else { return nil }
         return resized(data: data, filename: filename, mimeType: mimeType, maximumDimension: dimension)
     }
@@ -66,7 +66,7 @@ nonisolated enum BlockImageProcessor {
     }
 }
 
-nonisolated struct BlockImageMetadata: Equatable, Sendable {
+nonisolated struct PartImageMetadata: Equatable, Sendable {
     let width: Int?
     let height: Int?
     let mimeType: String
@@ -86,9 +86,9 @@ nonisolated struct BlockImageMetadata: Equatable, Sendable {
         data: Data,
         filename: String,
         mimeType: String
-    ) -> BlockImageMetadata {
+    ) -> PartImageMetadata {
         let dimensions = imageDimensions(in: data)
-        return BlockImageMetadata(
+        return PartImageMetadata(
             width: dimensions?.width,
             height: dimensions?.height,
             mimeType: mimeType,
@@ -111,8 +111,8 @@ nonisolated struct BlockImageMetadata: Equatable, Sendable {
     }
 }
 
-nonisolated enum BlockImageTemplateValues {
-    static func focalPoint(from value: BlockProperty.Value) -> (x: Double, y: Double) {
+nonisolated enum PartImageTemplateValues {
+    static func focalPoint(from value: PartProperty.Value) -> (x: Double, y: Double) {
         let values = value.arrayValue ?? []
         return (
             values.indices.contains(0) ? values[0].numberValue ?? 50 : 50,
@@ -126,8 +126,8 @@ nonisolated enum BlockImageTemplateValues {
         alt: String,
         focalPointX: Double,
         focalPointY: Double,
-        metadata: BlockImageMetadata?,
-        into values: inout [String: BlockPackageValue]
+        metadata: PartImageMetadata?,
+        into values: inout [String: PartPackageValue]
     ) {
         values[propertyID + ".href"] = .string(href)
         values[propertyID + ".alt"] = .string(alt)
@@ -148,7 +148,7 @@ nonisolated enum BlockImageTemplateValues {
         values[propertyID + ".byteCount"] = .number(Double(metadata.byteCount))
         values[propertyID + ".filename"] = .string(metadata.filename)
         values[propertyID + ".extension"] = .string(metadata.fileExtension)
-        values[propertyID + ".aspectRatio"] = metadata.aspectRatio.map(BlockPackageValue.number) ?? .string("")
+        values[propertyID + ".aspectRatio"] = metadata.aspectRatio.map(PartPackageValue.number) ?? .string("")
     }
 
     private static func formattedPercentage(_ value: Double) -> String {
@@ -230,8 +230,8 @@ nonisolated struct ProjectAsset: Codable, Equatable, Identifiable, Sendable {
         exportOrder = try container.decodeIfPresent(Int.self, forKey: .exportOrder) ?? 0
     }
 
-    var imageMetadata: BlockImageMetadata {
-        BlockImageMetadata(
+    var imageMetadata: PartImageMetadata {
+        PartImageMetadata(
             width: pixelWidth,
             height: pixelHeight,
             mimeType: mediaType,
@@ -273,7 +273,7 @@ nonisolated extension Array where Element == ProjectAssetNode {
                 guard asset.mediaType.hasPrefix("image/"),
                       asset.pixelWidth == nil || asset.pixelHeight == nil,
                       let data = dataByID[asset.id] else { continue }
-                let metadata = BlockImageMetadata.inspect(
+                let metadata = PartImageMetadata.inspect(
                     data: data,
                     filename: asset.filename,
                     mimeType: asset.mediaType

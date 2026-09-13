@@ -1,0 +1,8 @@
+<div {{ part.attributes }} class="{{ part.class }}">
+    <div class="appearance-test-buttons" role="group" aria-label="Site appearance">
+        <button type="button" data-appearance-choice="light" {{ if canvas }}disabled{{ endif }}>Light</button>
+        <button type="button" data-appearance-choice="dark" {{ if canvas }}disabled{{ endif }}>Dark</button>
+        <button type="button" data-appearance-choice="system" {{ if canvas }}disabled{{ endif }}>System</button>
+    </div>
+    <p data-appearance-hint>{{ if canvas }}Test in browser Preview with Light and Dark enabled in Site Settings.{{ else }}Choose an appearance. System follows your device setting.{{ endif }}</p>
+</div>

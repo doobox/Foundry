@@ -15,7 +15,7 @@ final class ThemeEditorSession {
 
     func colourIsInUse(_ id: String) -> Bool {
         var probe = document.site
-        probe.replaceBlockThemeReference(id, with: "foundry:usage-check")
+        probe.replacePartThemeReference(id, with: "foundry:usage-check")
         return probe != document.site
     }
 
@@ -26,7 +26,7 @@ final class ThemeEditorSession {
                   document.site.theme.colourPalettes.contains(where: { $0.id == replacement }) else { return }
         } else if colourIsInUse(id) { return }
         editor.mutate(actionName: "Delete Colour", impact: .theme) { site in
-            if let replacement { site.replaceBlockThemeReference(id, with: replacement) }
+            if let replacement { site.replacePartThemeReference(id, with: replacement) }
             site.theme.colourPalettes.removeAll { $0.id == id }
             site.projectThemeValues.colours.removeAll { $0.id == id }
             for index in site.themeStates.indices {

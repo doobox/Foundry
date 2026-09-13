@@ -8,13 +8,13 @@ struct CanvasInlineEditingMessageTests {
         let id = UUID()
         let message = CanvasMessage.decode([
             "version": 1,
-            "event": "editBlock",
-            "blockID": id.uuidString,
+            "event": "editPart",
+            "partID": id.uuidString,
             "propertyKey": "text",
             "propertyValue": "Edited content"
         ])
 
-        #expect(message?.blockID == id)
+        #expect(message?.partID == id)
         #expect(message?.propertyKey == .text)
         #expect(message?.propertyValue == "Edited content")
     }
@@ -25,14 +25,14 @@ struct CanvasInlineEditingMessageTests {
         let source = "<button>Click me</button>\n<style>button { color: red; }</style>"
         let message = CanvasMessage.decode([
             "version": 1,
-            "event": "editHTMLBlock",
-            "blockID": id.uuidString,
+            "event": "editHTMLPart",
+            "partID": id.uuidString,
             "propertyKey": "content",
             "propertyValue": source
         ])
 
-        #expect(message?.event == .editHTMLBlock)
-        #expect(message?.blockID == id)
+        #expect(message?.event == .editHTMLPart)
+        #expect(message?.partID == id)
         #expect(message?.propertyKey?.rawValue == "content")
         #expect(message?.propertyValue == source)
     }
@@ -41,8 +41,8 @@ struct CanvasInlineEditingMessageTests {
     func rejectsIncompleteEditMessage() {
         #expect(CanvasMessage.decode([
             "version": 1,
-            "event": "editBlock",
-            "blockID": UUID().uuidString,
+            "event": "editPart",
+            "partID": UUID().uuidString,
             "propertyKey": "text"
         ]) == nil)
     }
@@ -56,20 +56,20 @@ struct CanvasInlineEditingUndoTests {
         let undoManager = UndoManager()
         let editor = ProjectEditor(document: document, undoManager: undoManager)
         let page = try #require(document.site.pages.first)
-        let block = try #require(page.blocks.first?.children.first)
-        let original = block.property(.text)
+        let part = try #require(page.parts.first?.children.first)
+        let original = part.property(.text)
 
         editor.setProperty(
-            id: block.id,
+            id: part.id,
             key: .text,
             value: .string("Edited once")
         )
-        #expect(document.site.block(withID: block.id)?.property(.text) == "Edited once")
+        #expect(document.site.part(withID: part.id)?.property(.text) == "Edited once")
 
         undoManager.undo()
-        #expect(document.site.block(withID: block.id)?.property(.text) == original)
+        #expect(document.site.part(withID: part.id)?.property(.text) == original)
 
         undoManager.redo()
-        #expect(document.site.block(withID: block.id)?.property(.text) == "Edited once")
+        #expect(document.site.part(withID: part.id)?.property(.text) == "Edited once")
     }
 }

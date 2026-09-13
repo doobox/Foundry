@@ -38,10 +38,10 @@ struct PageBackgroundTests {
     @Test func literalBackgroundsPersistDuplicateAndRenderInBothAppearances() throws {
         var site = Site.starter()
         site.appearanceMode = .both
-        var selection = BlockPackageColorValue(source: BlockThemeValueSelection.manualCustom,
+        var selection = PartPackageColorValue(source: PartThemeValueSelection.manualCustom,
             customColor: "#123456", opacity: 1)
         selection.darkCustomColor = "#ABCDEF"
-        site.pages[0].blocks = []
+        site.pages[0].parts = []
         site.pages[0].backgroundOverride = selection
         let page = site.pages[0]
         let restored = try JSONDecoder().decode(Site.self, from: JSONEncoder().encode(site))

@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>minimumAPIVersion</key><integer>1</integer>
+    <key>id</key><string>foundry.content.heading</string>
+    <key>title</key><string>Heading</string>
+    <key>description</key><string>Adds an editable semantic heading.</string>
+    <key>author</key><string>Foundry</string>
+    <key>version</key><string>1.0.0</string>
+    <key>group</key><string>Content</string>
+    <key>tags</key><array><string>Foundry</string><string>built-in</string><string>text</string></array>
+    <key>controls</key>
+    <array>
+        <dict>
+            <key>id</key><string>headingLevel</string>
+            <key>label</key><string>Level</string>
+            <key>group</key><string>Typography</string>
+            <key>type</key><string>select</string>
+            <key>options</key><array>
+                <dict><key>value</key><string>1</string><key>title</key><string>Heading 1</string></dict>
+                <dict><key>value</key><string>2</string><key>title</key><string>Heading 2</string></dict>
+                <dict><key>value</key><string>3</string><key>title</key><string>Heading 3</string></dict>
+                <dict><key>value</key><string>4</string><key>title</key><string>Heading 4</string></dict>
+                <dict><key>value</key><string>5</string><key>title</key><string>Heading 5</string></dict>
+                <dict><key>value</key><string>6</string><key>title</key><string>Heading 6</string></dict>
+            </array>
+            <key>default</key><string>2</string>
+            <key>responsive</key><false/>
+        </dict>
+        <dict><key>id</key><string>textAlignment</string><key>label</key><string>Alignment</string><key>group</key><string>Typography</string><key>type</key><string>textAlignment</string><key>default</key><string>start</string><key>responsive</key><true/></dict>
+        <dict><key>id</key><string>textColor</string><key>label</key><string>Colour</string><key>group</key><string>Colour</string><key>type</key><string>themeColor</string><key>allowsCustom</key><true/><key>opacity</key><true/><key>customColor</key><string>#171719</string><key>default</key><dict><key>palette</key><string>custom</string></dict><key>responsive</key><true/></dict>
+    </array>
+    <key>templates</key><dict><key>html</key><string>part.html</string><key>files</key><array><dict><key>path</key><string>part.css</string><key>scope</key><string>instance</string></dict></array></dict>
+    <key>assets</key><array/>
+</dict>
+</plist>

@@ -177,13 +177,13 @@ enum ThemeWindowSection: String, CaseIterable, Identifiable, Hashable {
         case .screens:
             "Define responsive breakpoints and the maximum container width at each size."
         case .colors:
-            "Set the core colours shared by pages, blocks and editable text."
+            "Set the core colours shared by pages, parts and editable text."
         case .fontFamily:
             "Choose the typefaces used for body text, headings and monospaced content."
         case .fontSize:
             "Adjust the theme type scale and its corresponding line heights."
         case .spacing:
-            "Adjust the spacing scale used by theme-aware block controls."
+            "Adjust the spacing scale used by theme-aware part controls."
         case .shadows:
             "Define reusable shadow styles for depth, elevation and inset effects."
         case .borderWidth:

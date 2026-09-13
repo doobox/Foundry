@@ -1,0 +1,64 @@
+import Foundation
+
+nonisolated struct PartType: RawRepresentable, Codable, Hashable, Identifiable, Sendable {
+    let rawValue: String
+
+    var id: String { rawValue }
+    var definition: PartDefinition { PartRegistry.definition(for: self) }
+    var displayName: String { definition.displayName }
+    var systemImage: String { definition.systemImage }
+    var libraryDescription: String {
+        if let description = definition.package?.manifest.description {
+            return description
+        }
+        return switch self {
+        case .container:
+            "Groups parts inside a constrained, styled wrapper."
+        case .section:
+            "Creates a full-width page region for organising related content."
+        case .columns:
+            "Arranges child parts in a responsive multi-column layout."
+        case .paragraph:
+            "Adds editable paragraph or body text to the page."
+        case .heading:
+            "Adds an editable heading with a selectable semantic level."
+        case .button:
+            "Creates a styled link for calls to action and navigation."
+        case .image:
+            "Displays an imported asset or an image from a web address."
+        case .divider:
+            "Adds a visual rule to separate groups of content."
+        case .spacer:
+            "Adds adjustable vertical space between parts."
+        default:
+            "Adds this part to the page."
+        }
+    }
+
+    init(rawValue: String) {
+        self.rawValue = rawValue
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        rawValue = try container.decode(String.self)
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        try container.encode(rawValue)
+    }
+
+    static let container = PartType(rawValue: "foundry.layout.container")
+    static let section = PartType(rawValue: "foundry.layout.section")
+    static let columns = PartType(rawValue: "foundry.layout.columns")
+    static let paragraph = PartType(rawValue: "foundry.content.paragraph")
+    static let heading = PartType(rawValue: "foundry.content.heading")
+    static let button = PartType(rawValue: "foundry.content.button")
+    static let image = PartType(rawValue: "foundry.media.image")
+    static let divider = PartType(rawValue: "foundry.content.divider")
+    static let spacer = PartType(rawValue: "foundry.layout.spacer")
+
+    static var allCases: [PartType] { PartRegistry.availableTypes }
+
+}

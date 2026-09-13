@@ -6,7 +6,7 @@ final class FoundryUITests: XCTestCase {
     }
 
     @MainActor
-    func testCreatesDocumentAddsPageAndBlock() throws {
+    func testCreatesDocumentAddsPageAndPart() throws {
         let app = XCUIApplication()
         app.launchArguments = [
             "-ApplePersistenceIgnoreState", "YES",
@@ -29,11 +29,11 @@ final class FoundryUITests: XCTestCase {
 
         XCTAssertTrue(app.descendants(matching: .any)["Page 2"].waitForExistence(timeout: 5))
 
-        let blocksTab = app.buttons["Blocks"]
-        XCTAssertTrue(blocksTab.waitForExistence(timeout: 5))
-        blocksTab.click()
+        let partsTab = app.buttons["Parts"]
+        XCTAssertTrue(partsTab.waitForExistence(timeout: 5))
+        partsTab.click()
 
-        let paragraph = app.descendants(matching: .any)["block-library-foundry.content.paragraph"]
+        let paragraph = app.descendants(matching: .any)["part-library-foundry.content.paragraph"]
         XCTAssertTrue(paragraph.waitForExistence(timeout: 5))
         paragraph.rightClick()
 

@@ -28,12 +28,12 @@ final class CanvasAssetSchemeHandler: NSObject, WKURLSchemeHandler {
     nonisolated static let packageScheme = "foundry-package-asset"
 
     private var assets: [UUID: ProjectAssetContent]
-    private var packages: [String: LoadedBlockPackage]
+    private var packages: [String: LoadedPartPackage]
     private var gifPreviews: [UUID: Data] = [:]
 
     init(
         assets: [UUID: ProjectAssetContent],
-        packages: [String: LoadedBlockPackage] = [:]
+        packages: [String: LoadedPartPackage] = [:]
     ) {
         self.assets = assets
         self.packages = packages
@@ -44,7 +44,7 @@ final class CanvasAssetSchemeHandler: NSObject, WKURLSchemeHandler {
         self.assets = assets
     }
 
-    func update(packages: [String: LoadedBlockPackage]) {
+    func update(packages: [String: LoadedPartPackage]) {
         self.packages = packages
     }
 
@@ -158,13 +158,13 @@ struct CanvasUpdateRevisionGate {
 }
 
 nonisolated enum CanvasWebOperation: Equatable, Sendable {
-    case block(RenderedBlockSubtree, revision: UInt64)
+    case part(RenderedPartSubtree, revision: UInt64)
     case reconcilePage(html: String, revision: UInt64)
     case reloadDocument(html: String, revision: UInt64)
 
     var revision: UInt64 {
         switch self {
-        case .block(_, let revision), .reconcilePage(_, let revision), .reloadDocument(_, let revision):
+        case .part(_, let revision), .reconcilePage(_, let revision), .reloadDocument(_, let revision):
             revision
         }
     }
@@ -190,17 +190,17 @@ final class CanvasWebView: WKWebView {
 struct WebCanvasView: NSViewRepresentable {
     let operation: CanvasWebOperation
     let assets: [UUID: ProjectAssetContent]
-    let packages: [String: LoadedBlockPackage]
+    let packages: [String: LoadedPartPackage]
     let assetRevision: UInt64
-    let selectedBlockIDs: Set<UUID>
-    let primarySelectedBlockID: UUID?
+    let selectedPartIDs: Set<UUID>
+    let primarySelectedPartID: UUID?
     let selectedPrimitive: CanvasPrimitiveSelection?
     let editorOptions: CanvasEditorOptions
     let enablesWebInspector: Bool
-    let canPasteBlock: Bool
-    let canClearImage: (UUID, BlockProperty.Key, [Int]) -> Bool
+    let canPastePart: Bool
+    let canClearImage: (UUID, PartProperty.Key, [Int]) -> Bool
     let handleMessage: (CanvasMessage) -> Void
-    let handleContextMenuAction: (CanvasContextMenuAction, UUID, BlockProperty.Key?, [Int]) -> Void
+    let handleContextMenuAction: (CanvasContextMenuAction, UUID, PartProperty.Key?, [Int]) -> Void
     let requestFullReconciliation: () -> Void
 
     func makeCoordinator() -> Coordinator {
@@ -267,9 +267,9 @@ struct WebCanvasView: NSViewRepresentable {
         context.coordinator.handleMessage = handleMessage
         context.coordinator.handleContextMenuAction = handleContextMenuAction
         context.coordinator.canClearImage = canClearImage
-        context.coordinator.canPasteBlock = canPasteBlock
-        context.coordinator.selectedBlockIDs = selectedBlockIDs
-        context.coordinator.primarySelectedBlockID = primarySelectedBlockID
+        context.coordinator.canPastePart = canPastePart
+        context.coordinator.selectedPartIDs = selectedPartIDs
+        context.coordinator.primarySelectedPartID = primarySelectedPartID
         context.coordinator.selectedPrimitive = selectedPrimitive
         context.coordinator.editorOptions = editorOptions
         context.coordinator.requestFullReconciliation = requestFullReconciliation
@@ -299,7 +299,7 @@ struct WebCanvasView: NSViewRepresentable {
           `;
           document.documentElement.appendChild(interactionStyles);
           let placement = null;
-          let selectedBlockIDs = [];
+          let selectedPartIDs = [];
           let selectedPrimitiveSelection = null;
           let isDragging = false;
           let webInspectorEnabled = false;
@@ -370,7 +370,7 @@ struct WebCanvasView: NSViewRepresentable {
             );
           });
           chromeLayer.appendChild(chromeTitle);
-          let hoveredBlock = null;
+          let hoveredPart = null;
           let hoveredPrimitive = null;
           let hoveredEditable = null;
           let selectedChromeTargets = [];
@@ -396,7 +396,7 @@ struct WebCanvasView: NSViewRepresentable {
 
           const editorChromeColor = '#0A84FF';
           const globalChromeColor = '#30D158';
-          const blockChromeColor = element => {
+          const partChromeColor = element => {
             if (!element || element.closest('[data-foundry-global-override="true"]')) {
               return editorChromeColor;
             }
@@ -407,7 +407,7 @@ struct WebCanvasView: NSViewRepresentable {
             const elementRect = target.getBoundingClientRect();
             if (elementRect.width > 0 && elementRect.height > 0) return elementRect;
 
-            // Blocks whose root uses `display: contents` have no box of their own.
+            // Parts whose root uses `display: contents` have no box of their own.
             // Frame their rendered contents so nested overlay text still gets canvas chrome.
             const range = document.createRange();
             range.selectNodeContents(target);
@@ -472,7 +472,7 @@ struct WebCanvasView: NSViewRepresentable {
           };
 
           const updateHoverChrome = () => {
-            const target = hoveredPrimitive || hoveredBlock;
+            const target = hoveredPrimitive || hoveredPart;
             const isSelected = selectedChromeTargets.some(entry => entry.element === target);
             if (!target || isSelected || isDragging || !editorOptions.showsOutlines) {
               hoverChrome.style.setProperty('display', 'none', 'important');
@@ -482,7 +482,7 @@ struct WebCanvasView: NSViewRepresentable {
             positionOutline(
               hoverChrome,
               target,
-              blockChromeColor(target),
+              partChromeColor(target),
               isPrimitive,
               false
             );
@@ -499,7 +499,7 @@ struct WebCanvasView: NSViewRepresentable {
               editableChrome.style.setProperty('display', 'none', 'important');
               return;
             }
-            const color = blockChromeColor(target);
+            const color = partChromeColor(target);
             editableChrome.style.setProperty('left', rect.left + 'px', 'important');
             editableChrome.style.setProperty('top', rect.top + 'px', 'important');
             editableChrome.style.setProperty('width', rect.width + 'px', 'important');
@@ -513,17 +513,17 @@ struct WebCanvasView: NSViewRepresentable {
             updateSelectionChrome();
             updateHoverChrome();
             updateEditableChrome();
-            if (!hoveredBlock || !hoveredBlock.isConnected || !editorOptions.showsTitles) {
+            if (!hoveredPart || !hoveredPart.isConnected || !editorOptions.showsTitles) {
               chromeTitle.style.setProperty('display', 'none', 'important');
               return;
             }
-            const rect = chromeRect(hoveredBlock);
+            const rect = chromeRect(hoveredPart);
             if (rect.width <= 0 || rect.height <= 0 || rect.bottom < 0 || rect.top > window.innerHeight) {
               chromeTitle.style.setProperty('display', 'none', 'important');
               return;
             }
-            chromeTitle.textContent = hoveredBlock.dataset.foundryName || '';
-            chromeTitle.style.setProperty('background', blockChromeColor(hoveredBlock), 'important');
+            chromeTitle.textContent = hoveredPart.dataset.foundryName || '';
+            chromeTitle.style.setProperty('background', partChromeColor(hoveredPart), 'important');
             chromeTitle.style.setProperty('left', Math.max(0, rect.left) + 'px', 'important');
             chromeTitle.style.setProperty('top', Math.max(0, rect.top) + 'px', 'important');
             chromeTitle.style.setProperty(
@@ -551,17 +551,17 @@ struct WebCanvasView: NSViewRepresentable {
           document.fonts.addEventListener('loadingerror', scheduleChromeTitleUpdate);
 
           document.addEventListener('pointermove', event => {
-            const block = event.target.closest?.(selector) ?? null;
+            const part = event.target.closest?.(selector) ?? null;
             const primitive = event.target.closest?.('[data-foundry-primitive-property]') ?? null;
             const editable = event.target.closest?.('[data-foundry-inline-property]') ?? null;
-            if (block === hoveredBlock && primitive === hoveredPrimitive && editable === hoveredEditable) return;
-            hoveredBlock = block;
+            if (part === hoveredPart && primitive === hoveredPrimitive && editable === hoveredEditable) return;
+            hoveredPart = part;
             hoveredPrimitive = primitive;
             hoveredEditable = editable;
             scheduleChromeTitleUpdate();
           }, true);
           document.addEventListener('pointerleave', () => {
-            hoveredBlock = null;
+            hoveredPart = null;
             hoveredPrimitive = null;
             hoveredEditable = null;
             scheduleChromeTitleUpdate();
@@ -687,17 +687,17 @@ struct WebCanvasView: NSViewRepresentable {
           };
 
           window.foundrySetSelection = (ids, primitiveSelection = {}, shouldScroll = true) => {
-            selectedBlockIDs = Array.isArray(ids) ? ids : [];
-            selectedPrimitiveSelection = primitiveSelection?.blockID ? primitiveSelection : null;
+            selectedPartIDs = Array.isArray(ids) ? ids : [];
+            selectedPrimitiveSelection = primitiveSelection?.partID ? primitiveSelection : null;
             selectedChromeTargets.length = 0;
-            if (!Array.isArray(selectedBlockIDs)) return;
+            if (!Array.isArray(selectedPartIDs)) return;
             let firstElement = null;
-            selectedBlockIDs.forEach(blockID => {
-              const element = document.querySelector('[data-foundry-id="' + CSS.escape(blockID) + '"]');
+            selectedPartIDs.forEach(partID => {
+              const element = document.querySelector('[data-foundry-id="' + CSS.escape(partID) + '"]');
               if (!element) return;
               let selectionElement = element;
               let isPrimitive = false;
-              if (selectedPrimitiveSelection?.blockID === blockID) {
+              if (selectedPrimitiveSelection?.partID === partID) {
                 const expectedPath = Array.isArray(selectedPrimitiveSelection.propertyPath)
                   ? selectedPrimitiveSelection.propertyPath.join(',')
                   : '';
@@ -719,7 +719,7 @@ struct WebCanvasView: NSViewRepresentable {
               if (!firstElement) firstElement = selectionElement;
               selectedChromeTargets.push({
                 element: selectionElement,
-                color: blockChromeColor(selectionElement),
+                color: partChromeColor(selectionElement),
                 isPrimitive
               });
             });
@@ -732,7 +732,7 @@ struct WebCanvasView: NSViewRepresentable {
           document.addEventListener('keydown', event => {
             const target = event.target;
             if (target?.isContentEditable || target?.closest?.('input, textarea, select, [contenteditable="true"]')) return;
-            if (selectedBlockIDs.length === 0) return;
+            if (selectedPartIDs.length === 0) return;
 
             const postSelectionAction = action => {
               event.preventDefault();
@@ -740,68 +740,68 @@ struct WebCanvasView: NSViewRepresentable {
               window.webkit.messageHandlers.foundryCanvas.postMessage({
                 version: 1,
                 event: action,
-                blockIDs: selectedBlockIDs
+                partIDs: selectedPartIDs
               });
             };
 
             if (!event.metaKey && !event.altKey && !event.ctrlKey && !event.shiftKey
                 && (event.key === 'Backspace' || event.key === 'Delete')) {
-              if (!selectedPrimitiveSelection) postSelectionAction('deleteBlocks');
+              if (!selectedPrimitiveSelection) postSelectionAction('deleteParts');
               return;
             }
 
             if (!event.metaKey && !event.altKey && !event.ctrlKey && !event.shiftKey
-                && event.key === 'Enter' && selectedBlockIDs.length === 1) {
-              const blockID = selectedBlockIDs[0];
-              const block = document.querySelector('[data-foundry-id="' + CSS.escape(blockID) + '"]');
-              if (selectedEditableElement(block)) {
+                && event.key === 'Enter' && selectedPartIDs.length === 1) {
+              const partID = selectedPartIDs[0];
+              const part = document.querySelector('[data-foundry-id="' + CSS.escape(partID) + '"]');
+              if (selectedEditableElement(part)) {
                 event.preventDefault();
                 event.stopPropagation();
-                window.foundryEditBlock(blockID);
+                window.foundryEditPart(partID);
               }
               return;
             }
 
             if (event.metaKey && !event.altKey && !event.ctrlKey && !event.shiftKey) {
               const key = event.key.toLowerCase();
-              if (key === 'd') postSelectionAction('duplicateBlocks');
-              else if (key === 'c') postSelectionAction('copyBlocks');
-              else if (key === 'v') postSelectionAction('pasteBlocks');
+              if (key === 'd') postSelectionAction('duplicateParts');
+              else if (key === 'c') postSelectionAction('copyParts');
+              else if (key === 'v') postSelectionAction('pasteParts');
               return;
             }
 
             if (!event.metaKey || !event.altKey || event.ctrlKey || event.shiftKey
-                || selectedBlockIDs.length !== 1) return;
-            const block = document.querySelector(
-              '[data-foundry-id="' + CSS.escape(selectedBlockIDs[0]) + '"]'
+                || selectedPartIDs.length !== 1) return;
+            const part = document.querySelector(
+              '[data-foundry-id="' + CSS.escape(selectedPartIDs[0]) + '"]'
             );
-            if (!block) return;
-            const parentBlock = block.parentElement?.closest(selector) ?? null;
+            if (!part) return;
+            const parentPart = part.parentElement?.closest(selector) ?? null;
             const siblings = [...document.querySelectorAll(selector)].filter(candidate =>
-              (candidate.parentElement?.closest(selector) ?? null) === parentBlock
+              (candidate.parentElement?.closest(selector) ?? null) === parentPart
             );
-            const index = siblings.indexOf(block);
+            const index = siblings.indexOf(part);
             let placement = null;
             if (event.key === 'ArrowUp' && index > 0) {
               placement = { kind: 'before', targetID: siblings[index - 1].dataset.foundryId };
             } else if (event.key === 'ArrowDown' && index >= 0 && index < siblings.length - 1) {
               placement = { kind: 'after', targetID: siblings[index + 1].dataset.foundryId };
-            } else if (event.key === 'ArrowLeft' && parentBlock) {
-              placement = { kind: 'after', targetID: parentBlock.dataset.foundryId };
+            } else if (event.key === 'ArrowLeft' && parentPart) {
+              placement = { kind: 'after', targetID: parentPart.dataset.foundryId };
             }
             if (!placement) return;
             event.preventDefault();
             event.stopPropagation();
             window.webkit.messageHandlers.foundryCanvas.postMessage({
               version: 1,
-              event: 'moveBlock',
-              blockID: selectedBlockIDs[0],
+              event: 'movePart',
+              partID: selectedPartIDs[0],
               placement
             });
           }, true);
 
           const dragHandlerElements = new WeakSet();
-          const installBlockDragHandlers = () => {
+          const installPartDragHandlers = () => {
             document.querySelectorAll(selector).forEach(element => {
               if (dragHandlerElements.has(element)) return;
               dragHandlerElements.add(element);
@@ -818,12 +818,12 @@ struct WebCanvasView: NSViewRepresentable {
               }
               const draggedID = element.dataset.foundryId;
               isDragging = true;
-              const isGroupDrag = selectedBlockIDs.length > 1 && selectedBlockIDs.includes(draggedID);
+              const isGroupDrag = selectedPartIDs.length > 1 && selectedPartIDs.includes(draggedID);
               const value = isGroupDrag
-                ? 'foundry-nodes:' + selectedBlockIDs.join(',')
+                ? 'foundry-nodes:' + selectedPartIDs.join(',')
                 : 'foundry-node:' + draggedID;
               const draggedElements = isGroupDrag
-                ? selectedBlockIDs
+                ? selectedPartIDs
                     .map(id => document.querySelector('[data-foundry-id="' + CSS.escape(id) + '"]'))
                     .filter(Boolean)
                 : [element];
@@ -831,7 +831,7 @@ struct WebCanvasView: NSViewRepresentable {
               if (isGroupDrag) {
                 const dragImage = document.createElement('div');
                 dragImage.className = 'foundry-multi-drag-image';
-                dragImage.textContent = selectedBlockIDs.length + ' blocks';
+                dragImage.textContent = selectedPartIDs.length + ' parts';
                 dragImage.style.setProperty(
                   '--foundry-drag-color',
                   getComputedStyle(element).getPropertyValue('--foundry-editor-chrome').trim() || '#0A84FF'
@@ -852,7 +852,7 @@ struct WebCanvasView: NSViewRepresentable {
               });
             });
           };
-          installBlockDragHandlers();
+          installPartDragHandlers();
 
           const syncAttributes = (target, source) => {
             Array.from(target.attributes).forEach(attribute => target.removeAttribute(attribute.name));
@@ -860,21 +860,21 @@ struct WebCanvasView: NSViewRepresentable {
           };
 
           let latestFoundryRevision = 0;
-          window.foundryReplaceBlock = (blockID, html, css, revision) => {
+          window.foundryReplacePart = (partID, html, css, revision) => {
             if (!Number.isSafeInteger(revision) || revision < latestFoundryRevision) return false;
-            const current = document.querySelector('[data-foundry-id="' + CSS.escape(blockID) + '"]');
+            const current = document.querySelector('[data-foundry-id="' + CSS.escape(partID) + '"]');
             if (!current) return false;
             const template = document.createElement('template');
             template.innerHTML = html.trim();
             const replacement = template.content.firstElementChild;
-            if (!replacement || template.content.childElementCount !== 1 || replacement.dataset.foundryId !== blockID) return false;
+            if (!replacement || template.content.childElementCount !== 1 || replacement.dataset.foundryId !== partID) return false;
             current.replaceWith(replacement);
-            const styleSelector = 'style[data-foundry-instance-style="' + CSS.escape(blockID) + '"]';
+            const styleSelector = 'style[data-foundry-instance-style="' + CSS.escape(partID) + '"]';
             let style = document.head.querySelector(styleSelector);
             if (css) {
               if (!style) {
                 style = document.createElement('style');
-                style.dataset.foundryInstanceStyle = blockID;
+                style.dataset.foundryInstanceStyle = partID;
                 document.head.appendChild(style);
               }
               style.textContent = css;
@@ -882,12 +882,12 @@ struct WebCanvasView: NSViewRepresentable {
               style?.remove();
             }
             latestFoundryRevision = revision;
-            installBlockDragHandlers();
+            installPartDragHandlers();
             observeChromeGeometry();
-            hoveredBlock = null;
+            hoveredPart = null;
             hoveredPrimitive = null;
             window.foundrySetEditorOptions(editorOptions);
-            window.foundrySetSelection(selectedBlockIDs, selectedPrimitiveSelection, false);
+            window.foundrySetSelection(selectedPartIDs, selectedPrimitiveSelection, false);
             scheduleChromeTitleUpdate();
             return true;
           };
@@ -911,9 +911,9 @@ struct WebCanvasView: NSViewRepresentable {
             currentHeadNodes.slice(replacementHeadNodes.length).forEach(node => node.remove());
 
             syncAttributes(document.body, replacement.body);
-            // Block patches cannot reconcile moves, removals or reordering:
+            // Part patches cannot reconcile moves, removals or reordering:
             // replacing a parent can leave the child's former DOM node behind.
-            // Compare generic element topology, including block and slot identity,
+            // Compare generic element topology, including part and slot identity,
             // before touching the live tree. No package-specific knowledge is needed.
             const topology = root => JSON.stringify(Array.from(root.children, function describe(element) {
               return [element.localName, element.getAttribute('data-foundry-id'),
@@ -926,13 +926,13 @@ struct WebCanvasView: NSViewRepresentable {
             } else {
               const changedIDs = new Set();
               replacement.querySelectorAll(selector).forEach(nextElement => {
-                const blockID = nextElement.dataset.foundryId;
-                const currentElement = document.querySelector('[data-foundry-id="' + CSS.escape(blockID) + '"]');
+                const partID = nextElement.dataset.foundryId;
+                const currentElement = document.querySelector('[data-foundry-id="' + CSS.escape(partID) + '"]');
                 if (!currentElement || currentElement.outerHTML === nextElement.outerHTML) return;
                 const changedAncestor = nextElement.parentElement?.closest(selector);
                 if (changedAncestor && changedIDs.has(changedAncestor.dataset.foundryId)) return;
                 currentElement.replaceWith(document.importNode(nextElement, true));
-                changedIDs.add(blockID);
+                changedIDs.add(partID);
               });
 
               if (changedIDs.size === 0 && document.body.innerHTML !== replacement.body.innerHTML) {
@@ -940,12 +940,12 @@ struct WebCanvasView: NSViewRepresentable {
                 document.body.replaceChildren(...bodyNodes);
               }
             }
-            installBlockDragHandlers();
+            installPartDragHandlers();
             observeChromeGeometry();
-            hoveredBlock = null;
+            hoveredPart = null;
             hoveredPrimitive = null;
             window.foundrySetEditorOptions(editorOptions);
-            window.foundrySetSelection(selectedBlockIDs, selectedPrimitiveSelection, false);
+            window.foundrySetSelection(selectedPartIDs, selectedPrimitiveSelection, false);
             scheduleChromeTitleUpdate();
             return true;
           };
@@ -969,10 +969,10 @@ struct WebCanvasView: NSViewRepresentable {
               event.dataTransfer.dropEffect = 'copy';
               return;
             }
-            const carriesBlockText = Array.from(event.dataTransfer.types).some(type =>
+            const carriesPartText = Array.from(event.dataTransfer.types).some(type =>
               type === 'text/plain' || type === 'public.utf8-plain-text'
             );
-            if (!carriesBlockText) {
+            if (!carriesPartText) {
               event.dataTransfer.dropEffect = 'none';
               return;
             }
@@ -1027,11 +1027,11 @@ struct WebCanvasView: NSViewRepresentable {
               if (internalAssetMatch) {
                 const message = {
                   version: 1,
-                  event: image ? 'importImageAsset' : 'insertImageBlock',
+                  event: image ? 'importImageAsset' : 'insertImagePart',
                   assetID: internalAssetMatch[1]
                 };
                 if (image) {
-                  message.blockID = image.dataset.foundryId;
+                  message.partID = image.dataset.foundryId;
                   message.propertyKey = imageZone.dataset.foundryImageProperty;
                   message.propertyPath = propertyPath(imageZone);
                 } else {
@@ -1045,13 +1045,13 @@ struct WebCanvasView: NSViewRepresentable {
                 const encoded = String(reader.result).split(',', 2)[1];
                 const message = {
                   version: 1,
-                  event: image ? 'importImageAsset' : 'insertImageBlock',
+                  event: image ? 'importImageAsset' : 'insertImagePart',
                   assetFilename: file.name,
                   assetMediaType: file.type || 'application/octet-stream',
                   assetData: encoded
                 };
                 if (image) {
-                  message.blockID = image.dataset.foundryId;
+                  message.partID = image.dataset.foundryId;
                   message.propertyKey = imageZone.dataset.foundryImageProperty;
                   message.propertyPath = propertyPath(imageZone);
                 } else {
@@ -1071,27 +1071,27 @@ struct WebCanvasView: NSViewRepresentable {
               version: 1,
               placement: { kind: target.kind, targetID: target.targetID, slotID: target.slotID }
             };
-            if (value.startsWith('foundry-block-type:')) {
-              message.event = 'insertBlock';
-              message.blockType = value.substring('foundry-block-type:'.length);
-            } else if (value.startsWith('foundry-reusable-block:')) {
-              message.event = 'insertReusableBlock';
-              message.reusableDefinitionID = value.substring('foundry-reusable-block:'.length);
-            } else if (value.startsWith('foundry-global-block:')) {
-              message.event = 'insertGlobalBlock';
-              message.globalDefinitionID = value.substring('foundry-global-block:'.length);
+            if (value.startsWith('foundry-part-type:')) {
+              message.event = 'insertPart';
+              message.partType = value.substring('foundry-part-type:'.length);
+            } else if (value.startsWith('foundry-reusable-part:')) {
+              message.event = 'insertReusablePart';
+              message.reusableDefinitionID = value.substring('foundry-reusable-part:'.length);
+            } else if (value.startsWith('foundry-global-part:')) {
+              message.event = 'insertGlobalPart';
+              message.globalDefinitionID = value.substring('foundry-global-part:'.length);
             } else if (value.startsWith('foundry-nodes:')) {
-              message.event = 'moveBlock';
-              message.blockIDs = value.substring('foundry-nodes:'.length).split(',');
+              message.event = 'movePart';
+              message.partIDs = value.substring('foundry-nodes:'.length).split(',');
             } else if (value.startsWith('foundry-node:')) {
-              message.event = 'moveBlock';
-              message.blockID = value.substring('foundry-node:'.length);
+              message.event = 'movePart';
+              message.partID = value.substring('foundry-node:'.length);
             } else if (value.startsWith('foundry-image-asset:')) {
-              message.event = image ? 'importImageAsset' : 'insertImageBlock';
+              message.event = image ? 'importImageAsset' : 'insertImagePart';
               message.assetID = value.substring('foundry-image-asset:'.length);
               if (image) {
                 delete message.placement;
-                message.blockID = image.dataset.foundryId;
+                message.partID = image.dataset.foundryId;
                 message.propertyKey = imageZone.dataset.foundryImageProperty;
                 message.propertyPath = propertyPath(imageZone);
               }
@@ -1103,7 +1103,7 @@ struct WebCanvasView: NSViewRepresentable {
 
           document.addEventListener('dblclick', event => {
             const editableElement = event.target.closest('[data-foundry-inline-property]');
-            const blockElement = editableElement?.closest(selector);
+            const partElement = editableElement?.closest(selector);
             const element = editableElement ?? event.target.closest(selector);
             const editableProperty = element?.dataset.foundryInlineProperty;
             if (!element || !editableProperty) return;
@@ -1120,8 +1120,8 @@ struct WebCanvasView: NSViewRepresentable {
                 : element.innerHTML;
               window.webkit.messageHandlers.foundryCanvas.postMessage({
                 version: 1,
-                event: 'editHTMLBlock',
-                blockID: (blockElement ?? element).dataset.foundryId,
+                event: 'editHTMLPart',
+                partID: (partElement ?? element).dataset.foundryId,
                 propertyKey: editableProperty,
                 propertyPath: propertyPath(element),
                 propertyValue: source
@@ -1134,91 +1134,91 @@ struct WebCanvasView: NSViewRepresentable {
               : element.innerText;
             window.webkit.messageHandlers.foundryCanvas.postMessage({
               version: 1,
-              event: 'editBlock',
-              blockID: (blockElement ?? element).dataset.foundryId,
+              event: 'editPart',
+              partID: (partElement ?? element).dataset.foundryId,
               propertyKey: editableProperty,
               propertyPath: propertyPath(element),
               propertyValue: source
             });
           }, true);
 
-          const selectedEditableElement = block => {
-            if (!block || !selectedBlockIDs.includes(block.dataset.foundryId)) return null;
-            if (selectedPrimitiveSelection?.blockID === block.dataset.foundryId) {
+          const selectedEditableElement = part => {
+            if (!part || !selectedPartIDs.includes(part.dataset.foundryId)) return null;
+            if (selectedPrimitiveSelection?.partID === part.dataset.foundryId) {
               const expectedPath = Array.isArray(selectedPrimitiveSelection.propertyPath)
                 ? selectedPrimitiveSelection.propertyPath.join(',')
                 : '';
               const property = selectedPrimitiveSelection.propertyKey || '';
               const candidates = [
-                ...(block.matches('[data-foundry-inline-property]') ? [block] : []),
-                ...block.querySelectorAll('[data-foundry-inline-property]')
+                ...(part.matches('[data-foundry-inline-property]') ? [part] : []),
+                ...part.querySelectorAll('[data-foundry-inline-property]')
               ];
               return candidates.find(candidate =>
                 candidate.dataset.foundryInlineProperty === property
                 && (candidate.dataset.foundryPropertyPath || '') === expectedPath
-                && candidate.closest(selector) === block
+                && candidate.closest(selector) === part
               ) ?? null;
             }
-            return block.matches('[data-foundry-inline-property]') ? block : null;
+            return part.matches('[data-foundry-inline-property]') ? part : null;
           };
 
-          window.foundryEditBlock = blockID => {
-            const block = document.querySelector('[data-foundry-id="' + CSS.escape(blockID) + '"]');
-            const editable = selectedEditableElement(block);
+          window.foundryEditPart = partID => {
+            const part = document.querySelector('[data-foundry-id="' + CSS.escape(partID) + '"]');
+            const editable = selectedEditableElement(part);
             if (!editable) return;
             editable.dispatchEvent(new MouseEvent('dblclick', { bubbles: true, cancelable: true }));
           };
 
           document.addEventListener('contextmenu', event => {
             if (event.altKey) return;
-            const block = event.target.closest(selector);
-            if (!block) return;
+            const part = event.target.closest(selector);
+            if (!part) return;
             const clickedPrimitiveCandidate = event.target.closest('[data-foundry-primitive-property]');
-            const clickedPrimitive = clickedPrimitiveCandidate?.closest(selector) === block
+            const clickedPrimitive = clickedPrimitiveCandidate?.closest(selector) === part
               ? clickedPrimitiveCandidate
               : null;
             const primitiveProperty = clickedPrimitive?.dataset.foundryPrimitiveProperty;
             const primitivePath = propertyPath(clickedPrimitive);
             const primitiveWasSelected = Boolean(
               primitiveProperty
-              && selectedPrimitiveSelection?.blockID === block.dataset.foundryId
+              && selectedPrimitiveSelection?.partID === part.dataset.foundryId
               && selectedPrimitiveSelection?.propertyKey === primitiveProperty
               && (selectedPrimitiveSelection?.propertyPath || []).join(',') === primitivePath.join(',')
             );
-            const blockWasSelected = selectedBlockIDs.includes(block.dataset.foundryId);
+            const partWasSelected = selectedPartIDs.includes(part.dataset.foundryId);
             const preservesSelection = clickedPrimitive
               ? primitiveWasSelected
-              : blockWasSelected && selectedPrimitiveSelection?.blockID !== block.dataset.foundryId;
-            const selectionCount = preservesSelection ? selectedBlockIDs.length : 1;
-            const parentBlock = block.parentElement?.closest(selector) ?? null;
+              : partWasSelected && selectedPrimitiveSelection?.partID !== part.dataset.foundryId;
+            const selectionCount = preservesSelection ? selectedPartIDs.length : 1;
+            const parentPart = part.parentElement?.closest(selector) ?? null;
             const siblings = [...document.querySelectorAll(selector)].filter(candidate =>
-              (candidate.parentElement?.closest(selector) ?? null) === parentBlock
+              (candidate.parentElement?.closest(selector) ?? null) === parentPart
             );
-            const siblingIndex = siblings.indexOf(block);
+            const siblingIndex = siblings.indexOf(part);
             const clickedEditable = event.target.closest('[data-foundry-inline-property]');
             const editable = selectionCount === 1
-              && clickedEditable?.closest(selector) === block
+              && clickedEditable?.closest(selector) === part
               && (!clickedPrimitive || clickedEditable === clickedPrimitive);
-            const overrideOwner = block.closest('[data-foundry-global-override="true"]');
-            const globalTarget = overrideOwner || (block.dataset.foundryGlobal ? block : null);
+            const overrideOwner = part.closest('[data-foundry-global-override="true"]');
+            const globalTarget = overrideOwner || (part.dataset.foundryGlobal ? part : null);
             const clickedImageZone = event.target.closest('[data-foundry-image-drop-zone]');
-            const imageZone = clickedImageZone?.closest(selector) === block ? clickedImageZone : null;
+            const imageZone = clickedImageZone?.closest(selector) === part ? clickedImageZone : null;
             window.webkit.messageHandlers.foundryCanvas.postMessage({
               version: 1,
               event: 'contextMenu',
-              blockID: block.dataset.foundryId,
-              blockTypeID: block.dataset.foundryBlockType,
-              blockType: block.dataset.foundryType,
-              blockAuthor: block.dataset.foundryAuthor,
-              blockVersion: block.dataset.foundryVersion,
+              partID: part.dataset.foundryId,
+              partTypeID: part.dataset.foundryPartType,
+              partType: part.dataset.foundryType,
+              partAuthor: part.dataset.foundryAuthor,
+              partVersion: part.dataset.foundryVersion,
               canEdit: editable,
               primitiveProperty: primitiveProperty,
               primitivePath: primitivePath,
               selectionCount: selectionCount,
               canMoveUp: selectionCount === 1 && siblingIndex > 0,
               canMoveDown: selectionCount === 1 && siblingIndex >= 0 && siblingIndex < siblings.length - 1,
-              canOutdent: selectionCount === 1 && parentBlock !== null,
-              canSaveAsBlock: selectionCount === 1 && !block.dataset.foundryGlobal,
+              canOutdent: selectionCount === 1 && parentPart !== null,
+              canSaveAsPart: selectionCount === 1 && !part.dataset.foundryGlobal,
               globalTargetID: selectionCount === 1 ? globalTarget?.dataset.foundryId : undefined,
               isGlobalLinked: Boolean(globalTarget && !overrideOwner && selectionCount === 1),
               hasImage: selectionCount === 1 && imageZone?.tagName === 'IMG',
@@ -1242,7 +1242,7 @@ struct WebCanvasView: NSViewRepresentable {
               window.webkit.messageHandlers.foundryCanvas.postMessage({
                 version: 1,
                 event: 'selectPrimitive',
-                blockID: element.dataset.foundryId,
+                partID: element.dataset.foundryId,
                 propertyKey: primitive.dataset.foundryPrimitiveProperty,
                 propertyPath: propertyPath(primitive)
               });
@@ -1250,8 +1250,8 @@ struct WebCanvasView: NSViewRepresentable {
             }
             window.webkit.messageHandlers.foundryCanvas.postMessage({
               version: 1,
-              event: 'selectBlock',
-              blockID: element.dataset.foundryId,
+              event: 'selectPart',
+              partID: element.dataset.foundryId,
               extendsSelection: event.metaKey || event.shiftKey
             });
           }, true);
@@ -1261,20 +1261,20 @@ struct WebCanvasView: NSViewRepresentable {
         weak var webView: WKWebView?
         var lastHTML: String?
         var assetRevision: UInt64?
-        var selectedBlockIDs: Set<UUID> = []
-        var primarySelectedBlockID: UUID?
+        var selectedPartIDs: Set<UUID> = []
+        var primarySelectedPartID: UUID?
         var selectedPrimitive: CanvasPrimitiveSelection?
         var editorOptions = CanvasEditorOptions()
-        var canPasteBlock = false
-        var canClearImage: (UUID, BlockProperty.Key, [Int]) -> Bool
+        var canPastePart = false
+        var canClearImage: (UUID, PartProperty.Key, [Int]) -> Bool
         var handleMessage: (CanvasMessage) -> Void
-        var handleContextMenuAction: (CanvasContextMenuAction, UUID, BlockProperty.Key?, [Int]) -> Void
+        var handleContextMenuAction: (CanvasContextMenuAction, UUID, PartProperty.Key?, [Int]) -> Void
         var requestFullReconciliation: () -> Void
-        private var contextMenuBlockID: UUID?
-        private var contextMenuImageProperty: BlockProperty.Key?
+        private var contextMenuPartID: UUID?
+        private var contextMenuImageProperty: PartProperty.Key?
         private var contextMenuGlobalTargetID: UUID?
         private var pendingHTML: (html: String, revision: UInt64)?
-        private var pendingBlock: (subtree: RenderedBlockSubtree, revision: UInt64)?
+        private var pendingPart: (subtree: RenderedPartSubtree, revision: UInt64)?
         private var loadedHTML: String?
         fileprivate var lastSubmittedRevision: UInt64?
         private var revisionGate = CanvasUpdateRevisionGate()
@@ -1290,10 +1290,10 @@ struct WebCanvasView: NSViewRepresentable {
 
         init(
             assets: [UUID: ProjectAssetContent],
-            packages: [String: LoadedBlockPackage],
-            canClearImage: @escaping (UUID, BlockProperty.Key, [Int]) -> Bool,
+            packages: [String: LoadedPartPackage],
+            canClearImage: @escaping (UUID, PartProperty.Key, [Int]) -> Bool,
             handleMessage: @escaping (CanvasMessage) -> Void,
-            handleContextMenuAction: @escaping (CanvasContextMenuAction, UUID, BlockProperty.Key?, [Int]) -> Void,
+            handleContextMenuAction: @escaping (CanvasContextMenuAction, UUID, PartProperty.Key?, [Int]) -> Void,
             requestFullReconciliation: @escaping () -> Void
         ) {
             assetSchemeHandler = CanvasAssetSchemeHandler(assets: assets, packages: packages)
@@ -1327,18 +1327,18 @@ struct WebCanvasView: NSViewRepresentable {
             guard message.name == Self.handlerName,
                   message.frameInfo.isMainFrame,
                   let canvasMessage = CanvasMessage.decode(message.body) else { return }
-            if let blockID = canvasMessage.blockID,
-               canvasMessage.event == .selectBlock || canvasMessage.event == .selectPrimitive {
-                if canvasMessage.event == .selectBlock, canvasMessage.extendsSelection == true {
-                    var selection = selectedBlockIDs
-                    if selection.contains(blockID) {
-                        selection.remove(blockID)
+            if let partID = canvasMessage.partID,
+               canvasMessage.event == .selectPart || canvasMessage.event == .selectPrimitive {
+                if canvasMessage.event == .selectPart, canvasMessage.extendsSelection == true {
+                    var selection = selectedPartIDs
+                    if selection.contains(partID) {
+                        selection.remove(partID)
                     } else {
-                        selection.insert(blockID)
+                        selection.insert(partID)
                     }
                     pendingCanvasSelection = selection
                 } else {
-                    pendingCanvasSelection = [blockID]
+                    pendingCanvasSelection = [partID]
                 }
             }
             handleMessage(canvasMessage)
@@ -1346,25 +1346,25 @@ struct WebCanvasView: NSViewRepresentable {
 
         private func presentContextMenu(_ request: [String: Any]) {
             guard let webView,
-                  let value = request["blockID"] as? String,
-                  let blockID = UUID(uuidString: value) else { return }
+                  let value = request["partID"] as? String,
+                  let partID = UUID(uuidString: value) else { return }
             contextMenuRequest = request
-            contextMenuBlockID = blockID
-            contextMenuImageProperty = (request["imageProperty"] as? String).map(BlockProperty.Key.init(rawValue:))
+            contextMenuPartID = partID
+            contextMenuImageProperty = (request["imageProperty"] as? String).map(PartProperty.Key.init(rawValue:))
             contextMenuGlobalTargetID = (request["globalTargetID"] as? String).flatMap(UUID.init(uuidString:))
             contextMenuImagePropertyPath = (request["imagePropertyPath"] as? [NSNumber])?.map(\.intValue) ?? []
             if request["preservesSelection"] as? Bool != true {
-                pendingCanvasSelection = [blockID]
+                pendingCanvasSelection = [partID]
                 if let property = request["primitiveProperty"] as? String {
                     let path = (request["primitivePath"] as? [NSNumber])?.map(\.intValue) ?? []
                     handleMessage(.init(
                         event: .selectPrimitive,
-                        blockID: blockID,
+                        partID: partID,
                         propertyKey: .init(rawValue: property),
                         propertyPath: path
                     ))
                 } else {
-                    handleMessage(.init(event: .selectBlock, blockID: blockID, extendsSelection: false))
+                    handleMessage(.init(event: .selectPart, partID: partID, extendsSelection: false))
                 }
             }
 
@@ -1374,7 +1374,7 @@ struct WebCanvasView: NSViewRepresentable {
 
             let menu = NSMenu()
             menu.autoenablesItems = false
-            addFoundryContextMenuItems(to: menu, request: request, blockID: blockID)
+            addFoundryContextMenuItems(to: menu, request: request, partID: partID)
             let windowPoint = webView.window?.mouseLocationOutsideOfEventStream ?? .zero
             let webViewPoint = webView.convert(windowPoint, from: nil)
             menu.popUp(positioning: nil, at: webViewPoint, in: webView)
@@ -1386,12 +1386,12 @@ struct WebCanvasView: NSViewRepresentable {
 
         func augmentNativeContextMenu(_ menu: NSMenu) {
             guard let request = contextMenuRequest,
-                  let value = request["blockID"] as? String,
-                  let blockID = UUID(uuidString: value) else { return }
+                  let value = request["partID"] as? String,
+                  let partID = UUID(uuidString: value) else { return }
             let nativeItems = menu.items
             menu.removeAllItems()
             menu.autoenablesItems = false
-            addFoundryContextMenuItems(to: menu, request: request, blockID: blockID)
+            addFoundryContextMenuItems(to: menu, request: request, partID: partID)
             if !nativeItems.isEmpty {
                 menu.addItem(.separator())
                 nativeItems.forEach(menu.addItem)
@@ -1401,17 +1401,17 @@ struct WebCanvasView: NSViewRepresentable {
         private func addFoundryContextMenuItems(
             to menu: NSMenu,
             request: [String: Any],
-            blockID: UUID
+            partID: UUID
         ) {
             menu.addItem(contextMenuHeader(for: request))
             menu.addItem(.separator())
             if contextMenuImageProperty != nil {
                 let clear = menuItem("Clear", action: #selector(performContextAction(_:)), representedAction: .clearImage)
-                clear.isEnabled = contextMenuImageProperty.map { canClearImage(blockID, $0, contextMenuImagePropertyPath) } ?? false
+                clear.isEnabled = contextMenuImageProperty.map { canClearImage(partID, $0, contextMenuImagePropertyPath) } ?? false
                 menu.addItem(clear)
                 menu.addItem(.separator())
             } else if request["canEdit"] as? Bool == true {
-                menu.addItem(menuItem("Edit", action: #selector(editBlock), key: "\r", modifiers: []))
+                menu.addItem(menuItem("Edit", action: #selector(editPart), key: "\r", modifiers: []))
                 menu.addItem(.separator())
             }
             if contextMenuGlobalTargetID != nil {
@@ -1428,13 +1428,13 @@ struct WebCanvasView: NSViewRepresentable {
             menu.addItem(duplicate)
             menu.addItem(menuItem("Copy", action: #selector(performContextAction(_:)), representedAction: .copy, key: "c"))
             let paste = menuItem("Paste", action: #selector(performContextAction(_:)), representedAction: .paste, key: "v")
-            paste.isEnabled = canPasteBlock
+            paste.isEnabled = canPastePart
             menu.addItem(paste)
             menu.addItem(.separator())
             let saveReusable = menuItem("Save as Template…", action: #selector(performContextAction(_:)), representedAction: .saveReusable)
-            let saveGlobal = menuItem("Save as Global Block…", action: #selector(performContextAction(_:)), representedAction: .saveGlobal)
-            saveReusable.isEnabled = request["canSaveAsBlock"] as? Bool == true
-            saveGlobal.isEnabled = request["canSaveAsBlock"] as? Bool == true
+            let saveGlobal = menuItem("Save as Global Part…", action: #selector(performContextAction(_:)), representedAction: .saveGlobal)
+            saveReusable.isEnabled = request["canSaveAsPart"] as? Bool == true
+            saveGlobal.isEnabled = request["canSaveAsPart"] as? Bool == true
             menu.addItem(saveReusable)
             menu.addItem(saveGlobal)
             menu.addItem(.separator())
@@ -1454,14 +1454,14 @@ struct WebCanvasView: NSViewRepresentable {
         private func contextMenuHeader(for request: [String: Any]) -> NSMenuItem {
             let selectionCount = request["selectionCount"] as? Int ?? 1
             let title = selectionCount > 1
-                ? "\(selectionCount) Blocks"
-                : request["blockType"] as? String ?? "Block"
-            let author = request["blockAuthor"] as? String ?? "Foundry"
-            let version = request["blockVersion"] as? String ?? ""
+                ? "\(selectionCount) Parts"
+                : request["partType"] as? String ?? "Part"
+            let author = request["partAuthor"] as? String ?? "Foundry"
+            let version = request["partVersion"] as? String ?? ""
             let subtitle = version.isEmpty ? author : "\(author)  v\(version)"
-            let typeID = request["blockTypeID"] as? String
+            let typeID = request["partTypeID"] as? String
             let iconURL = typeID
-                .map(BlockType.init(rawValue:))?
+                .map(PartType.init(rawValue:))?
                 .definition.package
                 .map(\.iconURL)
             let icon = NSImageView(image: NSImage(size: NSSize(width: 36, height: 36)))
@@ -1472,11 +1472,11 @@ struct WebCanvasView: NSViewRepresentable {
             icon.setAccessibilityLabel(title)
             icon.translatesAutoresizingMaskIntoConstraints = false
             if let iconURL {
-                if let cached = BlockIconLoader.cachedIcon(at: iconURL) {
+                if let cached = PartIconLoader.cachedIcon(at: iconURL) {
                     icon.image = cached.image
                 } else {
                     Task { [weak icon] in
-                        guard let image = await BlockIconLoader.shared.icon(at: iconURL)?.image else { return }
+                        guard let image = await PartIconLoader.shared.icon(at: iconURL)?.image else { return }
                         icon?.image = image
                     }
                 }
@@ -1527,12 +1527,12 @@ struct WebCanvasView: NSViewRepresentable {
             return item
         }
 
-        @objc private func editBlock() {
-            guard let webView, let contextMenuBlockID else { return }
+        @objc private func editPart() {
+            guard let webView, let contextMenuPartID else { return }
             Task {
                 _ = try? await webView.callAsyncJavaScript(
-                    "window.foundryEditBlock(blockID)",
-                    arguments: ["blockID": contextMenuBlockID.uuidString],
+                    "window.foundryEditPart(partID)",
+                    arguments: ["partID": contextMenuPartID.uuidString],
                     in: nil,
                     contentWorld: .defaultClient
                 )
@@ -1540,7 +1540,7 @@ struct WebCanvasView: NSViewRepresentable {
         }
 
         @objc private func performContextAction(_ sender: NSMenuItem) {
-            guard let contextMenuBlockID,
+            guard let contextMenuPartID,
                   let rawValue = sender.representedObject as? String,
                   let action = CanvasContextMenuAction(rawValue: rawValue) else { return }
             let targetID: UUID
@@ -1549,15 +1549,15 @@ struct WebCanvasView: NSViewRepresentable {
                 guard let contextMenuGlobalTargetID else { return }
                 targetID = contextMenuGlobalTargetID
             default:
-                targetID = contextMenuBlockID
+                targetID = contextMenuPartID
             }
             handleContextMenuAction(action, targetID, contextMenuImageProperty, contextMenuImagePropertyPath)
         }
 
         func apply(_ operation: CanvasWebOperation, in webView: WKWebView) {
             switch operation {
-            case .block(let subtree, let revision):
-                patchBlock(subtree, revision: revision, in: webView)
+            case .part(let subtree, let revision):
+                patchPart(subtree, revision: revision, in: webView)
             case .reconcilePage(let html, let revision):
                 updateHTML(html, revision: revision, in: webView)
             case .reloadDocument(let html, let revision):
@@ -1566,23 +1566,23 @@ struct WebCanvasView: NSViewRepresentable {
             }
         }
 
-        private func patchBlock(
-            _ subtree: RenderedBlockSubtree,
+        private func patchPart(
+            _ subtree: RenderedPartSubtree,
             revision: UInt64,
             in webView: WKWebView
         ) {
             guard revisionGate.request(revision) else { return }
             guard !isLoadingHTML, !isPatchingHTML, loadedHTML != nil else {
-                pendingBlock = (subtree, revision)
+                pendingPart = (subtree, revision)
                 return
             }
             isPatchingHTML = true
             Task { [weak self, weak webView] in
                 guard let self, let webView else { return }
                 let didPatch = (try? await webView.callAsyncJavaScript(
-                    "return window.foundryReplaceBlock?.(blockID, html, css, revision) === true",
+                    "return window.foundryReplacePart?.(partID, html, css, revision) === true",
                     arguments: [
-                        "blockID": subtree.blockID.uuidString,
+                        "partID": subtree.partID.uuidString,
                         "html": subtree.html,
                         "css": subtree.instanceCSS,
                         "revision": revision
@@ -1592,7 +1592,7 @@ struct WebCanvasView: NSViewRepresentable {
                 )) as? Bool == true
                 self.isPatchingHTML = false
                 guard didPatch else {
-                    self.pendingBlock = nil
+                    self.pendingPart = nil
                     self.requestFullReconciliation()
                     return
                 }
@@ -1713,39 +1713,39 @@ struct WebCanvasView: NSViewRepresentable {
 
         private func processPendingUpdate(in webView: WKWebView) {
             if let pendingHTML,
-               pendingHTML.revision >= (pendingBlock?.revision ?? 0) {
+               pendingHTML.revision >= (pendingPart?.revision ?? 0) {
                 self.pendingHTML = nil
-                pendingBlock = nil
+                pendingPart = nil
                 patchHTML(pendingHTML.html, revision: pendingHTML.revision, in: webView)
-            } else if let pendingBlock {
-                self.pendingBlock = nil
-                patchBlock(pendingBlock.subtree, revision: pendingBlock.revision, in: webView)
+            } else if let pendingPart {
+                self.pendingPart = nil
+                patchPart(pendingPart.subtree, revision: pendingPart.revision, in: webView)
             }
         }
 
         func applyCanvasState() {
             guard let webView else { return }
-            let blockIDs = selectedBlockIDs
+            let partIDs = selectedPartIDs
                 .sorted { lhs, rhs in
-                    if lhs == primarySelectedBlockID { return true }
-                    if rhs == primarySelectedBlockID { return false }
+                    if lhs == primarySelectedPartID { return true }
+                    if rhs == primarySelectedPartID { return false }
                     return lhs.uuidString < rhs.uuidString
                 }
                 .map(\.uuidString)
             let primitiveSelection: [String: Any] = selectedPrimitive.map {
                 [
-                    "blockID": $0.blockID.uuidString,
+                    "partID": $0.partID.uuidString,
                     "propertyKey": $0.propertyKey.rawValue,
                     "propertyPath": $0.propertyPath
                 ]
             } ?? [:]
-            let selectionChanged = lastAppliedSelection != selectedBlockIDs
-                || lastAppliedPrimarySelection != primarySelectedBlockID
-            let selectionOriginatedInCanvas = pendingCanvasSelection == selectedBlockIDs
+            let selectionChanged = lastAppliedSelection != selectedPartIDs
+                || lastAppliedPrimarySelection != primarySelectedPartID
+            let selectionOriginatedInCanvas = pendingCanvasSelection == selectedPartIDs
             let shouldScrollToSelection = selectionChanged && !selectionOriginatedInCanvas
             pendingCanvasSelection = nil
-            lastAppliedSelection = selectedBlockIDs
-            lastAppliedPrimarySelection = primarySelectedBlockID
+            lastAppliedSelection = selectedPartIDs
+            lastAppliedPrimarySelection = primarySelectedPartID
             let scrollPosition = scrollPositionBeforeLoad.map {
                 ["x": $0.x, "y": $0.y]
             } ?? [:]
@@ -1759,10 +1759,10 @@ struct WebCanvasView: NSViewRepresentable {
             let accentColor = cssAccentColor
             Task {
                 _ = try? await webView.callAsyncJavaScript(
-                    "if (scrollPosition.x !== undefined) window.scrollTo(scrollPosition.x, scrollPosition.y); document.documentElement.style.setProperty('--foundry-editor-accent', accentColor); window.foundrySetWebInspectorEnabled?.(webInspectorEnabled); window.foundrySetEditorOptions?.(options); window.foundrySetSelection?.(blockIDs, primitiveSelection, shouldScrollToSelection)",
+                    "if (scrollPosition.x !== undefined) window.scrollTo(scrollPosition.x, scrollPosition.y); document.documentElement.style.setProperty('--foundry-editor-accent', accentColor); window.foundrySetWebInspectorEnabled?.(webInspectorEnabled); window.foundrySetEditorOptions?.(options); window.foundrySetSelection?.(partIDs, primitiveSelection, shouldScrollToSelection)",
                     arguments: [
                         "options": options,
-                        "blockIDs": blockIDs,
+                        "partIDs": partIDs,
                         "primitiveSelection": primitiveSelection,
                         "accentColor": accentColor,
                         "webInspectorEnabled": webView.isInspectable,

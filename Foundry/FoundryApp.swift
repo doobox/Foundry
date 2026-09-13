@@ -14,7 +14,7 @@ struct FoundryApp: App {
 
     init() {
         if ProcessInfo.processInfo.environment["XCODE_RUNNING_FOR_PREVIEWS"] != "1" {
-            _ = BlockPackageCatalog.shared
+            _ = PartPackageCatalog.shared
         }
     }
 
@@ -59,8 +59,8 @@ struct FoundryApp: App {
         .windowToolbarStyle(.unified)
         .restorationBehavior(.disabled)
 
-        Window("Block Updates", id: "block-updates") {
-            BlockUpdatesWindow()
+        Window("Part Updates", id: "part-updates") {
+            PartUpdatesWindow()
                 .frame(minWidth: 760, minHeight: 560)
         }
         .defaultSize(width: 900, height: 680)
@@ -68,8 +68,8 @@ struct FoundryApp: App {
         .windowToolbarStyle(.unified)
         .restorationBehavior(.disabled)
 
-        Window("Available Block Updates", id: "available-block-updates") {
-            AvailableBlockUpdatesWindow()
+        Window("Available Part Updates", id: "available-part-updates") {
+            AvailablePartUpdatesWindow()
         }
         .defaultSize(width: 720, height: 560)
         .windowResizability(.contentMinSize)
@@ -93,7 +93,7 @@ private struct AboutMenuCommands: Commands {
 
 @MainActor
 private enum FoundryAboutPanel {
-    private static let apiDescription = "Block API v\(FoundryBlockAPI.currentVersion)"
+    private static let apiDescription = "Part API v\(FoundryPartAPI.currentVersion)"
 
     static func show() {
         NSApplication.shared.orderFrontStandardAboutPanel(

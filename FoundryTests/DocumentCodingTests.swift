@@ -7,20 +7,20 @@ struct DocumentCodingTests {
     @Test
     func responsiveOverridesRoundTripWithoutDuplicatingBaseProperties() throws {
         var site = TestSiteFixtures.populatedSite()
-        let blockID = try #require(site.pages.first?.blocks.first?.id)
-        site.updateBlock(id: blockID) {
+        let partID = try #require(site.pages.first?.parts.first?.id)
+        site.updatePart(id: partID) {
             $0.setResponsiveProperty(.padding, value: .number(6), at: .mobile)
             $0.setResponsiveProperty(.padding, value: .number(12), at: .small)
         }
 
         let data = try FoundryDocument.encoder.encode(site)
         let decoded = try FoundryDocument.decoder.decode(Site.self, from: data)
-        let block = try #require(decoded.block(withID: blockID))
+        let part = try #require(decoded.part(withID: partID))
 
-        #expect(block.numberProperty(.padding) == 6)
-        #expect(block.propertyValue(.padding, at: .mobile) == .number(6))
-        #expect(block.propertyValue(.padding, at: .small) == .number(12))
-        #expect(block.propertyValue(.padding, at: .medium) == .number(12))
+        #expect(part.numberProperty(.padding) == 6)
+        #expect(part.propertyValue(.padding, at: .mobile) == .number(6))
+        #expect(part.propertyValue(.padding, at: .small) == .number(12))
+        #expect(part.propertyValue(.padding, at: .medium) == .number(12))
     }
 
     @Test
@@ -30,8 +30,8 @@ struct DocumentCodingTests {
         let decoded = try FoundryDocument.decoder.decode(Site.self, from: data)
 
         #expect(decoded == original)
-        #expect(decoded.pages.first?.blocks.first?.id ==
-                original.pages.first?.blocks.first?.id)
+        #expect(decoded.pages.first?.parts.first?.id ==
+                original.pages.first?.parts.first?.id)
     }
 
     @Test

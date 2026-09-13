@@ -136,7 +136,7 @@ struct ThemeFontSettings: View {
             }
             Button("Cancel", role: .cancel) { fontPendingDeletion = nil }
         } message: {
-            Text("Foundry will update every block using this font before deleting it.")
+            Text("Foundry will update every part using this font before deleting it.")
         }
         .fileImporter(
             isPresented: $isImportingFonts,
@@ -652,7 +652,7 @@ struct ThemeFontSettings: View {
         )
     }
 
-    private var fontReplacementChoices: [BlockPropertyChoice] {
+    private var fontReplacementChoices: [PartPropertyChoice] {
         let pendingReference = fontPendingDeletion.map { "custom:\($0.id.uuidString.lowercased())" }
         return theme.fontFamilyChoices.filter { $0.value != pendingReference }
     }

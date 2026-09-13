@@ -5,14 +5,14 @@ import Testing
 @MainActor
 struct InspectorPaletteTests {
     @Test func literalAppearancesAndResponsivePairsStayIndependent() async {
-        await BlockPackageCatalog.shared.waitUntilLoaded()
-        var value = BlockPackageColorValue(source: BlockThemeValueSelection.manualCustom,
+        await PartPackageCatalog.shared.waitUntilLoaded()
+        var value = PartPackageColorValue(source: PartThemeValueSelection.manualCustom,
             customColor: "#123456", opacity: 1, shade: .two, darkShade: .nine)
         value.darkCustomColor = "#ABCDEF"
         value.darkOpacity = 0.4
-        #expect(BlockPackageColorResolver.resolve(value, theme: .standard, opacity: true).contains("18 52 86 / 1"))
-        #expect(BlockPackageColorResolver.resolve(value, theme: .standard, opacity: true, appearance: .dark).contains("171 205 239 / 0.4"))
-        var node = BlockNode(type: .container)
+        #expect(PartPackageColorResolver.resolve(value, theme: .standard, opacity: true).contains("18 52 86 / 1"))
+        #expect(PartPackageColorResolver.resolve(value, theme: .standard, opacity: true, appearance: .dark).contains("171 205 239 / 0.4"))
+        var node = PartNode(type: .container)
         node.setProperty(.backgroundColor, value: .packageColor(value))
         var wide = value
         wide.darkShade = .eleven
@@ -27,12 +27,12 @@ struct InspectorPaletteTests {
         #expect(SiteAppearanceMode.dark.colour(light: "#123456", dark: "#ABCDEF") == "#ABCDEF")
         #expect(SiteAppearanceMode.light.bootstrap(siteID: UUID()).isEmpty)
         #expect(SiteAppearanceMode.both.bootstrap(siteID: UUID()).contains("window.foundryAppearance"))
-        #expect(BlockTemplateRenderer.transformColor("light-dark(#000000, #FFFFFF)", target: 255, amount: 1)
+        #expect(PartTemplateRenderer.transformColor("light-dark(#000000, #FFFFFF)", target: 255, amount: 1)
                 == "light-dark(#FFFFFF, #FFFFFF)")
     }
 
     @Test func appearanceSelectionsAreIndependentAndExportTogether() async throws {
-        await BlockPackageCatalog.shared.waitUntilLoaded()
+        await PartPackageCatalog.shared.waitUntilLoaded()
         var site = Site.starter()
         site.appearanceMode = .both
         let index = try #require(site.theme.colourPalettes.firstIndex { $0.id == "theme.background" })
@@ -40,15 +40,15 @@ struct InspectorPaletteTests {
         shades[1] = "#123456"
         shades[8] = "#ABCDEF"
         try site.theme.colourPalettes[index].replaceShades(shades)
-        let value = BlockPackageColorValue(source: "background", customColor: "#000000", opacity: 1,
+        let value = PartPackageColorValue(source: "background", customColor: "#000000", opacity: 1,
                                               shade: .two, darkShade: .nine)
         site.theme.colourPalettes[index].setLightDefault(.four)
         site.theme.colourPalettes[index].setDarkDefault(.seven)
-        #expect(BlockPackageColorResolver.resolve(value, theme: site.theme, opacity: false) == "#123456")
-        #expect(BlockPackageColorResolver.resolve(value, theme: site.theme, opacity: false, appearance: .dark) == "#ABCDEF")
-        var node = BlockNode.make(.container)
+        #expect(PartPackageColorResolver.resolve(value, theme: site.theme, opacity: false) == "#123456")
+        #expect(PartPackageColorResolver.resolve(value, theme: site.theme, opacity: false, appearance: .dark) == "#ABCDEF")
+        var node = PartNode.make(.container)
         node.setProperty(.backgroundColor, value: .packageColor(value))
-        let page = Page(title: "Appearance", slug: "index", blocks: [node])
+        let page = Page(title: "Appearance", slug: "index", parts: [node])
         site.pages = [page]
         #expect(HTMLPageRenderer(appearance: .light).render(page: page, theme: site.theme).contains("background-color: #123456"))
         #expect(HTMLPageRenderer(appearance: .dark).render(page: page, theme: site.theme).contains("background-color: #ABCDEF"))
@@ -60,12 +60,12 @@ struct InspectorPaletteTests {
         #expect(restored.theme.colourPalettes[index].darkDefaultShade == .seven)
     }
 
-    @Test func newBlocksCaptureActiveThemeDefaultOnce() async throws {
-        await BlockPackageCatalog.shared.waitUntilLoaded()
+    @Test func newPartsCaptureActiveThemeDefaultOnce() async throws {
+        await PartPackageCatalog.shared.waitUntilLoaded()
         var theme = Theme.standard
         let index = try #require(theme.colourPalettes.firstIndex { $0.id == "theme.background" })
         theme.colourPalettes[index].setLightDefault(.three)
-        var node = BlockNode.make(.container)
+        var node = PartNode.make(.container)
         // The built-in container starts with a literal colour. Supply a theme-role
         // declaration and exercise the same initialisation used by make(_:theme:).
         node.setProperty(.backgroundColor, value: .packageColor(.init(
@@ -75,9 +75,9 @@ struct InspectorPaletteTests {
             Issue.record("Expected a palette colour"); return
         }
         #expect(value.shade == .three)
-        let before = BlockPackageColorResolver.resolve(value, theme: theme, opacity: false)
+        let before = PartPackageColorResolver.resolve(value, theme: theme, opacity: false)
         theme.colourPalettes[index].setLightDefault(.nine)
-        #expect(BlockPackageColorResolver.resolve(value, theme: theme, opacity: false) == before)
+        #expect(PartPackageColorResolver.resolve(value, theme: theme, opacity: false) == before)
         #expect(value.shade != theme.colourPalettes[index].lightDefaultShade)
         var next = node
         next.selectInitialColourShades(from: theme)
@@ -88,17 +88,17 @@ struct InspectorPaletteTests {
     }
 
     @Test func canvasAndExportIgnoreMatchingCustomNamesForStableReferences() async throws {
-        await BlockPackageCatalog.shared.waitUntilLoaded()
+        await PartPackageCatalog.shared.waitUntilLoaded()
         var site = Site.starter()
         let original = try #require(site.theme.colourPalettes.first { $0.id == "theme.background" })
         var custom = try original.duplicated()
         custom.name = original.name
         try custom.replaceShades(Array(repeating: "#193A5C", count: 11))
         site.theme.colourPalettes.insert(custom, at: 0)
-        var node = BlockNode.make(.container)
+        var node = PartNode.make(.container)
         node.setProperty(.backgroundColor, value: .packageColor(.init(source: "background",
             customColor: "#000000", opacity: 1)))
-        let page = Page(title: "Override", slug: "index", blocks: [node])
+        let page = Page(title: "Override", slug: "index", parts: [node])
         site.pages = [page]
         #expect(!HTMLPageRenderer().render(page: page, theme: site.theme).contains("background-color: #193A5C"))
         let css = try #require(StaticSiteRenderer().render(site: site).file(at: "files/page.css")?.contents)
@@ -116,10 +116,10 @@ struct InspectorPaletteTests {
         shades[8] = "#ABCDEF"
         try theme.colourPalettes[index].replaceShades(shades)
         theme.colourPalettes[index].setLightDefault(.two)
-        let following = BlockPackageColorValue(source: "theme.accent", customColor: "#000000", opacity: 1, shade: theme.colourPalettes[index].lightDefaultShade)
-        let fixed = BlockPackageColorValue(source: "theme.accent", customColor: "#000000", opacity: 1, shade: .two)
-        func resolve(_ value: BlockPackageColorValue) -> String {
-            BlockPackageColorResolver.resolve(value, theme: theme, opacity: false)
+        let following = PartPackageColorValue(source: "theme.accent", customColor: "#000000", opacity: 1, shade: theme.colourPalettes[index].lightDefaultShade)
+        let fixed = PartPackageColorValue(source: "theme.accent", customColor: "#000000", opacity: 1, shade: .two)
+        func resolve(_ value: PartPackageColorValue) -> String {
+            PartPackageColorResolver.resolve(value, theme: theme, opacity: false)
         }
         #expect(resolve(following) == "#123456")
         #expect(resolve(fixed) == "#123456")
@@ -127,23 +127,23 @@ struct InspectorPaletteTests {
         theme.colourPalettes[index].setLightDefault(.nine)
         #expect(resolve(following) == "#123456")
         #expect(resolve(fixed) == "#123456")
-        let restored = try JSONDecoder().decode(BlockPackageColorValue.self, from: JSONEncoder().encode(fixed))
+        let restored = try JSONDecoder().decode(PartPackageColorValue.self, from: JSONEncoder().encode(fixed))
         #expect(restored == fixed)
         #expect(resolve(restored) == "#123456")
     }
 
     @Test func canvasAndExportResolveCustomPaletteShade() async throws {
-        await BlockPackageCatalog.shared.waitUntilLoaded()
+        await PartPackageCatalog.shared.waitUntilLoaded()
         var site = Site.starter()
         var palette = try site.theme.colourPalettes[0].duplicated()
         var shades = palette.shades
         shades[7] = "#193A5C"
         try palette.replaceShades(shades)
         site.theme.colourPalettes.append(palette)
-        var node = BlockNode.make(.container)
+        var node = PartNode.make(.container)
         node.setProperty(.backgroundColor, value: .packageColor(.init(source: palette.id,
             customColor: "#000000", opacity: 1, shade: .eight)))
-        let page = Page(title: "Palette", slug: "index", blocks: [node])
+        let page = Page(title: "Palette", slug: "index", parts: [node])
         site.pages = [page]
         let html = HTMLPageRenderer().render(page: page, theme: site.theme)
         #expect(html.contains("background-color: #193A5C"))
@@ -152,11 +152,11 @@ struct InspectorPaletteTests {
     }
 
     @Test func missingPaletteUsesExistingFallbackAndCustomOpacityStillWorks() {
-        let missing = BlockPackageColorValue(source: "custom.deleted", customColor: "#123456", opacity: 0.5)
-        #expect(BlockPackageColorResolver.resolve(missing, theme: .standard, opacity: true) == "#123456")
+        let missing = PartPackageColorValue(source: "custom.deleted", customColor: "#123456", opacity: 0.5)
+        #expect(PartPackageColorResolver.resolve(missing, theme: .standard, opacity: true) == "#123456")
         var manual = missing
-        manual.source = BlockThemeValueSelection.manualCustom
-        #expect(BlockPackageColorResolver.resolve(manual, theme: .standard, opacity: true)
-            == BlockTemplateRenderer.colorWithAlpha("#123456", alpha: 0.5))
+        manual.source = PartThemeValueSelection.manualCustom
+        #expect(PartPackageColorResolver.resolve(manual, theme: .standard, opacity: true)
+            == PartTemplateRenderer.colorWithAlpha("#123456", alpha: 0.5))
     }
 }

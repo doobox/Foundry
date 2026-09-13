@@ -5,11 +5,11 @@ import Testing
 struct WorkspaceLayoutTests {
     @Test
     func panelsHaveDistinctAgreedNamesAndSymbols() {
-        #expect(BlockDefinition.genericSystemImage == "square.stack.3d.up")
-        #expect(WorkspacePanel.blocks.systemImage == "rectangle.grid.2x2")
-        #expect(WorkspacePanel.reusableBlocks.title == "Templates")
-        #expect(WorkspacePanel.reusableBlocks.systemImage == "rectangle.3.group")
-        #expect(WorkspacePanel.globalBlocks.systemImage == "globe")
+        #expect(PartDefinition.genericSystemImage == "square.stack.3d.up")
+        #expect(WorkspacePanel.parts.systemImage == "rectangle.grid.2x2")
+        #expect(WorkspacePanel.reusableParts.title == "Templates")
+        #expect(WorkspacePanel.reusableParts.systemImage == "rectangle.3.group")
+        #expect(WorkspacePanel.globalParts.systemImage == "globe")
         #expect(WorkspacePanel.assets.systemImage == "folder")
         #expect(WorkspacePanel.developer.systemImage == "terminal")
         #expect(WorkspacePanel.canvas.systemImage == "macwindow")
@@ -71,7 +71,7 @@ struct WorkspaceLayoutTests {
         var layout = WorkspaceLayout.standard
         let canvasColumnID = layout.columns[1].id
 
-        layout.move(.blocks, to: canvasColumnID)
+        layout.move(.parts, to: canvasColumnID)
 
         #expect(layout == .standard)
     }
@@ -90,10 +90,10 @@ struct WorkspaceLayoutTests {
         var layout = WorkspaceLayout.standard
         let sourceID = layout.columns[0].id
 
-        layout.moveToNewColumn(.blocks, after: sourceID)
+        layout.moveToNewColumn(.parts, after: sourceID)
 
         #expect(layout.columns.count == 4)
-        #expect(layout.columns[1].panels == [.blocks])
+        #expect(layout.columns[1].panels == [.parts])
         #expect(Set(layout.columns.flatMap(\.panels)) == Set(WorkspacePanel.allCases.filter { $0 != .developer }))
     }
 
@@ -101,38 +101,38 @@ struct WorkspaceLayoutTests {
     func detachingAndRedockingPreservesPanelIdentity() {
         var layout = WorkspaceLayout.standard
         let sourceColumnID = layout.columns[0].id
-        let sourcePanelIndex = layout.columns[0].panels.firstIndex(of: .blocks)
+        let sourcePanelIndex = layout.columns[0].panels.firstIndex(of: .parts)
 
-        layout.detach(.blocks)
-        #expect(layout.detachedPanels.map(\.panel) == [.blocks])
-        #expect(!layout.columns.flatMap(\.panels).contains(.blocks))
+        layout.detach(.parts)
+        #expect(layout.detachedPanels.map(\.panel) == [.parts])
+        #expect(!layout.columns.flatMap(\.panels).contains(.parts))
 
-        layout.redockClosedPanel(.blocks)
+        layout.redockClosedPanel(.parts)
         #expect(layout.detachedPanels.isEmpty)
-        #expect(layout.columns.first(where: { $0.id == sourceColumnID })?.panels[sourcePanelIndex ?? 0] == .blocks)
+        #expect(layout.columns.first(where: { $0.id == sourceColumnID })?.panels[sourcePanelIndex ?? 0] == .parts)
     }
 
     @Test
     func solePanelInWorkspaceColumnCanDetach() {
         var layout = WorkspaceLayout.standard
         let sourceID = layout.columns[0].id
-        layout.moveToNewColumn(.blocks, after: sourceID)
-        let workspaceColumnIndex = layout.columns.firstIndex(where: { $0.panels == [.blocks] })
+        layout.moveToNewColumn(.parts, after: sourceID)
+        let workspaceColumnIndex = layout.columns.firstIndex(where: { $0.panels == [.parts] })
         let workspaceColumnID = workspaceColumnIndex.map { layout.columns[$0].id }
         if let workspaceColumnIndex {
             layout.columns[workspaceColumnIndex].preferredWidth = 412
         }
 
-        layout.detach(.blocks)
+        layout.detach(.parts)
 
-        #expect(layout.detachedPanels.map(\.panel) == [.blocks])
+        #expect(layout.detachedPanels.map(\.panel) == [.parts])
         #expect(layout.columns.allSatisfy { $0.id != workspaceColumnID })
-        #expect(!layout.columns.flatMap(\.panels).contains(.blocks))
+        #expect(!layout.columns.flatMap(\.panels).contains(.parts))
 
-        layout.redockClosedPanel(.blocks)
+        layout.redockClosedPanel(.parts)
 
         #expect(layout.columns.firstIndex(where: { $0.id == workspaceColumnID }) == workspaceColumnIndex)
-        #expect(layout.columns.first(where: { $0.id == workspaceColumnID })?.panels == [.blocks])
+        #expect(layout.columns.first(where: { $0.id == workspaceColumnID })?.panels == [.parts])
         #expect(layout.columns.first(where: { $0.id == workspaceColumnID })?.preferredWidth == 412)
     }
 
@@ -153,11 +153,11 @@ struct WorkspaceLayoutTests {
         var layout = WorkspaceLayout.standard
         let canvasColumnID = layout.columns[1].id
 
-        layout.dockAsColumn(.blocks, beside: canvasColumnID, before: false)
+        layout.dockAsColumn(.parts, beside: canvasColumnID, before: false)
 
         let canvasIndex = layout.columns.firstIndex(where: { $0.id == canvasColumnID })
         #expect(canvasIndex != nil)
-        #expect(layout.columns[(canvasIndex ?? 0) + 1].panels == [.blocks])
+        #expect(layout.columns[(canvasIndex ?? 0) + 1].panels == [.parts])
     }
 
     @Test

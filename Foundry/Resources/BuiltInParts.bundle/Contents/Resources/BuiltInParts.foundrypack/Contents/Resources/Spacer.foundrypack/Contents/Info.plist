@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+    <key>minimumAPIVersion</key><integer>1</integer><key>id</key><string>foundry.layout.spacer</string><key>title</key><string>Spacer</string>
+    <key>description</key><string>Adds adjustable vertical space between parts.</string><key>author</key><string>Foundry</string><key>version</key><string>1.0.0</string><key>group</key><string>Layout</string>
+    <key>tags</key><array><string>Foundry</string><string>built-in</string><string>space</string></array>
+    <key>controls</key><array><dict><key>id</key><string>height</string><key>label</key><string>Height</string><key>group</key><string>Layout</string><key>type</key><string>number</string><key>minimum</key><integer>0</integer><key>maximum</key><integer>600</integer><key>step</key><integer>4</integer><key>units</key><string>px</string><key>default</key><integer>48</integer><key>responsive</key><true/></dict></array>
+    <key>templates</key><dict><key>html</key><string>part.html</string><key>files</key><array><dict><key>path</key><string>part.css</string><key>scope</key><string>instance</string></dict></array></dict><key>assets</key><array/>
+</dict></plist>

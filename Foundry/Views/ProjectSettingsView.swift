@@ -149,7 +149,7 @@ private struct CodeAndAnalyticsProjectSettingsView: View {
                 validationMessage(for: bodyStartCode)
 
                 codeEditor("Before </body>", code: bodyEndCode, setter: editor.setSiteBodyEndCode)
-                Text("Inserted at the end of every page after Foundry’s block scripts.")
+                Text("Inserted at the end of every page after Foundry’s part scripts.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 validationMessage(for: bodyEndCode)
@@ -342,7 +342,7 @@ private struct PublishingProjectSettingsView: View {
                 )
                 Text(allowsSearchIndexing
                      ? "Exported pages may be indexed by search engines."
-                     : "Exported pages include a noindex directive and robots.txt blocks crawling.")
+                     : "Exported pages include a noindex directive and robots.txt parts crawling.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 Toggle(
@@ -474,12 +474,12 @@ private struct PublishingProjectSettingsView: View {
         if !missingAssets.isEmpty {
             warnings.append("\(missingAssets.count) project resource files are unavailable and cannot be published.")
         }
-        let unavailableBlocks = site.pages.flatMap(\.blocks).flatMap(\.flattened)
-            .filter { block in
-                block.packageLock != nil && block.type.definition.renderKind == .unavailable
+        let unavailableParts = site.pages.flatMap(\.parts).flatMap(\.flattened)
+            .filter { part in
+                part.packageLock != nil && part.type.definition.renderKind == .unavailable
             }
-        if !unavailableBlocks.isEmpty {
-            warnings.append("\(unavailableBlocks.count) blocks use unavailable packages.")
+        if !unavailableParts.isEmpty {
+            warnings.append("\(unavailableParts.count) parts use unavailable packages.")
         }
         if needsPublicURL && validBaseURL == nil {
             warnings.append("Canonical URLs and sitemap.xml require a valid Site URL.")

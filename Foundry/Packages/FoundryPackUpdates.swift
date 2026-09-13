@@ -113,7 +113,7 @@ nonisolated enum FoundryPackUpdateError: Error, LocalizedError {
 }
 
 nonisolated enum FoundryPackSigningIdentity {
-    private static let service = "uk.co.garysimpson.Foundry.block-signing"
+    private static let service = "uk.co.garysimpson.Foundry.part-signing"
     private static let account = "default-publisher"
 
     static func privateKey() throws -> Curve25519.Signing.PrivateKey {
@@ -285,7 +285,7 @@ nonisolated enum FoundryPackReleaseBuilder {
         let release = FoundryPackAppcast.Release(
             version: version,
             publishedAt: publishedAt,
-            minimumAPIVersion: pack.metadata.minimumAPIVersion ?? FoundryBlockAPI.currentVersion,
+            minimumAPIVersion: pack.metadata.minimumAPIVersion ?? FoundryPartAPI.currentVersion,
             downloadURL: downloadURL,
             releaseNotesURL: releaseNotesURL,
             fileSize: Int64(archiveData.count),
@@ -570,7 +570,7 @@ nonisolated enum FoundryPackUpdateVerifier {
             throw FoundryPackUpdateError.invalidMetadata("The installed pack version is not semantic.")
         }
         let compatible = appcast.releases.filter {
-            $0.minimumAPIVersion <= FoundryBlockAPI.currentVersion
+            $0.minimumAPIVersion <= FoundryPartAPI.currentVersion
                 && SemanticVersion($0.version).map { current < $0 } == true
         }
         guard let release = compatible.max(by: {

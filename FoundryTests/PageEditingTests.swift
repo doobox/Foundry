@@ -90,7 +90,7 @@ struct PageEditingTests {
         let document = TestSiteFixtures.populatedDocument()
         let editor = ProjectEditor(document: document, undoManager: nil)
         let source = try #require(document.site.pages.first)
-        let sourceBlock = try #require(source.blocks.first)
+        let sourcePart = try #require(source.parts.first)
 
         let duplicateID = try #require(editor.duplicatePage(id: source.id))
         let duplicate = try #require(
@@ -99,9 +99,9 @@ struct PageEditingTests {
 
         #expect(duplicate.id != source.id)
         #expect(duplicate.slug == "index-2")
-        #expect(duplicate.blocks.first?.id != sourceBlock.id)
-        #expect(duplicate.blocks.first?.children.first?.id !=
-                sourceBlock.children.first?.id)
+        #expect(duplicate.parts.first?.id != sourcePart.id)
+        #expect(duplicate.parts.first?.children.first?.id !=
+                sourcePart.children.first?.id)
     }
 
     @Test

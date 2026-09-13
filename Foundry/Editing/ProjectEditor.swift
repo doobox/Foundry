@@ -1,8 +1,8 @@
 import Foundation
 
 nonisolated enum ProjectMutationImpact: Equatable, Sendable {
-    case blockProperty(blockID: UUID, propertyKey: BlockProperty.Key)
-    case blockStructure(ownerID: UUID?)
+    case partProperty(partID: UUID, propertyKey: PartProperty.Key)
+    case partStructure(ownerID: UUID?)
     case page
     case theme
     case assets
@@ -136,36 +136,36 @@ struct ProjectEditor {
         mutate(actionName: "Change Export Cleanup", impact: .publishingOnly) { $0.cleansObsoleteExportFiles = isEnabled }
     }
 
-    func renameBlock(id: UUID, name: String) {
-        if let context = document.site.globalBlockContext(containing: id), !context.isOverridden {
-            renameSharedReusableBlockInstance(blockID: id, name: name)
+    func renamePart(id: UUID, name: String) {
+        if let context = document.site.globalPartContext(containing: id), !context.isOverridden {
+            renameSharedReusablePartInstance(partID: id, name: name)
             return
         }
-        mutate(actionName: "Rename Block", impact: .blockProperty(blockID: id, propertyKey: .init(rawValue: "name"))) { site in
-            site.updateBlock(id: id) { $0.name = name }
+        mutate(actionName: "Rename Part", impact: .partProperty(partID: id, propertyKey: .init(rawValue: "name"))) { site in
+            site.updatePart(id: id) { $0.name = name }
         }
     }
 
-    func setBlockAnchor(id: UUID, anchor: String) {
-        mutate(actionName: "Edit Block Anchor", impact: .blockProperty(blockID: id, propertyKey: .init(rawValue: "anchor"))) { site in
-            site.updateBlock(id: id) {
+    func setPartAnchor(id: UUID, anchor: String) {
+        mutate(actionName: "Edit Part Anchor", impact: .partProperty(partID: id, propertyKey: .init(rawValue: "anchor"))) { site in
+            site.updatePart(id: id) {
                 let value = anchor.trimmingCharacters(in: .whitespacesAndNewlines)
                 $0.anchor = value.isEmpty ? nil : value
             }
         }
     }
 
-    func setBlockClasses(id: UUID, classes: String) {
-        if let context = document.site.globalBlockContext(containing: id), !context.isOverridden {
-            editSharedReusableBlock(blockID: id, actionName: "Edit Block Classes") {
+    func setPartClasses(id: UUID, classes: String) {
+        if let context = document.site.globalPartContext(containing: id), !context.isOverridden {
+            editSharedReusablePart(partID: id, actionName: "Edit Part Classes") {
                 $0.customClasses = classes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
                     ? nil
                     : classes
             }
             return
         }
-        mutate(actionName: "Edit Block Classes", impact: .blockProperty(blockID: id, propertyKey: .init(rawValue: "classes"))) { site in
-            site.updateBlock(id: id) {
+        mutate(actionName: "Edit Part Classes", impact: .partProperty(partID: id, propertyKey: .init(rawValue: "classes"))) { site in
+            site.updatePart(id: id) {
                 $0.customClasses = classes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
                     ? nil
                     : classes
@@ -173,15 +173,15 @@ struct ProjectEditor {
         }
     }
 
-    func setBlockRootAttributes(id: UUID, attributes: [BlockHTMLAttribute]) {
-        if let context = document.site.globalBlockContext(containing: id), !context.isOverridden {
-            editSharedReusableBlock(blockID: id, actionName: "Edit Block Attributes") {
+    func setPartRootAttributes(id: UUID, attributes: [PartHTMLAttribute]) {
+        if let context = document.site.globalPartContext(containing: id), !context.isOverridden {
+            editSharedReusablePart(partID: id, actionName: "Edit Part Attributes") {
                 $0.rootAttributes = attributes.isEmpty ? nil : attributes
             }
             return
         }
-        mutate(actionName: "Edit Block Attributes", impact: .blockProperty(blockID: id, propertyKey: .init(rawValue: "attributes"))) { site in
-            site.updateBlock(id: id) {
+        mutate(actionName: "Edit Part Attributes", impact: .partProperty(partID: id, propertyKey: .init(rawValue: "attributes"))) { site in
+            site.updatePart(id: id) {
                 $0.rootAttributes = attributes.isEmpty ? nil : attributes
             }
         }
@@ -189,20 +189,20 @@ struct ProjectEditor {
 
     func setProperty(
         id: UUID,
-        key: BlockProperty.Key,
-        value: BlockProperty.Value
+        key: PartProperty.Key,
+        value: PartProperty.Value
     ) {
-        if let context = document.site.globalBlockContext(containing: id), !context.isOverridden {
-            setSharedReusableProperty(blockID: id, key: key, value: value)
+        if let context = document.site.globalPartContext(containing: id), !context.isOverridden {
+            setSharedReusableProperty(partID: id, key: key, value: value)
             return
         }
-        mutate(actionName: "Edit Block", impact: .blockProperty(blockID: id, propertyKey: key)) { site in
-            site.updateBlock(id: id) { $0.setProperty(key, value: value) }
+        mutate(actionName: "Edit Part", impact: .partProperty(partID: id, propertyKey: key)) { site in
+            site.updatePart(id: id) { $0.setProperty(key, value: value) }
         }
     }
 
-    func setProperty(id: UUID, key: BlockProperty.Key, value: String) {
-        let propertyValue: BlockProperty.Value = key == .destination
+    func setProperty(id: UUID, key: PartProperty.Key, value: String) {
+        let propertyValue: PartProperty.Value = key == .destination
             ? .link(.init(destination: value.isEmpty ? .none : .url(value)))
             : .string(value)
         setProperty(id: id, key: key, value: propertyValue)
@@ -210,28 +210,28 @@ struct ProjectEditor {
 
     func setResponsiveProperty(
         id: UUID,
-        key: BlockProperty.Key,
-        value: BlockProperty.Value,
+        key: PartProperty.Key,
+        value: PartProperty.Value,
         breakpoint: ResponsiveBreakpoint
     ) {
-        if let context = document.site.globalBlockContext(containing: id), !context.isOverridden {
-            setSharedReusableResponsiveProperty(blockID: id, key: key, value: value, breakpoint: breakpoint)
+        if let context = document.site.globalPartContext(containing: id), !context.isOverridden {
+            setSharedReusableResponsiveProperty(partID: id, key: key, value: value, breakpoint: breakpoint)
             return
         }
-        mutate(actionName: "Edit \(breakpoint.displayName) Block", impact: .blockProperty(blockID: id, propertyKey: key)) { site in
-            site.updateBlock(id: id) {
+        mutate(actionName: "Edit \(breakpoint.displayName) Part", impact: .partProperty(partID: id, propertyKey: key)) { site in
+            site.updatePart(id: id) {
                 $0.setResponsiveProperty(key, value: value, at: breakpoint)
             }
         }
     }
 
-    func removeResponsiveOverride(id: UUID, key: BlockProperty.Key, breakpoint: ResponsiveBreakpoint) {
-        if let context = document.site.globalBlockContext(containing: id), !context.isOverridden {
-            removeSharedReusableResponsiveOverride(blockID: id, key: key, breakpoint: breakpoint)
+    func removeResponsiveOverride(id: UUID, key: PartProperty.Key, breakpoint: ResponsiveBreakpoint) {
+        if let context = document.site.globalPartContext(containing: id), !context.isOverridden {
+            removeSharedReusableResponsiveOverride(partID: id, key: key, breakpoint: breakpoint)
             return
         }
-        mutate(actionName: "Reset \(breakpoint.displayName) Block", impact: .blockProperty(blockID: id, propertyKey: key)) { site in
-            site.updateBlock(id: id) { $0.removeResponsiveOverride(key, at: breakpoint) }
+        mutate(actionName: "Reset \(breakpoint.displayName) Part", impact: .partProperty(partID: id, propertyKey: key)) { site in
+            site.updatePart(id: id) { $0.removeResponsiveOverride(key, at: breakpoint) }
         }
     }
 
@@ -340,7 +340,7 @@ struct ProjectEditor {
     func removeThemeSpacing(id: UUID, replacingWith replacement: String) {
         let reference = "custom:\(id.uuidString.lowercased())"
         mutate(actionName: "Replace and Delete Theme Spacing", impact: .theme) { site in
-            site.replaceBlockThemeReference(reference, with: replacement)
+            site.replacePartThemeReference(reference, with: replacement)
             site.theme.spacing.custom.removeAll(where: { $0.id == id })
             site.projectThemeValues.spacing.removeAll(where: { $0.id == id })
             for index in site.themeStates.indices {
@@ -406,7 +406,7 @@ struct ProjectEditor {
 
     func removeThemeShadow(id: String, replacingWith replacement: String) {
         mutate(actionName: "Replace and Delete Theme Shadow", impact: .theme) { site in
-            site.replaceBlockThemeReference(id, with: replacement)
+            site.replacePartThemeReference(id, with: replacement)
             site.theme.shadows.custom.removeAll { $0.id == id }
             site.projectThemeValues.shadows.removeAll { $0.id == id }
             for index in site.themeStates.indices {
@@ -621,7 +621,7 @@ struct ProjectEditor {
     func removeThemeCustomFont(id: UUID, replacingWith replacement: String) {
         let reference = "custom:\(id.uuidString.lowercased())"
         mutate(actionName: "Replace and Delete Theme Font", impact: .theme) { site in
-            site.replaceBlockThemeReference(reference, with: replacement)
+            site.replacePartThemeReference(reference, with: replacement)
             site.theme.typography.customFonts.removeAll(where: { $0.id == id })
             site.projectThemeValues.fonts.removeAll(where: { $0.id == id })
             for index in site.themeStates.indices {
@@ -707,7 +707,7 @@ struct ProjectEditor {
 
     func removeThemeFontSize(id: String, replacingWith replacement: String) {
         mutate(actionName: "Replace and Delete Theme Type Size", impact: .theme) { site in
-            site.replaceBlockThemeReference(id, with: replacement)
+            site.replacePartThemeReference(id, with: replacement)
             site.theme.typography.customFontSizes.removeAll { $0.id == id }
             site.projectThemeValues.fontSizes.removeAll { $0.id == id }
             for index in site.themeStates.indices {
@@ -795,38 +795,38 @@ struct ProjectEditor {
     }
 
     @discardableResult
-    func addBlock(
-        type: BlockType,
+    func addPart(
+        type: PartType,
         to pageID: UUID,
         parentID: UUID?
     ) -> UUID {
-        let node = BlockNode.make(type, theme: document.site.theme)
+        let node = PartNode.make(type, theme: document.site.theme)
         let page = document.site.pages.first(where: { $0.id == pageID })
         let sharedInsertion = page.map {
-            document.site.sharedGlobalInsertion(on: $0, at: parentID.map(BlockPlacement.inside) ?? .end)
+            document.site.sharedGlobalInsertion(on: $0, at: parentID.map(PartPlacement.inside) ?? .end)
         } ?? SharedGlobalStructureMove(authoritativeInstances: [:])
-        mutate(actionName: "Add \(type.displayName)", impact: .blockStructure(ownerID: parentID)) { site in
+        mutate(actionName: "Add \(type.displayName)", impact: .partStructure(ownerID: parentID)) { site in
             guard let pageIndex = site.pages.firstIndex(where: { $0.id == pageID }) else {
                 return
             }
-            site.pages[pageIndex].blocks.append(node, to: parentID)
+            site.pages[pageIndex].parts.append(node, to: parentID)
             site.synchronizeGlobalsAfterStructureMove(sharedInsertion)
         }
         return node.id
     }
 
-    func removeBlock(id: UUID) {
-        removeBlocks(ids: [id])
+    func removePart(id: UUID) {
+        removeParts(ids: [id])
     }
 
-    func removeBlocks(ids: [UUID]) {
+    func removeParts(ids: [UUID]) {
         guard !ids.isEmpty,
-              canRemoveBlocks(ids: ids),
-              let sharedRemoval = document.site.sharedGlobalRemoval(blockIDs: ids) else { return }
-        mutate(actionName: ids.count == 1 ? "Delete Block" : "Delete Blocks", impact: .blockStructure(ownerID: nil)) { site in
+              canRemoveParts(ids: ids),
+              let sharedRemoval = document.site.sharedGlobalRemoval(partIDs: ids) else { return }
+        mutate(actionName: ids.count == 1 ? "Delete Part" : "Delete Parts", impact: .partStructure(ownerID: nil)) { site in
             for id in ids {
                 for pageIndex in site.pages.indices {
-                    if site.pages[pageIndex].blocks.removeNode(withID: id) {
+                    if site.pages[pageIndex].parts.removeNode(withID: id) {
                         break
                     }
                 }
@@ -835,14 +835,14 @@ struct ProjectEditor {
         }
     }
 
-    func canRemoveBlocks(ids: [UUID]) -> Bool {
+    func canRemoveParts(ids: [UUID]) -> Bool {
         var pages = document.site.pages
         for id in ids {
-            guard let pageIndex = pages.firstIndex(where: { $0.blocks.node(withID: id) != nil }),
-                  pages[pageIndex].blocks.permitsRemoving(id) else {
+            guard let pageIndex = pages.firstIndex(where: { $0.parts.node(withID: id) != nil }),
+                  pages[pageIndex].parts.permitsRemoving(id) else {
                 return false
             }
-            _ = pages[pageIndex].blocks.extractNode(withID: id)
+            _ = pages[pageIndex].parts.extractNode(withID: id)
         }
         return true
     }
@@ -864,21 +864,21 @@ struct ProjectEditor {
 }
 
 nonisolated extension Site {
-    func block(withID id: UUID) -> BlockNode? {
+    func part(withID id: UUID) -> PartNode? {
         for page in pages {
-            if let block = page.blocks.node(withID: id) {
-                return block
+            if let part = page.parts.node(withID: id) {
+                return part
             }
         }
         return nil
     }
 
-    mutating func updateBlock(
+    mutating func updatePart(
         id: UUID,
-        transform: (inout BlockNode) -> Void
+        transform: (inout PartNode) -> Void
     ) {
         for pageIndex in pages.indices {
-            if pages[pageIndex].blocks.updateNode(withID: id, transform: transform) {
+            if pages[pageIndex].parts.updateNode(withID: id, transform: transform) {
                 return
             }
         }

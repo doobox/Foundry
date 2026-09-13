@@ -13,11 +13,11 @@
     <key>controls</key><array/>
     <key>templates</key>
     <dict>
-        <key>html</key><string>block.html</string>
+        <key>html</key><string>part.html</string>
         <key>files</key>
         <array>
-            <dict><key>path</key><string>block.css</string><key>scope</key><string>instance</string></dict>
-            <dict><key>path</key><string>block.js</string><key>scope</key><string>instance</string></dict>
+            <dict><key>path</key><string>part.css</string><key>scope</key><string>instance</string></dict>
+            <dict><key>path</key><string>part.js</string><key>scope</key><string>instance</string></dict>
         </array>
     </dict>
 </dict>

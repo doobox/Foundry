@@ -1,0 +1,256 @@
+import Foundation
+
+@MainActor
+extension ProjectEditor {
+    func renameReusablePart(definitionID: UUID, name: String) {
+        mutate(actionName: "Rename Reusable Part") { site in
+            guard let index = site.reusableParts.firstIndex(where: { $0.id == definitionID }) else { return }
+            site.reusableParts[index].name = name
+        }
+    }
+
+    func removeReusablePart(definitionID: UUID) {
+        mutate(actionName: "Delete Reusable Part") { site in
+            guard site.reusableParts.contains(where: { $0.id == definitionID }) else { return }
+            site.reusableParts.removeAll(where: { $0.id == definitionID })
+            for pageIndex in site.pages.indices {
+                site.pages[pageIndex].parts.detachReusableInstances(definitionID: definitionID)
+            }
+        }
+    }
+
+    func renameSharedReusablePartInstance(partID: UUID, name: String) {
+        editSharedReusablePart(partID: partID, actionName: "Edit Shared Part") {
+            $0.name = name
+        }
+    }
+
+    func setSharedReusableProperty(
+        partID: UUID,
+        key: PartProperty.Key,
+        value: PartProperty.Value
+    ) {
+        editSharedReusablePart(partID: partID, actionName: "Edit Shared Part") {
+            $0.setProperty(key, value: value)
+        }
+    }
+
+    func setSharedReusableResponsiveProperty(
+        partID: UUID,
+        key: PartProperty.Key,
+        value: PartProperty.Value,
+        breakpoint: ResponsiveBreakpoint
+    ) {
+        editSharedReusablePart(partID: partID, actionName: "Edit Responsive Global") {
+            $0.setResponsiveProperty(key, value: value, at: breakpoint)
+        }
+    }
+
+    func removeSharedReusableResponsiveOverride(
+        partID: UUID,
+        key: PartProperty.Key,
+        breakpoint: ResponsiveBreakpoint
+    ) {
+        editSharedReusablePart(partID: partID, actionName: "Reset Responsive Global") {
+            $0.removeResponsiveOverride(key, at: breakpoint)
+        }
+    }
+
+    func setGlobalPartLinked(partID: UUID, isLinked: Bool) {
+        guard let context = document.site.globalPartContext(containing: partID) else { return }
+        let targetID = isLinked ? (context.overrideOwnerID ?? partID) : partID
+        mutate(actionName: isLinked ? "Relink Global Part" : "Override Global Part") { site in
+            site.updatePart(id: targetID) { $0.overridesGlobalDefinition = !isLinked }
+            guard isLinked,
+                  let index = site.globalParts.firstIndex(where: { $0.id == context.definitionID }) else { return }
+            let template = site.globalParts[index].root
+            for pageIndex in site.pages.indices {
+                site.pages[pageIndex].parts.replaceReusableInstances(
+                    definitionID: context.definitionID,
+                    with: template
+                )
+            }
+        }
+    }
+
+    @discardableResult
+    func saveReusablePart(partID: UUID, name: String) -> UUID? {
+        guard let source = document.site.part(withID: partID) else { return nil }
+        let definition = ReusablePartDefinition(
+            name: name,
+            root: source.duplicatedForReusableDefinition()
+        )
+        mutate(actionName: "Create Reusable Part") { site in
+            site.reusableParts.append(definition)
+        }
+        return definition.id
+    }
+
+    @discardableResult
+    func insertReusablePart(
+        definitionID: UUID,
+        on pageID: UUID,
+        placement: PartPlacement
+    ) -> UUID? {
+        guard let definition = document.site.reusableParts.first(where: { $0.id == definitionID }) else {
+            return nil
+        }
+        guard let page = document.site.pages.first(where: { $0.id == pageID }) else { return nil }
+        let instance = definition.root.duplicatedForReusableDefinition()
+        let sharedInsertion = document.site.sharedGlobalInsertion(on: page, at: placement)
+        var inserted = false
+        mutate(actionName: "Add \(definition.name)") { site in
+            guard let pageIndex = site.pages.firstIndex(where: { $0.id == pageID }) else { return }
+            inserted = site.pages[pageIndex].parts.insert(instance, at: placement)
+            if inserted {
+                site.synchronizeGlobalsAfterStructureMove(sharedInsertion)
+            }
+        }
+        return inserted ? instance.id : nil
+    }
+
+    @discardableResult
+    func updateReusablePart(from partID: UUID) -> Bool {
+        guard let source = document.site.part(withID: partID),
+              let definitionID = source.reusableDefinitionID,
+              document.site.globalParts.contains(where: { $0.id == definitionID }) else {
+            return false
+        }
+        let template = source.duplicatedForReusableDefinition()
+        mutate(actionName: "Update Reusable Part") { site in
+            guard let index = site.globalParts.firstIndex(where: { $0.id == definitionID }) else { return }
+            site.globalParts[index].root = template
+            for pageIndex in site.pages.indices {
+                site.pages[pageIndex].parts.replaceReusableInstances(
+                    definitionID: definitionID,
+                    with: template
+                )
+            }
+        }
+        return true
+    }
+
+    func detachReusablePart(partID: UUID) {
+        mutate(actionName: "Detach Reusable Part") { site in
+            site.updatePart(id: partID) { $0.reusableDefinitionID = nil }
+        }
+    }
+
+    func editSharedReusablePart(
+        partID: UUID,
+        actionName: String,
+        mutation: (inout PartNode) -> Void
+    ) {
+        guard let context = document.site.globalPartContext(containing: partID) else { return }
+        mutate(actionName: actionName) { site in
+            guard let index = site.globalParts.firstIndex(where: { $0.id == context.definitionID }) else { return }
+            site.globalParts[index].root.mutateNode(at: context.path, mutation: mutation)
+            let template = site.globalParts[index].root
+            for pageIndex in site.pages.indices {
+                site.pages[pageIndex].parts.replaceReusableInstances(
+                    definitionID: context.definitionID,
+                    with: template
+                )
+            }
+        }
+    }
+}
+
+nonisolated extension Site {
+    func globalPartContext(containing partID: UUID) -> (definitionID: UUID, path: [Int], isOverridden: Bool, overrideOwnerID: UUID?)? {
+        guard let context = globalStructureContext(containing: partID) else { return nil }
+        return (context.definitionID, context.path, context.isOverridden, context.overrideOwnerID)
+    }
+
+    func globalStructureContext(containing partID: UUID) -> (definitionID: UUID, instanceID: UUID, path: [Int], isOverridden: Bool, overrideOwnerID: UUID?)? {
+        for page in pages {
+            for part in page.parts {
+                if let context = part.globalPartContext(containing: partID) {
+                    return context
+                }
+            }
+        }
+        return nil
+    }
+}
+
+nonisolated private extension PartNode {
+    func globalPartContext(containing partID: UUID) -> (definitionID: UUID, instanceID: UUID, path: [Int], isOverridden: Bool, overrideOwnerID: UUID?)? {
+        if let definitionID = reusableDefinitionID,
+           let path = path(to: partID) {
+            let overrideOwnerID = overrideOwnerID(at: path)
+            return (definitionID, id, path, overrideOwnerID != nil, overrideOwnerID)
+        }
+        for child in children {
+            if let context = child.globalPartContext(containing: partID) {
+                return context
+            }
+        }
+        return nil
+    }
+
+    func isOverridden(at path: [Int]) -> Bool {
+        if overridesGlobalDefinition == true { return true }
+        guard let index = path.first, children.indices.contains(index) else { return false }
+        return children[index].isOverridden(at: Array(path.dropFirst()))
+    }
+
+    func overrideOwnerID(at path: [Int]) -> UUID? {
+        if overridesGlobalDefinition == true { return id }
+        guard let index = path.first, children.indices.contains(index) else { return nil }
+        return children[index].overrideOwnerID(at: Array(path.dropFirst()))
+    }
+
+    func path(to partID: UUID) -> [Int]? {
+        if id == partID { return [] }
+        for (index, child) in children.enumerated() {
+            if let childPath = child.path(to: partID) {
+                return [index] + childPath
+            }
+        }
+        return nil
+    }
+
+    mutating func mutateNode(at path: [Int], mutation: (inout PartNode) -> Void) {
+        guard let index = path.first else {
+            mutation(&self)
+            return
+        }
+        guard children.indices.contains(index) else { return }
+        children[index].mutateNode(at: Array(path.dropFirst()), mutation: mutation)
+    }
+}
+
+nonisolated extension Array where Element == PartNode {
+    mutating func detachReusableInstances(definitionID: UUID) {
+        for index in indices {
+            if self[index].reusableDefinitionID == definitionID {
+                self[index].reusableDefinitionID = nil
+            }
+            self[index].children.detachReusableInstances(definitionID: definitionID)
+        }
+    }
+
+    mutating func replaceReusableInstances(
+        definitionID: UUID,
+        with template: PartNode,
+        excludingInstanceID: UUID? = nil
+    ) {
+        for index in indices {
+            if self[index].reusableDefinitionID == definitionID {
+                if self[index].id != excludingInstanceID {
+                    self[index] = template.duplicatedAsReusableInstance(
+                        of: definitionID,
+                        preservingIDsFrom: self[index]
+                    )
+                }
+            } else {
+                self[index].children.replaceReusableInstances(
+                    definitionID: definitionID,
+                    with: template,
+                    excludingInstanceID: excludingInstanceID
+                )
+            }
+        }
+    }
+}

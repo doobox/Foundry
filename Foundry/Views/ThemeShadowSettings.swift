@@ -53,7 +53,7 @@ struct ThemeShadowSettings: View {
             }
             Button("Cancel", role: .cancel) { shadowPendingDeletion = nil }
         } message: {
-            Text("Every block using this shadow will use the replacement before the custom shadow is deleted.")
+            Text("Every part using this shadow will use the replacement before the custom shadow is deleted.")
         }
     }
 

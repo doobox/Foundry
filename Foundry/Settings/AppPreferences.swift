@@ -10,15 +10,15 @@ nonisolated enum AppPreferenceKey {
     static let canvasBackgroundColor = "canvas.background.color"
     static let enablesCanvasWebInspector = "canvas.webInspector.enabled"
     static let showsDeveloperPanel = "developer.panel.visible"
-    static let showsHiddenBlocks = "developer.blocks.showHidden"
-    static let automaticallyChecksBlockUpdates = "blocks.updates.automatic"
-    static let blockLibraryIconSize = "blocks.library.iconSize"
-    static let blockLibraryArrangement = "blocks.library.arrangement"
-    static let validatesBlocksOnLoad = "blocks.validation.onLoad"
-    static let blockValidationMode = "blocks.validation.mode"
+    static let showsHiddenParts = "developer.parts.showHidden"
+    static let automaticallyChecksPartUpdates = "parts.updates.automatic"
+    static let partLibraryIconSize = "parts.library.iconSize"
+    static let partLibraryArrangement = "parts.library.arrangement"
+    static let validatesPartsOnLoad = "parts.validation.onLoad"
+    static let partValidationMode = "parts.validation.mode"
 }
 
-nonisolated enum BlockValidationMode: String, CaseIterable, Identifiable {
+nonisolated enum PartValidationMode: String, CaseIterable, Identifiable {
     case off
     case developmentPacks
     case allPacks
@@ -47,15 +47,15 @@ nonisolated enum BlockValidationMode: String, CaseIterable, Identifiable {
     }
 }
 
-nonisolated enum BlockValidationPreference {
-    static var mode: BlockValidationMode {
+nonisolated enum PartValidationPreference {
+    static var mode: PartValidationMode {
         let defaults = UserDefaults.standard
-        if let rawValue = defaults.string(forKey: AppPreferenceKey.blockValidationMode),
-           let mode = BlockValidationMode(rawValue: rawValue) {
+        if let rawValue = defaults.string(forKey: AppPreferenceKey.partValidationMode),
+           let mode = PartValidationMode(rawValue: rawValue) {
             return mode
         }
         // Preserve the former Boolean preference when upgrading.
-        return defaults.bool(forKey: AppPreferenceKey.validatesBlocksOnLoad) ? .allPacks : .off
+        return defaults.bool(forKey: AppPreferenceKey.validatesPartsOnLoad) ? .allPacks : .off
     }
 }
 

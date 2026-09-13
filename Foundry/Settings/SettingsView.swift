@@ -37,8 +37,8 @@ private struct GeneralSettingsView: View {
     private var overridesCanvasBackground = false
     @AppStorage(AppPreferenceKey.canvasBackgroundColor)
     private var canvasBackgroundHex = CanvasBackgroundPreference.defaultColor
-    @AppStorage(AppPreferenceKey.automaticallyChecksBlockUpdates)
-    private var automaticallyChecksBlockUpdates = false
+    @AppStorage(AppPreferenceKey.automaticallyChecksPartUpdates)
+    private var automaticallyChecksPartUpdates = false
     var body: some View {
         Form {
             Section("Appearance") {
@@ -71,8 +71,8 @@ private struct GeneralSettingsView: View {
 
             }
 
-            Section("Block Updates") {
-                Toggle("Automatically Check for Block Updates", isOn: $automaticallyChecksBlockUpdates)
+            Section("Part Updates") {
+                Toggle("Automatically Check for Part Updates", isOn: $automaticallyChecksPartUpdates)
                 Text("Checks 30 seconds to 2 minutes after Foundry opens and shows the updates window only when updates are available.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -103,32 +103,32 @@ private struct DeveloperSettingsView: View {
     private var enablesDeveloperTools = false
     @AppStorage(AppPreferenceKey.enablesCanvasWebInspector)
     private var enablesCanvasWebInspector = false
-    @AppStorage(AppPreferenceKey.blockValidationMode)
-    private var blockValidationMode = BlockValidationPreference.mode
-    @AppStorage(AppPreferenceKey.showsHiddenBlocks)
-    private var showsHiddenBlocks = false
+    @AppStorage(AppPreferenceKey.partValidationMode)
+    private var partValidationMode = PartValidationPreference.mode
+    @AppStorage(AppPreferenceKey.showsHiddenParts)
+    private var showsHiddenParts = false
 
     var body: some View {
         Form {
-            Section("Blocks") {
+            Section("Parts") {
                 Toggle("Enable Developer Tools", isOn: $enablesDeveloperTools)
-                Text("Adds block development tools, including the developer panel and pack conversion controls.")
+                Text("Adds part development tools, including the developer panel and pack conversion controls.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
 
-                Toggle("Show Hidden Blocks", isOn: $showsHiddenBlocks)
-                Text("Shows blocks whose manifest sets showsInBlockLibrary to false, so supporting blocks can be inspected and tested directly.")
+                Toggle("Show Hidden Parts", isOn: $showsHiddenParts)
+                Text("Shows parts whose manifest sets showsInPartLibrary to false, so supporting parts can be inspected and tested directly.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
 
-                Picker("Block Validation", selection: $blockValidationMode) {
-                    ForEach(BlockValidationMode.allCases) { mode in
+                Picker("Part Validation", selection: $partValidationMode) {
+                    ForEach(PartValidationMode.allCases) { mode in
                         Text(mode.title)
                             .tag(mode)
                     }
                 }
                 .pickerStyle(.segmented)
-                Text("Dev Packs validates blocks being actively developed. All Packs also validates built-in and installed release packs, which increases loading time.")
+                Text("Dev Packs validates parts being actively developed. All Packs also validates built-in and installed release packs, which increases loading time.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -142,8 +142,8 @@ private struct DeveloperSettingsView: View {
         }
         .formStyle(.grouped)
         .frame(width: 560, height: 340)
-        .onChange(of: blockValidationMode) {
-            BlockPackageCatalog.shared.reloadAllPacks()
+        .onChange(of: partValidationMode) {
+            PartPackageCatalog.shared.reloadAllPacks()
         }
     }
 }

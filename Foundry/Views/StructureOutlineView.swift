@@ -2,36 +2,36 @@ import AppKit
 import SwiftUI
 
 struct StructureOutlineView: NSViewRepresentable {
-    private static let dropGuidance = "Drag between blocks to reorder, or onto a container to place inside it."
+    private static let dropGuidance = "Drag between parts to reorder, or onto a container to place inside it."
 
-    let blocks: [BlockNode]
-    let globalBlockNames: [UUID: String]
-    @Binding var selectedBlockIDs: Set<UUID>
-    @Binding var primarySelectedBlockID: UUID?
+    let parts: [PartNode]
+    let globalPartNames: [UUID: String]
+    @Binding var selectedPartIDs: Set<UUID>
+    @Binding var primarySelectedPartID: UUID?
     @Binding var expandedItemIDs: Set<UUID>
-    let renameBlock: (UUID, String) -> Void
-    let canMoveBlocks: ([UUID], BlockPlacement) -> Bool
-    let moveBlocks: ([UUID], BlockPlacement) -> Bool
-    let insertBlock: (BlockType, BlockPlacement) -> Bool
-    let insertReusableBlock: (UUID, BlockPlacement) -> Bool
-    let insertGlobalBlock: (UUID, BlockPlacement) -> Bool
-    let duplicateBlock: () -> Void
-    let copyBlock: () -> Void
-    let pasteBlock: () -> Void
-    let canPasteBlock: Bool
-    let saveAsReusableBlock: (String) -> Void
-    let saveAsGlobalBlock: (String) -> Void
-    let setGlobalBlockLinked: (UUID, Bool) -> Void
-    let moveBlock: (Int) -> Void
-    let outdentBlock: () -> Void
-    let deleteBlock: () -> Void
+    let renamePart: (UUID, String) -> Void
+    let canMoveParts: ([UUID], PartPlacement) -> Bool
+    let moveParts: ([UUID], PartPlacement) -> Bool
+    let insertPart: (PartType, PartPlacement) -> Bool
+    let insertReusablePart: (UUID, PartPlacement) -> Bool
+    let insertGlobalPart: (UUID, PartPlacement) -> Bool
+    let duplicatePart: () -> Void
+    let copyPart: () -> Void
+    let pastePart: () -> Void
+    let canPastePart: Bool
+    let saveAsReusablePart: (String) -> Void
+    let saveAsGlobalPart: (String) -> Void
+    let setGlobalPartLinked: (UUID, Bool) -> Void
+    let movePart: (Int) -> Void
+    let outdentPart: () -> Void
+    let deletePart: () -> Void
 
     func makeCoordinator() -> Coordinator {
         Coordinator(parent: self)
     }
 
     func makeNSView(context: Context) -> NSScrollView {
-        let column = NSTableColumn(identifier: .blockColumn)
+        let column = NSTableColumn(identifier: .partColumn)
         let outlineView = StructureNativeOutlineView()
         outlineView.handleKeyEvent = context.coordinator.handleKeyEvent
         outlineView.addTableColumn(column)
@@ -58,13 +58,13 @@ struct StructureOutlineView: NSViewRepresentable {
         scrollView.hasHorizontalScroller = false
         scrollView.drawsBackground = false
         context.coordinator.outlineView = outlineView
-        context.coordinator.reload(blocks: blocks, selectedIDs: selectedBlockIDs)
+        context.coordinator.reload(parts: parts, selectedIDs: selectedPartIDs)
         return scrollView
     }
 
     func updateNSView(_ scrollView: NSScrollView, context: Context) {
         context.coordinator.parent = self
-        context.coordinator.reload(blocks: blocks, selectedIDs: selectedBlockIDs)
+        context.coordinator.reload(parts: parts, selectedIDs: selectedPartIDs)
     }
 
     @MainActor
@@ -83,23 +83,23 @@ struct StructureOutlineView: NSViewRepresentable {
             self.parent = parent
         }
 
-        func reload(blocks: [BlockNode], selectedIDs: Set<UUID>) {
-            let signature = flattenedSignature(blocks, parentID: nil)
+        func reload(parts: [PartNode], selectedIDs: Set<UUID>) {
+            let signature = flattenedSignature(parts, parentID: nil)
             if signature != displayedSignature {
                 let expandedIDs = parent.expandedItemIDs.union(expandedItemIDs())
                 displayedSignature = signature
                 itemsByID.removeAll(keepingCapacity: true)
-                roots = blocks.map { makeItem($0) }
+                roots = parts.map { makeItem($0) }
                 outlineView?.reloadData()
                 isRestoringExpansion = true
                 restoreExpansion(in: roots, expandedIDs: expandedIDs)
                 isRestoringExpansion = false
             }
             let shouldRevealSelection = lastRequestedSelectedIDs != selectedIDs
-                || lastRequestedPrimaryID != parent.primarySelectedBlockID
+                || lastRequestedPrimaryID != parent.primarySelectedPartID
             restoreSelection(selectedIDs, reveal: shouldRevealSelection)
             lastRequestedSelectedIDs = selectedIDs
-            lastRequestedPrimaryID = parent.primarySelectedBlockID
+            lastRequestedPrimaryID = parent.primarySelectedPartID
         }
 
         func outlineView(_ outlineView: NSOutlineView, numberOfChildrenOfItem item: Any?) -> Int {
@@ -116,25 +116,25 @@ struct StructureOutlineView: NSViewRepresentable {
 
         func outlineView(_ outlineView: NSOutlineView, viewFor tableColumn: NSTableColumn?, item: Any) -> NSView? {
             guard let item = item as? Item else { return nil }
-            let identifier = NSUserInterfaceItemIdentifier.blockCell
+            let identifier = NSUserInterfaceItemIdentifier.partCell
             let cell = outlineView.makeView(withIdentifier: identifier, owner: nil) as? StructureOutlineCell
                 ?? makeCell(identifier: identifier)
-            let name = displayName(for: item.block)
+            let name = displayName(for: item.part)
             cell.textField?.stringValue = name
             cell.textField?.identifier = NSUserInterfaceItemIdentifier(item.id.uuidString)
             cell.textField?.delegate = self
-            cell.imageView?.image = blockIcon(for: item.block)
+            cell.imageView?.image = partIcon(for: item.part)
             cell.imageView?.setAccessibilityLabel(name)
             let isLinkedToGlobal = globalContext(for: item)?.isLinked == true
-            let isGlobalRoot = item.block.reusableDefinitionID != nil
+            let isGlobalRoot = item.part.reusableDefinitionID != nil
             cell.globalIndicator.image = isLinkedToGlobal
                 ? NSImage(
                     systemSymbolName: "globe",
-                    accessibilityDescription: isGlobalRoot ? "Global block" : "Global block child"
+                    accessibilityDescription: isGlobalRoot ? "Global part" : "Global part child"
                 )
                 : nil
             cell.globalIndicator.isHidden = !isLinkedToGlobal
-            cell.globalIndicator.toolTip = isGlobalRoot ? "Global block" : "Child of global block"
+            cell.globalIndicator.toolTip = isGlobalRoot ? "Global part" : "Child of global part"
             if let unavailableArea = unavailableChildArea(for: item) {
                 cell.unavailableDropZoneLabel.stringValue = unavailableArea.label
                 cell.unavailableDropZoneLabel.isHidden = false
@@ -154,14 +154,14 @@ struct StructureOutlineView: NSViewRepresentable {
             return cell
         }
 
-        private func blockIcon(for block: BlockNode) -> NSImage? {
-            if let iconURL = block.type.definition.package?.iconURL,
+        private func partIcon(for part: PartNode) -> NSImage? {
+            if let iconURL = part.type.definition.package?.iconURL,
                let icon = NSImage(contentsOf: iconURL) {
                 return icon
             }
             return NSImage(
-                systemSymbolName: block.type.systemImage,
-                accessibilityDescription: block.name
+                systemSymbolName: part.type.systemImage,
+                accessibilityDescription: part.name
             )
         }
 
@@ -182,7 +182,7 @@ struct StructureOutlineView: NSViewRepresentable {
         private func contextMenu(for item: Item) -> NSMenu {
             let menu = NSMenu()
             menu.autoenablesItems = false
-            let selectionCount = parent.selectedBlockIDs.count
+            let selectionCount = parent.selectedPartIDs.count
             let isSingleSelection = selectionCount == 1
             let selectedGlobalContext = isSingleSelection ? globalContext(for: item) : nil
             menu.addItem(contextMenuHeader(for: item, selectionCount: selectionCount))
@@ -211,14 +211,14 @@ struct StructureOutlineView: NSViewRepresentable {
             menu.addItem(duplicate)
             menu.addItem(menuItem("Copy", action: #selector(copyFromContextMenu(_:)), item: item, key: "c"))
             let pasteItem = menuItem("Paste", action: #selector(pasteFromContextMenu(_:)), item: item, key: "v")
-            pasteItem.isEnabled = parent.canPasteBlock
+            pasteItem.isEnabled = parent.canPastePart
             menu.addItem(pasteItem)
             menu.addItem(.separator())
-            let canSaveAsBlock = isSingleSelection && selectedGlobalContext?.isLinked != true
+            let canSaveAsPart = isSingleSelection && selectedGlobalContext?.isLinked != true
             let saveReusable = menuItem("Save as Template…", action: #selector(saveReusableFromContextMenu(_:)), item: item)
-            let saveGlobal = menuItem("Save as Global Block…", action: #selector(saveGlobalFromContextMenu(_:)), item: item)
-            saveReusable.isEnabled = canSaveAsBlock
-            saveGlobal.isEnabled = canSaveAsBlock
+            let saveGlobal = menuItem("Save as Global Part…", action: #selector(saveGlobalFromContextMenu(_:)), item: item)
+            saveReusable.isEnabled = canSaveAsPart
+            saveGlobal.isEnabled = canSaveAsPart
             menu.addItem(saveReusable)
             menu.addItem(saveGlobal)
             menu.addItem(.separator())
@@ -240,19 +240,19 @@ struct StructureOutlineView: NSViewRepresentable {
         }
 
         private var canDuplicateSelection: Bool {
-            guard let id = parent.primarySelectedBlockID,
-                  parent.selectedBlockIDs.count == 1,
-                  let source = parent.blocks.node(withID: id) else { return false }
-            return parent.blocks.accepts(source, at: .after(id))
+            guard let id = parent.primarySelectedPartID,
+                  parent.selectedPartIDs.count == 1,
+                  let source = parent.parts.node(withID: id) else { return false }
+            return parent.parts.accepts(source, at: .after(id))
         }
 
         private var canDeleteSelection: Bool {
-            var candidate = parent.blocks
-            for id in parent.selectedBlockIDs {
+            var candidate = parent.parts
+            for id in parent.selectedPartIDs {
                 guard candidate.permitsRemoving(id) else { return false }
                 _ = candidate.extractNode(withID: id)
             }
-            return !parent.selectedBlockIDs.isEmpty
+            return !parent.selectedPartIDs.isEmpty
         }
 
         private struct MovementAvailability {
@@ -273,11 +273,11 @@ struct StructureOutlineView: NSViewRepresentable {
                 return MovementAvailability(canMoveUp: false, canMoveDown: false, canOutdent: false)
             }
             let canMoveUp = index > 0
-                && parent.canMoveBlocks([item.id], .before(siblings[index - 1].id))
+                && parent.canMoveParts([item.id], .before(siblings[index - 1].id))
             let canMoveDown = index < siblings.count - 1
-                && parent.canMoveBlocks([item.id], .after(siblings[index + 1].id))
+                && parent.canMoveParts([item.id], .after(siblings[index + 1].id))
             let canOutdent = item.parent.map {
-                parent.canMoveBlocks([item.id], .after($0.id))
+                parent.canMoveParts([item.id], .after($0.id))
             } ?? false
             return MovementAvailability(
                 canMoveUp: canMoveUp,
@@ -287,12 +287,12 @@ struct StructureOutlineView: NSViewRepresentable {
         }
 
         private func contextMenuHeader(for item: Item, selectionCount: Int) -> NSMenuItem {
-            let title = selectionCount > 1 ? "\(selectionCount) Blocks" : item.block.type.displayName
-            let package = item.block.type.definition.package
+            let title = selectionCount > 1 ? "\(selectionCount) Parts" : item.part.type.displayName
+            let package = item.part.type.definition.package
             let author = package?.manifest.author ?? "Foundry"
             let version = package?.manifest.version ?? ""
             let subtitle = version.isEmpty ? author : "\(author)  v\(version)"
-            let icon = NSImageView(image: blockIcon(for: item.block) ?? NSImage())
+            let icon = NSImageView(image: partIcon(for: item.part) ?? NSImage())
             icon.imageScaling = .scaleProportionallyUpOrDown
             icon.wantsLayer = true
             icon.layer?.cornerRadius = 36 * 0.16
@@ -332,10 +332,10 @@ struct StructureOutlineView: NSViewRepresentable {
             var current: Item? = item
             var overrideOwner: Item?
             while let candidate = current {
-                if overrideOwner == nil, candidate.block.overridesGlobalDefinition == true {
+                if overrideOwner == nil, candidate.part.overridesGlobalDefinition == true {
                     overrideOwner = candidate
                 }
-                if candidate.block.reusableDefinitionID != nil {
+                if candidate.part.reusableDefinitionID != nil {
                     return (overrideOwner ?? candidate, overrideOwner == nil)
                 }
                 current = candidate.parent
@@ -364,9 +364,9 @@ struct StructureOutlineView: NSViewRepresentable {
 
             if modifiers == .command {
                 switch character {
-                case "d" where canDuplicateSelection: parent.duplicateBlock(); return true
-                case "c": parent.copyBlock(); return true
-                case "v" where parent.canPasteBlock: parent.pasteBlock(); return true
+                case "d" where canDuplicateSelection: parent.duplicatePart(); return true
+                case "c": parent.copyPart(); return true
+                case "v" where parent.canPastePart: parent.pastePart(); return true
                 default: break
                 }
             }
@@ -378,13 +378,13 @@ struct StructureOutlineView: NSViewRepresentable {
                 }
                 switch event.keyCode {
                 case 126:
-                    if movement?.canMoveUp == true { parent.moveBlock(-1) }
+                    if movement?.canMoveUp == true { parent.movePart(-1) }
                     return true
                 case 125:
-                    if movement?.canMoveDown == true { parent.moveBlock(1) }
+                    if movement?.canMoveDown == true { parent.movePart(1) }
                     return true
                 case 123:
-                    if movement?.canOutdent == true { parent.outdentBlock() }
+                    if movement?.canOutdent == true { parent.outdentPart() }
                     return true
                 default: break
                 }
@@ -397,7 +397,7 @@ struct StructureOutlineView: NSViewRepresentable {
                 }
                 return true
             case 51, 117:
-                if canDeleteSelection { parent.deleteBlock() }
+                if canDeleteSelection { parent.deletePart() }
                 return true
             default:
                 return false
@@ -425,59 +425,59 @@ struct StructureOutlineView: NSViewRepresentable {
         }
 
         @objc private func duplicateFromContextMenu(_ sender: NSMenuItem) {
-            perform(sender, action: parent.duplicateBlock)
+            perform(sender, action: parent.duplicatePart)
         }
 
         @objc private func copyFromContextMenu(_ sender: NSMenuItem) {
-            perform(sender, action: parent.copyBlock)
+            perform(sender, action: parent.copyPart)
         }
 
         @objc private func pasteFromContextMenu(_ sender: NSMenuItem) {
-            perform(sender, action: parent.pasteBlock)
+            perform(sender, action: parent.pastePart)
         }
 
         @objc private func saveReusableFromContextMenu(_ sender: NSMenuItem) {
             guard let item = contextItem(from: sender) else { return }
             selectForContextAction(item)
-            parent.saveAsReusableBlock(item.block.name)
+            parent.saveAsReusablePart(item.part.name)
         }
 
         @objc private func saveGlobalFromContextMenu(_ sender: NSMenuItem) {
             guard let item = contextItem(from: sender) else { return }
             selectForContextAction(item)
-            parent.saveAsGlobalBlock(item.block.name)
+            parent.saveAsGlobalPart(item.part.name)
         }
 
         @objc private func makeLocalOverrideFromContextMenu(_ sender: NSMenuItem) {
             guard let item = contextItem(from: sender) else { return }
-            parent.setGlobalBlockLinked(item.id, false)
+            parent.setGlobalPartLinked(item.id, false)
         }
 
         @objc private func relinkGlobalFromContextMenu(_ sender: NSMenuItem) {
             guard let item = contextItem(from: sender) else { return }
-            parent.setGlobalBlockLinked(item.id, true)
+            parent.setGlobalPartLinked(item.id, true)
         }
 
         @objc private func moveUpFromContextMenu(_ sender: NSMenuItem) {
-            perform(sender) { parent.moveBlock(-1) }
+            perform(sender) { parent.movePart(-1) }
         }
 
         @objc private func moveDownFromContextMenu(_ sender: NSMenuItem) {
-            perform(sender) { parent.moveBlock(1) }
+            perform(sender) { parent.movePart(1) }
         }
 
         @objc private func outdentFromContextMenu(_ sender: NSMenuItem) {
-            perform(sender, action: parent.outdentBlock)
+            perform(sender, action: parent.outdentPart)
         }
 
         @objc private func deleteFromContextMenu(_ sender: NSMenuItem) {
-            perform(sender, action: parent.deleteBlock)
+            perform(sender, action: parent.deletePart)
         }
 
         @objc private func moveToAvailableDropZone(_ sender: NSMenuItem) {
             guard let destination = sender.representedObject as? DropZoneRecoveryDestination else { return }
-            _ = parent.moveBlocks(
-                [destination.blockID],
+            _ = parent.moveParts(
+                [destination.partID],
                 .insideSlot(destination.parentID, destination.slotID)
             )
         }
@@ -485,11 +485,11 @@ struct StructureOutlineView: NSViewRepresentable {
         private func unavailableChildAreaRecoveryMenu(for item: Item) -> NSMenuItem? {
             guard unavailableChildArea(for: item) != nil,
                   let parentItem = item.parent,
-                  let package = parentItem.block.type.definition.package else { return nil }
+                  let package = parentItem.part.type.definition.package else { return nil }
             let submenu = NSMenu(title: "Move to Child Area")
             for name in package.dropZoneNames {
                 let slotID = package.dropZoneSlotID(for: name)
-                guard parent.blocks.accepts(item.block, at: .insideSlot(parentItem.id, slotID)) else { continue }
+                guard parent.parts.accepts(item.part, at: .insideSlot(parentItem.id, slotID)) else { continue }
                 let menuItem = NSMenuItem(
                     title: "Drop zone: \(name)",
                     action: #selector(moveToAvailableDropZone(_:)),
@@ -497,14 +497,14 @@ struct StructureOutlineView: NSViewRepresentable {
                 )
                 menuItem.target = self
                 menuItem.representedObject = DropZoneRecoveryDestination(
-                    blockID: item.id,
+                    partID: item.id,
                     parentID: parentItem.id,
                     slotID: slotID
                 )
                 submenu.addItem(menuItem)
             }
             for slot in package.manifest.slots {
-                guard parent.blocks.accepts(item.block, at: .insideSlot(parentItem.id, slot.id)) else { continue }
+                guard parent.parts.accepts(item.part, at: .insideSlot(parentItem.id, slot.id)) else { continue }
                 let menuItem = NSMenuItem(
                     title: "Child picker: \(slot.title)",
                     action: #selector(moveToAvailableDropZone(_:)),
@@ -512,7 +512,7 @@ struct StructureOutlineView: NSViewRepresentable {
                 )
                 menuItem.target = self
                 menuItem.representedObject = DropZoneRecoveryDestination(
-                    blockID: item.id,
+                    partID: item.id,
                     parentID: parentItem.id,
                     slotID: slot.id
                 )
@@ -531,35 +531,35 @@ struct StructureOutlineView: NSViewRepresentable {
         }
 
         private func contextItem(from sender: NSMenuItem) -> Item? {
-            guard let blockID = sender.representedObject as? UUID else { return nil }
-            return itemsByID[blockID]
+            guard let partID = sender.representedObject as? UUID else { return nil }
+            return itemsByID[partID]
         }
 
         private func selectForContextAction(_ item: Item) {
             guard let outlineView else { return }
             let row = outlineView.row(forItem: item)
             guard row >= 0 else { return }
-            if parent.selectedBlockIDs.contains(item.id) {
-                parent.primarySelectedBlockID = item.id
+            if parent.selectedPartIDs.contains(item.id) {
+                parent.primarySelectedPartID = item.id
                 return
             }
             outlineView.selectRowIndexes(IndexSet(integer: row), byExtendingSelection: false)
-            parent.selectedBlockIDs = [item.id]
-            parent.primarySelectedBlockID = item.id
+            parent.selectedPartIDs = [item.id]
+            parent.primarySelectedPartID = item.id
         }
 
         func controlTextDidEndEditing(_ notification: Notification) {
             guard let textField = notification.object as? NSTextField,
                   let identifier = textField.identifier?.rawValue,
-                  let blockID = UUID(uuidString: identifier),
-                  let item = itemsByID[blockID] else { return }
+                  let partID = UUID(uuidString: identifier),
+                  let item = itemsByID[partID] else { return }
             let name = textField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !name.isEmpty else {
-                textField.stringValue = item.block.name
+                textField.stringValue = item.part.name
                 return
             }
-            guard name != item.block.name else { return }
-            parent.renameBlock(blockID, name)
+            guard name != item.part.name else { return }
+            parent.renamePart(partID, name)
         }
 
         func outlineViewSelectionDidChange(_ notification: Notification) {
@@ -567,13 +567,13 @@ struct StructureOutlineView: NSViewRepresentable {
             let selectedIDs = Set(outlineView.selectedRowIndexes.compactMap { row in
                 (outlineView.item(atRow: row) as? Item)?.id
             })
-            parent.selectedBlockIDs = selectedIDs
+            parent.selectedPartIDs = selectedIDs
             let primaryRow = outlineView.selectedRow
-            parent.primarySelectedBlockID = primaryRow >= 0
+            parent.primarySelectedPartID = primaryRow >= 0
                 ? (outlineView.item(atRow: primaryRow) as? Item)?.id
                 : nil
             lastRequestedSelectedIDs = selectedIDs
-            lastRequestedPrimaryID = parent.primarySelectedBlockID
+            lastRequestedPrimaryID = parent.primarySelectedPartID
         }
 
         func outlineViewItemDidExpand(_ notification: Notification) {
@@ -588,7 +588,7 @@ struct StructureOutlineView: NSViewRepresentable {
             guard let item = item as? Item else { return nil }
             let pasteboardItem = NSPasteboardItem()
             let selectedIDs = canonicalDraggedIDs(including: item.id)
-            let payload: BlockDragPayload = selectedIDs.count > 1
+            let payload: PartDragPayload = selectedIDs.count > 1
                 ? .nodes(selectedIDs)
                 : .node(item.id)
             pasteboardItem.setString(payload.stringValue, forType: .string)
@@ -608,11 +608,11 @@ struct StructureOutlineView: NSViewRepresentable {
                     proposedItem: item as? Item,
                     proposedChildIndex: index
                   ) else {
-                describeRejectedDrop("That block cannot contain other blocks.")
+                describeRejectedDrop("That part cannot contain other parts.")
                 return []
             }
             guard canApply(payload, to: proposal.placement) else {
-                describeRejectedDrop("Blocks cannot be moved into themselves or their descendants.")
+                describeRejectedDrop("Parts cannot be moved into themselves or their descendants.")
                 return []
             }
             outlineView.setDropItem(proposal.parentItem, dropChildIndex: proposal.childIndex)
@@ -631,15 +631,15 @@ struct StructureOutlineView: NSViewRepresentable {
             let accepted: Bool
             switch payload {
             case .library(let type):
-                accepted = parent.insertBlock(type, placement)
+                accepted = parent.insertPart(type, placement)
             case .reusable(let id):
-                accepted = parent.insertReusableBlock(id, placement)
+                accepted = parent.insertReusablePart(id, placement)
             case .global(let id):
-                accepted = parent.insertGlobalBlock(id, placement)
+                accepted = parent.insertGlobalPart(id, placement)
             case .node(let id):
-                accepted = parent.moveBlocks([id], placement)
+                accepted = parent.moveParts([id], placement)
             case .nodes(let ids):
-                accepted = parent.moveBlocks(ids, placement)
+                accepted = parent.moveParts(ids, placement)
             }
             if accepted {
                 expandDestination(for: placement)
@@ -650,7 +650,7 @@ struct StructureOutlineView: NSViewRepresentable {
         private struct DropProposal {
             let parentItem: Item?
             let childIndex: Int
-            let placement: BlockPlacement
+            let placement: PartPlacement
         }
 
         private func dropProposal(
@@ -670,7 +670,7 @@ struct StructureOutlineView: NSViewRepresentable {
             let location = outlineView.convert(info.draggingLocation, from: nil)
             let position = rowFrame.height > 0 ? (location.y - rowFrame.minY) / rowFrame.height : 0.5
 
-            if item.block.type.definition.allowsChildren {
+            if item.part.type.definition.allowsChildren {
                 return DropProposal(
                     parentItem: item,
                     childIndex: NSOutlineViewDropOnItemIndex,
@@ -686,11 +686,11 @@ struct StructureOutlineView: NSViewRepresentable {
             return DropProposal(parentItem: parentItem, childIndex: childIndex, placement: placement)
         }
 
-        private func insidePlacement(for item: Item) -> BlockPlacement {
+        private func insidePlacement(for item: Item) -> PartPlacement {
             if !item.children.isEmpty {
-                return item.children.map(\.block).endPlacement(in: item.id)
+                return item.children.map(\.part).endPlacement(in: item.id)
             }
-            if let package = item.block.type.definition.package,
+            if let package = item.part.type.definition.package,
                let slotID = package.dropZoneNames.first.map(package.dropZoneSlotID(for:))
                     ?? package.manifest.slots.first?.id {
                 return .insideSlot(item.id, slotID)
@@ -698,7 +698,7 @@ struct StructureOutlineView: NSViewRepresentable {
             return .inside(item.id)
         }
 
-        private func expandDestination(for placement: BlockPlacement) {
+        private func expandDestination(for placement: PartPlacement) {
             let destinationID: UUID
             switch placement {
             case .inside(let id), .insideSlot(let id, _): destinationID = id
@@ -711,8 +711,8 @@ struct StructureOutlineView: NSViewRepresentable {
         }
 
         private func canonicalDraggedIDs(including clickedID: UUID) -> [UUID] {
-            let requestedIDs = parent.selectedBlockIDs.contains(clickedID)
-                ? parent.selectedBlockIDs
+            let requestedIDs = parent.selectedPartIDs.contains(clickedID)
+                ? parent.selectedPartIDs
                 : [clickedID]
             let flattenedIDs = flattenedItems(roots).map(\.id)
             return flattenedIDs.filter { id in
@@ -726,10 +726,10 @@ struct StructureOutlineView: NSViewRepresentable {
             items.flatMap { [$0] + flattenedItems($0.children) }
         }
 
-        private func canApply(_ payload: BlockDragPayload, to placement: BlockPlacement) -> Bool {
+        private func canApply(_ payload: PartDragPayload, to placement: PartPlacement) -> Bool {
             switch payload {
-            case .node(let id): return parent.canMoveBlocks([id], placement)
-            case .nodes(let nodeIDs): return parent.canMoveBlocks(nodeIDs, placement)
+            case .node(let id): return parent.canMoveParts([id], placement)
+            case .nodes(let nodeIDs): return parent.canMoveParts(nodeIDs, placement)
             case .library, .reusable, .global: return true
             }
         }
@@ -744,34 +744,34 @@ struct StructureOutlineView: NSViewRepresentable {
             outlineView?.setAccessibilityHelp(StructureOutlineView.dropGuidance)
         }
 
-        private func placement(parent item: Item?, childIndex index: Int) -> BlockPlacement? {
+        private func placement(parent item: Item?, childIndex index: Int) -> PartPlacement? {
             let siblings = item?.children ?? roots
             if index == NSOutlineViewDropOnItemIndex {
-                guard let item, item.block.type.definition.allowsChildren else { return nil }
+                guard let item, item.part.type.definition.allowsChildren else { return nil }
                 return .inside(item.id)
             }
             if siblings.indices.contains(index) {
                 return .before(siblings[index].id)
             }
             if let item {
-                return siblings.map(\.block).endPlacement(in: item.id)
+                return siblings.map(\.part).endPlacement(in: item.id)
             }
             return .end
         }
 
-        private func payload(from info: any NSDraggingInfo) -> BlockDragPayload? {
+        private func payload(from info: any NSDraggingInfo) -> PartDragPayload? {
             guard let value = info.draggingPasteboard.string(forType: .string) else { return nil }
-            return BlockDragPayload(value)
+            return PartDragPayload(value)
         }
 
         private func children(of item: Any?) -> [Item] {
             (item as? Item)?.children ?? roots
         }
 
-        private func makeItem(_ block: BlockNode, parent: Item? = nil) -> Item {
-            let item = Item(block: block, parent: parent)
+        private func makeItem(_ part: PartNode, parent: Item? = nil) -> Item {
+            let item = Item(part: part, parent: parent)
             itemsByID[item.id] = item
-            item.children = block.children.map { makeItem($0, parent: item) }
+            item.children = part.children.map { makeItem($0, parent: item) }
             return item
         }
 
@@ -871,7 +871,7 @@ struct StructureOutlineView: NSViewRepresentable {
                 outlineView.selectRowIndexes(rows, byExtendingSelection: false)
             }
             if reveal,
-               let primaryID = parent.primarySelectedBlockID,
+               let primaryID = parent.primarySelectedPartID,
                let primaryItem = itemsByID[primaryID] {
                 let row = outlineView.row(forItem: primaryItem)
                 if row >= 0 {
@@ -890,8 +890,8 @@ struct StructureOutlineView: NSViewRepresentable {
             return nil
         }
 
-        private func displayName(for block: BlockNode) -> String {
-            block.reusableDefinitionID.flatMap { parent.globalBlockNames[$0] } ?? block.name
+        private func displayName(for part: PartNode) -> String {
+            part.reusableDefinitionID.flatMap { parent.globalPartNames[$0] } ?? part.name
         }
 
         private struct UnavailableChildArea {
@@ -899,9 +899,9 @@ struct StructureOutlineView: NSViewRepresentable {
         }
 
         private func unavailableChildArea(for item: Item) -> UnavailableChildArea? {
-            guard let slotID = item.block.slotID,
-                  let parentPackage = item.parent?.block.type.definition.package else { return nil }
-            if let name = LoadedBlockPackage.dropZoneName(forSlotID: slotID) {
+            guard let slotID = item.part.slotID,
+                  let parentPackage = item.parent?.part.type.definition.package else { return nil }
+            if let name = LoadedPartPackage.dropZoneName(forSlotID: slotID) {
                 return parentPackage.isDropZoneSlotID(slotID)
                     ? nil
                     : UnavailableChildArea(label: "Unavailable drop zone: \(name)")
@@ -911,8 +911,8 @@ struct StructureOutlineView: NSViewRepresentable {
                 : UnavailableChildArea(label: "Unavailable child picker: \(slotID)")
         }
 
-        private func flattenedSignature(_ blocks: [BlockNode], parentID: UUID?) -> [String] {
-            blocks.flatMap {
+        private func flattenedSignature(_ parts: [PartNode], parentID: UUID?) -> [String] {
+            parts.flatMap {
                 [
                     "\($0.id.uuidString):\(parentID?.uuidString ?? "root"):\($0.slotID ?? "default"):\(displayName(for: $0)):\($0.type.rawValue):\($0.type.systemImage):\($0.type.definition.package?.iconURL.path ?? "system"):\($0.type.definition.package?.dropZoneNames.joined(separator: ",") ?? "none"):\($0.reusableDefinitionID?.uuidString ?? "local"):\($0.overridesGlobalDefinition == true)"
                 ] + flattenedSignature($0.children, parentID: $0.id)
@@ -955,13 +955,13 @@ private final class StructureScrollView: NSScrollView {
 }
 
 private final class Item: NSObject {
-    let block: BlockNode
+    let part: PartNode
     weak var parent: Item?
     var children: [Item] = []
-    var id: UUID { block.id }
+    var id: UUID { part.id }
 
-    init(block: BlockNode, parent: Item?) {
-        self.block = block
+    init(part: PartNode, parent: Item?) {
+        self.part = part
         self.parent = parent
     }
 }
@@ -973,18 +973,18 @@ private final class StructureOutlineCell: NSTableCellView {
 }
 
 private final class DropZoneRecoveryDestination: NSObject {
-    let blockID: UUID
+    let partID: UUID
     let parentID: UUID
     let slotID: String
 
-    init(blockID: UUID, parentID: UUID, slotID: String) {
-        self.blockID = blockID
+    init(partID: UUID, parentID: UUID, slotID: String) {
+        self.partID = partID
         self.parentID = parentID
         self.slotID = slotID
     }
 }
 
-private extension BlockDragPayload {
+private extension PartDragPayload {
     var isNode: Bool {
         switch self {
         case .node, .nodes: true
@@ -994,6 +994,6 @@ private extension BlockDragPayload {
 }
 
 private extension NSUserInterfaceItemIdentifier {
-    static let blockColumn = NSUserInterfaceItemIdentifier("StructureBlockColumn")
-    static let blockCell = NSUserInterfaceItemIdentifier("StructureBlockCell")
+    static let partColumn = NSUserInterfaceItemIdentifier("StructurePartColumn")
+    static let partCell = NSUserInterfaceItemIdentifier("StructurePartCell")
 }

@@ -12,13 +12,13 @@ struct InspectorView: View {
     let folders: [PageFolder]
     let pages: [Page]
     let publicURL: String
-    let block: BlockNode?
-    let blockSelectionCount: Int
-    let libraryBlockType: BlockType?
+    let part: PartNode?
+    let partSelectionCount: Int
+    let libraryPartType: PartType?
     let theme: Theme
     let assets: [ProjectAsset]
     let editor: ProjectEditor
-    let reusableDefinition: ReusableBlockDefinition?
+    let reusableDefinition: ReusablePartDefinition?
     let isGlobalOverride: Bool
     let setGlobalOverride: (Bool) -> Void
     let breakpoint: ResponsiveBreakpoint
@@ -30,9 +30,9 @@ struct InspectorView: View {
 
     var body: some View {
         Group {
-            if blockSelectionCount == 1, let block {
-                BlockInspector(
-                    block: block,
+            if partSelectionCount == 1, let part {
+                PartInspector(
+                    part: part,
                     currentPage: currentPage,
                     theme: theme,
                     assets: assets,
@@ -48,13 +48,13 @@ struct InspectorView: View {
                     importImage: importImage,
                     editsSharedDefinition: $editsSharedDefinition
                 )
-            } else if blockSelectionCount == 0,
+            } else if partSelectionCount == 0,
                       page == nil,
                       folder == nil,
                       asset == nil,
                       assetLibraryNode == nil,
-                      let libraryBlockType {
-                BlockLibraryInspector(type: libraryBlockType)
+                      let libraryPartType {
+                PartLibraryInspector(type: libraryPartType)
             } else {
                 Form {
                     inspectorFormContent
@@ -67,10 +67,10 @@ struct InspectorView: View {
 
     @ViewBuilder
     private var inspectorFormContent: some View {
-        if blockSelectionCount > 1 {
+        if partSelectionCount > 1 {
                 Section("Multiple Selection") {
-                    LabeledContent("Blocks", value: blockSelectionCount.formatted())
-                    Text("Group dragging and deletion apply to the selected blocks.")
+                    LabeledContent("Parts", value: partSelectionCount.formatted())
+                    Text("Group dragging and deletion apply to the selected parts.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -93,14 +93,14 @@ struct InspectorView: View {
             ContentUnavailableView(
                 "No Selection",
                 systemImage: "slider.horizontal.3",
-                description: Text("Select a page, folder, or block to edit it.")
+                description: Text("Select a page, folder, or part to edit it.")
             )
         }
     }
 }
 
-private struct BlockLibraryInspector: View {
-    let type: BlockType
+private struct PartLibraryInspector: View {
+    let type: PartType
     @AppStorage(AppPreferenceKey.showsDeveloperPanel) private var enablesDeveloperTools = false
 
     var body: some View {
@@ -108,15 +108,15 @@ private struct BlockLibraryInspector: View {
         ScrollView {
             LazyVStack(spacing: 14) {
                 InspectorCard {
-                    BlockLibraryInspectorHeader(
+                    PartLibraryInspectorHeader(
                         type: type,
                         description: type.libraryDescription,
                         isDevelopmentPack: package?.isDevelopmentPack == true
                     )
                 }
 
-                InspectorCard(title: "Block") {
-                    BlockLibraryInspectorMetadata(
+                InspectorCard(title: "Part") {
+                    PartLibraryInspectorMetadata(
                         identifier: type.rawValue,
                         developer: package?.manifest.author,
                         version: package.flatMap(displayVersion),
@@ -127,18 +127,18 @@ private struct BlockLibraryInspector: View {
 
                 if let tags = package?.manifest.tags, !tags.isEmpty {
                     InspectorCard(title: "Tags") {
-                        BlockLibraryInspectorTags(tags: tags)
+                        PartLibraryInspectorTags(tags: tags)
                     }
                 }
 
                 if let updateSourceURL = package?.updateSourceURL {
                     InspectorCard(title: "Updates") {
-                        BlockLibraryUpdateControls(sourceURL: updateSourceURL)
+                        PartLibraryUpdateControls(sourceURL: updateSourceURL)
                     }
                 }
 
                 if enablesDeveloperTools, let package, !package.isBuiltIn {
-                    BlockPackConversionControls(package: package)
+                    PartPackConversionControls(package: package)
                 }
             }
             .padding(16)
@@ -147,7 +147,7 @@ private struct BlockLibraryInspector: View {
         .font(.callout)
     }
 
-    private func displayVersion(for package: LoadedBlockPackage) -> String? {
+    private func displayVersion(for package: LoadedPartPackage) -> String? {
         let metadataSourceURL = package.developmentPackRootURL ?? package.updateSourceURL
         guard let metadataSourceURL,
               let metadataPack = try? FoundryPackLoader.load(from: metadataSourceURL) else {
@@ -157,8 +157,8 @@ private struct BlockLibraryInspector: View {
     }
 }
 
-private struct BlockPackConversionControls: View {
-    let package: LoadedBlockPackage
+private struct PartPackConversionControls: View {
+    let package: LoadedPartPackage
     @State private var convertedURL: URL?
     @State private var errorMessage: String?
 
@@ -177,7 +177,7 @@ private struct BlockPackConversionControls: View {
     }
 
     private var packURL: URL {
-        convertedURL ?? BlockPackageCatalog.shared.conversionRootURL(for: package)
+        convertedURL ?? PartPackageCatalog.shared.conversionRootURL(for: package)
     }
 
     private var isDevelopmentPack: Bool {
@@ -192,7 +192,7 @@ private struct BlockPackConversionControls: View {
         errorMessage = nil
         let destinationExtension = isDevelopmentPack ? "foundrypack" : "foundrydevpack"
         do {
-            convertedURL = try BlockPackageCatalog.shared.convertPack(
+            convertedURL = try PartPackageCatalog.shared.convertPack(
                 at: packURL,
                 toExtension: destinationExtension
             )
@@ -202,7 +202,7 @@ private struct BlockPackConversionControls: View {
     }
 }
 
-private struct BlockLibraryUpdateControls: View {
+private struct PartLibraryUpdateControls: View {
     let sourceURL: URL
     @State private var isChecking = false
     @State private var status: String?
@@ -251,14 +251,14 @@ private struct BlockLibraryUpdateControls: View {
     }
 }
 
-private struct BlockLibraryInspectorHeader: View {
-    let type: BlockType
+private struct PartLibraryInspectorHeader: View {
+    let type: PartType
     let description: String
     let isDevelopmentPack: Bool
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
-            BlockLibraryIcon(type: type, size: 48)
+            PartLibraryIcon(type: type, size: 48)
 
             VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 6) {
@@ -282,7 +282,7 @@ private struct BlockLibraryInspectorHeader: View {
     }
 }
 
-private struct BlockLibraryInspectorMetadata: View {
+private struct PartLibraryInspectorMetadata: View {
     let identifier: String
     let developer: String?
     let version: String?
@@ -314,7 +314,7 @@ private struct BlockLibraryInspectorMetadata: View {
     }
 }
 
-private struct BlockLibraryInspectorTags: View {
+private struct PartLibraryInspectorTags: View {
     let tags: [String]
 
     var body: some View {
@@ -411,20 +411,20 @@ private struct AssetLibraryNodeInspector: View {
     }
 
     private func libraryPath(to id: UUID) -> String {
-        func find(_ nodes: [ProjectAssetNode], blocks: [String]) -> [String]? {
+        func find(_ nodes: [ProjectAssetNode], parts: [String]) -> [String]? {
             for node in nodes {
                 switch node {
                 case .asset(let asset):
-                    if asset.id == id { return blocks + [asset.filename] }
+                    if asset.id == id { return parts + [asset.filename] }
                 case .folder(let folder):
-                    let path = blocks + [folder.name]
+                    let path = parts + [folder.name]
                     if folder.id == id { return path }
-                    if let match = find(folder.children, blocks: path) { return match }
+                    if let match = find(folder.children, parts: path) { return match }
                 }
             }
             return nil
         }
-        return "/" + (find(library, blocks: []) ?? []).joined(separator: "/")
+        return "/" + (find(library, parts: []) ?? []).joined(separator: "/")
     }
 
     private func fileCount(in nodes: [ProjectAssetNode]) -> Int {
@@ -455,7 +455,7 @@ private struct PageAssetInspector: View {
             LabeledContent("Type", value: asset.mediaType)
             LabeledContent("Size", value: asset.byteCount.formatted(.byteCount(style: .file)))
             LabeledContent("Path", value: exportPath)
-            Text("This file is exported only at the path above. Block references follow that path.")
+            Text("This file is exported only at the path above. Part references follow that path.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
@@ -582,7 +582,7 @@ private struct PageInspector: View {
 
         Section("Appearance") {
             Grid(horizontalSpacing: 8) {
-                ThemeColorBlockControl(
+                ThemeColorPartControl(
                     label: "Background", choices: theme.colorChoices, allowsCustom: true, theme: theme,
                     source: backgroundSource, shade: backgroundShade, customColor: backgroundCustomColour,
                     allowsOpacity: false,
@@ -620,7 +620,7 @@ private struct PageInspector: View {
     }
 
     private var theme: Theme { editor.document.site.theme }
-    private var background: BlockPackageColorValue { page.backgroundSelection(theme: theme) }
+    private var background: PartPackageColorValue { page.backgroundSelection(theme: theme) }
 
     private var backgroundSource: Binding<String> {
         Binding(get: { background.source }, set: { source in
@@ -677,10 +677,10 @@ private struct PageInspector: View {
     }
 }
 
-private struct BlockInspector: View {
-    @State private var loadedBlockIcon: NSImage?
+private struct PartInspector: View {
+    @State private var loadedPartIcon: NSImage?
     @State private var showsAddAttributePopover = false
-    let block: BlockNode
+    let part: PartNode
     let currentPage: Page?
     let theme: Theme
     let assets: [ProjectAsset]
@@ -689,7 +689,7 @@ private struct BlockInspector: View {
     let folders: [PageFolder]
     let publicURL: String
     let editor: ProjectEditor
-    let reusableDefinition: ReusableBlockDefinition?
+    let reusableDefinition: ReusablePartDefinition?
     let isGlobalOverride: Bool
     let setGlobalOverride: (Bool) -> Void
     let breakpoint: ResponsiveBreakpoint
@@ -700,14 +700,14 @@ private struct BlockInspector: View {
         ScrollView {
             LazyVStack(spacing: 14) {
                 InspectorCard {
-                    blockIdentityHeader
+                    partIdentityHeader
 
                     Divider()
-                    BlockIdentityFields(
-                        anchor: blockAnchorBinding,
-                        classes: blockClassesBinding,
-                        attributes: blockAttributesBinding,
-                        isDuplicateAnchor: blockAnchorIsDuplicate,
+                    PartIdentityFields(
+                        anchor: partAnchorBinding,
+                        classes: partClassesBinding,
+                        attributes: partAttributesBinding,
+                        isDuplicateAnchor: partAnchorIsDuplicate,
                         localOverride: reusableDefinition == nil ? nil : Binding(
                             get: { isGlobalOverride },
                             set: setGlobalOverride
@@ -718,11 +718,11 @@ private struct BlockInspector: View {
                 }
 
                 ForEach(inspectorGroups, id: \.rawValue) { group in
-                    BlockInspectorGroup(
+                    PartInspectorGroup(
                         group: group,
                         properties: properties(in: group),
                         childPickers: childPickers(in: group),
-                        block: block,
+                        part: part,
                         currentPage: currentPage,
                         theme: theme,
                         assets: assets,
@@ -743,14 +743,14 @@ private struct BlockInspector: View {
         .font(.callout)
     }
 
-    private var inspectorGroups: [BlockPropertySection] {
-        var groups: [BlockPropertySection] = block.type.definition.properties.reduce(into: []) { groups, property in
+    private var inspectorGroups: [PartPropertySection] {
+        var groups: [PartPropertySection] = part.type.definition.properties.reduce(into: []) { groups, property in
             guard isVisible(property),
                   !groups.contains(property.section) else { return }
             groups.append(property.section)
         }
-        for slot in blockSlots where isVisible(slot) {
-            let section = BlockPropertySection(rawValue: slot.group)
+        for slot in partSlots where isVisible(slot) {
+            let section = PartPropertySection(rawValue: slot.group)
             if !groups.contains(section) {
                 groups.append(section)
             }
@@ -758,43 +758,43 @@ private struct BlockInspector: View {
         return groups
     }
 
-    private var blockSlots: [BlockPackageSlot] {
-        block.type.definition.package?.manifest.slots ?? []
+    private var partSlots: [PartPackageSlot] {
+        part.type.definition.package?.manifest.slots ?? []
     }
 
-    private func properties(in section: BlockPropertySection) -> [BlockPropertyDefinition] {
-        block.type.definition.properties.filter {
+    private func properties(in section: PartPropertySection) -> [PartPropertyDefinition] {
+        part.type.definition.properties.filter {
             $0.section == section && isVisible($0)
         }
     }
 
-    private func childPickers(in section: BlockPropertySection) -> [BlockPackageSlot] {
-        blockSlots.filter {
+    private func childPickers(in section: PartPropertySection) -> [PartPackageSlot] {
+        partSlots.filter {
             $0.group == section.rawValue && isVisible($0)
         }
     }
 
-    private func isVisible(_ slot: BlockPackageSlot) -> Bool {
-        BlockPackageVisibilityEvaluator.isVisible(slot.visibleWhen, for: block, at: breakpoint)
+    private func isVisible(_ slot: PartPackageSlot) -> Bool {
+        PartPackageVisibilityEvaluator.isVisible(slot.visibleWhen, for: part, at: breakpoint)
     }
 
-    private func isVisible(_ property: BlockPropertyDefinition) -> Bool {
-        property.isInspectorVisible && BlockPackageVisibilityEvaluator.isVisible(
+    private func isVisible(_ property: PartPropertyDefinition) -> Bool {
+        property.isInspectorVisible && PartPackageVisibilityEvaluator.isVisible(
             property.visibleWhen,
-            for: block,
+            for: part,
             at: property.isResponsive ? breakpoint : .mobile
         )
     }
 
-    private var blockIdentityHeader: some View {
+    private var partIdentityHeader: some View {
         HStack(alignment: .top, spacing: 12) {
             Group {
-                if let icon = displayedBlockIcon {
+                if let icon = displayedPartIcon {
                     Image(nsImage: icon)
                         .resizable()
                         .scaledToFit()
                 } else {
-                    Image(systemName: block.type.systemImage)
+                    Image(systemName: part.type.systemImage)
                         .font(.title2)
                         .foregroundStyle(.secondary)
                 }
@@ -804,9 +804,9 @@ private struct BlockInspector: View {
             .clipShape(RoundedRectangle(cornerRadius: 32 * 0.16))
 
             VStack(alignment: .leading, spacing: 3) {
-                Text(reusableDefinition?.name ?? block.type.displayName)
+                Text(reusableDefinition?.name ?? part.type.displayName)
                     .font(.headline)
-                Text(blockDeveloper)
+                Text(partDeveloper)
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             }
@@ -825,29 +825,29 @@ private struct BlockInspector: View {
             .menuIndicator(.hidden)
             .fixedSize()
             .padding(.top, 1)
-            .help("Block options")
+            .help("Part options")
             .popover(isPresented: $showsAddAttributePopover, arrowEdge: .trailing) {
-                BlockAttributePopover(
+                PartAttributePopover(
                     attribute: nil,
-                    existingAttributes: block.rootAttributes ?? []
+                    existingAttributes: part.rootAttributes ?? []
                 ) { attribute in
-                    var attributes = block.rootAttributes ?? []
+                    var attributes = part.rootAttributes ?? []
                     attributes.append(attribute)
-                    editor.setBlockRootAttributes(id: block.id, attributes: attributes)
+                    editor.setPartRootAttributes(id: part.id, attributes: attributes)
                 }
             }
         }
         .padding(.vertical, 4)
-        .task(id: block.type.definition.package?.iconURL) {
-            guard let url = block.type.definition.package?.iconURL else {
-                loadedBlockIcon = nil
+        .task(id: part.type.definition.package?.iconURL) {
+            guard let url = part.type.definition.package?.iconURL else {
+                loadedPartIcon = nil
                 return
             }
-            if let cached = BlockIconLoader.cachedIcon(at: url) {
-                loadedBlockIcon = cached.image
+            if let cached = PartIconLoader.cachedIcon(at: url) {
+                loadedPartIcon = cached.image
                 return
             }
-            loadedBlockIcon = await BlockIconLoader.shared.icon(at: url)?.image
+            loadedPartIcon = await PartIconLoader.shared.icon(at: url)?.image
         }
     }
 
@@ -856,83 +856,83 @@ private struct BlockInspector: View {
     }
 
     private var globalIndicatorLabel: String {
-        block.reusableDefinitionID == reusableDefinition?.id ? "Global" : "Global — Child"
+        part.reusableDefinitionID == reusableDefinition?.id ? "Global" : "Global — Child"
     }
 
-    private var displayedBlockIcon: NSImage? {
-        loadedBlockIcon ?? (block.type.definition.package?.iconURL).flatMap {
-            BlockIconLoader.cachedIcon(at: $0)?.image
+    private var displayedPartIcon: NSImage? {
+        loadedPartIcon ?? (part.type.definition.package?.iconURL).flatMap {
+            PartIconLoader.cachedIcon(at: $0)?.image
         }
     }
 
-    private var blockDeveloper: String {
-        block.type.definition.package?.manifest.author.flatMap { author in
+    private var partDeveloper: String {
+        part.type.definition.package?.manifest.author.flatMap { author in
             author.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : author
         } ?? "Unknown Developer"
     }
 
-    private var blockAnchorBinding: Binding<String> {
+    private var partAnchorBinding: Binding<String> {
         Binding(
-            get: { block.anchor ?? "" },
-            set: { editor.setBlockAnchor(id: block.id, anchor: $0) }
+            get: { part.anchor ?? "" },
+            set: { editor.setPartAnchor(id: part.id, anchor: $0) }
         )
     }
 
-    private var blockClassesBinding: Binding<String> {
+    private var partClassesBinding: Binding<String> {
         Binding(
-            get: { block.customClasses ?? "" },
-            set: { editor.setBlockClasses(id: block.id, classes: $0) }
+            get: { part.customClasses ?? "" },
+            set: { editor.setPartClasses(id: part.id, classes: $0) }
         )
     }
 
-    private var blockAttributesBinding: Binding<[BlockHTMLAttribute]> {
+    private var partAttributesBinding: Binding<[PartHTMLAttribute]> {
         Binding(
-            get: { block.rootAttributes ?? [] },
-            set: { editor.setBlockRootAttributes(id: block.id, attributes: $0) }
+            get: { part.rootAttributes ?? [] },
+            set: { editor.setPartRootAttributes(id: part.id, attributes: $0) }
         )
     }
 
-    private var blockAnchorIsDuplicate: Bool {
-        guard let anchor = block.anchor, !anchor.isEmpty, let currentPage else { return false }
-        return currentPage.blocks.reduce(0) { $0 + anchorCount(anchor, in: $1) } > 1
+    private var partAnchorIsDuplicate: Bool {
+        guard let anchor = part.anchor, !anchor.isEmpty, let currentPage else { return false }
+        return currentPage.parts.reduce(0) { $0 + anchorCount(anchor, in: $1) } > 1
     }
 
-    private func anchorCount(_ anchor: String, in node: BlockNode) -> Int {
+    private func anchorCount(_ anchor: String, in node: PartNode) -> Int {
         let matches = node.anchor == anchor
         return (matches ? 1 : 0) + node.children.reduce(0) { $0 + anchorCount(anchor, in: $1) }
     }
 }
 
-private struct BlockSlotInspectorCard: View {
-    let slot: BlockPackageSlot
-    let block: BlockNode
+private struct PartSlotInspectorCard: View {
+    let slot: PartPackageSlot
+    let part: PartNode
     let pageID: UUID
     let editor: ProjectEditor
 
-    @State private var selectedType: BlockType?
+    @State private var selectedType: PartType?
 
-    private var availableTypes: [BlockType] {
-        BlockRegistry.availableTypes
+    private var availableTypes: [PartType] {
+        PartRegistry.availableTypes
             .filter {
                 slot.offersInPicker($0) &&
-                    ($0.definition.package?.manifest.permits(parent: block.type) ?? true)
+                    ($0.definition.package?.manifest.permits(parent: part.type) ?? true)
             }
             .sorted { lhs, rhs in
                 lhs.displayName.localizedCaseInsensitiveCompare(rhs.displayName) == .orderedAscending
             }
     }
 
-    private var children: [BlockNode] {
-        let package = block.type.definition.package
+    private var children: [PartNode] {
+        let package = part.type.definition.package
         let defaultSlotID = package?.dropZoneNames.first.map { package?.dropZoneSlotID(for: $0) ?? "" }
             ?? package?.manifest.slots.first?.id
-        return block.children.filter { child in
+        return part.children.filter { child in
             (child.slotID ?? defaultSlotID) == slot.id
         }
     }
 
     var body: some View {
-        ChildPickerBlockControl(
+        ChildPickerPartControl(
             label: slot.title,
             options: availableTypes,
             childCount: children.count,
@@ -950,18 +950,18 @@ private struct BlockSlotInspectorCard: View {
 
     private func addSelectedType() {
         guard let selectedType else { return }
-        _ = editor.insertBlock(
+        _ = editor.insertPart(
             type: selectedType,
             on: pageID,
-            placement: .insideSlot(block.id, slot.id)
+            placement: .insideSlot(part.id, slot.id)
         )
     }
 }
 
-private struct BlockIdentityFields: View {
+private struct PartIdentityFields: View {
     @Binding var anchor: String
     @Binding var classes: String
-    @Binding var attributes: [BlockHTMLAttribute]
+    @Binding var attributes: [PartHTMLAttribute]
     let isDuplicateAnchor: Bool
     let localOverride: Binding<Bool>?
     let globalLabel: String?
@@ -973,7 +973,7 @@ private struct BlockIdentityFields: View {
                 VStack(alignment: .leading, spacing: 4) {
                     TextField("ID", text: $anchor)
                         .frame(maxWidth: .infinity)
-                    if !anchor.isEmpty && !BlockAnchorValidator.isValid(anchor) {
+                    if !anchor.isEmpty && !PartAnchorValidator.isValid(anchor) {
                         Text("Enter a valid ID.")
                             .font(.caption)
                             .foregroundStyle(.red)
@@ -997,7 +997,7 @@ private struct BlockIdentityFields: View {
                 }
 
                 InspectorRow(title: "Attributes") {
-                    BlockAttributeRows(attributes: $attributes)
+                    PartAttributeRows(attributes: $attributes)
                 }
             }
 
@@ -1031,9 +1031,9 @@ private struct BlockIdentityFields: View {
     }
 }
 
-private struct BlockAttributeRows: View {
-    @Binding var attributes: [BlockHTMLAttribute]
-    @State private var editingAttribute: BlockHTMLAttribute?
+private struct PartAttributeRows: View {
+    @Binding var attributes: [PartHTMLAttribute]
+    @State private var editingAttribute: PartHTMLAttribute?
 
     var body: some View {
         VStack(spacing: InspectorMetrics.rowSpacing) {
@@ -1073,7 +1073,7 @@ private struct BlockAttributeRows: View {
                     Divider()
 
                     Button("Add New Attribute…", systemImage: "plus") {
-                        editingAttribute = BlockHTMLAttribute()
+                        editingAttribute = PartHTMLAttribute()
                     }
 
                     Divider()
@@ -1085,7 +1085,7 @@ private struct BlockAttributeRows: View {
             }
         }
         .popover(item: $editingAttribute, arrowEdge: .trailing) { attribute in
-            BlockAttributePopover(
+            PartAttributePopover(
                 attribute: attribute,
                 existingAttributes: attributes
             ) { updatedAttribute in
@@ -1098,7 +1098,7 @@ private struct BlockAttributeRows: View {
         }
     }
 
-    private func renderedAttribute(_ attribute: BlockHTMLAttribute) -> String {
+    private func renderedAttribute(_ attribute: PartHTMLAttribute) -> String {
         let escapedValue = attribute.value
             .replacingOccurrences(of: "&", with: "&amp;")
             .replacingOccurrences(of: "\"", with: "&quot;")
@@ -1107,7 +1107,7 @@ private struct BlockAttributeRows: View {
         return "\(attribute.name)=\"\(escapedValue)\""
     }
 
-    private func move(_ attribute: BlockHTMLAttribute, by offset: Int) {
+    private func move(_ attribute: PartHTMLAttribute, by offset: Int) {
         guard let index = attributes.firstIndex(where: { $0.id == attribute.id }) else {
             return
         }
@@ -1118,29 +1118,29 @@ private struct BlockAttributeRows: View {
         attributes.swapAt(index, destination)
     }
 
-    private func isFirst(_ attribute: BlockHTMLAttribute) -> Bool {
+    private func isFirst(_ attribute: PartHTMLAttribute) -> Bool {
         attributes.first?.id == attribute.id
     }
 
-    private func isLast(_ attribute: BlockHTMLAttribute) -> Bool {
+    private func isLast(_ attribute: PartHTMLAttribute) -> Bool {
         attributes.last?.id == attribute.id
     }
 }
 
-private struct BlockAttributePopover: View {
+private struct PartAttributePopover: View {
     @Environment(\.dismiss) private var dismiss
     @State private var name: String
     @State private var value: String
     @State private var isExpanded = false
 
     let attributeID: UUID
-    let existingAttributes: [BlockHTMLAttribute]
-    let save: (BlockHTMLAttribute) -> Void
+    let existingAttributes: [PartHTMLAttribute]
+    let save: (PartHTMLAttribute) -> Void
 
     init(
-        attribute: BlockHTMLAttribute?,
-        existingAttributes: [BlockHTMLAttribute],
-        save: @escaping (BlockHTMLAttribute) -> Void
+        attribute: PartHTMLAttribute?,
+        existingAttributes: [PartHTMLAttribute],
+        save: @escaping (PartHTMLAttribute) -> Void
     ) {
         attributeID = attribute?.id ?? UUID()
         self.existingAttributes = existingAttributes
@@ -1194,7 +1194,7 @@ private struct BlockAttributePopover: View {
                 .keyboardShortcut(.cancelAction)
 
                 Button("Save") {
-                    save(BlockHTMLAttribute(id: attributeID, name: trimmedName, value: value))
+                    save(PartHTMLAttribute(id: attributeID, name: trimmedName, value: value))
                     dismiss()
                 }
                 .keyboardShortcut(.return, modifiers: isExpanded ? .command : [])
@@ -1211,7 +1211,7 @@ private struct BlockAttributePopover: View {
     }
 
     private var canSave: Bool {
-        BlockRootAttributeValidator.isValidName(trimmedName) &&
+        PartRootAttributeValidator.isValidName(trimmedName) &&
             !existingAttributes.contains {
                 $0.id != attributeID &&
                     $0.name.caseInsensitiveCompare(trimmedName) == .orderedSame
@@ -1219,11 +1219,11 @@ private struct BlockAttributePopover: View {
     }
 }
 
-private struct BlockInspectorGroup: View {
-    let group: BlockPropertySection
-    let properties: [BlockPropertyDefinition]
-    let childPickers: [BlockPackageSlot]
-    let block: BlockNode
+private struct PartInspectorGroup: View {
+    let group: PartPropertySection
+    let properties: [PartPropertyDefinition]
+    let childPickers: [PartPackageSlot]
+    let part: PartNode
     let currentPage: Page?
     let theme: Theme
     let assets: [ProjectAsset]
@@ -1240,7 +1240,7 @@ private struct BlockInspectorGroup: View {
     var body: some View {
         DisclosureGroup(isExpanded: $isExpanded) {
             VStack(spacing: InspectorMetrics.controlSpacing) {
-                ForEach(BlockInspectorControlGroup.groups(for: properties)) { controlGroup in
+                ForEach(PartInspectorControlGroup.groups(for: properties)) { controlGroup in
                     InspectorGrid(
                         contentInsets: EdgeInsets(
                             top: 0,
@@ -1264,9 +1264,9 @@ private struct BlockInspectorGroup: View {
                                 trailing: InspectorMetrics.horizontalSectionPadding
                             )
                         ) {
-                            BlockSlotInspectorCard(
+                            PartSlotInspectorCard(
                                 slot: slot,
-                                block: block,
+                                part: part,
                                 pageID: pageID,
                                 editor: editor
                             )
@@ -1278,13 +1278,13 @@ private struct BlockInspectorGroup: View {
         } label: {
             Text(group.rawValue)
         }
-        .disclosureGroupStyle(BlockInspectorDisclosureStyle())
+        .disclosureGroupStyle(PartInspectorDisclosureStyle())
     }
 
-    private func propertyEditor(for definition: BlockPropertyDefinition) -> some View {
-        BlockPropertyEditor(
+    private func propertyEditor(for definition: PartPropertyDefinition) -> some View {
+        PartPropertyEditor(
             definition: definition,
-            block: block,
+            part: part,
             currentPage: currentPage,
             theme: theme,
             assets: assets,
@@ -1324,7 +1324,7 @@ private struct InspectorCard<Content: View>: View {
     }
 }
 
-private struct BlockInspectorDisclosureStyle: DisclosureGroupStyle {
+private struct PartInspectorDisclosureStyle: DisclosureGroupStyle {
     func makeBody(configuration: Configuration) -> some View {
         VStack(spacing: 0) {
             Button {

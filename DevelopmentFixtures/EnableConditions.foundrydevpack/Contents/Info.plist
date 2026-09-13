@@ -93,6 +93,6 @@
             <key>visibleWhen</key><dict><key>id</key><string>note</string><key>operation</key><string>isNotEmpty</string></dict>
         </dict>
     </array>
-    <key>templates</key><dict><key>html</key><string>block.html</string></dict>
+    <key>templates</key><dict><key>html</key><string>part.html</string></dict>
 </dict>
 </plist>

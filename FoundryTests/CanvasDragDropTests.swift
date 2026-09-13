@@ -9,21 +9,21 @@ struct CanvasDragDropTests {
         let sourceID = UUID()
         let insert = CanvasMessage.decode([
             "version": 1,
-            "event": "insertBlock",
-            "blockType": "foundry.content.button",
+            "event": "insertPart",
+            "partType": "foundry.content.button",
             "placement": ["kind": "inside", "targetID": targetID.uuidString]
         ])
         let move = CanvasMessage.decode([
             "version": 1,
-            "event": "moveBlock",
-            "blockID": sourceID.uuidString,
+            "event": "movePart",
+            "partID": sourceID.uuidString,
             "placement": ["kind": "after", "targetID": targetID.uuidString]
         ])
 
-        #expect(insert?.blockType == .button)
-        #expect(insert?.placement?.blockPlacement == .inside(targetID))
-        #expect(move?.blockID == sourceID)
-        #expect(move?.placement?.blockPlacement == .after(targetID))
+        #expect(insert?.partType == .button)
+        #expect(insert?.placement?.partPlacement == .inside(targetID))
+        #expect(move?.partID == sourceID)
+        #expect(move?.placement?.partPlacement == .after(targetID))
     }
 
     @Test
@@ -31,13 +31,13 @@ struct CanvasDragDropTests {
         let assetID = UUID()
         let existing = CanvasMessage.decode([
             "version": 1,
-            "event": "insertImageBlock",
+            "event": "insertImagePart",
             "assetID": assetID.uuidString,
             "placement": ["kind": "end"]
         ])
         let finder = CanvasMessage.decode([
             "version": 1,
-            "event": "insertImageBlock",
+            "event": "insertImagePart",
             "assetFilename": "photo.png",
             "assetMediaType": "image/png",
             "assetData": Data([1, 2, 3]).base64EncodedString(),
@@ -45,63 +45,63 @@ struct CanvasDragDropTests {
         ])
 
         #expect(existing?.assetID == assetID)
-        #expect(existing?.event == .insertImageBlock)
+        #expect(existing?.event == .insertImagePart)
         #expect(finder?.assetFilename == "photo.png")
-        #expect(finder?.event == .insertImageBlock)
+        #expect(finder?.event == .insertImagePart)
     }
 
     @Test
     func rejectsIncompletePlacementMessages() {
         #expect(CanvasMessage.decode([
             "version": 1,
-            "event": "insertBlock",
-            "blockType": "text",
+            "event": "insertPart",
+            "partType": "text",
             "placement": ["kind": "inside"]
         ]) == nil)
         #expect(CanvasMessage.decode([
             "version": 1,
-            "event": "moveBlock",
-            "blockID": UUID().uuidString,
+            "event": "movePart",
+            "partID": UUID().uuidString,
             "placement": ["kind": "unknown"]
         ]) == nil)
     }
 
     @Test
-    func structureDragPayloadDistinguishesLibraryBlocksFromExistingNodes() {
+    func structureDragPayloadDistinguishesLibraryPartsFromExistingNodes() {
         let nodeID = UUID()
-        let libraryValue = BlockDragPayload.library(.columns).stringValue
-        let nodeValue = BlockDragPayload.node(nodeID).stringValue
+        let libraryValue = PartDragPayload.library(.columns).stringValue
+        let nodeValue = PartDragPayload.node(nodeID).stringValue
 
-        #expect(BlockDragPayload(libraryValue) == .library(.columns))
-        #expect(BlockDragPayload(nodeValue) == .node(nodeID))
+        #expect(PartDragPayload(libraryValue) == .library(.columns))
+        #expect(PartDragPayload(nodeValue) == .node(nodeID))
         #expect(nodeValue == "foundry-node:\(nodeID.uuidString)")
-        #expect(BlockDragPayload(nodeID.uuidString) == nil)
-        #expect(BlockDragPayload("foundry-block-type:") == nil)
-        #expect(BlockDragPayload("not-a-block") == nil)
+        #expect(PartDragPayload(nodeID.uuidString) == nil)
+        #expect(PartDragPayload("foundry-part-type:") == nil)
+        #expect(PartDragPayload("not-a-part") == nil)
     }
 
     @Test @MainActor
     func canvasRendersExplicitDropZonesForEmptyTargets() {
-        let emptyPage = Page(title: "Empty", slug: "empty", blocks: [])
-        let container = BlockNode.make(.container)
-        let section = BlockNode.make(.section)
-        let columns = BlockNode.make(.columns)
-        let spacer = BlockNode.make(.spacer)
-        let blockPage = Page(
+        let emptyPage = Page(title: "Empty", slug: "empty", parts: [])
+        let container = PartNode.make(.container)
+        let section = PartNode.make(.section)
+        let columns = PartNode.make(.columns)
+        let spacer = PartNode.make(.spacer)
+        let partPage = Page(
             title: "Drop zones",
             slug: "drop-zones",
-            blocks: [container, section, columns, spacer]
+            parts: [container, section, columns, spacer]
         )
         let renderer = HTMLPageRenderer()
 
         let emptyHTML = renderer.render(page: emptyPage, theme: .standard)
-        let blockHTML = renderer.render(page: blockPage, theme: .standard)
+        let partHTML = renderer.render(page: partPage, theme: .standard)
 
         #expect(emptyHTML.contains("data-foundry-root-drop-zone"))
-        #expect(blockHTML.contains("data-foundry-empty-parent=\"\(container.id.uuidString)\""))
-        #expect(blockHTML.contains("data-foundry-empty-parent=\"\(section.id.uuidString)\""))
-        #expect(blockHTML.contains("data-foundry-empty-parent=\"\(columns.id.uuidString)\""))
-        #expect(blockHTML.contains("data-foundry-adjacent-target=\"\(spacer.id.uuidString)\""))
+        #expect(partHTML.contains("data-foundry-empty-parent=\"\(container.id.uuidString)\""))
+        #expect(partHTML.contains("data-foundry-empty-parent=\"\(section.id.uuidString)\""))
+        #expect(partHTML.contains("data-foundry-empty-parent=\"\(columns.id.uuidString)\""))
+        #expect(partHTML.contains("data-foundry-adjacent-target=\"\(spacer.id.uuidString)\""))
     }
 
     @Test @MainActor
@@ -114,7 +114,7 @@ struct CanvasDragDropTests {
         #expect(script.contains("kind: 'end'"))
         #expect(script.contains("data-foundry-adjacent-target"))
         #expect(script.contains("foundry-image-asset:"))
-        #expect(script.contains("insertImageBlock"))
+        #expect(script.contains("insertImagePart"))
     }
 }
 
@@ -126,19 +126,19 @@ struct CanvasInsertionEditingTests {
         let undoManager = UndoManager()
         let editor = ProjectEditor(document: document, undoManager: undoManager)
         let page = try #require(document.site.pages.first)
-        let originalCount = page.blocks.count
+        let originalCount = page.parts.count
 
         let insertedID = try #require(
-            editor.insertBlock(type: .button, on: page.id, placement: .end)
+            editor.insertPart(type: .button, on: page.id, placement: .end)
         )
-        #expect(document.site.pages[0].blocks.node(withID: insertedID) != nil)
-        #expect(document.site.pages[0].blocks.count == originalCount + 1)
+        #expect(document.site.pages[0].parts.node(withID: insertedID) != nil)
+        #expect(document.site.pages[0].parts.count == originalCount + 1)
 
         undoManager.undo()
-        #expect(document.site.pages[0].blocks.count == originalCount)
+        #expect(document.site.pages[0].parts.count == originalCount)
 
         undoManager.redo()
-        #expect(document.site.pages[0].blocks.node(withID: insertedID) != nil)
+        #expect(document.site.pages[0].parts.node(withID: insertedID) != nil)
     }
 
     @Test
@@ -146,36 +146,36 @@ struct CanvasInsertionEditingTests {
         let document = TestSiteFixtures.populatedDocument()
         let editor = ProjectEditor(document: document, undoManager: nil)
         let page = try #require(document.site.pages.first)
-        let container = try #require(page.blocks.first)
+        let container = try #require(page.parts.first)
         let leaf = try #require(container.children.first)
 
-        let insideID = try #require(editor.insertBlock(type: .image, on: page.id, placement: .inside(container.id)))
-        let afterID = try #require(editor.insertBlock(type: .divider, on: page.id, placement: .after(leaf.id)))
-        let rootID = try #require(editor.insertBlock(type: .section, on: page.id, placement: .end))
+        let insideID = try #require(editor.insertPart(type: .image, on: page.id, placement: .inside(container.id)))
+        let afterID = try #require(editor.insertPart(type: .divider, on: page.id, placement: .after(leaf.id)))
+        let rootID = try #require(editor.insertPart(type: .section, on: page.id, placement: .end))
         let updated = document.site.pages[0]
 
-        #expect(updated.blocks[0].children.node(withID: insideID) != nil)
-        #expect(updated.blocks[0].children.node(withID: afterID) != nil)
-        #expect(updated.blocks.last?.id == rootID)
+        #expect(updated.parts[0].children.node(withID: insideID) != nil)
+        #expect(updated.parts[0].children.node(withID: afterID) != nil)
+        #expect(updated.parts.last?.id == rootID)
     }
 
     @Test
     func adjacentAndInsidePlacementsNormalizeSlotMembership() {
-        var target = BlockNode.make(.paragraph)
+        var target = PartNode.make(.paragraph)
         target.slotID = "secondary"
-        var parent = BlockNode.make(.container)
+        var parent = PartNode.make(.container)
         parent.children = [target]
-        var moving = BlockNode.make(.image)
+        var moving = PartNode.make(.image)
         moving.slotID = "stale-slot"
-        var blocks = [moving, parent]
+        var parts = [moving, parent]
 
-        let inserted = BlockNode.make(.button)
-        let didInsert = blocks.insert(inserted, at: .before(target.id))
+        let inserted = PartNode.make(.button)
+        let didInsert = parts.insert(inserted, at: .before(target.id))
         #expect(didInsert)
-        #expect(blocks.node(withID: inserted.id)?.slotID == "secondary")
+        #expect(parts.node(withID: inserted.id)?.slotID == "secondary")
 
-        let didMove = blocks.moveNode(withID: moving.id, to: .inside(parent.id))
+        let didMove = parts.moveNode(withID: moving.id, to: .inside(parent.id))
         #expect(didMove)
-        #expect(blocks.node(withID: moving.id)?.slotID == LoadedBlockPackage.dropZoneSlotPrefix + "content")
+        #expect(parts.node(withID: moving.id)?.slotID == LoadedPartPackage.dropZoneSlotPrefix + "content")
     }
 }

@@ -4,20 +4,20 @@ import Testing
 
 struct StaticSiteRendererTests {
     @Test @MainActor
-    func deletingABlockRemovesItsHTMLCSSAndJavaScriptArtifacts() throws {
-        _ = BlockPackageCatalog.shared
-        var html = BlockNode.make(.init(rawValue: "foundry.content.html"))
+    func deletingAPartRemovesItsHTMLCSSAndJavaScriptArtifacts() throws {
+        _ = PartPackageCatalog.shared
+        var html = PartNode.make(.init(rawValue: "foundry.content.html"))
         html.setProperty(.init(rawValue: "content"), value: "<div>unique-deleted-html</div>")
-        html.setProperty(BlockPackageAdapter.htmlCSSKey(for: "content"), value: ".unique-deleted-css { color: red; }")
-        html.setProperty(BlockPackageAdapter.htmlJavaScriptKey(for: "content"), value: "window.uniqueDeletedJavaScript = true;")
-        let page = Page(title: "Home", slug: "index", blocks: [html])
+        html.setProperty(PartPackageAdapter.htmlCSSKey(for: "content"), value: ".unique-deleted-css { color: red; }")
+        html.setProperty(PartPackageAdapter.htmlJavaScriptKey(for: "content"), value: "window.uniqueDeletedJavaScript = true;")
+        let page = Page(title: "Home", slug: "index", parts: [html])
         let document = FoundryDocument(site: Site(name: "Deletion", pages: [page]))
         let before = StaticSiteRenderer().render(site: document.site)
         #expect(try #require(before.file(at: "index.html")).contents.contains("unique-deleted-html"))
         #expect(try #require(before.file(at: "files/page.css")).contents.contains("unique-deleted-css"))
         #expect(try #require(before.file(at: "files/page.js")).contents.contains("uniqueDeletedJavaScript"))
 
-        ProjectEditor(document: document, undoManager: nil).removeBlock(id: html.id)
+        ProjectEditor(document: document, undoManager: nil).removePart(id: html.id)
 
         let after = StaticSiteRenderer().render(site: document.site)
         #expect(!(try #require(after.file(at: "index.html"))).contents.contains("unique-deleted-html"))
@@ -26,7 +26,7 @@ struct StaticSiteRendererTests {
     }
 
     @Test @MainActor
-    func pageShellIsNeutralAndAllowsEdgeToEdgeBlocks() throws {
+    func pageShellIsNeutralAndAllowsEdgeToEdgeParts() throws {
         let site = Site.starter()
         let exportedCSS = try #require(
             StaticSiteRenderer().render(site: site).file(at: "files/site.css")?.contents
@@ -62,8 +62,8 @@ struct StaticSiteRendererTests {
     @Test
     func responsiveOverridesExportAsMediaQueriesWithoutCanvasMetadata() throws {
         var site = TestSiteFixtures.populatedSite()
-        let blockID = try #require(site.pages.first?.blocks.first?.id)
-        site.updateBlock(id: blockID) {
+        let partID = try #require(site.pages.first?.parts.first?.id)
+        site.updatePart(id: partID) {
             $0.setResponsiveProperty(
                 .maxWidth,
                 value: .number(800),
@@ -91,14 +91,14 @@ struct StaticSiteRendererTests {
         #expect(css.contains("max-width: 800px"))
         #expect(css.contains("max-width: 900px"))
         #expect(css.contains("max-width: 1000px"))
-        #expect(html.contains("data-foundry-id=\"\(blockID.uuidString)\""))
-        #expect(!html.contains("data-foundry-block-type"))
+        #expect(html.contains("data-foundry-id=\"\(partID.uuidString)\""))
+        #expect(!html.contains("data-foundry-part-type"))
     }
 
     @Test
     func rendersHomeAndNestedPagePathsWithSharedStylesheet() throws {
         var site = Site.starter()
-        site.pages.append(Page(title: "About", slug: "about", blocks: [.make(.paragraph)]))
+        site.pages.append(Page(title: "About", slug: "about", parts: [.make(.paragraph)]))
 
         let bundle = StaticSiteRenderer().render(site: site)
 
@@ -172,17 +172,17 @@ struct StaticSiteRendererTests {
             pixelHeight: 900,
             exportDirectory: .folder(filesFolder.id)
         )
-        var image = BlockNode.make(.image)
+        var image = PartNode.make(.image)
         image.setProperty(.source, value: .url(asset.reference))
         image.setProperty(
-            BlockPackageAdapter.imageAltKey(for: "source"),
+            PartPackageAdapter.imageAltKey(for: "source"),
             value: "A descriptive image"
         )
         image.setProperty(
-            BlockPackageAdapter.imageFocalPointKey(for: "source"),
+            PartPackageAdapter.imageFocalPointKey(for: "source"),
             value: .array([.number(25), .number(70)])
         )
-        let page = Page(title: "Story", slug: "story", blocks: [image], folderID: pagesFolder.id)
+        let page = Page(title: "Story", slug: "story", parts: [image], folderID: pagesFolder.id)
         let site = Site(
             name: "Files",
             pages: [page],
@@ -211,17 +211,17 @@ struct StaticSiteRendererTests {
 
         #expect(!html.contains("data-foundry"))
         #expect(!html.contains("foundry-selected"))
-        #expect(!html.contains("Drop a block"))
+        #expect(!html.contains("Drop a part"))
         #expect(!html.contains("contenteditable"))
     }
 
     @Test
-    func escapesPageTitlesAndBlockContent() throws {
-        let text = BlockNode(
+    func escapesPageTitlesAndPartContent() throws {
+        let text = PartNode(
             type: .paragraph,
             properties: [.init(key: .init(rawValue: "content"), value: .string("<Hello & goodbye>"))]
         )
-        let site = Site(name: "Test", pages: [Page(title: "A < B", slug: "index", blocks: [text])])
+        let site = Site(name: "Test", pages: [Page(title: "A < B", slug: "index", parts: [text])])
 
         let html = try #require(StaticSiteRenderer().render(site: site).file(at: "index.html")).contents
 

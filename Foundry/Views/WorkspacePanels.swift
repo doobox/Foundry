@@ -158,22 +158,22 @@ private struct PagesPanelHeader: View {
     }
 }
 
-struct BlockLibraryPanel: View {
-    @Binding var selectedType: BlockType?
-    let addToPageEnd: (BlockType) -> Void
-    @State private var catalog = BlockPackageCatalog.shared
-    @State private var blockSource = BlockLibrarySource.blocks
-    @AppStorage(AppPreferenceKey.blockLibraryIconSize)
-    private var iconSizeValue = BlockLibraryIconSize.small.rawValue
-    @AppStorage(AppPreferenceKey.blockLibraryArrangement)
-    private var arrangementValue = BlockLibraryArrangement.group.rawValue
-    @AppStorage(AppPreferenceKey.showsHiddenBlocks)
-    private var showsHiddenBlocks = false
+struct PartLibraryPanel: View {
+    @Binding var selectedType: PartType?
+    let addToPageEnd: (PartType) -> Void
+    @State private var catalog = PartPackageCatalog.shared
+    @State private var partSource = PartLibrarySource.parts
+    @AppStorage(AppPreferenceKey.partLibraryIconSize)
+    private var iconSizeValue = PartLibraryIconSize.small.rawValue
+    @AppStorage(AppPreferenceKey.partLibraryArrangement)
+    private var arrangementValue = PartLibraryArrangement.group.rawValue
+    @AppStorage(AppPreferenceKey.showsHiddenParts)
+    private var showsHiddenParts = false
 
     var body: some View {
         let _ = catalog.revision
         VStack(spacing: 0) {
-            BlockLibraryPanelHeader(
+            PartLibraryPanelHeader(
                 iconSize: iconSize,
                 setIconSize: { iconSizeValue = $0.rawValue },
                 arrangement: arrangement,
@@ -181,12 +181,12 @@ struct BlockLibraryPanel: View {
             )
             Divider()
             if catalog.isInitialLoading {
-                BlockCatalogLoadingView()
+                PartCatalogLoadingView()
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
-                if hasDevelopmentBlocks {
-                    Picker("Block source", selection: $blockSource) {
-                        ForEach(BlockLibrarySource.allCases) { source in
+                if hasDevelopmentParts {
+                    Picker("Part source", selection: $partSource) {
+                        ForEach(PartLibrarySource.allCases) { source in
                             Text(source.title).tag(source)
                         }
                     }
@@ -200,7 +200,7 @@ struct BlockLibraryPanel: View {
                 }
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 18) {
-                        ForEach(blockSections) { section in
+                        ForEach(partSections) { section in
                             VStack(alignment: .leading, spacing: 8) {
                                 Text(section.title)
                                     .font(.subheadline.weight(.semibold))
@@ -221,14 +221,14 @@ struct BlockLibraryPanel: View {
                                     spacing: 10
                                 ) {
                                     ForEach(section.types) { type in
-                                        BlockLibraryTile(
+                                        PartLibraryTile(
                                             type: type,
                                             iconSize: iconSize,
                                             isSelected: selectedType == type,
                                             select: { selectedType = type }
                                         )
-                                        .draggable(BlockDragPayload.library(type).stringValue) {
-                                            BlockLibraryIcon(type: type, size: 54)
+                                        .draggable(PartDragPayload.library(type).stringValue) {
+                                            PartLibraryIcon(type: type, size: 54)
                                         }
                                         .contextMenu {
                                             Button("Add to Page End", systemImage: "plus") {
@@ -259,18 +259,18 @@ struct BlockLibraryPanel: View {
 
         }
         .onChange(of: catalog.revision, initial: true) {
-            if !hasDevelopmentBlocks {
-                blockSource = .blocks
+            if !hasDevelopmentParts {
+                partSource = .parts
             }
             if let selectedType, availableTypes.contains(selectedType) {
                 return
             }
             selectedType = availableTypes.first
         }
-        .onChange(of: blockSource) {
+        .onChange(of: partSource) {
             selectedType = availableTypes.first
         }
-        .onChange(of: showsHiddenBlocks) {
+        .onChange(of: showsHiddenParts) {
             if let selectedType, availableTypes.contains(selectedType) {
                 return
             }
@@ -278,7 +278,7 @@ struct BlockLibraryPanel: View {
         }
     }
 
-    private var blockSections: [BlockLibrarySection] {
+    private var partSections: [PartLibrarySection] {
         let types = availableTypes
         switch arrangement {
         case .group:
@@ -308,8 +308,8 @@ struct BlockLibraryPanel: View {
         }
     }
 
-    private func groupSections(for types: [BlockType]) -> [BlockLibrarySection] {
-        let preferredCategories: [BlockCategory] = [
+    private func groupSections(for types: [PartType]) -> [PartLibrarySection] {
+        let preferredCategories: [PartCategory] = [
             .layout, .content, .media, .navigation, .forms, .interactive, .other
         ]
         let remainingCategories = Set(types.map { $0.definition.category })
@@ -318,7 +318,7 @@ struct BlockLibraryPanel: View {
         return (preferredCategories + remainingCategories).compactMap { category in
             let categoryTypes = types.filter { $0.definition.category == category }
             guard !categoryTypes.isEmpty else { return nil }
-            return BlockLibrarySection(
+            return PartLibrarySection(
                 id: "group-\(category.rawValue)",
                 title: category.rawValue,
                 types: categoryTypes
@@ -327,10 +327,10 @@ struct BlockLibraryPanel: View {
     }
 
     private func metadataSections(
-        for types: [BlockType],
-        value: (BlockType) -> String?
-    ) -> [BlockLibrarySection] {
-        var grouped: [String: [BlockType]] = [:]
+        for types: [PartType],
+        value: (PartType) -> String?
+    ) -> [PartLibrarySection] {
+        var grouped: [String: [PartType]] = [:]
         var titles: [String: String] = [:]
         for type in types {
             let title = normalizedSectionTitle(value(type))
@@ -364,9 +364,9 @@ struct BlockLibraryPanel: View {
     private func makeSection(
         id: String,
         title: String,
-        types: [BlockType]
-    ) -> BlockLibrarySection {
-        BlockLibrarySection(
+        types: [PartType]
+    ) -> PartLibrarySection {
+        PartLibrarySection(
             id: id,
             title: title,
             types: types.sorted {
@@ -377,59 +377,59 @@ struct BlockLibraryPanel: View {
         )
     }
 
-    private var availableTypes: [BlockType] {
-        BlockType.allCases.filter { type in
+    private var availableTypes: [PartType] {
+        PartType.allCases.filter { type in
             let isDevelopmentPack = type.definition.package?.isDevelopmentPack == true
-            let showsInLibrary = type.definition.package?.manifest.showsInBlockLibrary ?? true
-            return (showsInLibrary || showsHiddenBlocks)
-                && (blockSource == .development ? isDevelopmentPack : !isDevelopmentPack)
+            let showsInLibrary = type.definition.package?.manifest.showsInPartLibrary ?? true
+            return (showsInLibrary || showsHiddenParts)
+                && (partSource == .development ? isDevelopmentPack : !isDevelopmentPack)
         }
     }
 
-    private var hasDevelopmentBlocks: Bool {
-        BlockType.allCases.contains {
+    private var hasDevelopmentParts: Bool {
+        PartType.allCases.contains {
             $0.definition.package?.isDevelopmentPack == true
-                && (($0.definition.package?.manifest.showsInBlockLibrary ?? true) || showsHiddenBlocks)
+                && (($0.definition.package?.manifest.showsInPartLibrary ?? true) || showsHiddenParts)
         }
     }
 
-    private var iconSize: BlockLibraryIconSize {
-        BlockLibraryIconSize(rawValue: iconSizeValue) ?? .medium
+    private var iconSize: PartLibraryIconSize {
+        PartLibraryIconSize(rawValue: iconSizeValue) ?? .medium
     }
 
-    private var arrangement: BlockLibraryArrangement {
-        BlockLibraryArrangement(rawValue: arrangementValue) ?? .group
+    private var arrangement: PartLibraryArrangement {
+        PartLibraryArrangement(rawValue: arrangementValue) ?? .group
     }
 }
 
-nonisolated private enum BlockLibrarySource: String, CaseIterable, Identifiable {
-    case blocks
+nonisolated private enum PartLibrarySource: String, CaseIterable, Identifiable {
+    case parts
     case development
 
     var id: String { rawValue }
 
     var title: LocalizedStringResource {
         switch self {
-        case .blocks: "Blocks"
-        case .development: "Dev Blocks"
+        case .parts: "Parts"
+        case .development: "Dev Parts"
         }
     }
 }
 
-private struct BlockLibraryPanelHeader: View {
-    let iconSize: BlockLibraryIconSize
-    let setIconSize: (BlockLibraryIconSize) -> Void
-    let arrangement: BlockLibraryArrangement
-    let setArrangement: (BlockLibraryArrangement) -> Void
+private struct PartLibraryPanelHeader: View {
+    let iconSize: PartLibraryIconSize
+    let setIconSize: (PartLibraryIconSize) -> Void
+    let arrangement: PartLibraryArrangement
+    let setArrangement: (PartLibraryArrangement) -> Void
 
     var body: some View {
         HStack {
-            Text("Blocks")
+            Text("Parts")
                 .font(.headline)
             Spacer()
             Menu {
                 Menu("Icon Size") {
-                    ForEach(BlockLibraryIconSize.allCases) { size in
+                    ForEach(PartLibraryIconSize.allCases) { size in
                         Toggle(
                             size.title,
                             isOn: Binding(
@@ -444,7 +444,7 @@ private struct BlockLibraryPanelHeader: View {
                     }
                 }
                 Menu("Arrange By") {
-                    ForEach(BlockLibraryArrangement.allCases) { option in
+                    ForEach(PartLibraryArrangement.allCases) { option in
                         Toggle(
                             option.title,
                             isOn: Binding(
@@ -466,14 +466,14 @@ private struct BlockLibraryPanelHeader: View {
             .menuStyle(.borderlessButton)
             .menuIndicator(.hidden)
             .fixedSize()
-            .help("Block view options")
+            .help("Part view options")
         }
         .padding(.horizontal, 12)
         .frame(height: 38)
     }
 }
 
-nonisolated private enum BlockLibraryArrangement: String, CaseIterable, Identifiable {
+nonisolated private enum PartLibraryArrangement: String, CaseIterable, Identifiable {
     case group
     case author
     case tag
@@ -491,7 +491,7 @@ nonisolated private enum BlockLibraryArrangement: String, CaseIterable, Identifi
     }
 }
 
-nonisolated private enum BlockLibraryIconSize: String, CaseIterable, Identifiable {
+nonisolated private enum PartLibraryIconSize: String, CaseIterable, Identifiable {
     case list
     case small
     case medium
@@ -531,7 +531,7 @@ nonisolated private enum BlockLibraryIconSize: String, CaseIterable, Identifiabl
 }
 
 struct DeveloperPanel: View {
-    @State private var catalog = BlockPackageCatalog.shared
+    @State private var catalog = PartPackageCatalog.shared
     @State private var selection = DeveloperPanelSection.issues
     @Environment(\.openWindow) private var openWindow
 
@@ -550,7 +550,7 @@ struct DeveloperPanel: View {
             .padding(12)
             .onChange(of: selection) { _, newSelection in
                 guard newSelection == .updater else { return }
-                openWindow(id: "block-updates")
+                openWindow(id: "part-updates")
                 selection = .issues
             }
 
@@ -588,12 +588,12 @@ struct DeveloperPanel: View {
     }
 
     private var summaryTitle: String {
-        guard !issues.isEmpty else { return "Blocks are healthy" }
-        return issues.count == 1 ? "1 block needs attention" : "\(issues.count) blocks need attention"
+        guard !issues.isEmpty else { return "Parts are healthy" }
+        return issues.count == 1 ? "1 part needs attention" : "\(issues.count) parts need attention"
     }
 
     private var summaryDescription: String {
-        guard !issues.isEmpty else { return "All discovered block packages loaded successfully." }
+        guard !issues.isEmpty else { return "All discovered part packages loaded successfully." }
         var parts: [String] = []
         if errorCount > 0 {
             parts.append(errorCount == 1 ? "1 error" : "\(errorCount) errors")
@@ -630,15 +630,15 @@ private struct DeveloperIssuesView: View {
                         .foregroundStyle(.secondary)
                 }
                 Spacer(minLength: 8)
-                Button("Reload Blocks", systemImage: "arrow.clockwise", action: reload)
+                Button("Reload Parts", systemImage: "arrow.clockwise", action: reload)
                     .labelStyle(.iconOnly)
-                    .help("Reload block packages")
+                    .help("Reload part packages")
             }
             .padding(12)
             Divider()
             if issues.isEmpty {
                 ContentUnavailableView(
-                    "No Block Issues",
+                    "No Part Issues",
                     systemImage: "checkmark.circle",
                     description: Text("Package validation and loading issues will appear here.")
                 )
@@ -700,8 +700,8 @@ struct DeveloperReleasesView: View {
         if developmentPacks.isEmpty {
             ContentUnavailableView(
                 "No Development Pack",
-                systemImage: BlockDefinition.genericSystemImage,
-                description: Text("Convert a block pack to .foundrydevpack before issuing updates.")
+                systemImage: PartDefinition.genericSystemImage,
+                description: Text("Convert a part pack to .foundrydevpack before issuing updates.")
             )
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {
@@ -846,7 +846,7 @@ struct DeveloperReleasesView: View {
     private func prepareForUpdates(sourceURL: URL) {
         guard let url = URL(string: publishingDirectoryURL),
               let packID = try? FoundryPackLoader.load(from: sourceURL).identifier else { return }
-        let site = BlockUpdatePublisherConfiguration.site
+        let site = PartUpdatePublisherConfiguration.site
         let credential = PublishingCredentialStore.credential(site: site)
         let outputDirectoryURL = FileManager.default.temporaryDirectory.appending(
             path: "Foundry-Update-Setup-\(UUID().uuidString)",
@@ -867,7 +867,7 @@ struct DeveloperReleasesView: View {
                     outputDirectoryURL: outputDirectoryURL
                 )
                 try Task.checkCancellation()
-                try await BlockUpdatePublisher.publishSetup(
+                try await PartUpdatePublisher.publishSetup(
                     directory: setupDirectory,
                     packID: packID,
                     site: site,
@@ -884,7 +884,7 @@ struct DeveloperReleasesView: View {
                     sourceURL: sourceURL,
                     publishingDirectoryURL: url
                 )
-                BlockPackageCatalog.shared.reloadAllPacks()
+                PartPackageCatalog.shared.reloadAllPacks()
                 resetReleaseVersion(for: try? FoundryPackLoader.load(from: sourceURL))
                 resultMessage = "Published the update endpoint successfully."
             } catch is CancellationError {
@@ -900,7 +900,7 @@ struct DeveloperReleasesView: View {
         guard let pack = try? FoundryPackLoader.load(from: sourceURL),
               let packID = pack.identifier else { return }
         let version = releaseVersion.trimmingCharacters(in: .whitespacesAndNewlines)
-        let site = BlockUpdatePublisherConfiguration.site
+        let site = PartUpdatePublisherConfiguration.site
         let credential = PublishingCredentialStore.credential(site: site)
         let outputDirectoryURL = FileManager.default.temporaryDirectory.appending(
             path: "Foundry-Release-Output-\(UUID().uuidString)",
@@ -927,7 +927,7 @@ struct DeveloperReleasesView: View {
                 try validatePublishingDestination(site: site, configuration: configuration, packID: packID)
                 let result = try await FoundryPackReleaseBuilder.create(request)
                 try Task.checkCancellation()
-                try await BlockUpdatePublisher.publish(
+                try await PartUpdatePublisher.publish(
                     directory: result.outputDirectoryURL,
                     packID: packID,
                     site: site,
@@ -1000,7 +1000,7 @@ struct DeveloperReleasesView: View {
     }
 
     private var publisherIsConfigured: Bool {
-        let site = BlockUpdatePublisherConfiguration.site
+        let site = PartUpdatePublisherConfiguration.site
         return [.ftp, .ftps, .sftp].contains(site.publishingDestination)
             && !site.publishingHost.isEmpty
             && !site.publishingUsername.isEmpty
@@ -1011,7 +1011,7 @@ struct DeveloperReleasesView: View {
     private func publishingURL(for sourceURL: URL?) -> String? {
         guard let sourceURL,
               let identifier = try? FoundryPackLoader.load(from: sourceURL).identifier else { return nil }
-        return URL(string: BlockUpdatePublisherConfiguration.site.publicURL)?
+        return URL(string: PartUpdatePublisherConfiguration.site.publicURL)?
             .appending(path: identifier)
             .absoluteString
     }
@@ -1120,14 +1120,14 @@ private struct DeveloperReleaseStatus: View {
 
 private struct DeveloperPackageIssue: Identifiable {
     let url: URL
-    let diagnostics: [BlockPackageDiagnostic]
+    let diagnostics: [PartPackageDiagnostic]
     let displayName: String
     let identifier: String?
 
     var id: URL { url }
     var hasErrors: Bool { diagnostics.contains { $0.severity == .error } }
 
-    init(url: URL, diagnostics: [BlockPackageDiagnostic]) {
+    init(url: URL, diagnostics: [PartPackageDiagnostic]) {
         self.url = url
         self.diagnostics = diagnostics
 
@@ -1211,26 +1211,26 @@ private struct DeveloperPackageIssueCard: View {
     }
 }
 
-private struct BlockLibrarySection: Identifiable {
+private struct PartLibrarySection: Identifiable {
     let id: String
     let title: String
-    let types: [BlockType]
+    let types: [PartType]
 }
 
-struct ReusableBlockLibraryPanel: View {
-    let definitions: [ReusableBlockDefinition]
+struct ReusablePartLibraryPanel: View {
+    let definitions: [ReusablePartDefinition]
     let renameDefinition: (UUID, String) -> Void
     let deleteDefinition: (UUID) -> Void
-    @State private var definitionToRename: ReusableBlockDefinition?
-    @State private var definitionToDelete: ReusableBlockDefinition?
+    @State private var definitionToRename: ReusablePartDefinition?
+    @State private var definitionToDelete: ReusablePartDefinition?
     @State private var renameText = ""
 
     var body: some View {
         List {
             ForEach(definitions) { definition in
-                ReusableBlockLibraryRow(definition: definition)
-                    .draggable(BlockDragPayload.reusable(definition.id).stringValue) {
-                        BlockDragPreview(
+                ReusablePartLibraryRow(definition: definition)
+                    .draggable(PartDragPayload.reusable(definition.id).stringValue) {
+                        PartDragPreview(
                             name: definition.name,
                             systemImage: definition.root.type.systemImage
                         )
@@ -1250,8 +1250,8 @@ struct ReusableBlockLibraryPanel: View {
             if definitions.isEmpty {
                 ContentUnavailableView(
                     "No Templates",
-                    systemImage: WorkspacePanel.reusableBlocks.systemImage,
-                    description: Text("Save a block as a template from Structure to add it here.")
+                    systemImage: WorkspacePanel.reusableParts.systemImage,
+                    description: Text("Save a part as a template from Structure to add it here.")
                 )
             }
         }
@@ -1276,7 +1276,7 @@ struct ReusableBlockLibraryPanel: View {
             }
             Button("Cancel", role: .cancel) { definitionToDelete = nil }
         } message: {
-            Text("Blocks already added from this template are independent and will be unchanged.")
+            Text("Parts already added from this template are independent and will be unchanged.")
         }
     }
 
@@ -1289,9 +1289,9 @@ struct ReusableBlockLibraryPanel: View {
     }
 }
 
-private struct BlockLibraryTile: View {
-    let type: BlockType
-    let iconSize: BlockLibraryIconSize
+private struct PartLibraryTile: View {
+    let type: PartType
+    let iconSize: PartLibraryIconSize
     let isSelected: Bool
     let select: () -> Void
 
@@ -1300,16 +1300,16 @@ private struct BlockLibraryTile: View {
             Group {
                 if iconSize == .list {
                     HStack(spacing: 8) {
-                        blockIcon
-                        blockTitle
+                        partIcon
+                        partTitle
                         Spacer(minLength: 0)
                     }
                     .padding(6)
                     .frame(maxWidth: .infinity, minHeight: iconSize.tileSize, maxHeight: iconSize.tileSize)
                 } else {
                     VStack(spacing: 6) {
-                        blockIcon
-                        blockTitle
+                        partIcon
+                        partTitle
                             .frame(maxWidth: .infinity)
                     }
                     .padding(6)
@@ -1324,19 +1324,19 @@ private struct BlockLibraryTile: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel("\(type.displayName), drag to add")
-        .accessibilityIdentifier("block-library-\(type.rawValue)")
+        .accessibilityIdentifier("part-library-\(type.rawValue)")
         .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 
-    private var blockIcon: some View {
-        BlockLibraryIcon(
+    private var partIcon: some View {
+        PartLibraryIcon(
             type: type,
             size: iconSize.iconSize,
             symbolColor: isSelected ? .white : .accentColor
         )
     }
 
-    private var blockTitle: some View {
+    private var partTitle: some View {
         Text(type.displayName)
             .lineLimit(1)
             .minimumScaleFactor(0.75)
@@ -1345,9 +1345,9 @@ private struct BlockLibraryTile: View {
     }
 }
 
-struct BlockLibraryIcon: View {
+struct PartLibraryIcon: View {
     @State private var loadedIcon: NSImage?
-    let type: BlockType
+    let type: PartType
     let size: CGFloat
     var symbolColor: Color = .accentColor
 
@@ -1371,22 +1371,22 @@ struct BlockLibraryIcon: View {
                 loadedIcon = nil
                 return
             }
-            if let cached = BlockIconLoader.cachedIcon(at: url) {
+            if let cached = PartIconLoader.cachedIcon(at: url) {
                 loadedIcon = cached.image
                 return
             }
-            loadedIcon = await BlockIconLoader.shared.icon(at: url)?.image
+            loadedIcon = await PartIconLoader.shared.icon(at: url)?.image
         }
     }
 
     private var displayedIcon: NSImage? {
         loadedIcon ?? (type.definition.package?.iconURL).flatMap {
-            BlockIconLoader.cachedIcon(at: $0)?.image
+            PartIconLoader.cachedIcon(at: $0)?.image
         }
     }
 }
 
-private struct BlockDragPreview: View {
+private struct PartDragPreview: View {
     let name: String
     let systemImage: String
 
@@ -1405,8 +1405,8 @@ private struct BlockDragPreview: View {
     }
 }
 
-private struct ReusableBlockLibraryRow: View {
-    let definition: ReusableBlockDefinition
+private struct ReusablePartLibraryRow: View {
+    let definition: ReusablePartDefinition
 
     var body: some View {
         HStack(spacing: 10) {
@@ -1428,13 +1428,13 @@ private struct ReusableBlockLibraryRow: View {
     }
 }
 
-struct GlobalBlockLibraryPanel: View {
-    let definitions: [ReusableBlockDefinition]
+struct GlobalPartLibraryPanel: View {
+    let definitions: [ReusablePartDefinition]
     let renameDefinition: (UUID, String) -> Void
     let deleteDefinition: (UUID) -> Void
-    let saveDraggedBlocks: ([UUID]) -> Bool
-    @State private var definitionToRename: ReusableBlockDefinition?
-    @State private var definitionToDelete: ReusableBlockDefinition?
+    let saveDraggedParts: ([UUID]) -> Bool
+    @State private var definitionToRename: ReusablePartDefinition?
+    @State private var definitionToDelete: ReusablePartDefinition?
     @State private var renameText = ""
     @State private var isDropTargeted = false
 
@@ -1455,8 +1455,8 @@ struct GlobalBlockLibraryPanel: View {
                     Image(systemName: "link")
                         .foregroundStyle(.tertiary)
                 }
-                .draggable(BlockDragPayload.global(definition.id).stringValue) {
-                    BlockDragPreview(name: definition.name, systemImage: definition.root.type.systemImage)
+                .draggable(PartDragPayload.global(definition.id).stringValue) {
+                    PartDragPreview(name: definition.name, systemImage: definition.root.type.systemImage)
                 }
                 .contextMenu {
                     Button("Rename…") {
@@ -1469,12 +1469,12 @@ struct GlobalBlockLibraryPanel: View {
         }
         .dropDestination(for: String.self) { values, _ in
             guard let value = values.first,
-                  let payload = BlockDragPayload(value) else { return false }
+                  let payload = PartDragPayload(value) else { return false }
             switch payload {
             case .node(let id):
-                return saveDraggedBlocks([id])
+                return saveDraggedParts([id])
             case .nodes(let ids):
-                return saveDraggedBlocks(ids)
+                return saveDraggedParts(ids)
             case .library, .reusable, .global:
                 return false
             }
@@ -1484,9 +1484,9 @@ struct GlobalBlockLibraryPanel: View {
         .overlay {
             if definitions.isEmpty {
                 ContentUnavailableView(
-                    "No Global Blocks",
-                    systemImage: WorkspacePanel.globalBlocks.systemImage,
-                    description: Text("Save a block as global from Structure to add it here.")
+                    "No Global Parts",
+                    systemImage: WorkspacePanel.globalParts.systemImage,
+                    description: Text("Save a part as global from Structure to add it here.")
                 )
             }
         }
@@ -1496,7 +1496,7 @@ struct GlobalBlockLibraryPanel: View {
                 .padding(4)
                 .allowsHitTesting(false)
         }
-        .alert("Rename Global Block", isPresented: renameAlertBinding) {
+        .alert("Rename Global Part", isPresented: renameAlertBinding) {
             TextField("Name", text: $renameText)
             Button("Cancel", role: .cancel) { definitionToRename = nil }
             Button("Rename") {
@@ -1506,8 +1506,8 @@ struct GlobalBlockLibraryPanel: View {
             }
             .disabled(renameText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
         }
-        .confirmationDialog("Delete \(definitionToDelete?.name ?? "Global Block")?", isPresented: deleteAlertBinding) {
-            Button("Delete Global Block", role: .destructive) {
+        .confirmationDialog("Delete \(definitionToDelete?.name ?? "Global Part")?", isPresented: deleteAlertBinding) {
+            Button("Delete Global Part", role: .destructive) {
                 guard let id = definitionToDelete?.id else { return }
                 deleteDefinition(id)
                 definitionToDelete = nil
@@ -1529,112 +1529,112 @@ struct GlobalBlockLibraryPanel: View {
 
 struct StructurePanel: View {
     let page: Page?
-    let globalBlockNames: [UUID: String]
-    @Binding var selectedBlockIDs: Set<UUID>
-    @Binding var selectedBlockID: UUID?
-    @Binding var expandedBlockIDs: Set<UUID>
-    let renameBlock: (UUID, String) -> Void
-    let canMoveBlocksToPlacement: ([UUID], BlockPlacement) -> Bool
-    let moveBlocksToPlacement: ([UUID], BlockPlacement) -> Bool
-    let insertBlock: (BlockType, BlockPlacement) -> Bool
-    let insertReusableBlock: (UUID, BlockPlacement) -> Bool
-    let insertGlobalBlock: (UUID, BlockPlacement) -> Bool
-    let duplicateBlock: () -> Void
-    let copyBlock: () -> Void
-    let pasteBlock: () -> Void
-    let moveBlock: (Int) -> Void
-    let outdentBlock: () -> Void
-    let deleteBlock: () -> Void
-    let canPasteBlock: Bool
-    let saveReusableBlock: (String) -> Void
-    let saveGlobalBlock: (String) -> Void
-    let setGlobalBlockLinked: (UUID, Bool) -> Void
-    @State private var isNamingReusableBlock = false
-    @State private var reusableBlockName = ""
-    @State private var isNamingGlobalBlock = false
-    @State private var globalBlockName = ""
+    let globalPartNames: [UUID: String]
+    @Binding var selectedPartIDs: Set<UUID>
+    @Binding var selectedPartID: UUID?
+    @Binding var expandedPartIDs: Set<UUID>
+    let renamePart: (UUID, String) -> Void
+    let canMovePartsToPlacement: ([UUID], PartPlacement) -> Bool
+    let movePartsToPlacement: ([UUID], PartPlacement) -> Bool
+    let insertPart: (PartType, PartPlacement) -> Bool
+    let insertReusablePart: (UUID, PartPlacement) -> Bool
+    let insertGlobalPart: (UUID, PartPlacement) -> Bool
+    let duplicatePart: () -> Void
+    let copyPart: () -> Void
+    let pastePart: () -> Void
+    let movePart: (Int) -> Void
+    let outdentPart: () -> Void
+    let deletePart: () -> Void
+    let canPastePart: Bool
+    let saveReusablePart: (String) -> Void
+    let saveGlobalPart: (String) -> Void
+    let setGlobalPartLinked: (UUID, Bool) -> Void
+    @State private var isNamingReusablePart = false
+    @State private var reusablePartName = ""
+    @State private var isNamingGlobalPart = false
+    @State private var globalPartName = ""
 
     var body: some View {
         VStack(spacing: 0) {
             if let page {
                 StructureOutlineView(
-                    blocks: page.blocks,
-                    globalBlockNames: globalBlockNames,
-                    selectedBlockIDs: $selectedBlockIDs,
-                    primarySelectedBlockID: $selectedBlockID,
-                    expandedItemIDs: $expandedBlockIDs,
-                    renameBlock: renameBlock,
-                    canMoveBlocks: canMoveBlocksToPlacement,
-                    moveBlocks: moveBlocksToPlacement,
-                    insertBlock: insertBlock,
-                    insertReusableBlock: insertReusableBlock,
-                    insertGlobalBlock: insertGlobalBlock,
-                    duplicateBlock: duplicateBlock,
-                    copyBlock: copyBlock,
-                    pasteBlock: pasteBlock,
-                    canPasteBlock: canPasteBlock,
-                    saveAsReusableBlock: {
-                        reusableBlockName = $0
-                        isNamingReusableBlock = true
+                    parts: page.parts,
+                    globalPartNames: globalPartNames,
+                    selectedPartIDs: $selectedPartIDs,
+                    primarySelectedPartID: $selectedPartID,
+                    expandedItemIDs: $expandedPartIDs,
+                    renamePart: renamePart,
+                    canMoveParts: canMovePartsToPlacement,
+                    moveParts: movePartsToPlacement,
+                    insertPart: insertPart,
+                    insertReusablePart: insertReusablePart,
+                    insertGlobalPart: insertGlobalPart,
+                    duplicatePart: duplicatePart,
+                    copyPart: copyPart,
+                    pastePart: pastePart,
+                    canPastePart: canPastePart,
+                    saveAsReusablePart: {
+                        reusablePartName = $0
+                        isNamingReusablePart = true
                     },
-                    saveAsGlobalBlock: {
-                        globalBlockName = $0
-                        isNamingGlobalBlock = true
+                    saveAsGlobalPart: {
+                        globalPartName = $0
+                        isNamingGlobalPart = true
                     },
-                    setGlobalBlockLinked: setGlobalBlockLinked,
-                    moveBlock: moveBlock,
-                    outdentBlock: outdentBlock,
-                    deleteBlock: deleteBlock
+                    setGlobalPartLinked: setGlobalPartLinked,
+                    movePart: movePart,
+                    outdentPart: outdentPart,
+                    deletePart: deletePart
                 )
             } else {
                 ContentUnavailableView("No Page", systemImage: "doc")
             }
         }
-        .alert("Save Template", isPresented: $isNamingReusableBlock) {
-            TextField("Name", text: $reusableBlockName)
+        .alert("Save Template", isPresented: $isNamingReusablePart) {
+            TextField("Name", text: $reusablePartName)
             Button("Cancel", role: .cancel) {}
-            Button("Save") { saveReusableBlock(reusableBlockName) }
-                .disabled(reusableBlockName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            Button("Save") { saveReusablePart(reusablePartName) }
+                .disabled(reusablePartName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
         } message: {
-            Text("The selected block and its children will be available in the Project library.")
+            Text("The selected part and its children will be available in the Project library.")
         }
-        .alert("Save Global Block", isPresented: $isNamingGlobalBlock) {
-            TextField("Name", text: $globalBlockName)
+        .alert("Save Global Part", isPresented: $isNamingGlobalPart) {
+            TextField("Name", text: $globalPartName)
             Button("Cancel", role: .cancel) {}
-            Button("Save") { saveGlobalBlock(globalBlockName) }
-                .disabled(globalBlockName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            Button("Save") { saveGlobalPart(globalPartName) }
+                .disabled(globalPartName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
         } message: {
-            Text("Every linked instance will update when this global block is edited.")
+            Text("Every linked instance will update when this global part is edited.")
         }
     }
 
     private func revealSelection(using proxy: ScrollViewProxy) {
-        guard let selectedBlockID, let page else { return }
-        expandedBlockIDs.formUnion(page.blocks.ancestorIDs(of: selectedBlockID))
+        guard let selectedPartID, let page else { return }
+        expandedPartIDs.formUnion(page.parts.ancestorIDs(of: selectedPartID))
         Task { @MainActor in
             await Task.yield()
-            proxy.scrollTo(selectedBlockID, anchor: .center)
+            proxy.scrollTo(selectedPartID, anchor: .center)
         }
     }
 
-    private func acceptAtEnd(_ payload: BlockDragPayload) -> Bool {
+    private func acceptAtEnd(_ payload: PartDragPayload) -> Bool {
         switch payload {
-        case .library(let type): insertBlock(type, .end)
-        case .reusable(let id): insertReusableBlock(id, .end)
-        case .global(let id): insertGlobalBlock(id, .end)
-        case .node(let id): moveBlocksToPlacement([id], .end)
-        case .nodes(let ids): moveBlocksToPlacement(ids, .end)
+        case .library(let type): insertPart(type, .end)
+        case .reusable(let id): insertReusablePart(id, .end)
+        case .global(let id): insertGlobalPart(id, .end)
+        case .node(let id): movePartsToPlacement([id], .end)
+        case .nodes(let ids): movePartsToPlacement(ids, .end)
         }
     }
 
-    private func visibleBlocks(in page: Page) -> [StructureTreeItem] {
-        StructureTreeItem.flatten(page.blocks, expandedIDs: expandedBlockIDs)
+    private func visibleParts(in page: Page) -> [StructureTreeItem] {
+        StructureTreeItem.flatten(page.parts, expandedIDs: expandedPartIDs)
     }
 
     private func applyReorder(
         _ difference: ReorderDifference<UUID, ReorderableSingleCollectionIdentifier>
     ) {
-        let placement: BlockPlacement
+        let placement: PartPlacement
         switch difference.destination.position {
         case .before(let targetID):
             placement = .before(targetID)
@@ -1642,27 +1642,27 @@ struct StructurePanel: View {
             placement = .end
         }
         for sourceID in difference.sources {
-            _ = moveBlocksToPlacement([sourceID], placement)
+            _ = movePartsToPlacement([sourceID], placement)
         }
     }
 
 }
 
 nonisolated struct StructureTreeItem: Identifiable, Sendable {
-    let block: BlockNode
+    let part: PartNode
     let depth: Int
 
-    var id: UUID { block.id }
+    var id: UUID { part.id }
 
     static func flatten(
-        _ blocks: [BlockNode],
+        _ parts: [PartNode],
         expandedIDs: Set<UUID>,
         depth: Int = 0
     ) -> [StructureTreeItem] {
-        blocks.flatMap { block in
-            var result = [StructureTreeItem(block: block, depth: depth)]
-            if expandedIDs.contains(block.id) {
-                result += flatten(block.children, expandedIDs: expandedIDs, depth: depth + 1)
+        parts.flatMap { part in
+            var result = [StructureTreeItem(part: part, depth: depth)]
+            if expandedIDs.contains(part.id) {
+                result += flatten(part.children, expandedIDs: expandedIDs, depth: depth + 1)
             }
             return result
         }
@@ -1671,12 +1671,12 @@ nonisolated struct StructureTreeItem: Identifiable, Sendable {
 
 private struct StructureEndDropZone: View {
     let isEmpty: Bool
-    let accept: (BlockDragPayload) -> Bool
+    let accept: (PartDragPayload) -> Bool
     @State private var isTargeted = false
 
     var body: some View {
         Label(
-            isEmpty ? "Drop a block here" : "Drop at page end",
+            isEmpty ? "Drop a part here" : "Drop at page end",
             systemImage: isEmpty ? "square.and.arrow.down" : "arrow.down.to.line"
         )
         .font(.caption)
@@ -1694,7 +1694,7 @@ private struct StructureEndDropZone: View {
                 )
         }
         .dropDestination(for: String.self) { values, _ in
-            guard let value = values.first, let payload = BlockDragPayload(value) else { return false }
+            guard let value = values.first, let payload = PartDragPayload(value) else { return false }
             return accept(payload)
         } isTargeted: {
             isTargeted = $0

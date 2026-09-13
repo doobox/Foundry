@@ -1,0 +1,223 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>assets</key>
+    <array/>
+    <key>author</key>
+    <string>Foundry</string>
+    <key>controls</key>
+    <array>
+        <dict>
+            <key>id</key><string>slide-1</string>
+            <key>label</key><string>Slide 1 Image</string>
+            <key>group</key><string>Slides</string>
+            <key>type</key><string>image</string>
+            <key>focalPoint</key><true/>
+        </dict>
+        <dict>
+            <key>id</key><string>slide-2</string>
+            <key>label</key><string>Slide 2 Image</string>
+            <key>group</key><string>Slides</string>
+            <key>type</key><string>image</string>
+            <key>focalPoint</key><true/>
+        </dict>
+        <dict>
+            <key>id</key><string>slide-3</string>
+            <key>label</key><string>Slide 3 Image</string>
+            <key>group</key><string>Slides</string>
+            <key>type</key><string>image</string>
+            <key>focalPoint</key><true/>
+        </dict>
+        <dict>
+            <key>id</key><string>slide-4</string>
+            <key>label</key><string>Slide 4 Image</string>
+            <key>group</key><string>Slides</string>
+            <key>type</key><string>image</string>
+            <key>focalPoint</key><true/>
+        </dict>
+        <dict>
+            <key>id</key><string>slide-5</string>
+            <key>label</key><string>Slide 5 Image</string>
+            <key>group</key><string>Slides</string>
+            <key>type</key><string>image</string>
+            <key>focalPoint</key><true/>
+        </dict>
+        <dict>
+            <key>id</key><string>slide-6</string>
+            <key>label</key><string>Slide 6 Image</string>
+            <key>group</key><string>Slides</string>
+            <key>type</key><string>image</string>
+            <key>focalPoint</key><true/>
+        </dict>
+        <dict>
+            <key>id</key><string>slide-7</string>
+            <key>label</key><string>Slide 7 Image</string>
+            <key>group</key><string>Slides</string>
+            <key>type</key><string>image</string>
+            <key>focalPoint</key><true/>
+        </dict>
+        <dict>
+            <key>id</key><string>slide-8</string>
+            <key>label</key><string>Slide 8 Image</string>
+            <key>group</key><string>Slides</string>
+            <key>type</key><string>image</string>
+            <key>focalPoint</key><true/>
+        </dict>
+        <dict>
+            <key>id</key><string>slideCount</string>
+            <key>label</key><string>Number of Slides</string>
+            <key>group</key><string>Slides</string>
+            <key>type</key><string>number</string>
+            <key>minimum</key><integer>1</integer>
+            <key>maximum</key><integer>8</integer>
+            <key>step</key><integer>1</integer>
+            <key>default</key><integer>3</integer>
+            <key>responsive</key><false/>
+        </dict>
+        <dict>
+            <key>id</key><string>canvasSlide</string>
+            <key>label</key><string>Edit Slide</string>
+            <key>group</key><string>Slides</string>
+            <key>type</key><string>slider</string>
+            <key>minimum</key><integer>1</integer>
+            <key>maximum</key><integer>8</integer>
+            <key>step</key><integer>1</integer>
+            <key>ticks</key><integer>8</integer>
+            <key>default</key><integer>1</integer>
+            <key>responsive</key><false/>
+            <key>tooltip</key><string>Chooses which slide is visible and editable on the canvas.</string>
+        </dict>
+        <dict>
+            <key>id</key><string>showCaptions</string>
+            <key>label</key><string>Show Captions</string>
+            <key>group</key><string>Slides</string>
+            <key>type</key><string>toggle</string>
+            <key>default</key><true/>
+            <key>responsive</key><false/>
+        </dict>
+        <dict>
+            <key>id</key><string>showArrows</string>
+            <key>label</key><string>Show Arrows</string>
+            <key>group</key><string>Navigation</string>
+            <key>type</key><string>toggle</string>
+            <key>default</key><true/>
+            <key>responsive</key><false/>
+        </dict>
+        <dict>
+            <key>id</key><string>showDots</string>
+            <key>label</key><string>Show Position Dots</string>
+            <key>group</key><string>Navigation</string>
+            <key>type</key><string>toggle</string>
+            <key>default</key><true/>
+            <key>responsive</key><false/>
+        </dict>
+        <dict>
+            <key>id</key><string>loop</string>
+            <key>label</key><string>Loop Slides</string>
+            <key>group</key><string>Navigation</string>
+            <key>type</key><string>toggle</string>
+            <key>default</key><true/>
+            <key>responsive</key><false/>
+        </dict>
+        <dict>
+            <key>id</key><string>autoplay</string>
+            <key>label</key><string>Autoplay</string>
+            <key>group</key><string>Autoplay</string>
+            <key>type</key><string>toggle</string>
+            <key>default</key><false/>
+            <key>responsive</key><false/>
+        </dict>
+        <dict>
+            <key>id</key><string>interval</string>
+            <key>label</key><string>Interval</string>
+            <key>group</key><string>Autoplay</string>
+            <key>type</key><string>slider</string>
+            <key>minimum</key><integer>2</integer>
+            <key>maximum</key><integer>12</integer>
+            <key>step</key><integer>1</integer>
+            <key>default</key><integer>5</integer>
+            <key>units</key><string>s</string>
+            <key>responsive</key><false/>
+            <key>visibleWhen</key>
+            <dict><key>id</key><string>autoplay</string><key>value</key><true/></dict>
+        </dict>
+        <dict>
+            <key>id</key><string>pauseOnHover</string>
+            <key>label</key><string>Pause on Hover</string>
+            <key>group</key><string>Autoplay</string>
+            <key>type</key><string>toggle</string>
+            <key>default</key><true/>
+            <key>responsive</key><false/>
+            <key>visibleWhen</key>
+            <dict><key>id</key><string>autoplay</string><key>value</key><true/></dict>
+        </dict>
+        <dict>
+            <key>id</key><string>transition</string>
+            <key>label</key><string>Transition</string>
+            <key>group</key><string>Appearance</string>
+            <key>type</key><string>select</string>
+            <key>default</key><string>fade</string>
+            <key>responsive</key><false/>
+            <key>options</key>
+            <array>
+                <dict><key>title</key><string>Fade</string><key>value</key><string>fade</string></dict>
+                <dict><key>title</key><string>Slide</string><key>value</key><string>slide</string></dict>
+                <dict><key>title</key><string>None</string><key>value</key><string>none</string></dict>
+            </array>
+        </dict>
+        <dict>
+            <key>id</key><string>aspectRatio</string>
+            <key>label</key><string>Aspect Ratio</string>
+            <key>group</key><string>Appearance</string>
+            <key>type</key><string>select</string>
+            <key>default</key><string>16 / 9</string>
+            <key>responsive</key><true/>
+            <key>options</key>
+            <array>
+                <dict><key>title</key><string>Widescreen</string><key>value</key><string>16 / 9</string></dict>
+                <dict><key>title</key><string>Landscape</string><key>value</key><string>3 / 2</string></dict>
+                <dict><key>title</key><string>Standard</string><key>value</key><string>4 / 3</string></dict>
+                <dict><key>title</key><string>Square</string><key>value</key><string>1 / 1</string></dict>
+                <dict><key>title</key><string>Portrait</string><key>value</key><string>4 / 5</string></dict>
+            </array>
+        </dict>
+        <dict>
+            <key>id</key><string>cornerRadius</string>
+            <key>label</key><string>Corner Radius</string>
+            <key>group</key><string>Appearance</string>
+            <key>type</key><string>number</string>
+            <key>minimum</key><integer>0</integer>
+            <key>maximum</key><integer>80</integer>
+            <key>step</key><integer>1</integer>
+            <key>default</key><integer>16</integer>
+            <key>units</key><string>px</string>
+            <key>responsive</key><true/>
+        </dict>
+    </array>
+    <key>description</key>
+    <string>Displays an accessible, responsive carousel of editable images and captions.</string>
+    <key>group</key>
+    <string>Media</string>
+    <key>id</key>
+    <string>foundry.media.imageslider</string>
+    <key>minimumAPIVersion</key>
+    <integer>1</integer>
+    <key>tags</key>
+    <array><string>Foundry</string><string>built-in</string><string>image</string><string>slider</string><string>gallery</string></array>
+    <key>templates</key>
+    <dict>
+        <key>html</key><string>part.html</string>
+        <key>editorCSS</key><string>editor.css</string>
+        <key>files</key>
+        <array>
+            <dict><key>path</key><string>part.css</string><key>scope</key><string>instance</string></dict>
+            <dict><key>path</key><string>part.js</string><key>scope</key><string>instance</string></dict>
+        </array>
+    </dict>
+    <key>title</key>
+    <string>Image Slider</string>
+    <key>version</key>
+    <string>1.0.0</string>
+</dict>
+</plist>

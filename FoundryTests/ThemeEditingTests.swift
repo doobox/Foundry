@@ -198,18 +198,18 @@ struct ThemeEditingTests {
         let original = try #require(document.site.theme.colourPalettes.first)
         let custom = try original.duplicated()
         document.site.theme.colourPalettes.insert(custom, at: 0)
-        let value = BlockPackageColorValue(source: custom.id, customColor: "#000000",
+        let value = PartPackageColorValue(source: custom.id, customColor: "#000000",
                                               opacity: 1, shade: .eight)
-        var child = BlockNode.make(.container)
+        var child = PartNode.make(.container)
         child.setProperty(.backgroundColor, value: .packageColor(value))
         var following = value
         following.shade = .one
         child.setResponsiveProperty(.backgroundColor, value: .packageColor(following), at: .medium)
-        var parent = BlockNode.make(.container)
+        var parent = PartNode.make(.container)
         parent.children = [child]
-        document.site.pages[0].blocks = [parent]
-        document.site.reusableBlocks = [.init(name: "Reusable", root: child)]
-        document.site.globalBlocks = [.init(name: "Global", root: child)]
+        document.site.pages[0].parts = [parent]
+        document.site.reusableParts = [.init(name: "Reusable", root: child)]
+        document.site.globalParts = [.init(name: "Global", root: child)]
         let before = document.site
         #expect(session.colourIsInUse(custom.id))
         session.deleteColour(custom.id, replacement: nil)
@@ -223,8 +223,8 @@ struct ThemeEditingTests {
         expected.source = original.id
         var expectedFollowing = following
         expectedFollowing.source = original.id
-        for node in [document.site.pages[0].blocks[0].children[0],
-                     document.site.reusableBlocks[0].root, document.site.globalBlocks[0].root] {
+        for node in [document.site.pages[0].parts[0].children[0],
+                     document.site.reusableParts[0].root, document.site.globalParts[0].root] {
             #expect(node.propertyValue(.backgroundColor) == .packageColor(expected))
             #expect(node.propertyValue(.backgroundColor, at: .medium) == .packageColor(expectedFollowing))
         }
@@ -309,42 +309,42 @@ struct ThemeEditingTests {
         let firstID = editor.addThemeFontSize()
         let secondID = editor.addThemeFontSize()
 
-        #expect(firstID != BlockThemeValueSelection.manualCustom)
-        #expect(firstID != BlockThemeValueSelection.manifestCustom)
+        #expect(firstID != PartThemeValueSelection.manualCustom)
+        #expect(firstID != PartThemeValueSelection.manifestCustom)
         #expect(secondID != firstID)
         #expect(document.site.theme.typography.customFontSizes.contains { $0.id == firstID })
-        #expect(BlockThemeValueSelection.isManualCustom(BlockThemeValueSelection.manualCustom))
+        #expect(PartThemeValueSelection.isManualCustom(PartThemeValueSelection.manualCustom))
     }
 
     @Test
     func designTokenReferencesRoundTripThroughProjectJSON() throws {
         var site = TestSiteFixtures.populatedSite()
-        let blockID = try #require(site.pages.first?.blocks.first?.id)
-        site.updateBlock(id: blockID) {
+        let partID = try #require(site.pages.first?.parts.first?.id)
+        site.updatePart(id: partID) {
             $0.setProperty(.backgroundColor, value: .token(.accentColor))
             $0.setProperty(.padding, value: .token(.largeSpacing))
         }
 
         let data = try FoundryDocument.encoder.encode(site)
         let decoded = try FoundryDocument.decoder.decode(Site.self, from: data)
-        let block = try #require(decoded.block(withID: blockID))
+        let part = try #require(decoded.part(withID: partID))
 
-        #expect(block.propertyValue(.backgroundColor) == .token(.accentColor))
-        #expect(block.propertyValue(.padding) == .token(.largeSpacing))
+        #expect(part.propertyValue(.backgroundColor) == .token(.accentColor))
+        #expect(part.propertyValue(.padding) == .token(.largeSpacing))
     }
 
     @Test
-    func rendererResolvesBlockTokensThroughTheme() async throws {
-        await BlockPackageCatalog.shared.waitUntilLoaded()
+    func rendererResolvesPartTokensThroughTheme() async throws {
+        await PartPackageCatalog.shared.waitUntilLoaded()
         var theme = Theme.standard
         theme.colors.accent = "#123ABC"
-        var container = BlockNode.make(.container)
+        var container = PartNode.make(.container)
         container.setProperty(.backgroundColor, value: .packageColor(.init(
             source: ThemeColorRole.accent.rawValue,
             customColor: "#000000",
             opacity: 1
         )))
-        let page = Page(title: "Tokens", slug: "tokens", blocks: [container])
+        let page = Page(title: "Tokens", slug: "tokens", parts: [container])
 
         let html = HTMLPageRenderer().render(page: page, theme: theme)
 
@@ -353,28 +353,28 @@ struct ThemeEditingTests {
 
     @Test @MainActor
     func paragraphColorAppliesPickerOpacityOnlyToCustomColors() async {
-        await BlockPackageCatalog.shared.waitUntilLoaded()
-        var paragraph = BlockNode.make(.paragraph)
+        await PartPackageCatalog.shared.waitUntilLoaded()
+        var paragraph = PartNode.make(.paragraph)
         paragraph.setProperty(.init(rawValue: "textColor"), value: .packageColor(.init(
             source: ThemeColorRole.accent.rawValue,
             customColor: "#000000",
             opacity: 0.5
         )))
 
-        let page = Page(title: "Colour", slug: "colour", blocks: [paragraph])
+        let page = Page(title: "Colour", slug: "colour", parts: [paragraph])
         let themedHTML = HTMLPageRenderer().render(page: page, theme: .standard)
 
         #expect(themedHTML.contains("color: #5B5BD6"))
         #expect(!themedHTML.contains("color: rgb("))
 
         paragraph.setProperty(.init(rawValue: "textColor"), value: .packageColor(.init(
-            source: BlockThemeValueSelection.manualCustom,
+            source: PartThemeValueSelection.manualCustom,
             customColor: "#123456",
             opacity: 0.5
         )))
-        let customPage = Page(title: "Colour", slug: "colour", blocks: [paragraph])
+        let customPage = Page(title: "Colour", slug: "colour", parts: [paragraph])
         let customHTML = HTMLPageRenderer().render(page: customPage, theme: .standard)
-        #expect(customHTML.contains("color: \(BlockTemplateRenderer.colorWithAlpha("#123456", alpha: 0.5))"))
+        #expect(customHTML.contains("color: \(PartTemplateRenderer.colorWithAlpha("#123456", alpha: 0.5))"))
     }
 
     @Test
@@ -421,21 +421,21 @@ struct ThemeEditingTests {
     }
 
     @Test
-    func deletingCustomThemeValueReplacesBlockReferencesAtomically() throws {
+    func deletingCustomThemeValueReplacesPartReferencesAtomically() throws {
         let document = FoundryDocument()
         let editor = ProjectEditor(document: document, undoManager: UndoManager())
         let id = editor.addThemeFontSize()
-        var block = BlockNode.make(.paragraph)
-        block.setProperty(.fontSize, value: .packageFontSize(.init(
+        var part = PartNode.make(.paragraph)
+        part.setProperty(.fontSize, value: .packageFontSize(.init(
             source: id,
             customValue: "1rem",
             customLineHeight: "1.5"
         )))
-        document.site.pages[0].blocks = [block]
+        document.site.pages[0].parts = [part]
 
         editor.removeThemeFontSize(id: id, replacingWith: "base")
 
-        let updated = try #require(document.site.pages.first?.blocks.first)
+        let updated = try #require(document.site.pages.first?.parts.first)
         #expect(updated.propertyValue(.fontSize).stringValue == "base")
         #expect(!document.site.theme.typography.customFontSizes.contains { $0.id == id })
     }
@@ -511,7 +511,7 @@ struct ThemeEditingTests {
         #expect(shadow.title == "Floating Card")
         #expect(shadow.cssValue.contains("3px 12px 28px"))
         #expect(document.site.theme.shadowCSSVariables.contains(shadow.cssVariable))
-        #expect(BlockPackageThemeValueResolver.resolve(
+        #expect(PartPackageThemeValueResolver.resolve(
             shadowID,
             from: .shadows,
             theme: document.site.theme
@@ -539,24 +539,24 @@ struct ThemeEditingTests {
     }
 
     @Test
-    func blockShadowValuesRoundTripAndResolveThemeOrCustomLayers() throws {
+    func partShadowValuesRoundTripAndResolveThemeOrCustomLayers() throws {
         let customLayer = ThemeShadowLayer(
             x: 3, y: 7, blur: 12, color: "#123456", opacity: 0.4
         )
-        let custom = BlockPackageShadowValue(
-            source: BlockThemeValueSelection.manualCustom,
+        let custom = PartPackageShadowValue(
+            source: PartThemeValueSelection.manualCustom,
             customLayers: [customLayer]
         )
 
-        let data = try FoundryDocument.encoder.encode(BlockProperty.Value.packageShadow(custom))
-        let decoded = try FoundryDocument.decoder.decode(BlockProperty.Value.self, from: data)
+        let data = try FoundryDocument.encoder.encode(PartProperty.Value.packageShadow(custom))
+        let decoded = try FoundryDocument.decoder.decode(PartProperty.Value.self, from: data)
 
         #expect(decoded == .packageShadow(custom))
-        #expect(BlockPackageShadowResolver.resolve(custom, theme: .standard) == customLayer.cssValue)
+        #expect(PartPackageShadowResolver.resolve(custom, theme: .standard) == customLayer.cssValue)
 
-        let themed = BlockPackageShadowValue(source: "lg", customLayers: [customLayer])
+        let themed = PartPackageShadowValue(source: "lg", customLayers: [customLayer])
         #expect(
-            BlockPackageShadowResolver.resolve(themed, theme: .standard)
+            PartPackageShadowResolver.resolve(themed, theme: .standard)
                 == Theme.standard.shadowCSSVariable(for: "lg")
         )
     }

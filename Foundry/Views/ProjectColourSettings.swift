@@ -27,7 +27,7 @@ struct ProjectColourSettings: View {
                 VStack(alignment: .leading, spacing: 16) {
                     Text("Delete \(palette.name)?").font(.headline)
                     if inUse {
-                        Text("This colour is in use. Choose a replacement. Each block’s currently selected shade will be kept.")
+                        Text("This colour is in use. Choose a replacement. Each part’s currently selected shade will be kept.")
                         Picker("Replace with", selection: $replacement) {
                             Text("Choose a colour").tag("")
                             ForEach(document.site.theme.colourPalettes.filter { $0.id != palette.id }) { value in
