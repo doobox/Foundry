@@ -1501,9 +1501,11 @@ private struct WindowMinimumContentSize: NSViewRepresentable {
     }
 }
 
-private final class WindowMinimumSizeReaderView: NSView {
+final class WindowMinimumSizeReaderView: NSView {
     private weak var observedWindow: NSWindow?
     private var windowObservers: [NSObjectProtocol] = []
+    private var isApplyingMinimumContentSize = false
+    private var minimumSizeCheckScheduled = false
 
     var minimumContentSize = NSSize.zero {
         didSet {
@@ -1533,7 +1535,9 @@ private final class WindowMinimumSizeReaderView: NSView {
             NSWindow.didResizeNotification
         ].map { notification in
             center.addObserver(forName: notification, object: window, queue: .main) { [weak self] _ in
-                self?.applyMinimumContentSize()
+                // A resize notification can arrive inside setFrame, before
+                // contentLayoutRect reflects the new size. Read it next turn.
+                self?.scheduleMinimumSizeCheck()
             }
         }
     }
@@ -1546,6 +1550,12 @@ private final class WindowMinimumSizeReaderView: NSView {
 
     private func applyMinimumContentSize() {
         guard let window else { return }
+        guard !isApplyingMinimumContentSize else {
+            scheduleMinimumSizeCheck()
+            return
+        }
+        isApplyingMinimumContentSize = true
+        defer { isApplyingMinimumContentSize = false }
 
         let contentBounds = window.contentView?.bounds.size ?? window.contentLayoutRect.size
         let layoutSize = window.contentLayoutRect.size
@@ -1584,6 +1594,16 @@ private final class WindowMinimumSizeReaderView: NSView {
         }
 
         window.setFrame(targetFrame, display: true)
+    }
+
+    private func scheduleMinimumSizeCheck() {
+        guard !minimumSizeCheckScheduled else { return }
+        minimumSizeCheckScheduled = true
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            self.minimumSizeCheckScheduled = false
+            self.applyMinimumContentSize()
+        }
     }
 }
 
@@ -1737,7 +1757,7 @@ nonisolated private struct PanelSizing {
         case .inspector:
             self.init(minimum: 380, ideal: 380, maximum: 494)
         case .canvas:
-            self.init(minimum: 340, ideal: 760, maximum: .infinity)
+            self.init(minimum: 400, ideal: 760, maximum: .infinity)
         }
     }
 
