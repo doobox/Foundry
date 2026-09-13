@@ -498,12 +498,12 @@ private final class AppKitWorkspaceSplitViewController: NSSplitViewController, N
 
     private enum ToolbarIdentifier {
         static let toolbar = NSToolbar.Identifier("foundry.editor.toolbar")
+        static let trailingSeparator = NSToolbarItem.Identifier("foundry.toolbar.inspector-separator")
         static let sidebarToggle = NSToolbarItem.Identifier("foundry.toolbar.sidebar-toggle")
         static let blockUpdates = NSToolbarItem.Identifier("foundry.toolbar.block-updates")
         static let leadingSeparator = NSToolbarItem.Identifier("foundry.toolbar.sidebar-separator")
         static let workspaces = NSToolbarItem.Identifier("foundry.toolbar.workspaces")
         static let preview = NSToolbarItem.Identifier("foundry.toolbar.preview")
-        static let trailingSeparator = NSToolbarItem.Identifier("foundry.toolbar.inspector-separator")
         static let settings = NSToolbarItem.Identifier("foundry.toolbar.settings")
         static let publish = NSToolbarItem.Identifier("foundry.toolbar.publish")
         static let inspectorToggle = NSToolbarItem.Identifier("foundry.toolbar.inspector-toggle")
@@ -519,6 +519,7 @@ private final class AppKitWorkspaceSplitViewController: NSSplitViewController, N
     private var preferredWidthChanged: (UUID, CGFloat) -> Void = { _, _ in }
     private var inspectorTransitionCompleted: () -> Void = {}
     private var toolbarContent: WorkspaceToolbarContent?
+    private weak var configuredToolbarWindow: NSWindow?
     private var toolbarHostingViews: [NSToolbarItem.Identifier: NSHostingView<AnyView>] = [:]
     private var activeDividerIndex: Int?
     private var dividerCommitTask: Task<Void, Never>?
@@ -529,6 +530,9 @@ private final class AppKitWorkspaceSplitViewController: NSSplitViewController, N
     private var lastShowsSidebar: Bool?
     private var lastShowsInspector: Bool?
     private var lastColumns: [WorkspaceColumn]?
+#if DEBUG
+    private let shellDiagnostics = ShellWindowDiagnostics()
+#endif
 
     private lazy var editorToolbar: NSToolbar = {
         let toolbar = NSToolbar(identifier: ToolbarIdentifier.toolbar)
@@ -555,6 +559,9 @@ private final class AppKitWorkspaceSplitViewController: NSSplitViewController, N
     override func viewDidLayout() {
         super.viewDidLayout()
         installWindowToolbarIfNeeded()
+#if DEBUG
+        shellDiagnostics.didLayout()
+#endif
         guard needsInitialWidthApplication else { return }
         needsInitialWidthApplication = false
         scheduleInitialWidths()
@@ -662,6 +669,9 @@ private final class AppKitWorkspaceSplitViewController: NSSplitViewController, N
         inspectorHostingController.sizingOptions = []
         inspectorHostingController.view.frame.size.width = inspectorPreferredWidth
         let inspectorItem = NSSplitViewItem(inspectorWithViewController: inspectorHostingController)
+        // Keep the inspector below the titlebar; only the sidebar should
+        // extend its material through the full window height.
+        inspectorItem.allowsFullHeightLayout = false
         inspectorEntry = OuterEntry(
             id: inspector.id,
             column: inspector,
@@ -917,12 +927,31 @@ private final class AppKitWorkspaceSplitViewController: NSSplitViewController, N
               let window = view.window else {
             return
         }
+#if DEBUG
+        shellDiagnostics.attach(to: window, rootView: view)
+#endif
+        // Layout runs repeatedly during resizing. Configure only when this
+        // controller attaches its toolbar, not on every layout pass.
+        guard configuredToolbarWindow !== window || window.toolbar !== editorToolbar else { return }
+        configuredToolbarWindow = window
+#if DEBUG
+        shellDiagnostics.willConfigureWindow()
+#endif
         window.styleMask.insert(.fullSizeContentView)
         window.titlebarAppearsTransparent = true
         window.toolbarStyle = .unified
         if window.toolbar !== editorToolbar {
             window.toolbar = editorToolbar
         }
+        // A saved toolbar from the previous experiment may omit this item.
+        if !editorToolbar.items.contains(where: { $0.itemIdentifier == ToolbarIdentifier.trailingSeparator }),
+           let settingsIndex = editorToolbar.items.firstIndex(where: { $0.itemIdentifier == ToolbarIdentifier.settings }) {
+            editorToolbar.insertItem(withItemIdentifier: ToolbarIdentifier.trailingSeparator, at: settingsIndex)
+            editorToolbar.insertItem(withItemIdentifier: .flexibleSpace, at: settingsIndex + 1)
+        }
+#if DEBUG
+        shellDiagnostics.didConfigureWindow()
+#endif
     }
 
     private func updateToolbarHostingViews() {
@@ -999,17 +1028,17 @@ private final class AppKitWorkspaceSplitViewController: NSSplitViewController, N
         willBeInsertedIntoToolbar flag: Bool
     ) -> NSToolbarItem? {
         switch itemIdentifier {
-        case ToolbarIdentifier.leadingSeparator:
-            return NSTrackingSeparatorToolbarItem(
-                identifier: itemIdentifier,
-                splitView: splitView,
-                dividerIndex: 0
-            )
         case ToolbarIdentifier.trailingSeparator:
             return NSTrackingSeparatorToolbarItem(
                 identifier: itemIdentifier,
                 splitView: splitView,
                 dividerIndex: 1
+            )
+        case ToolbarIdentifier.leadingSeparator:
+            return NSTrackingSeparatorToolbarItem(
+                identifier: itemIdentifier,
+                splitView: splitView,
+                dividerIndex: 0
             )
         default:
             guard let content = toolbarView(for: itemIdentifier) else { return nil }
@@ -1027,6 +1056,7 @@ private final class AppKitWorkspaceSplitViewController: NSSplitViewController, N
             return item
         }
     }
+
 
     private func toolbarLabel(for identifier: NSToolbarItem.Identifier) -> String {
         switch identifier {
@@ -1557,6 +1587,134 @@ private final class WindowMinimumSizeReaderView: NSView {
     }
 }
 
+#if DEBUG
+
+/// Temporary, observation-only instrumentation for the shell audit.
+/// Never records document titles, control values, or keyboard events.
+@MainActor
+private final class ShellWindowDiagnostics {
+    private weak var window: NSWindow?
+    private weak var rootView: NSView?
+    private var observers: [NSObjectProtocol] = []
+    private var mouseMonitor: Any?
+    private var configurationCount = 0
+    private var layoutCount = 0
+    private var lastConfiguration = ""
+    private var didCaptureInitialLayout = false
+
+    deinit {
+        observers.forEach(NotificationCenter.default.removeObserver)
+        if let mouseMonitor { NSEvent.removeMonitor(mouseMonitor) }
+    }
+
+    func attach(to window: NSWindow, rootView: NSView) {
+        guard self.window !== window else { return }
+        observers.forEach(NotificationCenter.default.removeObserver)
+        observers.removeAll()
+        if let mouseMonitor { NSEvent.removeMonitor(mouseMonitor) }
+        self.window = window
+        self.rootView = rootView
+        didCaptureInitialLayout = false
+        configurationCount = 0
+        layoutCount = 0
+        lastConfiguration = ""
+        for (name, label) in [
+            (NSWindow.willStartLiveResizeNotification, "resize-start"),
+            (NSWindow.didEndLiveResizeNotification, "resize-end"),
+            (NSWindow.didBecomeKeyNotification, "became-key"),
+            (NSWindow.didResignKeyNotification, "resigned-key")
+        ] {
+            observers.append(NotificationCenter.default.addObserver(
+                forName: name, object: window, queue: .main
+            ) { [weak self] _ in
+                MainActor.assumeIsolated {
+                    self?.snapshot(label)
+                    if label == "resize-end" {
+                        DispatchQueue.main.async { [weak self] in
+                            self?.snapshot("resize-end-next-turn")
+                        }
+                    }
+                }
+            })
+        }
+        mouseMonitor = NSEvent.addLocalMonitorForEvents(matching: .leftMouseDown) { [weak self] event in
+            self?.recordTitleClick(event)
+            return event // Do not consume or alter the event.
+        }
+        snapshot("attached-before-configuration")
+    }
+
+    func willConfigureWindow() {
+        configurationCount += 1
+        recordConfigurationChange("before-configuration")
+    }
+
+    func didConfigureWindow() {
+        recordConfigurationChange("after-configuration")
+    }
+
+    func didLayout() {
+        layoutCount += 1
+        recordConfigurationChange("after-layout")
+        guard !didCaptureInitialLayout else { return }
+        didCaptureInitialLayout = true
+        DispatchQueue.main.async { [weak self] in self?.snapshot("initial-layout-next-turn") }
+    }
+
+    private func settings() -> String {
+        guard let window else { return "no-window" }
+        let toolbar = window.toolbar.map { String(describing: ObjectIdentifier($0)) } ?? "nil"
+        return "fullSize=\(window.styleMask.contains(.fullSizeContentView)) transparent=\(window.titlebarAppearsTransparent) separator=\(window.titlebarSeparatorStyle.rawValue) toolbarStyle=\(window.toolbarStyle.rawValue) toolbar=\(toolbar)"
+    }
+
+    private func recordConfigurationChange(_ reason: String) {
+        let current = settings()
+        guard current != lastConfiguration else { return }
+        lastConfiguration = current
+        log("\(reason) \(current)")
+    }
+
+    private func snapshot(_ reason: String) {
+        guard let window else { return }
+        log("\(reason) configs=\(configurationCount) layouts=\(layoutCount) key=\(window.isKeyWindow) liveResize=\(window.inLiveResize) \(settings())")
+        log("windowFrame=\(window.frame) contentLayout=\(window.contentLayoutRect) contentMin=\(window.contentMinSize)")
+        if let content = window.contentView { describe(content, label: "window-content") }
+        if let rootView { describeTree(rootView, depth: 0) }
+    }
+
+    private func describeTree(_ view: NSView, depth: Int) {
+        // AppKit structure only: do not walk SwiftUI's private content tree.
+        describe(view, label: "shell[\(depth)]")
+        guard depth < 5, !(view is NSHostingView<AnyView>) else { return }
+        for child in view.subviews { describeTree(child, depth: depth + 1) }
+    }
+
+    private func describe(_ view: NSView, label: String) {
+        log("\(label) \(type(of: view)) frameInWindow=\(view.convert(view.bounds, to: nil)) safeInWindow=\(view.convert(view.safeAreaLayoutGuide.frame, to: nil)) hidden=\(view.isHidden) opaque=\(view.isOpaque) mouseCanMove=\(view.mouseDownCanMoveWindow)")
+    }
+
+    private func recordTitleClick(_ event: NSEvent) {
+        guard let window, event.window === window,
+              event.locationInWindow.y >= window.contentLayoutRect.maxY,
+              let frameView = window.contentView?.superview else { return }
+        let point = frameView.superview?.convert(event.locationInWindow, from: nil) ?? event.locationInWindow
+        let hit = frameView.hitTest(point)
+        log("title-click count=\(event.clickCount) point=\(event.locationInWindow) hit=\(hit.map { String(describing: type(of: $0)) } ?? "nil")")
+        var ancestor = hit
+        for index in 0..<8 {
+            guard let view = ancestor else { break }
+            describe(view, label: "hit-ancestor[\(index)]")
+            ancestor = view.superview
+        }
+    }
+
+    private func log(_ message: String) {
+        let identity = window.map { String(describing: ObjectIdentifier($0)) } ?? "nil"
+        print("[ShellAudit \(identity)] \(message)")
+    }
+}
+#endif
+
 nonisolated private struct PanelSizing {
     let minimum: CGFloat
     let ideal: CGFloat
@@ -1579,7 +1737,7 @@ nonisolated private struct PanelSizing {
         case .inspector:
             self.init(minimum: 380, ideal: 380, maximum: 494)
         case .canvas:
-            self.init(minimum: 240, ideal: 760, maximum: .infinity)
+            self.init(minimum: 340, ideal: 760, maximum: .infinity)
         }
     }
 
@@ -2157,14 +2315,12 @@ private struct WorkspaceColumnView<PanelContent: View>: View {
             consolidationTargeted = $0
         }
         .background {
-            Group {
-                if usesSidebarMaterial {
-                    SidebarMaterialBackground()
-                } else {
-                    Color(nsColor: .controlBackgroundColor)
-                }
+            if usesSidebarMaterial {
+                SidebarMaterialBackground()
+                    .ignoresSafeArea()
+            } else {
+                Color(nsColor: .controlBackgroundColor)
             }
-            .ignoresSafeArea()
         }
         .overlay {
             if consolidationTargeted,
@@ -2259,7 +2415,11 @@ private struct WorkspaceColumnView<PanelContent: View>: View {
             .scrollIndicators(.hidden)
         }
         .frame(height: 36)
-        .background(.bar)
+        .background {
+            if !usesSidebarMaterial {
+                Rectangle().fill(.bar)
+            }
+        }
         .dropDestination(for: WorkspacePanelDragPayload.self) { values, _ in
             accept(values, before: nil)
         } isTargeted: {

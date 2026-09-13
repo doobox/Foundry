@@ -22,6 +22,8 @@ struct FoundryApp: App {
         DocumentGroup(newDocument: { FoundryDocument() }) { file in
             ContentView(document: file.document)
                 .environment(workspaceLibrary)
+                //.toolbarBackgroundVisibility(.hidden, for: .windowToolbar)
+                .toolbarBackground(.quinary, for: .windowToolbar)
         }
         .commands {
             AboutMenuCommands()
