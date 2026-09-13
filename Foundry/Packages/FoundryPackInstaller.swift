@@ -6,7 +6,7 @@ enum FoundryPackInstaller {
     static func install(from sourceURL: URL, reloadCatalog: Bool = true) throws {
         try installFiles(from: sourceURL)
         if reloadCatalog {
-            ComponentPackageCatalog.shared.reloadInstalledPacks()
+            BlockPackageCatalog.shared.reloadInstalledPacks()
         }
     }
 
@@ -16,7 +16,7 @@ enum FoundryPackInstaller {
         for url in packURLs {
             let pack = try FoundryPackLoader.load(from: url)
             if !pack.isCollection {
-                _ = try ComponentPackageLoader.load(from: url)
+                _ = try BlockPackageLoader.load(from: url)
             }
         }
 
@@ -70,7 +70,7 @@ final class FoundryApplicationDelegate: NSObject, NSApplicationDelegate {
             }
             guard FoundryPackLoader.isPackURL(url) else { continue }
             if url.pathExtension.lowercased() == "foundrydevpack" {
-                ComponentPackageCatalog.shared.openDevelopmentPack(at: url)
+                BlockPackageCatalog.shared.openDevelopmentPack(at: url)
                 continue
             }
             do {

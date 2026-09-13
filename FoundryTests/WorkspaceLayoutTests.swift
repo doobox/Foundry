@@ -59,7 +59,7 @@ struct WorkspaceLayoutTests {
         var layout = WorkspaceLayout.standard
         let canvasColumnID = layout.columns[1].id
 
-        layout.move(.components, to: canvasColumnID)
+        layout.move(.blocks, to: canvasColumnID)
 
         #expect(layout == .standard)
     }
@@ -78,10 +78,10 @@ struct WorkspaceLayoutTests {
         var layout = WorkspaceLayout.standard
         let sourceID = layout.columns[0].id
 
-        layout.moveToNewColumn(.components, after: sourceID)
+        layout.moveToNewColumn(.blocks, after: sourceID)
 
         #expect(layout.columns.count == 4)
-        #expect(layout.columns[1].panels == [.components])
+        #expect(layout.columns[1].panels == [.blocks])
         #expect(Set(layout.columns.flatMap(\.panels)) == Set(WorkspacePanel.allCases.filter { $0 != .developer }))
     }
 
@@ -89,38 +89,38 @@ struct WorkspaceLayoutTests {
     func detachingAndRedockingPreservesPanelIdentity() {
         var layout = WorkspaceLayout.standard
         let sourceColumnID = layout.columns[0].id
-        let sourcePanelIndex = layout.columns[0].panels.firstIndex(of: .components)
+        let sourcePanelIndex = layout.columns[0].panels.firstIndex(of: .blocks)
 
-        layout.detach(.components)
-        #expect(layout.detachedPanels.map(\.panel) == [.components])
-        #expect(!layout.columns.flatMap(\.panels).contains(.components))
+        layout.detach(.blocks)
+        #expect(layout.detachedPanels.map(\.panel) == [.blocks])
+        #expect(!layout.columns.flatMap(\.panels).contains(.blocks))
 
-        layout.redockClosedPanel(.components)
+        layout.redockClosedPanel(.blocks)
         #expect(layout.detachedPanels.isEmpty)
-        #expect(layout.columns.first(where: { $0.id == sourceColumnID })?.panels[sourcePanelIndex ?? 0] == .components)
+        #expect(layout.columns.first(where: { $0.id == sourceColumnID })?.panels[sourcePanelIndex ?? 0] == .blocks)
     }
 
     @Test
     func solePanelInWorkspaceColumnCanDetach() {
         var layout = WorkspaceLayout.standard
         let sourceID = layout.columns[0].id
-        layout.moveToNewColumn(.components, after: sourceID)
-        let workspaceColumnIndex = layout.columns.firstIndex(where: { $0.panels == [.components] })
+        layout.moveToNewColumn(.blocks, after: sourceID)
+        let workspaceColumnIndex = layout.columns.firstIndex(where: { $0.panels == [.blocks] })
         let workspaceColumnID = workspaceColumnIndex.map { layout.columns[$0].id }
         if let workspaceColumnIndex {
             layout.columns[workspaceColumnIndex].preferredWidth = 412
         }
 
-        layout.detach(.components)
+        layout.detach(.blocks)
 
-        #expect(layout.detachedPanels.map(\.panel) == [.components])
+        #expect(layout.detachedPanels.map(\.panel) == [.blocks])
         #expect(layout.columns.allSatisfy { $0.id != workspaceColumnID })
-        #expect(!layout.columns.flatMap(\.panels).contains(.components))
+        #expect(!layout.columns.flatMap(\.panels).contains(.blocks))
 
-        layout.redockClosedPanel(.components)
+        layout.redockClosedPanel(.blocks)
 
         #expect(layout.columns.firstIndex(where: { $0.id == workspaceColumnID }) == workspaceColumnIndex)
-        #expect(layout.columns.first(where: { $0.id == workspaceColumnID })?.panels == [.components])
+        #expect(layout.columns.first(where: { $0.id == workspaceColumnID })?.panels == [.blocks])
         #expect(layout.columns.first(where: { $0.id == workspaceColumnID })?.preferredWidth == 412)
     }
 
@@ -141,11 +141,11 @@ struct WorkspaceLayoutTests {
         var layout = WorkspaceLayout.standard
         let canvasColumnID = layout.columns[1].id
 
-        layout.dockAsColumn(.components, beside: canvasColumnID, before: false)
+        layout.dockAsColumn(.blocks, beside: canvasColumnID, before: false)
 
         let canvasIndex = layout.columns.firstIndex(where: { $0.id == canvasColumnID })
         #expect(canvasIndex != nil)
-        #expect(layout.columns[(canvasIndex ?? 0) + 1].panels == [.components])
+        #expect(layout.columns[(canvasIndex ?? 0) + 1].panels == [.blocks])
     }
 
     @Test

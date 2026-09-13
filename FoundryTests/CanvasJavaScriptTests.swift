@@ -5,20 +5,20 @@ import WebKit
 @MainActor
 struct CanvasJavaScriptTests {
     @Test(.timeLimit(.minutes(1)))
-    func structuralUpdatesDoNotLeaveDuplicateOrRemovedComponents() async throws {
+    func structuralUpdatesDoNotLeaveDuplicateOrRemovedBlocks() async throws {
         let configuration = WKWebViewConfiguration()
         configuration.userContentController.addUserScript(.init(
             source: WebCanvasView.Coordinator.interactionScript,
             injectionTime: .atDocumentEnd, forMainFrameOnly: true, in: .defaultClient))
         let webView = WKWebView(frame: .zero, configuration: configuration)
         defer { webView.stopLoading() }
-        func component(_ id: String, _ contents: String) -> String {
+        func block(_ id: String, _ contents: String) -> String {
             "<article data-foundry-id=\"\(id)\"><div class=\"slot\">\(contents)</div></article>"
         }
-        let empty = "<div class=\"foundry-empty-drop-zone\">Drop component here</div>"
-        let child = component("third-party-child", empty)
+        let empty = "<div class=\"foundry-empty-drop-zone\">Drop block here</div>"
+        let child = block("third-party-child", empty)
         let parent = "third-party-parent"
-        let initial = component(parent, empty) + child
+        let initial = block(parent, empty) + child
         webView.loadHTMLString("<html><body>\(initial)</body></html>", baseURL: nil)
         var ready = false
         for _ in 0..<200 {
@@ -29,10 +29,10 @@ struct CanvasJavaScriptTests {
             try await Task.sleep(for: .milliseconds(25))
         }
         try #require(ready)
-        // Nest, unnest, reorder, add and delete arbitrary component identities.
-        let bodies = [component(parent, child), initial, child + component(parent, empty),
-                      component(parent, component("another-wrapper", child)),
-                      component(parent, empty), ""]
+        // Nest, unnest, reorder, add and delete arbitrary block identities.
+        let bodies = [block(parent, child), initial, child + block(parent, empty),
+                      block(parent, block("another-wrapper", child)),
+                      block(parent, empty), ""]
         for body in bodies {
             let matches = try await webView.callAsyncJavaScript("""
                 const html = '<html><body>' + body + '</body></html>';
@@ -45,7 +45,7 @@ struct CanvasJavaScriptTests {
                 return JSON.stringify(signature(document)) === JSON.stringify(signature(expected))
                   && document.querySelectorAll('.foundry-empty-drop-zone').length === expected.querySelectorAll('.foundry-empty-drop-zone').length;
                 """, arguments: ["body": body], in: nil, contentWorld: .defaultClient)
-            #expect(matches as? Bool == true, "Canvas must match the authoritative component hierarchy")
+            #expect(matches as? Bool == true, "Canvas must match the authoritative block hierarchy")
         }
     }
 
@@ -86,7 +86,7 @@ struct CanvasJavaScriptTests {
                 const updated = window.foundryReplaceDocument(html);
                 return updated === true
                   && document.querySelector('#theme').textContent.includes(colour)
-                  && document.querySelector('[data-foundry-id="test-component"]').textContent === 'Example'
+                  && document.querySelector('[data-foundry-id="test-block"]').textContent === 'Example'
                   && window.canvasTestSentinel !== undefined
                   && window.canvasTestSentinel === window.originalCanvasTestSentinel;
                 """,
@@ -100,7 +100,7 @@ struct CanvasJavaScriptTests {
     private func page(colour: String) -> String {
         """
         <!doctype html><html><head><style id="theme">:root { --foundry-color-accent: \(colour); }</style></head>
-        <body><div data-foundry-id="test-component">Example</div></body></html>
+        <body><div data-foundry-id="test-block">Example</div></body></html>
         """
     }
 }

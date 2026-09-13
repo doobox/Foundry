@@ -1,7 +1,7 @@
 import Foundation
 
-nonisolated struct RenderedComponentSubtree: Equatable, Sendable {
-    let componentID: UUID
+nonisolated struct RenderedBlockSubtree: Equatable, Sendable {
+    let blockID: UUID
     let html: String
     let instanceCSS: String
 }
@@ -15,22 +15,22 @@ nonisolated protocol PageRendering: Sendable {
         breakpoint: ResponsiveBreakpoint
     ) -> String
     func renderSubtree(
-        componentID: UUID,
+        blockID: UUID,
         page: Page,
         theme: Theme,
         assets: [UUID: ProjectAssetContent],
         breakpoint: ResponsiveBreakpoint
-    ) -> RenderedComponentSubtree?
+    ) -> RenderedBlockSubtree?
 }
 
 extension PageRendering {
     func renderSubtree(
-        componentID: UUID,
+        blockID: UUID,
         page: Page,
         theme: Theme,
         assets: [UUID: ProjectAssetContent],
         breakpoint: ResponsiveBreakpoint
-    ) -> RenderedComponentSubtree? {
+    ) -> RenderedBlockSubtree? {
         nil
     }
 

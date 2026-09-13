@@ -43,31 +43,31 @@ nonisolated struct Page: Codable, Equatable, Identifiable, Sendable {
     var title: String
     var slug: String
     var metadata: PageMetadata
-    var components: [ComponentNode]
+    var blocks: [BlockNode]
     var folderID: UUID?
     var parentPageID: UUID?
     var order: Int
     var includeInNavigation: Bool
     /// Nil intentionally follows the theme's Page defaults in both appearances.
-    var backgroundOverride: ComponentPackageColorValue?
+    var backgroundOverride: BlockPackageColorValue?
 
     init(
         id: UUID = UUID(),
         title: String,
         slug: String,
         metadata: PageMetadata = .init(),
-        components: [ComponentNode] = [],
+        blocks: [BlockNode] = [],
         folderID: UUID? = nil,
         parentPageID: UUID? = nil,
         order: Int = 0,
         includeInNavigation: Bool = true,
-        backgroundOverride: ComponentPackageColorValue? = nil
+        backgroundOverride: BlockPackageColorValue? = nil
     ) {
         self.id = id
         self.title = title
         self.slug = slug
         self.metadata = metadata
-        self.components = components
+        self.blocks = blocks
         self.folderID = folderID
         self.parentPageID = parentPageID
         self.order = order
@@ -76,7 +76,7 @@ nonisolated struct Page: Codable, Equatable, Identifiable, Sendable {
     }
 
     private enum CodingKeys: String, CodingKey {
-        case id, title, slug, metadata, components, folderID, parentPageID, order, includeInNavigation, backgroundOverride
+        case id, title, slug, metadata, blocks, folderID, parentPageID, order, includeInNavigation, backgroundOverride
     }
 
     init(from decoder: Decoder) throws {
@@ -85,23 +85,23 @@ nonisolated struct Page: Codable, Equatable, Identifiable, Sendable {
         title = try container.decode(String.self, forKey: .title)
         slug = try container.decode(String.self, forKey: .slug)
         metadata = try container.decode(PageMetadata.self, forKey: .metadata)
-        components = try container.decode([ComponentNode].self, forKey: .components)
+        blocks = try container.decode([BlockNode].self, forKey: .blocks)
         folderID = try container.decodeIfPresent(UUID.self, forKey: .folderID)
         parentPageID = try container.decodeIfPresent(UUID.self, forKey: .parentPageID)
         order = try container.decode(Int.self, forKey: .order)
         includeInNavigation = try container.decodeIfPresent(Bool.self, forKey: .includeInNavigation) ?? true
-        backgroundOverride = try container.decodeIfPresent(ComponentPackageColorValue.self, forKey: .backgroundOverride)
+        backgroundOverride = try container.decodeIfPresent(BlockPackageColorValue.self, forKey: .backgroundOverride)
     }
 
     func backgroundColour(theme: Theme, appearance: SiteAppearance) -> String {
         guard let backgroundOverride else { return theme.color(for: .page, appearance: appearance) }
-        return ComponentPackageColorResolver.resolve(backgroundOverride, theme: theme, opacity: false, appearance: appearance)
+        return BlockPackageColorResolver.resolve(backgroundOverride, theme: theme, opacity: false, appearance: appearance)
     }
 
-    func backgroundSelection(theme: Theme) -> ComponentPackageColorValue {
+    func backgroundSelection(theme: Theme) -> BlockPackageColorValue {
         if let backgroundOverride { return backgroundOverride }
         let palette = theme.colourPalettes.resolvedPalette(id: "theme.page")
-        var value = ComponentPackageColorValue(source: "page", customColor: theme.color(for: .page), opacity: 1,
+        var value = BlockPackageColorValue(source: "page", customColor: theme.color(for: .page), opacity: 1,
             shade: palette?.lightDefaultShade, darkShade: palette?.darkDefaultShade)
         value.darkCustomColor = theme.color(for: .page, appearance: .dark)
         return value
@@ -122,7 +122,7 @@ nonisolated struct Page: Codable, Equatable, Identifiable, Sendable {
             title: title,
             slug: slug,
             metadata: metadata,
-            components: components.map { $0.duplicated() },
+            blocks: blocks.map { $0.duplicated() },
             folderID: folderID,
             parentPageID: parentPageID,
             order: order,
@@ -170,13 +170,13 @@ nonisolated enum PageRouteResolver {
     }
 }
 
-nonisolated extension ComponentNode {
-    func duplicated() -> ComponentNode {
-        return ComponentNode(
+nonisolated extension BlockNode {
+    func duplicated() -> BlockNode {
+        return BlockNode(
             type: type,
             name: name,
             properties: properties.map {
-                ComponentProperty(key: $0.key, value: $0.value)
+                BlockProperty(key: $0.key, value: $0.value)
             },
             children: children.map { $0.duplicated() },
             reusableDefinitionID: reusableDefinitionID,
@@ -190,20 +190,20 @@ nonisolated extension ComponentNode {
         )
     }
 
-    func duplicatedAsReusableInstance(of definitionID: UUID) -> ComponentNode {
+    func duplicatedAsReusableInstance(of definitionID: UUID) -> BlockNode {
         var copy = duplicated()
         copy.reusableDefinitionID = definitionID
         return copy
     }
 
-    func duplicatedForReusableDefinition() -> ComponentNode {
+    func duplicatedForReusableDefinition() -> BlockNode {
         var copy = duplicated()
         copy.reusableDefinitionID = nil
         return copy
     }
 
-    func duplicatedAsReusableInstance(of definitionID: UUID, rootID: UUID) -> ComponentNode {
-        ComponentNode(
+    func duplicatedAsReusableInstance(of definitionID: UUID, rootID: UUID) -> BlockNode {
+        BlockNode(
             id: rootID,
             type: type,
             name: name,
@@ -219,11 +219,11 @@ nonisolated extension ComponentNode {
         )
     }
 
-    func duplicatedAsReusableInstance(of definitionID: UUID, preservingIDsFrom instance: ComponentNode) -> ComponentNode {
+    func duplicatedAsReusableInstance(of definitionID: UUID, preservingIDsFrom instance: BlockNode) -> BlockNode {
         if instance.overridesGlobalDefinition == true {
             return instance
         }
-        return ComponentNode(
+        return BlockNode(
             id: instance.id,
             type: type,
             name: name,
@@ -247,7 +247,7 @@ nonisolated extension ComponentNode {
         )
     }
 
-    private func withoutReusableDefinitionLink() -> ComponentNode {
+    private func withoutReusableDefinitionLink() -> BlockNode {
         var copy = self
         copy.reusableDefinitionID = nil
         return copy

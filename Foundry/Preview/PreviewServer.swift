@@ -337,9 +337,9 @@ nonisolated struct PreviewHTTPRequest: Sendable {
     }
 
     func queryValue(named name: String) -> String? {
-        var components = URLComponents()
-        components.percentEncodedQuery = query
-        return components.queryItems?.first(where: { $0.name == name })?.value
+        var parts = URLComponents()
+        parts.percentEncodedQuery = query
+        return parts.queryItems?.first(where: { $0.name == name })?.value
     }
 
     init?(data: Data) {
@@ -528,9 +528,9 @@ nonisolated enum PreviewHTTPRouter {
         guard let decoded = target.removingPercentEncoding,
               !decoded.contains("\\"),
               !decoded.contains("\0") else { return nil }
-        let components = decoded.split(separator: "/", omittingEmptySubsequences: true)
-        guard !components.contains("..") else { return nil }
-        var path = components.joined(separator: "/")
+        let parts = decoded.split(separator: "/", omittingEmptySubsequences: true)
+        guard !parts.contains("..") else { return nil }
+        var path = parts.joined(separator: "/")
         if path.isEmpty || decoded.hasSuffix("/") { path += path.isEmpty ? "index.html" : "/index.html" }
         return path
     }

@@ -579,16 +579,16 @@ private enum ShadowColorCodec {
 
     static func encode(_ selectedColor: NSColor) -> (hex: String, opacity: Double)? {
         guard let color = selectedColor.usingColorSpace(.sRGB) else { return nil }
-        let components = [
+        let parts = [
             color.redComponent,
             color.greenComponent,
             color.blueComponent,
             color.alphaComponent
         ]
-        guard components.allSatisfy(\.isFinite) else { return nil }
+        guard parts.allSatisfy(\.isFinite) else { return nil }
 
-        func byte(_ component: CGFloat) -> Int {
-            Int((min(1, max(0, component)) * 255).rounded())
+        func byte(_ block: CGFloat) -> Int {
+            Int((min(1, max(0, block)) * 255).rounded())
         }
 
         return (

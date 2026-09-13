@@ -722,7 +722,7 @@ nonisolated enum ThemeFontReference: Codable, Equatable, Hashable, Sendable {
 }
 
 nonisolated extension Theme {
-    var colorChoices: [ComponentPropertyChoice] {
+    var colorChoices: [BlockPropertyChoice] {
         ThemeColorRole.allCases.map { .init(value: $0.rawValue, label: $0.title) }
     }
 
@@ -741,7 +741,7 @@ nonisolated extension Theme {
         }
     }
 
-    var fontFamilyChoices: [ComponentPropertyChoice] {
+    var fontFamilyChoices: [BlockPropertyChoice] {
         [
             .init(value: ThemeFontRole.body.rawValue, label: ThemeFontRole.body.title),
             .init(value: ThemeFontRole.heading.rawValue, label: ThemeFontRole.heading.title),
@@ -755,7 +755,7 @@ nonisolated extension Theme {
         }
     }
 
-    var fontSizeChoices: [ComponentPropertyChoice] {
+    var fontSizeChoices: [BlockPropertyChoice] {
         typography.fontSizes.enumerated().map { index, size in
             return .init(
                 value: size.id,
@@ -765,7 +765,7 @@ nonisolated extension Theme {
         }
     }
 
-    var spacingChoices: [ComponentPropertyChoice] {
+    var spacingChoices: [BlockPropertyChoice] {
         let predefined: [(String, String, Double)] = [
             ("3xs", "3XS", spacing.threeExtraSmall),
             ("2xs", "2XS", spacing.doubleExtraSmall),
@@ -791,7 +791,7 @@ nonisolated extension Theme {
         }
     }
 
-    var shadowChoices: [ComponentPropertyChoice] {
+    var shadowChoices: [BlockPropertyChoice] {
         shadows.shadows.enumerated().map { index, shadow in
             .init(
                 value: shadow.id,

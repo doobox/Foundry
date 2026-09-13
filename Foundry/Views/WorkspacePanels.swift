@@ -158,22 +158,22 @@ private struct PagesPanelHeader: View {
     }
 }
 
-struct ComponentLibraryPanel: View {
-    @Binding var selectedType: ComponentType?
-    let addToPageEnd: (ComponentType) -> Void
-    @State private var catalog = ComponentPackageCatalog.shared
-    @State private var componentSource = ComponentLibrarySource.components
-    @AppStorage(AppPreferenceKey.componentLibraryIconSize)
-    private var iconSizeValue = ComponentLibraryIconSize.small.rawValue
-    @AppStorage(AppPreferenceKey.componentLibraryArrangement)
-    private var arrangementValue = ComponentLibraryArrangement.group.rawValue
-    @AppStorage(AppPreferenceKey.showsHiddenComponents)
-    private var showsHiddenComponents = false
+struct BlockLibraryPanel: View {
+    @Binding var selectedType: BlockType?
+    let addToPageEnd: (BlockType) -> Void
+    @State private var catalog = BlockPackageCatalog.shared
+    @State private var blockSource = BlockLibrarySource.blocks
+    @AppStorage(AppPreferenceKey.blockLibraryIconSize)
+    private var iconSizeValue = BlockLibraryIconSize.small.rawValue
+    @AppStorage(AppPreferenceKey.blockLibraryArrangement)
+    private var arrangementValue = BlockLibraryArrangement.group.rawValue
+    @AppStorage(AppPreferenceKey.showsHiddenBlocks)
+    private var showsHiddenBlocks = false
 
     var body: some View {
         let _ = catalog.revision
         VStack(spacing: 0) {
-            ComponentLibraryPanelHeader(
+            BlockLibraryPanelHeader(
                 iconSize: iconSize,
                 setIconSize: { iconSizeValue = $0.rawValue },
                 arrangement: arrangement,
@@ -181,12 +181,12 @@ struct ComponentLibraryPanel: View {
             )
             Divider()
             if catalog.isInitialLoading {
-                ComponentCatalogLoadingView()
+                BlockCatalogLoadingView()
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
-                if hasDevelopmentComponents {
-                    Picker("Component source", selection: $componentSource) {
-                        ForEach(ComponentLibrarySource.allCases) { source in
+                if hasDevelopmentBlocks {
+                    Picker("Block source", selection: $blockSource) {
+                        ForEach(BlockLibrarySource.allCases) { source in
                             Text(source.title).tag(source)
                         }
                     }
@@ -200,7 +200,7 @@ struct ComponentLibraryPanel: View {
                 }
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 18) {
-                        ForEach(componentSections) { section in
+                        ForEach(blockSections) { section in
                             VStack(alignment: .leading, spacing: 8) {
                                 Text(section.title)
                                     .font(.subheadline.weight(.semibold))
@@ -221,14 +221,14 @@ struct ComponentLibraryPanel: View {
                                     spacing: 10
                                 ) {
                                     ForEach(section.types) { type in
-                                        ComponentLibraryTile(
+                                        BlockLibraryTile(
                                             type: type,
                                             iconSize: iconSize,
                                             isSelected: selectedType == type,
                                             select: { selectedType = type }
                                         )
-                                        .draggable(ComponentDragPayload.library(type).stringValue) {
-                                            ComponentLibraryIcon(type: type, size: 54)
+                                        .draggable(BlockDragPayload.library(type).stringValue) {
+                                            BlockLibraryIcon(type: type, size: 54)
                                         }
                                         .contextMenu {
                                             Button("Add to Page End", systemImage: "plus") {
@@ -259,18 +259,18 @@ struct ComponentLibraryPanel: View {
 
         }
         .onChange(of: catalog.revision, initial: true) {
-            if !hasDevelopmentComponents {
-                componentSource = .components
+            if !hasDevelopmentBlocks {
+                blockSource = .blocks
             }
             if let selectedType, availableTypes.contains(selectedType) {
                 return
             }
             selectedType = availableTypes.first
         }
-        .onChange(of: componentSource) {
+        .onChange(of: blockSource) {
             selectedType = availableTypes.first
         }
-        .onChange(of: showsHiddenComponents) {
+        .onChange(of: showsHiddenBlocks) {
             if let selectedType, availableTypes.contains(selectedType) {
                 return
             }
@@ -278,7 +278,7 @@ struct ComponentLibraryPanel: View {
         }
     }
 
-    private var componentSections: [ComponentLibrarySection] {
+    private var blockSections: [BlockLibrarySection] {
         let types = availableTypes
         switch arrangement {
         case .group:
@@ -308,8 +308,8 @@ struct ComponentLibraryPanel: View {
         }
     }
 
-    private func groupSections(for types: [ComponentType]) -> [ComponentLibrarySection] {
-        let preferredCategories: [ComponentCategory] = [
+    private func groupSections(for types: [BlockType]) -> [BlockLibrarySection] {
+        let preferredCategories: [BlockCategory] = [
             .layout, .content, .media, .navigation, .forms, .interactive, .other
         ]
         let remainingCategories = Set(types.map { $0.definition.category })
@@ -318,7 +318,7 @@ struct ComponentLibraryPanel: View {
         return (preferredCategories + remainingCategories).compactMap { category in
             let categoryTypes = types.filter { $0.definition.category == category }
             guard !categoryTypes.isEmpty else { return nil }
-            return ComponentLibrarySection(
+            return BlockLibrarySection(
                 id: "group-\(category.rawValue)",
                 title: category.rawValue,
                 types: categoryTypes
@@ -327,10 +327,10 @@ struct ComponentLibraryPanel: View {
     }
 
     private func metadataSections(
-        for types: [ComponentType],
-        value: (ComponentType) -> String?
-    ) -> [ComponentLibrarySection] {
-        var grouped: [String: [ComponentType]] = [:]
+        for types: [BlockType],
+        value: (BlockType) -> String?
+    ) -> [BlockLibrarySection] {
+        var grouped: [String: [BlockType]] = [:]
         var titles: [String: String] = [:]
         for type in types {
             let title = normalizedSectionTitle(value(type))
@@ -364,9 +364,9 @@ struct ComponentLibraryPanel: View {
     private func makeSection(
         id: String,
         title: String,
-        types: [ComponentType]
-    ) -> ComponentLibrarySection {
-        ComponentLibrarySection(
+        types: [BlockType]
+    ) -> BlockLibrarySection {
+        BlockLibrarySection(
             id: id,
             title: title,
             types: types.sorted {
@@ -377,59 +377,59 @@ struct ComponentLibraryPanel: View {
         )
     }
 
-    private var availableTypes: [ComponentType] {
-        ComponentType.allCases.filter { type in
+    private var availableTypes: [BlockType] {
+        BlockType.allCases.filter { type in
             let isDevelopmentPack = type.definition.package?.isDevelopmentPack == true
-            let showsInLibrary = type.definition.package?.manifest.showsInComponentLibrary ?? true
-            return (showsInLibrary || showsHiddenComponents)
-                && (componentSource == .development ? isDevelopmentPack : !isDevelopmentPack)
+            let showsInLibrary = type.definition.package?.manifest.showsInBlockLibrary ?? true
+            return (showsInLibrary || showsHiddenBlocks)
+                && (blockSource == .development ? isDevelopmentPack : !isDevelopmentPack)
         }
     }
 
-    private var hasDevelopmentComponents: Bool {
-        ComponentType.allCases.contains {
+    private var hasDevelopmentBlocks: Bool {
+        BlockType.allCases.contains {
             $0.definition.package?.isDevelopmentPack == true
-                && (($0.definition.package?.manifest.showsInComponentLibrary ?? true) || showsHiddenComponents)
+                && (($0.definition.package?.manifest.showsInBlockLibrary ?? true) || showsHiddenBlocks)
         }
     }
 
-    private var iconSize: ComponentLibraryIconSize {
-        ComponentLibraryIconSize(rawValue: iconSizeValue) ?? .medium
+    private var iconSize: BlockLibraryIconSize {
+        BlockLibraryIconSize(rawValue: iconSizeValue) ?? .medium
     }
 
-    private var arrangement: ComponentLibraryArrangement {
-        ComponentLibraryArrangement(rawValue: arrangementValue) ?? .group
+    private var arrangement: BlockLibraryArrangement {
+        BlockLibraryArrangement(rawValue: arrangementValue) ?? .group
     }
 }
 
-nonisolated private enum ComponentLibrarySource: String, CaseIterable, Identifiable {
-    case components
+nonisolated private enum BlockLibrarySource: String, CaseIterable, Identifiable {
+    case blocks
     case development
 
     var id: String { rawValue }
 
     var title: LocalizedStringResource {
         switch self {
-        case .components: "Components"
-        case .development: "Dev Components"
+        case .blocks: "Blocks"
+        case .development: "Dev Blocks"
         }
     }
 }
 
-private struct ComponentLibraryPanelHeader: View {
-    let iconSize: ComponentLibraryIconSize
-    let setIconSize: (ComponentLibraryIconSize) -> Void
-    let arrangement: ComponentLibraryArrangement
-    let setArrangement: (ComponentLibraryArrangement) -> Void
+private struct BlockLibraryPanelHeader: View {
+    let iconSize: BlockLibraryIconSize
+    let setIconSize: (BlockLibraryIconSize) -> Void
+    let arrangement: BlockLibraryArrangement
+    let setArrangement: (BlockLibraryArrangement) -> Void
 
     var body: some View {
         HStack {
-            Text("Components")
+            Text("Blocks")
                 .font(.headline)
             Spacer()
             Menu {
                 Menu("Icon Size") {
-                    ForEach(ComponentLibraryIconSize.allCases) { size in
+                    ForEach(BlockLibraryIconSize.allCases) { size in
                         Toggle(
                             size.title,
                             isOn: Binding(
@@ -444,7 +444,7 @@ private struct ComponentLibraryPanelHeader: View {
                     }
                 }
                 Menu("Arrange By") {
-                    ForEach(ComponentLibraryArrangement.allCases) { option in
+                    ForEach(BlockLibraryArrangement.allCases) { option in
                         Toggle(
                             option.title,
                             isOn: Binding(
@@ -466,14 +466,14 @@ private struct ComponentLibraryPanelHeader: View {
             .menuStyle(.borderlessButton)
             .menuIndicator(.hidden)
             .fixedSize()
-            .help("Component view options")
+            .help("Block view options")
         }
         .padding(.horizontal, 12)
         .frame(height: 38)
     }
 }
 
-nonisolated private enum ComponentLibraryArrangement: String, CaseIterable, Identifiable {
+nonisolated private enum BlockLibraryArrangement: String, CaseIterable, Identifiable {
     case group
     case author
     case tag
@@ -491,7 +491,7 @@ nonisolated private enum ComponentLibraryArrangement: String, CaseIterable, Iden
     }
 }
 
-nonisolated private enum ComponentLibraryIconSize: String, CaseIterable, Identifiable {
+nonisolated private enum BlockLibraryIconSize: String, CaseIterable, Identifiable {
     case list
     case small
     case medium
@@ -531,7 +531,7 @@ nonisolated private enum ComponentLibraryIconSize: String, CaseIterable, Identif
 }
 
 struct DeveloperPanel: View {
-    @State private var catalog = ComponentPackageCatalog.shared
+    @State private var catalog = BlockPackageCatalog.shared
     @State private var selection = DeveloperPanelSection.issues
     @Environment(\.openWindow) private var openWindow
 
@@ -550,7 +550,7 @@ struct DeveloperPanel: View {
             .padding(12)
             .onChange(of: selection) { _, newSelection in
                 guard newSelection == .updater else { return }
-                openWindow(id: "component-updates")
+                openWindow(id: "block-updates")
                 selection = .issues
             }
 
@@ -588,12 +588,12 @@ struct DeveloperPanel: View {
     }
 
     private var summaryTitle: String {
-        guard !issues.isEmpty else { return "Components are healthy" }
-        return issues.count == 1 ? "1 component needs attention" : "\(issues.count) components need attention"
+        guard !issues.isEmpty else { return "Blocks are healthy" }
+        return issues.count == 1 ? "1 block needs attention" : "\(issues.count) blocks need attention"
     }
 
     private var summaryDescription: String {
-        guard !issues.isEmpty else { return "All discovered component packages loaded successfully." }
+        guard !issues.isEmpty else { return "All discovered block packages loaded successfully." }
         var parts: [String] = []
         if errorCount > 0 {
             parts.append(errorCount == 1 ? "1 error" : "\(errorCount) errors")
@@ -630,15 +630,15 @@ private struct DeveloperIssuesView: View {
                         .foregroundStyle(.secondary)
                 }
                 Spacer(minLength: 8)
-                Button("Reload Components", systemImage: "arrow.clockwise", action: reload)
+                Button("Reload Blocks", systemImage: "arrow.clockwise", action: reload)
                     .labelStyle(.iconOnly)
-                    .help("Reload component packages")
+                    .help("Reload block packages")
             }
             .padding(12)
             Divider()
             if issues.isEmpty {
                 ContentUnavailableView(
-                    "No Component Issues",
+                    "No Block Issues",
                     systemImage: "checkmark.circle",
                     description: Text("Package validation and loading issues will appear here.")
                 )
@@ -701,7 +701,7 @@ struct DeveloperReleasesView: View {
             ContentUnavailableView(
                 "No Development Pack",
                 systemImage: "shippingbox",
-                description: Text("Convert a component pack to .foundrydevpack before issuing updates.")
+                description: Text("Convert a block pack to .foundrydevpack before issuing updates.")
             )
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {
@@ -846,7 +846,7 @@ struct DeveloperReleasesView: View {
     private func prepareForUpdates(sourceURL: URL) {
         guard let url = URL(string: publishingDirectoryURL),
               let packID = try? FoundryPackLoader.load(from: sourceURL).identifier else { return }
-        let site = ComponentUpdatePublisherConfiguration.site
+        let site = BlockUpdatePublisherConfiguration.site
         let credential = PublishingCredentialStore.credential(site: site)
         let outputDirectoryURL = FileManager.default.temporaryDirectory.appending(
             path: "Foundry-Update-Setup-\(UUID().uuidString)",
@@ -867,7 +867,7 @@ struct DeveloperReleasesView: View {
                     outputDirectoryURL: outputDirectoryURL
                 )
                 try Task.checkCancellation()
-                try await ComponentUpdatePublisher.publishSetup(
+                try await BlockUpdatePublisher.publishSetup(
                     directory: setupDirectory,
                     packID: packID,
                     site: site,
@@ -884,7 +884,7 @@ struct DeveloperReleasesView: View {
                     sourceURL: sourceURL,
                     publishingDirectoryURL: url
                 )
-                ComponentPackageCatalog.shared.reloadAllPacks()
+                BlockPackageCatalog.shared.reloadAllPacks()
                 resetReleaseVersion(for: try? FoundryPackLoader.load(from: sourceURL))
                 resultMessage = "Published the update endpoint successfully."
             } catch is CancellationError {
@@ -900,7 +900,7 @@ struct DeveloperReleasesView: View {
         guard let pack = try? FoundryPackLoader.load(from: sourceURL),
               let packID = pack.identifier else { return }
         let version = releaseVersion.trimmingCharacters(in: .whitespacesAndNewlines)
-        let site = ComponentUpdatePublisherConfiguration.site
+        let site = BlockUpdatePublisherConfiguration.site
         let credential = PublishingCredentialStore.credential(site: site)
         let outputDirectoryURL = FileManager.default.temporaryDirectory.appending(
             path: "Foundry-Release-Output-\(UUID().uuidString)",
@@ -927,7 +927,7 @@ struct DeveloperReleasesView: View {
                 try validatePublishingDestination(site: site, configuration: configuration, packID: packID)
                 let result = try await FoundryPackReleaseBuilder.create(request)
                 try Task.checkCancellation()
-                try await ComponentUpdatePublisher.publish(
+                try await BlockUpdatePublisher.publish(
                     directory: result.outputDirectoryURL,
                     packID: packID,
                     site: site,
@@ -970,7 +970,7 @@ struct DeveloperReleasesView: View {
         return release > source
     }
 
-    private func incrementVersion(_ component: VersionComponent, from fallback: String) {
+    private func incrementVersion(_ part: VersionComponent, from fallback: String) {
         let value = SemanticVersion(releaseVersion) == nil ? fallback : releaseVersion
         let core = value.split(separator: "+", maxSplits: 1)[0]
             .split(separator: "-", maxSplits: 1)[0]
@@ -978,7 +978,7 @@ struct DeveloperReleasesView: View {
             .compactMap { Int($0) }
         guard core.count == 3 else { return }
 
-        switch component {
+        switch part {
         case .major:
             releaseVersion = "\(core[0] + 1).0.0"
         case .minor:
@@ -1000,7 +1000,7 @@ struct DeveloperReleasesView: View {
     }
 
     private var publisherIsConfigured: Bool {
-        let site = ComponentUpdatePublisherConfiguration.site
+        let site = BlockUpdatePublisherConfiguration.site
         return [.ftp, .ftps, .sftp].contains(site.publishingDestination)
             && !site.publishingHost.isEmpty
             && !site.publishingUsername.isEmpty
@@ -1011,7 +1011,7 @@ struct DeveloperReleasesView: View {
     private func publishingURL(for sourceURL: URL?) -> String? {
         guard let sourceURL,
               let identifier = try? FoundryPackLoader.load(from: sourceURL).identifier else { return nil }
-        return URL(string: ComponentUpdatePublisherConfiguration.site.publicURL)?
+        return URL(string: BlockUpdatePublisherConfiguration.site.publicURL)?
             .appending(path: identifier)
             .absoluteString
     }
@@ -1120,14 +1120,14 @@ private struct DeveloperReleaseStatus: View {
 
 private struct DeveloperPackageIssue: Identifiable {
     let url: URL
-    let diagnostics: [ComponentPackageDiagnostic]
+    let diagnostics: [BlockPackageDiagnostic]
     let displayName: String
     let identifier: String?
 
     var id: URL { url }
     var hasErrors: Bool { diagnostics.contains { $0.severity == .error } }
 
-    init(url: URL, diagnostics: [ComponentPackageDiagnostic]) {
+    init(url: URL, diagnostics: [BlockPackageDiagnostic]) {
         self.url = url
         self.diagnostics = diagnostics
 
@@ -1211,26 +1211,26 @@ private struct DeveloperPackageIssueCard: View {
     }
 }
 
-private struct ComponentLibrarySection: Identifiable {
+private struct BlockLibrarySection: Identifiable {
     let id: String
     let title: String
-    let types: [ComponentType]
+    let types: [BlockType]
 }
 
-struct ReusableComponentLibraryPanel: View {
-    let definitions: [ReusableComponentDefinition]
+struct ReusableBlockLibraryPanel: View {
+    let definitions: [ReusableBlockDefinition]
     let renameDefinition: (UUID, String) -> Void
     let deleteDefinition: (UUID) -> Void
-    @State private var definitionToRename: ReusableComponentDefinition?
-    @State private var definitionToDelete: ReusableComponentDefinition?
+    @State private var definitionToRename: ReusableBlockDefinition?
+    @State private var definitionToDelete: ReusableBlockDefinition?
     @State private var renameText = ""
 
     var body: some View {
         List {
             ForEach(definitions) { definition in
-                ReusableComponentLibraryRow(definition: definition)
-                    .draggable(ComponentDragPayload.reusable(definition.id).stringValue) {
-                        ComponentDragPreview(
+                ReusableBlockLibraryRow(definition: definition)
+                    .draggable(BlockDragPayload.reusable(definition.id).stringValue) {
+                        BlockDragPreview(
                             name: definition.name,
                             systemImage: definition.root.type.systemImage
                         )
@@ -1249,13 +1249,13 @@ struct ReusableComponentLibraryPanel: View {
         .overlay {
             if definitions.isEmpty {
                 ContentUnavailableView(
-                    "No Reusable Components",
+                    "No Reusable Blocks",
                     systemImage: "square.stack.3d.up",
-                    description: Text("Save a component from Structure to add it here.")
+                    description: Text("Save a block from Structure to add it here.")
                 )
             }
         }
-        .alert("Rename Reusable Component", isPresented: renameAlertBinding) {
+        .alert("Rename Reusable Block", isPresented: renameAlertBinding) {
             TextField("Name", text: $renameText)
             Button("Cancel", role: .cancel) { definitionToRename = nil }
             Button("Rename") {
@@ -1266,17 +1266,17 @@ struct ReusableComponentLibraryPanel: View {
             .disabled(renameText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
         }
         .confirmationDialog(
-            "Delete \(definitionToDelete?.name ?? "Reusable Component")?",
+            "Delete \(definitionToDelete?.name ?? "Reusable Block")?",
             isPresented: deleteAlertBinding
         ) {
-            Button("Delete Reusable Component", role: .destructive) {
+            Button("Delete Reusable Block", role: .destructive) {
                 guard let id = definitionToDelete?.id else { return }
                 deleteDefinition(id)
                 definitionToDelete = nil
             }
             Button("Cancel", role: .cancel) { definitionToDelete = nil }
         } message: {
-            Text("Components already added from this reusable item are independent and will be unchanged.")
+            Text("Blocks already added from this reusable item are independent and will be unchanged.")
         }
     }
 
@@ -1289,9 +1289,9 @@ struct ReusableComponentLibraryPanel: View {
     }
 }
 
-private struct ComponentLibraryTile: View {
-    let type: ComponentType
-    let iconSize: ComponentLibraryIconSize
+private struct BlockLibraryTile: View {
+    let type: BlockType
+    let iconSize: BlockLibraryIconSize
     let isSelected: Bool
     let select: () -> Void
 
@@ -1300,16 +1300,16 @@ private struct ComponentLibraryTile: View {
             Group {
                 if iconSize == .list {
                     HStack(spacing: 8) {
-                        componentIcon
-                        componentTitle
+                        blockIcon
+                        blockTitle
                         Spacer(minLength: 0)
                     }
                     .padding(6)
                     .frame(maxWidth: .infinity, minHeight: iconSize.tileSize, maxHeight: iconSize.tileSize)
                 } else {
                     VStack(spacing: 6) {
-                        componentIcon
-                        componentTitle
+                        blockIcon
+                        blockTitle
                             .frame(maxWidth: .infinity)
                     }
                     .padding(6)
@@ -1324,19 +1324,19 @@ private struct ComponentLibraryTile: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel("\(type.displayName), drag to add")
-        .accessibilityIdentifier("component-library-\(type.rawValue)")
+        .accessibilityIdentifier("block-library-\(type.rawValue)")
         .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 
-    private var componentIcon: some View {
-        ComponentLibraryIcon(
+    private var blockIcon: some View {
+        BlockLibraryIcon(
             type: type,
             size: iconSize.iconSize,
             symbolColor: isSelected ? .white : .accentColor
         )
     }
 
-    private var componentTitle: some View {
+    private var blockTitle: some View {
         Text(type.displayName)
             .lineLimit(1)
             .minimumScaleFactor(0.75)
@@ -1345,9 +1345,9 @@ private struct ComponentLibraryTile: View {
     }
 }
 
-struct ComponentLibraryIcon: View {
+struct BlockLibraryIcon: View {
     @State private var loadedIcon: NSImage?
-    let type: ComponentType
+    let type: BlockType
     let size: CGFloat
     var symbolColor: Color = .accentColor
 
@@ -1371,22 +1371,22 @@ struct ComponentLibraryIcon: View {
                 loadedIcon = nil
                 return
             }
-            if let cached = ComponentIconLoader.cachedIcon(at: url) {
+            if let cached = BlockIconLoader.cachedIcon(at: url) {
                 loadedIcon = cached.image
                 return
             }
-            loadedIcon = await ComponentIconLoader.shared.icon(at: url)?.image
+            loadedIcon = await BlockIconLoader.shared.icon(at: url)?.image
         }
     }
 
     private var displayedIcon: NSImage? {
         loadedIcon ?? (type.definition.package?.iconURL).flatMap {
-            ComponentIconLoader.cachedIcon(at: $0)?.image
+            BlockIconLoader.cachedIcon(at: $0)?.image
         }
     }
 }
 
-private struct ComponentDragPreview: View {
+private struct BlockDragPreview: View {
     let name: String
     let systemImage: String
 
@@ -1405,8 +1405,8 @@ private struct ComponentDragPreview: View {
     }
 }
 
-private struct ReusableComponentLibraryRow: View {
-    let definition: ReusableComponentDefinition
+private struct ReusableBlockLibraryRow: View {
+    let definition: ReusableBlockDefinition
 
     var body: some View {
         HStack(spacing: 10) {
@@ -1415,7 +1415,7 @@ private struct ReusableComponentLibraryRow: View {
                 .background(Color.accentColor.opacity(0.12), in: RoundedRectangle(cornerRadius: 6))
             VStack(alignment: .leading, spacing: 2) {
                 Text(definition.name)
-                Text("Reusable component")
+                Text("Reusable block")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -1424,17 +1424,17 @@ private struct ReusableComponentLibraryRow: View {
                 .foregroundStyle(.tertiary)
         }
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(definition.name), reusable component, drag to add")
+        .accessibilityLabel("\(definition.name), reusable block, drag to add")
     }
 }
 
-struct GlobalComponentLibraryPanel: View {
-    let definitions: [ReusableComponentDefinition]
+struct GlobalBlockLibraryPanel: View {
+    let definitions: [ReusableBlockDefinition]
     let renameDefinition: (UUID, String) -> Void
     let deleteDefinition: (UUID) -> Void
-    let saveDraggedComponents: ([UUID]) -> Bool
-    @State private var definitionToRename: ReusableComponentDefinition?
-    @State private var definitionToDelete: ReusableComponentDefinition?
+    let saveDraggedBlocks: ([UUID]) -> Bool
+    @State private var definitionToRename: ReusableBlockDefinition?
+    @State private var definitionToDelete: ReusableBlockDefinition?
     @State private var renameText = ""
     @State private var isDropTargeted = false
 
@@ -1455,8 +1455,8 @@ struct GlobalComponentLibraryPanel: View {
                     Image(systemName: "link")
                         .foregroundStyle(.tertiary)
                 }
-                .draggable(ComponentDragPayload.global(definition.id).stringValue) {
-                    ComponentDragPreview(name: definition.name, systemImage: definition.root.type.systemImage)
+                .draggable(BlockDragPayload.global(definition.id).stringValue) {
+                    BlockDragPreview(name: definition.name, systemImage: definition.root.type.systemImage)
                 }
                 .contextMenu {
                     Button("Rename…") {
@@ -1469,12 +1469,12 @@ struct GlobalComponentLibraryPanel: View {
         }
         .dropDestination(for: String.self) { values, _ in
             guard let value = values.first,
-                  let payload = ComponentDragPayload(value) else { return false }
+                  let payload = BlockDragPayload(value) else { return false }
             switch payload {
             case .node(let id):
-                return saveDraggedComponents([id])
+                return saveDraggedBlocks([id])
             case .nodes(let ids):
-                return saveDraggedComponents(ids)
+                return saveDraggedBlocks(ids)
             case .library, .reusable, .global:
                 return false
             }
@@ -1484,9 +1484,9 @@ struct GlobalComponentLibraryPanel: View {
         .overlay {
             if definitions.isEmpty {
                 ContentUnavailableView(
-                    "No Global Components",
+                    "No Global Blocks",
                     systemImage: "globe",
-                    description: Text("Save a component as global from Structure to add it here.")
+                    description: Text("Save a block as global from Structure to add it here.")
                 )
             }
         }
@@ -1496,7 +1496,7 @@ struct GlobalComponentLibraryPanel: View {
                 .padding(4)
                 .allowsHitTesting(false)
         }
-        .alert("Rename Global Component", isPresented: renameAlertBinding) {
+        .alert("Rename Global Block", isPresented: renameAlertBinding) {
             TextField("Name", text: $renameText)
             Button("Cancel", role: .cancel) { definitionToRename = nil }
             Button("Rename") {
@@ -1506,8 +1506,8 @@ struct GlobalComponentLibraryPanel: View {
             }
             .disabled(renameText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
         }
-        .confirmationDialog("Delete \(definitionToDelete?.name ?? "Global Component")?", isPresented: deleteAlertBinding) {
-            Button("Delete Global Component", role: .destructive) {
+        .confirmationDialog("Delete \(definitionToDelete?.name ?? "Global Block")?", isPresented: deleteAlertBinding) {
+            Button("Delete Global Block", role: .destructive) {
                 guard let id = definitionToDelete?.id else { return }
                 deleteDefinition(id)
                 definitionToDelete = nil
@@ -1529,112 +1529,112 @@ struct GlobalComponentLibraryPanel: View {
 
 struct StructurePanel: View {
     let page: Page?
-    let globalComponentNames: [UUID: String]
-    @Binding var selectedComponentIDs: Set<UUID>
-    @Binding var selectedComponentID: UUID?
-    @Binding var expandedComponentIDs: Set<UUID>
-    let renameComponent: (UUID, String) -> Void
-    let canMoveComponentsToPlacement: ([UUID], ComponentPlacement) -> Bool
-    let moveComponentsToPlacement: ([UUID], ComponentPlacement) -> Bool
-    let insertComponent: (ComponentType, ComponentPlacement) -> Bool
-    let insertReusableComponent: (UUID, ComponentPlacement) -> Bool
-    let insertGlobalComponent: (UUID, ComponentPlacement) -> Bool
-    let duplicateComponent: () -> Void
-    let copyComponent: () -> Void
-    let pasteComponent: () -> Void
-    let moveComponent: (Int) -> Void
-    let outdentComponent: () -> Void
-    let deleteComponent: () -> Void
-    let canPasteComponent: Bool
-    let saveReusableComponent: (String) -> Void
-    let saveGlobalComponent: (String) -> Void
-    let setGlobalComponentLinked: (UUID, Bool) -> Void
-    @State private var isNamingReusableComponent = false
-    @State private var reusableComponentName = ""
-    @State private var isNamingGlobalComponent = false
-    @State private var globalComponentName = ""
+    let globalBlockNames: [UUID: String]
+    @Binding var selectedBlockIDs: Set<UUID>
+    @Binding var selectedBlockID: UUID?
+    @Binding var expandedBlockIDs: Set<UUID>
+    let renameBlock: (UUID, String) -> Void
+    let canMoveBlocksToPlacement: ([UUID], BlockPlacement) -> Bool
+    let moveBlocksToPlacement: ([UUID], BlockPlacement) -> Bool
+    let insertBlock: (BlockType, BlockPlacement) -> Bool
+    let insertReusableBlock: (UUID, BlockPlacement) -> Bool
+    let insertGlobalBlock: (UUID, BlockPlacement) -> Bool
+    let duplicateBlock: () -> Void
+    let copyBlock: () -> Void
+    let pasteBlock: () -> Void
+    let moveBlock: (Int) -> Void
+    let outdentBlock: () -> Void
+    let deleteBlock: () -> Void
+    let canPasteBlock: Bool
+    let saveReusableBlock: (String) -> Void
+    let saveGlobalBlock: (String) -> Void
+    let setGlobalBlockLinked: (UUID, Bool) -> Void
+    @State private var isNamingReusableBlock = false
+    @State private var reusableBlockName = ""
+    @State private var isNamingGlobalBlock = false
+    @State private var globalBlockName = ""
 
     var body: some View {
         VStack(spacing: 0) {
             if let page {
                 StructureOutlineView(
-                    components: page.components,
-                    globalComponentNames: globalComponentNames,
-                    selectedComponentIDs: $selectedComponentIDs,
-                    primarySelectedComponentID: $selectedComponentID,
-                    expandedItemIDs: $expandedComponentIDs,
-                    renameComponent: renameComponent,
-                    canMoveComponents: canMoveComponentsToPlacement,
-                    moveComponents: moveComponentsToPlacement,
-                    insertComponent: insertComponent,
-                    insertReusableComponent: insertReusableComponent,
-                    insertGlobalComponent: insertGlobalComponent,
-                    duplicateComponent: duplicateComponent,
-                    copyComponent: copyComponent,
-                    pasteComponent: pasteComponent,
-                    canPasteComponent: canPasteComponent,
-                    saveAsReusableComponent: {
-                        reusableComponentName = $0
-                        isNamingReusableComponent = true
+                    blocks: page.blocks,
+                    globalBlockNames: globalBlockNames,
+                    selectedBlockIDs: $selectedBlockIDs,
+                    primarySelectedBlockID: $selectedBlockID,
+                    expandedItemIDs: $expandedBlockIDs,
+                    renameBlock: renameBlock,
+                    canMoveBlocks: canMoveBlocksToPlacement,
+                    moveBlocks: moveBlocksToPlacement,
+                    insertBlock: insertBlock,
+                    insertReusableBlock: insertReusableBlock,
+                    insertGlobalBlock: insertGlobalBlock,
+                    duplicateBlock: duplicateBlock,
+                    copyBlock: copyBlock,
+                    pasteBlock: pasteBlock,
+                    canPasteBlock: canPasteBlock,
+                    saveAsReusableBlock: {
+                        reusableBlockName = $0
+                        isNamingReusableBlock = true
                     },
-                    saveAsGlobalComponent: {
-                        globalComponentName = $0
-                        isNamingGlobalComponent = true
+                    saveAsGlobalBlock: {
+                        globalBlockName = $0
+                        isNamingGlobalBlock = true
                     },
-                    setGlobalComponentLinked: setGlobalComponentLinked,
-                    moveComponent: moveComponent,
-                    outdentComponent: outdentComponent,
-                    deleteComponent: deleteComponent
+                    setGlobalBlockLinked: setGlobalBlockLinked,
+                    moveBlock: moveBlock,
+                    outdentBlock: outdentBlock,
+                    deleteBlock: deleteBlock
                 )
             } else {
                 ContentUnavailableView("No Page", systemImage: "doc")
             }
         }
-        .alert("Save Reusable Component", isPresented: $isNamingReusableComponent) {
-            TextField("Name", text: $reusableComponentName)
+        .alert("Save Reusable Block", isPresented: $isNamingReusableBlock) {
+            TextField("Name", text: $reusableBlockName)
             Button("Cancel", role: .cancel) {}
-            Button("Save") { saveReusableComponent(reusableComponentName) }
-                .disabled(reusableComponentName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            Button("Save") { saveReusableBlock(reusableBlockName) }
+                .disabled(reusableBlockName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
         } message: {
-            Text("The selected component and its children will be available in the Project library.")
+            Text("The selected block and its children will be available in the Project library.")
         }
-        .alert("Save Global Component", isPresented: $isNamingGlobalComponent) {
-            TextField("Name", text: $globalComponentName)
+        .alert("Save Global Block", isPresented: $isNamingGlobalBlock) {
+            TextField("Name", text: $globalBlockName)
             Button("Cancel", role: .cancel) {}
-            Button("Save") { saveGlobalComponent(globalComponentName) }
-                .disabled(globalComponentName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            Button("Save") { saveGlobalBlock(globalBlockName) }
+                .disabled(globalBlockName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
         } message: {
-            Text("Every linked instance will update when this global component is edited.")
+            Text("Every linked instance will update when this global block is edited.")
         }
     }
 
     private func revealSelection(using proxy: ScrollViewProxy) {
-        guard let selectedComponentID, let page else { return }
-        expandedComponentIDs.formUnion(page.components.ancestorIDs(of: selectedComponentID))
+        guard let selectedBlockID, let page else { return }
+        expandedBlockIDs.formUnion(page.blocks.ancestorIDs(of: selectedBlockID))
         Task { @MainActor in
             await Task.yield()
-            proxy.scrollTo(selectedComponentID, anchor: .center)
+            proxy.scrollTo(selectedBlockID, anchor: .center)
         }
     }
 
-    private func acceptAtEnd(_ payload: ComponentDragPayload) -> Bool {
+    private func acceptAtEnd(_ payload: BlockDragPayload) -> Bool {
         switch payload {
-        case .library(let type): insertComponent(type, .end)
-        case .reusable(let id): insertReusableComponent(id, .end)
-        case .global(let id): insertGlobalComponent(id, .end)
-        case .node(let id): moveComponentsToPlacement([id], .end)
-        case .nodes(let ids): moveComponentsToPlacement(ids, .end)
+        case .library(let type): insertBlock(type, .end)
+        case .reusable(let id): insertReusableBlock(id, .end)
+        case .global(let id): insertGlobalBlock(id, .end)
+        case .node(let id): moveBlocksToPlacement([id], .end)
+        case .nodes(let ids): moveBlocksToPlacement(ids, .end)
         }
     }
 
-    private func visibleComponents(in page: Page) -> [StructureTreeItem] {
-        StructureTreeItem.flatten(page.components, expandedIDs: expandedComponentIDs)
+    private func visibleBlocks(in page: Page) -> [StructureTreeItem] {
+        StructureTreeItem.flatten(page.blocks, expandedIDs: expandedBlockIDs)
     }
 
     private func applyReorder(
         _ difference: ReorderDifference<UUID, ReorderableSingleCollectionIdentifier>
     ) {
-        let placement: ComponentPlacement
+        let placement: BlockPlacement
         switch difference.destination.position {
         case .before(let targetID):
             placement = .before(targetID)
@@ -1642,27 +1642,27 @@ struct StructurePanel: View {
             placement = .end
         }
         for sourceID in difference.sources {
-            _ = moveComponentsToPlacement([sourceID], placement)
+            _ = moveBlocksToPlacement([sourceID], placement)
         }
     }
 
 }
 
 nonisolated struct StructureTreeItem: Identifiable, Sendable {
-    let component: ComponentNode
+    let block: BlockNode
     let depth: Int
 
-    var id: UUID { component.id }
+    var id: UUID { block.id }
 
     static func flatten(
-        _ components: [ComponentNode],
+        _ blocks: [BlockNode],
         expandedIDs: Set<UUID>,
         depth: Int = 0
     ) -> [StructureTreeItem] {
-        components.flatMap { component in
-            var result = [StructureTreeItem(component: component, depth: depth)]
-            if expandedIDs.contains(component.id) {
-                result += flatten(component.children, expandedIDs: expandedIDs, depth: depth + 1)
+        blocks.flatMap { block in
+            var result = [StructureTreeItem(block: block, depth: depth)]
+            if expandedIDs.contains(block.id) {
+                result += flatten(block.children, expandedIDs: expandedIDs, depth: depth + 1)
             }
             return result
         }
@@ -1671,12 +1671,12 @@ nonisolated struct StructureTreeItem: Identifiable, Sendable {
 
 private struct StructureEndDropZone: View {
     let isEmpty: Bool
-    let accept: (ComponentDragPayload) -> Bool
+    let accept: (BlockDragPayload) -> Bool
     @State private var isTargeted = false
 
     var body: some View {
         Label(
-            isEmpty ? "Drop a component here" : "Drop at page end",
+            isEmpty ? "Drop a block here" : "Drop at page end",
             systemImage: isEmpty ? "square.and.arrow.down" : "arrow.down.to.line"
         )
         .font(.caption)
@@ -1694,7 +1694,7 @@ private struct StructureEndDropZone: View {
                 )
         }
         .dropDestination(for: String.self) { values, _ in
-            guard let value = values.first, let payload = ComponentDragPayload(value) else { return false }
+            guard let value = values.first, let payload = BlockDragPayload(value) else { return false }
             return accept(payload)
         } isTargeted: {
             isTargeted = $0

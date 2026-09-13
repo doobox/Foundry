@@ -261,7 +261,7 @@ extension ProjectEditor {
         }
     }
 
-    func setPageBackground(id: UUID, value: ComponentPackageColorValue?) {
+    func setPageBackground(id: UUID, value: BlockPackageColorValue?) {
         mutate(actionName: value == nil ? "Reset Page Background" : "Change Page Background", impact: .page) { site in
             guard let index = site.pages.firstIndex(where: { $0.id == id }) else { return }
             site.pages[index].backgroundOverride = value

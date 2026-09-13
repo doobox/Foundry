@@ -111,11 +111,11 @@
     </array>
     <key>templates</key>
     <dict>
-        <key>html</key><string>component.html</string>
+        <key>html</key><string>block.html</string>
         <key>files</key>
         <array>
             <dict>
-                <key>path</key><string>component.css</string>
+                <key>path</key><string>block.css</string>
                 <key>scope</key><string>instance</string>
             </dict>
         </array>

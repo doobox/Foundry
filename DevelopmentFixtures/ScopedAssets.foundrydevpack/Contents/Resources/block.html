@@ -1,0 +1,28 @@
+<section {{ block.attributes }} class="scoped-assets-demo {{ block.class }}">
+    <header>
+        <img src="{{ asset("images/page-badge.svg") }}" alt="Page-scoped badge">
+        <div>
+            <p class="eyebrow">Foundry asset publishing</p>
+            <h2>Scoped assets</h2>
+            <p>The badge is a declared file. The card below comes from a declared folder.</p>
+        </div>
+    </header>
+
+    <div class="asset-examples">
+        <figure>
+            <img src="{{ asset("gallery/card.svg") }}" alt="Page-scoped gallery asset">
+            <figcaption>Page asset: <code>{{ asset("gallery/card.svg") }}</code></figcaption>
+        </figure>
+        <figure>
+            <img src="{{ asset("shared/brand/mark.svg") }}" alt="Site-scoped brand asset">
+            <figcaption>Site asset: <code>{{ asset("shared/brand/mark.svg") }}</code></figcaption>
+        </figure>
+    </div>
+
+    <dl>
+        <dt>Site base URL</dt><dd><code>{{ site.baseURL }}</code></dd>
+        <dt>Page URL</dt><dd><code>{{ page.url }}</code></dd>
+        <dt>Site root</dt><dd><code>{{ path.siteRoot }}</code></dd>
+        <dt>Site assets</dt><dd><code>{{ path.siteAssets }}</code></dd>
+    </dl>
+</section>

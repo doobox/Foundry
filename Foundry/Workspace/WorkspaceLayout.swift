@@ -16,9 +16,9 @@ struct WorkspacePanelDragPayload: Codable, Transferable {
 
 nonisolated enum WorkspacePanel: String, Codable, CaseIterable, Identifiable, Sendable {
     case pages
-    case components
-    case reusableComponents
-    case globalComponents
+    case blocks
+    case reusableBlocks
+    case globalBlocks
     case structure
     case assets
     case developer
@@ -30,9 +30,9 @@ nonisolated enum WorkspacePanel: String, Codable, CaseIterable, Identifiable, Se
     var title: String {
         switch self {
         case .pages: "Pages"
-        case .components: "Components"
-        case .reusableComponents: "Reusable Components"
-        case .globalComponents: "Global Components"
+        case .blocks: "Blocks"
+        case .reusableBlocks: "Reusable Blocks"
+        case .globalBlocks: "Global Blocks"
         case .structure: "Structure"
         case .assets: "Assets"
         case .developer: "Developer"
@@ -44,9 +44,9 @@ nonisolated enum WorkspacePanel: String, Codable, CaseIterable, Identifiable, Se
     var systemImage: String {
         switch self {
         case .pages: "doc.on.doc"
-        case .components: "square.grid.2x2"
-        case .reusableComponents: "square.stack.3d.up"
-        case .globalComponents: "globe"
+        case .blocks: "square.grid.2x2"
+        case .reusableBlocks: "square.stack.3d.up"
+        case .globalBlocks: "globe"
         case .structure: "list.bullet.indent"
         case .assets: "photo.on.rectangle.angled"
         case .developer: "apple.terminal"
@@ -163,7 +163,7 @@ nonisolated struct WorkspaceLayout: Codable, Equatable, Sendable {
     static let standard = WorkspaceLayout(columns: [
         WorkspaceColumn(
             role: .sidebarDock,
-            panels: [.pages, .components, .reusableComponents, .globalComponents, .structure, .assets],
+            panels: [.pages, .blocks, .reusableBlocks, .globalBlocks, .structure, .assets],
             selectedPanel: .pages
         ),
         WorkspaceColumn(role: .canvas, panels: [.canvas]),

@@ -11,7 +11,7 @@ struct GoogleFontFacesEditor: View {
                 styleColumn(italic: false)
                 if configuration.available.contains(where: \.italic) { styleColumn(italic: true) }
             }
-            Text("Keep at least one style. Removing a style does not change existing component selections.")
+            Text("Keep at least one style. Removing a style does not change existing block selections.")
                 .font(.caption).foregroundStyle(.secondary)
         }
     }

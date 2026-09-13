@@ -5,17 +5,17 @@ extension Color {
     init?(hex: String) {
         let value = hex.trimmingCharacters(in: .whitespacesAndNewlines)
         if value.hasPrefix("rgb("), value.hasSuffix(")") {
-            let components = value
+            let parts = value
                 .dropFirst(4)
                 .dropLast()
                 .split(whereSeparator: { $0 == " " || $0 == "/" })
                 .compactMap { Double($0) }
-            guard components.count == 4 else { return nil }
+            guard parts.count == 4 else { return nil }
             self.init(
-                red: components[0] / 255,
-                green: components[1] / 255,
-                blue: components[2] / 255,
-                opacity: min(max(components[3], 0), 1)
+                red: parts[0] / 255,
+                green: parts[1] / 255,
+                blue: parts[2] / 255,
+                opacity: min(max(parts[3], 0), 1)
             )
             return
         }

@@ -203,8 +203,8 @@ nonisolated struct SiteExportWriter: SiteExportWriting {
     ) throws -> URL {
         guard isSafeRelativePath(path) else { throw SiteExportWriterError.unsafePath(path) }
         var candidate = root
-        for component in path.split(separator: "/", omittingEmptySubsequences: false) {
-            candidate.append(path: String(component))
+        for block in path.split(separator: "/", omittingEmptySubsequences: false) {
+            candidate.append(path: String(block))
             if let attributes = try? fileManager.attributesOfItem(atPath: candidate.path),
                attributes[.type] as? FileAttributeType == .typeSymbolicLink {
                 throw SiteExportWriterError.unsafePath(path)
@@ -222,11 +222,11 @@ nonisolated struct SiteExportWriter: SiteExportWriting {
     }
 
     private static func isSafeRelativePath(_ path: String) -> Bool {
-        let components = path.split(separator: "/", omittingEmptySubsequences: false)
+        let parts = path.split(separator: "/", omittingEmptySubsequences: false)
         return !path.isEmpty
             && !path.hasPrefix("/")
-            && !components.contains("")
-            && !components.contains(".")
-            && !components.contains("..")
+            && !parts.contains("")
+            && !parts.contains(".")
+            && !parts.contains("..")
     }
 }

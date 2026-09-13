@@ -1,6 +1,6 @@
 import SwiftUI
 
-struct HTMLComponentSource: Equatable {
+struct HTMLBlockSource: Equatable {
     var html: String
     var css: String
     var javaScript: String
@@ -17,9 +17,9 @@ struct HTMLSourceEditorView: View {
     @AppStorage(textSizeDefaultsKey) private var textSize = defaultTextSize
 
     let cancel: () -> Void
-    let save: (HTMLComponentSource) -> Void
+    let save: (HTMLBlockSource) -> Void
 
-    init(source: HTMLComponentSource, cancel: @escaping () -> Void, save: @escaping (HTMLComponentSource) -> Void) {
+    init(source: HTMLBlockSource, cancel: @escaping () -> Void, save: @escaping (HTMLBlockSource) -> Void) {
         let storedTextSize = UserDefaults.standard.object(forKey: Self.textSizeDefaultsKey) as? Double
             ?? Self.defaultTextSize
         let fontSize = CGFloat(storedTextSize)
@@ -117,7 +117,7 @@ private struct HTMLSourceSidebar: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Component Code")
+            Text("Block Code")
                 .font(.headline)
                 .foregroundStyle(.secondary)
                 .padding(.horizontal, 16)

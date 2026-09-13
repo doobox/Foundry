@@ -24,10 +24,10 @@ nonisolated struct GoogleFontConfiguration: Codable, Equatable, Sendable {
         let faces = validIncluded
         guard !faces.isEmpty else { return nil }
         let tuples = faces.map { "\($0.italic ? 1 : 0),\($0.minimum)\($0.isVariable ? "..\($0.maximum)" : "")" }.joined(separator: ";")
-        var components = URLComponents(string: "https://fonts.googleapis.com/css2")!
-        components.queryItems = [URLQueryItem(name: "family", value: "\(family):ital,wght@\(tuples)"), URLQueryItem(name: "display", value: "swap")]
-        components.percentEncodedQuery = components.percentEncodedQuery?.replacingOccurrences(of: "+", with: "%2B")
-        return components.url
+        var parts = URLComponents(string: "https://fonts.googleapis.com/css2")!
+        parts.queryItems = [URLQueryItem(name: "family", value: "\(family):ital,wght@\(tuples)"), URLQueryItem(name: "display", value: "swap")]
+        parts.percentEncodedQuery = parts.percentEncodedQuery?.replacingOccurrences(of: "+", with: "%2B")
+        return parts.url
     }
 }
 

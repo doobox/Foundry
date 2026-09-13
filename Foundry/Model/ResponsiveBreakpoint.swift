@@ -79,6 +79,6 @@ nonisolated enum ResponsiveBreakpoint: String, Codable, CaseIterable, Identifiab
 
 nonisolated struct ResponsivePropertyOverride: Codable, Equatable, Sendable {
     var breakpoint: ResponsiveBreakpoint
-    var key: ComponentProperty.Key
-    var value: ComponentProperty.Value
+    var key: BlockProperty.Key
+    var value: BlockProperty.Value
 }

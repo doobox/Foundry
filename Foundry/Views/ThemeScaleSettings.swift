@@ -91,7 +91,7 @@ struct ThemeTypeScaleSettings: View {
             }
             Button("Cancel", role: .cancel) { pendingDeletion = nil }
         } message: {
-            Text("Choose the size that components should use before deleting this custom size.")
+            Text("Choose the size that blocks should use before deleting this custom size.")
         }
     }
 
@@ -206,17 +206,17 @@ struct ThemeSpacingSettings: View {
                 }
             }
             Button("Cancel", role: .cancel) { pendingDeletion = nil }
-        } message: { Text("Choose the spacing that components should use before deleting this custom value.") }
+        } message: { Text("Choose the spacing that blocks should use before deleting this custom value.") }
     }
 
     private func barWidth(_ token: DesignToken) -> Double {
         let largest = max(1, DesignToken.spacingTokens.compactMap { theme.number(for: $0) }.max() ?? 1)
         return max(0, (theme.number(for: token) ?? 0) / largest * 180)
     }
-    private var replacements: [ComponentPropertyChoice] {
-        zip(ids, DesignToken.spacingTokens).map { ComponentPropertyChoice(value: $0.0, label: $0.1.displayName) }
+    private var replacements: [BlockPropertyChoice] {
+        zip(ids, DesignToken.spacingTokens).map { BlockPropertyChoice(value: $0.0, label: $0.1.displayName) }
         + theme.spacing.custom.filter { $0.id != pendingDeletion?.id }.map {
-            ComponentPropertyChoice(value: "custom:\($0.id.uuidString.lowercased())", label: $0.name)
+            BlockPropertyChoice(value: "custom:\($0.id.uuidString.lowercased())", label: $0.name)
         }
     }
     private var deletionPresented: Binding<Bool> {

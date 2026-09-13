@@ -5,19 +5,19 @@ import Testing
 @MainActor
 struct ProjectMutationImpactTests {
     @Test
-    func componentPropertyEditCarriesItsIdentityAndKey() throws {
+    func blockPropertyEditCarriesItsIdentityAndKey() throws {
         let document = TestSiteFixtures.populatedDocument()
-        let component = try #require(document.site.pages.first?.components.first)
-        let key = ComponentProperty.Key(rawValue: "content")
+        let block = try #require(document.site.pages.first?.blocks.first)
+        let key = BlockProperty.Key(rawValue: "content")
 
         ProjectEditor(document: document, undoManager: nil).setProperty(
-            id: component.id,
+            id: block.id,
             key: key,
             value: "Updated"
         )
 
         #expect(document.mutationEvent.revision == 1)
-        #expect(document.mutationEvent.impact == .componentProperty(componentID: component.id, propertyKey: key))
+        #expect(document.mutationEvent.impact == .blockProperty(blockID: block.id, propertyKey: key))
     }
 
     @Test

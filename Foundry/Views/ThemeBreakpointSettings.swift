@@ -31,7 +31,7 @@ struct ThemeBreakpointSettings: View {
                     .help("The minimum viewport width where a breakpoint’s settings begin to apply.")
                 Text("Container max width")
                     .frame(width: ThemeBreakpointColumns.container, alignment: .leading)
-                    .help("Limits the width of components that use Foundry’s theme container sizing. It does not limit the whole page.")
+                    .help("Limits the width of blocks that use Foundry’s theme container sizing. It does not limit the whole page.")
                 Spacer(minLength: 12)
                 Text("Enabled")
                     .frame(width: ThemeBreakpointColumns.toggle)

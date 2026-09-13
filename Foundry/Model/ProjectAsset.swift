@@ -2,12 +2,12 @@ import Foundation
 import ImageIO
 import UniformTypeIdentifiers
 
-nonisolated enum ComponentImageProcessor {
+nonisolated enum BlockImageProcessor {
     static let canonicalMaximumDimension = 3_840
 
     struct Result: Sendable {
         let data: Data
-        let metadata: ComponentImageMetadata
+        let metadata: BlockImageMetadata
     }
 
     static func canonicalize(data: Data, filename: String, mimeType: String) -> Result {
@@ -17,7 +17,7 @@ nonisolated enum ComponentImageProcessor {
 
     static func rendition(data: Data, filename: String, mimeType: String, maximumDimension: Int) -> Result? {
         let dimension = min(max(maximumDimension, 1), canonicalMaximumDimension)
-        let metadata = ComponentImageMetadata.inspect(data: data, filename: filename, mimeType: mimeType)
+        let metadata = BlockImageMetadata.inspect(data: data, filename: filename, mimeType: mimeType)
         guard let width = metadata.width, let height = metadata.height, max(width, height) > dimension else { return nil }
         return resized(data: data, filename: filename, mimeType: mimeType, maximumDimension: dimension)
     }
@@ -66,7 +66,7 @@ nonisolated enum ComponentImageProcessor {
     }
 }
 
-nonisolated struct ComponentImageMetadata: Equatable, Sendable {
+nonisolated struct BlockImageMetadata: Equatable, Sendable {
     let width: Int?
     let height: Int?
     let mimeType: String
@@ -86,9 +86,9 @@ nonisolated struct ComponentImageMetadata: Equatable, Sendable {
         data: Data,
         filename: String,
         mimeType: String
-    ) -> ComponentImageMetadata {
+    ) -> BlockImageMetadata {
         let dimensions = imageDimensions(in: data)
-        return ComponentImageMetadata(
+        return BlockImageMetadata(
             width: dimensions?.width,
             height: dimensions?.height,
             mimeType: mimeType,
@@ -111,8 +111,8 @@ nonisolated struct ComponentImageMetadata: Equatable, Sendable {
     }
 }
 
-nonisolated enum ComponentImageTemplateValues {
-    static func focalPoint(from value: ComponentProperty.Value) -> (x: Double, y: Double) {
+nonisolated enum BlockImageTemplateValues {
+    static func focalPoint(from value: BlockProperty.Value) -> (x: Double, y: Double) {
         let values = value.arrayValue ?? []
         return (
             values.indices.contains(0) ? values[0].numberValue ?? 50 : 50,
@@ -126,8 +126,8 @@ nonisolated enum ComponentImageTemplateValues {
         alt: String,
         focalPointX: Double,
         focalPointY: Double,
-        metadata: ComponentImageMetadata?,
-        into values: inout [String: ComponentPackageValue]
+        metadata: BlockImageMetadata?,
+        into values: inout [String: BlockPackageValue]
     ) {
         values[propertyID + ".href"] = .string(href)
         values[propertyID + ".alt"] = .string(alt)
@@ -148,7 +148,7 @@ nonisolated enum ComponentImageTemplateValues {
         values[propertyID + ".byteCount"] = .number(Double(metadata.byteCount))
         values[propertyID + ".filename"] = .string(metadata.filename)
         values[propertyID + ".extension"] = .string(metadata.fileExtension)
-        values[propertyID + ".aspectRatio"] = metadata.aspectRatio.map(ComponentPackageValue.number) ?? .string("")
+        values[propertyID + ".aspectRatio"] = metadata.aspectRatio.map(BlockPackageValue.number) ?? .string("")
     }
 
     private static func formattedPercentage(_ value: Double) -> String {
@@ -200,8 +200,8 @@ nonisolated struct ProjectAsset: Codable, Equatable, Identifiable, Sendable {
     var reference: String { "foundry-asset:" + id.uuidString }
 
     var readableExportFilename: String {
-        let lastComponent = (filename as NSString).lastPathComponent
-        let stem = (lastComponent as NSString).deletingPathExtension
+        let lastPart = (filename as NSString).lastPathComponent
+        let stem = (lastPart as NSString).deletingPathExtension
         let readableStem = stem.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             ? "file" : Page.slugify(stem)
         return readableStem + "." + fileExtension
@@ -230,8 +230,8 @@ nonisolated struct ProjectAsset: Codable, Equatable, Identifiable, Sendable {
         exportOrder = try container.decodeIfPresent(Int.self, forKey: .exportOrder) ?? 0
     }
 
-    var imageMetadata: ComponentImageMetadata {
-        ComponentImageMetadata(
+    var imageMetadata: BlockImageMetadata {
+        BlockImageMetadata(
             width: pixelWidth,
             height: pixelHeight,
             mimeType: mediaType,
@@ -273,7 +273,7 @@ nonisolated extension Array where Element == ProjectAssetNode {
                 guard asset.mediaType.hasPrefix("image/"),
                       asset.pixelWidth == nil || asset.pixelHeight == nil,
                       let data = dataByID[asset.id] else { continue }
-                let metadata = ComponentImageMetadata.inspect(
+                let metadata = BlockImageMetadata.inspect(
                     data: data,
                     filename: asset.filename,
                     mimeType: asset.mediaType
@@ -295,7 +295,7 @@ nonisolated extension Array where Element == ProjectAssetNode {
     func managedExportPaths() -> [UUID: String] {
         var paths: [UUID: String] = [:]
 
-        func collect(_ nodes: [ProjectAssetNode], under components: [String]) {
+        func collect(_ nodes: [ProjectAssetNode], under parts: [String]) {
             let assets = nodes.compactMap { node -> ProjectAsset? in
                 guard case .asset(let asset) = node else { return nil }
                 return asset
@@ -319,7 +319,7 @@ nonisolated extension Array where Element == ProjectAssetNode {
                     let suffix = asset.id.uuidString.lowercased().prefix(8)
                     filename = "\(base)--\(suffix).\(ext)"
                 }
-                paths[asset.id] = (components + [filename]).joined(separator: "/")
+                paths[asset.id] = (parts + [filename]).joined(separator: "/")
             }
 
             for folder in folders {
@@ -327,7 +327,7 @@ nonisolated extension Array where Element == ProjectAssetNode {
                 let exportName = folderNameCounts[readableName.lowercased(), default: 0] > 1
                     ? "\(readableName)--\(folder.id.uuidString.lowercased().prefix(8))"
                     : readableName
-                collect(folder.children, under: components + [exportName])
+                collect(folder.children, under: parts + [exportName])
             }
         }
 

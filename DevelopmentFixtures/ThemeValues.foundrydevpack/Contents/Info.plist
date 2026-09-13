@@ -34,6 +34,6 @@
             <key>customColor</key><string>#5B5BD6</string><key>default</key><dict><key>palette</key><string>custom</string></dict><key>responsive</key><false/>
         </dict>
     </array>
-    <key>templates</key><dict><key>html</key><string>component.html</string></dict>
+    <key>templates</key><dict><key>html</key><string>block.html</string></dict>
 </dict>
 </plist>

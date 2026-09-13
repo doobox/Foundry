@@ -1,0 +1,27 @@
+<section class="foundry-image-slider {{ block.class }}" {{ block.attributes }} data-transition="{{ control.transition }}" data-autoplay="{{ control.autoplay }}" data-interval="{{ control.interval }}" data-pause-on-hover="{{ control.pauseOnHover }}" data-loop="{{ control.loop }}" aria-roledescription="carousel" aria-label="Image slider">
+    <div class="foundry-image-slider__viewport">
+        <div class="foundry-image-slider__track" aria-live="polite">
+            {{ loop control.slideCount }}
+                {{ if !canvas || loop.position == min(control.canvasSlide, control.slideCount) }}
+                    <figure class="foundry-image-slider__slide" data-slide-index="{{ loop.index }}" aria-roledescription="slide" aria-label="Slide {{ loop.position }} of {{ loop.count }}">
+                        <div class="foundry-image-slider__media"><img src="{{ control.slide-loop.position }}" width="{{ control.slide-loop.position.width }}" height="{{ control.slide-loop.position.height }}" style="object-position: {{ control.slide-loop.position.position }}" alt="{{ control.slide-loop.position.alt }}"></div>
+                        {{ if control.showCaptions }}<figcaption>{{ text("caption", default: "Image caption") }}</figcaption>{{ endif }}
+                    </figure>
+                {{ endif }}
+            {{ endloop }}
+        </div>
+
+        {{ if control.showArrows }}
+            <button class="foundry-image-slider__arrow foundry-image-slider__arrow--previous" type="button" data-slider-previous aria-label="Previous slide">‹</button>
+            <button class="foundry-image-slider__arrow foundry-image-slider__arrow--next" type="button" data-slider-next aria-label="Next slide">›</button>
+        {{ endif }}
+    </div>
+
+    {{ if control.showDots }}
+        <div class="foundry-image-slider__dots" role="group" aria-label="Choose a slide">
+            {{ loop control.slideCount }}
+                <button type="button" data-slider-dot="{{ loop.index }}" aria-label="Show slide {{ loop.position }}"></button>
+            {{ endloop }}
+        </div>
+    {{ endif }}
+</section>

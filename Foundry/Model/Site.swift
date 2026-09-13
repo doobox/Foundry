@@ -146,10 +146,10 @@ nonisolated struct Site: Codable, Equatable, Identifiable, Sendable {
     var appearanceMode: SiteAppearanceMode = .light
     var projectThemeValues: ProjectThemeValues
     var themeStates: [ProjectThemeState]
-    var reusableComponents: [ReusableComponentDefinition]
-    var globalComponents: [ReusableComponentDefinition]
+    var reusableBlocks: [ReusableBlockDefinition]
+    var globalBlocks: [ReusableBlockDefinition]
     var assetLibrary: [ProjectAssetNode]
-    var componentPackages: [ComponentPackageLock]
+    var blockPackages: [BlockPackageLock]
 
     var assets: [ProjectAsset] { assetLibrary.flatMap(\.allAssets) }
 
@@ -162,22 +162,22 @@ nonisolated struct Site: Codable, Equatable, Identifiable, Sendable {
         }
     }
 
-    mutating func replaceComponentThemeReference(_ reference: String, with replacement: String) {
+    mutating func replaceBlockThemeReference(_ reference: String, with replacement: String) {
         for pageIndex in pages.indices {
             if let background = pages[pageIndex].backgroundOverride,
-               case .packageColor(let updated) = ComponentProperty.Value.packageColor(background)
+               case .packageColor(let updated) = BlockProperty.Value.packageColor(background)
                 .replacingThemeReference(reference, with: replacement) {
                 pages[pageIndex].backgroundOverride = updated
             }
-            for componentIndex in pages[pageIndex].components.indices {
-                pages[pageIndex].components[componentIndex].replaceThemeReference(reference, with: replacement)
+            for blockIndex in pages[pageIndex].blocks.indices {
+                pages[pageIndex].blocks[blockIndex].replaceThemeReference(reference, with: replacement)
             }
         }
-        for index in reusableComponents.indices {
-            reusableComponents[index].root.replaceThemeReference(reference, with: replacement)
+        for index in reusableBlocks.indices {
+            reusableBlocks[index].root.replaceThemeReference(reference, with: replacement)
         }
-        for index in globalComponents.indices {
-            globalComponents[index].root.replaceThemeReference(reference, with: replacement)
+        for index in globalBlocks.indices {
+            globalBlocks[index].root.replaceThemeReference(reference, with: replacement)
         }
     }
 
@@ -214,10 +214,10 @@ nonisolated struct Site: Codable, Equatable, Identifiable, Sendable {
         themeSourceID: UUID = ThemeBundleStore.systemThemeID,
         projectThemeValues: ProjectThemeValues = .init(),
         themeStates: [ProjectThemeState] = [],
-        reusableComponents: [ReusableComponentDefinition] = [],
-        globalComponents: [ReusableComponentDefinition] = [],
+        reusableBlocks: [ReusableBlockDefinition] = [],
+        globalBlocks: [ReusableBlockDefinition] = [],
         assetLibrary: [ProjectAssetNode],
-        componentPackages: [ComponentPackageLock] = [],
+        blockPackages: [BlockPackageLock] = [],
     ) {
         self.id = id
         self.schemaVersion = schemaVersion
@@ -251,10 +251,10 @@ nonisolated struct Site: Codable, Equatable, Identifiable, Sendable {
         self.themeSourceID = themeSourceID
         self.projectThemeValues = projectThemeValues
         self.themeStates = themeStates
-        self.reusableComponents = reusableComponents
-        self.globalComponents = globalComponents
+        self.reusableBlocks = reusableBlocks
+        self.globalBlocks = globalBlocks
         self.assetLibrary = assetLibrary
-        self.componentPackages = componentPackages
+        self.blockPackages = blockPackages
     }
 
     init(
@@ -263,9 +263,9 @@ nonisolated struct Site: Codable, Equatable, Identifiable, Sendable {
         name: String,
         pages: [Page],
         theme: Theme = ThemeBundleStore.systemTheme,
-        reusableComponents: [ReusableComponentDefinition] = []
+        reusableBlocks: [ReusableBlockDefinition] = []
     ) {
-        self.init(id: id, schemaVersion: schemaVersion, name: name, pages: pages, theme: theme, reusableComponents: reusableComponents, globalComponents: [], assetLibrary: [])
+        self.init(id: id, schemaVersion: schemaVersion, name: name, pages: pages, theme: theme, reusableBlocks: reusableBlocks, globalBlocks: [], assetLibrary: [])
     }
 
     init(
@@ -274,7 +274,7 @@ nonisolated struct Site: Codable, Equatable, Identifiable, Sendable {
         name: String,
         pages: [Page],
         theme: Theme = ThemeBundleStore.systemTheme,
-        reusableComponents: [ReusableComponentDefinition] = [],
+        reusableBlocks: [ReusableBlockDefinition] = [],
         assets: [ProjectAsset]
     ) {
         self.init(
@@ -283,15 +283,15 @@ nonisolated struct Site: Codable, Equatable, Identifiable, Sendable {
             name: name,
             pages: pages,
             theme: theme,
-            reusableComponents: reusableComponents,
-            globalComponents: [],
+            reusableBlocks: reusableBlocks,
+            globalBlocks: [],
             assetLibrary: assets.map(ProjectAssetNode.asset)
         )
     }
 
     private enum CodingKeys: String, CodingKey {
         case appearanceMode
-        case id, schemaVersion, name, language, publicURL, titleSuffix, defaultDescription, favicon, defaultSocialImage, generatesCanonicalURLs, generatesSitemap, generatesRobotsTXT, allowsSearchIndexing, customCodeEnabled, headCode, bodyStartCode, bodyEndCode, analyticsCode, cleansObsoleteExportFiles, publishingDestination, publishingHost, publishingPort, publishingUsername, publishingRemotePath, publishingS3Bucket, publishingS3Region, pages, pageFolders, theme, themeSourceID, projectThemeValues, themeStates, reusableComponents, globalComponents, assetLibrary, componentPackages
+        case id, schemaVersion, name, language, publicURL, titleSuffix, defaultDescription, favicon, defaultSocialImage, generatesCanonicalURLs, generatesSitemap, generatesRobotsTXT, allowsSearchIndexing, customCodeEnabled, headCode, bodyStartCode, bodyEndCode, analyticsCode, cleansObsoleteExportFiles, publishingDestination, publishingHost, publishingPort, publishingUsername, publishingRemotePath, publishingS3Bucket, publishingS3Region, pages, pageFolders, theme, themeSourceID, projectThemeValues, themeStates, reusableBlocks, globalBlocks, assetLibrary, blockPackages
     }
 
     init(from decoder: Decoder) throws {
@@ -329,10 +329,10 @@ nonisolated struct Site: Codable, Equatable, Identifiable, Sendable {
         themeSourceID = try container.decode(UUID.self, forKey: .themeSourceID)
         projectThemeValues = try container.decode(ProjectThemeValues.self, forKey: .projectThemeValues)
         themeStates = try container.decode([ProjectThemeState].self, forKey: .themeStates)
-        reusableComponents = try container.decode([ReusableComponentDefinition].self, forKey: .reusableComponents)
-        globalComponents = try container.decode([ReusableComponentDefinition].self, forKey: .globalComponents)
+        reusableBlocks = try container.decode([ReusableBlockDefinition].self, forKey: .reusableBlocks)
+        globalBlocks = try container.decode([ReusableBlockDefinition].self, forKey: .globalBlocks)
         assetLibrary = try container.decode([ProjectAssetNode].self, forKey: .assetLibrary)
-        componentPackages = try container.decode([ComponentPackageLock].self, forKey: .componentPackages)
+        blockPackages = try container.decode([BlockPackageLock].self, forKey: .blockPackages)
     }
 
     static func starter() -> Site {

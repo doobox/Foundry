@@ -8,13 +8,13 @@ struct CanvasInlineEditingMessageTests {
         let id = UUID()
         let message = CanvasMessage.decode([
             "version": 1,
-            "event": "editComponent",
-            "componentID": id.uuidString,
+            "event": "editBlock",
+            "blockID": id.uuidString,
             "propertyKey": "text",
             "propertyValue": "Edited content"
         ])
 
-        #expect(message?.componentID == id)
+        #expect(message?.blockID == id)
         #expect(message?.propertyKey == .text)
         #expect(message?.propertyValue == "Edited content")
     }
@@ -25,14 +25,14 @@ struct CanvasInlineEditingMessageTests {
         let source = "<button>Click me</button>\n<style>button { color: red; }</style>"
         let message = CanvasMessage.decode([
             "version": 1,
-            "event": "editHTMLComponent",
-            "componentID": id.uuidString,
+            "event": "editHTMLBlock",
+            "blockID": id.uuidString,
             "propertyKey": "content",
             "propertyValue": source
         ])
 
-        #expect(message?.event == .editHTMLComponent)
-        #expect(message?.componentID == id)
+        #expect(message?.event == .editHTMLBlock)
+        #expect(message?.blockID == id)
         #expect(message?.propertyKey?.rawValue == "content")
         #expect(message?.propertyValue == source)
     }
@@ -41,8 +41,8 @@ struct CanvasInlineEditingMessageTests {
     func rejectsIncompleteEditMessage() {
         #expect(CanvasMessage.decode([
             "version": 1,
-            "event": "editComponent",
-            "componentID": UUID().uuidString,
+            "event": "editBlock",
+            "blockID": UUID().uuidString,
             "propertyKey": "text"
         ]) == nil)
     }
@@ -56,20 +56,20 @@ struct CanvasInlineEditingUndoTests {
         let undoManager = UndoManager()
         let editor = ProjectEditor(document: document, undoManager: undoManager)
         let page = try #require(document.site.pages.first)
-        let component = try #require(page.components.first?.children.first)
-        let original = component.property(.text)
+        let block = try #require(page.blocks.first?.children.first)
+        let original = block.property(.text)
 
         editor.setProperty(
-            id: component.id,
+            id: block.id,
             key: .text,
             value: .string("Edited once")
         )
-        #expect(document.site.component(withID: component.id)?.property(.text) == "Edited once")
+        #expect(document.site.block(withID: block.id)?.property(.text) == "Edited once")
 
         undoManager.undo()
-        #expect(document.site.component(withID: component.id)?.property(.text) == original)
+        #expect(document.site.block(withID: block.id)?.property(.text) == original)
 
         undoManager.redo()
-        #expect(document.site.component(withID: component.id)?.property(.text) == "Edited once")
+        #expect(document.site.block(withID: block.id)?.property(.text) == "Edited once")
     }
 }

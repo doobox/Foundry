@@ -23,18 +23,18 @@ struct CanvasBridgeTests {
     }
 
     @Test
-    func canvasDefinesDistinctComponentReconciliationAndReloadOperations() {
+    func canvasDefinesDistinctBlockReconciliationAndReloadOperations() {
         let id = UUID()
-        let subtree = RenderedComponentSubtree(componentID: id, html: "<div></div>", instanceCSS: "")
+        let subtree = RenderedBlockSubtree(blockID: id, html: "<div></div>", instanceCSS: "")
         let operations: [CanvasWebOperation] = [
-            .component(subtree, revision: 4),
+            .block(subtree, revision: 4),
             .reconcilePage(html: "page", revision: 5),
             .reloadDocument(html: "page", revision: 6)
         ]
         let interactionScript = WebCanvasView.Coordinator.interactionScript
 
         #expect(operations.map(\.revision) == [4, 5, 6])
-        #expect(interactionScript.contains("foundryReplaceComponent"))
+        #expect(interactionScript.contains("foundryReplaceBlock"))
         #expect(interactionScript.contains("data-foundry-instance-style"))
         #expect(interactionScript.contains("revision < latestFoundryRevision"))
     }
@@ -68,11 +68,11 @@ struct CanvasBridgeTests {
     }
 
     @Test @MainActor
-    func ordinaryLocalPropertyMutationUsesAuthoritativeComponentPatch() throws {
-        var paragraph = ComponentNode.make(.paragraph)
-        let propertyKey = ComponentProperty.Key(rawValue: "content")
+    func ordinaryLocalPropertyMutationUsesAuthoritativeBlockPatch() throws {
+        var paragraph = BlockNode.make(.paragraph)
+        let propertyKey = BlockProperty.Key(rawValue: "content")
         paragraph.setProperty(propertyKey, value: .string("Patched value"))
-        let page = Page(title: "Patch", slug: "patch", components: [paragraph])
+        let page = Page(title: "Patch", slug: "patch", blocks: [paragraph])
         let snapshot = CanvasRenderSnapshot(
             renderer: HTMLPageRenderer(),
             page: page,
@@ -80,25 +80,25 @@ struct CanvasBridgeTests {
             theme: .standard,
             assets: [:],
             breakpoint: .extraLarge,
-            impact: .componentProperty(componentID: paragraph.id, propertyKey: propertyKey),
+            impact: .blockProperty(blockID: paragraph.id, propertyKey: propertyKey),
             forcesReconciliation: false
         )
 
         let result = snapshot.render()
-        guard case .component(let subtree) = result else {
-            Issue.record("Expected a targeted component render")
+        guard case .block(let subtree) = result else {
+            Issue.record("Expected a targeted block render")
             return
         }
-        #expect(subtree.componentID == paragraph.id)
+        #expect(subtree.blockID == paragraph.id)
         #expect(HTMLPageRenderer().render(page: page, theme: .standard).contains(subtree.html))
     }
 
     @Test @MainActor
     func reusablePropertyMutationUsesPageFallback() {
-        var paragraph = ComponentNode.make(.paragraph)
+        var paragraph = BlockNode.make(.paragraph)
         paragraph.reusableDefinitionID = UUID()
-        let propertyKey = ComponentProperty.Key(rawValue: "content")
-        let page = Page(title: "Fallback", slug: "fallback", components: [paragraph])
+        let propertyKey = BlockProperty.Key(rawValue: "content")
+        let page = Page(title: "Fallback", slug: "fallback", blocks: [paragraph])
         let snapshot = CanvasRenderSnapshot(
             renderer: HTMLPageRenderer(),
             page: page,
@@ -106,7 +106,7 @@ struct CanvasBridgeTests {
             theme: .standard,
             assets: [:],
             breakpoint: .extraLarge,
-            impact: .componentProperty(componentID: paragraph.id, propertyKey: propertyKey),
+            impact: .blockProperty(blockID: paragraph.id, propertyKey: propertyKey),
             forcesReconciliation: false
         )
 
@@ -121,37 +121,37 @@ struct CanvasBridgeTests {
         let id = UUID()
         let body: [String: Any] = [
             "version": CanvasMessage.currentVersion,
-            "event": "selectComponent",
-            "componentID": id.uuidString
+            "event": "selectBlock",
+            "blockID": id.uuidString
         ]
 
         let message = CanvasMessage.decode(body)
 
-        #expect(message?.event == .selectComponent)
-        #expect(message?.componentID == id)
+        #expect(message?.event == .selectBlock)
+        #expect(message?.blockID == id)
     }
 
     @Test
     func decodesPrimitiveSelectionMessage() {
-        let componentID = UUID()
-        let propertyKey = ComponentProperty.Key(rawValue: "sourceRepeat3")
+        let blockID = UUID()
+        let propertyKey = BlockProperty.Key(rawValue: "sourceRepeat3")
 
         let message = CanvasMessage.decode([
             "version": CanvasMessage.currentVersion,
             "event": "selectPrimitive",
-            "componentID": componentID.uuidString,
+            "blockID": blockID.uuidString,
             "propertyKey": propertyKey.rawValue,
             "propertyPath": [2, 4]
         ])
 
         #expect(message?.event == .selectPrimitive)
-        #expect(message?.componentID == componentID)
+        #expect(message?.blockID == blockID)
         #expect(message?.propertyKey == propertyKey)
         #expect(message?.propertyPath == [2, 4])
         #expect(CanvasMessage.decode([
             "version": CanvasMessage.currentVersion,
             "event": "selectPrimitive",
-            "componentID": componentID.uuidString
+            "blockID": blockID.uuidString
         ]) == nil)
     }
 
@@ -161,13 +161,13 @@ struct CanvasBridgeTests {
 
         #expect(CanvasMessage.decode([
             "version": 999,
-            "event": "selectComponent",
-            "componentID": id
+            "event": "selectBlock",
+            "blockID": id
         ]) == nil)
         #expect(CanvasMessage.decode([
             "version": CanvasMessage.currentVersion,
             "event": "unknown",
-            "componentID": id
+            "blockID": id
         ]) == nil)
         #expect(CanvasMessage.decode("not an object") == nil)
     }
@@ -175,11 +175,11 @@ struct CanvasBridgeTests {
     @Test
     func decodesCanvasImageImportMessage() {
         let id = UUID()
-        let propertyKey = ComponentProperty.Key(rawValue: "sourceRepeat1")
+        let propertyKey = BlockProperty.Key(rawValue: "sourceRepeat1")
         let message = CanvasMessage.decode([
             "version": CanvasMessage.currentVersion,
             "event": "importImageAsset",
-            "componentID": id.uuidString,
+            "blockID": id.uuidString,
             "propertyKey": propertyKey.rawValue,
             "propertyPath": [3],
             "assetFilename": "hero.png",
@@ -188,7 +188,7 @@ struct CanvasBridgeTests {
         ])
 
         #expect(message?.event == .importImageAsset)
-        #expect(message?.componentID == id)
+        #expect(message?.blockID == id)
         #expect(message?.propertyKey == propertyKey)
         #expect(message?.propertyPath == [3])
         #expect(message?.assetFilename == "hero.png")
@@ -197,7 +197,7 @@ struct CanvasBridgeTests {
         let existingAssetMessage = CanvasMessage.decode([
             "version": CanvasMessage.currentVersion,
             "event": "importImageAsset",
-            "componentID": id.uuidString,
+            "blockID": id.uuidString,
             "propertyKey": propertyKey.rawValue,
             "assetID": assetID.uuidString
         ])
@@ -206,20 +206,20 @@ struct CanvasBridgeTests {
     }
 
     @Test
-    func decodesCanvasComponentDeletionAndRejectsEmptyDeletion() {
+    func decodesCanvasBlockDeletionAndRejectsEmptyDeletion() {
         let ids = [UUID(), UUID()]
         let message = CanvasMessage.decode([
             "version": CanvasMessage.currentVersion,
-            "event": "deleteComponents",
-            "componentIDs": ids.map(\.uuidString)
+            "event": "deleteBlocks",
+            "blockIDs": ids.map(\.uuidString)
         ])
 
-        #expect(message?.event == .deleteComponents)
-        #expect(message?.componentIDs == ids)
+        #expect(message?.event == .deleteBlocks)
+        #expect(message?.blockIDs == ids)
         #expect(CanvasMessage.decode([
             "version": CanvasMessage.currentVersion,
-            "event": "deleteComponents",
-            "componentIDs": []
+            "event": "deleteBlocks",
+            "blockIDs": []
         ]) == nil)
     }
 
@@ -227,34 +227,34 @@ struct CanvasBridgeTests {
     func decodesCanvasKeyboardSelectionActions() {
         let ids = [UUID(), UUID()]
         let actions: [(String, CanvasMessage.Event)] = [
-            ("duplicateComponents", .duplicateComponents),
-            ("copyComponents", .copyComponents),
-            ("pasteComponents", .pasteComponents)
+            ("duplicateBlocks", .duplicateBlocks),
+            ("copyBlocks", .copyBlocks),
+            ("pasteBlocks", .pasteBlocks)
         ]
         for (event, expectedEvent) in actions {
             let message = CanvasMessage.decode([
                 "version": CanvasMessage.currentVersion,
                 "event": event,
-                "componentIDs": ids.map(\.uuidString)
+                "blockIDs": ids.map(\.uuidString)
             ])
 
             #expect(message?.event == expectedEvent)
-            #expect(message?.componentIDs == ids)
+            #expect(message?.blockIDs == ids)
         }
         #expect(WebCanvasView.Coordinator.interactionScript.contains("event.metaKey"))
-        #expect(WebCanvasView.Coordinator.interactionScript.contains("window.foundryEditComponent(componentID)"))
+        #expect(WebCanvasView.Coordinator.interactionScript.contains("window.foundryEditBlock(blockID)"))
     }
 
     @Test @MainActor
-    func rendererEmitsStableIdentityForEveryComponent() {
+    func rendererEmitsStableIdentityForEveryBlock() {
         let page = TestSiteFixtures.populatedSite().pages[0]
         let html = HTMLPageRenderer().render(page: page, theme: .standard)
-        let componentIDs = flattened(page.components).map(\.id.uuidString)
+        let blockIDs = flattened(page.blocks).map(\.id.uuidString)
 
-        for id in componentIDs {
+        for id in blockIDs {
             #expect(html.contains("data-foundry-id=\"\(id)\""))
         }
-        #expect(html.contains("data-foundry-component"))
+        #expect(html.contains("data-foundry-block"))
         #expect(html.contains("data-foundry-package="))
         #expect(html.contains("data-foundry-type=\"Container\""))
         #expect(html.contains("data-foundry-type=\"Paragraph\""))
@@ -263,13 +263,13 @@ struct CanvasBridgeTests {
 
     @Test @MainActor
     func subtreeRendererMatchesAuthoritativePageOutput() throws {
-        var paragraph = ComponentNode.make(.paragraph)
+        var paragraph = BlockNode.make(.paragraph)
         paragraph.setProperty(.init(rawValue: "content"), value: .string("Subtree value"))
-        let page = Page(title: "Subtree", slug: "subtree", components: [paragraph])
+        let page = Page(title: "Subtree", slug: "subtree", blocks: [paragraph])
         let renderer = HTMLPageRenderer()
 
         let subtree = try #require(renderer.renderSubtree(
-            componentID: paragraph.id,
+            blockID: paragraph.id,
             page: page,
             theme: .standard,
             assets: [:],
@@ -285,15 +285,15 @@ struct CanvasBridgeTests {
 
     @Test @MainActor
     func subtreeRendererIncludesNestedDescendantsAndTheirStyles() throws {
-        var child = ComponentNode.make(.paragraph)
+        var child = BlockNode.make(.paragraph)
         child.setProperty(.init(rawValue: "content"), value: .string("Nested value"))
-        var container = ComponentNode.make(.container)
+        var container = BlockNode.make(.container)
         container.children = [child]
-        let page = Page(title: "Nested", slug: "nested", components: [container])
+        let page = Page(title: "Nested", slug: "nested", blocks: [container])
         let renderer = HTMLPageRenderer()
 
         let subtree = try #require(renderer.renderSubtree(
-            componentID: container.id,
+            blockID: container.id,
             page: page,
             theme: .standard,
             assets: [:],
@@ -312,15 +312,15 @@ struct CanvasBridgeTests {
     @Test @MainActor
     func subtreeRendererPreservesInheritedGlobalIdentity() throws {
         let definitionID = UUID()
-        let child = ComponentNode.make(.paragraph)
-        var globalContainer = ComponentNode.make(.container)
+        let child = BlockNode.make(.paragraph)
+        var globalContainer = BlockNode.make(.container)
         globalContainer.reusableDefinitionID = definitionID
         globalContainer.children = [child]
-        let page = Page(title: "Global", slug: "global", components: [globalContainer])
+        let page = Page(title: "Global", slug: "global", blocks: [globalContainer])
         let renderer = HTMLPageRenderer()
 
         let subtree = try #require(renderer.renderSubtree(
-            componentID: child.id,
+            blockID: child.id,
             page: page,
             theme: .standard,
             assets: [:],
@@ -330,7 +330,7 @@ struct CanvasBridgeTests {
         #expect(subtree.html.contains("data-foundry-global=\"\(definitionID.uuidString)\""))
         #expect(renderer.render(page: page, theme: .standard).contains(subtree.html))
         #expect(renderer.renderSubtree(
-            componentID: UUID(),
+            blockID: UUID(),
             page: page,
             theme: .standard,
             assets: [:],
@@ -339,13 +339,13 @@ struct CanvasBridgeTests {
     }
 
     @Test @MainActor
-    func rendererMarksGlobalsNestedInsideNormalComponents() {
+    func rendererMarksGlobalsNestedInsideNormalBlocks() {
         let definitionID = UUID()
-        var global = ComponentNode.make(.paragraph)
+        var global = BlockNode.make(.paragraph)
         global.reusableDefinitionID = definitionID
-        var container = ComponentNode.make(.container)
+        var container = BlockNode.make(.container)
         container.children = [global]
-        let page = Page(title: "Nested Global", slug: "nested-global", components: [container])
+        let page = Page(title: "Nested Global", slug: "nested-global", blocks: [container])
 
         let html = HTMLPageRenderer().render(page: page, theme: .standard)
 
@@ -355,9 +355,9 @@ struct CanvasBridgeTests {
 
     @Test @MainActor
     func emptyImageRendersAsAnExplicitDropTarget() {
-        var image = ComponentNode.make(.image)
+        var image = BlockNode.make(.image)
         image.setProperty(.source, value: .url(""))
-        let page = Page(title: "Images", slug: "images", components: [image])
+        let page = Page(title: "Images", slug: "images", blocks: [image])
 
         let html = HTMLPageRenderer().render(page: page, theme: .standard)
 
@@ -369,9 +369,9 @@ struct CanvasBridgeTests {
     func canvasServesAStillFirstFrameForManagedGIFsWithoutInliningIt() throws {
         let gifData = try #require(Data(base64Encoded: "R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw=="))
         let asset = ProjectAsset(filename: "animation.gif", mediaType: "image/gif", byteCount: gifData.count)
-        var image = ComponentNode.make(.image)
+        var image = BlockNode.make(.image)
         image.setProperty(.source, value: .url(asset.reference))
-        let page = Page(title: "GIF", slug: "gif", components: [image])
+        let page = Page(title: "GIF", slug: "gif", blocks: [image])
 
         let html = HTMLPageRenderer().render(
             page: page,
@@ -417,7 +417,7 @@ struct CanvasBridgeTests {
         #expect(interactionScript.contains("data-foundry-editor-chrome', 'editable"))
         #expect(interactionScript.contains("[data-foundry-inline-property]"))
         #expect(interactionScript.contains("const clickedEditable = event.target.closest('[data-foundry-inline-property]')"))
-        #expect(!interactionScript.contains("component.querySelector('[data-foundry-inline-property]') !== null"))
+        #expect(!interactionScript.contains("block.querySelector('[data-foundry-inline-property]') !== null"))
         #expect(!html.contains("[data-foundry-id]:hover:not(:has([data-foundry-id]:hover))"))
         #expect(!html.contains("data-foundry-name); position: absolute"))
         #expect(!html.contains("position: relative; cursor: default"))
@@ -432,7 +432,7 @@ struct CanvasBridgeTests {
         #expect(layout.columns[0].selectedPanel == .structure)
     }
 
-    private func flattened(_ nodes: [ComponentNode]) -> [ComponentNode] {
+    private func flattened(_ nodes: [BlockNode]) -> [BlockNode] {
         nodes.flatMap { [$0] + flattened($0.children) }
     }
 }

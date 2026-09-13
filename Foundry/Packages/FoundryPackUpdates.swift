@@ -113,7 +113,7 @@ nonisolated enum FoundryPackUpdateError: Error, LocalizedError {
 }
 
 nonisolated enum FoundryPackSigningIdentity {
-    private static let service = "uk.co.garysimpson.Foundry.component-signing"
+    private static let service = "uk.co.garysimpson.Foundry.block-signing"
     private static let account = "default-publisher"
 
     static func privateKey() throws -> Curve25519.Signing.PrivateKey {
@@ -285,7 +285,7 @@ nonisolated enum FoundryPackReleaseBuilder {
         let release = FoundryPackAppcast.Release(
             version: version,
             publishedAt: publishedAt,
-            minimumAPIVersion: pack.metadata.minimumAPIVersion ?? FoundryComponentAPI.currentVersion,
+            minimumAPIVersion: pack.metadata.minimumAPIVersion ?? FoundryBlockAPI.currentVersion,
             downloadURL: downloadURL,
             releaseNotesURL: releaseNotesURL,
             fileSize: Int64(archiveData.count),
@@ -383,9 +383,9 @@ nonisolated enum FoundryPackReleaseBuilder {
     private static let releasesEndMarker = "<!-- FOUNDRY_RELEASES_END -->"
 
     private static func releaseNotesURL(baseURL: URL, version: String) -> URL {
-        var components = URLComponents(url: baseURL, resolvingAgainstBaseURL: false)
-        components?.fragment = versionAnchor(version)
-        return components?.url ?? baseURL
+        var parts = URLComponents(url: baseURL, resolvingAgainstBaseURL: false)
+        parts?.fragment = versionAnchor(version)
+        return parts?.url ?? baseURL
     }
 
     private static func existingReleaseNotes(at url: URL) async throws -> String {
@@ -570,7 +570,7 @@ nonisolated enum FoundryPackUpdateVerifier {
             throw FoundryPackUpdateError.invalidMetadata("The installed pack version is not semantic.")
         }
         let compatible = appcast.releases.filter {
-            $0.minimumAPIVersion <= FoundryComponentAPI.currentVersion
+            $0.minimumAPIVersion <= FoundryBlockAPI.currentVersion
                 && SemanticVersion($0.version).map { current < $0 } == true
         }
         guard let release = compatible.max(by: {

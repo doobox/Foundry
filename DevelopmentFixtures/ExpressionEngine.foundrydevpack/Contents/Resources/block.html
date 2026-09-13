@@ -1,0 +1,61 @@
+<section {{ block.attributes }} class="expression-demo {{ block.class }}">
+    <header>
+        <span class="eyebrow">Expression Engine</span>
+        <h2>Live expression showcase</h2>
+        <p>Change the block controls to see every expression recalculate.</p>
+    </header>
+
+    <div class="expression-grid">
+        <article>
+            <code>base + offset * multiplier</code>
+            <strong>{{ control.base + control.offset * control.multiplier }}</strong>
+            <small>{{ control.base }} + {{ control.offset }} × {{ control.multiplier }}</small>
+        </article>
+        <article>
+            <code>(base + offset) * multiplier</code>
+            <strong>{{ (control.base + control.offset) * control.multiplier }}</strong>
+            <small>Parentheses override precedence</small>
+        </article>
+        <article>
+            <code>clamp(score, 0, threshold)</code>
+            <strong>{{ clamp(control.score, 0, control.threshold) }}</strong>
+            <small>Functions accept expressions as arguments</small>
+        </article>
+        <article>
+            <code>abs(base - score) % 10</code>
+            <strong>{{ abs(control.base - control.score) % 10 }}</strong>
+            <small>Absolute value and remainder</small>
+        </article>
+    </div>
+
+    <div class="condition-result">
+        {{ if !control.enabled }}
+        <strong>Disabled</strong>
+        <span><code>!enabled</code> matched.</span>
+        {{ elseif control.status == "featured" && control.score >= control.threshold }}
+        <strong>Featured and above threshold</strong>
+        <span>Both sides of <code>&amp;&amp;</code> matched.</span>
+        {{ elseif control.status == "draft" || control.score < control.threshold }}
+        <strong>Draft or below threshold</strong>
+        <span>At least one side of <code>||</code> matched.</span>
+        {{ else }}
+        <strong>Standard fallback</strong>
+        <span>The final <code>else</code> branch matched.</span>
+        {{ endif }}
+    </div>
+
+    <dl>
+        <div><dt>Comparison</dt><dd>{{ control.score >= control.threshold }}</dd></div>
+        <div><dt>Indexed values</dt><dd>{{ control.labels[0] }} · {{ control.labels[1] }}</dd></div>
+        <div><dt>Minimum / maximum</dt><dd>{{ min(control.base, control.score) }} / {{ max(control.base, control.score) }}</dd></div>
+        <div><dt>Rounded division</dt><dd>{{ round(control.score / 3) }}</dd></div>
+    </dl>
+
+    {{ if canvas }}
+    <p class="canvas-note">The <code>canvas</code> value is true. This note is editor-only.</p>
+    {{ elseif preview }}
+    <p class="canvas-note">The <code>preview</code> value is true. This page is on Foundry’s local preview server.</p>
+    {{ elseif published }}
+    <p class="canvas-note">The <code>published</code> value is true. This is final export or publishing output.</p>
+    {{ endif }}
+</section>

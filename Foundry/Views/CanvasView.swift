@@ -45,17 +45,17 @@ struct CanvasView: View {
     let assets: [UUID: ProjectAssetContent]
     let assetRevision: UInt64
     let mutationEvent: ProjectMutationEvent
-    let componentPackageRevision: Int
-    let isComponentCatalogReady: Bool
-    let selectedComponentIDs: Set<UUID>
-    let primarySelectedComponentID: UUID?
+    let blockPackageRevision: Int
+    let isBlockCatalogReady: Bool
+    let selectedBlockIDs: Set<UUID>
+    let primarySelectedBlockID: UUID?
     let selectedPrimitive: CanvasPrimitiveSelection?
     let editorOptions: CanvasEditorOptions
     let renderer: any PageRendering
-    let canPasteComponent: Bool
-    let canClearImage: (UUID, ComponentProperty.Key, [Int]) -> Bool
+    let canPasteBlock: Bool
+    let canClearImage: (UUID, BlockProperty.Key, [Int]) -> Bool
     let handleMessage: (CanvasMessage) -> Void
-    let handleContextMenuAction: (CanvasContextMenuAction, UUID, ComponentProperty.Key?, [Int]) -> Void
+    let handleContextMenuAction: (CanvasContextMenuAction, UUID, BlockProperty.Key?, [Int]) -> Void
     @Binding var viewportWidth: Double
     @AppStorage(AppPreferenceKey.overridesCanvasBackground)
     private var overridesCanvasBackground = false
@@ -75,8 +75,8 @@ struct CanvasView: View {
 
     var body: some View {
         GeometryReader { geometry in
-            if !isComponentCatalogReady {
-                ComponentCatalogLoadingView()
+            if !isBlockCatalogReady {
+                BlockCatalogLoadingView()
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if let page {
                 let availableWidth = visibleCanvasWidth > 0
@@ -103,12 +103,12 @@ struct CanvasView: View {
                                             assets: assets,
                                             packages: canvasPackages(for: page),
                                             assetRevision: assetRevision,
-                                            selectedComponentIDs: selectedComponentIDs,
-                                            primarySelectedComponentID: primarySelectedComponentID,
+                                            selectedBlockIDs: selectedBlockIDs,
+                                            primarySelectedBlockID: primarySelectedBlockID,
                                             selectedPrimitive: selectedPrimitive,
                                             editorOptions: editorOptions,
                                             enablesWebInspector: enablesCanvasWebInspector,
-                                            canPasteComponent: canPasteComponent,
+                                            canPasteBlock: canPasteBlock,
                                             canClearImage: canClearImage,
                                             handleMessage: handleMessage,
                                             handleContextMenuAction: handleContextMenuAction,
@@ -202,7 +202,7 @@ struct CanvasView: View {
             pageID: page.id,
             mutationRevision: mutationEvent.revision,
             assetRevision: assetRevision,
-            componentPackageRevision: componentPackageRevision,
+            blockPackageRevision: blockPackageRevision,
             breakpoint: breakpoint,
             forcesReconciliation: forcedReconciliationRevision == mutationEvent.revision,
             appearance: appearance
@@ -235,9 +235,9 @@ struct CanvasView: View {
         renderedAppearance = appearance
     }
 
-    private func canvasPackages(for page: Page) -> [String: LoadedComponentPackage] {
+    private func canvasPackages(for page: Page) -> [String: LoadedBlockPackage] {
         Dictionary(
-            page.components
+            page.blocks
                 .flatMap(flattened)
                 .compactMap(\.type.definition.package)
                 .map { ($0.manifest.identifier, $0) },
@@ -245,7 +245,7 @@ struct CanvasView: View {
         )
     }
 
-    private func flattened(_ node: ComponentNode) -> [ComponentNode] {
+    private func flattened(_ node: BlockNode) -> [BlockNode] {
         [node] + node.children.flatMap(flattened)
     }
 
@@ -295,8 +295,8 @@ struct CanvasView: View {
     }
 }
 
-struct ComponentCatalogLoadingView: View {
-    @State private var catalog = ComponentPackageCatalog.shared
+struct BlockCatalogLoadingView: View {
+    @State private var catalog = BlockPackageCatalog.shared
 
     var body: some View {
         VStack(spacing: 10) {
@@ -314,17 +314,17 @@ struct ComponentCatalogLoadingView: View {
     private var loadingDescription: String {
         switch catalog.loadingStage {
         case .finding:
-            return "Finding components…"
+            return "Finding blocks…"
         case .loading:
-            return "Loading component files… \(catalog.completedPackageCount) of \(catalog.totalPackageCount)"
+            return "Loading block files… \(catalog.completedPackageCount) of \(catalog.totalPackageCount)"
         case .savingIndex:
-            return "Saving component index…"
+            return "Saving block index…"
         case .preparing:
-            return "Preparing component library… \(catalog.completedPackageCount) of \(catalog.totalPackageCount)"
+            return "Preparing block library… \(catalog.completedPackageCount) of \(catalog.totalPackageCount)"
         case .publishing:
-            return "Publishing component library…"
+            return "Publishing block library…"
         case .ready:
-            return "Components ready"
+            return "Blocks ready"
         }
     }
 }
@@ -333,7 +333,7 @@ private struct CanvasRenderRequestID: Hashable {
     let pageID: UUID
     let mutationRevision: UInt64
     let assetRevision: UInt64
-    let componentPackageRevision: Int
+    let blockPackageRevision: Int
     let breakpoint: ResponsiveBreakpoint
     let forcesReconciliation: Bool
     let appearance: SiteAppearance
@@ -356,16 +356,16 @@ nonisolated struct CanvasRenderSnapshot: Sendable {
 
     func render() -> CanvasRenderResult {
         if !forcesReconciliation,
-           case .componentProperty(let componentID, let propertyKey) = impact,
-           allowsComponentPatch(componentID: componentID, propertyKey: propertyKey),
+           case .blockProperty(let blockID, let propertyKey) = impact,
+           allowsBlockPatch(blockID: blockID, propertyKey: propertyKey),
            let subtree = renderer.renderSubtree(
-               componentID: componentID,
+               blockID: blockID,
                page: page,
                theme: theme,
                assets: assets,
                breakpoint: breakpoint
            ) {
-            return .component(subtree)
+            return .block(subtree)
         }
         let html = renderer.render(
             page: page,
@@ -377,12 +377,12 @@ nonisolated struct CanvasRenderSnapshot: Sendable {
         return .page(html)
     }
 
-    private func allowsComponentPatch(componentID: UUID, propertyKey: ComponentProperty.Key) -> Bool {
-        guard let path = componentPath(to: componentID, in: page.components),
+    private func allowsBlockPatch(blockID: UUID, propertyKey: BlockProperty.Key) -> Bool {
+        guard let path = blockPath(to: blockID, in: page.blocks),
               path.allSatisfy({ $0.reusableDefinitionID == nil }),
-              let component = path.last,
-              let package = component.type.definition.package,
-              let property = component.type.definition.properties.first(where: { $0.key == propertyKey }) else {
+              let block = path.last,
+              let package = block.type.definition.package,
+              let property = block.type.definition.properties.first(where: { $0.key == propertyKey }) else {
             return false
         }
         guard package.pageCSS.isEmpty,
@@ -397,10 +397,10 @@ nonisolated struct CanvasRenderSnapshot: Sendable {
         return true
     }
 
-    private func componentPath(to componentID: UUID, in nodes: [ComponentNode]) -> [ComponentNode]? {
+    private func blockPath(to blockID: UUID, in nodes: [BlockNode]) -> [BlockNode]? {
         for node in nodes {
-            if node.id == componentID { return [node] }
-            if let childPath = componentPath(to: componentID, in: node.children) {
+            if node.id == blockID { return [node] }
+            if let childPath = blockPath(to: blockID, in: node.children) {
                 return [node] + childPath
             }
         }
@@ -409,12 +409,12 @@ nonisolated struct CanvasRenderSnapshot: Sendable {
 }
 
 nonisolated enum CanvasRenderResult: Equatable, Sendable {
-    case component(RenderedComponentSubtree)
+    case block(RenderedBlockSubtree)
     case page(String)
 
     func withRevision(_ revision: UInt64) -> CanvasWebOperation {
         switch self {
-        case .component(let subtree): .component(subtree, revision: revision)
+        case .block(let subtree): .block(subtree, revision: revision)
         case .page(let html): .reconcilePage(html: html, revision: revision)
         }
     }

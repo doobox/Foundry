@@ -12,13 +12,13 @@ struct InspectorView: View {
     let folders: [PageFolder]
     let pages: [Page]
     let publicURL: String
-    let component: ComponentNode?
-    let componentSelectionCount: Int
-    let libraryComponentType: ComponentType?
+    let block: BlockNode?
+    let blockSelectionCount: Int
+    let libraryBlockType: BlockType?
     let theme: Theme
     let assets: [ProjectAsset]
     let editor: ProjectEditor
-    let reusableDefinition: ReusableComponentDefinition?
+    let reusableDefinition: ReusableBlockDefinition?
     let isGlobalOverride: Bool
     let setGlobalOverride: (Bool) -> Void
     let breakpoint: ResponsiveBreakpoint
@@ -30,9 +30,9 @@ struct InspectorView: View {
 
     var body: some View {
         Group {
-            if componentSelectionCount == 1, let component {
-                ComponentInspector(
-                    component: component,
+            if blockSelectionCount == 1, let block {
+                BlockInspector(
+                    block: block,
                     currentPage: currentPage,
                     theme: theme,
                     assets: assets,
@@ -48,13 +48,13 @@ struct InspectorView: View {
                     importImage: importImage,
                     editsSharedDefinition: $editsSharedDefinition
                 )
-            } else if componentSelectionCount == 0,
+            } else if blockSelectionCount == 0,
                       page == nil,
                       folder == nil,
                       asset == nil,
                       assetLibraryNode == nil,
-                      let libraryComponentType {
-                ComponentLibraryInspector(type: libraryComponentType)
+                      let libraryBlockType {
+                BlockLibraryInspector(type: libraryBlockType)
             } else {
                 Form {
                     inspectorFormContent
@@ -67,10 +67,10 @@ struct InspectorView: View {
 
     @ViewBuilder
     private var inspectorFormContent: some View {
-        if componentSelectionCount > 1 {
+        if blockSelectionCount > 1 {
                 Section("Multiple Selection") {
-                    LabeledContent("Components", value: componentSelectionCount.formatted())
-                    Text("Group dragging and deletion apply to the selected components.")
+                    LabeledContent("Blocks", value: blockSelectionCount.formatted())
+                    Text("Group dragging and deletion apply to the selected blocks.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -93,14 +93,14 @@ struct InspectorView: View {
             ContentUnavailableView(
                 "No Selection",
                 systemImage: "slider.horizontal.3",
-                description: Text("Select a page, folder, or component to edit it.")
+                description: Text("Select a page, folder, or block to edit it.")
             )
         }
     }
 }
 
-private struct ComponentLibraryInspector: View {
-    let type: ComponentType
+private struct BlockLibraryInspector: View {
+    let type: BlockType
     @AppStorage(AppPreferenceKey.showsDeveloperPanel) private var enablesDeveloperTools = false
 
     var body: some View {
@@ -108,15 +108,15 @@ private struct ComponentLibraryInspector: View {
         ScrollView {
             LazyVStack(spacing: 14) {
                 InspectorCard {
-                    ComponentLibraryInspectorHeader(
+                    BlockLibraryInspectorHeader(
                         type: type,
                         description: type.libraryDescription,
                         isDevelopmentPack: package?.isDevelopmentPack == true
                     )
                 }
 
-                InspectorCard(title: "Component") {
-                    ComponentLibraryInspectorMetadata(
+                InspectorCard(title: "Block") {
+                    BlockLibraryInspectorMetadata(
                         identifier: type.rawValue,
                         developer: package?.manifest.author,
                         version: package.flatMap(displayVersion),
@@ -127,18 +127,18 @@ private struct ComponentLibraryInspector: View {
 
                 if let tags = package?.manifest.tags, !tags.isEmpty {
                     InspectorCard(title: "Tags") {
-                        ComponentLibraryInspectorTags(tags: tags)
+                        BlockLibraryInspectorTags(tags: tags)
                     }
                 }
 
                 if let updateSourceURL = package?.updateSourceURL {
                     InspectorCard(title: "Updates") {
-                        ComponentLibraryUpdateControls(sourceURL: updateSourceURL)
+                        BlockLibraryUpdateControls(sourceURL: updateSourceURL)
                     }
                 }
 
                 if enablesDeveloperTools, let package, !package.isBuiltIn {
-                    ComponentPackConversionControls(package: package)
+                    BlockPackConversionControls(package: package)
                 }
             }
             .padding(16)
@@ -147,7 +147,7 @@ private struct ComponentLibraryInspector: View {
         .font(.callout)
     }
 
-    private func displayVersion(for package: LoadedComponentPackage) -> String? {
+    private func displayVersion(for package: LoadedBlockPackage) -> String? {
         let metadataSourceURL = package.developmentPackRootURL ?? package.updateSourceURL
         guard let metadataSourceURL,
               let metadataPack = try? FoundryPackLoader.load(from: metadataSourceURL) else {
@@ -157,8 +157,8 @@ private struct ComponentLibraryInspector: View {
     }
 }
 
-private struct ComponentPackConversionControls: View {
-    let package: LoadedComponentPackage
+private struct BlockPackConversionControls: View {
+    let package: LoadedBlockPackage
     @State private var convertedURL: URL?
     @State private var errorMessage: String?
 
@@ -177,7 +177,7 @@ private struct ComponentPackConversionControls: View {
     }
 
     private var packURL: URL {
-        convertedURL ?? ComponentPackageCatalog.shared.conversionRootURL(for: package)
+        convertedURL ?? BlockPackageCatalog.shared.conversionRootURL(for: package)
     }
 
     private var isDevelopmentPack: Bool {
@@ -192,7 +192,7 @@ private struct ComponentPackConversionControls: View {
         errorMessage = nil
         let destinationExtension = isDevelopmentPack ? "foundrypack" : "foundrydevpack"
         do {
-            convertedURL = try ComponentPackageCatalog.shared.convertPack(
+            convertedURL = try BlockPackageCatalog.shared.convertPack(
                 at: packURL,
                 toExtension: destinationExtension
             )
@@ -202,7 +202,7 @@ private struct ComponentPackConversionControls: View {
     }
 }
 
-private struct ComponentLibraryUpdateControls: View {
+private struct BlockLibraryUpdateControls: View {
     let sourceURL: URL
     @State private var isChecking = false
     @State private var status: String?
@@ -251,14 +251,14 @@ private struct ComponentLibraryUpdateControls: View {
     }
 }
 
-private struct ComponentLibraryInspectorHeader: View {
-    let type: ComponentType
+private struct BlockLibraryInspectorHeader: View {
+    let type: BlockType
     let description: String
     let isDevelopmentPack: Bool
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
-            ComponentLibraryIcon(type: type, size: 48)
+            BlockLibraryIcon(type: type, size: 48)
 
             VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 6) {
@@ -282,7 +282,7 @@ private struct ComponentLibraryInspectorHeader: View {
     }
 }
 
-private struct ComponentLibraryInspectorMetadata: View {
+private struct BlockLibraryInspectorMetadata: View {
     let identifier: String
     let developer: String?
     let version: String?
@@ -314,7 +314,7 @@ private struct ComponentLibraryInspectorMetadata: View {
     }
 }
 
-private struct ComponentLibraryInspectorTags: View {
+private struct BlockLibraryInspectorTags: View {
     let tags: [String]
 
     var body: some View {
@@ -411,20 +411,20 @@ private struct AssetLibraryNodeInspector: View {
     }
 
     private func libraryPath(to id: UUID) -> String {
-        func find(_ nodes: [ProjectAssetNode], components: [String]) -> [String]? {
+        func find(_ nodes: [ProjectAssetNode], blocks: [String]) -> [String]? {
             for node in nodes {
                 switch node {
                 case .asset(let asset):
-                    if asset.id == id { return components + [asset.filename] }
+                    if asset.id == id { return blocks + [asset.filename] }
                 case .folder(let folder):
-                    let path = components + [folder.name]
+                    let path = blocks + [folder.name]
                     if folder.id == id { return path }
-                    if let match = find(folder.children, components: path) { return match }
+                    if let match = find(folder.children, blocks: path) { return match }
                 }
             }
             return nil
         }
-        return "/" + (find(library, components: []) ?? []).joined(separator: "/")
+        return "/" + (find(library, blocks: []) ?? []).joined(separator: "/")
     }
 
     private func fileCount(in nodes: [ProjectAssetNode]) -> Int {
@@ -455,7 +455,7 @@ private struct PageAssetInspector: View {
             LabeledContent("Type", value: asset.mediaType)
             LabeledContent("Size", value: asset.byteCount.formatted(.byteCount(style: .file)))
             LabeledContent("Path", value: exportPath)
-            Text("This file is exported only at the path above. Component references follow that path.")
+            Text("This file is exported only at the path above. Block references follow that path.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
@@ -582,7 +582,7 @@ private struct PageInspector: View {
 
         Section("Appearance") {
             Grid(horizontalSpacing: 8) {
-                ThemeColorComponentControl(
+                ThemeColorBlockControl(
                     label: "Background", choices: theme.colorChoices, allowsCustom: true, theme: theme,
                     source: backgroundSource, shade: backgroundShade, customColor: backgroundCustomColour,
                     allowsOpacity: false,
@@ -620,7 +620,7 @@ private struct PageInspector: View {
     }
 
     private var theme: Theme { editor.document.site.theme }
-    private var background: ComponentPackageColorValue { page.backgroundSelection(theme: theme) }
+    private var background: BlockPackageColorValue { page.backgroundSelection(theme: theme) }
 
     private var backgroundSource: Binding<String> {
         Binding(get: { background.source }, set: { source in
@@ -677,10 +677,10 @@ private struct PageInspector: View {
     }
 }
 
-private struct ComponentInspector: View {
-    @State private var loadedComponentIcon: NSImage?
+private struct BlockInspector: View {
+    @State private var loadedBlockIcon: NSImage?
     @State private var showsAddAttributePopover = false
-    let component: ComponentNode
+    let block: BlockNode
     let currentPage: Page?
     let theme: Theme
     let assets: [ProjectAsset]
@@ -689,7 +689,7 @@ private struct ComponentInspector: View {
     let folders: [PageFolder]
     let publicURL: String
     let editor: ProjectEditor
-    let reusableDefinition: ReusableComponentDefinition?
+    let reusableDefinition: ReusableBlockDefinition?
     let isGlobalOverride: Bool
     let setGlobalOverride: (Bool) -> Void
     let breakpoint: ResponsiveBreakpoint
@@ -700,14 +700,14 @@ private struct ComponentInspector: View {
         ScrollView {
             LazyVStack(spacing: 14) {
                 InspectorCard {
-                    componentIdentityHeader
+                    blockIdentityHeader
 
                     Divider()
-                    ComponentIdentityFields(
-                        anchor: componentAnchorBinding,
-                        classes: componentClassesBinding,
-                        attributes: componentAttributesBinding,
-                        isDuplicateAnchor: componentAnchorIsDuplicate,
+                    BlockIdentityFields(
+                        anchor: blockAnchorBinding,
+                        classes: blockClassesBinding,
+                        attributes: blockAttributesBinding,
+                        isDuplicateAnchor: blockAnchorIsDuplicate,
                         localOverride: reusableDefinition == nil ? nil : Binding(
                             get: { isGlobalOverride },
                             set: setGlobalOverride
@@ -718,11 +718,11 @@ private struct ComponentInspector: View {
                 }
 
                 ForEach(inspectorGroups, id: \.rawValue) { group in
-                    ComponentInspectorGroup(
+                    BlockInspectorGroup(
                         group: group,
                         properties: properties(in: group),
                         childPickers: childPickers(in: group),
-                        component: component,
+                        block: block,
                         currentPage: currentPage,
                         theme: theme,
                         assets: assets,
@@ -743,14 +743,14 @@ private struct ComponentInspector: View {
         .font(.callout)
     }
 
-    private var inspectorGroups: [ComponentPropertySection] {
-        var groups: [ComponentPropertySection] = component.type.definition.properties.reduce(into: []) { groups, property in
+    private var inspectorGroups: [BlockPropertySection] {
+        var groups: [BlockPropertySection] = block.type.definition.properties.reduce(into: []) { groups, property in
             guard isVisible(property),
                   !groups.contains(property.section) else { return }
             groups.append(property.section)
         }
-        for slot in componentSlots where isVisible(slot) {
-            let section = ComponentPropertySection(rawValue: slot.group)
+        for slot in blockSlots where isVisible(slot) {
+            let section = BlockPropertySection(rawValue: slot.group)
             if !groups.contains(section) {
                 groups.append(section)
             }
@@ -758,43 +758,43 @@ private struct ComponentInspector: View {
         return groups
     }
 
-    private var componentSlots: [ComponentPackageSlot] {
-        component.type.definition.package?.manifest.slots ?? []
+    private var blockSlots: [BlockPackageSlot] {
+        block.type.definition.package?.manifest.slots ?? []
     }
 
-    private func properties(in section: ComponentPropertySection) -> [ComponentPropertyDefinition] {
-        component.type.definition.properties.filter {
+    private func properties(in section: BlockPropertySection) -> [BlockPropertyDefinition] {
+        block.type.definition.properties.filter {
             $0.section == section && isVisible($0)
         }
     }
 
-    private func childPickers(in section: ComponentPropertySection) -> [ComponentPackageSlot] {
-        componentSlots.filter {
+    private func childPickers(in section: BlockPropertySection) -> [BlockPackageSlot] {
+        blockSlots.filter {
             $0.group == section.rawValue && isVisible($0)
         }
     }
 
-    private func isVisible(_ slot: ComponentPackageSlot) -> Bool {
-        ComponentPackageVisibilityEvaluator.isVisible(slot.visibleWhen, for: component, at: breakpoint)
+    private func isVisible(_ slot: BlockPackageSlot) -> Bool {
+        BlockPackageVisibilityEvaluator.isVisible(slot.visibleWhen, for: block, at: breakpoint)
     }
 
-    private func isVisible(_ property: ComponentPropertyDefinition) -> Bool {
-        property.isInspectorVisible && ComponentPackageVisibilityEvaluator.isVisible(
+    private func isVisible(_ property: BlockPropertyDefinition) -> Bool {
+        property.isInspectorVisible && BlockPackageVisibilityEvaluator.isVisible(
             property.visibleWhen,
-            for: component,
+            for: block,
             at: property.isResponsive ? breakpoint : .mobile
         )
     }
 
-    private var componentIdentityHeader: some View {
+    private var blockIdentityHeader: some View {
         HStack(alignment: .top, spacing: 12) {
             Group {
-                if let icon = displayedComponentIcon {
+                if let icon = displayedBlockIcon {
                     Image(nsImage: icon)
                         .resizable()
                         .scaledToFit()
                 } else {
-                    Image(systemName: component.type.systemImage)
+                    Image(systemName: block.type.systemImage)
                         .font(.title2)
                         .foregroundStyle(.secondary)
                 }
@@ -804,9 +804,9 @@ private struct ComponentInspector: View {
             .clipShape(RoundedRectangle(cornerRadius: 32 * 0.16))
 
             VStack(alignment: .leading, spacing: 3) {
-                Text(reusableDefinition?.name ?? component.type.displayName)
+                Text(reusableDefinition?.name ?? block.type.displayName)
                     .font(.headline)
-                Text(componentDeveloper)
+                Text(blockDeveloper)
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             }
@@ -825,29 +825,29 @@ private struct ComponentInspector: View {
             .menuIndicator(.hidden)
             .fixedSize()
             .padding(.top, 1)
-            .help("Component options")
+            .help("Block options")
             .popover(isPresented: $showsAddAttributePopover, arrowEdge: .trailing) {
-                ComponentAttributePopover(
+                BlockAttributePopover(
                     attribute: nil,
-                    existingAttributes: component.rootAttributes ?? []
+                    existingAttributes: block.rootAttributes ?? []
                 ) { attribute in
-                    var attributes = component.rootAttributes ?? []
+                    var attributes = block.rootAttributes ?? []
                     attributes.append(attribute)
-                    editor.setComponentRootAttributes(id: component.id, attributes: attributes)
+                    editor.setBlockRootAttributes(id: block.id, attributes: attributes)
                 }
             }
         }
         .padding(.vertical, 4)
-        .task(id: component.type.definition.package?.iconURL) {
-            guard let url = component.type.definition.package?.iconURL else {
-                loadedComponentIcon = nil
+        .task(id: block.type.definition.package?.iconURL) {
+            guard let url = block.type.definition.package?.iconURL else {
+                loadedBlockIcon = nil
                 return
             }
-            if let cached = ComponentIconLoader.cachedIcon(at: url) {
-                loadedComponentIcon = cached.image
+            if let cached = BlockIconLoader.cachedIcon(at: url) {
+                loadedBlockIcon = cached.image
                 return
             }
-            loadedComponentIcon = await ComponentIconLoader.shared.icon(at: url)?.image
+            loadedBlockIcon = await BlockIconLoader.shared.icon(at: url)?.image
         }
     }
 
@@ -856,83 +856,83 @@ private struct ComponentInspector: View {
     }
 
     private var globalIndicatorLabel: String {
-        component.reusableDefinitionID == reusableDefinition?.id ? "Global" : "Global — Child"
+        block.reusableDefinitionID == reusableDefinition?.id ? "Global" : "Global — Child"
     }
 
-    private var displayedComponentIcon: NSImage? {
-        loadedComponentIcon ?? (component.type.definition.package?.iconURL).flatMap {
-            ComponentIconLoader.cachedIcon(at: $0)?.image
+    private var displayedBlockIcon: NSImage? {
+        loadedBlockIcon ?? (block.type.definition.package?.iconURL).flatMap {
+            BlockIconLoader.cachedIcon(at: $0)?.image
         }
     }
 
-    private var componentDeveloper: String {
-        component.type.definition.package?.manifest.author.flatMap { author in
+    private var blockDeveloper: String {
+        block.type.definition.package?.manifest.author.flatMap { author in
             author.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : author
         } ?? "Unknown Developer"
     }
 
-    private var componentAnchorBinding: Binding<String> {
+    private var blockAnchorBinding: Binding<String> {
         Binding(
-            get: { component.anchor ?? "" },
-            set: { editor.setComponentAnchor(id: component.id, anchor: $0) }
+            get: { block.anchor ?? "" },
+            set: { editor.setBlockAnchor(id: block.id, anchor: $0) }
         )
     }
 
-    private var componentClassesBinding: Binding<String> {
+    private var blockClassesBinding: Binding<String> {
         Binding(
-            get: { component.customClasses ?? "" },
-            set: { editor.setComponentClasses(id: component.id, classes: $0) }
+            get: { block.customClasses ?? "" },
+            set: { editor.setBlockClasses(id: block.id, classes: $0) }
         )
     }
 
-    private var componentAttributesBinding: Binding<[ComponentHTMLAttribute]> {
+    private var blockAttributesBinding: Binding<[BlockHTMLAttribute]> {
         Binding(
-            get: { component.rootAttributes ?? [] },
-            set: { editor.setComponentRootAttributes(id: component.id, attributes: $0) }
+            get: { block.rootAttributes ?? [] },
+            set: { editor.setBlockRootAttributes(id: block.id, attributes: $0) }
         )
     }
 
-    private var componentAnchorIsDuplicate: Bool {
-        guard let anchor = component.anchor, !anchor.isEmpty, let currentPage else { return false }
-        return currentPage.components.reduce(0) { $0 + anchorCount(anchor, in: $1) } > 1
+    private var blockAnchorIsDuplicate: Bool {
+        guard let anchor = block.anchor, !anchor.isEmpty, let currentPage else { return false }
+        return currentPage.blocks.reduce(0) { $0 + anchorCount(anchor, in: $1) } > 1
     }
 
-    private func anchorCount(_ anchor: String, in node: ComponentNode) -> Int {
+    private func anchorCount(_ anchor: String, in node: BlockNode) -> Int {
         let matches = node.anchor == anchor
         return (matches ? 1 : 0) + node.children.reduce(0) { $0 + anchorCount(anchor, in: $1) }
     }
 }
 
-private struct ComponentSlotInspectorCard: View {
-    let slot: ComponentPackageSlot
-    let component: ComponentNode
+private struct BlockSlotInspectorCard: View {
+    let slot: BlockPackageSlot
+    let block: BlockNode
     let pageID: UUID
     let editor: ProjectEditor
 
-    @State private var selectedType: ComponentType?
+    @State private var selectedType: BlockType?
 
-    private var availableTypes: [ComponentType] {
-        ComponentRegistry.availableTypes
+    private var availableTypes: [BlockType] {
+        BlockRegistry.availableTypes
             .filter {
                 slot.offersInPicker($0) &&
-                    ($0.definition.package?.manifest.permits(parent: component.type) ?? true)
+                    ($0.definition.package?.manifest.permits(parent: block.type) ?? true)
             }
             .sorted { lhs, rhs in
                 lhs.displayName.localizedCaseInsensitiveCompare(rhs.displayName) == .orderedAscending
             }
     }
 
-    private var children: [ComponentNode] {
-        let package = component.type.definition.package
+    private var children: [BlockNode] {
+        let package = block.type.definition.package
         let defaultSlotID = package?.dropZoneNames.first.map { package?.dropZoneSlotID(for: $0) ?? "" }
             ?? package?.manifest.slots.first?.id
-        return component.children.filter { child in
+        return block.children.filter { child in
             (child.slotID ?? defaultSlotID) == slot.id
         }
     }
 
     var body: some View {
-        ChildPickerComponentControl(
+        ChildPickerBlockControl(
             label: slot.title,
             options: availableTypes,
             childCount: children.count,
@@ -950,18 +950,18 @@ private struct ComponentSlotInspectorCard: View {
 
     private func addSelectedType() {
         guard let selectedType else { return }
-        _ = editor.insertComponent(
+        _ = editor.insertBlock(
             type: selectedType,
             on: pageID,
-            placement: .insideSlot(component.id, slot.id)
+            placement: .insideSlot(block.id, slot.id)
         )
     }
 }
 
-private struct ComponentIdentityFields: View {
+private struct BlockIdentityFields: View {
     @Binding var anchor: String
     @Binding var classes: String
-    @Binding var attributes: [ComponentHTMLAttribute]
+    @Binding var attributes: [BlockHTMLAttribute]
     let isDuplicateAnchor: Bool
     let localOverride: Binding<Bool>?
     let globalLabel: String?
@@ -973,7 +973,7 @@ private struct ComponentIdentityFields: View {
                 VStack(alignment: .leading, spacing: 4) {
                     TextField("ID", text: $anchor)
                         .frame(maxWidth: .infinity)
-                    if !anchor.isEmpty && !ComponentAnchorValidator.isValid(anchor) {
+                    if !anchor.isEmpty && !BlockAnchorValidator.isValid(anchor) {
                         Text("Enter a valid ID.")
                             .font(.caption)
                             .foregroundStyle(.red)
@@ -997,7 +997,7 @@ private struct ComponentIdentityFields: View {
                 }
 
                 InspectorRow(title: "Attributes") {
-                    ComponentAttributeRows(attributes: $attributes)
+                    BlockAttributeRows(attributes: $attributes)
                 }
             }
 
@@ -1031,9 +1031,9 @@ private struct ComponentIdentityFields: View {
     }
 }
 
-private struct ComponentAttributeRows: View {
-    @Binding var attributes: [ComponentHTMLAttribute]
-    @State private var editingAttribute: ComponentHTMLAttribute?
+private struct BlockAttributeRows: View {
+    @Binding var attributes: [BlockHTMLAttribute]
+    @State private var editingAttribute: BlockHTMLAttribute?
 
     var body: some View {
         VStack(spacing: InspectorMetrics.rowSpacing) {
@@ -1073,7 +1073,7 @@ private struct ComponentAttributeRows: View {
                     Divider()
 
                     Button("Add New Attribute…", systemImage: "plus") {
-                        editingAttribute = ComponentHTMLAttribute()
+                        editingAttribute = BlockHTMLAttribute()
                     }
 
                     Divider()
@@ -1085,7 +1085,7 @@ private struct ComponentAttributeRows: View {
             }
         }
         .popover(item: $editingAttribute, arrowEdge: .trailing) { attribute in
-            ComponentAttributePopover(
+            BlockAttributePopover(
                 attribute: attribute,
                 existingAttributes: attributes
             ) { updatedAttribute in
@@ -1098,7 +1098,7 @@ private struct ComponentAttributeRows: View {
         }
     }
 
-    private func renderedAttribute(_ attribute: ComponentHTMLAttribute) -> String {
+    private func renderedAttribute(_ attribute: BlockHTMLAttribute) -> String {
         let escapedValue = attribute.value
             .replacingOccurrences(of: "&", with: "&amp;")
             .replacingOccurrences(of: "\"", with: "&quot;")
@@ -1107,7 +1107,7 @@ private struct ComponentAttributeRows: View {
         return "\(attribute.name)=\"\(escapedValue)\""
     }
 
-    private func move(_ attribute: ComponentHTMLAttribute, by offset: Int) {
+    private func move(_ attribute: BlockHTMLAttribute, by offset: Int) {
         guard let index = attributes.firstIndex(where: { $0.id == attribute.id }) else {
             return
         }
@@ -1118,29 +1118,29 @@ private struct ComponentAttributeRows: View {
         attributes.swapAt(index, destination)
     }
 
-    private func isFirst(_ attribute: ComponentHTMLAttribute) -> Bool {
+    private func isFirst(_ attribute: BlockHTMLAttribute) -> Bool {
         attributes.first?.id == attribute.id
     }
 
-    private func isLast(_ attribute: ComponentHTMLAttribute) -> Bool {
+    private func isLast(_ attribute: BlockHTMLAttribute) -> Bool {
         attributes.last?.id == attribute.id
     }
 }
 
-private struct ComponentAttributePopover: View {
+private struct BlockAttributePopover: View {
     @Environment(\.dismiss) private var dismiss
     @State private var name: String
     @State private var value: String
     @State private var isExpanded = false
 
     let attributeID: UUID
-    let existingAttributes: [ComponentHTMLAttribute]
-    let save: (ComponentHTMLAttribute) -> Void
+    let existingAttributes: [BlockHTMLAttribute]
+    let save: (BlockHTMLAttribute) -> Void
 
     init(
-        attribute: ComponentHTMLAttribute?,
-        existingAttributes: [ComponentHTMLAttribute],
-        save: @escaping (ComponentHTMLAttribute) -> Void
+        attribute: BlockHTMLAttribute?,
+        existingAttributes: [BlockHTMLAttribute],
+        save: @escaping (BlockHTMLAttribute) -> Void
     ) {
         attributeID = attribute?.id ?? UUID()
         self.existingAttributes = existingAttributes
@@ -1194,7 +1194,7 @@ private struct ComponentAttributePopover: View {
                 .keyboardShortcut(.cancelAction)
 
                 Button("Save") {
-                    save(ComponentHTMLAttribute(id: attributeID, name: trimmedName, value: value))
+                    save(BlockHTMLAttribute(id: attributeID, name: trimmedName, value: value))
                     dismiss()
                 }
                 .keyboardShortcut(.return, modifiers: isExpanded ? .command : [])
@@ -1211,7 +1211,7 @@ private struct ComponentAttributePopover: View {
     }
 
     private var canSave: Bool {
-        ComponentRootAttributeValidator.isValidName(trimmedName) &&
+        BlockRootAttributeValidator.isValidName(trimmedName) &&
             !existingAttributes.contains {
                 $0.id != attributeID &&
                     $0.name.caseInsensitiveCompare(trimmedName) == .orderedSame
@@ -1219,11 +1219,11 @@ private struct ComponentAttributePopover: View {
     }
 }
 
-private struct ComponentInspectorGroup: View {
-    let group: ComponentPropertySection
-    let properties: [ComponentPropertyDefinition]
-    let childPickers: [ComponentPackageSlot]
-    let component: ComponentNode
+private struct BlockInspectorGroup: View {
+    let group: BlockPropertySection
+    let properties: [BlockPropertyDefinition]
+    let childPickers: [BlockPackageSlot]
+    let block: BlockNode
     let currentPage: Page?
     let theme: Theme
     let assets: [ProjectAsset]
@@ -1240,7 +1240,7 @@ private struct ComponentInspectorGroup: View {
     var body: some View {
         DisclosureGroup(isExpanded: $isExpanded) {
             VStack(spacing: InspectorMetrics.controlSpacing) {
-                ForEach(ComponentInspectorControlGroup.groups(for: properties)) { controlGroup in
+                ForEach(BlockInspectorControlGroup.groups(for: properties)) { controlGroup in
                     InspectorGrid(
                         contentInsets: EdgeInsets(
                             top: 0,
@@ -1264,9 +1264,9 @@ private struct ComponentInspectorGroup: View {
                                 trailing: InspectorMetrics.horizontalSectionPadding
                             )
                         ) {
-                            ComponentSlotInspectorCard(
+                            BlockSlotInspectorCard(
                                 slot: slot,
-                                component: component,
+                                block: block,
                                 pageID: pageID,
                                 editor: editor
                             )
@@ -1278,13 +1278,13 @@ private struct ComponentInspectorGroup: View {
         } label: {
             Text(group.rawValue)
         }
-        .disclosureGroupStyle(ComponentInspectorDisclosureStyle())
+        .disclosureGroupStyle(BlockInspectorDisclosureStyle())
     }
 
-    private func propertyEditor(for definition: ComponentPropertyDefinition) -> some View {
-        ComponentPropertyEditor(
+    private func propertyEditor(for definition: BlockPropertyDefinition) -> some View {
+        BlockPropertyEditor(
             definition: definition,
-            component: component,
+            block: block,
             currentPage: currentPage,
             theme: theme,
             assets: assets,
@@ -1324,7 +1324,7 @@ private struct InspectorCard<Content: View>: View {
     }
 }
 
-private struct ComponentInspectorDisclosureStyle: DisclosureGroupStyle {
+private struct BlockInspectorDisclosureStyle: DisclosureGroupStyle {
     func makeBody(configuration: Configuration) -> some View {
         VStack(spacing: 0) {
             Button {

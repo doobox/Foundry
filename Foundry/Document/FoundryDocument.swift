@@ -181,7 +181,7 @@ final class FoundryDocument: ReferenceFileDocument {
         reuseIdenticalContent: Bool = false,
         undoManager: UndoManager?
     ) -> UUID {
-        let processed = ComponentImageProcessor.canonicalize(data: data, filename: filename, mimeType: mediaType)
+        let processed = BlockImageProcessor.canonicalize(data: data, filename: filename, mimeType: mediaType)
         let digest = FoundryDocumentSnapshot.digest(for: processed.data)
         var next = storage.withLock { $0 }
         if reuseIdenticalContent,

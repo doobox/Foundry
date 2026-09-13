@@ -10,15 +10,15 @@ nonisolated enum AppPreferenceKey {
     static let canvasBackgroundColor = "canvas.background.color"
     static let enablesCanvasWebInspector = "canvas.webInspector.enabled"
     static let showsDeveloperPanel = "developer.panel.visible"
-    static let showsHiddenComponents = "developer.components.showHidden"
-    static let automaticallyChecksComponentUpdates = "components.updates.automatic"
-    static let componentLibraryIconSize = "components.library.iconSize"
-    static let componentLibraryArrangement = "components.library.arrangement"
-    static let validatesComponentsOnLoad = "components.validation.onLoad"
-    static let componentValidationMode = "components.validation.mode"
+    static let showsHiddenBlocks = "developer.blocks.showHidden"
+    static let automaticallyChecksBlockUpdates = "blocks.updates.automatic"
+    static let blockLibraryIconSize = "blocks.library.iconSize"
+    static let blockLibraryArrangement = "blocks.library.arrangement"
+    static let validatesBlocksOnLoad = "blocks.validation.onLoad"
+    static let blockValidationMode = "blocks.validation.mode"
 }
 
-nonisolated enum ComponentValidationMode: String, CaseIterable, Identifiable {
+nonisolated enum BlockValidationMode: String, CaseIterable, Identifiable {
     case off
     case developmentPacks
     case allPacks
@@ -47,15 +47,15 @@ nonisolated enum ComponentValidationMode: String, CaseIterable, Identifiable {
     }
 }
 
-nonisolated enum ComponentValidationPreference {
-    static var mode: ComponentValidationMode {
+nonisolated enum BlockValidationPreference {
+    static var mode: BlockValidationMode {
         let defaults = UserDefaults.standard
-        if let rawValue = defaults.string(forKey: AppPreferenceKey.componentValidationMode),
-           let mode = ComponentValidationMode(rawValue: rawValue) {
+        if let rawValue = defaults.string(forKey: AppPreferenceKey.blockValidationMode),
+           let mode = BlockValidationMode(rawValue: rawValue) {
             return mode
         }
         // Preserve the former Boolean preference when upgrading.
-        return defaults.bool(forKey: AppPreferenceKey.validatesComponentsOnLoad) ? .allPacks : .off
+        return defaults.bool(forKey: AppPreferenceKey.validatesBlocksOnLoad) ? .allPacks : .off
     }
 }
 

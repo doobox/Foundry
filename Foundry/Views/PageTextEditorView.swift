@@ -9,7 +9,7 @@ struct PageTextEditorView: View {
     @State private var text: AttributedString
     @State private var selection = AttributedTextSelection()
     @State private var rememberedSelection = AttributedTextSelection()
-    @State private var linkDraft = ComponentLink()
+    @State private var linkDraft = BlockLink()
     @State private var selectionHasLink = false
     @State private var showsLinkEditor = false
 
@@ -150,7 +150,7 @@ struct PageTextEditorView: View {
             }
             .help("Add or edit link")
             .popover(isPresented: $showsLinkEditor, arrowEdge: .bottom) {
-                ComponentLinkEditor(
+                BlockLinkEditor(
                     link: $linkDraft,
                     pages: pages,
                     folders: folders,
@@ -220,8 +220,8 @@ struct PageTextEditorView: View {
     private var isStruckThrough: Bool { currentAttributes.strikethroughStyle != nil }
     private var fontSize: Double { Double(resolvedFont?.pointSize ?? CGFloat(Self.defaultFontSize)) }
     private var textColor: Color { currentAttributes.foregroundColor ?? .primary }
-    private var selectedLink: ComponentLink {
-        currentAttributes.link.map(FoundryRichTextCodec.componentLink(from:)) ?? .init()
+    private var selectedLink: BlockLink {
+        currentAttributes.link.map(FoundryRichTextCodec.blockLink(from:)) ?? .init()
     }
 
     private var countSummary: String {
@@ -262,7 +262,7 @@ struct PageTextEditorView: View {
         editorIsFocused = true
     }
 
-    private func applyLink(_ value: ComponentLink?) {
+    private func applyLink(_ value: BlockLink?) {
         var target = rememberedSelection
         text.transformAttributes(in: &target) { attributes in
             attributes.link = value.flatMap(FoundryRichTextCodec.URL(for:))

@@ -1,9 +1,9 @@
 import Foundation
 
 nonisolated struct StaticSiteRenderer: SiteRendering {
-    let environment: ComponentTemplateEnvironment
+    let environment: BlockTemplateEnvironment
 
-    init(environment: ComponentTemplateEnvironment = .published) {
+    init(environment: BlockTemplateEnvironment = .published) {
         self.environment = environment
     }
 
@@ -68,8 +68,8 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
                     )
                 ))
             }
-            let pagePackages = ComponentArtifactPlan(page: page).packages
-            pageFiles.append(contentsOf: componentAssetFiles(
+            let pagePackages = BlockArtifactPlan(page: page).packages
+            pageFiles.append(contentsOf: blockAssetFiles(
                 for: pagePackages,
                 scope: .page,
                 destinationDirectory: pageFilesDirectory
@@ -77,9 +77,9 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
             return pageFiles
         }
         files.append(.init(path: "files/site.css", contents: stylesheet(for: site, assets: assets)))
-        let sitePackages = ComponentArtifactPlan.sitePackages(in: site)
+        let sitePackages = BlockArtifactPlan.sitePackages(in: site)
         files.append(contentsOf: FoundryWebLibraryRegistry.exportFiles(for: sitePackages))
-        files.append(contentsOf: componentAssetFiles(
+        files.append(contentsOf: blockAssetFiles(
             for: sitePackages,
             scope: .site,
             destinationDirectory: "assets"
@@ -106,8 +106,8 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
     }
 
     private func pageRequiresJavaScript(_ page: Page) -> Bool {
-        page.components.flatMap(\.flattened).contains { node in
-            if !ComponentArtifactPlan.htmlArtifact(for: node, suffix: "JavaScript")
+        page.blocks.flatMap(\.flattened).contains { node in
+            if !BlockArtifactPlan.htmlArtifact(for: node, suffix: "JavaScript")
                 .trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 return true
             }
@@ -116,8 +116,8 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
     }
 
     static func requiresPHP(_ page: Page) -> Bool {
-        ComponentArtifactPlan(page: page).nodes.contains {
-            ComponentRegistry.definition(for: $0.type).package?.manifest.requiresPHP == true
+        BlockArtifactPlan(page: page).nodes.contains {
+            BlockRegistry.definition(for: $0.type).package?.manifest.requiresPHP == true
         }
     }
 
@@ -136,8 +136,8 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
         asset.exportDirectory == nil ? nil : site.publishedPath(for: asset)
     }
 
-    private static func joinedPath(_ components: String...) -> String {
-        components.filter { !$0.isEmpty }.joined(separator: "/")
+    private static func joinedPath(_ parts: String...) -> String {
+        parts.filter { !$0.isEmpty }.joined(separator: "/")
     }
 
     private func joinedPath(_ prefix: String, _ suffix: String) -> String {
@@ -145,7 +145,7 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
     }
 
     private func render(page: Page, language: String, theme: Theme, stylesheetPaths: [String], scriptPaths: [String], assetPrefix: String, packageAssetPrefix: String, assets: [UUID: ProjectAssetContent], site: Site) -> String {
-        let body = page.components.map { render($0, page: page, theme: theme, assetPrefix: assetPrefix, packageAssetPrefix: packageAssetPrefix, assets: assets, site: site) }.joined(separator: "\n")
+        let body = page.blocks.map { render($0, page: page, theme: theme, assetPrefix: assetPrefix, packageAssetPrefix: packageAssetPrefix, assets: assets, site: site) }.joined(separator: "\n")
         let pageTitle = page.metadata.browserTitle.isEmpty ? page.title : page.metadata.browserTitle
         let browserTitle = pageTitle + site.titleSuffix
         let metadata = metadataHTML(for: page, browserTitle: browserTitle, assetPrefix: assetPrefix, assets: assets, site: site)
@@ -185,18 +185,18 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
     }
 
     private func packagePHP(for page: Page, theme: Theme, assetPrefix: String, packageAssetPrefix: String, assets: [UUID: ProjectAssetContent], site: Site) -> String {
-        let nodes = page.components.flatMap(\.flattened)
+        let nodes = page.blocks.flatMap(\.flattened)
         let instancePHP = nodes.compactMap { node -> String? in
             guard let package = node.type.definition.package else { return nil }
             let source = package.instancePHP
             guard !source.isEmpty else { return nil }
-            return ComponentTemplateRenderer.render(
+            return BlockTemplateRenderer.render(
                 source,
                 context: .init(
                     instanceID: node.id,
                     packageIdentifier: package.manifest.identifier,
                     properties: packageProperties(node, theme: theme, assetPrefix: assetPrefix, assets: assets, site: site),
-                    templateValues: ComponentNavigationTemplateValues.values(site: site, currentPage: page),
+                    templateValues: BlockNavigationTemplateValues.values(site: site, currentPage: page),
                     slots: [:],
                     assetBasePath: packageAssetPrefix,
                     assetPaths: templateAssetPaths(for: package, pageAssetPrefix: packageAssetPrefix, siteAssetPrefix: assetPrefix),
@@ -214,13 +214,13 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
                   seenPackages.insert(package.manifest.identifier).inserted else { return nil }
             let source = package.pagePHP
             guard !source.isEmpty else { return nil }
-            return ComponentTemplateRenderer.render(
+            return BlockTemplateRenderer.render(
                 source,
                 context: .init(
                     instanceID: UUID(uuid: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)),
                     packageIdentifier: package.manifest.identifier,
                     properties: [:],
-                    templateValues: ComponentNavigationTemplateValues.values(site: site, currentPage: page),
+                    templateValues: BlockNavigationTemplateValues.values(site: site, currentPage: page),
                     slots: [:],
                     assetBasePath: packageAssetPrefix,
                     assetPaths: templateAssetPaths(for: package, pageAssetPrefix: packageAssetPrefix, siteAssetPrefix: assetPrefix),
@@ -236,15 +236,15 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
     }
 
     private func pageScripts(for page: Page, theme: Theme, assetPrefix: String, packageAssetPrefix: String, assets: [UUID: ProjectAssetContent], site: Site) -> String {
-        let nodes = page.components.flatMap(\.flattened)
+        let nodes = page.blocks.flatMap(\.flattened)
         let instanceScripts = nodes.compactMap { node -> String? in
             guard let package = node.type.definition.package else { return nil }
-            let source = [package.instanceJavaScript, ComponentArtifactPlan.htmlArtifact(for: node, suffix: "JavaScript")]
+            let source = [package.instanceJavaScript, BlockArtifactPlan.htmlArtifact(for: node, suffix: "JavaScript")]
                 .filter { !$0.isEmpty }.joined(separator: "\n")
             guard !source.isEmpty else { return nil }
-            return ComponentTemplateRenderer.render(
+            return BlockTemplateRenderer.render(
                 source,
-                context: .init(instanceID: node.id, packageIdentifier: package.manifest.identifier, properties: packageProperties(node, theme: theme, assetPrefix: assetPrefix, assets: assets, site: site), templateValues: ComponentNavigationTemplateValues.values(site: site, currentPage: page), slots: [:], assetBasePath: packageAssetPrefix, assetPaths: templateAssetPaths(for: package, pageAssetPrefix: packageAssetPrefix, siteAssetPrefix: assetPrefix), siteBaseURL: siteBaseURL(for: site), pageURL: pageURL(for: page, in: site), siteRootPath: siteRootPath(for: assetPrefix), siteAssetsPath: assetPrefix, environment: environment)
+                context: .init(instanceID: node.id, packageIdentifier: package.manifest.identifier, properties: packageProperties(node, theme: theme, assetPrefix: assetPrefix, assets: assets, site: site), templateValues: BlockNavigationTemplateValues.values(site: site, currentPage: page), slots: [:], assetBasePath: packageAssetPrefix, assetPaths: templateAssetPaths(for: package, pageAssetPrefix: packageAssetPrefix, siteAssetPrefix: assetPrefix), siteBaseURL: siteBaseURL(for: site), pageURL: pageURL(for: page, in: site), siteRootPath: siteRootPath(for: assetPrefix), siteAssetsPath: assetPrefix, environment: environment)
             )
         }
         var seenPackages: Set<String> = []
@@ -253,24 +253,24 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
                   seenPackages.insert(package.manifest.identifier).inserted else { return nil }
             let source = package.pageJavaScript
             guard !source.isEmpty else { return nil }
-            return ComponentTemplateRenderer.render(source, context: .init(instanceID: UUID(uuid: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)), packageIdentifier: package.manifest.identifier, properties: [:], templateValues: ComponentNavigationTemplateValues.values(site: site, currentPage: page), slots: [:], assetBasePath: packageAssetPrefix, assetPaths: templateAssetPaths(for: package, pageAssetPrefix: packageAssetPrefix, siteAssetPrefix: assetPrefix), siteBaseURL: siteBaseURL(for: site), pageURL: pageURL(for: page, in: site), siteRootPath: siteRootPath(for: assetPrefix), siteAssetsPath: assetPrefix, environment: environment))
+            return BlockTemplateRenderer.render(source, context: .init(instanceID: UUID(uuid: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)), packageIdentifier: package.manifest.identifier, properties: [:], templateValues: BlockNavigationTemplateValues.values(site: site, currentPage: page), slots: [:], assetBasePath: packageAssetPrefix, assetPaths: templateAssetPaths(for: package, pageAssetPrefix: packageAssetPrefix, siteAssetPrefix: assetPrefix), siteBaseURL: siteBaseURL(for: site), pageURL: pageURL(for: page, in: site), siteRootPath: siteRootPath(for: assetPrefix), siteAssetsPath: assetPrefix, environment: environment))
         }
         let source = (instanceScripts + sharedScripts).joined(separator: "\n")
         return source
     }
 
-    private func placedHTML(for page: Page, placement: ComponentPackageTemplateFile.Placement, assetPrefix: String, packageAssetPrefix: String, site: Site) -> String {
+    private func placedHTML(for page: Page, placement: BlockPackageTemplateFile.Placement, assetPrefix: String, packageAssetPrefix: String, site: Site) -> String {
         var seenPackages: Set<String> = []
-        return page.components.flatMap(\.flattened).compactMap { node -> String? in
+        return page.blocks.flatMap(\.flattened).compactMap { node -> String? in
             guard let package = node.type.definition.package,
                   seenPackages.insert(package.manifest.identifier).inserted else { return nil }
             let templates = package.placedHTML.filter { $0.placement == placement }
             guard !templates.isEmpty else { return nil }
-            let context = ComponentTemplateContext(
+            let context = BlockTemplateContext(
                 instanceID: UUID(uuid: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)),
                 packageIdentifier: package.manifest.identifier,
                 properties: [:],
-                templateValues: ComponentNavigationTemplateValues.values(site: site, currentPage: page),
+                templateValues: BlockNavigationTemplateValues.values(site: site, currentPage: page),
                 slots: [:],
                 assetBasePath: packageAssetPrefix,
                 assetPaths: templateAssetPaths(for: package, pageAssetPrefix: packageAssetPrefix, siteAssetPrefix: assetPrefix),
@@ -280,7 +280,7 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
                 siteAssetsPath: assetPrefix,
                 environment: environment
             )
-            return templates.map { ComponentTemplateRenderer.render($0.contents, context: context) }.joined(separator: "\n")
+            return templates.map { BlockTemplateRenderer.render($0.contents, context: context) }.joined(separator: "\n")
         }.joined(separator: "\n")
     }
 
@@ -370,7 +370,7 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
         return lines.joined(separator: "\n") + "\n"
     }
 
-    private func render(_ node: ComponentNode, page: Page, theme: Theme, assetPrefix: String, packageAssetPrefix: String, assets: [UUID: ProjectAssetContent], site: Site, parentComponentID: UUID? = nil) -> String {
+    private func render(_ node: BlockNode, page: Page, theme: Theme, assetPrefix: String, packageAssetPrefix: String, assets: [UUID: ProjectAssetContent], site: Site, parentBlockID: UUID? = nil) -> String {
         switch node.type.definition.renderKind {
         case .package:
             guard let package = node.type.definition.package else {
@@ -399,34 +399,34 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
                 let children = node.children.filter {
                     ($0.slotID ?? (package.hasDropZone ? nil : package.manifest.slots.first?.id)) == slot.id
                 }
-                return (slot.id, children.map { render($0, page: page, theme: theme, assetPrefix: assetPrefix, packageAssetPrefix: packageAssetPrefix, assets: assets, site: site, parentComponentID: node.id) }.joined())
+                return (slot.id, children.map { render($0, page: page, theme: theme, assetPrefix: assetPrefix, packageAssetPrefix: packageAssetPrefix, assets: assets, site: site, parentBlockID: node.id) }.joined())
             })
             let dropZones = Dictionary(uniqueKeysWithValues: package.dropZoneNames.enumerated().map { index, name in
                 let slotID = package.dropZoneSlotID(for: name)
                 let children = node.children.filter { $0.slotID == slotID || (index == 0 && $0.slotID == nil) }
                 return (name, children.map {
-                    render($0, page: page, theme: theme, assetPrefix: assetPrefix, packageAssetPrefix: packageAssetPrefix, assets: assets, site: site, parentComponentID: node.id)
+                    render($0, page: page, theme: theme, assetPrefix: assetPrefix, packageAssetPrefix: packageAssetPrefix, assets: assets, site: site, parentBlockID: node.id)
                 }.joined())
             })
-            let anchor = ComponentAnchorValidator.validated(node.anchor)
+            let anchor = BlockAnchorValidator.validated(node.anchor)
             let anchorAttribute = anchor.map { " id=\"\(escapeAttribute($0))\"" } ?? ""
-            let customAttributes = ComponentRootAttributeValidator.validAttributes(node.rootAttributes ?? []).map {
+            let customAttributes = BlockRootAttributeValidator.validAttributes(node.rootAttributes ?? []).map {
                 " \($0.name)=\"\(escapeAttribute($0.value))\""
             }.joined()
-            let relationshipAttributes = "data-foundry-component data-foundry-package=\"\(escapeAttribute(package.manifest.identifier))\"" +
-                (parentComponentID.map { " data-foundry-parent=\"\($0.uuidString)\"" } ?? "")
-            let rendered = ComponentTemplateRenderer.render(
+            let relationshipAttributes = "data-foundry-block data-foundry-package=\"\(escapeAttribute(package.manifest.identifier))\"" +
+                (parentBlockID.map { " data-foundry-parent=\"\($0.uuidString)\"" } ?? "")
+            let rendered = BlockTemplateRenderer.render(
                 package.htmlTemplate,
                 context: .init(
                     instanceID: node.id,
                     packageIdentifier: package.manifest.identifier,
                     properties: packageProperties(node, theme: theme, assetPrefix: assetPrefix, assets: assets, site: site),
-                    templateValues: ComponentNavigationTemplateValues.values(site: site, currentPage: page),
+                    templateValues: BlockNavigationTemplateValues.values(site: site, currentPage: page),
                     slots: slots,
                     dropZones: dropZones,
-                    componentClass: componentClass(node) + " " +
-                        ComponentTemplateRenderer.packageClass(for: package.manifest.identifier),
-                    componentAttributes: "data-foundry-id=\"\(node.id.uuidString)\" \(relationshipAttributes)\(anchorAttribute)\(customAttributes)",
+                    blockClass: blockClass(node) + " " +
+                        BlockTemplateRenderer.packageClass(for: package.manifest.identifier),
+                    blockAttributes: "data-foundry-id=\"\(node.id.uuidString)\" \(relationshipAttributes)\(anchorAttribute)\(customAttributes)",
                     assetBasePath: packageAssetPrefix,
                     assetPaths: templateAssetPaths(for: package, pageAssetPrefix: packageAssetPrefix, siteAssetPrefix: assetPrefix),
                     siteBaseURL: siteBaseURL(for: site),
@@ -444,11 +444,11 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
                     )
                 )
             )
-            if package.htmlTemplate.contains("{{ component.attributes }}") ||
-                package.htmlTemplate.contains("{{component.attributes}}") {
+            if package.htmlTemplate.contains("{{ block.attributes }}") ||
+                package.htmlTemplate.contains("{{block.attributes}}") {
                 return rendered
             }
-            return "<div data-foundry-id=\"\(node.id.uuidString)\" \(relationshipAttributes) class=\"\(componentClass(node)) \(ComponentTemplateRenderer.packageClass(for: package.manifest.identifier))\">\(rendered)</div>"
+            return "<div data-foundry-id=\"\(node.id.uuidString)\" \(relationshipAttributes) class=\"\(blockClass(node)) \(BlockTemplateRenderer.packageClass(for: package.manifest.identifier))\">\(rendered)</div>"
         case .unavailable:
             return missingPackageHTML(
                 node,
@@ -484,7 +484,7 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
         func colour(_ role: ThemeColorRole) -> String {
             site.appearanceMode.colour(light: theme.color(for: role), dark: theme.color(for: role, appearance: .dark))
         }
-        let sitePackages = ComponentArtifactPlan.sitePackages(in: site)
+        let sitePackages = BlockArtifactPlan.sitePackages(in: site)
         return """
         \(theme.fontSourceCSS(
             assets: assets,
@@ -505,9 +505,9 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
         """
     }
 
-    private func componentAssetFiles(
-        for packages: [LoadedComponentPackage],
-        scope: ComponentPackageAsset.Scope,
+    private func blockAssetFiles(
+        for packages: [LoadedBlockPackage],
+        scope: BlockPackageAsset.Scope,
         destinationDirectory: String
     ) -> [SiteExportFile] {
         packages.flatMap { package in
@@ -539,7 +539,7 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
     }
 
     private func expandedAssetFiles(
-        _ declaration: ComponentPackageAsset,
+        _ declaration: BlockPackageAsset,
         from resourceRootURL: URL,
         destinationDirectory: String
     ) -> [SiteExportFile] {
@@ -568,17 +568,17 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
                   values.isRegularFile == true,
                   values.isSymbolicLink != true,
                   let data = try? Data(contentsOf: fileURL) else { return nil }
-            let sourceComponents = sourceURL.standardizedFileURL.pathComponents
-            let fileComponents = fileURL.standardizedFileURL.pathComponents
-            guard fileComponents.starts(with: sourceComponents) else { return nil }
-            let relativePath = fileComponents.dropFirst(sourceComponents.count).joined(separator: "/")
+            let sourceParts = sourceURL.standardizedFileURL.pathComponents
+            let fileParts = fileURL.standardizedFileURL.pathComponents
+            guard fileParts.starts(with: sourceParts) else { return nil }
+            let relativePath = fileParts.dropFirst(sourceParts.count).joined(separator: "/")
             let outputPath = Self.joinedPath(destinationDirectory, declaration.path, relativePath)
             return .init(path: outputPath, data: data)
         }
     }
 
     private func templateAssetPaths(
-        for package: LoadedComponentPackage,
+        for package: LoadedBlockPackage,
         pageAssetPrefix: String,
         siteAssetPrefix: String
     ) -> [String: String] {
@@ -622,14 +622,14 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
         packageAssetPrefix: String,
         assets: [UUID: ProjectAssetContent]
     ) -> String {
-        let nodes = page.components.flatMap(\.flattened)
+        let nodes = page.blocks.flatMap(\.flattened)
         return ResponsiveBreakpoint.allCases.dropFirst().compactMap { breakpoint in
             guard let minimumWidth = breakpoint.minimumWidth(in: site.theme.screens) else { return nil }
             let rules = nodes.compactMap { node -> String? in
                 guard node.responsiveOverrides?.contains(where: { $0.breakpoint == breakpoint }) == true else { return nil }
                 let resolved = node.resolved(at: breakpoint)
                 if let package = resolved.type.definition.package {
-                    let css = ComponentTemplateRenderer.render(
+                    let css = BlockTemplateRenderer.render(
                         package.css,
                         context: .init(
                             instanceID: resolved.id,
@@ -641,9 +641,9 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
                                 assets: assets,
                                 site: site
                             ),
-                            templateValues: ComponentNavigationTemplateValues.values(site: site, currentPage: page),
+                            templateValues: BlockNavigationTemplateValues.values(site: site, currentPage: page),
                             slots: [:],
-                            componentClass: componentClass(resolved),
+                            blockClass: blockClass(resolved),
                             assetBasePath: packageAssetPrefix,
                             assetPaths: templateAssetPaths(for: package, pageAssetPrefix: packageAssetPrefix, siteAssetPrefix: assetPrefix),
                             siteBaseURL: siteBaseURL(for: site),
@@ -653,7 +653,7 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
                             environment: environment
                         )
                     )
-                    let scopedCSS = ComponentTemplateRenderer.scopedCSS(
+                    let scopedCSS = BlockTemplateRenderer.scopedCSS(
                         css,
                         packageIdentifier: package.manifest.identifier,
                         instanceID: resolved.id
@@ -666,8 +666,8 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
         }.joined(separator: "\n")
     }
 
-    private func componentClass(_ node: ComponentNode) -> String {
-        ["c-" + node.id.uuidString.lowercased(), ComponentRootAttributeValidator.normalizedClasses(node.customClasses)]
+    private func blockClass(_ node: BlockNode) -> String {
+        ["c-" + node.id.uuidString.lowercased(), BlockRootAttributeValidator.normalizedClasses(node.customClasses)]
             .filter { !$0.isEmpty }
             .joined(separator: " ")
     }
@@ -679,11 +679,11 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
         packageAssetPrefix: String,
         assets: [UUID: ProjectAssetContent]
     ) -> String {
-        let nodes = ComponentArtifactPlan(page: page).nodes
+        let nodes = BlockArtifactPlan(page: page).nodes
         let instanceStyles = nodes.compactMap { node in
             guard let package = node.type.definition.package else { return nil }
-            let css = ComponentTemplateRenderer.render(
-                [package.css, ComponentArtifactPlan.htmlArtifact(for: node, suffix: "CSS")].filter { !$0.isEmpty }.joined(separator: "\n"),
+            let css = BlockTemplateRenderer.render(
+                [package.css, BlockArtifactPlan.htmlArtifact(for: node, suffix: "CSS")].filter { !$0.isEmpty }.joined(separator: "\n"),
                 context: .init(
                     instanceID: node.id,
                     packageIdentifier: package.manifest.identifier,
@@ -694,9 +694,9 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
                         assets: assets,
                         site: site
                     ),
-                    templateValues: ComponentNavigationTemplateValues.values(site: site, currentPage: page),
+                    templateValues: BlockNavigationTemplateValues.values(site: site, currentPage: page),
                     slots: [:],
-                    componentClass: componentClass(node),
+                    blockClass: blockClass(node),
                     assetBasePath: packageAssetPrefix,
                     assetPaths: templateAssetPaths(for: package, pageAssetPrefix: packageAssetPrefix, siteAssetPrefix: assetPrefix),
                     siteBaseURL: siteBaseURL(for: site),
@@ -706,21 +706,21 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
                     environment: environment
                 )
             )
-            return ComponentTemplateRenderer.scopedCSS(
+            return BlockTemplateRenderer.scopedCSS(
                 css,
                 packageIdentifier: package.manifest.identifier,
                 instanceID: node.id
             )
         }.joined(separator: "\n")
-        let pagePackageStyles = ComponentArtifactPlan(page: page).packages.compactMap { package -> String? in
+        let pagePackageStyles = BlockArtifactPlan(page: page).packages.compactMap { package -> String? in
             guard !package.pageCSS.isEmpty else { return nil }
-            return ComponentTemplateRenderer.render(
+            return BlockTemplateRenderer.render(
                 package.pageCSS,
                 context: .init(
                     instanceID: UUID(uuid: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)),
                     packageIdentifier: package.manifest.identifier,
                     properties: [:],
-                    templateValues: ComponentNavigationTemplateValues.values(site: site, currentPage: page),
+                    templateValues: BlockNavigationTemplateValues.values(site: site, currentPage: page),
                     slots: [:],
                     assetBasePath: packageAssetPrefix,
                     assetPaths: templateAssetPaths(for: package, pageAssetPrefix: packageAssetPrefix, siteAssetPrefix: assetPrefix),
@@ -745,9 +745,9 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
     }
 
     private func sitePackageStyles(for site: Site) -> String {
-        ComponentArtifactPlan.sitePackages(in: site).compactMap { package -> String? in
+        BlockArtifactPlan.sitePackages(in: site).compactMap { package -> String? in
             guard !package.siteCSS.isEmpty else { return nil }
-            return ComponentTemplateRenderer.render(
+            return BlockTemplateRenderer.render(
                 package.siteCSS,
                 context: .init(
                     instanceID: UUID(uuid: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)),
@@ -765,7 +765,7 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
         }.joined(separator: "\n")
     }
 
-    private func packageValue(_ value: ComponentProperty.Value) -> ComponentPackageValue {
+    private func packageValue(_ value: BlockProperty.Value) -> BlockPackageValue {
         switch value {
         case .number(let value): .number(value)
         case .boolean(let value): .boolean(value)
@@ -780,16 +780,16 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
     }
 
     private func packageProperties(
-        _ node: ComponentNode,
+        _ node: BlockNode,
         theme: Theme,
         assetPrefix: String,
         assets: [UUID: ProjectAssetContent],
         site: Site
-    ) -> [String: ComponentPackageValue] {
-        var values: [String: ComponentPackageValue] = Dictionary(uniqueKeysWithValues: node.type.definition.properties.map { definition in
+    ) -> [String: BlockPackageValue] {
+        var values: [String: BlockPackageValue] = Dictionary(uniqueKeysWithValues: node.type.definition.properties.map { definition in
             let value = node.propertyValue(definition.key)
             if case .themeFont = definition.control {
-                return (definition.key.rawValue, ComponentPackageFontControl.resolved(definition.key.rawValue, node: node, theme: theme))
+                return (definition.key.rawValue, BlockPackageFontControl.resolved(definition.key.rawValue, node: node, theme: theme))
             }
             if case .image = definition.control {
                 return (
@@ -805,8 +805,8 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
                 return (
                     definition.key.rawValue,
                     .string(site.appearanceMode.colour(
-                        light: ComponentPackageColorResolver.resolve(colorValue, theme: theme, opacity: opacity),
-                        dark: ComponentPackageColorResolver.resolve(colorValue, theme: theme, opacity: opacity, appearance: .dark)
+                        light: BlockPackageColorResolver.resolve(colorValue, theme: theme, opacity: opacity),
+                        dark: BlockPackageColorResolver.resolve(colorValue, theme: theme, opacity: opacity, appearance: .dark)
                     ))
                 )
             }
@@ -817,7 +817,7 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
                case .packageShadow(let shadowValue) = value {
                 return (
                     definition.key.rawValue,
-                    .string(ComponentPackageShadowResolver.resolve(shadowValue, theme: theme))
+                    .string(BlockPackageShadowResolver.resolve(shadowValue, theme: theme))
                 )
             }
             if case .number = definition.control {
@@ -833,17 +833,17 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
         }
         if let package = node.type.definition.package {
             for property in package.manifest.properties where property.control.type == .image {
-                let key = ComponentProperty.Key(rawValue: property.id)
+                let key = BlockProperty.Key(rawValue: property.id)
                 guard case .url(let source) = node.propertyValue(key) else { continue }
                 let metadata = source.foundryAssetID.flatMap { assets[$0]?.asset.imageMetadata }
                     ?? package.imageMetadata[source]
-                let focalPoint = ComponentImageTemplateValues.focalPoint(
-                    from: node.propertyValue(ComponentPackageAdapter.imageFocalPointKey(for: property.id))
+                let focalPoint = BlockImageTemplateValues.focalPoint(
+                    from: node.propertyValue(BlockPackageAdapter.imageFocalPointKey(for: property.id))
                 )
-                ComponentImageTemplateValues.insert(
+                BlockImageTemplateValues.insert(
                     propertyID: property.id,
                     href: values[property.id]?.stringValue ?? "",
-                    alt: node.property(ComponentPackageAdapter.imageAltKey(for: property.id)),
+                    alt: node.property(BlockPackageAdapter.imageAltKey(for: property.id)),
                     focalPointX: focalPoint.x,
                     focalPointY: focalPoint.y,
                     metadata: metadata,
@@ -857,7 +857,7 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
                         href = siteRootPrefix(from: assetPrefix) + imageRenditionPath(
                             assetID: assetID,
                             maximumDimension: rendition.effectiveMaximumDimension,
-                            fileExtension: ComponentImageProcessor.renditionFileExtension(
+                            fileExtension: BlockImageProcessor.renditionFileExtension(
                                 data: content.data,
                                 fallback: content.asset.imageMetadata.fileExtension
                             )
@@ -873,7 +873,7 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
         for definition in node.type.definition.properties {
             guard case .link(let absoluteURL) = definition.control,
                   case .link(let link) = node.propertyValue(definition.key) else { continue }
-            let resolved = ComponentLinkResolver.resolve(
+            let resolved = BlockLinkResolver.resolve(
                 link, pages: site.pages, folders: site.pageFolders, assets: site.assets,
                 assetLibrary: site.assetLibrary,
                 publicURL: site.publicURL, absoluteURL: absoluteURL
@@ -882,18 +882,18 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
             values[definition.key.rawValue + ".target"] = .string(resolved.target)
             values[definition.key.rawValue + ".attributes"] = .string(resolved.attributes)
         }
-        return ComponentPackageDerivedValueResolver.resolve(
+        return BlockPackageDerivedValueResolver.resolve(
             values,
             properties: node.type.definition.package?.manifest.properties ?? []
         )
     }
 
     private func resolvedImageValue(
-        _ value: ComponentProperty.Value,
+        _ value: BlockProperty.Value,
         assetPrefix: String,
         assets: [UUID: ProjectAssetContent],
         site: Site
-    ) -> ComponentPackageValue {
+    ) -> BlockPackageValue {
         switch value {
         case .url(let source):
             .string(exportSource(source, assetPrefix: assetPrefix, assets: assets, site: site))
@@ -912,7 +912,7 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
     ) -> [SiteExportFile] {
         var requests = Set<ImageRenditionRequest>()
         for page in site.pages {
-            for node in page.components.flatMap(\.flattened) {
+            for node in page.blocks.flatMap(\.flattened) {
                 guard let package = node.type.definition.package else { continue }
                 for property in package.manifest.properties where property.control.type == .image {
                     guard case .url(let source) = node.propertyValue(.init(rawValue: property.id)),
@@ -925,7 +925,7 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
         }
         return requests.compactMap { request in
             guard let content = assets[request.assetID],
-                  let output = ComponentImageProcessor.rendition(
+                  let output = BlockImageProcessor.rendition(
                     data: content.data,
                     filename: content.asset.filename,
                     mimeType: content.asset.mediaType,
@@ -951,7 +951,7 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
         let maximumDimension: Int
     }
 
-    private func safeCSSValue(_ value: ComponentProperty.Value) -> String {
+    private func safeCSSValue(_ value: BlockProperty.Value) -> String {
         let raw: String
         switch value {
         case .number(let value):
@@ -977,7 +977,7 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
     }
 
     private func missingPackageHTML(
-        _ node: ComponentNode,
+        _ node: BlockNode,
         page: Page,
         theme: Theme,
         assetPrefix: String,
@@ -1000,12 +1000,12 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
     }
 
     private func isSafeRelativePath(_ path: String) -> Bool {
-        let components = path.split(separator: "/", omittingEmptySubsequences: false)
+        let parts = path.split(separator: "/", omittingEmptySubsequences: false)
         return !path.isEmpty
             && !path.hasPrefix("/")
-            && !components.contains("")
-            && !components.contains(".")
-            && !components.contains("..")
+            && !parts.contains("")
+            && !parts.contains(".")
+            && !parts.contains("..")
     }
 
     private func alignment(_ value: String) -> String {
@@ -1030,8 +1030,8 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
     }
 }
 
-nonisolated extension ComponentNode {
-    var flattened: [ComponentNode] {
+nonisolated extension BlockNode {
+    var flattened: [BlockNode] {
         [self] + children.flatMap(\.flattened)
     }
 }

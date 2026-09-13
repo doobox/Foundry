@@ -149,7 +149,7 @@ private struct CodeAndAnalyticsProjectSettingsView: View {
                 validationMessage(for: bodyStartCode)
 
                 codeEditor("Before </body>", code: bodyEndCode, setter: editor.setSiteBodyEndCode)
-                Text("Inserted at the end of every page after Foundry’s component scripts.")
+                Text("Inserted at the end of every page after Foundry’s block scripts.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 validationMessage(for: bodyEndCode)
@@ -474,12 +474,12 @@ private struct PublishingProjectSettingsView: View {
         if !missingAssets.isEmpty {
             warnings.append("\(missingAssets.count) project resource files are unavailable and cannot be published.")
         }
-        let unavailableComponents = site.pages.flatMap(\.components).flatMap(\.flattened)
-            .filter { component in
-                component.packageLock != nil && component.type.definition.renderKind == .unavailable
+        let unavailableBlocks = site.pages.flatMap(\.blocks).flatMap(\.flattened)
+            .filter { block in
+                block.packageLock != nil && block.type.definition.renderKind == .unavailable
             }
-        if !unavailableComponents.isEmpty {
-            warnings.append("\(unavailableComponents.count) components use unavailable packages.")
+        if !unavailableBlocks.isEmpty {
+            warnings.append("\(unavailableBlocks.count) blocks use unavailable packages.")
         }
         if needsPublicURL && validBaseURL == nil {
             warnings.append("Canonical URLs and sitemap.xml require a valid Site URL.")

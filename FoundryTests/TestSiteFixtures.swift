@@ -2,18 +2,18 @@
 
 enum TestSiteFixtures {
     static func populatedSite() -> Site {
-        let container = ComponentNode(
+        let container = BlockNode(
             type: .container,
             name: "Hero",
             children: [
-                ComponentNode(
+                BlockNode(
                     type: .paragraph,
                     name: "Paragraph",
                     properties: [
                         .init(key: .init(rawValue: "content"), value: .string("Build something remarkable."))
                     ]
                 ),
-                ComponentNode(
+                BlockNode(
                     type: .button,
                     name: "Call to action",
                     properties: [
@@ -25,7 +25,7 @@ enum TestSiteFixtures {
         )
         return Site(
             name: "Test Site",
-            pages: [Page(title: "Home", slug: "index", components: [container])]
+            pages: [Page(title: "Home", slug: "index", blocks: [container])]
         )
     }
 

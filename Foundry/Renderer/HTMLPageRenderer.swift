@@ -10,9 +10,9 @@ nonisolated struct HTMLPageRenderer: PageRendering {
     }
 
     func render(page: Page, language: String, theme: Theme, assets: [UUID: ProjectAssetContent], breakpoint: ResponsiveBreakpoint) -> String {
-        let body = page.components.isEmpty
+        let body = page.blocks.isEmpty
             ? rootDropZone
-            : page.components.map { render($0, page: page, theme: theme, assets: assets, globalDefinitionID: $0.reusableDefinitionID, breakpoint: breakpoint) }.joined(separator: "\n")
+            : page.blocks.map { render($0, page: page, theme: theme, assets: assets, globalDefinitionID: $0.reusableDefinitionID, breakpoint: breakpoint) }.joined(separator: "\n")
         let pageTitle = page.metadata.browserTitle.isEmpty ? page.title : page.metadata.browserTitle
         let browserTitle = pageTitle + (site?.titleSuffix ?? "")
         let metadata = metadataHTML(for: page, browserTitle: browserTitle, site: site, assets: assets)
@@ -54,7 +54,7 @@ nonisolated struct HTMLPageRenderer: PageRendering {
               --foundry-font-monospace: \(theme.typography.monospacedFont.cssFamily);
               \(theme.customFontCSSVariables)
               \(theme.fontSizeCSSVariables)
-              --foundry-editor-component: #0A84FF;
+              --foundry-editor-block: #0A84FF;
               --foundry-editor-global: #30D158;
               --foundry-editor-primitive: #0A84FF;
               \(theme.spacingCSSVariables)
@@ -66,7 +66,7 @@ nonisolated struct HTMLPageRenderer: PageRendering {
             \(theme.screens.containerCSS)
             .foundry-container { width: 100%; max-width: var(--foundry-container-width) !important; }
             [data-foundry-id] {
-              --foundry-editor-chrome: var(--foundry-editor-component);
+              --foundry-editor-chrome: var(--foundry-editor-block);
               cursor: default;
             }
             [data-foundry-global] { --foundry-editor-chrome: var(--foundry-editor-global); }
@@ -75,7 +75,7 @@ nonisolated struct HTMLPageRenderer: PageRendering {
             }
             [data-foundry-global][data-foundry-global-override="true"],
             [data-foundry-global][data-foundry-global-override="true"] [data-foundry-id] {
-              --foundry-editor-chrome: var(--foundry-editor-component);
+              --foundry-editor-chrome: var(--foundry-editor-block);
             }
             .foundry-multi-drag-image {
               position: fixed; left: -1000px; top: -1000px; z-index: 2000;
@@ -152,7 +152,7 @@ nonisolated struct HTMLPageRenderer: PageRendering {
             }
             .foundry-spacer { min-height: 8px; }
             .unavailable { padding: 16px; border: 2px dashed #C33; color: #922; background: #FFF5F5; }
-            \(FoundryWebLibraryRegistry.canvasCSS(for: ComponentArtifactPlan(page: page).packages))
+            \(FoundryWebLibraryRegistry.canvasCSS(for: BlockArtifactPlan(page: page).packages))
             \(packageStyles(for: page, theme: theme, assets: assets, breakpoint: breakpoint))
           </style>
         \(analyticsCode)
@@ -164,15 +164,15 @@ nonisolated struct HTMLPageRenderer: PageRendering {
     }
 
     func renderSubtree(
-        componentID: UUID,
+        blockID: UUID,
         page: Page,
         theme: Theme,
         assets: [UUID: ProjectAssetContent],
         breakpoint: ResponsiveBreakpoint
-    ) -> RenderedComponentSubtree? {
-        guard let target = subtreeTarget(componentID: componentID, in: page.components) else { return nil }
-        return RenderedComponentSubtree(
-            componentID: componentID,
+    ) -> RenderedBlockSubtree? {
+        guard let target = subtreeTarget(blockID: blockID, in: page.blocks) else { return nil }
+        return RenderedBlockSubtree(
+            blockID: blockID,
             html: render(
                 target.node,
                 page: page,
@@ -180,11 +180,11 @@ nonisolated struct HTMLPageRenderer: PageRendering {
                 assets: assets,
                 globalDefinitionID: target.inheritedGlobalDefinitionID,
                 breakpoint: breakpoint,
-                parentComponentID: target.parentComponentID,
+                parentBlockID: target.parentBlockID,
                 parentSlot: target.parentSlot,
                 parentDropZoneSlotID: target.parentDropZoneSlotID
             ),
-            instanceCSS: componentStyles(
+            instanceCSS: blockStyles(
                 for: flattened(target.node),
                 page: page,
                 theme: theme,
@@ -200,17 +200,17 @@ nonisolated struct HTMLPageRenderer: PageRendering {
         assets: [UUID: ProjectAssetContent],
         breakpoint: ResponsiveBreakpoint
     ) -> String {
-        let nodes = page.components.flatMap(flattened)
+        let nodes = page.blocks.flatMap(flattened)
         let instanceScripts = nodes.compactMap { sourceNode -> String? in
             let node = sourceNode.resolved(at: breakpoint)
             guard let package = node.type.definition.package, !package.instanceJavaScript.isEmpty else { return nil }
-            return ComponentTemplateRenderer.render(
+            return BlockTemplateRenderer.render(
                 package.instanceJavaScript,
                 context: .init(
                     instanceID: node.id,
                     packageIdentifier: package.manifest.identifier,
                     properties: packageProperties(node, theme: theme, assets: assets),
-                    templateValues: site.map { ComponentNavigationTemplateValues.values(site: $0, currentPage: page) } ?? [:],
+                    templateValues: site.map { BlockNavigationTemplateValues.values(site: $0, currentPage: page) } ?? [:],
                     slots: [:],
                     assetBasePath: canvasAssetBasePath(for: package),
                     assetPaths: canvasAssetPaths(for: package),
@@ -225,38 +225,38 @@ nonisolated struct HTMLPageRenderer: PageRendering {
                   seenPackages.insert(package.manifest.identifier).inserted else { return nil }
             let source = package.pageJavaScript
             guard !source.isEmpty else { return nil }
-            return ComponentTemplateRenderer.render(
+            return BlockTemplateRenderer.render(
                 source,
-                context: .init(instanceID: UUID(uuid: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)), packageIdentifier: package.manifest.identifier, properties: [:], templateValues: site.map { ComponentNavigationTemplateValues.values(site: $0, currentPage: page) } ?? [:], slots: [:], assetBasePath: canvasAssetBasePath(for: package), assetPaths: canvasAssetPaths(for: package), environment: .canvas, loopMaximums: package.loopMaximums)
+                context: .init(instanceID: UUID(uuid: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)), packageIdentifier: package.manifest.identifier, properties: [:], templateValues: site.map { BlockNavigationTemplateValues.values(site: $0, currentPage: page) } ?? [:], slots: [:], assetBasePath: canvasAssetBasePath(for: package), assetPaths: canvasAssetPaths(for: package), environment: .canvas, loopMaximums: package.loopMaximums)
             )
         }
         let htmlScripts = nodes.map {
-            ComponentArtifactPlan.htmlArtifact(for: $0.resolved(at: breakpoint), suffix: "JavaScript")
+            BlockArtifactPlan.htmlArtifact(for: $0.resolved(at: breakpoint), suffix: "JavaScript")
         }
             .filter { !$0.isEmpty }
         let source = (instanceScripts + htmlScripts + sharedScripts).joined(separator: "\n")
         return source.isEmpty ? "" : "<script>\n\(source)\n</script>"
     }
 
-    private func placedHTML(for page: Page, placement: ComponentPackageTemplateFile.Placement) -> String {
+    private func placedHTML(for page: Page, placement: BlockPackageTemplateFile.Placement) -> String {
         var seenPackages: Set<String> = []
-        return page.components.flatMap(flattened).compactMap { node -> String? in
+        return page.blocks.flatMap(flattened).compactMap { node -> String? in
             guard let package = node.type.definition.package,
                   seenPackages.insert(package.manifest.identifier).inserted else { return nil }
             let templates = package.placedHTML.filter { $0.placement == placement }
             guard !templates.isEmpty else { return nil }
-            let context = ComponentTemplateContext(
+            let context = BlockTemplateContext(
                 instanceID: UUID(uuid: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)),
                 packageIdentifier: package.manifest.identifier,
                 properties: [:],
-                templateValues: site.map { ComponentNavigationTemplateValues.values(site: $0, currentPage: page) } ?? [:],
+                templateValues: site.map { BlockNavigationTemplateValues.values(site: $0, currentPage: page) } ?? [:],
                 slots: [:],
                 assetBasePath: canvasAssetBasePath(for: package),
                 assetPaths: canvasAssetPaths(for: package),
                 environment: .canvas,
                 loopMaximums: package.loopMaximums
             )
-            return templates.map { ComponentTemplateRenderer.render($0.contents, context: context) }.joined(separator: "\n")
+            return templates.map { BlockTemplateRenderer.render($0.contents, context: context) }.joined(separator: "\n")
         }.joined(separator: "\n")
     }
 
@@ -329,36 +329,36 @@ nonisolated struct HTMLPageRenderer: PageRendering {
         return baseURL + "/" + slugs.joined(separator: "/") + "/"
     }
 
-    private func render(_ sourceNode: ComponentNode, page: Page, theme: Theme, assets: [UUID: ProjectAssetContent], globalDefinitionID: UUID?, breakpoint: ResponsiveBreakpoint, parentComponentID: UUID? = nil, parentSlot: ComponentPackageSlot? = nil, parentDropZoneSlotID: String? = nil) -> String {
+    private func render(_ sourceNode: BlockNode, page: Page, theme: Theme, assets: [UUID: ProjectAssetContent], globalDefinitionID: UUID?, breakpoint: ResponsiveBreakpoint, parentBlockID: UUID? = nil, parentSlot: BlockPackageSlot? = nil, parentDropZoneSlotID: String? = nil) -> String {
         let node = sourceNode.resolved(at: breakpoint)
         let globalDefinitionID = node.reusableDefinitionID ?? globalDefinitionID
         switch node.type.definition.renderKind {
         case .package:
             guard let package = node.type.definition.package else {
-                return unavailableComponent(node, page: page, theme: theme, assets: assets, globalDefinitionID: globalDefinitionID, breakpoint: breakpoint, parentComponentID: parentComponentID)
+                return unavailableBlock(node, page: page, theme: theme, assets: assets, globalDefinitionID: globalDefinitionID, breakpoint: breakpoint, parentBlockID: parentBlockID)
             }
             do {
                 try package.preparePayload()
             } catch {
-                return failedComponent(node, page: page, package: package, theme: theme, assets: assets, globalDefinitionID: globalDefinitionID, breakpoint: breakpoint, parentComponentID: parentComponentID)
+                return failedBlock(node, page: page, package: package, theme: theme, assets: assets, globalDefinitionID: globalDefinitionID, breakpoint: breakpoint, parentBlockID: parentBlockID)
             }
             let slots = Dictionary(uniqueKeysWithValues: package.manifest.slots.map { slot in
                 let children = node.children.filter {
                     ($0.slotID ?? (package.hasDropZone ? nil : package.manifest.slots.first?.id)) == slot.id
                 }
                 let html = children.map {
-                    render($0, page: page, theme: theme, assets: assets, globalDefinitionID: globalDefinitionID, breakpoint: breakpoint, parentComponentID: node.id, parentSlot: slot)
+                    render($0, page: page, theme: theme, assets: assets, globalDefinitionID: globalDefinitionID, breakpoint: breakpoint, parentBlockID: node.id, parentSlot: slot)
                 }.joined()
-                return (slot.id, html.isEmpty ? "<div class=\"foundry-empty-drop-zone\" data-foundry-empty-parent=\"\(node.id.uuidString)\" data-foundry-slot-id=\"\(escapeAttribute(slot.id))\">Drop component here</div>" : html)
+                return (slot.id, html.isEmpty ? "<div class=\"foundry-empty-drop-zone\" data-foundry-empty-parent=\"\(node.id.uuidString)\" data-foundry-slot-id=\"\(escapeAttribute(slot.id))\">Drop block here</div>" : html)
             })
             let dropZones = Dictionary(uniqueKeysWithValues: package.dropZoneNames.enumerated().map { index, name in
                 let slotID = package.dropZoneSlotID(for: name)
                 let children = node.children.filter { $0.slotID == slotID || (index == 0 && $0.slotID == nil) }
                 let html = children.map {
-                    render($0, page: page, theme: theme, assets: assets, globalDefinitionID: globalDefinitionID, breakpoint: breakpoint, parentComponentID: node.id, parentDropZoneSlotID: slotID)
+                    render($0, page: page, theme: theme, assets: assets, globalDefinitionID: globalDefinitionID, breakpoint: breakpoint, parentBlockID: node.id, parentDropZoneSlotID: slotID)
                 }.joined()
                 let output = html.isEmpty
-                    ? "<div class=\"foundry-empty-drop-zone\" data-foundry-empty-parent=\"\(node.id.uuidString)\" data-foundry-slot-id=\"\(escapeAttribute(slotID))\">Drop component here</div>"
+                    ? "<div class=\"foundry-empty-drop-zone\" data-foundry-empty-parent=\"\(node.id.uuidString)\" data-foundry-slot-id=\"\(escapeAttribute(slotID))\">Drop block here</div>"
                     : html
                 return (name, output)
             })
@@ -367,21 +367,21 @@ nonisolated struct HTMLPageRenderer: PageRendering {
                 : ""
             let defaultSlotID = package.dropZoneNames.first.map(package.dropZoneSlotID(for:))
                 ?? package.manifest.slots.first?.id
-            let canvasAttributes = attributes(for: node, globalDefinitionID: globalDefinitionID, parentComponentID: parentComponentID, parentSlot: parentSlot, parentDropZoneSlotID: parentDropZoneSlotID) +
+            let canvasAttributes = attributes(for: node, globalDefinitionID: globalDefinitionID, parentBlockID: parentBlockID, parentSlot: parentSlot, parentDropZoneSlotID: parentDropZoneSlotID) +
                 (defaultSlotID.map { " data-foundry-default-slot=\"\(escapeAttribute($0))\"" } ?? "") +
                 adjacentDropAttribute
-            let rendered = ComponentTemplateRenderer.render(
+            let rendered = BlockTemplateRenderer.render(
                 package.htmlTemplate,
                 context: .init(
                     instanceID: node.id,
                     packageIdentifier: package.manifest.identifier,
                     properties: packageProperties(node, theme: theme, assets: assets),
-                    templateValues: site.map { ComponentNavigationTemplateValues.values(site: $0, currentPage: page) } ?? [:],
+                    templateValues: site.map { BlockNavigationTemplateValues.values(site: $0, currentPage: page) } ?? [:],
                     slots: slots,
                     dropZones: dropZones,
-                    componentClass: componentClass(node) + " " +
-                        ComponentTemplateRenderer.packageClass(for: package.manifest.identifier),
-                    componentAttributes: canvasAttributes,
+                    blockClass: blockClass(node) + " " +
+                        BlockTemplateRenderer.packageClass(for: package.manifest.identifier),
+                    blockAttributes: canvasAttributes,
                     assetBasePath: canvasAssetBasePath(for: package),
                     assetPaths: canvasAssetPaths(for: package),
                     enablesEditorMarkup: true,
@@ -390,13 +390,13 @@ nonisolated struct HTMLPageRenderer: PageRendering {
                     loopMaximums: package.loopMaximums
                 )
             )
-            if package.htmlTemplate.contains("{{ component.attributes }}") ||
-                package.htmlTemplate.contains("{{component.attributes}}") {
+            if package.htmlTemplate.contains("{{ block.attributes }}") ||
+                package.htmlTemplate.contains("{{block.attributes}}") {
                 return rendered
             }
             return "<div \(canvasAttributes)>\(rendered)</div>"
         case .unavailable:
-            return unavailableComponent(node, page: page, theme: theme, assets: assets, globalDefinitionID: globalDefinitionID, breakpoint: breakpoint, parentComponentID: parentComponentID)
+            return unavailableBlock(node, page: page, theme: theme, assets: assets, globalDefinitionID: globalDefinitionID, breakpoint: breakpoint, parentBlockID: parentBlockID)
         }
     }
 
@@ -417,8 +417,8 @@ nonisolated struct HTMLPageRenderer: PageRendering {
         assets: [UUID: ProjectAssetContent],
         breakpoint: ResponsiveBreakpoint
     ) -> String {
-        let nodes = page.components.flatMap(flattened)
-        let componentStyles = componentStyles(
+        let nodes = page.blocks.flatMap(flattened)
+        let blockStyles = blockStyles(
             for: nodes,
             page: page,
             theme: theme,
@@ -426,17 +426,17 @@ nonisolated struct HTMLPageRenderer: PageRendering {
             breakpoint: breakpoint
         )
         var seenPackages: Set<String> = []
-        let pageStyles = page.components.flatMap(flattened).compactMap { node -> String? in
+        let pageStyles = page.blocks.flatMap(flattened).compactMap { node -> String? in
             guard let package = node.type.definition.package,
                   (!package.pageCSS.isEmpty || !package.siteCSS.isEmpty),
                   seenPackages.insert(package.manifest.identifier).inserted else { return nil }
-            return ComponentTemplateRenderer.render(
+            return BlockTemplateRenderer.render(
                 [package.pageCSS, package.siteCSS].filter { !$0.isEmpty }.joined(separator: "\n"),
                 context: .init(
                     instanceID: UUID(uuid: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)),
                     packageIdentifier: package.manifest.identifier,
                     properties: [:],
-                    templateValues: site.map { ComponentNavigationTemplateValues.values(site: $0, currentPage: page) } ?? [:],
+                    templateValues: site.map { BlockNavigationTemplateValues.values(site: $0, currentPage: page) } ?? [:],
                     slots: [:],
                     assetBasePath: canvasAssetBasePath(for: package),
                     assetPaths: canvasAssetPaths(for: package),
@@ -445,11 +445,11 @@ nonisolated struct HTMLPageRenderer: PageRendering {
                 )
             )
         }.joined(separator: "\n")
-        return [componentStyles, pageStyles].filter { !$0.isEmpty }.joined(separator: "\n")
+        return [blockStyles, pageStyles].filter { !$0.isEmpty }.joined(separator: "\n")
     }
 
-    private func componentStyles(
-        for nodes: [ComponentNode],
+    private func blockStyles(
+        for nodes: [BlockNode],
         page: Page,
         theme: Theme,
         assets: [UUID: ProjectAssetContent],
@@ -458,13 +458,13 @@ nonisolated struct HTMLPageRenderer: PageRendering {
         let instanceStyles = nodes.compactMap { sourceNode in
             let node = sourceNode.resolved(at: breakpoint)
             guard let package = node.type.definition.package else { return nil }
-            let css = ComponentTemplateRenderer.render(
+            let css = BlockTemplateRenderer.render(
                 package.css + "\n" + package.editorCSS,
                 context: .init(
                     instanceID: node.id,
                     packageIdentifier: package.manifest.identifier,
                     properties: packageProperties(node, theme: theme, assets: assets),
-                    templateValues: site.map { ComponentNavigationTemplateValues.values(site: $0, currentPage: page) } ?? [:],
+                    templateValues: site.map { BlockNavigationTemplateValues.values(site: $0, currentPage: page) } ?? [:],
                     slots: [:],
                     assetBasePath: canvasAssetBasePath(for: package),
                     assetPaths: canvasAssetPaths(for: package),
@@ -472,14 +472,14 @@ nonisolated struct HTMLPageRenderer: PageRendering {
                     loopMaximums: package.loopMaximums
                 )
             )
-            return ComponentTemplateRenderer.scopedCSS(
+            return BlockTemplateRenderer.scopedCSS(
                 css,
                 packageIdentifier: package.manifest.identifier,
                 instanceID: node.id
             )
         }.joined(separator: "\n")
         let htmlStyles = nodes.map {
-            ComponentArtifactPlan.htmlArtifact(for: $0.resolved(at: breakpoint), suffix: "CSS")
+            BlockArtifactPlan.htmlArtifact(for: $0.resolved(at: breakpoint), suffix: "CSS")
         }
             .filter { !$0.isEmpty }
             .joined(separator: "\n")
@@ -487,25 +487,25 @@ nonisolated struct HTMLPageRenderer: PageRendering {
     }
 
     private func subtreeTarget(
-        componentID: UUID,
-        in nodes: [ComponentNode],
+        blockID: UUID,
+        in nodes: [BlockNode],
         inheritedGlobalDefinitionID: UUID? = nil,
-        parentComponentID: UUID? = nil,
-        parentSlot: ComponentPackageSlot? = nil,
+        parentBlockID: UUID? = nil,
+        parentSlot: BlockPackageSlot? = nil,
         parentDropZoneSlotID: String? = nil
     ) -> (
-        node: ComponentNode,
+        node: BlockNode,
         inheritedGlobalDefinitionID: UUID?,
-        parentComponentID: UUID?,
-        parentSlot: ComponentPackageSlot?,
+        parentBlockID: UUID?,
+        parentSlot: BlockPackageSlot?,
         parentDropZoneSlotID: String?
     )? {
         for node in nodes {
-            if node.id == componentID {
+            if node.id == blockID {
                 return (
                     node,
                     inheritedGlobalDefinitionID,
-                    parentComponentID,
+                    parentBlockID,
                     parentSlot,
                     parentDropZoneSlotID
                 )
@@ -527,10 +527,10 @@ nonisolated struct HTMLPageRenderer: PageRendering {
                     }.map { package.dropZoneSlotID(for: $0.element) }
                 }
                 if let target = subtreeTarget(
-                    componentID: componentID,
+                    blockID: blockID,
                     in: [child],
                     inheritedGlobalDefinitionID: globalDefinitionID,
-                    parentComponentID: node.id,
+                    parentBlockID: node.id,
                     parentSlot: slot,
                     parentDropZoneSlotID: dropZoneSlotID
                 ) {
@@ -541,22 +541,22 @@ nonisolated struct HTMLPageRenderer: PageRendering {
         return nil
     }
 
-    private func canvasAssetBasePath(for package: LoadedComponentPackage) -> String {
+    private func canvasAssetBasePath(for package: LoadedBlockPackage) -> String {
         "\(CanvasAssetSchemeHandler.packageScheme)://\(package.manifest.identifier)"
     }
 
-    private func canvasAssetPaths(for package: LoadedComponentPackage) -> [String: String] {
+    private func canvasAssetPaths(for package: LoadedBlockPackage) -> [String: String] {
         let basePath = canvasAssetBasePath(for: package)
         return Dictionary(uniqueKeysWithValues: package.manifest.assets.map { asset in
             (asset.path, basePath + "/" + asset.path)
         })
     }
 
-    private func packageProperties(_ node: ComponentNode, theme: Theme, assets: [UUID: ProjectAssetContent]) -> [String: ComponentPackageValue] {
-        var values: [String: ComponentPackageValue] = Dictionary(uniqueKeysWithValues: node.type.definition.properties.map { definition in
+    private func packageProperties(_ node: BlockNode, theme: Theme, assets: [UUID: ProjectAssetContent]) -> [String: BlockPackageValue] {
+        var values: [String: BlockPackageValue] = Dictionary(uniqueKeysWithValues: node.type.definition.properties.map { definition in
             let value = node.propertyValue(definition.key)
             if case .themeFont = definition.control {
-                return (definition.key.rawValue, ComponentPackageFontControl.resolved(definition.key.rawValue, node: node, theme: theme))
+                return (definition.key.rawValue, BlockPackageFontControl.resolved(definition.key.rawValue, node: node, theme: theme))
             }
             if case .image = definition.control,
                case .url(let source) = value {
@@ -569,7 +569,7 @@ nonisolated struct HTMLPageRenderer: PageRendering {
                case .packageColor(let colorValue) = value {
                 return (
                     definition.key.rawValue,
-                    .string(ComponentPackageColorResolver.resolve(
+                    .string(BlockPackageColorResolver.resolve(
                         colorValue, theme: theme,
                         opacity: opacity, appearance: appearance
                     ))
@@ -582,7 +582,7 @@ nonisolated struct HTMLPageRenderer: PageRendering {
                case .packageShadow(let shadowValue) = value {
                 return (
                     definition.key.rawValue,
-                    .string(ComponentPackageShadowResolver.resolve(shadowValue, theme: theme))
+                    .string(BlockPackageShadowResolver.resolve(shadowValue, theme: theme))
                 )
             }
             if case .number = definition.control {
@@ -598,17 +598,17 @@ nonisolated struct HTMLPageRenderer: PageRendering {
         }
         if let package = node.type.definition.package {
             for property in package.manifest.properties where property.control.type == .image {
-                let key = ComponentProperty.Key(rawValue: property.id)
+                let key = BlockProperty.Key(rawValue: property.id)
                 guard case .url(let source) = node.propertyValue(key) else { continue }
                 let metadata = source.foundryAssetID.flatMap { assets[$0]?.asset.imageMetadata }
                     ?? package.imageMetadata[source]
-                let focalPoint = ComponentImageTemplateValues.focalPoint(
-                    from: node.propertyValue(ComponentPackageAdapter.imageFocalPointKey(for: property.id))
+                let focalPoint = BlockImageTemplateValues.focalPoint(
+                    from: node.propertyValue(BlockPackageAdapter.imageFocalPointKey(for: property.id))
                 )
-                ComponentImageTemplateValues.insert(
+                BlockImageTemplateValues.insert(
                     propertyID: property.id,
                     href: values[property.id]?.stringValue ?? "",
-                    alt: node.property(ComponentPackageAdapter.imageAltKey(for: property.id)),
+                    alt: node.property(BlockPackageAdapter.imageAltKey(for: property.id)),
                     focalPointX: focalPoint.x,
                     focalPointY: focalPoint.y,
                     metadata: metadata,
@@ -626,7 +626,7 @@ nonisolated struct HTMLPageRenderer: PageRendering {
             for definition in node.type.definition.properties {
                 guard case .link(let absoluteURL) = definition.control,
                       case .link(let link) = node.propertyValue(definition.key) else { continue }
-                let resolved = ComponentLinkResolver.resolve(
+                let resolved = BlockLinkResolver.resolve(
                     link, pages: site.pages, folders: site.pageFolders, assets: site.assets,
                     publicURL: site.publicURL, absoluteURL: absoluteURL
                 )
@@ -635,17 +635,17 @@ nonisolated struct HTMLPageRenderer: PageRendering {
                 values[definition.key.rawValue + ".attributes"] = .string(resolved.attributes)
             }
         }
-        return ComponentPackageDerivedValueResolver.resolve(
+        return BlockPackageDerivedValueResolver.resolve(
             values,
             properties: node.type.definition.package?.manifest.properties ?? []
         )
     }
 
-    private func flattened(_ node: ComponentNode) -> [ComponentNode] {
+    private func flattened(_ node: BlockNode) -> [BlockNode] {
         [node] + node.children.flatMap(flattened)
     }
 
-    private func packageValue(_ value: ComponentProperty.Value) -> ComponentPackageValue {
+    private func packageValue(_ value: BlockProperty.Value) -> BlockPackageValue {
         switch value {
         case .number(let value): .number(value)
         case .boolean(let value): .boolean(value)
@@ -659,19 +659,19 @@ nonisolated struct HTMLPageRenderer: PageRendering {
         }
     }
 
-    private func unavailableComponent(_ node: ComponentNode, page: Page, theme: Theme, assets: [UUID: ProjectAssetContent], globalDefinitionID: UUID?, breakpoint: ResponsiveBreakpoint, parentComponentID: UUID?) -> String {
-        let children = node.children.map { render($0, page: page, theme: theme, assets: assets, globalDefinitionID: globalDefinitionID, breakpoint: breakpoint, parentComponentID: node.id) }.joined()
+    private func unavailableBlock(_ node: BlockNode, page: Page, theme: Theme, assets: [UUID: ProjectAssetContent], globalDefinitionID: UUID?, breakpoint: ResponsiveBreakpoint, parentBlockID: UUID?) -> String {
+        let children = node.children.map { render($0, page: page, theme: theme, assets: assets, globalDefinitionID: globalDefinitionID, breakpoint: breakpoint, parentBlockID: node.id) }.joined()
         let name = node.missingPackageSnapshot?.name ?? node.type.rawValue
-        return "<div class=\"unavailable\" \(attributes(for: node, globalDefinitionID: globalDefinitionID, parentComponentID: parentComponentID))>Missing component: \(escape(name))\(children)</div>"
+        return "<div class=\"unavailable\" \(attributes(for: node, globalDefinitionID: globalDefinitionID, parentBlockID: parentBlockID))>Missing block: \(escape(name))\(children)</div>"
     }
 
-    private func failedComponent(_ node: ComponentNode, page: Page, package: LoadedComponentPackage, theme: Theme, assets: [UUID: ProjectAssetContent], globalDefinitionID: UUID?, breakpoint: ResponsiveBreakpoint, parentComponentID: UUID?) -> String {
-        let children = node.children.map { render($0, page: page, theme: theme, assets: assets, globalDefinitionID: globalDefinitionID, breakpoint: breakpoint, parentComponentID: node.id) }.joined()
-        return "<div class=\"unavailable\" \(attributes(for: node, globalDefinitionID: globalDefinitionID, parentComponentID: parentComponentID))>Component files could not be loaded: \(escape(package.manifest.name))\(children)</div>"
+    private func failedBlock(_ node: BlockNode, page: Page, package: LoadedBlockPackage, theme: Theme, assets: [UUID: ProjectAssetContent], globalDefinitionID: UUID?, breakpoint: ResponsiveBreakpoint, parentBlockID: UUID?) -> String {
+        let children = node.children.map { render($0, page: page, theme: theme, assets: assets, globalDefinitionID: globalDefinitionID, breakpoint: breakpoint, parentBlockID: node.id) }.joined()
+        return "<div class=\"unavailable\" \(attributes(for: node, globalDefinitionID: globalDefinitionID, parentBlockID: parentBlockID))>Block files could not be loaded: \(escape(package.manifest.name))\(children)</div>"
     }
 
     private var rootDropZone: String {
-        "<div class=\"foundry-empty-drop-zone foundry-empty-page\" data-foundry-root-drop-zone>Drop component here</div>"
+        "<div class=\"foundry-empty-drop-zone foundry-empty-page\" data-foundry-root-drop-zone>Drop block here</div>"
     }
 
     private func canvasSource(_ source: String, assets: [UUID: ProjectAssetContent]) -> String {
@@ -679,7 +679,7 @@ nonisolated struct HTMLPageRenderer: PageRendering {
         return assets[id] == nil ? "" : source
     }
 
-    private func attributes(for node: ComponentNode, globalDefinitionID: UUID?, parentComponentID: UUID?, parentSlot: ComponentPackageSlot? = nil, parentDropZoneSlotID: String? = nil) -> String {
+    private func attributes(for node: BlockNode, globalDefinitionID: UUID?, parentBlockID: UUID?, parentSlot: BlockPackageSlot? = nil, parentDropZoneSlotID: String? = nil) -> String {
         let definition = node.type.definition
         let acceptsChildren = definition.allowsChildren ? "true" : "false"
         let manifest = definition.package?.manifest
@@ -689,7 +689,7 @@ nonisolated struct HTMLPageRenderer: PageRendering {
         let globalAttributes = globalDefinitionID.map {
             " data-foundry-global=\"\($0.uuidString)\" data-foundry-global-override=\"\(node.overridesGlobalDefinition == true)\""
         } ?? ""
-        let parentAttribute = parentComponentID.map { " data-foundry-parent=\"\($0.uuidString)\"" } ?? ""
+        let parentAttribute = parentBlockID.map { " data-foundry-parent=\"\($0.uuidString)\"" } ?? ""
         let slotAttributes = parentSlot.map {
             " data-foundry-slot=\"\(escapeAttribute($0.id))\" data-foundry-slot-containment=\"\($0.containment.rawValue)\""
         } ?? parentDropZoneSlotID.map {
@@ -697,23 +697,23 @@ nonisolated struct HTMLPageRenderer: PageRendering {
         } ?? ""
         let anchorAttribute = validAnchor(for: node).map { " id=\"\(escapeAttribute($0))\"" } ?? ""
         let userFacingName = node.reusableDefinitionID.flatMap { definitionID in
-            site?.globalComponents.first(where: { $0.id == definitionID })?.name
+            site?.globalBlocks.first(where: { $0.id == definitionID })?.name
         } ?? node.name
-        return "data-foundry-id=\"\(node.id.uuidString)\" data-foundry-component data-foundry-package=\"\(escapeAttribute(node.type.rawValue))\"\(parentAttribute)\(slotAttributes)\(anchorAttribute)\(customAttributes(for: node)) data-foundry-component-type=\"\(escapeAttribute(node.type.rawValue))\" data-foundry-type=\"\(escapeAttribute(node.type.displayName))\" data-foundry-name=\"\(escapeAttribute(userFacingName))\" data-foundry-author=\"\(escapeAttribute(attribution))\" data-foundry-version=\"\(escapeAttribute(version))\" data-foundry-accepts-children=\"\(acceptsChildren)\"\(globalAttributes)"
+        return "data-foundry-id=\"\(node.id.uuidString)\" data-foundry-block data-foundry-package=\"\(escapeAttribute(node.type.rawValue))\"\(parentAttribute)\(slotAttributes)\(anchorAttribute)\(customAttributes(for: node)) data-foundry-block-type=\"\(escapeAttribute(node.type.rawValue))\" data-foundry-type=\"\(escapeAttribute(node.type.displayName))\" data-foundry-name=\"\(escapeAttribute(userFacingName))\" data-foundry-author=\"\(escapeAttribute(attribution))\" data-foundry-version=\"\(escapeAttribute(version))\" data-foundry-accepts-children=\"\(acceptsChildren)\"\(globalAttributes)"
     }
 
-    private func validAnchor(for node: ComponentNode) -> String? {
-        ComponentAnchorValidator.validated(node.anchor)
+    private func validAnchor(for node: BlockNode) -> String? {
+        BlockAnchorValidator.validated(node.anchor)
     }
 
-    private func customAttributes(for node: ComponentNode) -> String {
-        ComponentRootAttributeValidator.validAttributes(node.rootAttributes ?? []).map {
+    private func customAttributes(for node: BlockNode) -> String {
+        BlockRootAttributeValidator.validAttributes(node.rootAttributes ?? []).map {
             " \($0.name)=\"\(escapeAttribute($0.value))\""
         }.joined()
     }
 
-    private func componentClass(_ node: ComponentNode) -> String {
-        ["c-" + node.id.uuidString.lowercased(), ComponentRootAttributeValidator.normalizedClasses(node.customClasses)]
+    private func blockClass(_ node: BlockNode) -> String {
+        ["c-" + node.id.uuidString.lowercased(), BlockRootAttributeValidator.normalizedClasses(node.customClasses)]
             .filter { !$0.isEmpty }
             .joined(separator: " ")
     }
