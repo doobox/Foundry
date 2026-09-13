@@ -1,8 +1,26 @@
 import AppKit
 import ImageIO
+import OSLog
 import SwiftUI
 import UniformTypeIdentifiers
 import WebKit
+
+@MainActor
+private enum CanvasDiagnostics {
+    static let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "Foundry", category: "Canvas")
+
+    static func navigationFailed(_ error: any Error, phase: String, url: URL?) {
+        let failure = error as NSError
+        let failingURL = (failure.userInfo[NSURLErrorFailingURLErrorKey] as? URL)?.absoluteString
+            ?? url?.absoluteString ?? "unknown"
+        // Replacing a navigation can cancel the previous load; keep that diagnostic at debug level.
+        if failure.domain == NSURLErrorDomain && failure.code == NSURLErrorCancelled {
+            logger.debug("Canvas navigation cancelled (\(phase, privacy: .public)); URL=\(failingURL, privacy: .private(mask: .hash))")
+        } else {
+            logger.error("Canvas navigation failed (\(phase, privacy: .public)); domain=\(failure.domain, privacy: .public) code=\(failure.code); URL=\(failingURL, privacy: .private(mask: .hash)); detail=\(failure.localizedDescription, privacy: .private)")
+        }
+    }
+}
 
 @MainActor
 final class CanvasAssetSchemeHandler: NSObject, WKURLSchemeHandler {
@@ -33,6 +51,8 @@ final class CanvasAssetSchemeHandler: NSObject, WKURLSchemeHandler {
     func webView(_ webView: WKWebView, start urlSchemeTask: any WKURLSchemeTask) {
         guard let url = urlSchemeTask.request.url,
               let resource = resource(for: url) else {
+            let requestURL = urlSchemeTask.request.url
+            CanvasDiagnostics.logger.error("Canvas asset unavailable; scheme=\(requestURL?.scheme ?? "unknown", privacy: .public); URL=\(requestURL?.absoluteString ?? "missing", privacy: .private(mask: .hash))")
             urlSchemeTask.didFailWithError(URLError(.fileDoesNotExist))
             return
         }
@@ -518,6 +538,18 @@ struct WebCanvasView: NSViewRepresentable {
             if (chromeFrame === null) chromeFrame = requestAnimationFrame(updateChromeTitle);
           };
 
+          // Fonts and other late-loading content can change geometry without
+          // a scroll or window resize. Observe content, never the chrome itself.
+          const chromeResizeObserver = new ResizeObserver(scheduleChromeTitleUpdate);
+          const observeChromeGeometry = () => {
+            chromeResizeObserver.disconnect();
+            chromeResizeObserver.observe(document.body);
+            document.querySelectorAll(selector).forEach(element => chromeResizeObserver.observe(element));
+          };
+          observeChromeGeometry();
+          document.fonts.addEventListener('loadingdone', scheduleChromeTitleUpdate);
+          document.fonts.addEventListener('loadingerror', scheduleChromeTitleUpdate);
+
           document.addEventListener('pointermove', event => {
             const block = event.target.closest?.(selector) ?? null;
             const primitive = event.target.closest?.('[data-foundry-primitive-property]') ?? null;
@@ -851,6 +883,7 @@ struct WebCanvasView: NSViewRepresentable {
             }
             latestFoundryRevision = revision;
             installBlockDragHandlers();
+            observeChromeGeometry();
             hoveredBlock = null;
             hoveredPrimitive = null;
             window.foundrySetEditorOptions(editorOptions);
@@ -908,6 +941,7 @@ struct WebCanvasView: NSViewRepresentable {
               }
             }
             installBlockDragHandlers();
+            observeChromeGeometry();
             hoveredBlock = null;
             hoveredPrimitive = null;
             window.foundrySetEditorOptions(editorOptions);
@@ -1397,7 +1431,7 @@ struct WebCanvasView: NSViewRepresentable {
             paste.isEnabled = canPasteBlock
             menu.addItem(paste)
             menu.addItem(.separator())
-            let saveReusable = menuItem("Save as Reusable Block…", action: #selector(performContextAction(_:)), representedAction: .saveReusable)
+            let saveReusable = menuItem("Save as Template…", action: #selector(performContextAction(_:)), representedAction: .saveReusable)
             let saveGlobal = menuItem("Save as Global Block…", action: #selector(performContextAction(_:)), representedAction: .saveGlobal)
             saveReusable.isEnabled = request["canSaveAsBlock"] as? Bool == true
             saveGlobal.isEnabled = request["canSaveAsBlock"] as? Bool == true
@@ -1649,6 +1683,7 @@ struct WebCanvasView: NSViewRepresentable {
             didFail navigation: WKNavigation?,
             withError error: any Error
         ) {
+            CanvasDiagnostics.navigationFailed(error, phase: "committed", url: webView.url)
             finishHTMLLoad(in: webView)
         }
 
@@ -1657,7 +1692,12 @@ struct WebCanvasView: NSViewRepresentable {
             didFailProvisionalNavigation navigation: WKNavigation?,
             withError error: any Error
         ) {
+            CanvasDiagnostics.navigationFailed(error, phase: "provisional", url: webView.url)
             finishHTMLLoad(in: webView)
+        }
+
+        func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
+            CanvasDiagnostics.logger.error("Canvas WebContent process terminated; loading=\(self.isLoadingHTML); URL=\(webView.url?.absoluteString ?? "unknown", privacy: .private(mask: .hash))")
         }
 
         private func finishHTMLLoad(in webView: WKWebView) {

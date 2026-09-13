@@ -20,6 +20,8 @@ nonisolated struct BlockInspectorControlGroup: Identifiable {
 }
 
 nonisolated struct BlockDefinition: Sendable {
+    static let genericSystemImage = "square.stack.3d.up"
+
     let type: BlockType
     let displayName: String
     let systemImage: String

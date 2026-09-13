@@ -37,8 +37,10 @@ nonisolated struct HTMLPageRenderer: PageRendering {
           <meta name="color-scheme" content="\(appearance.rawValue)">
           <title>\(escape(browserTitle))</title>
         \(metadata)
-          <style>
+          <style data-foundry-font-sources>
             \(theme.fontSourceCSS(assets: assets, destination: .canvas))
+          </style>
+          <style>
             :root {
               font-size: 16px;
               color-scheme: \(appearance.rawValue);

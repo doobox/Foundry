@@ -42,7 +42,7 @@ nonisolated enum BlockPackageAdapter {
         return BlockDefinition(
             type: BlockType(rawValue: manifest.identifier),
             displayName: manifest.name,
-            systemImage: "shippingbox",
+            systemImage: BlockDefinition.genericSystemImage,
             category: BlockCategory(rawValue: BlockPackageGroup.resolve(manifest.category).rawValue),
             allowsChildren: package.hasDropZone || !manifest.slots.isEmpty,
             renderKind: .package,

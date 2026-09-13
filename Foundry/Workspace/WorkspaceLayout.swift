@@ -31,7 +31,7 @@ nonisolated enum WorkspacePanel: String, Codable, CaseIterable, Identifiable, Se
         switch self {
         case .pages: "Pages"
         case .blocks: "Blocks"
-        case .reusableBlocks: "Reusable Blocks"
+        case .reusableBlocks: "Templates"
         case .globalBlocks: "Global Blocks"
         case .structure: "Structure"
         case .assets: "Assets"
@@ -44,12 +44,12 @@ nonisolated enum WorkspacePanel: String, Codable, CaseIterable, Identifiable, Se
     var systemImage: String {
         switch self {
         case .pages: "doc.on.doc"
-        case .blocks: "square.grid.2x2"
-        case .reusableBlocks: "square.stack.3d.up"
+        case .blocks: "rectangle.grid.2x2"
+        case .reusableBlocks: "rectangle.3.group"
         case .globalBlocks: "globe"
         case .structure: "list.bullet.indent"
-        case .assets: "photo.on.rectangle.angled"
-        case .developer: "apple.terminal"
+        case .assets: "folder"
+        case .developer: "terminal"
         case .canvas: "macwindow"
         case .inspector: "slider.horizontal.3"
         }

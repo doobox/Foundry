@@ -145,8 +145,11 @@ struct BlockDefinitionTests {
         #expect(html.contains("border: 2px solid #ABCDEF"))
         #expect(html.contains("border-radius: 28px"))
         #expect(html.contains("max-width: 920px"))
-        // Removed controls no longer emit styling, even if old values are stored.
-        #expect(!BlockType.paragraph.definition.package!.css.contains("font-family:"))
+        // Paragraph now uses the dedicated font control, not the removed select extension.
+        #expect(BlockType.paragraph.definition.package!.css.contains("font-family: {{ control.font.family }}"))
+        #expect(BlockType.paragraph.definition.package!.css.contains("font-weight: {{ control.font.weight }}"))
+        #expect(BlockType.paragraph.definition.package!.css.contains("font-style: {{ control.font.style }}"))
+        // The removed font-size control still emits no styling.
         #expect(!BlockType.paragraph.definition.package!.css.contains("font-size:"))
         #expect(html.contains("aria-label=\"Open &quot;details&quot;\""))
         #expect(html.contains("--foundry-editor-block: #0A84FF"))

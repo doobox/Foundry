@@ -215,7 +215,7 @@ struct StructureOutlineView: NSViewRepresentable {
             menu.addItem(pasteItem)
             menu.addItem(.separator())
             let canSaveAsBlock = isSingleSelection && selectedGlobalContext?.isLinked != true
-            let saveReusable = menuItem("Save as Reusable Block…", action: #selector(saveReusableFromContextMenu(_:)), item: item)
+            let saveReusable = menuItem("Save as Template…", action: #selector(saveReusableFromContextMenu(_:)), item: item)
             let saveGlobal = menuItem("Save as Global Block…", action: #selector(saveGlobalFromContextMenu(_:)), item: item)
             saveReusable.isEnabled = canSaveAsBlock
             saveGlobal.isEnabled = canSaveAsBlock

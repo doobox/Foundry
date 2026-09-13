@@ -311,7 +311,7 @@ struct ContentView: View {
                     : "This page contains \(count) subpages. Keeping them will move its direct subpages up one level."
             )
         }
-        .alert("Save Reusable Block", isPresented: canvasReusableAlertBinding) {
+        .alert("Save Template", isPresented: canvasReusableAlertBinding) {
             TextField("Name", text: canvasReusableNameBinding)
             Button("Cancel", role: .cancel) { canvasReusableBlockName = nil }
             Button("Save") {

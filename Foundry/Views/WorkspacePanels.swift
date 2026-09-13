@@ -700,7 +700,7 @@ struct DeveloperReleasesView: View {
         if developmentPacks.isEmpty {
             ContentUnavailableView(
                 "No Development Pack",
-                systemImage: "shippingbox",
+                systemImage: BlockDefinition.genericSystemImage,
                 description: Text("Convert a block pack to .foundrydevpack before issuing updates.")
             )
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -1249,13 +1249,13 @@ struct ReusableBlockLibraryPanel: View {
         .overlay {
             if definitions.isEmpty {
                 ContentUnavailableView(
-                    "No Reusable Blocks",
-                    systemImage: "square.stack.3d.up",
-                    description: Text("Save a block from Structure to add it here.")
+                    "No Templates",
+                    systemImage: WorkspacePanel.reusableBlocks.systemImage,
+                    description: Text("Save a block as a template from Structure to add it here.")
                 )
             }
         }
-        .alert("Rename Reusable Block", isPresented: renameAlertBinding) {
+        .alert("Rename Template", isPresented: renameAlertBinding) {
             TextField("Name", text: $renameText)
             Button("Cancel", role: .cancel) { definitionToRename = nil }
             Button("Rename") {
@@ -1266,17 +1266,17 @@ struct ReusableBlockLibraryPanel: View {
             .disabled(renameText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
         }
         .confirmationDialog(
-            "Delete \(definitionToDelete?.name ?? "Reusable Block")?",
+            "Delete \(definitionToDelete?.name ?? "Template")?",
             isPresented: deleteAlertBinding
         ) {
-            Button("Delete Reusable Block", role: .destructive) {
+            Button("Delete Template", role: .destructive) {
                 guard let id = definitionToDelete?.id else { return }
                 deleteDefinition(id)
                 definitionToDelete = nil
             }
             Button("Cancel", role: .cancel) { definitionToDelete = nil }
         } message: {
-            Text("Blocks already added from this reusable item are independent and will be unchanged.")
+            Text("Blocks already added from this template are independent and will be unchanged.")
         }
     }
 
@@ -1415,7 +1415,7 @@ private struct ReusableBlockLibraryRow: View {
                 .background(Color.accentColor.opacity(0.12), in: RoundedRectangle(cornerRadius: 6))
             VStack(alignment: .leading, spacing: 2) {
                 Text(definition.name)
-                Text("Reusable block")
+                Text("Template")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -1424,7 +1424,7 @@ private struct ReusableBlockLibraryRow: View {
                 .foregroundStyle(.tertiary)
         }
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(definition.name), reusable block, drag to add")
+        .accessibilityLabel("\(definition.name), template, drag to add")
     }
 }
 
@@ -1485,7 +1485,7 @@ struct GlobalBlockLibraryPanel: View {
             if definitions.isEmpty {
                 ContentUnavailableView(
                     "No Global Blocks",
-                    systemImage: "globe",
+                    systemImage: WorkspacePanel.globalBlocks.systemImage,
                     description: Text("Save a block as global from Structure to add it here.")
                 )
             }
@@ -1590,7 +1590,7 @@ struct StructurePanel: View {
                 ContentUnavailableView("No Page", systemImage: "doc")
             }
         }
-        .alert("Save Reusable Block", isPresented: $isNamingReusableBlock) {
+        .alert("Save Template", isPresented: $isNamingReusableBlock) {
             TextField("Name", text: $reusableBlockName)
             Button("Cancel", role: .cancel) {}
             Button("Save") { saveReusableBlock(reusableBlockName) }

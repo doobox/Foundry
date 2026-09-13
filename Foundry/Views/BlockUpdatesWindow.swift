@@ -44,7 +44,7 @@ private enum BlockUpdatesSection: String, CaseIterable, Identifiable {
 
     var id: Self { self }
     var title: String { rawValue.capitalized }
-    var systemImage: String { self == .publishing ? "server.rack" : "shippingbox" }
+    var systemImage: String { self == .publishing ? "server.rack" : BlockDefinition.genericSystemImage }
 }
 
 private struct BlockUpdatePublishingSettingsView: View {

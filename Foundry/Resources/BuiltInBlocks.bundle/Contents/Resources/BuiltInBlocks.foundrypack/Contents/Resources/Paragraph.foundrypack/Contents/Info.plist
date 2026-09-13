@@ -13,6 +13,21 @@
 	<key>controls</key>
 	<array>
 		<dict>
+			<key>type</key><string>themeFont</string>
+			<key>id</key><string>font</string>
+			<key>label</key><string>Font</string>
+			<key>group</key><string>Typography</string>
+			<key>showsWeight</key><true/>
+			<key>showsStyle</key><true/>
+			<key>responsive</key><true/>
+			<key>default</key>
+			<dict>
+				<key>family</key><string>body</string>
+				<key>weight</key><integer>400</integer>
+				<key>style</key><string>normal</string>
+			</dict>
+		</dict>
+		<dict>
 			<key>default</key>
 			<string>start</string>
 			<key>group</key>

@@ -4,6 +4,18 @@ import Testing
 
 struct WorkspaceLayoutTests {
     @Test
+    func panelsHaveDistinctAgreedNamesAndSymbols() {
+        #expect(BlockDefinition.genericSystemImage == "square.stack.3d.up")
+        #expect(WorkspacePanel.blocks.systemImage == "rectangle.grid.2x2")
+        #expect(WorkspacePanel.reusableBlocks.title == "Templates")
+        #expect(WorkspacePanel.reusableBlocks.systemImage == "rectangle.3.group")
+        #expect(WorkspacePanel.globalBlocks.systemImage == "globe")
+        #expect(WorkspacePanel.assets.systemImage == "folder")
+        #expect(WorkspacePanel.developer.systemImage == "terminal")
+        #expect(WorkspacePanel.canvas.systemImage == "macwindow")
+    }
+
+    @Test
     func standardLayoutContainsEveryNonDeveloperPanelOnce() {
         let panels = WorkspaceLayout.standard.columns.flatMap(\.panels)
         let expectedPanels = WorkspacePanel.allCases.filter { $0 != .developer }
