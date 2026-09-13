@@ -35,27 +35,4 @@ nonisolated enum ComponentPackageThemeValueResolver {
             return theme.shadowCSSVariable(for: reference)
         }
     }
-
-    static func resolveFontSizeLineHeight(
-        _ value: ComponentPackageFontSizeValue,
-        usesThemeValues: Bool,
-        theme: Theme
-    ) -> String {
-        guard usesThemeValues,
-              !ComponentThemeValueSelection.isManualCustom(value.source) else {
-            return validCustomLineHeight(value.customLineHeight) ?? "1.5"
-        }
-        return theme.lineHeightCSSVariable(for: value.source)
-    }
-
-    private static func validCustomLineHeight(_ value: String) -> String? {
-        let trimmedValue = value.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmedValue.isEmpty else { return nil }
-
-        let pattern = #"^(normal|(?:\d+(?:\.\d*)?|\.\d+)(?:px|rem|em|%|vw|vh|vmin|vmax|ch|ex)?)$"#
-        guard trimmedValue.range(of: pattern, options: [.regularExpression, .caseInsensitive]) != nil else {
-            return nil
-        }
-        return trimmedValue
-    }
 }

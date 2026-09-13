@@ -8,7 +8,7 @@
     <key>author</key><string>Foundry</string><key>version</key><string>1.0.0</string><key>group</key><string>Content</string>
     <key>tags</key><array><string>Foundry</string><string>built-in</string><string>separator</string></array>
     <key>controls</key><array>
-        <dict><key>id</key><string>borderColor</string><key>label</key><string>Colour</string><key>group</key><string>Appearance</string><key>type</key><string>themeColor</string><key>allowsCustom</key><true/><key>opacity</key><true/><key>customColor</key><string>#D9D9DE</string><key>default</key><string>custom</string><key>responsive</key><true/></dict>
+        <dict><key>id</key><string>borderColor</string><key>label</key><string>Colour</string><key>group</key><string>Appearance</string><key>type</key><string>themeColor</string><key>allowsCustom</key><true/><key>opacity</key><true/><key>customColor</key><string>#D9D9DE</string><key>default</key><dict><key>palette</key><string>custom</string></dict><key>responsive</key><true/></dict>
         <dict><key>id</key><string>borderWidth</string><key>label</key><string>Thickness</string><key>group</key><string>Appearance</string><key>type</key><string>number</string><key>minimum</key><integer>1</integer><key>maximum</key><integer>24</integer><key>step</key><integer>1</integer><key>units</key><string>px</string><key>default</key><integer>1</integer><key>responsive</key><true/></dict>
     </array>
     <key>templates</key><dict><key>html</key><string>component.html</string><key>files</key><array><dict><key>path</key><string>component.css</string><key>scope</key><string>instance</string></dict></array></dict><key>assets</key><array/>

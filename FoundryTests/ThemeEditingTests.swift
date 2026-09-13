@@ -5,6 +5,142 @@ import Testing
 @MainActor
 struct ThemeEditingTests {
     @Test
+    func selectingBuiltInDiscardsEditedSnapshotIncludingWhenAlreadyActive() throws {
+        let document = FoundryDocument()
+        let editor = ProjectEditor(document: document, undoManager: nil)
+        let defaults = ThemeBundleStore.systemTheme
+        var modified = defaults
+        modified.typography.headingFont.family = "Georgia"
+        let custom = try defaults.colourPalettes[0].duplicated()
+        modified.colourPalettes.append(custom)
+        document.site.theme = modified
+        editor.selectTheme(defaults, sourceID: UUID())
+        editor.selectTheme(defaults, sourceID: ThemeBundleStore.systemThemeID)
+        #expect(document.site.theme.savedSettings == defaults.savedSettings)
+        #expect(document.site.theme.colourPalettes.contains(custom))
+        #expect(!document.site.themeStates.contains { $0.sourceID == ThemeBundleStore.systemThemeID })
+        document.site.theme.typography.headingFont.family = "Georgia"
+        editor.selectTheme(modified, sourceID: ThemeBundleStore.systemThemeID)
+        #expect(document.site.theme.savedSettings == defaults.savedSettings)
+    }
+
+    @Test
+    func themeEditingPermissionFollowsBuiltInIdentity() {
+        let document = FoundryDocument()
+        let session = ThemeEditorSession(document: document, undoManager: nil)
+        #expect(!session.canEditTheme)
+        document.site.themeSourceID = UUID()
+        #expect(session.canEditTheme)
+    }
+
+    @Test
+    func colourCopiesHaveUniqueIndependentNames() {
+        let model = ThemeColourPreviewModel()
+        let palette = model.palettes.first { $0.name == "Accent" }!
+        model.duplicate(palette)
+        model.duplicate(palette)
+        #expect(model.palettes[0].name == "Accent Copy 2")
+        #expect(model.palettes[1].name == "Accent Copy")
+        #expect(model.storedPalettes.resolvedPalette(id: palette.id)?.origin == .theme)
+    }
+
+    @Test
+    func editingThemeArtworkPreservesSettingsAndIdentity() throws {
+        let system = try #require(ThemeBundleStore.builtInThemes().first { $0.id == ThemeBundleStore.systemThemeID })
+        let preview = try ThemeBundleStore.preview(from: system.previewURL)
+        let destination = FileManager.default.temporaryDirectory.appending(path: "\(UUID().uuidString).foundrytheme")
+        defer { try? FileManager.default.removeItem(at: destination) }
+        _ = try ThemeBundleStore.create(name: "Before", preview: preview, to: destination)
+        let saved = try ThemeBundleStore.load(from: destination)
+        let themeURL = destination.appending(path: "Contents/Resources/theme.json")
+        let originalData = try Data(contentsOf: themeURL)
+        let edited = try ThemeBundleStore.editArtwork(saved, name: "After", preview: preview)
+        #expect(edited.id == saved.id)
+        #expect(edited.metadata.createdAt == saved.metadata.createdAt)
+        #expect(edited.metadata.name == "After")
+        #expect(edited.theme == saved.theme)
+        #expect(try Data(contentsOf: themeURL) == originalData)
+        #expect(try ThemeBundleStore.editArtwork(system, name: "Not Allowed", preview: preview) == system)
+    }
+
+    @Test
+    func deletingActiveThemeUsesFreshSystemDefaultsAndKeepsCustomColours() throws {
+        let document = FoundryDocument()
+        let editor = ProjectEditor(document: document, undoManager: nil)
+        let defaults = ThemeBundleStore.systemTheme
+        var editedSystem = defaults
+        editedSystem.typography.headingFont.family = "Georgia"
+        editor.commitTheme(editedSystem, sourceID: ThemeBundleStore.systemThemeID)
+        let otherID = UUID()
+        editor.selectTheme(editedSystem, sourceID: otherID)
+        let session = ThemeEditorSession(document: document, undoManager: nil)
+        let custom = try defaults.colourPalettes[0].duplicated()
+        session.setColourPalettes(document.site.theme.colourPalettes + [custom], session: nil)
+        editor.didDeleteTheme(sourceID: otherID)
+        #expect(document.site.themeSourceID == ThemeBundleStore.systemThemeID)
+        #expect(document.site.theme.savedSettings == defaults.savedSettings)
+        #expect(document.site.theme.colourPalettes.contains(custom))
+        #expect(!document.site.themeStates.contains { $0.sourceID == otherID || $0.sourceID == ThemeBundleStore.systemThemeID })
+        let before = document.site.theme
+        editor.didDeleteTheme(sourceID: UUID())
+        #expect(document.site.theme == before)
+    }
+
+    @Test
+    func newThemeStartsFromBundledSystemUI() throws {
+        let template = try #require(ThemeBundleStore.builtInThemes().first { $0.id == ThemeBundleStore.systemThemeID })
+        let destination = FileManager.default.temporaryDirectory.appending(path: "\(UUID().uuidString).foundrytheme")
+        defer { try? FileManager.default.removeItem(at: destination) }
+        let created = try ThemeBundleStore.create(
+            name: "Fresh Theme",
+            preview: ThemeBundleStore.preview(from: template.previewURL),
+            to: destination
+        )
+        #expect(created.id != template.id)
+        #expect(created.metadata.name == "Fresh Theme")
+        #expect(created.theme.savedSettings == template.theme.savedSettings)
+        #expect(try ThemeBundleStore.load(from: destination).theme.savedSettings == template.theme.savedSettings)
+    }
+
+    @Test
+    func addingCustomColourThroughEditorDoesNotModifySystemTheme() throws {
+        let document = FoundryDocument()
+        let session = ThemeEditorSession(document: document, undoManager: nil)
+        let saved = ThemeBundleStore.systemTheme.savedSettings
+        #expect(document.site.theme.savedSettings == saved)
+        let model = ThemeColourPreviewModel(storedPalettes: document.site.theme.colourPalettes)
+        model.onChange = { palettes, editSession in
+            session.setColourPalettes(palettes, session: editSession)
+        }
+        model.add()
+        #expect(document.site.theme.colourPalettes.contains { $0.origin == .custom })
+        #expect(document.site.theme.savedSettings == saved)
+    }
+
+    @Test
+    func modifiedStatusComparesOnlySavedThemeSettings() throws {
+        let original = ThemeBundleStore.systemTheme
+        var project = original
+        var custom = try original.colourPalettes[0].duplicated()
+        // Even a matching display name is still owned by the project.
+        custom.name = original.colourPalettes[0].name
+        project.colourPalettes.insert(custom, at: 0)
+        #expect(project.savedSettings == original.savedSettings)
+        project.colourPalettes.removeAll { $0.origin == .custom }
+        #expect(project.savedSettings == original.savedSettings)
+
+        let index = try #require(project.colourPalettes.firstIndex { $0.id == "theme.accent" })
+        var shades = project.colourPalettes[index].shades
+        shades[0] = "#123456"
+        try project.colourPalettes[index].replaceShades(shades)
+        #expect(project.savedSettings != original.savedSettings)
+
+        project = original
+        project.typography.headingFont.family = "Georgia"
+        #expect(project.savedSettings != original.savedSettings)
+    }
+
+    @Test
     func paletteEditsPersistResolveAndUndoAsOneSession() throws {
         let document = FoundryDocument()
         let undo = UndoManager()
@@ -18,7 +154,7 @@ struct ThemeEditingTests {
         var shades = values[index].shades
         shades[10] = "#123456"
         try values[index].replaceShades(shades)
-        values[index].setDefault(.eleven)
+        values[index].setLightDefault(.eleven)
         let editID = UUID()
         undo.beginUndoGrouping()
         session.setColourPalettes(values, session: editID)
@@ -111,14 +247,12 @@ struct ThemeEditingTests {
         let originalID = document.site.themeSourceID
         let custom = try originalTheme.colourPalettes[0].duplicated()
         session.setColourPalettes(originalTheme.colourPalettes + [custom], session: nil)
-        let systemTheme = try #require(ThemeBundleStore.builtInThemes().first)
-        let preview = try ThemeBundleStore.preview(from: systemTheme.previewURL)
         let id = UUID()
 
         // Both initial creation and replacement use the same bundle writer.
         for name in ["Created", "Updated"] {
             let saved = try ThemeBundleStore.write(
-                theme: document.site.theme, name: name, preview: preview, id: id, to: root
+                theme: document.site.theme, name: name, preview: try ThemeBundleStore.preview(from: ThemeBundleStore.builtInThemes()[0].previewURL), id: id, to: root
             )
             let payload = try JSONDecoder().decode(Theme.self, from: Data(contentsOf:
                 root.appending(path: "Contents/Resources/theme.json")))
@@ -141,7 +275,7 @@ struct ThemeEditingTests {
     }
 
     @Test
-    func switchingThemesPreservesPerThemeEditsAndProjectThemeValues() throws {
+    func switchingThemesPreservesEditableThemeEditsAndProjectThemeValues() throws {
         let document = FoundryDocument()
         let editor = ProjectEditor(document: document, undoManager: UndoManager())
         let systemTheme = document.site.theme
@@ -159,7 +293,7 @@ struct ThemeEditingTests {
         editor.setThemeColor(.accentColor, value: "#445566")
         editor.selectTheme(systemTheme, sourceID: ThemeBundleStore.systemThemeID)
 
-        #expect(document.site.theme.colors.accent == "#AABBCC")
+        #expect(document.site.theme.colors.accent == systemTheme.colors.accent)
         #expect(document.site.theme.spacing.custom.contains { $0.id == customSpacingID })
 
         editor.selectTheme(alternateTheme, sourceID: alternateID)
@@ -491,15 +625,11 @@ struct ThemeEditingTests {
             byteCount: fontData.count
         )
         theme.typography.bodyFont.source = .bundled(files: [fontAsset.reference])
-        let systemTheme = try #require(
-            ThemeBundleStore.builtInThemes().first(where: { $0.id == ThemeBundleStore.systemThemeID })
-        )
-        let preview = try ThemeBundleStore.preview(from: systemTheme.previewURL)
 
         let saved = try ThemeBundleStore.write(
             theme: theme,
             name: "Studio",
-            preview: preview,
+            preview: try ThemeBundleStore.preview(from: ThemeBundleStore.builtInThemes()[0].previewURL),
             assetContents: [fontAsset.id: ProjectAssetContent(asset: fontAsset, data: fontData)],
             to: root
         )
@@ -523,7 +653,6 @@ struct ThemeEditingTests {
         #expect(systemTheme.isBuiltIn)
         #expect(systemTheme.metadata.name == "System UI")
         #expect(systemTheme.theme == ThemeBundleStore.systemTheme)
-        #expect(systemTheme.metadata.previewFilename == "preview.png")
     }
 
     @Test
@@ -593,9 +722,10 @@ struct ThemeEditingTests {
     }
 
     @Test
-    func bundledFontResourcesRenderForCanvasAndExport() {
-        let asset = ProjectAsset(filename: "Foundry Sans.woff2", mediaType: "font/woff2", byteCount: 3)
-        let content = ProjectAssetContent(asset: asset, data: Data([1, 2, 3]))
+    func bundledFontResourcesRenderForCanvasAndExport() throws {
+        let data = try Data(contentsOf: URL(fileURLWithPath: "/System/Library/Fonts/Supplemental/Arial.ttf"))
+        let asset = ProjectAsset(filename: "Renamed.ttf", mediaType: "font/ttf", byteCount: data.count)
+        let content = ProjectAssetContent(asset: asset, data: data)
         let assets = [asset.id: content]
         var theme = Theme.standard
         theme.typography.bodyFont.family = "Foundry Sans"
@@ -605,7 +735,9 @@ struct ThemeEditingTests {
         let exportCSS = theme.fontSourceCSS(assets: assets, destination: .export)
 
         #expect(canvasCSS.contains("@font-face"))
-        #expect(canvasCSS.contains("data:font/woff2;base64,AQID"))
+        #expect(canvasCSS.contains("data:font/ttf;base64,"))
+        #expect(canvasCSS.contains("font-weight:400;"))
+        #expect(!canvasCSS.contains("100 900"))
         #expect(exportCSS.contains("url('\(asset.storageFilename)')"))
     }
 

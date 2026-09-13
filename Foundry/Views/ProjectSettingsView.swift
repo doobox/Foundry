@@ -707,6 +707,17 @@ private struct SiteIdentityProjectSettingsView: View {
 
     var body: some View {
         Form {
+            Section("Appearance") {
+                Picker("Supported appearances", selection: Binding(
+                    get: { editor.document.site.appearanceMode },
+                    set: { mode in editor.mutate(actionName: "Change Site Appearance", impact: .theme) { $0.appearanceMode = mode } }
+                )) {
+                    ForEach(SiteAppearanceMode.allCases, id: \.self) { mode in
+                        Text(mode.title).tag(mode)
+                    }
+                }
+                .controlSize(.small)
+            }
             Section("Browser") {
                 TextField(
                     "Title Suffix",

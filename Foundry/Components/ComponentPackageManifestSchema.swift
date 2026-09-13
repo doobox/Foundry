@@ -52,8 +52,8 @@ nonisolated enum ComponentPackageManifestSchema {
     private static let updateKeys: Set<String> = ["appcastURL", "publicKey"]
     private static let propertyKeys: Set<String> = [
         "id", "label", "title", "body", "systemImage", "group", "default", "responsive", "subtitle", "buttonText", "units", "tooltip",
-        "type", "minimum", "maximum", "step", "options", "themeValues", "allowsCustom", "opacity", "outputFormat",
-        "customColor", "shade", "count", "ticks", "showsValueField", "trueValue", "falseValue",
+        "type", "font", "showsFamily", "showsWeight", "showsStyle", "minimum", "maximum", "step", "options", "themeValues", "allowsCustom", "opacity", "outputFormat",
+        "customColor", "count", "ticks", "showsValueField", "trueValue", "falseValue",
         "buttonIcon", "activeButtonText", "activeButtonIcon", "selectionMode", "fontSize", "argument1", "argument2", "operation", "round", "absoluteURL", "visibleWhen", "alt", "focalPoint", "renditions", "accepts", "pickerItems", "initial", "containment"
     ]
     private static let visibleWhenKeys: Set<String> = ["id", "operation", "value"]
@@ -127,14 +127,11 @@ nonisolated enum ComponentPackageManifestSchema {
                     message: "themeValues must be a string."
                 ))
             }
-            if property["type"] as? String == ComponentPackageControl.Kind.select.rawValue,
-               property["themeValues"] is String,
-               property["count"] != nil {
-                diagnostics.append(.init(
-                    severity: .error,
-                    location: "\(location).count",
-                    message: "A select control using themeValues cannot be a multi control; remove count."
-                ))
+            if property["type"] as? String == ComponentPackageControl.Kind.select.rawValue {
+                for key in ["themeValues", "allowsCustom"] where property[key] != nil {
+                    diagnostics.append(.init(severity: .error, location: "\(location).\(key)",
+                        message: "Select supports only declared options; remove \(key)."))
+                }
             }
             if property["type"] as? String == ComponentPackageControl.Kind.themeColor.rawValue,
                property["count"] != nil {
@@ -152,14 +149,7 @@ nonisolated enum ComponentPackageManifestSchema {
                     message: "A shadow control automatically uses theme shadows; remove themeValues."
                 ))
             }
-            if property["type"] as? String == ComponentPackageControl.Kind.select.rawValue,
-               property["themeValues"] as? String == ComponentPackageThemeValueSource.shadows.rawValue {
-                diagnostics.append(.init(
-                    severity: .error,
-                    location: "\(location).type",
-                    message: "Use type shadow instead of a select control requesting shadow theme values."
-                ))
-            }
+
             if let visibleWhen = property["visibleWhen"] as? [String: Any] {
                 unknownKeys(in: visibleWhen, allowed: visibleWhenKeys, location: "\(location).visibleWhen", into: &diagnostics)
                 validateVisibility(visibleWhen, location: "\(location).visibleWhen", into: &diagnostics)
@@ -342,6 +332,36 @@ nonisolated enum ComponentPackageManifestSchema {
         guard let type = ComponentPackageControl.Kind(rawValue: typeName) else {
             diagnostics.append(.init(severity: .error, location: "\(location):type", message: "Unknown control type '\(typeName)'."))
             return
+        }
+        if type == .themeFont {
+            for key in ["showsFamily", "showsWeight", "showsStyle"] {
+                optionalBoolean(key, in: property, location: location, into: &diagnostics)
+            }
+            if let fields = property["default"] as? [String: Any] {
+                unknownKeys(in: fields, allowed: ["family", "weight", "style"], location: "\(location).default", into: &diagnostics)
+                requireString("family", in: fields, location: "\(location).default", into: &diagnostics)
+                optionalInteger("weight", in: fields, location: "\(location).default", into: &diagnostics)
+                if fields["style"] != nil { requireString("style", in: fields, location: "\(location).default", into: &diagnostics) }
+            }
+            for key in ["count", "themeValues", "options", "allowsCustom"] where property[key] != nil {
+                diagnostics.append(.init(severity: .error, location: "\(location).\(key)", message: "A themeFont control does not accept \(key)."))
+            }
+        }
+        if type == .fontWeight || type == .fontStyle {
+            diagnostics.append(.init(severity: .error, location: "\(location).type", message: "Use one themeFont control with showsWeight/showsStyle instead of separate font controls."))
+            for key in ["count", "options", "themeValues", "allowsCustom"] where property[key] != nil {
+                diagnostics.append(.init(severity: .error, location: "\(location).\(key)", message: "A \(type.rawValue) control does not accept \(key)."))
+            }
+            if property["font"] != nil {
+                requireString("font", in: property, location: location, into: &diagnostics)
+            }
+        } else if property["font"] != nil {
+            diagnostics.append(.init(severity: .error, location: "\(location).font", message: "font is only supported by fontWeight and fontStyle controls."))
+        }
+        if type != .themeFont {
+            for key in ["showsFamily", "showsWeight", "showsStyle"] where property[key] != nil {
+                diagnostics.append(.init(severity: .error, location: "\(location).\(key)", message: "\(key) requires a themeFont control."))
+            }
         }
         if type == .childPicker {
             let supportedKeys: Set<String> = [
@@ -538,7 +558,21 @@ nonisolated enum ComponentPackageManifestSchema {
         for key in ["allowsCustom", "opacity", "showsValueField", "round", "absoluteURL"] {
             optionalBoolean(key, in: property, location: location, into: &diagnostics)
         }
-        for key in ["ticks", "shade"] { optionalInteger(key, in: property, location: location, into: &diagnostics) }
+        optionalInteger("ticks", in: property, location: location, into: &diagnostics)
+        if type == .themeColor {
+            if let initial = property["default"] as? [String: Any] {
+                unknownKeys(in: initial, allowed: ["palette", "lightShade", "darkShade"], location: "\(location).default", into: &diagnostics)
+                optionalString("palette", in: initial, location: "\(location).default", into: &diagnostics)
+                if initial["palette"] == nil {
+                    appendMissing("palette", expected: "string", location: "\(location).default", into: &diagnostics)
+                }
+                for key in ["lightShade", "darkShade"] {
+                    optionalInteger(key, in: initial, location: "\(location).default", into: &diagnostics)
+                }
+            } else {
+                diagnostics.append(.init(severity: .error, location: "\(location).default", message: "A themeColor default must be a dictionary containing palette and optional lightShade/darkShade."))
+            }
+        }
         for key in ["customColor", "operation"] { optionalString(key, in: property, location: location, into: &diagnostics) }
         optionalEnumString("selectionMode", values: ["multiple", "single"], in: property, location: location, into: &diagnostics)
         optionalEnumString(
@@ -549,6 +583,8 @@ nonisolated enum ComponentPackageManifestSchema {
             into: &diagnostics
         )
         for key in ["default", "trueValue", "falseValue", "argument1", "argument2"] {
+            if key == "default" && type == .themeColor { continue }
+            if key == "default" && type == .themeFont && property[key] is [String: Any] { continue }
             optionalComponentValue(key, in: property, location: location, into: &diagnostics)
         }
 

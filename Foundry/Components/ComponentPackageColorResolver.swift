@@ -4,12 +4,13 @@ nonisolated enum ComponentPackageColorResolver {
     static func resolve(
         _ value: ComponentPackageColorValue,
         theme: Theme,
-        opacity: Bool
+        opacity: Bool,
+        appearance: SiteAppearance = .light
     ) -> String {
         let baseColor: String
         if ComponentThemeValueSelection.isManualCustom(value.source) {
-            baseColor = value.customColor
-        } else if let resolved = value.selection.resolve(in: theme.colourPalettes) {
+            baseColor = appearance == .light ? value.customColor : value.darkCustomColor
+        } else if let resolved = PaletteColourValue.palette(id: value.paletteID, selection: .shade(appearance == .light ? value.shade : value.darkShade)).resolve(in: theme.colourPalettes) {
             baseColor = resolved
         } else {
             baseColor = value.customColor
@@ -17,7 +18,7 @@ nonisolated enum ComponentPackageColorResolver {
         guard opacity, ComponentThemeValueSelection.isManualCustom(value.source) else { return baseColor }
         return ComponentTemplateRenderer.colorWithAlpha(
             baseColor,
-            alpha: min(max(value.opacity, 0), 1)
+            alpha: min(max(appearance == .light ? value.opacity : value.darkOpacity, 0), 1)
         )
     }
 }

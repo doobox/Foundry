@@ -3,6 +3,7 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 struct ComponentPropertyEditor: View {
+    @Environment(\.canvasAppearance) private var appearance
     let definition: ComponentPropertyDefinition
     let component: ComponentNode
     let currentPage: Page?
@@ -207,7 +208,7 @@ struct ComponentPropertyEditor: View {
             )
         case .icon:
             IconComponentControl(label: definition.label, indicator: responsiveIndicator, selection: stringBinding(as: .choice))
-        case .packageColor(let themeValues, let opacity, _):
+        case .packageColor(let themeValues, let opacity, _, _):
             ThemeColorComponentControl(
                 label: definition.label,
                 choices: themeValues ? theme.colorChoices : [],
@@ -222,27 +223,28 @@ struct ComponentPropertyEditor: View {
         case .choice(let choices):
             SelectComponentControl(
                 label: definition.label,
-                options: choiceOptions(choices).map {
+                options: choices.map {
                     .init(title: $0.label, value: $0.value, separatorBefore: $0.separatorBefore)
                 },
                 indicator: responsiveIndicator,
                 selection: stringBinding(as: .choice)
             )
+        case .themeFont:
+            ThemeFontComponentControl(label: definition.label, theme: theme, indicator: responsiveIndicator, selection: stringBinding(as: .choice))
+        case .fontWeight(let font):
+            FontFaceComponentControl(label: definition.label,
+                options: fontFaceOptions(font: font, editsWeight: true),
+                indicator: responsiveIndicator, weight: numberBinding, style: .constant("normal"), editsWeight: true)
+        case .fontStyle(let font):
+            FontFaceComponentControl(label: definition.label,
+                options: fontFaceOptions(font: font, editsWeight: false),
+                indicator: responsiveIndicator, weight: .constant(400), style: stringBinding(as: .choice), editsWeight: false)
         case .themeFontSize:
             SelectComponentControl(
                 label: definition.label,
                 options: theme.fontSizeChoices.map { .init(title: $0.label, value: $0.value) },
                 indicator: responsiveIndicator,
                 selection: stringBinding(as: .choice)
-            )
-        case .packageFontSize(let themeValues):
-            ThemeFontSizeComponentControl(
-                label: definition.label,
-                choices: themeValues ? theme.fontSizeChoices : [],
-                source: packageFontSizeSourceBinding,
-                customValue: packageFontSizeCustomBinding,
-                customLineHeight: packageFontSizeCustomLineHeightBinding,
-                indicator: responsiveIndicator
             )
         case .packageShadow:
             ShadowComponentControl(
@@ -344,26 +346,6 @@ struct ComponentPropertyEditor: View {
         setProperty(.url(asset.reference))
     }
 
-    private func choiceOptions(_ declared: [ComponentPropertyChoice]) -> [ComponentPropertyChoice] {
-        guard let source = definition.themeValueSource else { return declared }
-        let themeChoices = ComponentPackageThemeValueResolver.choices(for: source, theme: theme)
-        let themeValues = Set(themeChoices.map(\.value))
-        var developerChoices = declared.filter { !themeValues.contains($0.value) && $0.value != "custom" }
-        if !themeChoices.isEmpty, !developerChoices.isEmpty {
-            developerChoices[0].separatorBefore = true
-        }
-        var result = themeChoices + developerChoices
-        if definition.allowsCustomThemeValue {
-            result.append(.init(value: "custom", label: "Custom", separatorBefore: !result.isEmpty))
-        }
-        return result
-    }
-
-    private func themedArrayElement(_ element: ComponentPropertyControl) -> ComponentPropertyControl {
-        guard case .choice(let declared) = element else { return element }
-        return .choice(choiceOptions(declared))
-    }
-
     private var assetBinding: Binding<UUID?> {
         Binding(
             get: { displayComponent.property(definition.key).foundryAssetID },
@@ -381,6 +363,23 @@ struct ComponentPropertyEditor: View {
             get: { displayComponent.property(definition.key) },
             set: { setProperty(kind.value($0)) }
         )
+    }
+
+    private func fontFaceOptions(font: String?, editsWeight: Bool) -> FontFaceOptions {
+        let companions = displayComponent.type.definition.properties.filter { property in
+            guard let font else { return false }
+            switch property.control {
+            case .fontStyle(let linked): return editsWeight && linked == font
+            case .fontWeight(let linked): return !editsWeight && linked == font
+            default: return false
+            }
+        }
+        let companion = companions.count == 1 ? companions.first.map { displayComponent.propertyValue($0.key) } : nil
+        return FontFaceOptions(
+            reference: font.map { ComponentPackageFontControl.familyReference($0, node: displayComponent) },
+            theme: theme, assets: assetContents,
+            selectedWeight: editsWeight ? nil : companion?.numberValue.map(Int.init),
+            selectedStyle: editsWeight ? companion?.stringValue : nil)
     }
 
     private var numberBinding: Binding<Double> {
@@ -480,7 +479,8 @@ struct ComponentPropertyEditor: View {
                 var value = packageColorValue
                 value.source = source
                 if let palette = theme.colourPalettes.resolvedPalette(id: value.paletteID) {
-                    value.shade = palette.defaultShade
+                    value.shade = palette.lightDefaultShade
+                    value.darkShade = palette.darkDefaultShade
                 }
                 setProperty(.packageColor(value))
             }
@@ -488,9 +488,9 @@ struct ComponentPropertyEditor: View {
     }
 
     private var packageColorShadeBinding: Binding<ColourShade> {
-        Binding(get: { packageColorValue.shade }, set: { shade in
+        Binding(get: { appearance == .light ? packageColorValue.shade : packageColorValue.darkShade }, set: { shade in
             var value = packageColorValue
-            value.shade = shade
+            if appearance == .light { value.shade = shade } else { value.darkShade = shade }
             setProperty(.packageColor(value))
         })
     }
@@ -498,22 +498,18 @@ struct ComponentPropertyEditor: View {
     private var packageCustomColorBinding: Binding<Color> {
         Binding(
             get: {
-                (Color(hex: packageColorValue.customColor) ?? .black)
-                    .opacity(packageColorValue.opacity)
+                (Color(hex: appearance == .light ? packageColorValue.customColor : packageColorValue.darkCustomColor) ?? .black)
+                    .opacity(appearance == .light ? packageColorValue.opacity : packageColorValue.darkOpacity)
             },
             set: { color in
                 var value = packageColorValue
-                value.customColor = color.hexString ?? "#000000"
-                value.opacity = Double(NSColor(color).usingColorSpace(.sRGB)?.alphaComponent ?? 1)
+                let hex = color.hexString ?? "#000000"
+                let alpha = Double(NSColor(color).usingColorSpace(.sRGB)?.alphaComponent ?? 1)
+                if appearance == .light { value.customColor = hex; value.opacity = alpha }
+                else { value.darkCustomColor = hex; value.darkOpacity = alpha }
                 setProperty(.packageColor(value))
             }
         )
-    }
-
-    private var packageFontSizeValue: ComponentPackageFontSizeValue {
-        if case .packageFontSize(let value) = displayComponent.propertyValue(definition.key) { return value }
-        if case .packageFontSize(let value) = definition.defaultValue { return value }
-        return .init(source: ComponentThemeValueSelection.manualCustom, customValue: "1rem")
     }
 
     private var packageShadowValue: ComponentPackageShadowValue {
@@ -544,39 +540,6 @@ struct ComponentPropertyEditor: View {
         )
     }
 
-
-    private var packageFontSizeSourceBinding: Binding<String> {
-        Binding(
-            get: { packageFontSizeValue.source },
-            set: { source in
-                var value = packageFontSizeValue
-                value.source = source
-                setProperty(.packageFontSize(value))
-            }
-        )
-    }
-
-    private var packageFontSizeCustomBinding: Binding<String> {
-        Binding(
-            get: { packageFontSizeValue.customValue },
-            set: { customValue in
-                var value = packageFontSizeValue
-                value.customValue = customValue
-                setProperty(.packageFontSize(value))
-            }
-        )
-    }
-
-    private var packageFontSizeCustomLineHeightBinding: Binding<String> {
-        Binding(
-            get: { packageFontSizeValue.customLineHeight },
-            set: { customLineHeight in
-                var value = packageFontSizeValue
-                value.customLineHeight = customLineHeight
-                setProperty(.packageFontSize(value))
-            }
-        )
-    }
 
     @ViewBuilder
     private func controlArrayRow(
@@ -625,7 +588,7 @@ struct ComponentPropertyEditor: View {
                     units: units,
                     help: help,
                     values: (0..<count).map(arrayElementBinding),
-                    element: themedArrayElement(element),
+                    element: element,
                     assets: assets
                 )
             }

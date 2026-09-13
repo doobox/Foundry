@@ -14,40 +14,6 @@
 	<array>
 		<dict>
 			<key>default</key>
-			<string>body</string>
-			<key>group</key>
-			<string>Typography</string>
-			<key>id</key>
-			<string>typeface</string>
-			<key>label</key>
-			<string>Typeface</string>
-			<key>responsive</key>
-			<true/>
-			<key>type</key>
-			<string>select</string>
-			<key>themeValues</key>
-			<string>fontFamilies</string>
-		</dict>
-		<dict>
-			<key>default</key>
-			<string>base</string>
-			<key>group</key>
-			<string>Typography</string>
-			<key>id</key>
-			<string>textSize</string>
-			<key>label</key>
-			<string>Font Size</string>
-			<key>responsive</key>
-			<false/>
-			<key>themeValues</key>
-			<string>fontSizes</string>
-			<key>allowsCustom</key>
-			<true/>
-			<key>type</key>
-			<string>select</string>
-		</dict>
-		<dict>
-			<key>default</key>
 			<string>start</string>
 			<key>group</key>
 			<string>Typography</string>
@@ -102,8 +68,7 @@
 			<string>select</string>
 		</dict>
 		<dict>
-			<key>default</key>
-			<string>custom</string>
+			<key>default</key><dict><key>palette</key><string>custom</string></dict>
 			<key>group</key>
 			<string>Colour</string>
 			<key>id</key>

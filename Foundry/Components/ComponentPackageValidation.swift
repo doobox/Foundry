@@ -92,6 +92,10 @@ nonisolated enum ComponentPackageValidator {
             validate(property.id, expression: propertyExpression, location: "Info.plist:controls.\(property.id)", message: "Property IDs must start with a letter and contain only letters, numbers, underscores, or hyphens.", into: &diagnostics)
             validate(property, into: &diagnostics)
             validateVisibility(property, properties: manifest.properties, into: &diagnostics)
+            if let font = property.control.font,
+               !manifest.properties.contains(where: { $0.id == font && $0.control.type == .themeFont }) {
+                diagnostics.append(.init(severity: .error, location: "Info.plist:controls.\(property.id).font", message: "font must reference a themeFont control in this component."))
+            }
         }
         validateVisibilityCycles(manifest.properties, into: &diagnostics)
         for slot in manifest.slots {
@@ -733,42 +737,20 @@ nonisolated enum ComponentPackageValidator {
         location: String,
         into diagnostics: inout [ComponentPackageDiagnostic]
     ) {
-        if property.control.type == .select,
-           property.control.themeValueSource != nil,
-           property.control.count != nil {
-            diagnostics.append(.init(
-                severity: .error,
-                location: "\(location).count",
-                message: "A select control using themeValues cannot be a multi control; remove count."
-            ))
+        if property.control.type == .select, property.control.themeValues != nil {
+            diagnostics.append(.init(severity: .error, location: "\(location).themeValues",
+                message: "Select supports only declared options; remove themeValues."))
         }
         let supportsCustomThemeValue = property.control.type == .shadow
             || property.control.type == .themeColor
-            || (property.control.type == .select && property.control.themeValueSource != nil)
-        if let shade = property.control.shade {
-            if property.control.type != .themeColor {
-                diagnostics.append(.init(severity: .error, location: "\(location).shade", message: "shade is only available on a themeColor control."))
-            } else if !(1...11).contains(shade) {
-                diagnostics.append(.init(severity: .error, location: "\(location).shade", message: "shade must be an integer from 1 to 11."))
-            } else if property.defaultValue.stringValue == ComponentThemeValueSelection.manifestCustom {
-                diagnostics.append(.init(severity: .error, location: "\(location).shade", message: "shade requires a theme-role default, not custom."))
-            }
-        }
-        if property.control.allowsCustom.orFalse, !supportsCustomThemeValue {
+        if property.control.allowsCustom != nil, !supportsCustomThemeValue {
             diagnostics.append(.init(
                 severity: .error,
                 location: "\(location).allowsCustom",
                 message: "allowsCustom requires a theme-aware control."
             ))
         }
-        if property.control.allowsCustom.orFalse,
-           property.control.themeValueSource == .fontFamilies {
-            diagnostics.append(.init(
-                severity: .error,
-                location: "\(location).allowsCustom",
-                message: "A fontFamilies theme select does not support allowsCustom; add fonts in the Theme Editor."
-            ))
-        }
+
         if property.control.outputFormat != nil, property.control.type != .color {
             diagnostics.append(.init(
                 severity: .error,
@@ -818,20 +800,11 @@ nonisolated enum ComponentPackageValidator {
             ))
             return
         }
-        if property.control.type == .select,
-           property.control.themeValueSource == .shadows {
-            diagnostics.append(.init(
-                severity: .error,
-                location: "\(location).type",
-                message: "Use type shadow instead of a select control requesting shadow theme values."
-            ))
-            return
-        }
+
         guard let source = property.control.themeValueSource else { return }
         let supported: Bool
         switch (property.control.type, source) {
-        case (.select, .fontFamilies), (.select, .fontSizes), (.select, .spacing),
-             (.shadow, .shadows):
+        case (.shadow, .shadows):
             supported = true
         default:
             supported = false
@@ -919,19 +892,49 @@ nonisolated enum ComponentPackageValidator {
             if case .boolean = defaultValue {} else {
                 diagnostics.append(.init(severity: .error, location: location, message: "A \(property.control.type.rawValue) control requires a Boolean default value."))
             }
+        case .themeFont:
+            let fields = ComponentPackageFontControl.defaults(defaultValue)
+            guard case .string(let family) = fields["family"], ThemeFontRole(rawValue: family) != nil else {
+                diagnostics.append(.init(severity: .error, location: location, message: "A themeFont default family must be body, heading, or monospaced."))
+                return
+            }
+            if property.control.showsFamily == false && property.control.showsWeight != true && property.control.showsStyle != true {
+                diagnostics.append(.init(severity: .error, location: location, message: "A themeFont must expose at least one field."))
+            }
+            if let weight = fields["weight"] {
+                if property.control.showsWeight != true {
+                    diagnostics.append(.init(severity: .error, location: location, message: "default.weight requires showsWeight."))
+                }
+                if case .number(let value) = weight, value >= 1, value <= 1000, value.rounded() == value {} else {
+                    diagnostics.append(.init(severity: .error, location: location, message: "default.weight must be an integer from 1 to 1000."))
+                }
+            }
+            if let style = fields["style"] {
+                if property.control.showsStyle != true {
+                    diagnostics.append(.init(severity: .error, location: location, message: "default.style requires showsStyle."))
+                }
+                if case .string(let value) = style, ["normal", "italic"].contains(value) {} else {
+                    diagnostics.append(.init(severity: .error, location: location, message: "default.style must be normal or italic."))
+                }
+            }
+        case .fontWeight:
+            guard case .number(let value) = defaultValue, value >= 1, value <= 1000, value.rounded() == value else {
+                diagnostics.append(.init(severity: .error, location: location, message: "A fontWeight default must be an integer from 1 to 1000."))
+                return
+            }
+        case .fontStyle:
+            guard case .string(let value) = defaultValue, ["normal", "italic"].contains(value) else {
+                diagnostics.append(.init(severity: .error, location: location, message: "A fontStyle default must be normal or italic."))
+                return
+            }
         case .select:
             guard case .string(let value) = defaultValue else {
                 diagnostics.append(.init(severity: .error, location: location, message: "A select default must match one of its options."))
                 return
             }
             let declaredMatch = property.control.options?.contains(where: { $0.value == value }) == true
-            let themeMatch = property.control.themeValueSource.map {
-                ComponentPackageThemeValueResolver.choices(for: $0, theme: .standard).contains(where: { $0.value == value })
-            } ?? false
-            let customMatch = value == ComponentThemeValueSelection.manifestCustom
-                && property.control.allowsCustom.orFalse
-            if !declaredMatch && !themeMatch && !customMatch {
-                diagnostics.append(.init(severity: .error, location: location, message: "A select default must match one of its declared or requested theme values."))
+            if !declaredMatch {
+                diagnostics.append(.init(severity: .error, location: location, message: "A select default must match one of its options."))
             }
         case .icon:
             guard case .string(let value) = defaultValue,
@@ -973,9 +976,23 @@ nonisolated enum ComponentPackageValidator {
                     : "A color default must be a six-digit hexadecimal colour; visibleWhen opacity to use alpha."))
             }
         case .themeColor:
-            guard case .string(let value) = defaultValue else {
-                diagnostics.append(.init(severity: .error, location: location, message: "A themeColor control requires a string default value."))
+            guard case .object(let initial) = defaultValue,
+                  case .string(let value)? = initial["palette"] else {
+                diagnostics.append(.init(severity: .error, location: location, message: "A themeColor default requires a dictionary with a string palette."))
                 return
+            }
+            for key in initial.keys where !["palette", "lightShade", "darkShade"].contains(key) {
+                diagnostics.append(.init(severity: .error, location: "\(location).\(key)", message: "Unknown themeColor default key '\(key)'."))
+            }
+            for key in ["lightShade", "darkShade"] {
+                guard let supplied = initial[key] else { continue }
+                if case .number(let number) = supplied, let shade = Int(exactly: number), (1...11).contains(shade) {
+                    if value == ComponentThemeValueSelection.manifestCustom {
+                        diagnostics.append(.init(severity: .error, location: "\(location).\(key)", message: "\(key) requires a theme-role palette, not custom."))
+                    }
+                } else {
+                    diagnostics.append(.init(severity: .error, location: "\(location).\(key)", message: "\(key) must be an integer from 1 to 11."))
+                }
             }
             let isThemeRole = ThemeColorRole(rawValue: value) != nil
             let isCustom = value == ComponentThemeValueSelection.manifestCustom && property.control.allowsCustom.orFalse

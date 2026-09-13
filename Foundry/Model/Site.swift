@@ -111,7 +111,7 @@ nonisolated enum PublishingDestinationKind: String, Codable, CaseIterable, Senda
 }
 
 nonisolated struct Site: Codable, Equatable, Identifiable, Sendable {
-    static let currentSchemaVersion = 11
+    static let currentSchemaVersion = 12
 
     let id: UUID
     var schemaVersion: Int
@@ -143,6 +143,7 @@ nonisolated struct Site: Codable, Equatable, Identifiable, Sendable {
     var pageFolders: [PageFolder]
     var theme: Theme
     var themeSourceID: UUID
+    var appearanceMode: SiteAppearanceMode = .light
     var projectThemeValues: ProjectThemeValues
     var themeStates: [ProjectThemeState]
     var reusableComponents: [ReusableComponentDefinition]
@@ -163,6 +164,11 @@ nonisolated struct Site: Codable, Equatable, Identifiable, Sendable {
 
     mutating func replaceComponentThemeReference(_ reference: String, with replacement: String) {
         for pageIndex in pages.indices {
+            if let background = pages[pageIndex].backgroundOverride,
+               case .packageColor(let updated) = ComponentProperty.Value.packageColor(background)
+                .replacingThemeReference(reference, with: replacement) {
+                pages[pageIndex].backgroundOverride = updated
+            }
             for componentIndex in pages[pageIndex].components.indices {
                 pages[pageIndex].components[componentIndex].replaceThemeReference(reference, with: replacement)
             }
@@ -284,6 +290,7 @@ nonisolated struct Site: Codable, Equatable, Identifiable, Sendable {
     }
 
     private enum CodingKeys: String, CodingKey {
+        case appearanceMode
         case id, schemaVersion, name, language, publicURL, titleSuffix, defaultDescription, favicon, defaultSocialImage, generatesCanonicalURLs, generatesSitemap, generatesRobotsTXT, allowsSearchIndexing, customCodeEnabled, headCode, bodyStartCode, bodyEndCode, analyticsCode, cleansObsoleteExportFiles, publishingDestination, publishingHost, publishingPort, publishingUsername, publishingRemotePath, publishingS3Bucket, publishingS3Region, pages, pageFolders, theme, themeSourceID, projectThemeValues, themeStates, reusableComponents, globalComponents, assetLibrary, componentPackages
     }
 
@@ -291,6 +298,7 @@ nonisolated struct Site: Codable, Equatable, Identifiable, Sendable {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         id = try container.decode(UUID.self, forKey: .id)
         schemaVersion = try container.decode(Int.self, forKey: .schemaVersion)
+        appearanceMode = try container.decode(SiteAppearanceMode.self, forKey: .appearanceMode)
         name = try container.decode(String.self, forKey: .name)
         language = try container.decode(String.self, forKey: .language)
         publicURL = try container.decode(String.self, forKey: .publicURL)

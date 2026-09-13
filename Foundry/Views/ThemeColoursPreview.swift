@@ -85,7 +85,14 @@ final class ThemeColourPreviewModel {
             copy.generated = false
         }
         copy.id = "custom.\(UUID().uuidString.lowercased())"
-        if palette.group == .custom { copy.name += " Copy" }
+        let names = Set(storedPalettes.map(\.name))
+        let base = palette.name + " Copy"
+        copy.name = base
+        var number = 2
+        while names.contains(copy.name) {
+            copy.name = "\(base) \(number)"
+            number += 1
+        }
         copy.group = .custom
         storedPalettes.insert(copy.storedValue, at: 0)
     }
@@ -101,7 +108,8 @@ struct PreviewColourPalette: Identifiable, Equatable {
     var hex: String
     var group: Group
     var anchor = 5
-    var defaultShade = 5
+    var lightDefaultShade = 5
+    var darkDefaultShade = 5
     var generated = true
     var overrides: [Int: String] = [:]
     var single = false
@@ -110,11 +118,12 @@ struct PreviewColourPalette: Identifiable, Equatable {
     private var snapshot: ColourPalette?
 
     init(id: String = "custom.\(UUID().uuidString.lowercased())", name: String, hex: String,
-         group: Group, anchor: Int = 5, defaultShade: Int = 5, generated: Bool = true,
+         group: Group, anchor: Int = 5, lightDefaultShade: Int = 5, darkDefaultShade: Int? = nil, generated: Bool = true,
          overrides: [Int: String] = [:], single: Bool = false, softening: Double = 0,
          reversed: Bool = false) {
         self.id = id; self.name = name; self.hex = hex; self.group = group
-        self.anchor = anchor; self.defaultShade = defaultShade; self.generated = generated
+        self.anchor = anchor; self.lightDefaultShade = lightDefaultShade; self.generated = generated
+        self.darkDefaultShade = darkDefaultShade ?? 10 - lightDefaultShade
         self.overrides = overrides; self.single = single; self.softening = softening
         self.reversed = reversed
     }
@@ -126,10 +135,11 @@ struct PreviewColourPalette: Identifiable, Equatable {
         case .theme: group = .theme
         case .standard: group = .standard
         }
-        defaultShade = stored.defaultShade.rawValue - 1
+        lightDefaultShade = stored.lightDefaultShade.rawValue - 1
+        darkDefaultShade = stored.darkDefaultShade.rawValue - 1
         single = stored.single
         hex = stored.generation?.anchorHex ?? stored.colour(at: .default)
-        anchor = (stored.generation?.anchor.rawValue ?? stored.defaultShade.rawValue) - 1
+        anchor = (stored.generation?.anchor.rawValue ?? stored.lightDefaultShade.rawValue) - 1
         generated = stored.generation?.enabled ?? false
         softening = stored.generation?.softening ?? 0
         reversed = stored.generation?.reversed ?? false
@@ -148,14 +158,16 @@ struct PreviewColourPalette: Identifiable, Equatable {
         // Eleven values are always produced, and shade indices are editor-controlled.
         var value = try! ColourPalette(id: id, name: name, origin: origin,
             shades: (0..<11).map { colour(at: $0).hexString ?? "#000000" },
-            defaultShade: ColourShade(rawValue: defaultShade + 1)!, generation: generationSettings)
+            lightDefaultShade: ColourShade(rawValue: lightDefaultShade + 1)!,
+            darkDefaultShade: ColourShade(rawValue: darkDefaultShade + 1)!, generation: generationSettings)
         value.single = single
         return value
     }
 
     static func == (lhs: Self, rhs: Self) -> Bool {
         lhs.id == rhs.id && lhs.name == rhs.name && lhs.hex == rhs.hex && lhs.group == rhs.group
-        && lhs.anchor == rhs.anchor && lhs.defaultShade == rhs.defaultShade
+        && lhs.anchor == rhs.anchor && lhs.lightDefaultShade == rhs.lightDefaultShade
+        && lhs.darkDefaultShade == rhs.darkDefaultShade
         && lhs.generated == rhs.generated && lhs.overrides == rhs.overrides
         && lhs.single == rhs.single && lhs.softening == rhs.softening && lhs.reversed == rhs.reversed
     }
@@ -188,7 +200,8 @@ struct PreviewColourPalette: Identifiable, Equatable {
         guard !single else { return }
         reversed.toggle()
         anchor = 10 - anchor
-        defaultShade = 10 - defaultShade
+        lightDefaultShade = 10 - lightDefaultShade
+        darkDefaultShade = 10 - darkDefaultShade
         overrides = Dictionary(uniqueKeysWithValues: overrides.map { (10 - $0.key, $0.value) })
     }
 
@@ -199,13 +212,13 @@ struct PreviewColourPalette: Identifiable, Equatable {
     }
 
     static var samples: [Self] {
-        [Self(name: "Page", hex: "#F8FAFC", group: .theme, anchor: 0, defaultShade: 0),
-         Self(name: "Background", hex: "#F8FAFC", group: .theme, anchor: 0, defaultShade: 0),
-         Self(name: "Surface", hex: "#FFFFFF", group: .theme, anchor: 0, defaultShade: 0),
-         Self(name: "Text", hex: "#1E293B", group: .theme, anchor: 9, defaultShade: 9),
+        [Self(name: "Page", hex: "#F8FAFC", group: .theme, anchor: 0, lightDefaultShade: 0),
+         Self(name: "Background", hex: "#F8FAFC", group: .theme, anchor: 0, lightDefaultShade: 0),
+         Self(name: "Surface", hex: "#FFFFFF", group: .theme, anchor: 0, lightDefaultShade: 0),
+         Self(name: "Text", hex: "#1E293B", group: .theme, anchor: 9, lightDefaultShade: 9),
          Self(name: "Muted Text", hex: "#64748B", group: .theme),
          Self(name: "Accent", hex: "#6366F1", group: .theme),
-         Self(name: "Links", hex: "#2563EB", group: .theme, anchor: 6, defaultShade: 6),
+         Self(name: "Links", hex: "#2563EB", group: .theme, anchor: 6, lightDefaultShade: 6),
          Self(name: "Brand", hex: "#F97316", group: .custom),
          Self(name: "Black", hex: "#000000", group: .standard, single: true),
          Self(name: "White", hex: "#FFFFFF", group: .standard, single: true),
@@ -245,6 +258,7 @@ struct PreviewColourPalette: Identifiable, Equatable {
 
 struct ThemeColoursPreview: View {
     @Bindable var model: ThemeColourPreviewModel
+    var canEditTheme = false
     var requestDelete: ((PreviewColourPalette) -> Void)? = nil
     @Environment(\.undoManager) private var undoManager
     @State private var scrollPosition = ScrollPosition(edge: .top)
@@ -256,6 +270,7 @@ struct ThemeColoursPreview: View {
                     Section {
                         ForEach(model.palettes.filter { $0.group == group }) { palette in
                                 PreviewColourRibbon(palette: model.binding(for: palette),
+                                    canEditTheme: canEditTheme,
                                     update: { value, session in model.update(value, session: session, undoManager: undoManager) },
                                     duplicate: {
                                         model.duplicate(palette)
@@ -298,8 +313,8 @@ private struct PreviewSwatchButtonStyle: ButtonStyle {
 }
 
 private struct PreviewColourRibbon: View {
-    @AppStorage(AppPreferenceKey.editsThemes) private var editsThemes = false
     @Binding var palette: PreviewColourPalette
+    let canEditTheme: Bool
     let update: (PreviewColourPalette, UUID) -> Void
     let duplicate: () -> Void
     let delete: () -> Void
@@ -308,23 +323,15 @@ private struct PreviewColourRibbon: View {
     @State private var confirmGenerated = false
 
     private var isEditable: Bool {
-        palette.group == .custom || (palette.group == .theme && editsThemes)
+        palette.group == .custom || (palette.group == .theme && canEditTheme)
     }
 
     var body: some View {
-        ViewThatFits(in: .horizontal) {
-            HStack(spacing: 12) {
+        HStack(spacing: 12) {
                 identity.frame(width: 150, alignment: .leading)
                     .padding(.leading, 12)
                     .padding(.vertical, 6)
                 ribbon.frame(minWidth: 440)
-            }
-            VStack(alignment: .leading, spacing: 10) {
-                identity
-                    .padding(.horizontal, 8)
-                    .padding(.top, 6)
-                ribbon
-            }
         }
         .background {
             RoundedRectangle(cornerRadius: 12)
@@ -338,7 +345,7 @@ private struct PreviewColourRibbon: View {
                 palette.generated = true
             }
         } message: { Text("Individual shade edits will be discarded.") }
-        .onChange(of: editsThemes) {
+        .onChange(of: canEditTheme) {
             if !isEditable {
                 closeEditor()
                 confirmGenerated = false
@@ -405,11 +412,14 @@ private struct PreviewColourRibbon: View {
         let rgb = NSColor(colour).usingColorSpace(.sRGB)
         let light = (rgb.map { 0.2126 * $0.redComponent + 0.7152 * $0.greenComponent + 0.0722 * $0.blueComponent } ?? 0) > 0.57
         let content = VStack(spacing: 4) {
-            VStack(spacing: 0) {
+            HStack(spacing: 3) {
                 if !palette.single && palette.group != .standard {
-                    if index == displayed.defaultShade {
-                        Image(systemName: "star.fill")
+                    if index == displayed.lightDefaultShade {
+                        Image(systemName: "sun.max.fill")
                             .accessibilityHidden(true)
+                    }
+                    if index == displayed.darkDefaultShade {
+                        Image(systemName: "moon.fill").accessibilityHidden(true)
                     }
                 }
             }.font(.system(size: 9, weight: .medium)).frame(height: 12)
@@ -442,8 +452,8 @@ private struct PreviewColourRibbon: View {
                 content
             }
         }
-        .help("\(palette.name) · \(colour.hexString ?? "")\(index == displayed.defaultShade ? " · Default" : "")")
-        .accessibilityLabel("\(palette.name), shade \(PreviewColourPalette.steps[index])\(index == displayed.defaultShade ? ", default" : "")")
+        .help("\(palette.name) · \(colour.hexString ?? "")\(index == displayed.lightDefaultShade ? " · Light default" : "")\(index == displayed.darkDefaultShade ? " · Dark default" : "")")
+        .accessibilityLabel("\(palette.name), shade \(PreviewColourPalette.steps[index])\(index == displayed.lightDefaultShade ? ", light default" : "")\(index == displayed.darkDefaultShade ? ", dark default" : "")")
     }
 
     private func closeEditor() {
@@ -456,13 +466,10 @@ struct PreviewShadeEdit {
     var palette: PreviewColourPalette
     var index: Int
     var hex: String
-    private var originalDefault: Int
-    var isOriginalDefault: Bool { originalDefault == index }
 
     init(palette: PreviewColourPalette, index: Int) {
         self.palette = palette
         self.index = index
-        originalDefault = palette.defaultShade
         hex = palette.colour(at: index).hexString ?? "#000000"
     }
 
@@ -482,8 +489,9 @@ struct PreviewShadeEdit {
         palette.setColour(colour, at: index)
     }
 
-    mutating func setUseAsDefault(_ enabled: Bool) {
-        palette.defaultShade = enabled ? index : originalDefault
+    mutating func setDefault(for appearance: SiteAppearance) {
+        if appearance == .light { palette.lightDefaultShade = index }
+        else { palette.darkDefaultShade = index }
     }
 
     mutating func setColour(_ colour: Color) {
@@ -507,7 +515,6 @@ struct PreviewShadeEdit {
         guard value != palette.reversed && !palette.single else { return }
         palette.reverseShades()
         index = 10 - index
-        originalDefault = 10 - originalDefault
         hex = palette.colour(at: index).hexString ?? hex
     }
 }
@@ -593,12 +600,18 @@ struct PreviewShadeEditor: View {
                     .fixedSize()
                 }
                 Spacer()
-                Button(edit.isOriginalDefault ? "Default" : (edit.palette.defaultShade == edit.index ? "Undo Default" : "Set Default")) {
-                    focus = nil
-                    edit.setUseAsDefault(edit.palette.defaultShade != edit.index)
-                    change(edit.palette)
+                ForEach(SiteAppearance.allCases, id: \.self) { appearance in
+                    Button {
+                        focus = nil
+                        edit.setDefault(for: appearance)
+                        change(edit.palette)
+                    } label: {
+                        Image(systemName: appearance == .light ? "sun.max.fill" : "moon.fill")
+                    }
+                    .disabled((appearance == .light ? edit.palette.lightDefaultShade : edit.palette.darkDefaultShade) == edit.index)
+                    .help(appearance == .light ? "Set Light Default" : "Set Dark Default")
+                    .accessibilityLabel(appearance == .light ? "Set Light Default" : "Set Dark Default")
                 }
-                .disabled(edit.isOriginalDefault)
             }
         }
         .padding(16)

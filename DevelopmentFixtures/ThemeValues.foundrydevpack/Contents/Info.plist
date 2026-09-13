@@ -15,38 +15,23 @@
         <dict>
             <key>id</key><string>foreground</string><key>label</key><string>Foreground</string><key>group</key><string>Theme Values</string>
             <key>type</key><string>themeColor</string><key>allowsCustom</key><true/>
-            <key>customColor</key><string>#D946EF</string><key>default</key><string>custom</string><key>responsive</key><true/>
+            <key>customColor</key><string>#D946EF</string><key>default</key><dict><key>palette</key><string>custom</string></dict><key>responsive</key><true/>
         </dict>
         <dict>
             <key>id</key><string>background</string><key>label</key><string>Background</string><key>group</key><string>Theme Values</string>
             <key>type</key><string>themeColor</string><key>allowsCustom</key><true/>
             <key>customColor</key><string>#FFF1F2</string>
-            <key>default</key><string>custom</string><key>responsive</key><true/>
-        </dict>
-        <dict>
-            <key>id</key><string>font</string><key>label</key><string>Font</string><key>group</key><string>Theme Values</string>
-            <key>type</key><string>select</string><key>themeValues</key><string>fontFamilies</string>
-            <key>default</key><string>body</string><key>responsive</key><false/>
-        </dict>
-        <dict>
-            <key>id</key><string>size</string><key>label</key><string>Size</string><key>group</key><string>Theme Values</string>
-            <key>type</key><string>select</string><key>themeValues</key><string>fontSizes</string>
-            <key>default</key><string>base</string><key>responsive</key><true/>
-        </dict>
-        <dict>
-            <key>id</key><string>gap</string><key>label</key><string>Gap</string><key>group</key><string>Theme Values</string>
-            <key>type</key><string>select</string><key>themeValues</key><string>spacing</string>
-            <key>default</key><string>md</string><key>responsive</key><true/>
+            <key>default</key><dict><key>palette</key><string>custom</string></dict><key>responsive</key><true/>
         </dict>
         <dict>
             <key>id</key><string>topBorder</string><key>label</key><string>Top border</string><key>group</key><string>Theme Values</string>
             <key>type</key><string>themeColor</string><key>allowsCustom</key><true/>
-            <key>customColor</key><string>#5B5BD6</string><key>default</key><string>custom</string><key>responsive</key><false/>
+            <key>customColor</key><string>#5B5BD6</string><key>default</key><dict><key>palette</key><string>custom</string></dict><key>responsive</key><false/>
         </dict>
         <dict>
             <key>id</key><string>bottomBorder</string><key>label</key><string>Bottom border</string><key>group</key><string>Theme Values</string>
             <key>type</key><string>themeColor</string><key>allowsCustom</key><true/>
-            <key>customColor</key><string>#5B5BD6</string><key>default</key><string>custom</string><key>responsive</key><false/>
+            <key>customColor</key><string>#5B5BD6</string><key>default</key><dict><key>palette</key><string>custom</string></dict><key>responsive</key><false/>
         </dict>
     </array>
     <key>templates</key><dict><key>html</key><string>component.html</string></dict>

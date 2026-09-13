@@ -1,0 +1,23 @@
+:host {
+    display: block;
+    padding: 20px;
+    border: 1px solid light-dark(#CBD5E1, #475569);
+    border-radius: 12px;
+    background: light-dark(#F8FAFC, #1E293B);
+    color: light-dark(#0F172A, #F1F5F9);
+    font-family: system-ui, sans-serif;
+}
+.appearance-test-buttons { display: flex; flex-wrap: wrap; gap: 8px; }
+button {
+    padding: 8px 14px;
+    border: 1px solid currentColor;
+    border-radius: 6px;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    cursor: pointer;
+}
+button:hover:not(:disabled) { background: light-dark(#E2E8F0, #334155); }
+button:focus-visible { outline: 2px solid currentColor; outline-offset: 3px; }
+button:disabled { opacity: 0.5; cursor: default; }
+p { margin: 12px 0 0; font-size: 13px; }

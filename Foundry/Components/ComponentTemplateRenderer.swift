@@ -829,6 +829,20 @@ nonisolated enum ComponentTemplateRenderer {
     }
 
     static func transformColor(_ value: String, target: Double, amount: Double) -> String {
+        if value.hasPrefix("light-dark("), value.hasSuffix(")") {
+            let contents = value.dropFirst(11).dropLast()
+            var depth = 0
+            if let split = contents.indices.first(where: { index in
+                let character = contents[index]
+                if character == "(" { depth += 1 }
+                if character == ")" { depth -= 1 }
+                return character == "," && depth == 0
+            }) {
+                let light = String(contents[..<split]).trimmingCharacters(in: .whitespaces)
+                let dark = String(contents[contents.index(after: split)...]).trimmingCharacters(in: .whitespaces)
+                return "light-dark(\(transformColor(light, target: target, amount: amount)), \(transformColor(dark, target: target, amount: amount)))"
+            }
+        }
         guard let color = rgb(value) else { return value }
         let amount = min(max(amount, 0), 1)
         return hex(

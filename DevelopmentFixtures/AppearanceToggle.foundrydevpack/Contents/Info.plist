@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>minimumAPIVersion</key><integer>1</integer>
+    <key>id</key><string>dev.foundry.appearance-toggle</string>
+    <key>title</key><string>Appearance Toggle Test</string>
+    <key>description</key><string>Tests the light, dark and system visitor appearance API in browser Preview or export.</string>
+    <key>author</key><string>Foundry Development</string>
+    <key>version</key><string>1.0.0</string>
+    <key>group</key><string>Other</string>
+    <key>tags</key><array><string>Development</string><string>Appearance</string></array>
+    <key>controls</key><array/>
+    <key>templates</key>
+    <dict>
+        <key>html</key><string>component.html</string>
+        <key>files</key>
+        <array>
+            <dict><key>path</key><string>component.css</string><key>scope</key><string>instance</string></dict>
+            <dict><key>path</key><string>component.js</string><key>scope</key><string>instance</string></dict>
+        </array>
+    </dict>
+</dict>
+</plist>

@@ -468,6 +468,9 @@ nonisolated struct ComponentPackageControl: Codable, Equatable, Sendable {
         case number
         case color
         case themeColor
+        case themeFont
+        case fontWeight
+        case fontStyle
         case icon
         case select
         case link
@@ -485,6 +488,10 @@ nonisolated struct ComponentPackageControl: Codable, Equatable, Sendable {
     }
 
     let type: Kind
+    let font: String?
+    let showsFamily: Bool?
+    let showsWeight: Bool?
+    let showsStyle: Bool?
     let minimum: Double?
     let maximum: Double?
     let minimumDate: String?
@@ -496,7 +503,6 @@ nonisolated struct ComponentPackageControl: Codable, Equatable, Sendable {
     let opacity: Bool?
     let outputFormat: ColorOutputFormat?
     let customColor: String?
-    let shade: Int?
     let count: Int?
     let ticks: Int?
     let showsValueField: Bool?
@@ -510,14 +516,19 @@ nonisolated struct ComponentPackageControl: Codable, Equatable, Sendable {
     let absoluteURL: Bool?
 
     enum CodingKeys: String, CodingKey {
-        case type, minimum, maximum, step, options, themeValues, allowsCustom
-        case opacity, outputFormat, customColor, shade, count, ticks, showsValueField
+        case type, font, minimum, maximum, step, options, themeValues, allowsCustom
+        case showsFamily, showsWeight, showsStyle
+        case opacity, outputFormat, customColor, count, ticks, showsValueField
         case trueValue, falseValue, selectionMode, argument1, argument2, operation, round, absoluteURL
     }
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         type = try container.decode(Kind.self, forKey: .type)
+        font = try container.decodeIfPresent(String.self, forKey: .font)
+        showsFamily = try container.decodeIfPresent(Bool.self, forKey: .showsFamily)
+        showsWeight = try container.decodeIfPresent(Bool.self, forKey: .showsWeight)
+        showsStyle = try container.decodeIfPresent(Bool.self, forKey: .showsStyle)
         if type == .date {
             minimum = nil
             maximum = nil
@@ -536,7 +547,6 @@ nonisolated struct ComponentPackageControl: Codable, Equatable, Sendable {
         opacity = try container.decodeIfPresent(Bool.self, forKey: .opacity)
         outputFormat = try container.decodeIfPresent(ColorOutputFormat.self, forKey: .outputFormat)
         customColor = try container.decodeIfPresent(String.self, forKey: .customColor)
-        shade = try container.decodeIfPresent(Int.self, forKey: .shade)
         count = try container.decodeIfPresent(Int.self, forKey: .count)
         ticks = try container.decodeIfPresent(Int.self, forKey: .ticks)
         showsValueField = try container.decodeIfPresent(Bool.self, forKey: .showsValueField)
@@ -553,6 +563,10 @@ nonisolated struct ComponentPackageControl: Codable, Equatable, Sendable {
     func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encode(type, forKey: .type)
+        try container.encodeIfPresent(font, forKey: .font)
+        try container.encodeIfPresent(showsFamily, forKey: .showsFamily)
+        try container.encodeIfPresent(showsWeight, forKey: .showsWeight)
+        try container.encodeIfPresent(showsStyle, forKey: .showsStyle)
         if type == .date {
             try container.encodeIfPresent(minimumDate, forKey: .minimum)
             try container.encodeIfPresent(maximumDate, forKey: .maximum)
@@ -567,7 +581,6 @@ nonisolated struct ComponentPackageControl: Codable, Equatable, Sendable {
         try container.encodeIfPresent(opacity, forKey: .opacity)
         try container.encodeIfPresent(outputFormat, forKey: .outputFormat)
         try container.encodeIfPresent(customColor, forKey: .customColor)
-        try container.encodeIfPresent(shade, forKey: .shade)
         try container.encodeIfPresent(count, forKey: .count)
         try container.encodeIfPresent(ticks, forKey: .ticks)
         try container.encodeIfPresent(showsValueField, forKey: .showsValueField)
@@ -613,11 +626,7 @@ nonisolated extension ComponentPackageControl {
     var themeValueSource: ComponentPackageThemeValueSource? {
         if type == .shadow { return .shadows }
         if type == .themeColor { return .colors }
-        return switch themeValues {
-        case .source(let source): source
-        case .defaultValue: nil
-        case nil: nil
-        }
+        return nil
     }
 
     var themeValueDefault: String? {

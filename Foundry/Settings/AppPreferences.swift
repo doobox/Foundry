@@ -11,7 +11,6 @@ nonisolated enum AppPreferenceKey {
     static let enablesCanvasWebInspector = "canvas.webInspector.enabled"
     static let showsDeveloperPanel = "developer.panel.visible"
     static let showsHiddenComponents = "developer.components.showHidden"
-    static let editsThemes = "developer.themes.edit"
     static let automaticallyChecksComponentUpdates = "components.updates.automatic"
     static let componentLibraryIconSize = "components.library.iconSize"
     static let componentLibraryArrangement = "components.library.arrangement"

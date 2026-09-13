@@ -1,5 +1,9 @@
 # Foundry workspace notes
 
+## Built-in theme artwork
+
+Always ask Gary for a supplied tile image when creating a built-in theme. Do not generate or substitute fallback artwork. See `.cursor/rules/theme-artwork.mdc`.
+
 ## API documentation
 
 The Foundry application and its browsable developer documentation are separate sibling Git repositories:

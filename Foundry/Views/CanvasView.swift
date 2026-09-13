@@ -36,6 +36,8 @@ nonisolated enum CanvasSizing {
 }
 
 struct CanvasView: View {
+    @Environment(\.canvasAppearance) private var appearance
+    @State private var renderedAppearance: SiteAppearance?
     let site: Site
     let page: Page?
     let language: String
@@ -116,7 +118,7 @@ struct CanvasView: View {
                                         )
                                         .id(enablesCanvasWebInspector)
                                         .frame(width: viewportWidth, height: logicalHeight)
-                                        .background(Color(hex: theme.colors.background) ?? .white)
+                                        .background(Color(hex: page.backgroundColour(theme: theme, appearance: appearance)) ?? .white)
                                         .shadow(color: .black.opacity(0.12), radius: 12, y: 4)
                                         .scaleEffect(scale, anchor: .top)
                                     } else {
@@ -202,7 +204,8 @@ struct CanvasView: View {
             assetRevision: assetRevision,
             componentPackageRevision: componentPackageRevision,
             breakpoint: breakpoint,
-            forcesReconciliation: forcedReconciliationRevision == mutationEvent.revision
+            forcesReconciliation: forcedReconciliationRevision == mutationEvent.revision,
+            appearance: appearance
         )
     }
 
@@ -222,13 +225,14 @@ struct CanvasView: View {
             assets: assets,
             breakpoint: requestID.breakpoint,
             impact: mutationEvent.impact,
-            forcesReconciliation: requestID.forcesReconciliation || requiresInitialPage
+            forcesReconciliation: requestID.forcesReconciliation || requiresInitialPage || renderedAppearance != appearance
         )
         let operation = await Task.detached(priority: .userInitiated) {
             snapshot.render()
         }.value
         guard !Task.isCancelled, requestID == renderRequestID, revision == renderRevision else { return }
         renderedPage = .init(pageID: page.id, operation: operation.withRevision(revision))
+        renderedAppearance = appearance
     }
 
     private func canvasPackages(for page: Page) -> [String: LoadedComponentPackage] {
@@ -332,6 +336,7 @@ private struct CanvasRenderRequestID: Hashable {
     let componentPackageRevision: Int
     let breakpoint: ResponsiveBreakpoint
     let forcesReconciliation: Bool
+    let appearance: SiteAppearance
 }
 
 struct CanvasRenderedPage: Equatable {

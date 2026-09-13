@@ -4,11 +4,67 @@ import Testing
 
 @MainActor
 struct InspectorPaletteTests {
+    @Test func literalAppearancesAndResponsivePairsStayIndependent() async {
+        await ComponentPackageCatalog.shared.waitUntilLoaded()
+        var value = ComponentPackageColorValue(source: ComponentThemeValueSelection.manualCustom,
+            customColor: "#123456", opacity: 1, shade: .two, darkShade: .nine)
+        value.darkCustomColor = "#ABCDEF"
+        value.darkOpacity = 0.4
+        #expect(ComponentPackageColorResolver.resolve(value, theme: .standard, opacity: true).contains("18 52 86 / 1"))
+        #expect(ComponentPackageColorResolver.resolve(value, theme: .standard, opacity: true, appearance: .dark).contains("171 205 239 / 0.4"))
+        var node = ComponentNode(type: .container)
+        node.setProperty(.backgroundColor, value: .packageColor(value))
+        var wide = value
+        wide.darkShade = .eleven
+        node.setResponsiveProperty(.backgroundColor, value: .packageColor(wide), at: .large)
+        #expect(node.resolved(at: .mobile).propertyValue(.backgroundColor) == .packageColor(value))
+        #expect(node.resolved(at: .large).propertyValue(.backgroundColor) == .packageColor(wide))
+        #expect(wide.shade == value.shade)
+    }
+
+    @Test func appearanceOutputAndFiltersUseBothColours() {
+        #expect(SiteAppearanceMode.light.colour(light: "#123456", dark: "#ABCDEF") == "#123456")
+        #expect(SiteAppearanceMode.dark.colour(light: "#123456", dark: "#ABCDEF") == "#ABCDEF")
+        #expect(SiteAppearanceMode.light.bootstrap(siteID: UUID()).isEmpty)
+        #expect(SiteAppearanceMode.both.bootstrap(siteID: UUID()).contains("window.foundryAppearance"))
+        #expect(ComponentTemplateRenderer.transformColor("light-dark(#000000, #FFFFFF)", target: 255, amount: 1)
+                == "light-dark(#FFFFFF, #FFFFFF)")
+    }
+
+    @Test func appearanceSelectionsAreIndependentAndExportTogether() async throws {
+        await ComponentPackageCatalog.shared.waitUntilLoaded()
+        var site = Site.starter()
+        site.appearanceMode = .both
+        let index = try #require(site.theme.colourPalettes.firstIndex { $0.id == "theme.background" })
+        var shades = site.theme.colourPalettes[index].shades
+        shades[1] = "#123456"
+        shades[8] = "#ABCDEF"
+        try site.theme.colourPalettes[index].replaceShades(shades)
+        let value = ComponentPackageColorValue(source: "background", customColor: "#000000", opacity: 1,
+                                              shade: .two, darkShade: .nine)
+        site.theme.colourPalettes[index].setLightDefault(.four)
+        site.theme.colourPalettes[index].setDarkDefault(.seven)
+        #expect(ComponentPackageColorResolver.resolve(value, theme: site.theme, opacity: false) == "#123456")
+        #expect(ComponentPackageColorResolver.resolve(value, theme: site.theme, opacity: false, appearance: .dark) == "#ABCDEF")
+        var node = ComponentNode.make(.container)
+        node.setProperty(.backgroundColor, value: .packageColor(value))
+        let page = Page(title: "Appearance", slug: "index", components: [node])
+        site.pages = [page]
+        #expect(HTMLPageRenderer(appearance: .light).render(page: page, theme: site.theme).contains("background-color: #123456"))
+        #expect(HTMLPageRenderer(appearance: .dark).render(page: page, theme: site.theme).contains("background-color: #ABCDEF"))
+        let output = StaticSiteRenderer().render(site: site)
+        #expect(output.file(at: "files/page.css")?.contents.contains("light-dark(#123456, #ABCDEF)") == true)
+        #expect(output.file(at: "files/site.css")?.contents.contains("color-scheme:light dark") == true)
+        let restored = try JSONDecoder().decode(Site.self, from: JSONEncoder().encode(site))
+        #expect(restored.appearanceMode == .both)
+        #expect(restored.theme.colourPalettes[index].darkDefaultShade == .seven)
+    }
+
     @Test func newComponentsCaptureActiveThemeDefaultOnce() async throws {
         await ComponentPackageCatalog.shared.waitUntilLoaded()
         var theme = Theme.standard
         let index = try #require(theme.colourPalettes.firstIndex { $0.id == "theme.background" })
-        theme.colourPalettes[index].setDefault(.three)
+        theme.colourPalettes[index].setLightDefault(.three)
         var node = ComponentNode.make(.container)
         // The built-in container starts with a literal colour. Supply a theme-role
         // declaration and exercise the same initialisation used by make(_:theme:).
@@ -20,9 +76,9 @@ struct InspectorPaletteTests {
         }
         #expect(value.shade == .three)
         let before = ComponentPackageColorResolver.resolve(value, theme: theme, opacity: false)
-        theme.colourPalettes[index].setDefault(.nine)
+        theme.colourPalettes[index].setLightDefault(.nine)
         #expect(ComponentPackageColorResolver.resolve(value, theme: theme, opacity: false) == before)
-        #expect(value.shade != theme.colourPalettes[index].defaultShade)
+        #expect(value.shade != theme.colourPalettes[index].lightDefaultShade)
         var next = node
         next.selectInitialColourShades(from: theme)
         guard case .packageColor(let nextValue) = next.propertyValue(.backgroundColor) else {
@@ -31,11 +87,12 @@ struct InspectorPaletteTests {
         #expect(nextValue.shade == .nine)
     }
 
-    @Test func canvasAndExportUseNameOverridesForStableReferences() async throws {
+    @Test func canvasAndExportIgnoreMatchingCustomNamesForStableReferences() async throws {
         await ComponentPackageCatalog.shared.waitUntilLoaded()
         var site = Site.starter()
         let original = try #require(site.theme.colourPalettes.first { $0.id == "theme.background" })
         var custom = try original.duplicated()
+        custom.name = original.name
         try custom.replaceShades(Array(repeating: "#193A5C", count: 11))
         site.theme.colourPalettes.insert(custom, at: 0)
         var node = ComponentNode.make(.container)
@@ -43,9 +100,11 @@ struct InspectorPaletteTests {
             customColor: "#000000", opacity: 1)))
         let page = Page(title: "Override", slug: "index", components: [node])
         site.pages = [page]
-        #expect(HTMLPageRenderer().render(page: page, theme: site.theme).contains("background-color: #193A5C"))
+        #expect(!HTMLPageRenderer().render(page: page, theme: site.theme).contains("background-color: #193A5C"))
         let css = try #require(StaticSiteRenderer().render(site: site).file(at: "files/page.css")?.contents)
-        #expect(css.contains("background-color: #193A5C"))
+        #expect(!css.contains("background-color: #193A5C"))
+        #expect(site.theme.colourPalettes.resolvedPalette(id: original.id) == original)
+        #expect(site.theme.colourPalettes.resolvedPalette(id: custom.id) == custom)
         #expect(site.theme.fixedThemeColourPalettes.contains(original))
     }
 
@@ -56,8 +115,8 @@ struct InspectorPaletteTests {
         shades[1] = "#123456"
         shades[8] = "#ABCDEF"
         try theme.colourPalettes[index].replaceShades(shades)
-        theme.colourPalettes[index].setDefault(.two)
-        let following = ComponentPackageColorValue(source: "theme.accent", customColor: "#000000", opacity: 1, shade: theme.colourPalettes[index].defaultShade)
+        theme.colourPalettes[index].setLightDefault(.two)
+        let following = ComponentPackageColorValue(source: "theme.accent", customColor: "#000000", opacity: 1, shade: theme.colourPalettes[index].lightDefaultShade)
         let fixed = ComponentPackageColorValue(source: "theme.accent", customColor: "#000000", opacity: 1, shade: .two)
         func resolve(_ value: ComponentPackageColorValue) -> String {
             ComponentPackageColorResolver.resolve(value, theme: theme, opacity: false)
@@ -65,7 +124,7 @@ struct InspectorPaletteTests {
         #expect(resolve(following) == "#123456")
         #expect(resolve(fixed) == "#123456")
         theme.colourPalettes[index].name = "New Name"
-        theme.colourPalettes[index].setDefault(.nine)
+        theme.colourPalettes[index].setLightDefault(.nine)
         #expect(resolve(following) == "#123456")
         #expect(resolve(fixed) == "#123456")
         let restored = try JSONDecoder().decode(ComponentPackageColorValue.self, from: JSONEncoder().encode(fixed))

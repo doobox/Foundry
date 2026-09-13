@@ -6,6 +6,32 @@ import UniformTypeIdentifiers
 @testable import Foundry
 
 struct AssetManagementTests {
+    @Test @MainActor
+    func fontImportsCreateAndReuseFontsFolder() throws {
+        let document = FoundryDocument()
+        let undo = UndoManager()
+        undo.groupsByEvent = false
+        undo.beginUndoGrouping()
+        let first = document.importAsset(data: Data([1]), filename: "Regular.TTF", mediaType: "font/ttf", undoManager: undo)
+        undo.endUndoGrouping()
+        let folder = try #require(document.site.assetLibrary.compactMap { node -> ProjectAssetFolder? in
+            guard case .folder(let folder) = node, folder.name == "Fonts" else { return nil }
+            return folder
+        }.first)
+        #expect(folder.children.map(\.id) == [first])
+        undo.undo()
+        #expect(document.site.assetLibrary.isEmpty)
+        undo.redo()
+        document.renameAssetFolder(id: folder.id, name: "fonts", undoManager: nil)
+        let second = document.importAsset(data: Data([2]), filename: "Bold.woff2", mediaType: "font/woff2", undoManager: nil)
+        #expect(document.site.assetLibrary.count == 1)
+        guard case .folder(let updated) = try #require(document.site.assetLibrary.first) else {
+            Issue.record("Expected Fonts folder")
+            return
+        }
+        #expect(updated.children.map(\.id) == [first, second])
+    }
+
     @Test
     func canonicalizesOversizedStillImagesAndCreatesSmallerRenditionsWithoutUpscaling() throws {
         let data = try testPNG(width: 5_000, height: 2)

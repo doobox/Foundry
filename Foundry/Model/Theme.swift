@@ -9,6 +9,14 @@ nonisolated struct Theme: Codable, Equatable, Sendable {
         let ids = Set(ThemeColorRole.allCases.map { "theme." + $0.rawValue })
         return colourPalettes.filter { $0.origin == .theme && ids.contains($0.id) }
     }
+
+    /// Exactly the settings persisted in a reusable theme bundle.
+    var savedSettings: Theme {
+        var settings = self
+        settings.colourPalettes = fixedThemeColourPalettes
+        return settings
+    }
+
     var colors: ColorTokens {
         get {
             func value(_ id: String) -> String {
@@ -24,7 +32,7 @@ nonisolated struct Theme: Codable, Equatable, Sendable {
                 guard let index = colourPalettes.firstIndex(where: { $0.id == "theme." + id }),
                       colourPalettes[index].colour(at: .default) != hex else { continue }
                 var shades = colourPalettes[index].shades
-                shades[colourPalettes[index].defaultShade.rawValue - 1] = hex
+                shades[colourPalettes[index].lightDefaultShade.rawValue - 1] = hex
                 try? colourPalettes[index].replaceShades(shades)
                 colourPalettes[index].generation = nil
             }
@@ -646,6 +654,7 @@ nonisolated struct ThemeFontDefinition: Codable, Equatable, Sendable {
     var styles: [ThemeFontStyle]
     /// The last Font Names configuration, retained while another source is active.
     var systemFontNames: [String]? = nil
+    var googleConfiguration: GoogleFontConfiguration? = nil
 
     static func system(family: String, weights: [Int]) -> ThemeFontDefinition {
         ThemeFontDefinition(
@@ -717,8 +726,11 @@ nonisolated extension Theme {
         ThemeColorRole.allCases.map { .init(value: $0.rawValue, label: $0.title) }
     }
 
-    func color(for role: ThemeColorRole) -> String {
-        switch role {
+    func color(for role: ThemeColorRole, appearance: SiteAppearance = .light) -> String {
+        if appearance == .dark, let palette = colourPalettes.resolvedPalette(id: "theme." + role.rawValue) {
+            return palette.colour(at: .shade(palette.darkDefaultShade))
+        }
+        return switch role {
         case .page: colourPalettes.resolvedPalette(id: "theme.page")?.colour(at: .default) ?? "#000000"
         case .background: colors.background
         case .surface: colors.surface
@@ -874,18 +886,22 @@ nonisolated extension Theme {
             case .remote(let stylesheetURL):
                 return ["@import url('\(stylesheetURL.absoluteString)');"]
             case .bundled(let files):
+                let family = files.compactMap { reference -> FontFileMetadata? in
+                    guard let id = reference.foundryAssetID, let content = assets[id] else { return nil }
+                    return FontFileMetadata.read(content)
+                }.first
                 return files.compactMap { reference in
                     guard let id = reference.foundryAssetID,
-                          let content = assets[id] else { return nil }
+                          let content = assets[id],
+                          let metadata = FontFileMetadata.read(content),
+                          let family, metadata.belongsToSameFamily(as: family) else { return nil }
                     let source = switch destination {
                     case .canvas:
                         "data:\(content.asset.mediaType);base64,\(content.data.base64EncodedString())"
                     case .export:
                         exportedSource?(content.asset) ?? content.asset.storageFilename
                     }
-                    let filename = content.asset.filename.lowercased()
-                    let style = filename.contains("italic") ? "italic" : "normal"
-                    return "@font-face{font-family:'\(definition.family.cssSingleQuoted)';src:url('\(source)');font-style:\(style);font-weight:100 900;font-display:swap;}"
+                    return "@font-face{font-family:'\(definition.family.cssSingleQuoted)';src:url('\(source)');font-style:\(metadata.cssStyle);font-weight:\(metadata.cssWeight);font-display:swap;}"
                 }
             }
         }

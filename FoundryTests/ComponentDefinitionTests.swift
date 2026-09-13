@@ -62,7 +62,10 @@ struct ComponentDefinitionTests {
 
     @Test
     func typedPropertiesRoundTripThroughJSON() throws {
-        let original = ComponentNode.make(.paragraph)
+        var original = ComponentNode.make(.paragraph)
+        // Historical values remain readable even though these controls are gone.
+        original.setProperty(.init(rawValue: "typeface"), value: .choice("body"))
+        original.setProperty(.init(rawValue: "textSize"), value: .packageFontSize(.init(source: "base", customValue: "1rem")))
         let data = try JSONEncoder().encode(original)
         let decoded = try JSONDecoder().decode(ComponentNode.self, from: data)
 
@@ -86,10 +89,9 @@ struct ComponentDefinitionTests {
             properties: [.init(key: .init(rawValue: "content"), value: .string("Hello"))]
         )
 
-        #expect(text.property(.init(rawValue: "typeface")) == "body")
-        #expect(text.propertyValue(.init(rawValue: "textSize")) == .packageFontSize(.init(
-            source: "base",
-            customValue: "1rem"
+        #expect(!text.type.definition.properties.contains { ["typeface", "textSize"].contains($0.key.rawValue) })
+        #expect(text.propertyValue(.init(rawValue: "textColor")) == .packageColor(.init(
+            source: ComponentThemeValueSelection.manualCustom, customColor: "#000000", opacity: 1
         )))
     }
 
@@ -98,7 +100,8 @@ struct ComponentDefinitionTests {
         let buttonProperties = ComponentType.button.definition.properties
 
         #expect(buttonProperties.first(where: { $0.key.rawValue == "label" })?.section == .content)
-        #expect(buttonProperties.first(where: { $0.key.rawValue == "textSize" })?.section == .typography)
+        #expect(buttonProperties.first(where: { $0.key.rawValue == "textColor" })?.section == .typography)
+        #expect(!buttonProperties.contains { $0.key.rawValue == "textSize" })
         #expect(buttonProperties.first(where: { $0.key == .backgroundColor })?.section == .appearance)
         #expect(buttonProperties.first(where: { $0.key == .destination })?.section == .link)
         #expect(buttonProperties.first(where: { $0.key == .accessibilityLabel })?.section == .accessibility)
@@ -127,8 +130,9 @@ struct ComponentDefinitionTests {
         #expect(html.contains("border: 2px solid #ABCDEF"))
         #expect(html.contains("border-radius: 28px"))
         #expect(html.contains("max-width: 920px"))
-        #expect(html.contains("font-family: var(--foundry-font-heading)"))
-        #expect(html.contains("font-size: var(--foundry-font-size-xl)"))
+        // Removed controls no longer emit styling, even if old values are stored.
+        #expect(!ComponentType.paragraph.definition.package!.css.contains("font-family:"))
+        #expect(!ComponentType.paragraph.definition.package!.css.contains("font-size:"))
         #expect(html.contains("aria-label=\"Open &quot;details&quot;\""))
         #expect(html.contains("--foundry-editor-component: #0A84FF"))
         #expect(html.contains("--foundry-editor-global: #30D158"))

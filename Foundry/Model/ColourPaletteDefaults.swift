@@ -37,7 +37,7 @@ nonisolated enum ColourPaletteDefaults {
             return String(format: "#%02X%02X%02X", rgb[0], rgb[1], rgb[2])
         }
         var result = try! ColourPalette(id: id, name: name, origin: origin, shades: shades,
-            defaultShade: ColourShade(rawValue: anchor + 1)!,
+            lightDefaultShade: ColourShade(rawValue: anchor + 1)!,
             generation: .init(algorithm: "foundry.rgb-soften.v1", anchor: ColourShade(rawValue: anchor + 1)!,
                               anchorHex: hex, softening: 0, reversed: false))
         result.single = single

@@ -1,10 +1,10 @@
 import Foundation
 import ImageIO
-import Observation
 import UniformTypeIdentifiers
+import Observation
 
 nonisolated struct ThemeBundleMetadata: Codable, Equatable, Sendable {
-    static let currentFormatVersion = 4
+    static let currentFormatVersion = 5
 
     let id: UUID
     var name: String
@@ -34,8 +34,8 @@ nonisolated struct SavedTheme: Equatable, Identifiable, Sendable {
 }
 
 nonisolated struct ThemePreviewImage: Equatable, Sendable {
-    static let pixelWidth = 1000
-    static let pixelHeight = 1600
+    static let pixelWidth = 1200
+    static let pixelHeight = 600
 
     let data: Data
     let filename: String
@@ -68,7 +68,7 @@ nonisolated enum ThemeBundleError: Error, LocalizedError {
         case .previewTypeMismatch:
             "The preview image’s file extension does not match its contents."
         case .invalidPreviewDimensions(let width, let height):
-            "The preview image is \(width) × \(height) px. Choose an image that is exactly \(ThemePreviewImage.pixelWidth) × \(ThemePreviewImage.pixelHeight) px."
+            "The preview image has invalid dimensions (\(width) × \(height) px)."
         }
     }
 }
@@ -129,8 +129,7 @@ nonisolated enum ThemeBundleStore {
     ) throws -> SavedTheme {
         let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedName.isEmpty else { throw ThemeBundleError.invalidName }
-        var bundleTheme = theme
-        bundleTheme.colourPalettes = theme.fixedThemeColourPalettes
+        var bundleTheme = theme.savedSettings
         let contentsURL = bundleURL.appending(path: "Contents", directoryHint: .isDirectory)
         let resourcesURL = contentsURL.appending(path: "Resources", directoryHint: .isDirectory)
         let assetsURL = resourcesURL.appending(path: "Assets", directoryHint: .isDirectory)
@@ -176,6 +175,21 @@ nonisolated enum ThemeBundleStore {
         )
     }
 
+    /// New themes always start from the bundled template, never project edits.
+    static func create(name: String, preview: ThemePreviewImage, id: UUID = UUID(), to destination: URL) throws -> SavedTheme {
+        guard let template = builtInThemes().first(where: { $0.id == systemThemeID }) else {
+            throw ThemeBundleError.missingContents
+        }
+        return try write(
+            theme: template.theme,
+            name: name,
+            preview: preview,
+            id: id,
+            assetContents: Dictionary(uniqueKeysWithValues: template.resources.map { ($0.asset.id, $0) }),
+            to: destination
+        )
+    }
+
     static func libraryURL(fileManager: FileManager = .default) throws -> URL {
         let applicationSupport = try fileManager.url(
             for: .applicationSupportDirectory,
@@ -188,6 +202,23 @@ nonisolated enum ThemeBundleStore {
             .appending(path: "Themes", directoryHint: .isDirectory)
         try fileManager.createDirectory(at: url, withIntermediateDirectories: true)
         return url
+    }
+
+    static func editArtwork(_ saved: SavedTheme, name: String, preview: ThemePreviewImage) throws -> SavedTheme {
+        guard !saved.isBuiltIn else { return saved }
+        let name = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !name.isEmpty else { throw ThemeBundleError.invalidName }
+        let metadata = ThemeBundleMetadata(
+            id: saved.id, name: name, previewFilename: preview.filename,
+            formatVersion: saved.metadata.formatVersion, createdAt: saved.metadata.createdAt,
+            modifiedAt: Date(), resources: saved.metadata.resources
+        )
+        let encoder = PropertyListEncoder()
+        encoder.outputFormat = .xml
+        let data = try encoder.encode(metadata)
+        try preview.data.write(to: saved.bundleURL.appending(path: "Contents/Resources/\(preview.filename)"), options: .atomic)
+        try data.write(to: saved.bundleURL.appending(path: "Contents/Info.plist"), options: .atomic)
+        return try load(from: saved.bundleURL)
     }
 
     static func filename(for name: String, id: UUID) -> String {
@@ -203,6 +234,7 @@ nonisolated enum ThemeBundleStore {
         guard let declaredType = UTType(filenameExtension: url.pathExtension.lowercased()),
               let data = try? Data(contentsOf: url),
               let source = CGImageSourceCreateWithData(data as CFData, nil),
+              CGImageSourceCreateImageAtIndex(source, 0, nil) != nil,
               let sourceTypeIdentifier = CGImageSourceGetType(source),
               let detectedType = UTType(sourceTypeIdentifier as String) else {
             throw ThemeBundleError.unsupportedPreviewType
@@ -219,7 +251,7 @@ nonisolated enum ThemeBundleStore {
               let height = properties[kCGImagePropertyPixelHeight] as? Int else {
             throw ThemeBundleError.unsupportedPreviewType
         }
-        guard width == ThemePreviewImage.pixelWidth, height == ThemePreviewImage.pixelHeight else {
+        guard width > 0, height > 0 else {
             throw ThemeBundleError.invalidPreviewDimensions(width: width, height: height)
         }
         let pathExtension = detectedType == .png ? "png" : detectedType == .webP ? "webp" : "jpg"
@@ -280,11 +312,17 @@ final class ThemeLibrary {
             ).filter(ThemeBundleStore.isThemeURL)
             let builtInThemes = ThemeBundleStore.builtInThemes()
             let builtInIDs = Set(builtInThemes.map(\.id))
-            let userThemes = try urls.map { try ThemeBundleStore.load(from: $0) }
-                .filter { !builtInIDs.contains($0.id) }
+            var failures: [String] = []
+            let userThemes = urls.compactMap { url -> SavedTheme? in
+                do { return try ThemeBundleStore.load(from: url) }
+                catch {
+                    failures.append("\(url.lastPathComponent): \(error.localizedDescription)")
+                    return nil
+                }
+            }.filter { !builtInIDs.contains($0.id) }
             themes = (builtInThemes + userThemes)
                 .sorted { $0.metadata.name.localizedStandardCompare($1.metadata.name) == .orderedAscending }
-            errorMessage = nil
+            errorMessage = failures.isEmpty ? nil : failures.joined(separator: "\n")
         } catch {
             themes = []
             errorMessage = error.localizedDescription
@@ -294,9 +332,7 @@ final class ThemeLibrary {
     @discardableResult
     func create(
         name: String,
-        from theme: Theme,
-        preview: ThemePreviewImage,
-        assetContents: [UUID: ProjectAssetContent] = [:]
+        preview: ThemePreviewImage
     ) throws -> SavedTheme {
         let id = UUID()
         let rootURL = try ThemeBundleStore.libraryURL()
@@ -304,12 +340,10 @@ final class ThemeLibrary {
             path: ThemeBundleStore.filename(for: name, id: id),
             directoryHint: .isDirectory
         )
-        let saved = try ThemeBundleStore.write(
-            theme: theme,
+        let saved = try ThemeBundleStore.create(
             name: name,
             preview: preview,
             id: id,
-            assetContents: assetContents,
             to: destination
         )
         reload()
@@ -358,6 +392,12 @@ final class ThemeLibrary {
     func remove(_ savedTheme: SavedTheme) throws {
         guard !savedTheme.isBuiltIn else { return }
         try FileManager.default.removeItem(at: savedTheme.bundleURL)
+        reload()
+    }
+
+    func edit(_ savedTheme: SavedTheme, name: String, preview: ThemePreviewImage) throws {
+        guard !savedTheme.isBuiltIn else { return }
+        _ = try ThemeBundleStore.editArtwork(savedTheme, name: name, preview: preview)
         reload()
     }
 }

@@ -60,13 +60,14 @@ struct ThemeEditorCard<Content: View>: View {
     }
 }
 
-/// Measures the same two subviews in either arrangement, preserving editor focus and draft state.
+/// Keeps editing controls and their preview side by side at every supported window size.
 struct ThemeEditorColumns<Editor: View, Preview: View>: View {
+    var equalColumns = false
     @ViewBuilder var editor: Editor
     @ViewBuilder var preview: Preview
 
     var body: some View {
-        ThemeEditorColumnLayout {
+        ThemeEditorColumnLayout(equalColumns: equalColumns) {
             editor
             preview
         }
@@ -74,34 +75,35 @@ struct ThemeEditorColumns<Editor: View, Preview: View>: View {
 }
 
 private struct ThemeEditorColumnLayout: Layout {
-    private let gap: CGFloat = 24
-    private let previewWidth: CGFloat = 300
+    var equalColumns: Bool
+    private let gap: CGFloat = 16
+
+    private func previewWidth(for width: CGFloat) -> CGFloat {
+        let available = max(0, width - gap)
+        return equalColumns ? available / 2 : min(300, available * 0.4)
+    }
 
     func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
         let width = max(0, proposal.width ?? 1_040)
-        let sideBySide = width >= 880
-        let editorWidth = sideBySide ? width - previewWidth - gap : width
+        let previewWidth = previewWidth(for: width)
+        let editorWidth = max(0, width - previewWidth - gap)
         let sizes = subviews.enumerated().map { index, view in
-            view.sizeThatFits(.init(width: index == 0 ? editorWidth : (sideBySide ? previewWidth : width), height: nil))
+            view.sizeThatFits(.init(width: index == 0 ? editorWidth : previewWidth, height: nil))
         }
-        return CGSize(width: width, height: sideBySide
-            ? sizes.map(\.height).max() ?? 0
-            : sizes.map(\.height).reduce(0, +) + gap * CGFloat(max(0, sizes.count - 1)))
+        return CGSize(width: width, height: sizes.map(\.height).max() ?? 0)
     }
 
     func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
-        let sideBySide = bounds.width >= 880
-        let editorWidth = sideBySide ? bounds.width - previewWidth - gap : bounds.width
-        var y = bounds.minY
+        let previewWidth = previewWidth(for: bounds.width)
+        let editorWidth = max(0, bounds.width - previewWidth - gap)
         for (index, view) in subviews.enumerated() {
-            let width = index == 0 ? editorWidth : (sideBySide ? previewWidth : bounds.width)
+            let width = index == 0 ? editorWidth : previewWidth
             let size = view.sizeThatFits(.init(width: width, height: nil))
             view.place(
-                at: CGPoint(x: bounds.minX + (sideBySide && index > 0 ? editorWidth + gap : 0), y: y),
+                at: CGPoint(x: bounds.minX + (index > 0 ? editorWidth + gap : 0), y: bounds.minY),
                 anchor: .topLeading,
-                proposal: .init(width: width, height: size.height)
+                proposal: .init(width: width, height: equalColumns ? bounds.height : size.height)
             )
-            if !sideBySide { y += size.height + gap }
         }
     }
 }

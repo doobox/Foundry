@@ -110,10 +110,12 @@ nonisolated struct ComponentNode: Codable, Equatable, Identifiable, Sendable {
             if case .packageColor(var value) = properties[index].value,
                let palette = theme.colourPalettes.resolvedPalette(id: value.paletteID) {
                 if let definition = type.definition.properties.first(where: { $0.key == properties[index].key }),
-                   case .packageColor(_, _, let initialShade) = definition.control {
-                    value.shade = initialShade ?? palette.defaultShade
+                   case .packageColor(_, _, let initialLightShade, let initialDarkShade) = definition.control {
+                    value.shade = initialLightShade ?? palette.lightDefaultShade
+                    value.darkShade = initialDarkShade ?? palette.darkDefaultShade
                 } else {
-                    value.shade = palette.defaultShade
+                    value.shade = palette.lightDefaultShade
+                    value.darkShade = palette.darkDefaultShade
                 }
                 properties[index].value = .packageColor(value)
             }

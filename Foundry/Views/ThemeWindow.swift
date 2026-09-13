@@ -86,6 +86,8 @@ struct ThemeWindowContent: View {
                 ProjectColourSettings(session: session)
             case .themes:
                 ThemeLibraryBrowser(document: document, undoManager: session.editor.undoManager)
+            case .fontFamily:
+                ThemeFontSettings(theme: document.site.theme, assets: document.site.assets, session: session)
             default:
                 ThemeSettingsDetail(
                     section: selectedSection,
@@ -93,6 +95,7 @@ struct ThemeWindowContent: View {
                     assets: document.site.assets,
                     session: session
                 )
+                .disabled(!session.canEditTheme)
             }
         }
     }
@@ -170,7 +173,7 @@ enum ThemeWindowSection: String, CaseIterable, Identifiable, Hashable {
     var explanation: String {
         switch self {
         case .themes:
-            "Choose a saved theme or create one from the current project settings."
+            "Choose a saved theme or create one from System UI."
         case .screens:
             "Define responsive breakpoints and the maximum container width at each size."
         case .colors:
@@ -211,7 +214,9 @@ struct ThemeSettingsDetail: View {
 
     var body: some View {
         Group {
-            if section == .screens {
+            if section == .fontFamily {
+                ThemeFontSettings(theme: theme, assets: assets, session: session)
+            } else if section == .screens {
                 ThemeBreakpointSettings(screens: theme.screens, editor: editor)
             } else {
                 ThemeEditorPage(title: section.title, subtitle: section.explanation) {
@@ -279,96 +284,85 @@ private struct ThemeLibraryBrowser: View {
     let undoManager: UndoManager?
     @State private var library = ThemeLibrary.shared
     @State private var isCreatingTheme = false
-    @State private var selectedThemeID: UUID?
+    @State private var themePendingEdit: SavedTheme?
     @State private var themePendingUpdate: SavedTheme?
     @State private var themePendingDeletion: SavedTheme?
     @State private var errorMessage: String?
-    private let columns = [GridItem(.adaptive(minimum: 190, maximum: 240), spacing: 24, alignment: .top)]
+    private let columns = [GridItem(.adaptive(minimum: 260, maximum: 320), spacing: 16, alignment: .top)]
 
-    private var currentTheme: SavedTheme? { library.themes.first { $0.id == document.site.themeSourceID } }
-    private var isCurrentThemeModified: Bool {
-        currentTheme.map { $0.theme != document.site.theme } ?? true
+    private var activeTheme: SavedTheme? {
+        library.themes.first { $0.id == document.site.themeSourceID }
     }
 
     var body: some View {
-        ThemeEditorPage(title: "Themes", subtitle: ThemeWindowSection.themes.explanation) {
-            Menu {
-                Button("Create Theme…", systemImage: "plus") { isCreatingTheme = true }
-                Button("Import Theme…", systemImage: "square.and.arrow.down", action: importTheme)
-            } label: {
-                Label("Add Theme", systemImage: "plus")
-            }
-            .fixedSize()
-        } content: {
-            ThemeEditorCard(title: "Current theme") {
-                HStack(spacing: 16) {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(currentTheme?.metadata.name ?? "Project Theme").font(.title3.weight(.semibold))
-                        Text(isCurrentThemeModified ? "Modified for this project" : "Changes you make apply to this project.")
-                            .foregroundStyle(.secondary)
-                    }
-                    Spacer(minLength: 12)
-                    HStack(spacing: 6) {
-                        ForEach(DesignToken.colorTokens) { token in
-                            RoundedRectangle(cornerRadius: 5)
-                                .fill(Color(hex: document.site.theme.color(for: token) ?? "#FFFFFF") ?? .white)
-                                .frame(width: 20, height: 28)
-                                .overlay { RoundedRectangle(cornerRadius: 5).stroke(.secondary.opacity(0.3), lineWidth: 0.5) }
-                                .help(token.displayName)
-                                .accessibilityLabel(token.displayName)
-                        }
+        ScrollView {
+            LazyVGrid(columns: columns, alignment: .leading, spacing: 16) {
+                ForEach(library.themes) { savedTheme in
+                    ThemeLibraryItem(
+                        savedTheme: savedTheme,
+                        isSelected: document.site.themeSourceID == savedTheme.id,
+                        isModified: document.site.themeSourceID == savedTheme.id && savedTheme.theme.savedSettings != document.site.theme.savedSettings,
+                        createTheme: { isCreatingTheme = true },
+                        importTheme: importTheme
+                    ) {
+                        selectTheme(savedTheme)
+                    } reset: {
+                        resetTheme(savedTheme)
+                    } update: {
+                        themePendingUpdate = savedTheme
+                    } edit: {
+                        themePendingEdit = savedTheme
+                    } export: {
+                        exportTheme(savedTheme)
+                    } delete: {
+                        themePendingDeletion = savedTheme
                     }
                 }
+
             }
-            VStack(alignment: .leading, spacing: 16) {
-                Text("Saved themes").font(.headline)
-                if library.themes.isEmpty {
-                    ContentUnavailableView("No Saved Themes", systemImage: "theatermask.and.paintbrush",
-                        description: Text("Create a theme from this project, or import one to get started."))
-                } else {
-                    LazyVGrid(columns: columns, alignment: .leading, spacing: 24) {
-                        ForEach(library.themes) { savedTheme in
-                            ThemeLibraryItem(
-                                savedTheme: savedTheme,
-                                isSelected: selectedThemeID == savedTheme.id,
-                                isModified: selectedThemeID == savedTheme.id && savedTheme.theme != document.site.theme,
-                                createTheme: { isCreatingTheme = true },
-                                importTheme: importTheme
-                            ) {
-                                selectTheme(savedTheme)
-                            } reset: {
-                                resetTheme(savedTheme)
-                            } update: {
-                                themePendingUpdate = savedTheme
-                            } export: {
-                                exportTheme(savedTheme)
-                            } delete: {
-                                themePendingDeletion = savedTheme
-                            }
-                        }
-                    }
+            .padding(24)
+        }
+        .accessibilityIdentifier("theme-section-Themes")
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                Menu {
+                    ThemeActionCommands(
+                        savedTheme: activeTheme,
+                        canReset: activeTheme.map { $0.theme.savedSettings != document.site.theme.savedSettings } ?? false,
+                        createTheme: { isCreatingTheme = true },
+                        importTheme: importTheme,
+                        resetTheme: { if let theme = activeTheme { resetTheme(theme) } },
+                        updateTheme: { themePendingUpdate = $0 },
+                        editTheme: { themePendingEdit = $0 },
+                        exportTheme: exportTheme,
+                        deleteTheme: { themePendingDeletion = $0 }
+                    )
+                } label: {
+                    Label("Theme Actions", systemImage: "theatermask.and.paintbrush")
                 }
+                .menuIndicator(.hidden)
+                .help("Theme Actions")
             }
         }
         .navigationTitle("\(document.site.name) – Theme")
         .onAppear {
             library.reload()
-            selectedThemeID = document.site.themeSourceID
         }
-        .onChange(of: document.site.themeSourceID) { _, id in selectedThemeID = id }
         .sheet(isPresented: $isCreatingTheme) {
             ThemeCreationSheet { name, preview in
                 let savedTheme = try library.create(
                     name: name,
-                    from: document.site.theme,
-                    preview: preview,
-                    assetContents: document.assetContents
+                    preview: preview
                 )
                 ProjectEditor(document: document, undoManager: undoManager).commitTheme(
                     savedTheme.theme,
                     sourceID: savedTheme.id
                 )
-                selectedThemeID = savedTheme.id
+            }
+        }
+        .sheet(item: $themePendingEdit) { savedTheme in
+            ThemeCreationSheet(editing: savedTheme) { name, preview in
+                try library.edit(savedTheme, name: name, preview: preview)
             }
         }
         .confirmationDialog(
@@ -383,7 +377,7 @@ private struct ThemeLibraryBrowser: View {
                 themePendingUpdate = nil
             }
         } message: {
-            Text("Replace this theme’s saved settings with the current project theme? Its title and preview image will be kept.")
+            Text("Replace this theme’s saved settings with the current project theme? Its title will be kept.")
         }
         .confirmationDialog(
             "Delete \(themePendingDeletion?.metadata.name ?? "Theme")?",
@@ -397,7 +391,9 @@ private struct ThemeLibraryBrowser: View {
             }
             Button("Cancel", role: .cancel) { themePendingDeletion = nil }
         } message: {
-            Text("This removes the saved theme from your library. Projects already using it keep their current theme values.")
+            Text(themePendingDeletion?.id == document.site.themeSourceID
+                 ? "This removes the saved theme from your library and resets this project to System UI defaults. Project custom values are kept."
+                 : "This removes the saved theme from your library. This project’s active theme will not change.")
         }
         .alert("Theme Error", isPresented: errorBinding) {
             Button("OK", role: .cancel) {}
@@ -440,7 +436,6 @@ private struct ThemeLibraryBrowser: View {
                 updated.theme,
                 sourceID: updated.id
             )
-            selectedThemeID = updated.id
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -463,13 +458,12 @@ private struct ThemeLibraryBrowser: View {
     private func selectTheme(_ savedTheme: SavedTheme) {
         let theme = projectTheme(from: savedTheme)
         ProjectEditor(document: document, undoManager: undoManager).selectTheme(theme, sourceID: savedTheme.id)
-        selectedThemeID = savedTheme.id
     }
 
     private func resetTheme(_ savedTheme: SavedTheme) {
+        guard !savedTheme.isBuiltIn else { return }
         let theme = projectTheme(from: savedTheme)
         ProjectEditor(document: document, undoManager: undoManager).resetTheme(theme, sourceID: savedTheme.id)
-        selectedThemeID = savedTheme.id
     }
 
     private func projectTheme(from savedTheme: SavedTheme) -> Theme {
@@ -502,8 +496,10 @@ private struct ThemeLibraryBrowser: View {
     }
 
     private func deleteTheme(_ savedTheme: SavedTheme) {
+        guard !savedTheme.isBuiltIn else { return }
         do {
             try library.remove(savedTheme)
+            ProjectEditor(document: document, undoManager: undoManager).didDeleteTheme(sourceID: savedTheme.id)
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -520,83 +516,87 @@ private struct ThemeLibraryItem: View {
     let apply: () -> Void
     let reset: () -> Void
     let update: () -> Void
+    let edit: () -> Void
     let export: () -> Void
     let delete: () -> Void
 
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Button(action: apply) {
-                ThemeCardPreview(imageURL: savedTheme.previewURL, isSelected: isSelected, isModified: isModified)
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Apply \(savedTheme.metadata.name)")
-            .accessibilityValue(isSelected ? (isModified ? "Current theme, modified" : "Current theme") : "")
-            HStack {
-                Button(action: apply) {
-                    Text(savedTheme.metadata.name)
-                        .font(.headline)
-                        .lineLimit(2)
+        Button(action: apply) {
+            ThemeArtworkPreview(url: savedTheme.previewURL)
+                .id(savedTheme.metadata.modifiedAt)
+                .aspectRatio(CGFloat(ThemePreviewImage.pixelWidth) / CGFloat(ThemePreviewImage.pixelHeight), contentMode: .fit)
+                .frame(maxWidth: .infinity)
+                .clipShape(.rect(cornerRadius: 10))
+                .allowsHitTesting(false)
+                .overlay(alignment: .bottomLeading) {
+                    if isSelected && isModified {
+                        Text("Modified")
+                            .font(.caption)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(.regularMaterial, in: Capsule())
+                            .padding(10)
+                    }
                 }
-                .buttonStyle(.plain)
-                Spacer()
-                Menu {
-                    ThemeActionCommands(
-                        savedTheme: savedTheme,
-                        createTheme: createTheme,
-                        importTheme: importTheme,
-                        resetTheme: reset,
-                        updateTheme: { _ in update() },
-                        exportTheme: { _ in export() },
-                        deleteTheme: { _ in delete() }
-                    )
-                } label: {
-                    Image(systemName: "ellipsis.circle")
+                .overlay {
+                    RoundedRectangle(cornerRadius: 10)
+                        .strokeBorder(isSelected ? Color.accentColor : Color.secondary.opacity(0.15),
+                                      lineWidth: isSelected ? 3 : 0.5)
                 }
-                .menuStyle(.borderlessButton)
-                .menuIndicator(.hidden)
-                .help("Theme Actions")
-            }
-            if isSelected {
-                Label(isModified ? "Modified for this project" : "Current theme",
-                      systemImage: isModified ? "circle.lefthalf.filled" : "checkmark.circle.fill")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
+                .contentShape(.rect(cornerRadius: 10))
         }
-        .contextMenu {
-            ThemeActionCommands(
-                savedTheme: savedTheme,
-                createTheme: createTheme,
-                importTheme: importTheme,
-                resetTheme: reset,
-                updateTheme: { _ in update() },
-                exportTheme: { _ in export() },
-                deleteTheme: { _ in delete() }
-            )
-        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Apply \(savedTheme.metadata.name)")
+        .accessibilityValue(isSelected ? (isModified ? "Current theme, modified" : "Current theme") : "")
+        .contextMenu { actions }
+    }
+
+    private var actions: some View {
+        ThemeActionCommands(
+            savedTheme: savedTheme,
+            canReset: isSelected && isModified,
+            createTheme: createTheme,
+            importTheme: importTheme,
+            resetTheme: reset,
+            updateTheme: { _ in update() },
+            editTheme: { _ in edit() },
+            exportTheme: { _ in export() },
+            deleteTheme: { _ in delete() }
+        )
     }
 }
 
 private struct ThemeActionCommands: View {
     let savedTheme: SavedTheme?
+    let canReset: Bool
     let createTheme: () -> Void
     let importTheme: () -> Void
     let resetTheme: () -> Void
     let updateTheme: (SavedTheme) -> Void
+    let editTheme: (SavedTheme) -> Void
     let exportTheme: (SavedTheme) -> Void
     let deleteTheme: (SavedTheme) -> Void
+    var includesCreationActions = true
 
     var body: some View {
-        Button("Create New Theme", systemImage: "plus", action: createTheme)
-        Button("Import Theme", systemImage: "square.and.arrow.down", action: importTheme)
-        Divider()
-        Button("Reset Theme", systemImage: "arrow.counterclockwise", action: resetTheme)
-            .disabled(savedTheme == nil)
+        if includesCreationActions {
+            Button("Create New Theme", systemImage: "plus", action: createTheme)
+            Button("Import Theme", systemImage: "square.and.arrow.down", action: importTheme)
+            Divider()
+        }
+        if let savedTheme, !savedTheme.isBuiltIn {
+            Button("Reset Theme", systemImage: "arrow.counterclockwise", action: resetTheme)
+                .disabled(!canReset)
+        }
         Button("Export Theme", systemImage: "square.and.arrow.up") {
             if let savedTheme { exportTheme(savedTheme) }
         }
         .disabled(savedTheme == nil)
         if let savedTheme, !savedTheme.isBuiltIn {
+            Button("Edit Theme…", systemImage: "pencil") {
+                editTheme(savedTheme)
+            }
             Button("Update Theme", systemImage: "arrow.triangle.2.circlepath") {
                 updateTheme(savedTheme)
             }
@@ -608,46 +608,35 @@ private struct ThemeActionCommands: View {
     }
 }
 
-private struct ThemeCardPreview: View {
-    let imageURL: URL
-    let isSelected: Bool
-    let isModified: Bool
-
-    var body: some View {
-        Group {
-            if let image = NSImage(contentsOf: imageURL) {
-                Image(nsImage: image)
-                    .resizable()
-                    .scaledToFill()
-            } else {
-                Rectangle()
-                    .fill(.quaternary)
-                    .overlay { Image(systemName: "photo") }
-            }
-        }
-            .aspectRatio(0.625, contentMode: .fit)
-            .clipShape(.rect(cornerRadius: 10))
-            .overlay {
-                if isSelected {
-                    RoundedRectangle(cornerRadius: 10)
-                        .stroke(isModified ? Color.orange : Color.accentColor, lineWidth: 3)
-                }
-            }
-    }
-}
 
 private struct ThemeCreationSheet: View {
     @Environment(\.dismiss) private var dismiss
     let create: (String, ThemePreviewImage) throws -> Void
+    private let isEditing: Bool
     @State private var name = ""
     @State private var preview: ThemePreviewImage?
     @State private var previewImage: NSImage?
     @State private var errorMessage: String?
     @State private var isPreviewDropTargeted = false
 
+    init(editing savedTheme: SavedTheme? = nil, create: @escaping (String, ThemePreviewImage) throws -> Void) {
+        self.create = create
+        isEditing = savedTheme != nil
+        _name = State(initialValue: savedTheme?.metadata.name ?? "")
+        if let savedTheme {
+            do {
+                let artwork = try ThemeBundleStore.preview(from: savedTheme.previewURL)
+                _preview = State(initialValue: artwork)
+                _previewImage = State(initialValue: NSImage(data: artwork.data))
+            } catch {
+                _errorMessage = State(initialValue: error.localizedDescription)
+            }
+        }
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
-            Text("Create New Theme")
+            Text(isEditing ? "Edit Theme" : "Create New Theme")
                 .font(.title2.bold())
 
             VStack(alignment: .leading, spacing: 8) {
@@ -680,7 +669,7 @@ private struct ThemeCreationSheet: View {
                                     .font(.system(size: 30))
                                 Text("Drop a Preview Image Here")
                                     .font(.headline)
-                                Text("or click to choose · PNG, JPEG, or WebP · exactly 1000 × 1600 px")
+                                Text("or click to choose · PNG, JPEG, or WebP · recommended \(ThemePreviewImage.pixelWidth) × \(ThemePreviewImage.pixelHeight) px (2:1)")
                                     .foregroundStyle(.secondary)
                             }
                             .multilineTextAlignment(.center)
@@ -688,7 +677,7 @@ private struct ThemeCreationSheet: View {
                         }
                     }
                     .frame(maxWidth: .infinity)
-                    .frame(height: 300)
+                    .frame(height: 220)
                     .contentShape(.rect)
                 }
                 .buttonStyle(.plain)
@@ -704,13 +693,13 @@ private struct ThemeCreationSheet: View {
             HStack {
                 Button("Cancel", role: .cancel) { dismiss() }
                 Spacer()
-                Button("Create Theme") { createTheme() }
+                Button(isEditing ? "Save Changes" : "Create Theme") { createTheme() }
                     .buttonStyle(.borderedProminent)
                     .disabled(!canCreate)
             }
         }
         .padding(24)
-        .frame(width: 560)
+        .frame(width: 460)
         .controlSize(.regular)
     }
 

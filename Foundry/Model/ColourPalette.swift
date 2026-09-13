@@ -9,7 +9,8 @@ nonisolated struct ColourPalette: Codable, Equatable, Identifiable, Sendable {
     var name: String
     let origin: Origin
     private(set) var shades: [String]
-    private(set) var defaultShade: ColourShade
+    private(set) var lightDefaultShade: ColourShade
+    private(set) var darkDefaultShade: ColourShade
     var generation: Generation?
     var single = false
 
@@ -27,26 +28,31 @@ nonisolated struct ColourPalette: Codable, Equatable, Identifiable, Sendable {
     enum ValidationError: Error { case invalidShadeCount }
 
     init(id: String, name: String, origin: Origin, shades: [String],
-         defaultShade: ColourShade, generation: Generation? = nil) throws {
+         lightDefaultShade: ColourShade, darkDefaultShade: ColourShade? = nil, generation: Generation? = nil) throws {
         guard shades.count == 11 else { throw ValidationError.invalidShadeCount }
         self.id = id
         self.name = name
         self.origin = origin
         self.shades = shades
-        self.defaultShade = defaultShade
+        self.lightDefaultShade = lightDefaultShade
+        self.darkDefaultShade = darkDefaultShade ?? ColourShade(rawValue: 12 - lightDefaultShade.rawValue)!
         self.generation = generation
     }
 
     func colour(at selection: ColourShadeSelection) -> String {
         let shade: ColourShade
         switch selection {
-        case .default: shade = defaultShade
+        case .default: shade = lightDefaultShade
         case .shade(let value): shade = value
         }
         return shades[shade.rawValue - 1]
     }
 
-    mutating func setDefault(_ shade: ColourShade) { defaultShade = shade }
+    mutating func setLightDefault(_ shade: ColourShade) { lightDefaultShade = shade }
+    mutating func setDarkDefault(_ shade: ColourShade) { darkDefaultShade = shade }
+    func defaultShade(for appearance: SiteAppearance) -> ColourShade {
+        appearance == .light ? lightDefaultShade : darkDefaultShade
+    }
 
     mutating func replaceShades(_ values: [String]) throws {
         guard values.count == 11 else { throw ValidationError.invalidShadeCount }
@@ -55,13 +61,13 @@ nonisolated struct ColourPalette: Codable, Equatable, Identifiable, Sendable {
 
     func duplicated() throws -> Self {
         // Preserve resolved shades and settings exactly, but create a new identity.
-        var copy = try Self(id: "custom.\(UUID().uuidString.lowercased())", name: origin == .custom ? name + " Copy" : name,
-                         origin: .custom, shades: shades, defaultShade: defaultShade, generation: generation)
+        var copy = try Self(id: "custom.\(UUID().uuidString.lowercased())", name: name + " Copy",
+                         origin: .custom, shades: shades, lightDefaultShade: lightDefaultShade, darkDefaultShade: darkDefaultShade, generation: generation)
         copy.single = single
         return copy
     }
 
-    private enum CodingKeys: String, CodingKey { case id, name, origin, shades, defaultShade, generation, single }
+    private enum CodingKeys: String, CodingKey { case id, name, origin, shades, lightDefaultShade, darkDefaultShade, generation, single }
 
     init(from decoder: Decoder) throws {
         let values = try decoder.container(keyedBy: CodingKeys.self)
@@ -74,7 +80,8 @@ nonisolated struct ColourPalette: Codable, Equatable, Identifiable, Sendable {
                           name: try values.decode(String.self, forKey: .name),
                           origin: try values.decode(Origin.self, forKey: .origin),
                           shades: shades,
-                          defaultShade: try values.decode(ColourShade.self, forKey: .defaultShade),
+                          lightDefaultShade: try values.decode(ColourShade.self, forKey: .lightDefaultShade),
+                          darkDefaultShade: try values.decode(ColourShade.self, forKey: .darkDefaultShade),
                           generation: try values.decodeIfPresent(Generation.self, forKey: .generation))
         single = try values.decodeIfPresent(Bool.self, forKey: .single) ?? false
     }
@@ -107,11 +114,8 @@ nonisolated enum PaletteColourValue: Codable, Equatable, Sendable {
 }
 
 nonisolated extension Array where Element == ColourPalette {
-    /// Exact-name custom overrides leave the original palette and its stable ID intact.
-    /// Custom palettes are newest-first, so the first matching override takes priority.
+    /// Palette identity is explicit; matching display names never override a palette.
     func resolvedPalette(id: String) -> ColourPalette? {
-        guard let original = first(where: { $0.id == id }) else { return nil }
-        guard original.origin != .custom else { return original }
-        return first { $0.origin == .custom && $0.name == original.name } ?? original
+        first { $0.id == id }
     }
 }

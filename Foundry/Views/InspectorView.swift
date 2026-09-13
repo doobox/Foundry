@@ -366,6 +366,34 @@ private struct AssetLibraryNodeInspector: View {
                 LabeledContent("Library Path", value: libraryPath(to: asset.id))
                 LabeledContent("Managed Path", value: "/\(library.managedExportPath(for: asset))")
             }
+            if asset.mediaType.hasPrefix("font/") || ["ttf", "otf", "woff", "woff2", "ttc"].contains((asset.filename as NSString).pathExtension.lowercased()) {
+                Section("Font") {
+                    if let content = contents[asset.id], let metadata = FontFileMetadata.read(content) {
+                        LabeledContent("Family", value: metadata.family)
+                        LabeledContent("Face", value: metadata.face)
+                        LabeledContent("Weight", value: metadata.weight == metadata.maximumWeight
+                            ? String(metadata.weight)
+                            : "\(metadata.weight)–\(metadata.maximumWeight)")
+                        LabeledContent("Style", value: metadata.italic ? "Italic" : "Normal")
+                    } else {
+                        Text("Font metadata is unavailable for this file.")
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .textSelection(.enabled)
+                if let content = contents[asset.id], let metadata = FontFileMetadata.read(content) {
+                    Section("Preview") {
+                        GoogleFontSpecimenView(
+                            family: metadata.family,
+                            stylesheetURL: nil,
+                            fontContent: content
+                        )
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 240)
+                        .id(asset.id)
+                    }
+                }
+            }
         case .folder(let folder):
             Section("Asset Folder") {
                 TextField(
@@ -515,6 +543,7 @@ private struct PageFolderInspector: View {
 }
 
 private struct PageInspector: View {
+    @Environment(\.canvasAppearance) private var appearance
     let page: Page
     let pages: [Page]
     let folders: [PageFolder]
@@ -551,6 +580,19 @@ private struct PageInspector: View {
                 .foregroundStyle(.secondary)
         }
 
+        Section("Appearance") {
+            Grid(horizontalSpacing: 8) {
+                ThemeColorComponentControl(
+                    label: "Background", choices: theme.colorChoices, allowsCustom: true, theme: theme,
+                    source: backgroundSource, shade: backgroundShade, customColor: backgroundCustomColour,
+                    allowsOpacity: false,
+                    indicator: .init(isVisible: false, isOverridden: false, breakpointName: "", toggle: {}),
+                    resetToTheme: { editor.setPageBackground(id: page.id, value: nil) },
+                    canResetToTheme: page.backgroundOverride != nil)
+            }
+            .controlSize(.small)
+        }
+
         Section("Search") {
             metadataField("Browser Title", keyPath: \.browserTitle)
             TextField(
@@ -575,6 +617,38 @@ private struct PageInspector: View {
 
     private var exportPath: String {
         PageRouteResolver.path(for: page, pages: pages, folders: folders)
+    }
+
+    private var theme: Theme { editor.document.site.theme }
+    private var background: ComponentPackageColorValue { page.backgroundSelection(theme: theme) }
+
+    private var backgroundSource: Binding<String> {
+        Binding(get: { background.source }, set: { source in
+            var value = background
+            value.source = source
+            if let palette = theme.colourPalettes.resolvedPalette(id: value.paletteID) {
+                value.shade = palette.lightDefaultShade
+                value.darkShade = palette.darkDefaultShade
+            }
+            editor.setPageBackground(id: page.id, value: value)
+        })
+    }
+
+    private var backgroundShade: Binding<ColourShade> {
+        Binding(get: { appearance == .light ? background.shade : background.darkShade }, set: { shade in
+            var value = background
+            if appearance == .light { value.shade = shade } else { value.darkShade = shade }
+            editor.setPageBackground(id: page.id, value: value)
+        })
+    }
+
+    private var backgroundCustomColour: Binding<Color> {
+        Binding(get: { Color(hex: appearance == .light ? background.customColor : background.darkCustomColor) ?? .black }, set: { colour in
+            guard let hex = colour.hexString else { return }
+            var value = background
+            if appearance == .light { value.customColor = hex } else { value.darkCustomColor = hex }
+            editor.setPageBackground(id: page.id, value: value)
+        })
     }
 
     private var exportFilePath: String {
@@ -1057,6 +1131,7 @@ private struct ComponentAttributePopover: View {
     @Environment(\.dismiss) private var dismiss
     @State private var name: String
     @State private var value: String
+    @State private var isExpanded = false
 
     let attributeID: UUID
     let existingAttributes: [ComponentHTMLAttribute]
@@ -1076,16 +1151,39 @@ private struct ComponentAttributePopover: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
+            HStack {
+                Text("Attribute").font(.headline)
+                Spacer()
+                Button {
+                    isExpanded.toggle()
+                } label: {
+                    Image(systemName: isExpanded ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right")
+                        .frame(width: 24, height: 24)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .help(isExpanded ? "Collapse value editor" : "Expand value editor")
+                .accessibilityLabel(isExpanded ? "Collapse value editor" : "Expand value editor")
+            }
             Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 14) {
                 GridRow {
                     Text("Name")
                     TextField("Name", text: $name)
-                        .frame(width: 190)
+                        .frame(width: isExpanded ? 430 : 190)
                 }
                 GridRow {
-                    Text("Value")
-                    TextField("Value", text: $value)
-                        .frame(width: 190)
+                    Text("Value").gridCellAnchor(.topLeading)
+                    if isExpanded {
+                        AttributeValueEditor(text: $value)
+                            .frame(width: 430, height: 220)
+                            .overlay {
+                                Rectangle().strokeBorder(Color(nsColor: .separatorColor), lineWidth: 0.5)
+                                    .allowsHitTesting(false)
+                            }
+                    } else {
+                        TextField("Value", text: $value)
+                            .frame(width: 190)
+                    }
                 }
             }
 
@@ -1099,10 +1197,12 @@ private struct ComponentAttributePopover: View {
                     save(ComponentHTMLAttribute(id: attributeID, name: trimmedName, value: value))
                     dismiss()
                 }
-                .keyboardShortcut(.defaultAction)
+                .keyboardShortcut(.return, modifiers: isExpanded ? .command : [])
                 .disabled(!canSave)
             }
         }
+        // Do not accept the popover's previous expanded width via the header Spacer.
+        .fixedSize(horizontal: true, vertical: true)
         .padding(20)
     }
 
@@ -1140,7 +1240,7 @@ private struct ComponentInspectorGroup: View {
     var body: some View {
         DisclosureGroup(isExpanded: $isExpanded) {
             VStack(spacing: InspectorMetrics.controlSpacing) {
-                ForEach(properties) { definition in
+                ForEach(ComponentInspectorControlGroup.groups(for: properties)) { controlGroup in
                     InspectorGrid(
                         contentInsets: EdgeInsets(
                             top: 0,
@@ -1149,7 +1249,9 @@ private struct ComponentInspectorGroup: View {
                             trailing: InspectorMetrics.horizontalSectionPadding
                         )
                     ) {
-                        propertyEditor(for: definition)
+                        ForEach(controlGroup.properties) { definition in
+                            propertyEditor(for: definition)
+                        }
                     }
                 }
                 if let pageID = currentPage?.id {

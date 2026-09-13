@@ -6,6 +6,8 @@ struct DockingWorkspaceView<PanelContent: View>: View {
     @Binding var canvasEditorOptions: CanvasEditorOptions
     @Binding var canvasViewportWidth: Double
     let canvasScreens: ScreenTokens
+    @Binding var canvasAppearance: SiteAppearance
+    let appearanceMode: SiteAppearanceMode
     let openProjectSettings: () -> Void
     let openThemeEditor: () -> Void
     let previewSite: () -> Void
@@ -86,6 +88,8 @@ struct DockingWorkspaceView<PanelContent: View>: View {
                     editorOptions: $canvasEditorOptions,
                     viewportWidth: $canvasViewportWidth,
                     screens: canvasScreens,
+                    appearance: $canvasAppearance,
+                    appearanceMode: appearanceMode,
                     openThemeEditor: openThemeEditor,
                     dockBeside: dockBeside,
                     content: { panelContent(.canvas) }
@@ -2012,6 +2016,8 @@ private struct FixedCanvasColumn<Content: View>: View {
     @Binding var editorOptions: CanvasEditorOptions
     @Binding var viewportWidth: Double
     let screens: ScreenTokens
+    @Binding var appearance: SiteAppearance
+    let appearanceMode: SiteAppearanceMode
     let openThemeEditor: () -> Void
     let dockBeside: (WorkspacePanel, UUID, Bool) -> Void
     @ViewBuilder let content: () -> Content
@@ -2047,6 +2053,21 @@ private struct FixedCanvasColumn<Content: View>: View {
                         .foregroundStyle(isSelected(screen) ? Color.accentColor : .secondary)
                         .accessibilityLabel(screen.id.shortTitle)
                         .help("\(screen.id.shortTitle) · \(Int(screens.canvasWidth(for: screen))) px")
+                    }
+                    Divider().frame(height: 18)
+                    ForEach(SiteAppearance.allCases, id: \.self) { mode in
+                        Button { appearance = mode } label: {
+                            Image(systemName: mode.symbol)
+                                .font(.system(size: 15, weight: .medium))
+                                .frame(width: 22, height: 22)
+                                .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .foregroundStyle((appearanceMode == .both ? appearance == mode : appearanceMode.rawValue == mode.rawValue) ? Color.accentColor : .secondary)
+                        .disabled(!appearanceMode.permits(mode))
+                        .help("Preview \(mode.rawValue) appearance")
+                        .accessibilityLabel("\(mode.rawValue.capitalized) appearance")
+                        .controlSize(.small)
                     }
                 }
             }

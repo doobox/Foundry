@@ -11,11 +11,7 @@ struct ThemeBreakpointSettings: View {
                     .font(.title3.weight(.semibold))
                     .accessibilityAddTraits(.isHeader)
 
-                ViewThatFits(in: .horizontal) {
-                    breakpointList(compact: false)
-                        .frame(minWidth: 600)
-                    breakpointList(compact: true)
-                }
+                breakpointList
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(28)
@@ -25,7 +21,7 @@ struct ThemeBreakpointSettings: View {
         .accessibilityIdentifier("theme-section-Breakpoints")
     }
 
-    private func breakpointList(compact: Bool) -> some View {
+    private var breakpointList: some View {
         VStack(spacing: 0) {
             HStack(spacing: 12) {
                 Text("Breakpoint")
@@ -33,11 +29,9 @@ struct ThemeBreakpointSettings: View {
                 Text("Starts at")
                     .frame(width: ThemeBreakpointColumns.minimumWidth, alignment: .leading)
                     .help("The minimum viewport width where a breakpoint’s settings begin to apply.")
-                if !compact {
-                    Text("Container max width")
-                        .frame(width: ThemeBreakpointColumns.container, alignment: .leading)
-                        .help("Limits the width of components that use Foundry’s theme container sizing. It does not limit the whole page.")
-                }
+                Text("Container max width")
+                    .frame(width: ThemeBreakpointColumns.container, alignment: .leading)
+                    .help("Limits the width of components that use Foundry’s theme container sizing. It does not limit the whole page.")
                 Spacer(minLength: 12)
                 Text("Enabled")
                     .frame(width: ThemeBreakpointColumns.toggle)
@@ -52,8 +46,7 @@ struct ThemeBreakpointSettings: View {
                 ThemeBreakpointRow(
                     screen: screens.screen(id),
                     mobileRange: mobileRange,
-                    editor: editor,
-                    compact: compact
+                    editor: editor
                 )
                 Divider()
             }
@@ -79,38 +72,16 @@ private struct ThemeBreakpointRow: View {
     let screen: ThemeScreen
     let mobileRange: String
     let editor: ProjectEditor
-    let compact: Bool
 
     var body: some View {
-        Group {
-            if compact {
-                VStack(alignment: .leading, spacing: 12) {
-                    HStack(spacing: 12) {
-                        identity
-                        minimumWidth.frame(width: ThemeBreakpointColumns.minimumWidth, alignment: .leading)
-                        Spacer(minLength: 12)
-                        enabled
-                    }
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text("Container max width")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                        containerControls
-                    }
-                    .padding(.leading, ThemeBreakpointColumns.identity + 12)
-                }
-                .padding(.vertical, 16)
-            } else {
-                HStack(spacing: 12) {
-                    identity
-                    minimumWidth.frame(width: ThemeBreakpointColumns.minimumWidth, alignment: .leading)
-                    containerControls
-                    Spacer(minLength: 12)
-                    enabled
-                }
-                .frame(minHeight: 62)
-            }
+        HStack(spacing: 12) {
+            identity
+            minimumWidth.frame(width: ThemeBreakpointColumns.minimumWidth, alignment: .leading)
+            containerControls
+            Spacer(minLength: 12)
+            enabled
         }
+        .frame(minHeight: 62)
         .accessibilityElement(children: .contain)
     }
 

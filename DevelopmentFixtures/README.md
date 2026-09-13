@@ -1,12 +1,14 @@
 # Development fixtures
 
+`AppearanceToggle.foundrydevpack` provides Light, Dark and System buttons using `window.foundryAppearance.set(...)`. Enable **Light and Dark** in Site Settings and test in browser Preview or exported output. The canvas and single-appearance sites disable the buttons. Its own card changes colour too, so the effect is visible even on an otherwise empty page. It has no getter or selection indicator and does not access the API's private storage.
+
 `BrokenComponent.foundrydevpack` is intentionally invalid. Open it with a development build of Foundry to exercise the Developer panel. It must fail validation because its identifier is not lowercase reverse-DNS and its declared HTML template does not exist.
 
 The fixture lives outside the app's synchronized `Foundry` source group, so it is not copied into shipping builds.
 
 `EnableConditions.foundrydevpack` is a valid development component demonstrating the shared `enable` API with equality, numeric comparison, empty-value checks, and a zero-based indexed multi-control reference. A working copy may also be installed in `~/Library/Application Support/Foundry/Packs` for interactive testing.
 
-`ThemeValues.foundrydevpack` demonstrates ordinary select controls requesting the named `colors`, `fontFamilies`, `fontSizes`, and `spacing` theme sources, including a two-value select array. It is also installed in the app-support Packs directory for interactive testing.
+`ThemeValues.foundrydevpack` exercises dedicated theme colour controls. Removed theme Select controls have no replacement styling. Ordinary Select controls contain only explicitly declared options.
 
 `ExpressionEngine.foundrydevpack` is an interactive showcase for inline arithmetic, operator precedence, numeric functions, comparisons, `&&`, `||`, `!`, indexed control values, `if`/`elseif`/`else`, and the mutually exclusive `canvas`, `preview`, and `published` environment values.
 

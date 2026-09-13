@@ -168,13 +168,15 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
         \(customHeadCode)
           <meta charset="utf-8">
           <meta name="viewport" content="width=device-width, initial-scale=1">
+          <meta name="color-scheme" content="\(site.appearanceMode.cssColorScheme)">
           <title>\(escape(browserTitle))</title>
         \(metadata)
+        \(site.appearanceMode.bootstrap(siteID: site.id))
         \(stylesheetPaths.map { "  <link rel=\"stylesheet\" href=\"\($0)\">" }.joined(separator: "\n"))
         \(analyticsCode)
         \(headEnd)
         </head>
-        <body>
+        <body\(page.backgroundOverride == nil ? "" : " style=\"background-color: " + escapeAttribute(site.appearanceMode.colour(light: page.backgroundColour(theme: theme, appearance: .light), dark: page.backgroundColour(theme: theme, appearance: .dark))) + "\"")>
         \(customBodyStartCode)\(bodyStart)\(body)\(bodyEnd)\(scripts)\(customBodyEndCode)
         </body>
         </html>
@@ -479,6 +481,9 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
 
     private func stylesheet(for site: Site, assets: [UUID: ProjectAssetContent]) -> String {
         let theme = site.theme
+        func colour(_ role: ThemeColorRole) -> String {
+            site.appearanceMode.colour(light: theme.color(for: role), dark: theme.color(for: role, appearance: .dark))
+        }
         let sitePackages = ComponentArtifactPlan.sitePackages(in: site)
         return """
         \(theme.fontSourceCSS(
@@ -486,8 +491,8 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
             destination: .export,
             exportedSource: { "../" + site.publishedPath(for: $0) }
         ))
-        :root{font-size:16px;--foundry-color-background:\(theme.colors.background);--foundry-color-surface:\(theme.colors.surface);--foundry-color-text:\(theme.colors.text);--foundry-color-accent:\(theme.colors.accent);--foundry-color-links:\(theme.colors.links);--foundry-font-body:\(theme.typography.bodyFont.cssFamily);--foundry-font-heading:\(theme.typography.headingFont.cssFamily);--foundry-font-monospace:\(theme.typography.monospacedFont.cssFamily);\(theme.customFontCSSVariables)\(theme.fontSizeCSSVariables)\(theme.spacingCSSVariables)\(theme.shadowCSSVariables)\(theme.borderCSSVariables)}
-        :root{--foundry-color-page:\(theme.color(for: .page));--foundry-color-muted-text:\(theme.color(for: .mutedText))}
+        :root{font-size:16px;color-scheme:\(site.appearanceMode.cssColorScheme);--foundry-color-background:\(colour(.background));--foundry-color-surface:\(colour(.surface));--foundry-color-text:\(colour(.text));--foundry-color-accent:\(colour(.accent));--foundry-color-links:\(colour(.links));--foundry-font-body:\(theme.typography.bodyFont.cssFamily);--foundry-font-heading:\(theme.typography.headingFont.cssFamily);--foundry-font-monospace:\(theme.typography.monospacedFont.cssFamily);\(theme.customFontCSSVariables)\(theme.fontSizeCSSVariables)\(theme.spacingCSSVariables)\(theme.shadowCSSVariables)\(theme.borderCSSVariables)}
+        :root{--foundry-color-page:\(colour(.page));--foundry-color-muted-text:\(colour(.mutedText))}
         \(theme.screens.containerCSS)
         *,*::before,*::after{box-sizing:border-box}
         html,body{min-height:100%}
@@ -783,25 +788,8 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
     ) -> [String: ComponentPackageValue] {
         var values: [String: ComponentPackageValue] = Dictionary(uniqueKeysWithValues: node.type.definition.properties.map { definition in
             let value = node.propertyValue(definition.key)
-            if let source = definition.themeValueSource,
-               case .choice(let reference) = value,
-               let resolved = ComponentPackageThemeValueResolver.resolve(reference, from: source, theme: theme) {
-                return (definition.key.rawValue, .string(resolved))
-            }
-            if let source = definition.themeValueSource,
-               case .array(let items) = value {
-                return (definition.key.rawValue, .array(items.map { item in
-                    let reference: String
-                    switch item {
-                    case .choice(let value), .string(let value): reference = value
-                    default: return packageValue(item)
-                    }
-                    guard
-                          let resolved = ComponentPackageThemeValueResolver.resolve(reference, from: source, theme: theme) else {
-                        return packageValue(item)
-                    }
-                    return .string(resolved)
-                }))
+            if case .themeFont = definition.control {
+                return (definition.key.rawValue, ComponentPackageFontControl.resolved(definition.key.rawValue, node: node, theme: theme))
             }
             if case .image = definition.control {
                 return (
@@ -812,24 +800,18 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
             if case .color = definition.control {
                 return (definition.key.rawValue, .string(node.colorProperty(definition.key, theme: theme)))
             }
-            if case .packageColor(_, let opacity, _) = definition.control,
+            if case .packageColor(_, let opacity, _, _) = definition.control,
                case .packageColor(let colorValue) = value {
                 return (
                     definition.key.rawValue,
-                    .string(ComponentPackageColorResolver.resolve(
-                        colorValue, theme: theme,
-                        opacity: opacity
+                    .string(site.appearanceMode.colour(
+                        light: ComponentPackageColorResolver.resolve(colorValue, theme: theme, opacity: opacity),
+                        dark: ComponentPackageColorResolver.resolve(colorValue, theme: theme, opacity: opacity, appearance: .dark)
                     ))
                 )
             }
             if case .themeFontSize = definition.control {
                 return (definition.key.rawValue, .string(theme.fontSizeCSSVariable(for: node.property(definition.key))))
-            }
-            if case .packageFontSize(let themeValues) = definition.control,
-               case .packageFontSize(let fontSizeValue) = value {
-                let resolved = !themeValues || ComponentThemeValueSelection.isManualCustom(fontSizeValue.source)
-                    ? fontSizeValue.customValue : theme.fontSizeCSSVariable(for: fontSizeValue.source)
-                return (definition.key.rawValue, .string(resolved))
             }
             if case .packageShadow = definition.control,
                case .packageShadow(let shadowValue) = value {
@@ -844,15 +826,10 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
             return (definition.key.rawValue, packageValue(value))
         })
         for definition in node.type.definition.properties {
-            guard case .packageFontSize(let usesThemeValues) = definition.control,
-                  case .packageFontSize(let fontSizeValue) = node.propertyValue(definition.key) else { continue }
-            values[definition.key.rawValue + ".lineHeight"] = .string(
-                ComponentPackageThemeValueResolver.resolveFontSizeLineHeight(
-                    fontSizeValue,
-                    usesThemeValues: usesThemeValues,
-                    theme: theme
-                )
-            )
+            if case .themeFont = definition.control,
+               case .object(let fields) = values[definition.key.rawValue] {
+                for (field, value) in fields { values[definition.key.rawValue + "." + field] = value }
+            }
         }
         if let package = node.type.definition.package {
             for property in package.manifest.properties where property.control.type == .image {

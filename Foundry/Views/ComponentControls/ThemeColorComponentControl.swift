@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct ThemeColorComponentControl: View {
+    @Environment(\.canvasAppearance) private var appearance
     let label: String
     let choices: [ComponentPropertyChoice]
     let allowsCustom: Bool
@@ -10,6 +11,8 @@ struct ThemeColorComponentControl: View {
     @Binding var customColor: Color
     let allowsOpacity: Bool
     let indicator: InspectorRowIndicator
+    var resetToTheme: (() -> Void)? = nil
+    var canResetToTheme = false
     @State private var showsPalettes = false
 
     private var paletteID: String {
@@ -28,7 +31,7 @@ struct ThemeColorComponentControl: View {
                 HStack(spacing: 6) {
                     if let palette {
                         HStack(spacing: 0) {
-                            ForEach(palette.single ? [palette.defaultShade] : ColourShade.allCases, id: \.self) { step in
+                            ForEach(palette.single ? [palette.lightDefaultShade] : ColourShade.allCases, id: \.self) { step in
                                 Button {
                                     guard !palette.single else { return }
                                     shade = step
@@ -57,13 +60,15 @@ struct ThemeColorComponentControl: View {
                                 .allowsHitTesting(false)
                         }
                         .accessibilityLabel("\(label) shades")
-                        Button { shade = palette.defaultShade } label: {
-                            Image(systemName: palette.single || shade == palette.defaultShade ? "star.fill" : "star")
+                        Button { shade = palette.defaultShade(for: appearance) } label: {
+                            Image(systemName: palette.single || shade == palette.defaultShade(for: appearance) ? "star.fill" : "star")
+                                .frame(width: 22, height: 24)
+                                .contentShape(Rectangle())
                         }
                         .buttonStyle(.borderless)
                         .help("Select \(palette.name)’s current default shade")
                         .accessibilityLabel("Select default shade")
-                        .accessibilityValue(palette.single || shade == palette.defaultShade ? "Selected" : "Not selected")
+                        .accessibilityValue(palette.single || shade == palette.defaultShade(for: appearance) ? "Selected" : "Not selected")
                     } else {
                         Button(ComponentThemeValueSelection.isManualCustom(source) ? "Custom Colour" : "Missing Colour") {
                             showsPalettes = true
@@ -71,8 +76,21 @@ struct ThemeColorComponentControl: View {
                         .buttonStyle(.borderless)
                         Spacer(minLength: 0)
                     }
+                    if let resetToTheme {
+                        Button(action: resetToTheme) {
+                            Image(systemName: "arrow.counterclockwise")
+                                .frame(width: 22, height: 24)
+                                .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.borderless)
+                        .disabled(!canResetToTheme)
+                        .help("Reset to theme Page defaults")
+                        .accessibilityLabel("Reset to theme Page defaults")
+                    }
                     Button { showsPalettes.toggle() } label: {
                         Image(systemName: "chevron.down")
+                            .frame(width: 22, height: 24)
+                            .contentShape(Rectangle())
                     }
                     .buttonStyle(.borderless)
                     .help(palette.map { "Choose colour · \($0.name)" } ?? "Choose colour")
@@ -104,6 +122,7 @@ private struct InspectorPaletteSwatchStyle: ButtonStyle {
 }
 
 private struct InspectorPaletteMenu: View {
+    @Environment(\.canvasAppearance) private var appearance
     let palettes: [ColourPalette]
     let selectedID: String
     let allowsCustom: Bool
@@ -112,6 +131,11 @@ private struct InspectorPaletteMenu: View {
 
     private var filtered: [ColourPalette] {
         palettes.filter { search.isEmpty || $0.name.localizedCaseInsensitiveContains(search) }
+    }
+
+    private func menuColour(_ palette: ColourPalette) -> String {
+        let resolved = palettes.resolvedPalette(id: palette.id) ?? palette
+        return resolved.colour(at: .shade(resolved.defaultShade(for: appearance)))
     }
 
     var body: some View {
@@ -132,7 +156,7 @@ private struct InspectorPaletteMenu: View {
                                 Button { select(palette.id) } label: {
                                     HStack(spacing: 8) {
                                         RoundedRectangle(cornerRadius: 4)
-                                            .fill(Color(hex: (palettes.resolvedPalette(id: palette.id) ?? palette).colour(at: .default)) ?? .clear)
+                                            .fill(Color(hex: menuColour(palette)) ?? .clear)
                                             .overlay { RoundedRectangle(cornerRadius: 4).strokeBorder(.secondary.opacity(0.3)) }
                                             .frame(width: 20, height: 20)
                                         Text(palette.name).lineLimit(1)

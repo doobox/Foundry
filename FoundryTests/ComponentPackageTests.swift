@@ -4,43 +4,201 @@ import Testing
 @testable import Foundry
 
 struct ComponentPackageTests {
+    @Test func generatedFontRowsShareOneInspectorGrid() throws {
+        let item = """
+        <dict><key>type</key><string>themeFont</string><key>id</key><string>font</string>
+        <key>default</key><string>body</string><key>showsWeight</key><true/><key>showsStyle</key><true/></dict>
+        """
+        let decoded = try PropertyListDecoder().decode(ComponentPackageManifest.self, from: Data(manifest(withControls: item).utf8))
+        let property = try #require(decoded.properties.first)
+        let rows = ComponentPackageFontControl.properties(property)
+        let separate = ComponentPropertyDefinition(key: .init(rawValue: "other"), label: "Other",
+            section: rows[0].section, control: .singleLineText, defaultValue: .string(""))
+        let groups = ComponentInspectorControlGroup.groups(for: [separate] + rows + [separate])
+        #expect(groups.map { $0.properties.count } == [1, 3, 1])
+        #expect(groups[1].properties.map(\.key.rawValue) == ["font", "font.weight", "font.style"])
+        let hiddenFamilyGroups = ComponentInspectorControlGroup.groups(for: Array(rows.dropFirst()))
+        #expect(hiddenFamilyGroups.count == 1)
+        #expect(hiddenFamilyGroups.first?.properties.count == 2)
+    }
+
+    @Test @MainActor func selectUsesOnlyDeclaredOptions() throws {
+        let item = """
+        <dict><key>type</key><string>select</string><key>id</key><string>choice</string>
+        <key>options</key><array><dict><key>value</key><string>body</string><key>title</key><string>Body</string></dict></array>
+        <key>default</key><string>body</string></dict>
+        """
+        let url = try makePackage(manifest: manifest(withControls: item),
+            template: "<section {{ component.attributes }} data-choice=\"{{ control.choice }}\">{{ childArea(\"content\") }}</section>")
+        defer { try? FileManager.default.removeItem(at: url) }
+        let package = try ComponentPackageLoader.load(from: url)
+        ComponentRegistry.register(package)
+        defer { ComponentRegistry.unregisterPackage(identifier: package.manifest.identifier) }
+        let definition = try #require(ComponentPackageAdapter.definition(from: package).properties.first)
+        #expect(definition.themeValueSource == nil)
+        guard case .choice(let choices) = definition.control else { Issue.record("Expected ordinary Select"); return }
+        #expect(choices.map(\.value) == ["body"])
+        let node = ComponentNode(type: ComponentType(rawValue: package.manifest.identifier))
+        let site = Site(name: "Select", pages: [Page(title: "Home", slug: "index", components: [node])])
+        #expect(HTMLPageRenderer(site: site).render(page: site.pages[0], theme: site.theme).contains("data-choice=\"body\""))
+        #expect(try #require(StaticSiteRenderer().render(site: site).file(at: "index.html")?.contents).contains("data-choice=\"body\""))
+
+        for extra in ["<key>allowsCustom</key><false/>", "<key>allowsCustom</key><true/>"] +
+            ["fontFamilies", "fontSizes", "spacing", "shadows", "colors"].map({ "<key>themeValues</key><string>\($0)</string>" }) {
+            let invalid = item.replacingOccurrences(of: "<key>type</key>", with: extra + "<key>type</key>")
+            #expect(try ComponentPackageManifestSchema.diagnostics(for: Data(manifest(withControls: invalid).utf8))
+                .contains { $0.message.contains("Select supports only declared options") })
+        }
+    }
+
+    @Test @MainActor func unifiedFontControlHasStructuredOutputAndIndependentOverrides() throws {
+        let item = """
+        <dict><key>type</key><string>themeFont</string><key>id</key><string>typography</string>
+        <key>showsWeight</key><true/><key>showsStyle</key><true/><key>responsive</key><true/>
+        <key>default</key><dict><key>family</key><string>body</string><key>weight</key><integer>650</integer><key>style</key><string>italic</string></dict></dict>
+        """
+        let url = try makePackage(manifest: manifest(withControls: item), template: "<section {{ component.attributes }} data-face=\"{{ control.typography.family }}|{{ control.typography.weight }}|{{ control.typography.style }}\">{{ childArea(\"content\") }}</section>")
+        defer { try? FileManager.default.removeItem(at: url) }
+        let package = try ComponentPackageLoader.load(from: url)
+        ComponentRegistry.register(package)
+        defer { ComponentRegistry.unregisterPackage(identifier: package.manifest.identifier) }
+        var node = ComponentNode(type: ComponentType(rawValue: package.manifest.identifier))
+        let weight = ComponentPackageFontControl.fieldKey("typography", "weight")
+        node.setResponsiveProperty(weight, value: .number(900), at: .medium)
+        node.setProperty(.init(rawValue: "typography"), value: .choice("heading"))
+        let resolved = node.resolved(at: .medium)
+        #expect(resolved.propertyValue(.init(rawValue: "typography")).stringValue == "heading")
+        #expect(resolved.propertyValue(weight).numberValue == 900)
+        #expect(!node.hasResponsiveOverride(.init(rawValue: "typography"), at: .medium))
+        let output = ComponentPackageFontControl.resolved("typography", node: resolved, theme: .standard)
+        guard case .object(let fields) = output else { Issue.record("Expected structured font"); return }
+        #expect(fields["family"] == .string(Theme.standard.fontCSSVariable(for: "heading")))
+        #expect(fields["weight"] == .number(900))
+        #expect(fields["style"] == .string("italic"))
+        let site = Site(name: "Fonts", pages: [Page(title: "Home", slug: "index", components: [resolved])])
+        let html = try #require(StaticSiteRenderer().render(site: site).file(at: "index.html")?.contents)
+        #expect(html.contains("var(--foundry-font-heading)|900|italic"))
+    }
+
+    @Test func unifiedFontControlValidatesCapabilities() throws {
+        for extra in [
+            "<key>showsFamily</key><false/>",
+            "<key>default</key><dict><key>family</key><string>body</string><key>weight</key><integer>500</integer></dict>",
+            "<key>showsWeight</key><true/><key>default</key><dict><key>family</key><string>body</string><key>weight</key><integer>1001</integer></dict>",
+            "<key>showsStyle</key><true/><key>default</key><dict><key>family</key><string>body</string><key>style</key><string>bold</string></dict>"
+        ] {
+            let defaultXML = extra.contains("<key>default</key>") ? "" : "<key>default</key><string>body</string>"
+            let item = "<dict><key>type</key><string>themeFont</string><key>id</key><string>font</string>\(defaultXML)\(extra)</dict>"
+            let decoded = try PropertyListDecoder().decode(ComponentPackageManifest.self, from: Data(manifest(withControls: item).utf8))
+            #expect(ComponentPackageValidator.validate(decoded, rootURL: FileManager.default.temporaryDirectory).contains { $0.severity == .error && ($0.message.contains("default.") || $0.message.contains("at least one")) })
+        }
+        for kind in ["fontWeight", "fontStyle"] {
+            let item = "<dict><key>type</key><string>\(kind)</string><key>id</key><string>font</string><key>default</key><string>normal</string></dict>"
+            #expect(try ComponentPackageManifestSchema.diagnostics(for: Data(manifest(withControls: item).utf8)).contains { $0.message.contains("Use one themeFont") })
+        }
+    }
+
+    @Test @MainActor func fixedFamilyCanExposeOnlyWeight() throws {
+        let item = "<dict><key>type</key><string>themeFont</string><key>id</key><string>font</string><key>showsFamily</key><false/><key>showsWeight</key><true/><key>responsive</key><true/><key>default</key><string>body</string></dict>"
+        let url = try makePackage(manifest: manifest(withControls: item), template: "<section {{ component.attributes }}>{{ childArea(\"content\") }}</section>")
+        defer { try? FileManager.default.removeItem(at: url) }
+        let package = try ComponentPackageLoader.load(from: url)
+        let definitions = ComponentPackageAdapter.definition(from: package).properties
+        let family = try #require(definitions.first { $0.key.rawValue == "font" })
+        #expect(!family.isInspectorVisible)
+        #expect(!family.isResponsive)
+        #expect(definitions.contains { $0.key.rawValue == "font.weight" && $0.isInspectorVisible && $0.isResponsive })
+        #expect(!definitions.contains { $0.key.rawValue == "font.style" })
+        ComponentRegistry.register(package)
+        defer { ComponentRegistry.unregisterPackage(identifier: package.manifest.identifier) }
+        var node = ComponentNode(type: ComponentType(rawValue: package.manifest.identifier))
+        node.setProperty(.init(rawValue: "font"), value: .choice("heading"))
+        #expect(ComponentPackageFontControl.familyReference("font", node: node) == "body")
+        guard case .object(let fields) = ComponentPackageFontControl.resolved("font", node: node, theme: .standard) else { Issue.record("Expected font object"); return }
+        #expect(fields["style"] == nil)
+    }
+
+    @Test @MainActor
+    func standaloneThemeFontLoadsAndRenders() throws {
+        for role in ["body", "heading", "monospaced"] {
+            let item = "<dict><key>type</key><string>themeFont</string><key>id</key><string>family</string><key>default</key><string>\(role)</string><key>responsive</key><true/></dict>"
+            let url = try makePackage(manifest: manifest(withControls: item), template: "<section {{ component.attributes }} style=\"font-family: {{ control.family.family }}\">{{ childArea(\"content\") }}</section>")
+            defer { try? FileManager.default.removeItem(at: url) }
+            let package = try ComponentPackageLoader.load(from: url)
+            let definition = try #require(ComponentPackageAdapter.definition(from: package).properties.first { $0.key.rawValue == "family" })
+            guard case .themeFont = definition.control else { Issue.record("Expected standalone themeFont"); return }
+            #expect(definition.themeValueSource == nil)
+            #expect(definition.isResponsive)
+            ComponentRegistry.register(package)
+            defer { ComponentRegistry.unregisterPackage(identifier: package.manifest.identifier) }
+            let node = ComponentNode(type: ComponentType(rawValue: package.manifest.identifier))
+            let site = Site(name: "Fonts", pages: [Page(title: "Home", slug: "index", components: [node])])
+            let html = try #require(StaticSiteRenderer().render(site: site).file(at: "index.html")?.contents)
+            #expect(html.contains("font-family: \(site.theme.fontCSSVariable(for: role))"))
+        }
+    }
+
+    @Test func standaloneThemeFontRejectsInvalidContracts() throws {
+        for value in ["accent", "custom:anything", "Arial"] {
+            let item = "<dict><key>type</key><string>themeFont</string><key>id</key><string>family</string><key>default</key><string>\(value)</string></dict>"
+            let decoded = try PropertyListDecoder().decode(ComponentPackageManifest.self, from: Data(manifest(withControls: item).utf8))
+            #expect(ComponentPackageValidator.validate(decoded, rootURL: FileManager.default.temporaryDirectory).contains { $0.message.contains("themeFont default") })
+        }
+        for extra in ["<key>count</key><integer>2</integer>", "<key>themeValues</key><string>fontFamilies</string>", "<key>options</key><array/>", "<key>allowsCustom</key><false/>"] {
+            let item = "<dict><key>type</key><string>themeFont</string><key>id</key><string>family</string><key>default</key><string>body</string>\(extra)</dict>"
+            #expect(try ComponentPackageManifestSchema.diagnostics(for: Data(manifest(withControls: item).utf8)).contains { $0.message.contains("themeFont control does not accept") })
+        }
+    }
+
     @Test
     func themeColourAcceptsAnOptionalInitialShade() throws {
+        for key in ["lightShade", "darkShade"] {
         for shade in [nil, 1, 8, 11] as [Int?] {
             let item = """
             <dict><key>id</key><string>colour</string>
             <key>type</key><string>themeColor</string>
-            <key>default</key><string>accent</string>
-            \(shade.map { "<key>shade</key><integer>\($0)</integer>" } ?? "")</dict>
+            <key>default</key><dict><key>palette</key><string>accent</string>
+            \(shade.map { "<key>\(key)</key><integer>\($0)</integer>" } ?? "")</dict></dict>
             """
             let url = try makePackage(manifest: manifest(withControls: item),
                                       template: "<div {{ component.attributes }}>{{ childArea(\"content\") }}</div>")
             defer { try? FileManager.default.removeItem(at: url) }
             let package = try ComponentPackageLoader.load(from: url)
             let definition = try #require(ComponentPackageAdapter.definition(from: package).properties.first { $0.key.rawValue == "colour" })
-            guard case .packageColor(_, _, let initial) = definition.control,
+            guard case .packageColor(_, _, let light, let dark) = definition.control,
                   case .packageColor(let value) = definition.defaultValue else {
                 Issue.record("Expected theme colour control"); continue
             }
-            #expect(initial?.rawValue == shade)
-            if let shade { #expect(value.shade.rawValue == shade) }
+            #expect((key == "lightShade" ? light : dark)?.rawValue == shade)
+            if let shade { #expect((key == "lightShade" ? value.shade : value.darkShade).rawValue == shade) }
+        }
         }
         for (type, value, initial) in [("themeColor", "accent", 0), ("themeColor", "accent", 12),
-                                       ("themeColor", "custom", 3), ("color", "#000000", 3)] {
+                                       ("themeColor", "custom", 3)] {
             let item = """
             <dict><key>id</key><string>colour</string><key>type</key><string>\(type)</string>
-            <key>default</key><string>\(value)</string><key>shade</key><integer>\(initial)</integer></dict>
+            <key>default</key><dict><key>palette</key><string>\(value)</string><key>lightShade</key><integer>\(initial)</integer></dict></dict>
             """
             let decoded = try PropertyListDecoder().decode(ComponentPackageManifest.self,
                 from: Data(manifest(withControls: item).utf8))
             #expect(ComponentPackageValidator.validate(decoded, rootURL: FileManager.default.temporaryDirectory)
-                .contains { $0.location.hasSuffix(".shade") && $0.severity == .error })
+                .contains { $0.location.hasSuffix(".lightShade") && $0.severity == .error })
         }
         for invalid in ["<string>8</string>", "<true/>", "<real>2.5</real>"] {
-            let item = "<dict><key>id</key><string>colour</string><key>type</key><string>themeColor</string><key>default</key><string>accent</string><key>shade</key>\(invalid)</dict>"
+            let item = "<dict><key>id</key><string>colour</string><key>type</key><string>themeColor</string><key>default</key><dict><key>palette</key><string>accent</string><key>lightShade</key>\(invalid)</dict></dict>"
             #expect(try ComponentPackageManifestSchema.diagnostics(for: Data(manifest(withControls: item).utf8))
-                .contains { $0.message == "shade must be an integer." })
+                .contains { $0.message == "lightShade must be an integer." })
         }
+    }
+
+    @Test func themeColourRejectsOldDefaultsAndUnknownNestedKeys() throws {
+        for value in ["<string>accent</string>", "<array><string>accent</string></array>",
+                      "<dict><key>palette</key><string>accent</string><key>shade</key><integer>3</integer></dict>"] {
+            let item = "<dict><key>id</key><string>colour</string><key>type</key><string>themeColor</string><key>default</key>\(value)</dict>"
+            #expect(try ComponentPackageManifestSchema.diagnostics(for: Data(manifest(withControls: item).utf8)).contains { $0.severity == .error })
+        }
+        let oldKeys = "<dict><key>id</key><string>colour</string><key>type</key><string>themeColor</string><key>default</key><dict><key>palette</key><string>accent</string></dict><key>lightShade</key><integer>8</integer></dict>"
+        #expect(try ComponentPackageManifestSchema.diagnostics(for: Data(manifest(withControls: oldKeys).utf8)).contains { $0.message.contains("Unknown key 'lightShade'") })
     }
 
     @Test
@@ -132,6 +290,15 @@ struct ComponentPackageTests {
         let repositoryURL = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
             .deletingLastPathComponent()
+        let appearancePackage = try ComponentPackageLoader.load(
+            from: repositoryURL.appending(path: "DevelopmentFixtures/AppearanceToggle.foundrydevpack"))
+        try appearancePackage.preparePayload()
+        #expect(appearancePackage.manifest.identifier == "dev.foundry.appearance-toggle")
+        #expect(FileManager.default.fileExists(atPath: appearancePackage.iconURL.path))
+        #expect(ComponentPackageValidator.validate(
+            appearancePackage.manifest,
+            rootURL: appearancePackage.iconURL.deletingLastPathComponent()
+        ).filter { $0.severity == .error }.isEmpty)
         let fixtureURL = repositoryURL.appending(
             path: "DevelopmentFixtures/BrokenComponent.foundrydevpack",
             directoryHint: .isDirectory
@@ -160,7 +327,7 @@ struct ComponentPackageTests {
             from: repositoryURL.appending(path: "DevelopmentFixtures/ThemeValues.foundrydevpack")
         )
         #expect(themePackage.manifest.identifier == "dev.foundry.theme-values")
-        #expect(themePackage.manifest.properties.contains { $0.control.themeValueSource == .fontFamilies })
+        #expect(!themePackage.manifest.properties.contains { $0.control.type == .select && $0.control.themeValues != nil })
         #expect(themePackage.manifest.properties.contains {
             $0.id == "topBorder" && $0.control.type == .themeColor && $0.control.allowsCustom == true
         })
@@ -313,7 +480,7 @@ struct ComponentPackageTests {
     }
 
     @Test
-    func namedThemeValuesDecodePopulateAndResolve() throws {
+    func selectRejectsThemeValuesAndThemeDefaults() throws {
         let plist = """
         <?xml version="1.0" encoding="UTF-8"?>
         <plist version="1.0"><dict>
@@ -336,10 +503,11 @@ struct ComponentPackageTests {
         let property = try #require(manifest.properties.first)
 
         #expect(property.control.themeValues == .source(.spacing))
-        #expect(property.control.themeValueSource == .spacing)
+        #expect(property.control.themeValueSource == nil)
         #expect(property.control.allowsCustom == true)
         let diagnostics = ComponentPackageValidator.validate(manifest, rootURL: FileManager.default.temporaryDirectory)
-        #expect(!diagnostics.contains { $0.location.contains("themeValues") || $0.message.contains("select default") })
+        #expect(diagnostics.contains { $0.location.contains("themeValues") })
+        #expect(diagnostics.contains { $0.message.contains("select default") })
         #expect(ComponentPackageThemeValueResolver.choices(for: .spacing, theme: .standard).contains { $0.value == "md" })
         #expect(ComponentPackageThemeValueResolver.resolve("md", from: .spacing, theme: .standard) == "var(--foundry-space-md)")
         for source in ComponentPackageThemeValueSource.allCases {
@@ -368,8 +536,8 @@ struct ComponentPackageTests {
             for: Data(countedThemeSelect.utf8)
         )
         #expect(schemaDiagnostics.contains {
-            $0.location.hasSuffix(".count")
-                && $0.message == "A select control using themeValues cannot be a multi control; remove count."
+            $0.location.hasSuffix(".themeValues")
+                && $0.message == "Select supports only declared options; remove themeValues."
         })
 
         let countedThemeColor = countedThemeSelect
@@ -430,7 +598,7 @@ struct ComponentPackageTests {
         )
         #expect(diagnostics.contains {
             $0.location.hasSuffix("allowsCustom")
-                && $0.message.contains("add fonts in the Theme Editor")
+                && $0.message.contains("requires a theme-aware control")
         })
     }
 
@@ -473,8 +641,8 @@ struct ComponentPackageTests {
             for: Data(manifest(withControls: legacyItem).utf8)
         )
         #expect(legacyDiagnostics.contains {
-            $0.location.hasSuffix(".type")
-                && $0.message == "Use type shadow instead of a select control requesting shadow theme values."
+            $0.location.hasSuffix(".themeValues")
+                && $0.message == "Select supports only declared options; remove themeValues."
         })
     }
 
@@ -2371,7 +2539,7 @@ struct ComponentPackageTests {
     }
 
     @Test
-    func selectUsingThemeValuesCannotBeAMultiControl() throws {
+    func multiSelectRejectsThemeValues() throws {
         let item = """
         <dict>
             <key>id</key><string>sizes</string>
@@ -2393,8 +2561,8 @@ struct ComponentPackageTests {
         )
 
         #expect(diagnostics.contains {
-            $0.location == "Info.plist:controls.sizes.count" &&
-                $0.message == "A select control using themeValues cannot be a multi control; remove count."
+            $0.location == "Info.plist:controls.sizes.themeValues" &&
+                $0.message == "Select supports only declared options; remove themeValues."
         })
     }
 
@@ -3360,7 +3528,7 @@ struct ComponentPackageTests {
         let properties = ComponentType.paragraph.definition.properties
         let color = try #require(properties.first(where: { $0.key.rawValue == "textColor" }))
         let alignment = try #require(properties.first(where: { $0.key.rawValue == "textAlignment" }))
-        let textSize = try #require(properties.first(where: { $0.key.rawValue == "textSize" }))
+        #expect(!properties.contains { ["textSize", "typeface"].contains($0.key.rawValue) })
         let textDecoration = try #require(properties.first(where: { $0.key.rawValue == "textDecoration" }))
 
         #expect(color.defaultValue == .packageColor(.init(
@@ -3368,7 +3536,7 @@ struct ComponentPackageTests {
             customColor: "#000000",
             opacity: 1
         )))
-        if case .packageColor(let themeValues, let opacity, _) = color.control {
+        if case .packageColor(let themeValues, let opacity, _, _) = color.control {
             #expect(themeValues)
             #expect(opacity)
         } else {
@@ -3387,13 +3555,6 @@ struct ComponentPackageTests {
         } else {
             Issue.record("Paragraph should use a select control for text decoration")
         }
-        #expect(textSize.defaultValue == .packageFontSize(.init(source: "base", customValue: "1rem")))
-        if case .packageFontSize(let themeValues) = textSize.control {
-            #expect(themeValues)
-            #expect(textSize.themeValueSource == .fontSizes)
-        } else {
-            Issue.record("Paragraph should use a font-size theme Select")
-        }
         #expect(
             ComponentType.paragraph.definition.package?.css.contains(
                 "text-align: {{ control.textAlignment }}"
@@ -3401,8 +3562,8 @@ struct ComponentPackageTests {
         )
         #expect(
             ComponentType.paragraph.definition.package?.css.contains(
-                "line-height: {{ control.textSize.lineHeight }}"
-            ) == true
+                "line-height:"
+            ) == false
         )
         #expect(
             ComponentType.paragraph.definition.package?.css.contains(
@@ -3412,16 +3573,8 @@ struct ComponentPackageTests {
 
         var paragraph = ComponentNode.make(.paragraph)
         var site = Site(name: "Line height", pages: [Page(title: "Home", slug: "index", components: [paragraph])])
-        let themedHTML = HTMLPageRenderer(site: site).render(page: site.pages[0], theme: site.theme)
-        #expect(themedHTML.contains("line-height: var(--foundry-font-size-base-line-height)"))
 
-        paragraph.setProperty(
-            .init(rawValue: "textSize"),
-            value: .packageFontSize(.init(source: ComponentThemeValueSelection.manualCustom, customValue: "1rem", customLineHeight: "1.7"))
-        )
-        site.pages[0].components = [paragraph]
-        let customHTML = HTMLPageRenderer(site: site).render(page: site.pages[0], theme: site.theme)
-        #expect(customHTML.contains("line-height: 1.7"))
+
 
         paragraph.setProperty(.init(rawValue: "textDecoration"), value: .choice("underline"))
         site.pages[0].components = [paragraph]

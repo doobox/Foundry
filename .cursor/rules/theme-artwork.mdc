@@ -1,0 +1,10 @@
+---
+description: Require user-supplied artwork for built-in themes
+alwaysApply: true
+---
+
+# Theme artwork
+
+- When creating a built-in theme, always ask Gary to supply its tile image before completing it.
+- Never invent, generate, or substitute fallback theme artwork.
+- Theme bundles require a valid supplied image. Tile aspect ratio is 2:1; recommended artwork is 1200 × 600 px.

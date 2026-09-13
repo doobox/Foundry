@@ -2,7 +2,6 @@
     box-sizing: border-box;
     display: inline-block;
     color: {{ control.textColor }};
-    font-size: {{ control.textSize }};
     line-height: 1.2;
     text-decoration: none;
     background-color: {{ control.backgroundColor }};

@@ -134,12 +134,8 @@ nonisolated enum ComponentPackageAdapter {
             )]
         }
         if property.control.type == .themeColor { return themeColorProperties(for: property) }
+        if property.control.type == .themeFont { return ComponentPackageFontControl.properties(property) }
         if property.control.type == .shadow { return shadowProperties(for: property) }
-        if property.control.type == .select,
-           property.control.themeValueSource == .fontSizes,
-           property.control.allowsCustom == true {
-            return fontSizeProperties(for: property)
-        }
         return [ComponentPropertyDefinition(
             key: .init(rawValue: property.id),
             label: property.control.type == .note ? property.noteTitle ?? "" : property.label,
@@ -184,43 +180,29 @@ nonisolated enum ComponentPackageAdapter {
         .init(rawValue: "__foundry_image_focal_point_\(propertyID)")
     }
 
-    private static func fontSizeProperties(for property: ComponentPackageProperty) -> [ComponentPropertyDefinition] {
-        let key = ComponentProperty.Key(rawValue: property.id)
-        let section = ComponentPropertySection(rawValue: property.group)
-        let source = ComponentThemeValueSelection.storedSource(forManifestValue: property.defaultValue.stringValue)
-        return [
-            .init(
-                key: key, label: property.label, section: section,
-                control: .packageFontSize(
-                    themeValues: property.control.themeValueSource == .fontSizes
-                ),
-                defaultValue: .packageFontSize(.init(source: source, customValue: "1rem")),
-                isResponsive: property.responsive,
-                visibleWhen: property.visibleWhen,
-                themeValueSource: property.control.themeValueSource,
-                allowsCustomThemeValue: property.control.allowsCustom == true
-            )
-        ]
-    }
-
     private static func themeColorProperties(for property: ComponentPackageProperty) -> [ComponentPropertyDefinition] {
         let key = ComponentProperty.Key(rawValue: property.id)
         let section = ComponentPropertySection(rawValue: property.group)
+        guard case .object(let initial) = property.defaultValue else { return [] }
+        let lightShade = initial["lightShade"]?.numberValue.flatMap { Int(exactly: $0) }.flatMap(ColourShade.init(rawValue:))
+        let darkShade = initial["darkShade"]?.numberValue.flatMap { Int(exactly: $0) }.flatMap(ColourShade.init(rawValue:))
         return [
             ComponentPropertyDefinition(
                 key: key, label: property.label, section: section,
                 control: .packageColor(
                     themeValues: true,
                     opacity: property.control.opacity ?? false,
-                    initialShade: property.control.shade.flatMap(ColourShade.init(rawValue:))
+                    initialLightShade: lightShade,
+                    initialDarkShade: darkShade
                 ),
                 defaultValue: .packageColor(.init(
                     source: ComponentThemeValueSelection.storedSource(
-                        forManifestValue: property.defaultValue.stringValue
+                        forManifestValue: initial["palette"]?.stringValue ?? ""
                     ),
                     customColor: property.control.customColor ?? "#000000",
                     opacity: 1,
-                    shade: property.control.shade.flatMap(ColourShade.init(rawValue:))
+                    shade: lightShade,
+                    darkShade: darkShade
                 )),
                 isResponsive: property.responsive,
                 visibleWhen: property.visibleWhen,
@@ -261,6 +243,9 @@ nonisolated enum ComponentPackageAdapter {
             )
         case .color: .literalColor(allowsOpacity: control.opacity == true)
         case .themeColor: .derived
+        case .themeFont: .themeFont
+        case .fontWeight: .fontWeight(font: control.font)
+        case .fontStyle: .fontStyle(font: control.font)
         case .icon: .icon
         case .select:
             .choice((control.options ?? []).map { .init(value: $0.value, label: $0.title) })
@@ -298,7 +283,7 @@ nonisolated enum ComponentPackageAdapter {
             case .link: .link(.init(destination: value.isEmpty ? .none : .url(value)))
             case .color: .color(value)
             case .themeColor: .choice(value)
-            case .icon, .select, .textAlignment, .shadow: .choice(value)
+            case .icon, .select, .themeFont, .fontStyle, .textAlignment, .shadow: .choice(value)
             case .date: .string(value)
             case .image: .url(value)
             default: .string(value)

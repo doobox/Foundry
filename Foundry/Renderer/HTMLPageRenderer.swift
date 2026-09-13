@@ -2,8 +2,9 @@ import Foundation
 
 nonisolated struct HTMLPageRenderer: PageRendering {
     let site: Site?
+    let appearance: SiteAppearance
 
-    init(site: Site? = nil) { self.site = site }
+    init(site: Site? = nil, appearance: SiteAppearance = .light) { self.site = site; self.appearance = appearance }
     func render(page: Page, theme: Theme) -> String {
         render(page: page, language: "en", theme: theme, assets: [:], breakpoint: .extraLarge)
     }
@@ -33,19 +34,21 @@ nonisolated struct HTMLPageRenderer: PageRendering {
         \(customHeadCode)
           <meta charset="utf-8">
           <meta name="viewport" content="width=device-width, initial-scale=1">
+          <meta name="color-scheme" content="\(appearance.rawValue)">
           <title>\(escape(browserTitle))</title>
         \(metadata)
           <style>
             \(theme.fontSourceCSS(assets: assets, destination: .canvas))
             :root {
               font-size: 16px;
-              --foundry-color-page: \(theme.color(for: .page));
-              --foundry-color-background: \(theme.colors.background);
-              --foundry-color-surface: \(theme.colors.surface);
-              --foundry-color-text: \(theme.colors.text);
-              --foundry-color-accent: \(theme.colors.accent);
-              --foundry-color-links: \(theme.colors.links);
-              --foundry-color-muted-text: \(theme.color(for: .mutedText));
+              color-scheme: \(appearance.rawValue);
+              --foundry-color-page: \(theme.color(for: .page, appearance: appearance));
+              --foundry-color-background: \(theme.color(for: .background, appearance: appearance));
+              --foundry-color-surface: \(theme.color(for: .surface, appearance: appearance));
+              --foundry-color-text: \(theme.color(for: .text, appearance: appearance));
+              --foundry-color-accent: \(theme.color(for: .accent, appearance: appearance));
+              --foundry-color-links: \(theme.color(for: .links, appearance: appearance));
+              --foundry-color-muted-text: \(theme.color(for: .mutedText, appearance: appearance));
               --foundry-font-body: \(theme.typography.bodyFont.cssFamily);
               --foundry-font-heading: \(theme.typography.headingFont.cssFamily);
               --foundry-font-monospace: \(theme.typography.monospacedFont.cssFamily);
@@ -118,7 +121,7 @@ nonisolated struct HTMLPageRenderer: PageRendering {
             [data-foundry-global].foundry-editing { outline-color: var(--foundry-editor-chrome) !important; }
             html, body { min-height: 100%; }
             body {
-              margin: 0; background: var(--foundry-color-page);
+              margin: 0; background: \(page.backgroundColour(theme: theme, appearance: appearance));
               color: var(--foundry-color-text); font-family: var(--foundry-font-body);
               font-size: var(--foundry-font-size-base); line-height: var(--foundry-font-size-base-line-height);
               display: flex; flex-direction: column; align-items: stretch;
@@ -552,25 +555,8 @@ nonisolated struct HTMLPageRenderer: PageRendering {
     private func packageProperties(_ node: ComponentNode, theme: Theme, assets: [UUID: ProjectAssetContent]) -> [String: ComponentPackageValue] {
         var values: [String: ComponentPackageValue] = Dictionary(uniqueKeysWithValues: node.type.definition.properties.map { definition in
             let value = node.propertyValue(definition.key)
-            if let source = definition.themeValueSource,
-               case .choice(let reference) = value,
-               let resolved = ComponentPackageThemeValueResolver.resolve(reference, from: source, theme: theme) {
-                return (definition.key.rawValue, .string(resolved))
-            }
-            if let source = definition.themeValueSource,
-               case .array(let items) = value {
-                return (definition.key.rawValue, .array(items.map { item in
-                    let reference: String
-                    switch item {
-                    case .choice(let value), .string(let value): reference = value
-                    default: return packageValue(item)
-                    }
-                    guard
-                          let resolved = ComponentPackageThemeValueResolver.resolve(reference, from: source, theme: theme) else {
-                        return packageValue(item)
-                    }
-                    return .string(resolved)
-                }))
+            if case .themeFont = definition.control {
+                return (definition.key.rawValue, ComponentPackageFontControl.resolved(definition.key.rawValue, node: node, theme: theme))
             }
             if case .image = definition.control,
                case .url(let source) = value {
@@ -579,24 +565,18 @@ nonisolated struct HTMLPageRenderer: PageRendering {
             if case .color = definition.control {
                 return (definition.key.rawValue, .string(node.colorProperty(definition.key, theme: theme)))
             }
-            if case .packageColor(_, let opacity, _) = definition.control,
+            if case .packageColor(_, let opacity, _, _) = definition.control,
                case .packageColor(let colorValue) = value {
                 return (
                     definition.key.rawValue,
                     .string(ComponentPackageColorResolver.resolve(
                         colorValue, theme: theme,
-                        opacity: opacity
+                        opacity: opacity, appearance: appearance
                     ))
                 )
             }
             if case .themeFontSize = definition.control {
                 return (definition.key.rawValue, .string(theme.fontSizeCSSVariable(for: node.property(definition.key))))
-            }
-            if case .packageFontSize(let themeValues) = definition.control,
-               case .packageFontSize(let fontSizeValue) = value {
-                let resolved = !themeValues || ComponentThemeValueSelection.isManualCustom(fontSizeValue.source)
-                    ? fontSizeValue.customValue : theme.fontSizeCSSVariable(for: fontSizeValue.source)
-                return (definition.key.rawValue, .string(resolved))
             }
             if case .packageShadow = definition.control,
                case .packageShadow(let shadowValue) = value {
@@ -611,15 +591,10 @@ nonisolated struct HTMLPageRenderer: PageRendering {
             return (definition.key.rawValue, packageValue(value))
         })
         for definition in node.type.definition.properties {
-            guard case .packageFontSize(let usesThemeValues) = definition.control,
-                  case .packageFontSize(let fontSizeValue) = node.propertyValue(definition.key) else { continue }
-            values[definition.key.rawValue + ".lineHeight"] = .string(
-                ComponentPackageThemeValueResolver.resolveFontSizeLineHeight(
-                    fontSizeValue,
-                    usesThemeValues: usesThemeValues,
-                    theme: theme
-                )
-            )
+            if case .themeFont = definition.control,
+               case .object(let fields) = values[definition.key.rawValue] {
+                for (field, value) in fields { values[definition.key.rawValue + "." + field] = value }
+            }
         }
         if let package = node.type.definition.package {
             for property in package.manifest.properties where property.control.type == .image {

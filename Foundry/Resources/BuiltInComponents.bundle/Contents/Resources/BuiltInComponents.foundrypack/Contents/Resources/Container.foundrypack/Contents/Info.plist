@@ -13,8 +13,7 @@
 	<key>controls</key>
 	<array>
 		<dict>
-			<key>default</key>
-			<string>custom</string>
+			<key>default</key><dict><key>palette</key><string>custom</string></dict>
 			<key>group</key>
 			<string>Appearance</string>
 			<key>id</key>

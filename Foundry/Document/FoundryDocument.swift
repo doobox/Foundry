@@ -196,7 +196,20 @@ final class FoundryDocument: ReferenceFileDocument {
             pixelWidth: metadata.width,
             pixelHeight: metadata.height
         )
-        guard next.site.assetLibrary.insert(.asset(asset), at: placement) else { return asset.id }
+        var destination = placement
+        if ["ttf", "otf", "woff", "woff2"].contains((asset.filename as NSString).pathExtension.lowercased()) {
+            let existingFolder = next.site.assetLibrary.compactMap { node -> ProjectAssetFolder? in
+                guard case .folder(let folder) = node,
+                      folder.name.caseInsensitiveCompare("Fonts") == .orderedSame else { return nil }
+                return folder
+            }.first
+            let folder = existingFolder ?? ProjectAssetFolder(name: "Fonts")
+            if existingFolder == nil {
+                next.site.assetLibrary.append(.folder(folder))
+            }
+            destination = .inside(folderID: folder.id)
+        }
+        guard next.site.assetLibrary.insert(.asset(asset), at: destination) else { return asset.id }
         next.insertAssetData(processed.data, id: asset.id, digest: digest)
         replaceContents(with: next, undoManager: undoManager, actionName: "Import Asset")
         return asset.id

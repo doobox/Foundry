@@ -48,6 +48,8 @@ nonisolated struct Page: Codable, Equatable, Identifiable, Sendable {
     var parentPageID: UUID?
     var order: Int
     var includeInNavigation: Bool
+    /// Nil intentionally follows the theme's Page defaults in both appearances.
+    var backgroundOverride: ComponentPackageColorValue?
 
     init(
         id: UUID = UUID(),
@@ -58,7 +60,8 @@ nonisolated struct Page: Codable, Equatable, Identifiable, Sendable {
         folderID: UUID? = nil,
         parentPageID: UUID? = nil,
         order: Int = 0,
-        includeInNavigation: Bool = true
+        includeInNavigation: Bool = true,
+        backgroundOverride: ComponentPackageColorValue? = nil
     ) {
         self.id = id
         self.title = title
@@ -69,10 +72,11 @@ nonisolated struct Page: Codable, Equatable, Identifiable, Sendable {
         self.parentPageID = parentPageID
         self.order = order
         self.includeInNavigation = includeInNavigation
+        self.backgroundOverride = backgroundOverride
     }
 
     private enum CodingKeys: String, CodingKey {
-        case id, title, slug, metadata, components, folderID, parentPageID, order, includeInNavigation
+        case id, title, slug, metadata, components, folderID, parentPageID, order, includeInNavigation, backgroundOverride
     }
 
     init(from decoder: Decoder) throws {
@@ -86,6 +90,21 @@ nonisolated struct Page: Codable, Equatable, Identifiable, Sendable {
         parentPageID = try container.decodeIfPresent(UUID.self, forKey: .parentPageID)
         order = try container.decode(Int.self, forKey: .order)
         includeInNavigation = try container.decodeIfPresent(Bool.self, forKey: .includeInNavigation) ?? true
+        backgroundOverride = try container.decodeIfPresent(ComponentPackageColorValue.self, forKey: .backgroundOverride)
+    }
+
+    func backgroundColour(theme: Theme, appearance: SiteAppearance) -> String {
+        guard let backgroundOverride else { return theme.color(for: .page, appearance: appearance) }
+        return ComponentPackageColorResolver.resolve(backgroundOverride, theme: theme, opacity: false, appearance: appearance)
+    }
+
+    func backgroundSelection(theme: Theme) -> ComponentPackageColorValue {
+        if let backgroundOverride { return backgroundOverride }
+        let palette = theme.colourPalettes.resolvedPalette(id: "theme.page")
+        var value = ComponentPackageColorValue(source: "page", customColor: theme.color(for: .page), opacity: 1,
+            shade: palette?.lightDefaultShade, darkShade: palette?.darkDefaultShade)
+        value.darkCustomColor = theme.color(for: .page, appearance: .dark)
+        return value
     }
 
     static func slugify(_ value: String) -> String {
@@ -107,7 +126,8 @@ nonisolated struct Page: Codable, Equatable, Identifiable, Sendable {
             folderID: folderID,
             parentPageID: parentPageID,
             order: order,
-            includeInNavigation: includeInNavigation
+            includeInNavigation: includeInNavigation,
+            backgroundOverride: backgroundOverride
         )
     }
 }

@@ -878,20 +878,34 @@ struct WebCanvasView: NSViewRepresentable {
             currentHeadNodes.slice(replacementHeadNodes.length).forEach(node => node.remove());
 
             syncAttributes(document.body, replacement.body);
-            const changedIDs = new Set();
-            replacement.querySelectorAll(selector).forEach(nextElement => {
-              const componentID = nextElement.dataset.foundryId;
-              const currentElement = document.querySelector('[data-foundry-id="' + CSS.escape(componentID) + '"]');
-              if (!currentElement || currentElement.outerHTML === nextElement.outerHTML) return;
-              const changedAncestor = nextElement.parentElement?.closest(selector);
-              if (changedAncestor && changedIDs.has(changedAncestor.dataset.foundryId)) return;
-              currentElement.replaceWith(document.importNode(nextElement, true));
-              changedIDs.add(componentID);
-            });
-
-            if (changedIDs.size === 0 && document.body.innerHTML !== replacement.body.innerHTML) {
+            // Component patches cannot reconcile moves, removals or reordering:
+            // replacing a parent can leave the child's former DOM node behind.
+            // Compare generic element topology, including component and slot identity,
+            // before touching the live tree. No package-specific knowledge is needed.
+            const topology = root => JSON.stringify(Array.from(root.children, function describe(element) {
+              return [element.localName, element.getAttribute('data-foundry-id'),
+                element.getAttribute('data-foundry-slot-id'), Array.from(element.children, describe)];
+            }));
+            const structureChanged = topology(document.body) !== topology(replacement.body);
+            if (structureChanged) {
               const bodyNodes = Array.from(replacement.body.childNodes).map(node => document.importNode(node, true));
               document.body.replaceChildren(...bodyNodes);
+            } else {
+              const changedIDs = new Set();
+              replacement.querySelectorAll(selector).forEach(nextElement => {
+                const componentID = nextElement.dataset.foundryId;
+                const currentElement = document.querySelector('[data-foundry-id="' + CSS.escape(componentID) + '"]');
+                if (!currentElement || currentElement.outerHTML === nextElement.outerHTML) return;
+                const changedAncestor = nextElement.parentElement?.closest(selector);
+                if (changedAncestor && changedIDs.has(changedAncestor.dataset.foundryId)) return;
+                currentElement.replaceWith(document.importNode(nextElement, true));
+                changedIDs.add(componentID);
+              });
+
+              if (changedIDs.size === 0 && document.body.innerHTML !== replacement.body.innerHTML) {
+                const bodyNodes = Array.from(replacement.body.childNodes).map(node => document.importNode(node, true));
+                document.body.replaceChildren(...bodyNodes);
+              }
             }
             installComponentDragHandlers();
             hoveredComponent = null;

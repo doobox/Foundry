@@ -4,6 +4,7 @@ nonisolated struct GoogleFontFamily: Identifiable, Sendable {
     let family: String
     let category: String
     let styleCount: Int
+    var faces: [GoogleFontFace] = []
 
     var id: String { family }
 }
@@ -28,7 +29,8 @@ actor GoogleFontsService {
     static let shared = GoogleFontsService()
 
     static let fallback = [
-        GoogleFontFamily(family: "ABeeZee", category: "Sans Serif", styleCount: 2),
+        GoogleFontFamily(family: "ABeeZee", category: "Sans Serif", styleCount: 2,
+                         faces: [.init(italic: false, minimum: 400, maximum: 400), .init(italic: true, minimum: 400, maximum: 400)]),
         GoogleFontFamily(family: "ADLaM Display", category: "Display", styleCount: 1),
         GoogleFontFamily(family: "AR One Sans", category: "Sans Serif", styleCount: 4),
         GoogleFontFamily(family: "Abel", category: "Sans Serif", styleCount: 1),
@@ -63,8 +65,25 @@ actor GoogleFontsService {
             let category = (entry["category"] as? String ?? "Sans Serif")
                 .replacingOccurrences(of: "_", with: " ")
                 .capitalized
-            let count = (entry["fonts"] as? [String: Any])?.count ?? 1
-            return GoogleFontFamily(family: family, category: category, styleCount: count)
+            let fonts = entry["fonts"] as? [String: Any] ?? [:]
+            let axes = entry["axes"] as? [[String: Any]] ?? []
+            let weightAxis = axes.first { $0["tag"] as? String == "wght" }
+            let minimum = (weightAxis?["min"] as? NSNumber)?.doubleValue
+            let maximum = (weightAxis?["max"] as? NSNumber)?.doubleValue
+            let staticFaces = fonts.keys.compactMap { key -> GoogleFontFace? in
+                let italic = key.hasSuffix("i")
+                guard let weight = Int(italic ? String(key.dropLast()) : key), (1...1000).contains(weight) else { return nil }
+                return GoogleFontFace(italic: italic, minimum: weight, maximum: weight)
+            }
+            let faces: [GoogleFontFace]
+            if let minimum, let maximum, minimum.isFinite, maximum.isFinite,
+               minimum >= 1, maximum <= 1000, minimum < maximum {
+                faces = Set(staticFaces.map(\.italic)).map {
+                    GoogleFontFace(italic: $0, minimum: Int(ceil(minimum)), maximum: Int(floor(maximum)))
+                }
+            } else { faces = staticFaces }
+            return GoogleFontFamily(family: family, category: category, styleCount: fonts.count,
+                                    faces: faces.sorted { ($0.italic ? 1 : 0, $0.minimum) < ($1.italic ? 1 : 0, $1.minimum) })
         }
         .sorted { $0.family.localizedStandardCompare($1.family) == .orderedAscending }
     }

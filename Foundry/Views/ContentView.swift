@@ -63,6 +63,11 @@ struct ContentView: View {
     @State private var canvasEditorOptions = CanvasEditorOptions()
     @State private var componentCatalog = ComponentPackageCatalog.shared
     @State private var canvasViewportWidth = 390.0
+    @State private var selectedAppearance = SiteAppearance.light
+    private var canvasAppearance: SiteAppearance {
+        document.site.appearanceMode.permits(selectedAppearance) ? selectedAppearance :
+            (document.site.appearanceMode == .dark ? .dark : .light)
+    }
     @State private var htmlSourceEditRequest: HTMLSourceEditRequest?
     @State private var pageTextEditRequest: PageTextEditRequest?
     @State private var pageDeletionRequest: PageDeletionRequest?
@@ -77,7 +82,7 @@ struct ContentView: View {
     @AppStorage(AppPreferenceKey.automaticallyChecksComponentUpdates)
     private var automaticallyChecksComponentUpdates = false
 
-    private var renderer: any PageRendering { HTMLPageRenderer(site: document.site) }
+    private var renderer: any PageRendering { HTMLPageRenderer(site: document.site, appearance: canvasAppearance) }
 
     var body: some View {
         let _ = componentCatalog.revision
@@ -86,6 +91,8 @@ struct ContentView: View {
             canvasEditorOptions: $canvasEditorOptions,
             canvasViewportWidth: $canvasViewportWidth,
             canvasScreens: document.site.theme.screens,
+            canvasAppearance: $selectedAppearance,
+            appearanceMode: document.site.appearanceMode,
             openProjectSettings: {
                 projectSettingsSection = .general
                 showsProjectSettings = true
@@ -106,6 +113,7 @@ struct ContentView: View {
         ) { panel in
             workspacePanel(panel)
         }
+        .environment(\.canvasAppearance, canvasAppearance)
         .frame(
             minWidth: EditorWindowSize.minimumWidth,
             idealWidth: EditorWindowSize.idealWidth,

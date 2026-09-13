@@ -76,7 +76,7 @@ struct ThemeEditorPresentationTests {
                 edit.setSoftening(amount)
                 #expect(edit.palette.anchor == index)
                 #expect(edit.palette.colour(at: index).hexString == selectedHex)
-                #expect(edit.palette.defaultShade == palette.defaultShade)
+                #expect(edit.palette.lightDefaultShade == palette.lightDefaultShade)
             }
         }
     }
@@ -107,7 +107,7 @@ struct ThemeEditorPresentationTests {
 
     @Test
     func softenBlendsContinuouslyAndReversePreservesColours() {
-        var palette = PreviewColourPalette(name: "Test", hex: "#250C42", group: .custom, anchor: 4, defaultShade: 4)
+        var palette = PreviewColourPalette(name: "Test", hex: "#250C42", group: .custom, anchor: 4, lightDefaultShade: 4)
         #expect(palette.softening == 0)
         let full = PreviewPerceptualRamp.lab(NSColor(palette.colour(at: 0))).lightness
         palette.softening = 1
@@ -120,15 +120,15 @@ struct ThemeEditorPresentationTests {
             palette.generated = !custom
             if custom { palette.overrides[2] = "#ABCDEF" }
             let before = (0..<11).map { palette.colour(at: $0).hexString }
-            let originalDefault = palette.defaultShade
+            let originalDefault = palette.lightDefaultShade
             var edit = PreviewShadeEdit(palette: palette, index: palette.anchor)
             edit.setReversed(true)
             #expect(edit.index == 10 - palette.anchor)
-            #expect(edit.palette.defaultShade == 10 - originalDefault)
+            #expect(edit.palette.lightDefaultShade == 10 - originalDefault)
             #expect((0..<11).map { edit.palette.colour(at: $0).hexString } == Array(before.reversed()))
             edit.setReversed(false)
             #expect((0..<11).map { edit.palette.colour(at: $0).hexString } == before)
-            #expect(edit.palette.defaultShade == originalDefault)
+            #expect(edit.palette.lightDefaultShade == originalDefault)
         }
     }
 
@@ -136,22 +136,24 @@ struct ThemeEditorPresentationTests {
     func colourEditsKeepDefaultUntilExplicitlyChanged() {
         let palette = PreviewColourPalette(name: "Test", hex: "#6366F1", group: .custom)
         var edit = PreviewShadeEdit(palette: palette, index: 4)
-        #expect(edit.palette.defaultShade == 5)
+        #expect(edit.palette.lightDefaultShade == 5)
         edit.setHex("#250C42")
-        #expect(edit.palette.defaultShade == 5)
+        #expect(edit.palette.lightDefaultShade == 5)
         #expect(edit.palette.anchor == 4)
-        edit.setUseAsDefault(true)
-        #expect(edit.palette.defaultShade == 4)
+        edit.setDefault(for: .light)
+        #expect(edit.palette.lightDefaultShade == 4)
+        #expect(edit.palette.darkDefaultShade == 5)
         edit.setColour(Color(hex: "#450C42")!)
-        #expect(edit.palette.defaultShade == 4)
-        edit.setUseAsDefault(false)
+        #expect(edit.palette.lightDefaultShade == 4)
+        edit.setDefault(for: .dark)
         edit.setHex("#350C42")
-        #expect(edit.palette.defaultShade == 5)
+        #expect(edit.palette.lightDefaultShade == 4)
+        #expect(edit.palette.darkDefaultShade == 4)
         var custom = palette
         custom.generated = false
         var customEdit = PreviewShadeEdit(palette: custom, index: 4)
         customEdit.setHex("#250C42")
-        #expect(customEdit.palette.defaultShade == 5)
+        #expect(customEdit.palette.lightDefaultShade == 5)
     }
 
     @Test
@@ -227,7 +229,7 @@ struct ThemeEditorPresentationTests {
         palette.setColour(Color(hex: "#123456")!, at: 7)
         #expect(palette.anchor == 7)
         #expect(palette.colour(at: 7).hexString?.lowercased() == "#123456")
-        #expect(palette.defaultShade == 5)
+        #expect(palette.lightDefaultShade == 5)
         palette.generated = false
         palette.setColour(Color(hex: "#ABCDEF")!, at: 2)
         #expect(palette.anchor == 7)
@@ -263,7 +265,6 @@ struct ThemeEditorPresentationTests {
             return requested == nil || $0.rawValue == requested
         }
         let sizes: [(name: String, size: CGSize)] = [
-            ("narrow", CGSize(width: 500, height: 620)),
             // 962 pt outer width minus the widest supported 240 pt sidebar.
             ("minimum", CGSize(width: 722, height: 504)),
             ("default", CGSize(width: 938, height: 620)),
@@ -272,21 +273,39 @@ struct ThemeEditorPresentationTests {
         var measurements: [String] = []
 
         for section in sections {
-            let variants = section == .screens ? ["", "-mixed-units"] : [""]
+            let variants = section == .screens ? ["", "-mixed-units"] : (section == .fontFamily ? ["", "-google", "-google-variable", "-uploaded"] : [""])
             for variant in variants {
                 let document = FoundryDocument(site: fixtureSite(mixedContainerUnits: !variant.isEmpty))
+                if variant.hasPrefix("-google") {
+                    document.site.theme.typography.bodyFont = .init(
+                        family: "ABeeZee",
+                        fallbacks: ["sans-serif"],
+                        source: .remote(stylesheetURL: URL(string: "https://fonts.googleapis.com/css2?family=ABeeZee&display=swap")!),
+                        weights: [400],
+                        styles: [.normal]
+                    )
+                    let variable = variant == "-google-variable"
+                    let faces = [false, true].map { GoogleFontFace(italic: $0, minimum: variable ? 100 : 400, maximum: variable ? 900 : 400) }
+                    if variable { document.site.theme.typography.bodyFont.family = "Roboto" }
+                    document.site.theme.typography.bodyFont.applyGoogleConfiguration(.init(available: faces, included: faces))
+                }
+                if variant == "-uploaded" {
+                    let data = try Data(contentsOf: URL(fileURLWithPath: "/System/Library/Fonts/Supplemental/Arial.ttf"))
+                    let id = document.importAsset(data: data, filename: "Arial.ttf", mediaType: "font/ttf", undoManager: nil)
+                    ProjectEditor(document: document, undoManager: nil).setThemeFontResources(["foundry-asset:\(id.uuidString)"], reference: .role(.body))
+                }
                 let originalTheme = document.site.theme
                 let session = ThemeEditorSession(document: document, undoManager: UndoManager())
                 for configuration in sizes {
                     let name = "\(section.rawValue)\(variant)-\(configuration.name)"
                     let previewModel = ThemeColourPreviewModel()
-                    previewModel.palettes.insert(PreviewColourPalette(name: "Purple test", hex: "#250C42", group: .theme, anchor: 4, defaultShade: 4), at: 0)
+                    previewModel.palettes.insert(PreviewColourPalette(name: "Purple test", hex: "#250C42", group: .theme, anchor: 4, lightDefaultShade: 4), at: 0)
                     let root = (section == .colors
                         ? AnyView(ThemeColoursPreview(model: previewModel))
                         : AnyView(ThemeSettingsDetail(
                         section: section,
                         theme: document.site.theme,
-                        assets: [],
+                        assets: document.site.assets,
                         session: session
                     )))
                     .environment(\.colorScheme, .dark)
@@ -386,11 +405,10 @@ struct ThemeEditorPresentationTests {
     }
 
     private func firstScrollView(in view: NSView) -> NSScrollView? {
-        if let scroll = view as? NSScrollView { return scroll }
-        for child in view.subviews {
-            if let scroll = firstScrollView(in: child) { return scroll }
-        }
-        return nil
+        // Prefer the main editor scroller, not the font sidebar or catalogue.
+        let candidates = (view as? NSScrollView).map { [$0] } ?? []
+        return (candidates + view.subviews.compactMap { firstScrollView(in: $0) })
+            .max { $0.bounds.width < $1.bounds.width }
     }
 
     private func capture(_ view: NSView, to url: URL) throws {

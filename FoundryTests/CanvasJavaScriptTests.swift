@@ -5,6 +5,51 @@ import WebKit
 @MainActor
 struct CanvasJavaScriptTests {
     @Test(.timeLimit(.minutes(1)))
+    func structuralUpdatesDoNotLeaveDuplicateOrRemovedComponents() async throws {
+        let configuration = WKWebViewConfiguration()
+        configuration.userContentController.addUserScript(.init(
+            source: WebCanvasView.Coordinator.interactionScript,
+            injectionTime: .atDocumentEnd, forMainFrameOnly: true, in: .defaultClient))
+        let webView = WKWebView(frame: .zero, configuration: configuration)
+        defer { webView.stopLoading() }
+        func component(_ id: String, _ contents: String) -> String {
+            "<article data-foundry-id=\"\(id)\"><div class=\"slot\">\(contents)</div></article>"
+        }
+        let empty = "<div class=\"foundry-empty-drop-zone\">Drop component here</div>"
+        let child = component("third-party-child", empty)
+        let parent = "third-party-parent"
+        let initial = component(parent, empty) + child
+        webView.loadHTMLString("<html><body>\(initial)</body></html>", baseURL: nil)
+        var ready = false
+        for _ in 0..<200 {
+            ready = (try? await webView.callAsyncJavaScript(
+                "return typeof window.foundryReplaceDocument === 'function'",
+                arguments: [:], in: nil, contentWorld: .defaultClient)) as? Bool == true
+            if ready { break }
+            try await Task.sleep(for: .milliseconds(25))
+        }
+        try #require(ready)
+        // Nest, unnest, reorder, add and delete arbitrary component identities.
+        let bodies = [component(parent, child), initial, child + component(parent, empty),
+                      component(parent, component("another-wrapper", child)),
+                      component(parent, empty), ""]
+        for body in bodies {
+            let matches = try await webView.callAsyncJavaScript("""
+                const html = '<html><body>' + body + '</body></html>';
+                const expected = new DOMParser().parseFromString(html, 'text/html');
+                const signature = root => [...root.querySelectorAll('[data-foundry-id]')].map(element => [
+                  element.dataset.foundryId,
+                  element.parentElement.closest('[data-foundry-id]')?.dataset.foundryId ?? null
+                ]);
+                window.foundryReplaceDocument(html);
+                return JSON.stringify(signature(document)) === JSON.stringify(signature(expected))
+                  && document.querySelectorAll('.foundry-empty-drop-zone').length === expected.querySelectorAll('.foundry-empty-drop-zone').length;
+                """, arguments: ["body": body], in: nil, contentWorld: .defaultClient)
+            #expect(matches as? Bool == true, "Canvas must match the authoritative component hierarchy")
+        }
+    }
+
+    @Test(.timeLimit(.minutes(1)))
     func liveThemeUpdatesCompleteWithoutReloadingDocument() async throws {
         let configuration = WKWebViewConfiguration()
         configuration.defaultWebpagePreferences.allowsContentJavaScript = false

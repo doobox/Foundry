@@ -9,6 +9,10 @@ final class ThemeEditorSession {
     private var colourEditSession: UUID?
     private var colourEditRevision: UInt64?
 
+    var canEditTheme: Bool {
+        !ThemeLibrary.shared.themes.contains { $0.id == document.site.themeSourceID && $0.isBuiltIn }
+    }
+
     func colourIsInUse(_ id: String) -> Bool {
         var probe = document.site
         probe.replaceComponentThemeReference(id, with: "foundry:usage-check")
@@ -63,7 +67,7 @@ final class ThemeEditorSession {
         return storedFont(for: reference)
     }
 
-    func previewGoogleFont(_ family: String, for reference: ThemeFontReference) {
+    func previewGoogleFont(_ family: String, for reference: ThemeFontReference, configuration: GoogleFontConfiguration? = nil) {
         let normalizedFamily = family.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !normalizedFamily.isEmpty,
               let stylesheetURL = ThemeFontDefinition.googleStylesheetURL(for: normalizedFamily) else {
@@ -72,6 +76,16 @@ final class ThemeEditorSession {
         var font = storedFont(for: reference)
         font.family = normalizedFamily
         font.source = .remote(stylesheetURL: stylesheetURL)
+        font.googleConfiguration = nil
+        if let configuration { font.applyGoogleConfiguration(configuration) }
+        previewReference = reference
+        previewFont = font
+    }
+
+    func previewGoogleConfiguration(_ configuration: GoogleFontConfiguration, for reference: ThemeFontReference) {
+        guard !configuration.validIncluded.isEmpty else { return }
+        var font = self.font(for: reference)
+        font.applyGoogleConfiguration(configuration)
         previewReference = reference
         previewFont = font
     }

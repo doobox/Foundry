@@ -18,14 +18,20 @@ nonisolated struct ComponentPackageColorValue: Codable, Equatable, Sendable {
     var customColor: String
     var opacity: Double
     var shade: ColourShade
+    var darkShade: ColourShade
+    var darkCustomColor: String
+    var darkOpacity: Double
 
     init(source: String, customColor: String, opacity: Double,
-         shade: ColourShade? = nil) {
+         shade: ColourShade? = nil, darkShade: ColourShade? = nil) {
         self.source = source
         self.customColor = customColor
         self.opacity = opacity
         let id = ThemeColorRole(rawValue: source) != nil ? "theme." + source : source
-        self.shade = shade ?? Theme.standard.colourPalettes.resolvedPalette(id: id)?.defaultShade ?? .six
+        self.shade = shade ?? Theme.standard.colourPalettes.resolvedPalette(id: id)?.lightDefaultShade ?? .six
+        self.darkShade = darkShade ?? Theme.standard.colourPalettes.resolvedPalette(id: id)?.darkDefaultShade ?? .six
+        self.darkCustomColor = customColor
+        self.darkOpacity = opacity
     }
 
     var paletteID: String {
@@ -37,13 +43,16 @@ nonisolated struct ComponentPackageColorValue: Codable, Equatable, Sendable {
             : .palette(id: paletteID, selection: .shade(shade))
     }
 
-    private enum CodingKeys: String, CodingKey { case source, customColor, opacity, shade }
+    private enum CodingKeys: String, CodingKey { case source, customColor, opacity, shade, darkShade, darkCustomColor, darkOpacity }
     init(from decoder: Decoder) throws {
         let values = try decoder.container(keyedBy: CodingKeys.self)
         source = try values.decode(String.self, forKey: .source)
         customColor = try values.decode(String.self, forKey: .customColor)
         opacity = try values.decode(Double.self, forKey: .opacity)
         shade = try values.decode(ColourShade.self, forKey: .shade)
+        darkShade = try values.decode(ColourShade.self, forKey: .darkShade)
+        darkCustomColor = try values.decode(String.self, forKey: .darkCustomColor)
+        darkOpacity = try values.decode(Double.self, forKey: .darkOpacity)
     }
 }
 
@@ -168,6 +177,7 @@ nonisolated struct ComponentProperty: Codable, Equatable, Identifiable, Sendable
         case array([Value])
         case link(ComponentLink)
         case packageColor(ComponentPackageColorValue)
+        // Retained only to decode saved values from the removed Select extension.
         case packageFontSize(ComponentPackageFontSizeValue)
         case packageShadow(ComponentPackageShadowValue)
 

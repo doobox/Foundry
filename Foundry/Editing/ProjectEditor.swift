@@ -548,7 +548,7 @@ struct ProjectEditor {
         }
     }
 
-    func setThemeGoogleFont(_ family: String, reference: ThemeFontReference) {
+    func setThemeGoogleFont(_ family: String, reference: ThemeFontReference, configuration: GoogleFontConfiguration? = nil) {
         let normalizedFamily = family.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !normalizedFamily.isEmpty,
               let url = ThemeFontDefinition.googleStylesheetURL(for: normalizedFamily) else { return }
@@ -559,6 +559,8 @@ struct ProjectEditor {
             $0.family = normalizedFamily
             $0.fallbacks = []
             $0.source = .remote(stylesheetURL: url)
+            $0.googleConfiguration = nil
+            if let configuration { $0.applyGoogleConfiguration(configuration) }
         }
     }
 
@@ -576,8 +578,30 @@ struct ProjectEditor {
         let uniqueFiles = files.reduce(into: [String]()) { result, file in
             if !result.contains(file) { result.append(file) }
         }
+        let contents = document.assetContents
+        let metadata = uniqueFiles.compactMap { file -> FontFileMetadata? in
+            guard let id = file.foundryAssetID, let content = contents[id] else { return nil }
+            return FontFileMetadata.read(content)
+        }
         updateThemeFont(reference: reference, actionName: "Edit Font Resources") {
+            let previous: [String]
+            if case .bundled(let files) = $0.source { previous = files } else { previous = [] }
+            // Removing a broken attachment must remain possible; adding files must
+            // never introduce unreadable data or mix unrelated families.
+            if !Set(uniqueFiles).isSubset(of: Set(previous)) {
+                guard metadata.count == uniqueFiles.count,
+                      let first = metadata.first,
+                      metadata.allSatisfy({ $0.belongsToSameFamily(as: first) }) else { return }
+            }
             $0.source = .bundled(files: uniqueFiles)
+            if let first = metadata.first, metadata.allSatisfy({ $0.belongsToSameFamily(as: first) }) {
+                $0.family = first.family
+                $0.fallbacks = []
+                $0.weights = Array(Set(metadata.flatMap { face in
+                    face.weight == face.maximumWeight ? [face.weight] : Array(stride(from: face.weight, through: face.maximumWeight, by: 100))
+                })).sorted()
+                $0.styles = metadata.contains(where: \.italic) ? (metadata.contains(where: { !$0.italic }) ? [.normal, .italic] : [.italic]) : [.normal]
+            }
         }
     }
 
@@ -720,12 +744,20 @@ struct ProjectEditor {
     }
 
     func selectTheme(_ theme: Theme, sourceID: UUID) {
+        let builtIn = ThemeLibrary.shared.themes.first { $0.id == sourceID && $0.isBuiltIn }
         mutate(actionName: "Select Theme", impact: .theme) { site in
-            guard site.themeSourceID != sourceID else { return }
+            guard site.themeSourceID != sourceID || builtIn != nil else { return }
             site.projectThemeValues.absorb(site.theme)
-            site.saveActiveThemeState()
-            site.projectThemeValues.include(theme)
-            let selected = site.themeStates.first(where: { $0.sourceID == sourceID })?.theme ?? theme
+            if site.themeSourceID != sourceID { site.saveActiveThemeState() }
+            let selected: Theme
+            if let builtIn {
+                // Built-ins have no editable project snapshot to restore.
+                site.themeStates.removeAll { $0.sourceID == sourceID }
+                selected = builtIn.theme
+            } else {
+                site.projectThemeValues.include(theme)
+                selected = site.themeStates.first(where: { $0.sourceID == sourceID })?.theme ?? theme
+            }
             site.theme = site.projectThemeValues.applied(to: selected)
             site.themeSourceID = sourceID
         }
@@ -737,6 +769,17 @@ struct ProjectEditor {
             site.themeStates.removeAll { $0.sourceID == sourceID }
             site.theme = site.projectThemeValues.applied(to: theme)
             site.themeSourceID = sourceID
+        }
+    }
+
+    func didDeleteTheme(sourceID: UUID) {
+        mutate(actionName: "Delete Theme", impact: .theme) { site in
+            site.themeStates.removeAll { $0.sourceID == sourceID }
+            guard site.themeSourceID == sourceID else { return }
+            site.projectThemeValues.absorb(site.theme)
+            site.themeStates.removeAll { $0.sourceID == ThemeBundleStore.systemThemeID }
+            site.theme = site.projectThemeValues.applied(to: ThemeBundleStore.systemTheme)
+            site.themeSourceID = ThemeBundleStore.systemThemeID
         }
     }
 

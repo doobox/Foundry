@@ -107,8 +107,6 @@ private struct DeveloperSettingsView: View {
     private var componentValidationMode = ComponentValidationPreference.mode
     @AppStorage(AppPreferenceKey.showsHiddenComponents)
     private var showsHiddenComponents = false
-    @AppStorage(AppPreferenceKey.editsThemes)
-    private var editsThemes = false
 
     var body: some View {
         Form {
@@ -131,14 +129,6 @@ private struct DeveloperSettingsView: View {
                 }
                 .pickerStyle(.segmented)
                 Text("Dev Packs validates components being actively developed. All Packs also validates built-in and installed release packs, which increases loading time.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-
-            Section("Themes") {
-                Toggle("Edit Themes", isOn: $editsThemes)
-                    .controlSize(.small)
-                Text("Allows direct editing of theme colours. Otherwise, duplicate a colour to customise it.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
