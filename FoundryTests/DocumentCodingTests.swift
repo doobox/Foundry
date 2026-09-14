@@ -5,6 +5,24 @@ import Testing
 @MainActor
 struct DocumentCodingTests {
     @Test
+    func fileBackedAssetsSurviveSnapshotOwnerAndRoundTrip() throws {
+        let bytes = Data(repeating: 123, count: 2 * 1_024 * 1_024)
+        let asset = ProjectAsset(filename: "large.bin", mediaType: "application/octet-stream", byteCount: bytes.count)
+        var site = Site.starter()
+        site.assetLibrary = [.asset(asset)]
+        var snapshot: FoundryDocumentSnapshot? = .init(site: site, assetData: [asset.id: bytes])
+        let retained = try #require(snapshot?.assetData[asset.id])
+        snapshot = nil
+        #expect(retained == bytes)
+        // Saving still uses the same Data API, including after its backing owner dies.
+        let wrapper = FileWrapper(directoryWithFileWrappers: [
+            "project.json": FileWrapper(regularFileWithContents: try JSONEncoder().encode(site)),
+            "assets": FileWrapper(directoryWithFileWrappers: [asset.storageFilename: FileWrapper(regularFileWithContents: retained)])
+        ])
+        let loaded = try FoundryDocument.decodeSnapshot(from: wrapper)
+        #expect(loaded.assetData[asset.id] == bytes)
+    }
+    @Test
     func responsiveOverridesRoundTripWithoutDuplicatingBaseProperties() throws {
         var site = TestSiteFixtures.populatedSite()
         let partID = try #require(site.pages.first?.parts.first?.id)

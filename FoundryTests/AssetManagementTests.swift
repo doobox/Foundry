@@ -59,6 +59,32 @@ struct AssetManagementTests {
     }
 
     @Test
+    func renditionDiskCacheReusesInvalidatesAndRecovers() throws {
+        let cache = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: cache) }
+        let data = try testPNG(width: 100, height: 50)
+        func render(_ source: Data, _ size: Int = 40) throws -> PartImageProcessor.Result {
+            try #require(PartImageProcessor.rendition(data: source, filename: "test.png", mimeType: "image/png", maximumDimension: size, cacheDirectory: cache))
+        }
+        let first = try render(data)
+        let file = try #require(FileManager.default.contentsOfDirectory(at: cache, includingPropertiesForKeys: nil).first)
+        let fileID = try FileManager.default.attributesOfItem(atPath: file.path)[.systemFileNumber] as? NSNumber
+        let second = try render(data)
+        #expect(second.data == first.data)
+        #expect(second.metadata == first.metadata)
+        #expect(try FileManager.default.attributesOfItem(atPath: file.path)[.systemFileNumber] as? NSNumber == fileID)
+        _ = try render(data, 20)
+        _ = try render(testPNG(width: 120, height: 60))
+        #expect(try FileManager.default.contentsOfDirectory(atPath: cache.path).count == 3)
+        try Data("broken".utf8).write(to: file)
+        #expect(try render(data).data == first.data)
+        #expect(try Data(contentsOf: file) == first.data)
+        // An unwritable cache (a regular file in place of its directory) is optional.
+        let uncached = PartImageProcessor.rendition(data: data, filename: "test.png", mimeType: "image/png", maximumDimension: 40, cacheDirectory: file)
+        #expect(uncached?.data == first.data)
+    }
+
+    @Test
     func assetLibrarySupportsNestedOrderedFolders() {
         let hero = ProjectAsset(filename: "hero.png", mediaType: "image/png", byteCount: 4)
         let nestedFolder = ProjectAssetFolder(name: "Homepage")

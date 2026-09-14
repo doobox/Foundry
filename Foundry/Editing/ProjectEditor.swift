@@ -746,6 +746,8 @@ struct ProjectEditor {
     func selectTheme(_ theme: Theme, sourceID: UUID) {
         let builtIn = ThemeLibrary.shared.themes.first { $0.id == sourceID && $0.isBuiltIn }
         mutate(actionName: "Select Theme", impact: .theme) { site in
+            let projectScreens = site.theme.screens
+            defer { site.theme.screens = projectScreens }
             guard site.themeSourceID != sourceID || builtIn != nil else { return }
             site.projectThemeValues.absorb(site.theme)
             if site.themeSourceID != sourceID { site.saveActiveThemeState() }
@@ -765,6 +767,8 @@ struct ProjectEditor {
 
     func resetTheme(_ theme: Theme, sourceID: UUID) {
         mutate(actionName: "Reset Theme", impact: .theme) { site in
+            let projectScreens = site.theme.screens
+            defer { site.theme.screens = projectScreens }
             site.projectThemeValues.absorb(site.theme)
             site.themeStates.removeAll { $0.sourceID == sourceID }
             site.theme = site.projectThemeValues.applied(to: theme)
@@ -774,6 +778,8 @@ struct ProjectEditor {
 
     func didDeleteTheme(sourceID: UUID) {
         mutate(actionName: "Delete Theme", impact: .theme) { site in
+            let projectScreens = site.theme.screens
+            defer { site.theme.screens = projectScreens }
             site.themeStates.removeAll { $0.sourceID == sourceID }
             guard site.themeSourceID == sourceID else { return }
             site.projectThemeValues.absorb(site.theme)
@@ -785,6 +791,8 @@ struct ProjectEditor {
 
     func commitTheme(_ theme: Theme, sourceID: UUID) {
         mutate(actionName: "Update Theme Defaults", impact: .theme) { site in
+            let projectScreens = site.theme.screens
+            defer { site.theme.screens = projectScreens }
             let projectColours = site.theme.colourPalettes.filter { $0.origin == .custom }
             site.themeStates.removeAll { $0.sourceID == sourceID }
             site.projectThemeValues.absorb(theme)

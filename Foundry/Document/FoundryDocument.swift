@@ -5,6 +5,7 @@ import Synchronization
 import UniformTypeIdentifiers
 
 nonisolated struct FoundryDocumentSnapshot: Sendable {
+    private let assetBacking: DocumentAssetBacking
     var site: Site
     var assetData: [UUID: Data]
     var assetRevision: UInt64 = 0
@@ -12,10 +13,12 @@ nonisolated struct FoundryDocumentSnapshot: Sendable {
     private(set) var assetIDsByDigest: [Data: Set<UUID>]
 
     init(site: Site, assetData: [UUID: Data], assetRevision: UInt64 = 0) {
+        let backing = DocumentAssetBacking()
+        assetBacking = backing
         var site = site
         site.assetLibrary.hydrateImageMetadata(from: assetData)
         self.site = site
-        self.assetData = assetData
+        self.assetData = assetData.mapValues { backing.back($0) }
         self.assetRevision = assetRevision
 
         var digestByID: [UUID: Data] = [:]
@@ -37,7 +40,7 @@ nonisolated struct FoundryDocumentSnapshot: Sendable {
     }
 
     mutating func insertAssetData(_ data: Data, id: UUID, digest: Data) {
-        assetData[id] = data
+        assetData[id] = assetBacking.back(data)
         assetDigestByID[id] = digest
         assetIDsByDigest[digest, default: []].insert(id)
     }
@@ -53,6 +56,32 @@ nonisolated struct FoundryDocumentSnapshot: Sendable {
 
     static func digest(for data: Data) -> Data {
         Data(SHA256.hash(data: data))
+    }
+}
+
+/// Keep large retained assets in reclaimable, read-only file mappings rather
+/// than heap buffers. Snapshots share this owner; undo and saves retain their
+/// own immutable Data mappings. Failure falls back to the original bytes.
+nonisolated final class DocumentAssetBacking: @unchecked Sendable {
+    private let root = FileManager.default.temporaryDirectory.appending(path: "FoundryAssets-\(UUID().uuidString)", directoryHint: .isDirectory)
+
+    deinit { try? FileManager.default.removeItem(at: root) }
+
+    func back(_ data: Data) -> Data {
+        guard data.count >= 256 * 1_024 else { return data }
+        let url = root.appending(path: UUID().uuidString)
+        do {
+            try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+            try data.write(to: url, options: .atomic)
+            let mapped = try Data(contentsOf: url, options: .alwaysMapped)
+            // The mapping retains its inode until the final Data reference dies.
+            // Unlink now so deleted assets and crashed sessions leave no files.
+            try? FileManager.default.removeItem(at: url)
+            return mapped
+        } catch {
+            try? FileManager.default.removeItem(at: url)
+            return data
+        }
     }
 }
 

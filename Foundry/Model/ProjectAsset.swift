@@ -1,4 +1,5 @@
 import Foundation
+import CryptoKit
 import ImageIO
 import UniformTypeIdentifiers
 
@@ -15,11 +16,59 @@ nonisolated enum PartImageProcessor {
             ?? Result(data: data, metadata: .inspect(data: data, filename: filename, mimeType: mimeType))
     }
 
-    static func rendition(data: Data, filename: String, mimeType: String, maximumDimension: Int) -> Result? {
+    static func rendition(
+        data: Data, filename: String, mimeType: String, maximumDimension: Int,
+        cacheDirectory: URL? = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first?
+            .appending(path: "Foundry/ImageRenditions-v1", directoryHint: .isDirectory)
+    ) -> Result? {
         let dimension = min(max(maximumDimension, 1), canonicalMaximumDimension)
         let metadata = PartImageMetadata.inspect(data: data, filename: filename, mimeType: mimeType)
         guard let width = metadata.width, let height = metadata.height, max(width, height) > dimension else { return nil }
-        return resized(data: data, filename: filename, mimeType: mimeType, maximumDimension: dimension)
+        // Include processing version, source bytes and output-affecting inputs. No
+        // project paths or asset IDs: identical sources can share a cached variant.
+        var hash = SHA256()
+        hash.update(data: data)
+        hash.update(data: Data("\u{0}v1\u{0}\(dimension)\u{0}\(filename)\u{0}\(mimeType)".utf8))
+        let key = hash.finalize().map { String(format: "%02x", $0) }.joined()
+        let cachedURL = cacheDirectory?.appending(path: key)
+        if let cachedURL,
+           let cached = try? Data(contentsOf: cachedURL, options: .mappedIfSafe),
+           let source = CGImageSourceCreateWithData(cached as CFData, nil),
+           CGImageSourceCreateImageAtIndex(source, 0, nil) != nil {
+            let ext = renditionFileExtension(data: data, fallback: (filename as NSString).pathExtension)
+            let outputName = ext == (filename as NSString).pathExtension ? filename : (filename as NSString).deletingPathExtension + "." + ext
+            let outputMIMEType = CGImageSourceGetType(source).flatMap { UTType($0 as String)?.preferredMIMEType } ?? mimeType
+            let cachedMetadata = PartImageMetadata.inspect(data: cached, filename: outputName, mimeType: outputMIMEType)
+            if max(cachedMetadata.width ?? 0, cachedMetadata.height ?? 0) == dimension {
+                try? FileManager.default.setAttributes([.modificationDate: Date()], ofItemAtPath: cachedURL.path)
+                return Result(data: cached, metadata: cachedMetadata)
+            }
+        }
+        guard let result = resized(data: data, filename: filename, mimeType: mimeType, maximumDimension: dimension) else { return nil }
+        if let cacheDirectory, let cachedURL {
+            // Cache failures must never prevent preview or export. Atomic replacement
+            // also allows concurrent renders to safely request the same variant.
+            do {
+                try FileManager.default.createDirectory(at: cacheDirectory, withIntermediateDirectories: true)
+                try result.data.write(to: cachedURL, options: .atomic)
+                trimRenditionCache(cacheDirectory)
+            } catch { /* The generated result remains usable without a cache. */ }
+        }
+        return result
+    }
+
+    private static func trimRenditionCache(_ directory: URL) {
+        let keys: Set<URLResourceKey> = [.fileSizeKey, .contentModificationDateKey, .isRegularFileKey]
+        guard let files = try? FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: Array(keys)) else { return }
+        let entries = files.compactMap { url -> (URL, Int, Date)? in
+            guard url.lastPathComponent.count == 64,
+                  let values = try? url.resourceValues(forKeys: keys), values.isRegularFile == true else { return nil }
+            return (url, values.fileSize ?? 0, values.contentModificationDate ?? .distantPast)
+        }.sorted { $0.2 < $1.2 }
+        var size = entries.reduce(0) { $0 + $1.1 }
+        for (url, bytes, _) in entries where size > 256 * 1_024 * 1_024 {
+            if (try? FileManager.default.removeItem(at: url)) != nil { size -= bytes }
+        }
     }
 
     static func renditionFileExtension(data: Data, fallback: String) -> String {

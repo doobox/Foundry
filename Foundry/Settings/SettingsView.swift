@@ -160,10 +160,10 @@ private struct PreviewSettingsView: View {
         Form {
             Section("Live Preview") {
                 Toggle(
-                    "Enable External Preview Auto Reload",
+                    "Live Browser Preview",
                     isOn: $externalPreviewAutoReload
                 )
-                Text("When enabled, open browser previews regenerate after project edits.")
+                Text("When enabled, open browser previews refresh after edits and follow the page selected in Foundry.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

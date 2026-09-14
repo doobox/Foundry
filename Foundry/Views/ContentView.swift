@@ -60,6 +60,10 @@ struct ContentView: View {
     @State private var previewSessionApplicationIdentifier: String?
     @State private var isPreviewSessionOpen = false
     @State private var previewRefreshTask: Task<Void, Never>?
+    @State private var browserPreviewServer = PreviewServer()
+    @State private var browserPreviewURL: URL?
+    @State private var browserPreviewRevision: UInt64?
+    @State private var browserPreviewPackageRevision: Int?
     @State private var canvasEditorOptions = CanvasEditorOptions()
     @State private var partCatalog = PartPackageCatalog.shared
     @State private var canvasViewportWidth = 390.0
@@ -153,7 +157,12 @@ struct ContentView: View {
         .onChange(of: externalPreviewAutoReload) { _, isEnabled in
             if !isEnabled {
                 previewRefreshTask?.cancel()
+            } else {
+                schedulePreviewRefresh()
             }
+        }
+        .onChange(of: selectedPageID) { _, _ in
+            schedulePreviewRefresh(selectionOnly: true)
         }
         .onChange(of: document.site.pages.map(\.id)) { _, pageIDs in
             if let selectedPageID, pageIDs.contains(selectedPageID) {
@@ -216,6 +225,7 @@ struct ContentView: View {
             previewRefreshTask?.cancel()
             publishingTask?.cancel()
             publishingChangeTask?.cancel()
+            Task { await browserPreviewServer.stop() }
         }
         .sheet(isPresented: $showsProjectSettings) {
             ProjectSettingsView(
@@ -1503,6 +1513,8 @@ struct ContentView: View {
         previewRefreshTask?.cancel()
         let site = document.site
         let assets = document.assetContents
+        let revision = document.mutationEvent.revision
+        let packageRevision = partCatalog.revision
         let selectedPageOutputPath = selectedPage.map {
             StaticSiteRenderer.outputPath(for: $0, in: site)
         }
@@ -1518,11 +1530,12 @@ struct ContentView: View {
         }
         previewRefreshTask = Task { @MainActor in
             do {
-                let bundle = await Task.detached(priority: .userInitiated) {
-                    StaticSiteRenderer(environment: .preview).render(site: site, assets: assets)
-                }.value
+                let snapshot = try await buildBrowserPreview(site: site, assets: assets)
                 guard !Task.isCancelled else { return }
-                let serverURL = try await PreviewServer.shared.publish(bundle, notifyingClients: false)
+                let serverURL = try await browserPreviewServer.publish(snapshot, notifyingClients: false)
+                browserPreviewURL = serverURL
+                browserPreviewRevision = revision
+                browserPreviewPackageRevision = packageRevision
                 guard !Task.isCancelled else { return }
                 let pageURL = selectedPageOutputPath.map {
                     previewURL(for: $0, relativeTo: serverURL)
@@ -1535,12 +1548,13 @@ struct ContentView: View {
                     applicationIdentifier: applicationIdentifier
                 )
             } catch {
+                guard !Task.isCancelled else { return }
                 exportErrorMessage = error.localizedDescription
             }
         }
     }
 
-    private func schedulePreviewRefresh() {
+    private func schedulePreviewRefresh(selectionOnly: Bool = false) {
         guard externalPreviewAutoReload, isPreviewSessionOpen else { return }
         previewRefreshTask?.cancel()
         previewRefreshTask = Task { @MainActor in
@@ -1548,16 +1562,45 @@ struct ContentView: View {
             guard !Task.isCancelled else { return }
             let site = document.site
             let assets = document.assetContents
-            let bundle = await Task.detached(priority: .userInitiated) {
-                StaticSiteRenderer(environment: .preview).render(site: site, assets: assets)
-            }.value
-            guard !Task.isCancelled else { return }
             do {
-                _ = try await PreviewServer.shared.publish(bundle)
+                let revision = document.mutationEvent.revision
+                let packageRevision = partCatalog.revision
+                if !selectionOnly || browserPreviewRevision != revision || browserPreviewPackageRevision != packageRevision {
+                    let snapshot = try await buildBrowserPreview(site: site, assets: assets)
+                    try Task.checkCancellation()
+                    // Navigation below also reloads an unchanged target. Avoid a
+                    // competing reload event disconnecting the stream first.
+                    browserPreviewURL = try await browserPreviewServer.publish(snapshot, notifyingClients: false)
+                    browserPreviewRevision = revision
+                    browserPreviewPackageRevision = packageRevision
+                }
+                try Task.checkCancellation()
+                if let page = selectedPage, let serverURL = browserPreviewURL {
+                    let url = previewURL(
+                        previewURL(for: StaticSiteRenderer.outputPath(for: page, in: document.site), relativeTo: serverURL),
+                        sessionID: previewSessionID
+                    )
+                    // Live following never opens extra tabs or steals focus from editing.
+                    _ = await browserPreviewServer.navigatePreview(sessionID: previewSessionID, to: previewTarget(for: url))
+                }
             } catch {
                 guard !Task.isCancelled else { return }
                 exportErrorMessage = error.localizedDescription
             }
+        }
+    }
+
+    private func buildBrowserPreview(site: Site, assets: [UUID: ProjectAssetContent]) async throws -> PreviewDiskSnapshot {
+        let previous = await browserPreviewServer.currentSnapshot()
+        let task = Task.detached(priority: .utility) {
+            try PreviewDiskSnapshot.build(previous: previous) { emit in
+                try StaticSiteRenderer(environment: .preview).generate(site: site, assets: assets, emit: emit)
+            }
+        }
+        return try await withTaskCancellationHandler {
+            try await task.value
+        } onCancel: {
+            task.cancel()
         }
     }
 
@@ -1567,7 +1610,7 @@ struct ContentView: View {
         applicationIdentifier: String?
     ) async {
         if previewSessionApplicationIdentifier == applicationIdentifier,
-           await PreviewServer.shared.navigatePreview(
+           await browserPreviewServer.navigatePreview(
             sessionID: sessionID,
             to: previewTarget(for: previewURL)
            ) {

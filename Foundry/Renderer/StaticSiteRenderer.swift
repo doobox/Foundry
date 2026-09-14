@@ -12,7 +12,21 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
     }
 
     func render(site: Site, assets: [UUID: ProjectAssetContent]) -> SiteExportBundle {
-        var files = site.pages.flatMap { page -> [SiteExportFile] in
+        var files: [SiteExportFile] = []
+        // The collecting API remains for export callers; preview uses the same
+        // generator with a disk sink instead of retaining the complete bundle.
+        do {
+            try generate(site: site, assets: assets) { files.append($0) }
+        } catch {
+            return SiteExportBundle(files: [], errors: [error.localizedDescription])
+        }
+        let normalized = normalizedExportFiles(files)
+        return SiteExportBundle(files: normalized.files, errors: normalized.errors)
+    }
+
+    func generate(site: Site, assets: [UUID: ProjectAssetContent], emit: (SiteExportFile) throws -> Void) throws {
+        for page in site.pages {
+            try Task.checkCancellation()
             let isHome = page.slug == "index"
             let directory = isHome
                 ? ""
@@ -74,35 +88,34 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
                 scope: .page,
                 destinationDirectory: pageFilesDirectory
             ))
-            return pageFiles
+            for file in pageFiles { try emit(file) }
         }
-        files.append(.init(path: "files/site.css", contents: stylesheet(for: site, assets: assets)))
+        try emit(.init(path: "files/site.css", contents: stylesheet(for: site, assets: assets)))
         let sitePackages = PartArtifactPlan.sitePackages(in: site)
-        files.append(contentsOf: FoundryWebLibraryRegistry.exportFiles(for: sitePackages))
-        files.append(contentsOf: partAssetFiles(
+        for file in FoundryWebLibraryRegistry.exportFiles(for: sitePackages) { try emit(file) }
+        for file in partAssetFiles(
             for: sitePackages,
             scope: .site,
             destinationDirectory: "assets"
-        ))
+        ) { try emit(file) }
         let managedAssetPaths = site.assetLibrary.managedExportPaths()
-        files.append(contentsOf: site.assets.compactMap { asset in
-            assets[asset.id].map {
-                SiteExportFile(
+        for asset in site.assets {
+            try Task.checkCancellation()
+            if let content = assets[asset.id] {
+                try emit(SiteExportFile(
                     path: site.publishedPath(for: asset, managedAssetPaths: managedAssetPaths),
-                    data: $0.data,
-                    contentFingerprint: $0.digest?.map { String(format: "%02x", $0) }.joined()
-                )
+                    data: content.data,
+                    contentFingerprint: content.digest?.map { String(format: "%02x", $0) }.joined()
+                ))
             }
-        })
-        files.append(contentsOf: imageRenditionFiles(site: site, assets: assets))
+        }
+        try imageRenditionFiles(site: site, assets: assets, emit: emit)
         if site.generatesSitemap, let baseURL = validPublicURL(site.publicURL) {
-            files.append(.init(path: "sitemap.xml", contents: sitemap(for: site, baseURL: baseURL)))
+            try emit(.init(path: "sitemap.xml", contents: sitemap(for: site, baseURL: baseURL)))
         }
         if site.generatesRobotsTXT {
-            files.append(.init(path: "robots.txt", contents: robotsTXT(for: site)))
+            try emit(.init(path: "robots.txt", contents: robotsTXT(for: site)))
         }
-        let normalized = normalizedExportFiles(files)
-        return SiteExportBundle(files: normalized.files, errors: normalized.errors)
     }
 
     private func pageRequiresJavaScript(_ page: Page) -> Bool {
@@ -549,7 +562,7 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
         guard FileManager.default.fileExists(atPath: sourceURL.path, isDirectory: &isDirectory) else { return [] }
 
         if !isDirectory.boolValue {
-            guard let data = try? Data(contentsOf: sourceURL) else { return [] }
+            guard let data = try? Data(contentsOf: sourceURL, options: .mappedIfSafe) else { return [] }
             let destinationName = declaration.scope == .page
                 ? sourceURL.lastPathComponent
                 : declaration.path
@@ -567,7 +580,7 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
                   let values = try? fileURL.resourceValues(forKeys: [.isRegularFileKey, .isSymbolicLinkKey]),
                   values.isRegularFile == true,
                   values.isSymbolicLink != true,
-                  let data = try? Data(contentsOf: fileURL) else { return nil }
+                  let data = try? Data(contentsOf: fileURL, options: .mappedIfSafe) else { return nil }
             let sourceParts = sourceURL.standardizedFileURL.pathComponents
             let fileParts = fileURL.standardizedFileURL.pathComponents
             guard fileParts.starts(with: sourceParts) else { return nil }
@@ -938,8 +951,9 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
 
     private func imageRenditionFiles(
         site: Site,
-        assets: [UUID: ProjectAssetContent]
-    ) -> [SiteExportFile] {
+        assets: [UUID: ProjectAssetContent],
+        emit: (SiteExportFile) throws -> Void
+    ) throws {
         var requests = Set<ImageRenditionRequest>()
         for page in site.pages {
             for node in page.parts.flatMap(\.flattened) {
@@ -953,22 +967,23 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
                 }
             }
         }
-        return requests.compactMap { request in
+        for request in requests {
+            try Task.checkCancellation()
             guard let content = assets[request.assetID],
                   let output = PartImageProcessor.rendition(
                     data: content.data,
                     filename: content.asset.filename,
                     mimeType: content.asset.mediaType,
                     maximumDimension: request.maximumDimension
-                  ) else { return nil }
-            return SiteExportFile(
+                  ) else { continue }
+            try emit(SiteExportFile(
                 path: imageRenditionPath(
                     assetID: request.assetID,
                     maximumDimension: request.maximumDimension,
                     fileExtension: output.metadata.fileExtension
                 ),
                 data: output.data
-            )
+            ))
         }
     }
 

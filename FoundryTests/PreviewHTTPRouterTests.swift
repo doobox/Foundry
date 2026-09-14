@@ -3,6 +3,125 @@ import Testing
 @testable import Foundry
 
 struct PreviewHTTPRouterTests {
+    @Test
+    func diskPreviewExecutesPHPAndRefreshes() async throws {
+        let server = PreviewServer()
+        for text in ["FirstPHP", "SecondPHP"] {
+            let snapshot = try PreviewDiskSnapshot.build { emit in
+                try emit(.init(path: "index.php", contents: "<?php echo '<body>\(text)</body>'; ?>"))
+            }
+            let url = try await server.publish(snapshot)
+            let (data, response) = try await URLSession.shared.data(from: url)
+            #expect((response as? HTTPURLResponse)?.statusCode == 200)
+            #expect(String(decoding: data, as: UTF8.self).contains(text))
+            #expect(!String(decoding: data, as: UTF8.self).contains("<?php"))
+        }
+        await server.stop()
+    }
+
+    @Test
+    func cancelledGenerationDoesNotReplaceWorkingPreview() async throws {
+        let server = PreviewServer()
+        let working = try PreviewDiskSnapshot.build { try $0(.init(path: "index.html", contents: "Working")) }
+        _ = try await server.publish(working)
+        let task = Task.detached {
+            // Wait until the caller cancels, without racing a completed generation.
+            while !Task.isCancelled { await Task.yield() }
+            return try PreviewDiskSnapshot.build { try $0(.init(path: "index.html", contents: "Stale")) }
+        }
+        task.cancel()
+        do {
+            _ = try await task.value
+            Issue.record("Cancelled generation must throw")
+        } catch is CancellationError { }
+        #expect(await server.currentSnapshot()?.root == working.root)
+        await server.stop()
+    }
+
+    @Test
+    func largeProgressivePreviewIndexContainsNoAssetBytes() throws {
+        let clock = ContinuousClock()
+        let start = clock.now
+        let snapshot = try PreviewDiskSnapshot.build { emit in
+            for index in 0..<64 {
+                try emit(.init(path: "assets/\(index).bin", data: Data(repeating: UInt8(index), count: 1_024 * 1_024)))
+            }
+        }
+        #expect(snapshot.fingerprints.count == 64)
+        #expect(snapshot.index.files.allSatisfy { $0.data.isEmpty })
+        #expect(try Data(contentsOf: snapshot.root.appending(path: "assets/63.bin")).count == 1_024 * 1_024)
+        print("64 MiB progressive preview: \(start.duration(to: clock.now))")
+    }
+    @Test @MainActor
+    func progressivePreviewMatchesExportAndKeepsGenerationsIsolated() throws {
+        let site = TestSiteFixtures.populatedSite()
+        let renderer = StaticSiteRenderer(environment: .preview)
+        let expected = renderer.render(site: site)
+        try expected.validate()
+        var first: PreviewDiskSnapshot? = try PreviewDiskSnapshot.build { emit in
+            try renderer.generate(site: site, assets: [:], emit: emit)
+        }
+        let root = try #require(first?.root)
+        #expect(first?.fingerprints.count == expected.files.count)
+        for file in expected.files {
+            #expect(try Data(contentsOf: root.appending(path: file.path)) == file.data)
+        }
+        let second = try PreviewDiskSnapshot.build(previous: first) { emit in
+            for file in expected.files { try emit(file) }
+        }
+        let path = try #require(expected.files.first?.path)
+        try Data("changed".utf8).write(to: second.root.appending(path: path))
+        #expect(try Data(contentsOf: root.appending(path: path)) == expected.files.first?.data)
+        first = nil
+        #expect(!FileManager.default.fileExists(atPath: root.path))
+    }
+
+    @Test
+    func diskPreviewStreamsRangesAndSeparatesProjects() async throws {
+        let bytes = Data(repeating: 97, count: 200_000)
+        let first = try PreviewDiskSnapshot.build { emit in
+            try emit(.init(path: "index.html", contents: "<body>First</body>"))
+            try emit(.init(path: "assets/video.mp4", data: bytes))
+        }
+        let second = try PreviewDiskSnapshot.build { emit in
+            try emit(.init(path: "index.html", contents: "<body>Second</body>"))
+        }
+        let serverA = PreviewServer()
+        let serverB = PreviewServer()
+        let urlA = try await serverA.publish(first)
+        let urlB = try await serverB.publish(second)
+        let (html, _) = try await URLSession.shared.data(from: urlA)
+        #expect(String(decoding: html, as: UTF8.self).contains("First"))
+        let (other, _) = try await URLSession.shared.data(from: urlB)
+        #expect(String(decoding: other, as: UTF8.self).contains("Second"))
+        let (whole, _) = try await URLSession.shared.data(from: urlA.appending(path: "assets/video.mp4"))
+        #expect(whole == bytes)
+        var request = URLRequest(url: urlA.appending(path: "assets/video.mp4"))
+        request.setValue("bytes=65530-65550", forHTTPHeaderField: "Range")
+        let (range, response) = try await URLSession.shared.data(for: request)
+        #expect(range == bytes.subdata(in: 65530..<65551))
+        #expect((response as? HTTPURLResponse)?.statusCode == 206)
+        request.httpMethod = "HEAD"
+        let (head, _) = try await URLSession.shared.data(for: request)
+        #expect(head.isEmpty)
+        await serverA.stop()
+        await serverB.stop()
+    }
+
+    @Test
+    func diskPreviewRejectsConflictsAndUnsafePaths() {
+        #expect(throws: (any Error).self) {
+            try PreviewDiskSnapshot.build { emit in
+                try emit(.init(path: "../escape", contents: "bad"))
+            }
+        }
+        #expect(throws: (any Error).self) {
+            try PreviewDiskSnapshot.build { emit in
+                try emit(.init(path: "index.html", contents: "one"))
+                try emit(.init(path: "index.html", contents: "two"))
+            }
+        }
+    }
     private let bundle = SiteExportBundle(files: [
         .init(path: "index.html", contents: "<h1>Home</h1>"),
         .init(path: "about/index.html", contents: "<h1>About</h1>"),

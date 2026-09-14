@@ -5,6 +5,32 @@ import Testing
 @MainActor
 struct ThemeEditingTests {
     @Test
+    func themeChangesPreserveProjectBreakpoints() throws {
+        let document = FoundryDocument()
+        let editor = ProjectEditor(document: document, undoManager: nil)
+        var screens = document.site.theme.screens
+        screens.update(.medium) { $0.minimumWidth = 850; $0.container = .init(value: 90, unit: .percent) }
+        screens.update(.large) { $0.isEnabled = false }
+        document.site.theme.screens = screens
+        let customID = UUID()
+        editor.selectTheme(.standard, sourceID: customID)
+        #expect(document.site.theme.screens == screens)
+        editor.selectTheme(ThemeBundleStore.systemTheme, sourceID: ThemeBundleStore.systemThemeID)
+        #expect(document.site.theme.screens == screens)
+        editor.selectTheme(.standard, sourceID: customID)
+        #expect(document.site.theme.screens == screens)
+        editor.resetTheme(.standard, sourceID: customID)
+        #expect(document.site.theme.screens == screens)
+        editor.commitTheme(.standard, sourceID: customID)
+        #expect(document.site.theme.screens == screens)
+        editor.didDeleteTheme(sourceID: customID)
+        #expect(document.site.theme.screens == screens)
+        #expect(document.site.theme.savedSettings.screens == .standard)
+        let decoded = try JSONDecoder().decode(Site.self, from: JSONEncoder().encode(document.site))
+        #expect(decoded.theme.screens == screens)
+    }
+
+    @Test
     func selectingBuiltInDiscardsEditedSnapshotIncludingWhenAlreadyActive() throws {
         let document = FoundryDocument()
         let editor = ProjectEditor(document: document, undoManager: nil)
@@ -59,7 +85,7 @@ struct ThemeEditingTests {
     }
 
     @Test
-    func breakpointDimensionsAreProjectLocalForBuiltInsButSavedForCustomThemes() throws {
+    func breakpointDimensionsAreProjectLocalForEveryTheme() throws {
         let builtIn = try #require(ThemeBundleStore.builtInThemes().first)
         let document = FoundryDocument()
         document.site.theme = builtIn.theme
@@ -76,8 +102,8 @@ struct ThemeEditingTests {
         #expect(savedProject.theme.screens == document.site.theme.screens)
         #expect(try ThemeBundleStore.load(from: builtIn.bundleURL).theme.screens == builtIn.theme.screens)
         let custom = SavedTheme(metadata: builtIn.metadata, theme: builtIn.theme, bundleURL: builtIn.bundleURL, resources: builtIn.resources, isBuiltIn: false)
-        #expect(custom.hasModifiedSettings(in: document.site.theme))
-        #expect(document.site.theme.savedSettings.screens == document.site.theme.screens)
+        #expect(!custom.hasModifiedSettings(in: document.site.theme))
+        #expect(document.site.theme.savedSettings.screens == .standard)
     }
 
     @Test
@@ -689,7 +715,9 @@ struct ThemeEditingTests {
 
         #expect(loaded.id == saved.id)
         #expect(loaded.metadata.name == "Studio")
-        #expect(loaded.theme == theme)
+        var expectedTheme = theme
+        expectedTheme.screens = .standard
+        #expect(loaded.theme == expectedTheme)
         #expect(loaded.resources == [ProjectAssetContent(asset: fontAsset, data: fontData)])
         #expect(FileManager.default.fileExists(atPath: root.appending(path: "Contents/Info.plist").path))
         #expect(FileManager.default.fileExists(atPath: root.appending(path: "Contents/Resources/theme.json").path))

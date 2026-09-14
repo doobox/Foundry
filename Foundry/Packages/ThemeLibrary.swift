@@ -29,10 +29,7 @@ nonisolated struct SavedTheme: Equatable, Identifiable, Sendable {
 
     var id: UUID { metadata.id }
     func hasModifiedSettings(in projectTheme: Theme) -> Bool {
-        var settings = projectTheme.savedSettings
-        // Built-in breakpoint customisations belong to the project, not the theme.
-        if isBuiltIn { settings.screens = theme.screens }
-        return settings != theme.savedSettings
+        projectTheme.savedSettings != theme.savedSettings
     }
 
     var previewURL: URL {

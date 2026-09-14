@@ -13,8 +13,22 @@ actor PreviewServer {
     private var startContinuation: CheckedContinuation<URL, any Error>?
     private var revision: UInt64 = 0
     private var documentRoot: URL?
-    private var phpDocumentRoot: URL?
-    private var phpManifest: PublishingManifest?
+    private var diskSnapshot: PreviewDiskSnapshot?
+
+    func currentSnapshot() -> PreviewDiskSnapshot? { diskSnapshot }
+
+    func stop() {
+        for stream in eventStreams.values { stream.connection.cancel() }
+        eventStreams.removeAll()
+        listener?.cancel()
+        listener = nil
+        port = nil
+        startContinuation?.resume(throwing: PreviewServerError.cancelled)
+        startContinuation = nil
+        diskSnapshot = nil
+        documentRoot = nil
+        bundle = SiteExportBundle(files: [])
+    }
     private struct EventStream {
         let connection: NWConnection
         let sessionID: UUID?
@@ -25,33 +39,17 @@ actor PreviewServer {
 
     func publish(_ bundle: SiteExportBundle, notifyingClients: Bool = true) async throws -> URL {
         try bundle.validate()
-        if Self.requiresPHPDocumentRoot(for: bundle) {
-            let root = phpDocumentRoot ?? FileManager.default.temporaryDirectory
-                .appending(path: "FoundryPreview-\(UUID().uuidString)", directoryHint: .isDirectory)
-            let previousManifest = phpManifest
-            let nextManifest = try await Task.detached(priority: .userInitiated) {
-                let plan = PublishingPlan.make(
-                    bundle: bundle,
-                    previous: previousManifest,
-                    removesObsoleteFiles: true
-                )
-                try SiteExportWriter().apply(
-                    plan,
-                    bundle: bundle,
-                    to: root,
-                    preservingModifiedFiles: false
-                )
-                return plan.nextManifest
-            }.value
-            phpDocumentRoot = root
-            phpManifest = nextManifest
-            documentRoot = root
-        } else {
-            // Static previews are served directly from the in-memory document snapshot. Avoid
-            // hashing and duplicating every project asset into a temporary export directory.
-            documentRoot = nil
+        let snapshot = try PreviewDiskSnapshot.build(previous: diskSnapshot) { emit in
+            for file in bundle.files { try emit(file) }
         }
-        self.bundle = bundle
+        return try await publish(snapshot, notifyingClients: notifyingClients)
+    }
+
+    func publish(_ snapshot: PreviewDiskSnapshot, notifyingClients: Bool = true) async throws -> URL {
+        try Task.checkCancellation()
+        diskSnapshot = snapshot
+        documentRoot = snapshot.root
+        self.bundle = snapshot.index
         revision &+= 1
         if notifyingClients {
             publishReloadEvent()
@@ -123,7 +121,8 @@ actor PreviewServer {
             accumulated: Data(),
             bundle: currentBundle,
             documentRoot: currentDocumentRoot,
-            revision: currentRevision
+            revision: currentRevision,
+            snapshot: diskSnapshot
         )
     }
 
@@ -132,7 +131,8 @@ actor PreviewServer {
         accumulated: Data,
         bundle: SiteExportBundle,
         documentRoot: URL?,
-        revision: UInt64
+        revision: UInt64,
+        snapshot: PreviewDiskSnapshot? = nil
     ) {
         connection.receive(minimumIncompleteLength: 1, maximumLength: 16_384) { data, _, isComplete, error in
             var request = accumulated
@@ -149,13 +149,21 @@ actor PreviewServer {
                         await self.acknowledgeNavigation(connection, request: parsedRequest)
                         return
                     }
+                    if let snapshot, let parsed = PreviewHTTPRequest(data: request),
+                       let path = PreviewHTTPRouter.resolvedBundlePath(parsed.target, bundle: bundle),
+                       !path.lowercased().hasSuffix(".php"), parsed.method == "GET" || parsed.method == "HEAD" {
+                        await Self.sendFile(on: connection, request: parsed, path: path, snapshot: snapshot, revision: revision)
+                        return
+                    }
                     let response = await self.phpResponse(
                         for: request,
                         bundle: bundle,
                         documentRoot: documentRoot,
                         revision: revision
                     ) ?? PreviewHTTPRouter.response(for: request, bundle: bundle, liveReloadRevision: revision)
-                    connection.send(content: response, completion: .contentProcessed { _ in connection.cancel() })
+                    connection.send(content: response, completion: .contentProcessed { _ in
+                        withExtendedLifetime(snapshot) { connection.cancel() }
+                    })
                 }
             } else {
                 self.receiveRequest(
@@ -163,9 +171,70 @@ actor PreviewServer {
                     accumulated: request,
                     bundle: bundle,
                     documentRoot: documentRoot,
-                    revision: revision
+                    revision: revision,
+                    snapshot: snapshot
                 )
             }
+        }
+    }
+
+    private nonisolated static func sendFile(on connection: NWConnection, request: PreviewHTTPRequest, path: String, snapshot: PreviewDiskSnapshot, revision: UInt64) async {
+        defer { withExtendedLifetime(snapshot) { connection.cancel() } }
+        do {
+            let url = snapshot.root.appending(path: path).resolvingSymlinksInPath()
+            guard url.path.hasPrefix(snapshot.root.resolvingSymlinksInPath().path + "/") else { throw CocoaError(.fileReadNoPermission) }
+            if path.lowercased().hasSuffix(".html") {
+                // Only the requested HTML page is materialized for reload injection.
+                let data = try Data(contentsOf: url)
+                let target = request.target + (request.query.isEmpty ? "" : "?" + request.query)
+                let response = PreviewHTTPRouter.response(for: Data("\(request.method) \(target) HTTP/1.1\r\n\r\n".utf8), bundle: SiteExportBundle(files: [.init(path: path, data: data)]), liveReloadRevision: revision)
+                try await send(response, on: connection)
+                return
+            }
+            let handle = try FileHandle(forReadingFrom: url)
+            defer { try? handle.close() }
+            let size = try handle.seekToEnd()
+            var start: UInt64 = 0
+            var end = size
+            var status = "200 OK"
+            var extra = "Accept-Ranges: bytes\r\n"
+            if let range = request.headers["range"], range.hasPrefix("bytes="), !range.contains(",") {
+                let parts = range.dropFirst(6).split(separator: "-", omittingEmptySubsequences: false)
+                guard parts.count == 2 else { throw CocoaError(.fileReadCorruptFile) }
+                if parts[0].isEmpty, let suffix = UInt64(parts[1]), suffix > 0 {
+                    start = size - min(size, suffix)
+                } else if let lower = UInt64(parts[0]) {
+                    start = lower
+                    if !parts[1].isEmpty, let upper = UInt64(parts[1]), upper < UInt64.max { end = min(size, upper + 1) }
+                } else { start = size }
+                guard start < end else {
+                    try await send(Data("HTTP/1.1 416 Range Not Satisfiable\r\nContent-Range: bytes */\(size)\r\nContent-Length: 0\r\nConnection: close\r\n\r\n".utf8), on: connection)
+                    return
+                }
+                status = "206 Partial Content"
+                extra += "Content-Range: bytes \(start)-\(end - 1)/\(size)\r\n"
+            }
+            try handle.seek(toOffset: start)
+            try await send(Data("HTTP/1.1 \(status)\r\nContent-Type: \(PreviewHTTPRouter.mimeType(for: path))\r\nContent-Length: \(end - start)\r\n\(extra)Cache-Control: no-store\r\nX-Content-Type-Options: nosniff\r\nConnection: close\r\n\r\n".utf8), on: connection)
+            guard request.method != "HEAD" else { return }
+            var remaining = end - start
+            while remaining > 0 {
+                let chunk = try handle.read(upToCount: Int(min(remaining, 65_536))) ?? Data()
+                guard !chunk.isEmpty else { return }
+                try await send(chunk, on: connection)
+                remaining -= UInt64(chunk.count)
+            }
+        } catch {
+            // A disconnected client or unreadable file ends only this request.
+        }
+    }
+
+    private nonisolated static func send(_ data: Data, on connection: NWConnection) async throws {
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, any Error>) in
+            connection.send(content: data, completion: .contentProcessed { error in
+                if let error { continuation.resume(throwing: error) }
+                else { continuation.resume() }
+            })
         }
     }
 
@@ -290,7 +359,7 @@ actor PreviewServer {
     ) async -> Data? {
         guard let request = PreviewHTTPRequest(data: requestData),
               let path = PreviewHTTPRouter.resolvedBundlePath(request.target, bundle: bundle),
-              path.hasSuffix(".php"),
+              path.lowercased().hasSuffix(".php"),
               let documentRoot else { return nil }
         do {
             let runtime = try PHPPreviewRuntime.bundled()
@@ -557,7 +626,7 @@ nonisolated enum PreviewHTTPRouter {
         return data
     }
 
-    private static func mimeType(for path: String) -> String {
+    static func mimeType(for path: String) -> String {
         switch URL(fileURLWithPath: path).pathExtension.lowercased() {
         case "html", "php": "text/html; charset=utf-8"
         case "css": "text/css; charset=utf-8"
@@ -568,6 +637,11 @@ nonisolated enum PreviewHTTPRouter {
         case "jpg", "jpeg": "image/jpeg"
         case "webp": "image/webp"
         case "gif": "image/gif"
+        case "mp4": "video/mp4"
+        case "webm": "video/webm"
+        case "mp3": "audio/mpeg"
+        case "woff": "font/woff"
+        case "woff2": "font/woff2"
         default: "application/octet-stream"
         }
     }

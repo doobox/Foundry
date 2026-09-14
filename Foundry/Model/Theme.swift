@@ -14,6 +14,9 @@ nonisolated struct Theme: Codable, Equatable, Sendable {
     var savedSettings: Theme {
         var settings = self
         settings.colourPalettes = fixedThemeColourPalettes
+        // Breakpoints and container widths belong to the project. Keep a neutral
+        // value in reusable bundles; applying a theme preserves project screens.
+        settings.screens = .standard
         return settings
     }
 
