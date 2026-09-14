@@ -72,7 +72,7 @@
             <key>minimum</key><integer>1</integer>
             <key>maximum</key><integer>8</integer>
             <key>step</key><integer>1</integer>
-            <key>default</key><integer>3</integer>
+            <key>defaults</key><dict><key>base</key><integer>3</integer></dict>
             <key>responsive</key><false/>
         </dict>
         <dict>
@@ -84,7 +84,7 @@
             <key>maximum</key><integer>8</integer>
             <key>step</key><integer>1</integer>
             <key>ticks</key><integer>8</integer>
-            <key>default</key><integer>1</integer>
+            <key>defaults</key><dict><key>base</key><integer>1</integer></dict>
             <key>responsive</key><false/>
             <key>tooltip</key><string>Chooses which slide is visible and editable on the canvas.</string>
         </dict>
@@ -93,7 +93,7 @@
             <key>label</key><string>Show Captions</string>
             <key>group</key><string>Slides</string>
             <key>type</key><string>toggle</string>
-            <key>default</key><true/>
+            <key>defaults</key><dict><key>base</key><true/></dict>
             <key>responsive</key><false/>
         </dict>
         <dict>
@@ -101,7 +101,7 @@
             <key>label</key><string>Show Arrows</string>
             <key>group</key><string>Navigation</string>
             <key>type</key><string>toggle</string>
-            <key>default</key><true/>
+            <key>defaults</key><dict><key>base</key><true/></dict>
             <key>responsive</key><false/>
         </dict>
         <dict>
@@ -109,7 +109,7 @@
             <key>label</key><string>Show Position Dots</string>
             <key>group</key><string>Navigation</string>
             <key>type</key><string>toggle</string>
-            <key>default</key><true/>
+            <key>defaults</key><dict><key>base</key><true/></dict>
             <key>responsive</key><false/>
         </dict>
         <dict>
@@ -117,7 +117,7 @@
             <key>label</key><string>Loop Slides</string>
             <key>group</key><string>Navigation</string>
             <key>type</key><string>toggle</string>
-            <key>default</key><true/>
+            <key>defaults</key><dict><key>base</key><true/></dict>
             <key>responsive</key><false/>
         </dict>
         <dict>
@@ -125,7 +125,7 @@
             <key>label</key><string>Autoplay</string>
             <key>group</key><string>Autoplay</string>
             <key>type</key><string>toggle</string>
-            <key>default</key><false/>
+            <key>defaults</key><dict><key>base</key><false/></dict>
             <key>responsive</key><false/>
         </dict>
         <dict>
@@ -136,7 +136,7 @@
             <key>minimum</key><integer>2</integer>
             <key>maximum</key><integer>12</integer>
             <key>step</key><integer>1</integer>
-            <key>default</key><integer>5</integer>
+            <key>defaults</key><dict><key>base</key><integer>5</integer></dict>
             <key>units</key><string>s</string>
             <key>responsive</key><false/>
             <key>visibleWhen</key>
@@ -147,7 +147,7 @@
             <key>label</key><string>Pause on Hover</string>
             <key>group</key><string>Autoplay</string>
             <key>type</key><string>toggle</string>
-            <key>default</key><true/>
+            <key>defaults</key><dict><key>base</key><true/></dict>
             <key>responsive</key><false/>
             <key>visibleWhen</key>
             <dict><key>id</key><string>autoplay</string><key>value</key><true/></dict>
@@ -157,7 +157,7 @@
             <key>label</key><string>Transition</string>
             <key>group</key><string>Appearance</string>
             <key>type</key><string>select</string>
-            <key>default</key><string>fade</string>
+            <key>defaults</key><dict><key>base</key><string>fade</string></dict>
             <key>responsive</key><false/>
             <key>options</key>
             <array>
@@ -171,7 +171,7 @@
             <key>label</key><string>Aspect Ratio</string>
             <key>group</key><string>Appearance</string>
             <key>type</key><string>select</string>
-            <key>default</key><string>16 / 9</string>
+            <key>defaults</key><dict><key>base</key><string>16 / 9</string></dict>
             <key>responsive</key><true/>
             <key>options</key>
             <array>
@@ -190,7 +190,7 @@
             <key>minimum</key><integer>0</integer>
             <key>maximum</key><integer>80</integer>
             <key>step</key><integer>1</integer>
-            <key>default</key><integer>16</integer>
+            <key>defaults</key><dict><key>base</key><integer>16</integer></dict>
             <key>units</key><string>px</string>
             <key>responsive</key><true/>
         </dict>

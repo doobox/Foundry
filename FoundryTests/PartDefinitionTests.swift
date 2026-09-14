@@ -50,6 +50,33 @@ struct PartDefinitionTests {
     }
 
     @Test
+    func flexLayoutsUseThemeControlsAndResponsiveDefaults() throws {
+        let container = PartNode.make(.container)
+        #expect(container.propertyValue(.init(rawValue: "direction")) == .choice("column"))
+        #expect(container.type.definition.package!.css.contains("display: flex"))
+        #expect(!container.type.definition.package!.css.contains("data-alignment"))
+        #expect(!container.type.definition.package!.css.contains("box-shadow"))
+        for type in [PartType.section, .container, .columns] {
+            #expect(type.definition.properties.contains { $0.key.rawValue == "themePadding" && $0.isResponsive })
+            #expect(type.definition.properties.contains { $0.key.rawValue == "themeGap" && $0.isResponsive })
+        }
+        let columns = PartNode.make(.columns)
+        #expect(columns.propertyValue(.init(rawValue: "columnCount")) == .number(1))
+        #expect(columns.propertyValue(.init(rawValue: "columnCount"), at: .medium) == .number(2))
+        let site = Site(name: "Flex", pages: [Page(title: "Layout", slug: "index", parts: [columns])])
+        let output = try StaticSiteRenderer().render(site: site)
+        #expect(output.files.contains { $0.contents.contains("(2 - 1)") })
+        #expect(output.files.contains { $0.contents.contains("var(--foundry-space-md)") })
+        var unlimited = container
+        unlimited.setProperty(.maxWidth, value: .number(0))
+        let html = HTMLPageRenderer().render(page: Page(title: "Full", slug: "full", parts: [unlimited]), theme: .standard)
+        #expect(html.contains("max-width: none"))
+        #expect(!html.contains("max-width: 0px"))
+        #expect(html.contains("background-color: transparent"))
+        #expect(PartType.spacer.definition.properties.contains { $0.key.rawValue == "space" && $0.isResponsive })
+    }
+
+    @Test
     func stockRegistryUsesUniqueNamespacedIdentifiers() {
         let identifiers = [
             PartType.container,
@@ -131,9 +158,9 @@ struct PartDefinitionTests {
         var container = PartNode.make(.container)
         var text = PartNode.make(.paragraph)
         var button = PartNode.make(.button)
-        container.setProperty(.borderWidth, value: .number(2))
-        container.setProperty(.borderColor, value: .color("#ABCDEF"))
-        container.setProperty(.cornerRadius, value: .number(28))
+        container.setProperty(.init(rawValue: "themeBorder.width"), value: .themeBorderWidth(PartPackageThemeBorderWidthControl.defaultValue(.object(["value": .number(2), "unit": .string("px")]))!))
+        container.setProperty(.init(rawValue: "themeBorderColour"), value: .packageColor(.init(source: "custom", customColor: "#ABCDEF", opacity: 1)))
+        container.setProperty(.init(rawValue: "themeRadius"), value: .themeRadius(PartPackageThemeRadiusControl.defaultValue(.object(["value": .number(28), "unit": .string("px")]))!))
         container.setProperty(.maxWidth, value: .number(920))
         text.setProperty(.init(rawValue: "typeface"), value: .choice("heading"))
         text.setProperty(.init(rawValue: "textSize"), value: .packageFontSize(.init(
@@ -146,8 +173,9 @@ struct PartDefinitionTests {
         let page = Page(title: "Test", slug: "test", parts: [container])
         let html = HTMLPageRenderer().render(page: page, theme: .standard)
 
-        #expect(html.contains("border: 2px solid #ABCDEF"))
-        #expect(html.contains("border-radius: 28px"))
+        #expect(html.contains("border-width: 2.0px"))
+        #expect(html.contains("border-color: #ABCDEF"))
+        #expect(html.contains("border-radius: 28.0px"))
         #expect(html.contains("max-width: 920px"))
         // Paragraph now uses the dedicated font control, not the removed select extension.
         #expect(PartType.paragraph.definition.package!.css.contains("font-family: {{ control.font.family }}"))

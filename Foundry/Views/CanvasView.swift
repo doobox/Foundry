@@ -38,6 +38,7 @@ nonisolated enum CanvasSizing {
 struct CanvasView: View {
     @Environment(\.canvasAppearance) private var appearance
     @State private var renderedAppearance: SiteAppearance?
+    @State private var renderedBreakpoint: ResponsiveBreakpoint?
     let site: Site
     let page: Page?
     let language: String
@@ -225,7 +226,8 @@ struct CanvasView: View {
             assets: assets,
             breakpoint: requestID.breakpoint,
             impact: mutationEvent.impact,
-            forcesReconciliation: requestID.forcesReconciliation || requiresInitialPage || renderedAppearance != appearance
+            forcesReconciliation: requestID.forcesReconciliation || requiresInitialPage || renderedAppearance != appearance,
+            previousBreakpoint: renderedBreakpoint
         )
         let operation = await Task.detached(priority: .userInitiated) {
             snapshot.render()
@@ -233,6 +235,7 @@ struct CanvasView: View {
         guard !Task.isCancelled, requestID == renderRequestID, revision == renderRevision else { return }
         renderedPage = .init(pageID: page.id, operation: operation.withRevision(revision))
         renderedAppearance = appearance
+        renderedBreakpoint = requestID.breakpoint
     }
 
     private func canvasPackages(for page: Page) -> [String: LoadedPartPackage] {
@@ -354,8 +357,11 @@ nonisolated struct CanvasRenderSnapshot: Sendable {
     let impact: ProjectMutationImpact
     let forcesReconciliation: Bool
 
+    var previousBreakpoint: ResponsiveBreakpoint? = nil
+
     func render() -> CanvasRenderResult {
         if !forcesReconciliation,
+           previousBreakpoint == nil || previousBreakpoint == breakpoint,
            case .partProperty(let partID, let propertyKey) = impact,
            allowsPartPatch(partID: partID, propertyKey: propertyKey),
            let subtree = renderer.renderSubtree(

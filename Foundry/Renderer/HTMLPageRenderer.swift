@@ -204,7 +204,7 @@ nonisolated struct HTMLPageRenderer: PageRendering {
     ) -> String {
         let nodes = page.parts.flatMap(flattened)
         let instanceScripts = nodes.compactMap { sourceNode -> String? in
-            let node = sourceNode.resolved(at: breakpoint)
+            let node = sourceNode.resolved(at: breakpoint, screens: theme.screens)
             guard let package = node.type.definition.package, !package.instanceJavaScript.isEmpty else { return nil }
             return PartTemplateRenderer.render(
                 package.instanceJavaScript,
@@ -233,7 +233,7 @@ nonisolated struct HTMLPageRenderer: PageRendering {
             )
         }
         let htmlScripts = nodes.map {
-            PartArtifactPlan.htmlArtifact(for: $0.resolved(at: breakpoint), suffix: "JavaScript")
+            PartArtifactPlan.htmlArtifact(for: $0.resolved(at: breakpoint, screens: theme.screens), suffix: "JavaScript")
         }
             .filter { !$0.isEmpty }
         let source = (instanceScripts + htmlScripts + sharedScripts).joined(separator: "\n")
@@ -332,7 +332,7 @@ nonisolated struct HTMLPageRenderer: PageRendering {
     }
 
     private func render(_ sourceNode: PartNode, page: Page, theme: Theme, assets: [UUID: ProjectAssetContent], globalDefinitionID: UUID?, breakpoint: ResponsiveBreakpoint, parentPartID: UUID? = nil, parentSlot: PartPackageSlot? = nil, parentDropZoneSlotID: String? = nil) -> String {
-        let node = sourceNode.resolved(at: breakpoint)
+        let node = sourceNode.resolved(at: breakpoint, screens: theme.screens)
         let globalDefinitionID = node.reusableDefinitionID ?? globalDefinitionID
         switch node.type.definition.renderKind {
         case .package:
@@ -458,7 +458,7 @@ nonisolated struct HTMLPageRenderer: PageRendering {
         breakpoint: ResponsiveBreakpoint
     ) -> String {
         let instanceStyles = nodes.compactMap { sourceNode in
-            let node = sourceNode.resolved(at: breakpoint)
+            let node = sourceNode.resolved(at: breakpoint, screens: theme.screens)
             guard let package = node.type.definition.package else { return nil }
             let css = PartTemplateRenderer.render(
                 package.css + "\n" + package.editorCSS,
@@ -481,7 +481,7 @@ nonisolated struct HTMLPageRenderer: PageRendering {
             )
         }.joined(separator: "\n")
         let htmlStyles = nodes.map {
-            PartArtifactPlan.htmlArtifact(for: $0.resolved(at: breakpoint), suffix: "CSS")
+            PartArtifactPlan.htmlArtifact(for: $0.resolved(at: breakpoint, screens: theme.screens), suffix: "CSS")
         }
             .filter { !$0.isEmpty }
             .joined(separator: "\n")

@@ -676,6 +676,18 @@ nonisolated enum PartPackageValidator {
     }
 
     private static func validate(_ property: PartPackageProperty, into diagnostics: inout [PartPackageDiagnostic]) {
+        validateBase(property, into: &diagnostics)
+        for (name, value) in property.breakpointDefaults {
+            var variant = property
+            variant.defaultValue = value
+            variant.breakpointDefaults = [:]
+            var errors: [PartPackageDiagnostic] = []
+            validateBase(variant, into: &errors)
+            diagnostics += errors.map { .init(severity: $0.severity, location: $0.location + ".defaults." + name, message: $0.message) }
+        }
+    }
+
+    private static func validateBase(_ property: PartPackageProperty, into diagnostics: inout [PartPackageDiagnostic]) {
         let location = "Info.plist:controls.\(property.id)"
         validateThemeValues(property, location: location, into: &diagnostics)
         validateDateBounds(property, location: location, into: &diagnostics)

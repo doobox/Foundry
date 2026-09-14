@@ -345,7 +345,7 @@ struct PartPropertyEditor: View {
 
     private var imageFocalPoint: CGPoint {
         let point = PartImageTemplateValues.focalPoint(
-            from: part.propertyValue(imageFocalPointKey, at: effectiveBreakpoint(for: imageFocalPointKey))
+            from: part.propertyValue(imageFocalPointKey, at: effectiveBreakpoint(for: imageFocalPointKey), screens: theme.screens)
         )
         return CGPoint(x: point.x / 100, y: point.y / 100)
     }
@@ -646,9 +646,12 @@ struct PartPropertyEditor: View {
 
     private var resetButton: some View {
         Button("Reset") {
-            setProperty(definition.defaultValue)
+            if effectiveBreakpoint != .mobile { removeOverride(for: definition.key) }
+            else { setProperty(definition.defaultValue) }
         }
-        .disabled(displayPart.propertyValue(definition.key) == definition.defaultValue)
+        .disabled(effectiveBreakpoint != .mobile
+            ? !part.hasResponsiveOverride(definition.key, at: effectiveBreakpoint)
+            : displayPart.propertyValue(definition.key) == definition.defaultValue)
     }
 
     private var responsiveIndicator: InspectorRowIndicator {
@@ -754,12 +757,12 @@ struct PartPropertyEditor: View {
         if part.hasResponsiveOverride(key, at: breakpoint) {
             removeOverride(for: key)
         } else {
-            setProperty(part.propertyValue(key, at: breakpoint), key: key)
+            setProperty(part.propertyValue(key, at: breakpoint, screens: theme.screens), key: key)
         }
     }
 
     private var displayPart: PartNode {
-        part.resolved(at: effectiveBreakpoint)
+        part.resolved(at: effectiveBreakpoint, screens: theme.screens)
     }
 
     private var effectiveBreakpoint: ResponsiveBreakpoint {

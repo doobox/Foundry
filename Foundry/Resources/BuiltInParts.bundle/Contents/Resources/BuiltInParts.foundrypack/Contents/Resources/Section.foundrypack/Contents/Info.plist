@@ -2,147 +2,199 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<key>minimumAPIVersion</key>
-	<integer>1</integer>
-	<key>id</key>
-	<string>foundry.layout.section</string>
-	<key>title</key>
-	<string>Section</string>
-	<key>description</key>
-	<string>Creates a full-width page region for organising related content.</string>
-	<key>author</key>
-	<string>Foundry</string>
-	<key>version</key>
-	<string>1.0.0</string>
-	<key>group</key>
-	<string>Layout</string>
-	<key>tags</key>
-	<array>
-		<string>Foundry</string>
-		<string>built-in</string>
-		<string>layout</string>
-		<string>region</string>
-	</array>
-	<key>controls</key>
-	<array>
-		<dict>
-			<key>id</key>
-			<string>minimumHeight</string>
-			<key>label</key>
-			<string>Minimum Height</string>
-			<key>group</key>
-			<string>Layout</string>
-			<key>type</key>
-			<string>number</string>
-			<key>default</key>
-			<real>0</real>
-			<key>minimum</key>
-			<real>0</real>
-			<key>maximum</key>
-			<real>1600</real>
-			<key>step</key>
-			<real>10</real>
-			<key>units</key>
-			<string>px</string>
-			<key>responsive</key>
-			<true/>
-		</dict>
-		<dict>
-			<key>id</key>
-			<string>verticalAlignment</string>
-			<key>label</key>
-			<string>Vertical Alignment</string>
-			<key>group</key>
-			<string>Layout</string>
-			<key>type</key>
-			<string>select</string>
-			<key>default</key>
-			<string>start</string>
-			<key>options</key>
-			<array>
-				<dict>
-					<key>value</key>
-					<string>start</string>
-					<key>title</key>
-					<string>Top</string>
-				</dict>
-				<dict>
-					<key>value</key>
-					<string>center</string>
-					<key>title</key>
-					<string>Centre</string>
-				</dict>
-				<dict>
-					<key>value</key>
-					<string>end</string>
-					<key>title</key>
-					<string>Bottom</string>
-				</dict>
-			</array>
-			<key>responsive</key>
-			<true/>
-		</dict>
-		<dict>
-			<key>id</key>
-			<string>backgroundColor</string>
-			<key>label</key>
-			<string>Colour</string>
-			<key>group</key>
-			<string>Background</string>
-			<key>type</key>
-			<string>themeColor</string>
-			<key>default</key><dict><key>palette</key><string>custom</string></dict>
-			<key>customColor</key>
-			<string>#FFFFFF</string>
-			<key>allowsCustom</key>
-			<true/>
-			<key>opacity</key>
-			<true/>
-			<key>responsive</key>
-			<true/>
-		</dict>
-		<dict>
-			<key>id</key>
-			<string>element</string>
-			<key>label</key>
-			<string>HTML Element</string>
-			<key>group</key>
-			<string>Advanced</string>
-			<key>type</key>
-			<string>select</string>
-			<key>default</key>
-			<string>section</string>
-			<key>options</key>
-			<array>
-				<dict><key>value</key><string>section</string><key>title</key><string>Section</string></dict>
-				<dict><key>value</key><string>main</string><key>title</key><string>Main</string></dict>
-				<dict><key>value</key><string>header</string><key>title</key><string>Header</string></dict>
-				<dict><key>value</key><string>footer</string><key>title</key><string>Footer</string></dict>
-				<dict><key>value</key><string>aside</string><key>title</key><string>Aside</string></dict>
-				<dict><key>value</key><string>article</string><key>title</key><string>Article</string></dict>
-				<dict><key>value</key><string>div</string><key>title</key><string>Div</string></dict>
-			</array>
-			<key>responsive</key>
-			<false/>
-			<key>tooltip</key>
-			<string>The semantic HTML element used for this page region.</string>
-		</dict>
-	</array>
-	<key>templates</key>
-	<dict>
-		<key>html</key>
-		<string>part.html</string>
-		<key>files</key>
-		<array>
-			<dict>
-				<key>path</key>
-				<string>part.css</string>
-				<key>scope</key>
-				<string>instance</string>
-			</dict>
-		</array>
-	</dict>
-	<key>assets</key>
-	<array/>
+<key>minimumAPIVersion</key><integer>1</integer>
+<key>id</key><string>foundry.layout.section</string>
+<key>title</key><string>Section</string>
+<key>description</key><string>A full-width page region with theme spacing and vertical content alignment.</string>
+<key>author</key><string>Foundry</string>
+<key>version</key><string>1.1.0</string>
+<key>group</key><string>Layout</string>
+<key>tags</key><array><string>Foundry</string>
+<string>built-in</string>
+<string>layout</string>
+<string>flex</string></array>
+<key>controls</key><array><dict>
+<key>type</key><string>number</string>
+<key>id</key><string>minimumHeight</string>
+<key>label</key><string>Minimum height</string>
+<key>group</key><string>Layout</string>
+<key>defaults</key><dict>
+<key>base</key><integer>0</integer>
+</dict>
+<key>responsive</key><true/>
+<key>minimum</key><integer>0</integer>
+<key>maximum</key><integer>1600</integer>
+<key>step</key><integer>10</integer>
+<key>units</key><string>px</string>
+</dict>
+<dict>
+<key>type</key><string>select</string>
+<key>id</key><string>verticalAlignment</string>
+<key>label</key><string>Vertical alignment</string>
+<key>group</key><string>Layout</string>
+<key>defaults</key><dict>
+<key>base</key><string>start</string>
+</dict>
+<key>responsive</key><true/>
+<key>options</key><array><dict>
+<key>value</key><string>start</string>
+<key>title</key><string>Top</string>
+</dict>
+<dict>
+<key>value</key><string>center</string>
+<key>title</key><string>Centre</string>
+</dict>
+<dict>
+<key>value</key><string>end</string>
+<key>title</key><string>Bottom</string>
+</dict></array>
+</dict>
+<dict>
+<key>type</key><string>themeSpacing</string>
+<key>id</key><string>themeGap</string>
+<key>label</key><string>Gap</string>
+<key>group</key><string>Layout</string>
+<key>defaults</key><dict>
+<key>base</key><string>md</string>
+</dict>
+<key>responsive</key><true/>
+</dict>
+<dict>
+<key>type</key><string>themePadding</string>
+<key>id</key><string>themePadding</string>
+<key>label</key><string>Padding</string>
+<key>group</key><string>Spacing</string>
+<key>defaults</key><dict>
+<key>base</key><dict>
+<key>top</key><string>xl</string>
+<key>right</key><string>sm</string>
+<key>bottom</key><string>xl</string>
+<key>left</key><string>sm</string>
+</dict>
+</dict>
+<key>responsive</key><true/>
+</dict>
+<dict>
+<key>type</key><string>themeMargin</string>
+<key>id</key><string>themeMargin</string>
+<key>label</key><string>Margin</string>
+<key>group</key><string>Spacing</string>
+<key>defaults</key><dict>
+<key>base</key><string>none</string>
+</dict>
+<key>responsive</key><true/>
+</dict>
+<dict>
+<key>type</key><string>toggle</string>
+<key>id</key><string>showsBackground</string>
+<key>label</key><string>Background</string>
+<key>group</key><string>Appearance</string>
+<key>defaults</key><dict>
+<key>base</key><false/>
+</dict>
+<key>responsive</key><true/>
+</dict>
+<dict>
+<key>type</key><string>themeColor</string>
+<key>id</key><string>backgroundColor</string>
+<key>label</key><string>Colour</string>
+<key>group</key><string>Appearance</string>
+<key>defaults</key><dict>
+<key>base</key><dict>
+<key>palette</key><string>surface</string>
+</dict>
+</dict>
+<key>responsive</key><true/>
+<key>allowsCustom</key><true/>
+<key>opacity</key><true/>
+<key>visibleWhen</key><dict>
+<key>id</key><string>showsBackground</string>
+<key>value</key><true/>
+</dict>
+</dict>
+<dict>
+<key>type</key><string>themeBorder</string>
+<key>id</key><string>themeBorder</string>
+<key>label</key><string>Border</string>
+<key>group</key><string>Border</string>
+<key>defaults</key><dict>
+<key>base</key><dict>
+<key>width</key><string>none</string>
+<key>style</key><string>solid</string>
+</dict>
+</dict>
+<key>responsive</key><true/>
+<key>showsStyle</key><true/>
+</dict>
+<dict>
+<key>type</key><string>themeColor</string>
+<key>id</key><string>themeBorderColour</string>
+<key>label</key><string>Colour</string>
+<key>group</key><string>Border</string>
+<key>defaults</key><dict>
+<key>base</key><dict>
+<key>palette</key><string>muted-text</string>
+</dict>
+</dict>
+<key>responsive</key><true/>
+<key>allowsCustom</key><true/>
+<key>opacity</key><true/>
+</dict>
+<dict>
+<key>type</key><string>themeRadius</string>
+<key>id</key><string>themeRadius</string>
+<key>label</key><string>Radius</string>
+<key>group</key><string>Border</string>
+<key>defaults</key><dict>
+<key>base</key><string>none</string>
+</dict>
+<key>responsive</key><true/>
+</dict>
+<dict>
+<key>type</key><string>select</string>
+<key>id</key><string>element</string>
+<key>label</key><string>HTML element</string>
+<key>group</key><string>Advanced</string>
+<key>defaults</key><dict>
+<key>base</key><string>section</string>
+</dict>
+<key>responsive</key><false/>
+<key>options</key><array><dict>
+<key>value</key><string>section</string>
+<key>title</key><string>section</string>
+</dict>
+<dict>
+<key>value</key><string>main</string>
+<key>title</key><string>main</string>
+</dict>
+<dict>
+<key>value</key><string>header</string>
+<key>title</key><string>header</string>
+</dict>
+<dict>
+<key>value</key><string>footer</string>
+<key>title</key><string>footer</string>
+</dict>
+<dict>
+<key>value</key><string>aside</string>
+<key>title</key><string>aside</string>
+</dict>
+<dict>
+<key>value</key><string>article</string>
+<key>title</key><string>article</string>
+</dict>
+<dict>
+<key>value</key><string>div</string>
+<key>title</key><string>div</string>
+</dict></array>
+</dict></array>
+<key>templates</key><dict>
+<key>html</key><string>part.html</string>
+<key>files</key><array><dict>
+<key>path</key><string>part.css</string>
+<key>scope</key><string>instance</string>
+</dict></array>
+</dict>
+<key>assets</key><array></array>
 </dict>
 </plist>

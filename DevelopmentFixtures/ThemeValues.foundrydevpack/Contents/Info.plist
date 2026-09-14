@@ -15,23 +15,23 @@
         <dict>
             <key>id</key><string>foreground</string><key>label</key><string>Foreground</string><key>group</key><string>Theme Values</string>
             <key>type</key><string>themeColor</string><key>allowsCustom</key><true/>
-            <key>customColor</key><string>#D946EF</string><key>default</key><dict><key>palette</key><string>custom</string></dict><key>responsive</key><true/>
+            <key>customColor</key><string>#D946EF</string><key>defaults</key><dict><key>base</key><dict><key>palette</key><string>custom</string></dict></dict><key>responsive</key><true/>
         </dict>
         <dict>
             <key>id</key><string>background</string><key>label</key><string>Background</string><key>group</key><string>Theme Values</string>
             <key>type</key><string>themeColor</string><key>allowsCustom</key><true/>
             <key>customColor</key><string>#FFF1F2</string>
-            <key>default</key><dict><key>palette</key><string>custom</string></dict><key>responsive</key><true/>
+            <key>defaults</key><dict><key>base</key><dict><key>palette</key><string>custom</string></dict></dict><key>responsive</key><true/>
         </dict>
         <dict>
             <key>id</key><string>topBorder</string><key>label</key><string>Top border</string><key>group</key><string>Theme Values</string>
             <key>type</key><string>themeColor</string><key>allowsCustom</key><true/>
-            <key>customColor</key><string>#5B5BD6</string><key>default</key><dict><key>palette</key><string>custom</string></dict><key>responsive</key><false/>
+            <key>customColor</key><string>#5B5BD6</string><key>defaults</key><dict><key>base</key><dict><key>palette</key><string>custom</string></dict></dict><key>responsive</key><false/>
         </dict>
         <dict>
             <key>id</key><string>bottomBorder</string><key>label</key><string>Bottom border</string><key>group</key><string>Theme Values</string>
             <key>type</key><string>themeColor</string><key>allowsCustom</key><true/>
-            <key>customColor</key><string>#5B5BD6</string><key>default</key><dict><key>palette</key><string>custom</string></dict><key>responsive</key><false/>
+            <key>customColor</key><string>#5B5BD6</string><key>defaults</key><dict><key>base</key><dict><key>palette</key><string>custom</string></dict></dict><key>responsive</key><false/>
         </dict>
     </array>
     <key>templates</key><dict><key>html</key><string>part.html</string></dict>

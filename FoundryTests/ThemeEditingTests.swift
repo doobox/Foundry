@@ -34,6 +34,53 @@ struct ThemeEditingTests {
     }
 
     @Test
+    func builtInThemeBreakpointTogglesAreProjectLocalAndUndoable() throws {
+        let document = FoundryDocument()
+        let undo = UndoManager()
+        undo.groupsByEvent = false
+        let session = ThemeEditorSession(document: document, undoManager: undo)
+        let sourceID = document.site.themeSourceID
+        let original = document.site.theme.screens
+        #expect(!session.canEditTheme)
+        undo.beginUndoGrouping()
+        session.editor.setThemeScreenEnabled(.medium, value: false)
+        undo.endUndoGrouping()
+        #expect(!document.site.theme.screens.screen(.medium).isEnabled)
+        #expect(document.site.themeSourceID == sourceID)
+        #expect(!session.canEditTheme)
+        let saved = try FoundryDocument.decoder.decode(Site.self, from: FoundryDocument.encoder.encode(document.site))
+        #expect(!saved.theme.screens.screen(.medium).isEnabled)
+        let fresh = FoundryDocument()
+        #expect(fresh.site.theme.screens == original)
+        undo.undo()
+        #expect(document.site.theme.screens == original)
+        undo.redo()
+        #expect(!document.site.theme.screens.screen(.medium).isEnabled)
+    }
+
+    @Test
+    func breakpointDimensionsAreProjectLocalForBuiltInsButSavedForCustomThemes() throws {
+        let builtIn = try #require(ThemeBundleStore.builtInThemes().first)
+        let document = FoundryDocument()
+        document.site.theme = builtIn.theme
+        document.site.themeSourceID = builtIn.id
+        let editor = ProjectEditor(document: document, undoManager: nil)
+        editor.setThemeScreenEnabled(.extraLarge, value: false)
+        editor.setThemeScreenMinimumWidth(.medium, value: 820)
+        editor.setThemeScreenContainerUnit(.mobile, value: .percent)
+        editor.setThemeScreenContainerWidth(.mobile, value: 92)
+        #expect(document.site.theme.screens.screen(.medium).minimumWidth == 820)
+        #expect(document.site.theme.screens.screen(.mobile).container.value == 92)
+        #expect(!builtIn.hasModifiedSettings(in: document.site.theme))
+        let savedProject = try FoundryDocument.decoder.decode(Site.self, from: FoundryDocument.encoder.encode(document.site))
+        #expect(savedProject.theme.screens == document.site.theme.screens)
+        #expect(try ThemeBundleStore.load(from: builtIn.bundleURL).theme.screens == builtIn.theme.screens)
+        let custom = SavedTheme(metadata: builtIn.metadata, theme: builtIn.theme, bundleURL: builtIn.bundleURL, resources: builtIn.resources, isBuiltIn: false)
+        #expect(custom.hasModifiedSettings(in: document.site.theme))
+        #expect(document.site.theme.savedSettings.screens == document.site.theme.screens)
+    }
+
+    @Test
     func colourCopiesHaveUniqueIndependentNames() {
         let model = ThemeColourPreviewModel()
         let palette = model.palettes.first { $0.name == "Accent" }!
@@ -341,6 +388,7 @@ struct ThemeEditingTests {
         var theme = Theme.standard
         theme.colors.accent = "#123ABC"
         var container = PartNode.make(.container)
+        container.setProperty(.init(rawValue: "showsBackground"), value: .boolean(true))
         container.setProperty(.backgroundColor, value: .packageColor(.init(
             source: ThemeColorRole.accent.rawValue,
             customColor: "#000000",
@@ -620,6 +668,8 @@ struct ThemeEditingTests {
         defer { try? FileManager.default.removeItem(at: root) }
         var theme = Theme.standard
         theme.colors.accent = "#123456"
+        theme.screens.update(.medium) { $0.minimumWidth = 820 }
+        theme.screens.update(.large) { $0.isEnabled = false }
         let fontData = Data("font-data".utf8)
         let fontAsset = ProjectAsset(
             filename: "Studio.woff2",

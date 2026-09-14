@@ -52,6 +52,21 @@ nonisolated enum PartPackageAdapter {
     }
 
     private static func propertyDefinitions(_ property: PartPackageProperty) -> [PartPropertyDefinition] {
+        var definitions = basePropertyDefinitions(property)
+        for (name, value) in property.breakpointDefaults {
+            guard let breakpoint = ResponsiveBreakpoint(rawValue: name), breakpoint != .mobile else { continue }
+            var variant = property
+            variant.defaultValue = value
+            variant.breakpointDefaults = [:]
+            let rows = basePropertyDefinitions(variant)
+            for index in definitions.indices where definitions[index].isResponsive {
+                definitions[index].breakpointDefaults[breakpoint] = rows.first { $0.key == definitions[index].key }?.defaultValue
+            }
+        }
+        return definitions
+    }
+
+    private static func basePropertyDefinitions(_ property: PartPackageProperty) -> [PartPropertyDefinition] {
         if property.control.type == .image {
             var definitions = [
                 PartPropertyDefinition(

@@ -28,7 +28,7 @@
                 <dict><key>value</key><string>draft</string><key>title</key><string>Draft</string></dict>
                 <dict><key>value</key><string>standard</string><key>title</key><string>Standard</string></dict>
             </array>
-            <key>default</key><string>featured</string>
+            <key>defaults</key><dict><key>base</key><string>featured</string></dict>
             <key>responsive</key><false/>
         </dict>
         <dict>
@@ -36,7 +36,7 @@
             <key>label</key><string>Enabled</string>
             <key>group</key><string>Conditions</string>
             <key>type</key><string>toggle</string>
-            <key>default</key><true/>
+            <key>defaults</key><dict><key>base</key><true/></dict>
             <key>responsive</key><false/>
         </dict>
         <dict>
@@ -47,7 +47,7 @@
             <key>minimum</key><integer>0</integer>
             <key>maximum</key><integer>100</integer>
             <key>step</key><integer>1</integer>
-            <key>default</key><integer>72</integer>
+            <key>defaults</key><dict><key>base</key><integer>72</integer></dict>
             <key>responsive</key><false/>
         </dict>
         <dict>
@@ -58,7 +58,7 @@
             <key>minimum</key><integer>0</integer>
             <key>maximum</key><integer>100</integer>
             <key>step</key><integer>1</integer>
-            <key>default</key><integer>60</integer>
+            <key>defaults</key><dict><key>base</key><integer>60</integer></dict>
             <key>responsive</key><false/>
         </dict>
         <dict>
@@ -69,7 +69,7 @@
             <key>minimum</key><integer>-100</integer>
             <key>maximum</key><integer>100</integer>
             <key>step</key><integer>1</integer>
-            <key>default</key><integer>10</integer>
+            <key>defaults</key><dict><key>base</key><integer>10</integer></dict>
             <key>responsive</key><false/>
         </dict>
         <dict>
@@ -80,7 +80,7 @@
             <key>minimum</key><integer>-100</integer>
             <key>maximum</key><integer>100</integer>
             <key>step</key><integer>1</integer>
-            <key>default</key><integer>6</integer>
+            <key>defaults</key><dict><key>base</key><integer>6</integer></dict>
             <key>responsive</key><false/>
         </dict>
         <dict>
@@ -91,7 +91,7 @@
             <key>minimum</key><integer>-10</integer>
             <key>maximum</key><integer>10</integer>
             <key>step</key><integer>1</integer>
-            <key>default</key><integer>3</integer>
+            <key>defaults</key><dict><key>base</key><integer>3</integer></dict>
             <key>responsive</key><false/>
         </dict>
         <dict>
@@ -101,11 +101,10 @@
             <key>group</key><string>Indexed values</string>
             <key>type</key><string>text</string>
             <key>count</key><integer>2</integer>
-            <key>default</key>
-            <array>
+            <key>defaults</key><dict><key>base</key><array>
                 <string>Alpha</string>
                 <string>Beta</string>
-            </array>
+            </array></dict>
             <key>responsive</key><false/>
         </dict>
     </array>

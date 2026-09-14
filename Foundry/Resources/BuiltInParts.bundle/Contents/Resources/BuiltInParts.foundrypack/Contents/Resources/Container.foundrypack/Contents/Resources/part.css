@@ -1,15 +1,24 @@
 :instance {
     box-sizing: border-box;
-    display: block;
+    display: flex;
+    flex-direction: {{ control.direction }};
+    flex-wrap: {{ control.wrap }};
+    justify-content: {{ control.justifyContent }};
+    align-items: {{ control.alignItems }};
+    gap: {{ control.themeGap }};
     width: 100%;
-    max-width: {{ control.maxWidth }}px;
-    padding: 32px;
-    background-color: {{ control.backgroundColor }};
-    border: {{ control.borderWidth }}px solid {{ control.borderColor }};
-    border-radius: {{ control.cornerRadius }}px;
-    box-shadow: 0 12px 40px rgb(0 0 0 / 0.08);
+    {{ if control.widthMode == "auto" }}width: auto;{{ endif }}
+    flex-grow: {{ control.flexGrow }};
+    min-width: 0;
+    max-width: none;
+    {{ if control.maxWidth > 0 }}max-width: {{ control.maxWidth }}px;{{ endif }}
+    padding: {{ control.themePadding }};
+    margin: {{ control.themeMargin }};
+    background-color: transparent;
+    {{ if control.showsBackground }}background-color: {{ control.backgroundColor }};{{ endif }}
+    border-width: {{ control.themeBorder.width }};
+    border-style: {{ control.themeBorder.style }};
+    border-color: {{ control.themeBorderColour }};
+    border-radius: {{ control.themeRadius }};
 }
-
-:instance[data-alignment="leading"] { margin-inline: 0 auto; }
-:instance[data-alignment="center"] { margin-inline: auto; }
-:instance[data-alignment="trailing"] { margin-inline: auto 0; }
+:instance > * { min-width: 0; }

@@ -111,6 +111,7 @@
 				E357BDF03040F1AB001258F5 /* Sources */,
 				E357BDF13040F1AB001258F5 /* Frameworks */,
 				E357BDF23040F1AB001258F5 /* Resources */,
+				A905F6300000000000000001 /* Sign PHP Runtime */,
 			);
 			buildRules = (
 			);
@@ -226,6 +227,27 @@
 		};
 /* End PBXResourcesBuildPhase section */
 
+/* Begin PBXShellScriptBuildPhase section */
+		A905F6300000000000000001 /* Sign PHP Runtime */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = ();
+			inputPaths = (
+				"$(SRCROOT)/scripts/sign-php-runtime",
+				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/php-cgi",
+			);
+			name = "Sign PHP Runtime";
+			outputPaths = (
+				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/php-cgi",
+				"$(DERIVED_FILE_DIR)/php-runtime-signing.stamp",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "/bin/sh \"${SRCROOT}/scripts/sign-php-runtime\"\n";
+		};
+/* End PBXShellScriptBuildPhase section */
+
 /* Begin PBXSourcesBuildPhase section */
 		E357BDF03040F1AB001258F5 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
@@ -277,6 +299,7 @@
 					"\"$(PROJECT_DIR)/Vendor/FoundryCurl/include\"",
 				);
 				INFOPLIST_FILE = Foundry/Info.plist;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.developer-tools";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -330,6 +353,7 @@
 					"\"$(PROJECT_DIR)/Vendor/FoundryCurl/include\"",
 				);
 				INFOPLIST_FILE = Foundry/Info.plist;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.developer-tools";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",

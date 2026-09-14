@@ -95,7 +95,7 @@ struct ThemeWindowContent: View {
                     assets: document.site.assets,
                     session: session
                 )
-                .disabled(!session.canEditTheme)
+                .disabled(selectedSection != .screens && !session.canEditTheme)
             }
         }
     }
@@ -301,7 +301,7 @@ private struct ThemeLibraryBrowser: View {
                     ThemeLibraryItem(
                         savedTheme: savedTheme,
                         isSelected: document.site.themeSourceID == savedTheme.id,
-                        isModified: document.site.themeSourceID == savedTheme.id && savedTheme.theme.savedSettings != document.site.theme.savedSettings,
+                        isModified: document.site.themeSourceID == savedTheme.id && savedTheme.hasModifiedSettings(in: document.site.theme),
                         createTheme: { isCreatingTheme = true },
                         importTheme: importTheme
                     ) {

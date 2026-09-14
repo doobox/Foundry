@@ -124,7 +124,7 @@ To expose an image in the Inspector, declare a normal image control:
 </figure>
 ```
 
-Omitting `default` starts with no image. A non-empty default must be a path covered by the pack’s top-level `assets` declarations. Clear restores the declared default; without one it restores the empty image drop zone. Authors can replace the image from Finder, the Assets panel, or the Inspector image well.
+Omitting `defaults` starts with no image. When supplied, use `defaults` containing a `base` string. A non-empty base value must be a path covered by the pack’s top-level `assets` declarations. Image asset defaults are base-only; responsive focal-point editing does not change the asset. Clear restores the declared base default; without one it restores the empty image drop zone. Authors can replace the image from Finder, the Assets panel, or the Inspector image well.
 
 The optional `alt` key defaults to an empty string. Foundry automatically places an editable field labelled **Alt** on the row immediately below the image well. The image control also exposes structured companion values:
 

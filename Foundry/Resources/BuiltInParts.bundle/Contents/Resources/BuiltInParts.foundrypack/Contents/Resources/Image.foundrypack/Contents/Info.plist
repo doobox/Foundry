@@ -23,8 +23,7 @@
 			<string>image</string>
 		</dict>
 		<dict>
-			<key>default</key>
-			<real>1200.0</real>
+			<key>defaults</key><dict><key>base</key><real>1200.0</real></dict>
 			<key>group</key>
 			<string>Sizing</string>
 			<key>id</key>
@@ -45,8 +44,7 @@
 			<string>px</string>
 		</dict>
 		<dict>
-			<key>default</key>
-			<string>center</string>
+			<key>defaults</key><dict><key>base</key><string>center</string></dict>
 			<key>group</key>
 			<string>Sizing</string>
 			<key>id</key>

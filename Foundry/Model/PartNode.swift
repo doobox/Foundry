@@ -58,6 +58,8 @@ nonisolated struct PartNode: Codable, Equatable, Identifiable, Sendable {
     var reusableDefinitionID: UUID?
     var overridesGlobalDefinition: Bool?
     var responsiveOverrides: [ResponsivePropertyOverride]?
+    // Initial developer values are distinct from user overrides and survive saving.
+    var responsiveDefaults: [ResponsivePropertyOverride]?
     var packageLock: PartPackageLock?
     var missingPackageSnapshot: MissingPartSnapshot?
     var slotID: String?
@@ -106,6 +108,23 @@ nonisolated struct PartNode: Codable, Equatable, Identifiable, Sendable {
     }
 
     mutating func selectInitialColourShades(from theme: Theme) {
+        var initialDefaults: [ResponsivePropertyOverride] = []
+        for definition in type.definition.properties {
+            for (breakpoint, initialValue) in definition.breakpointDefaults {
+                var initialValue = initialValue
+                if case .packageColor(var colour) = initialValue,
+                   let palette = theme.colourPalettes.resolvedPalette(id: colour.paletteID) {
+                    let declaration = type.definition.package?.manifest.properties.first { $0.id == definition.key.rawValue }?.breakpointDefaults[breakpoint.rawValue]
+                    if case .object(let fields) = declaration {
+                        if fields["lightShade"] == nil { colour.shade = palette.lightDefaultShade }
+                        if fields["darkShade"] == nil { colour.darkShade = palette.darkDefaultShade }
+                    }
+                    initialValue = .packageColor(colour)
+                }
+                initialDefaults.append(.init(breakpoint: breakpoint, key: definition.key, value: initialValue))
+            }
+        }
+        responsiveDefaults = initialDefaults.isEmpty ? nil : initialDefaults
         for index in properties.indices {
             if case .packageColor(var value) = properties[index].value,
                let palette = theme.colourPalettes.resolvedPalette(id: value.paletteID) {
@@ -181,13 +200,16 @@ nonisolated struct PartNode: Codable, Equatable, Identifiable, Sendable {
         return type.definition.properties.first(where: { $0.key == key })?.defaultValue ?? .string("")
     }
 
-    func propertyValue(_ key: PartProperty.Key, at breakpoint: ResponsiveBreakpoint) -> PartProperty.Value {
-        for candidate in breakpoint.inheritedBreakpoints {
+    func propertyValue(_ key: PartProperty.Key, at breakpoint: ResponsiveBreakpoint, screens: ScreenTokens = .standard) -> PartProperty.Value {
+        let definition = type.definition.properties.first { $0.key == key }
+        for candidate in breakpoint.inheritedBreakpoints where candidate.minimumWidth(in: screens) != nil {
             if let value = responsiveOverrides?.first(where: {
                 $0.breakpoint == candidate && $0.key == key
             })?.value {
                 return value
             }
+            if let value = responsiveDefaults?.first(where: { $0.breakpoint == candidate && $0.key == key })?.value { return value }
+            if let value = definition?.breakpointDefaults[candidate] { return value }
         }
         return propertyValue(key)
     }
@@ -196,11 +218,11 @@ nonisolated struct PartNode: Codable, Equatable, Identifiable, Sendable {
         responsiveOverrides?.contains(where: { $0.breakpoint == breakpoint && $0.key == key }) == true
     }
 
-    func resolved(at breakpoint: ResponsiveBreakpoint) -> PartNode {
+    func resolved(at breakpoint: ResponsiveBreakpoint, screens: ScreenTokens = .standard) -> PartNode {
         guard breakpoint != .mobile else { return self }
         var copy = self
         for definition in type.definition.properties {
-            copy.setProperty(definition.key, value: propertyValue(definition.key, at: breakpoint))
+            copy.setProperty(definition.key, value: propertyValue(definition.key, at: breakpoint, screens: screens))
         }
         return copy
     }

@@ -4,10 +4,93 @@ import Testing
 @testable import Foundry
 
 struct PartPackageTests {
+    @Test @MainActor func structuredAndArrayBreakpointDefaultsUseNormalConversion() throws {
+        let controls = """
+        <dict><key>type</key><string>number</string><key>id</key><string>pair</string><key>count</key><integer>2</integer><key>responsive</key><true/>
+        <key>defaults</key><dict><key>base</key><array><integer>1</integer><integer>2</integer></array><key>large</key><array><integer>3</integer><integer>4</integer></array></dict></dict>
+        <dict><key>type</key><string>themeBorder</string><key>id</key><string>border</string><key>responsive</key><true/>
+        <key>defaults</key><dict><key>base</key><dict><key>width</key><string>none</string></dict><key>large</key><dict><key>width</key><string>sm</string><key>style</key><string>dashed</string></dict></dict></dict>
+        <dict><key>type</key><string>themeFont</string><key>id</key><string>font</string><key>showsWeight</key><true/><key>responsive</key><true/>
+        <key>defaults</key><dict><key>base</key><dict><key>family</key><string>body</string><key>weight</key><integer>400</integer></dict><key>large</key><dict><key>family</key><string>heading</string><key>weight</key><integer>700</integer></dict></dict></dict>
+        <dict><key>type</key><string>themeColor</string><key>id</key><string>colour</string><key>responsive</key><true/>
+        <key>defaults</key><dict><key>base</key><dict><key>palette</key><string>accent</string></dict><key>large</key><dict><key>palette</key><string>standard.lime</string><key>lightShade</key><integer>8</integer><key>darkShade</key><integer>3</integer></dict></dict></dict>
+        """
+        let url = try makePackage(manifest: manifest(withControls: controls), template: "<section {{ part.attributes }}>{{ childArea(\"content\") }}</section>")
+        defer { try? FileManager.default.removeItem(at: url) }
+        let package = try PartPackageLoader.load(from: url)
+        PartRegistry.register(package)
+        defer { PartRegistry.unregisterPackage(identifier: package.manifest.identifier) }
+        let created = PartNode.make(.init(rawValue: package.manifest.identifier))
+        #expect(created.responsiveDefaults?.isEmpty == false)
+        #expect(created.responsiveOverrides == nil)
+        let restored = try JSONDecoder().decode(PartNode.self, from: JSONEncoder().encode(created))
+        let node = restored.resolved(at: .large)
+        #expect(node.propertyValue(.init(rawValue: "pair")) == .array([.number(3), .number(4)]))
+        #expect(node.propertyValue(.init(rawValue: "border.style")).stringValue == "dashed")
+        #expect(node.propertyValue(.init(rawValue: "font")).stringValue == "heading")
+        #expect(node.propertyValue(.init(rawValue: "font.weight")) == .number(700))
+        guard case .packageColor(let colour) = node.propertyValue(.init(rawValue: "colour")) else { Issue.record("Missing colour"); return }
+        #expect(colour.shade.rawValue == 8)
+        #expect(colour.darkShade.rawValue == 3)
+        let encoded = try PropertyListEncoder().encode(package.manifest)
+        let decoded = try PropertyListDecoder().decode(PartPackageManifest.self, from: encoded)
+        #expect(decoded.properties.first?.breakpointDefaults["large"] == .array([.number(3), .number(4)]))
+    }
+
+    @Test @MainActor func developerBreakpointDefaultsCascadeAndExport() throws {
+        let controls = """
+        <dict><key>type</key><string>number</string><key>id</key><string>gap</string><key>responsive</key><true/>
+        <key>defaults</key><dict><key>base</key><integer>4</integer><key>medium</key><integer>12</integer><key>large</key><integer>24</integer></dict></dict>
+        """
+        let url = try makePackage(manifest: manifest(withControls: controls), template: "<section {{ part.attributes }}>{{ childArea(\"content\") }}</section>", additionalFiles: ["part.css": ":instance { gap: {{ control.gap }}px; }"])
+        defer { try? FileManager.default.removeItem(at: url) }
+        let package = try PartPackageLoader.load(from: url)
+        PartRegistry.register(package)
+        defer { PartRegistry.unregisterPackage(identifier: package.manifest.identifier) }
+        var node = PartNode(type: .init(rawValue: package.manifest.identifier))
+        let key = PartProperty.Key(rawValue: "gap")
+        #expect(node.propertyValue(key, at: .small) == .number(4))
+        #expect(node.propertyValue(key, at: .medium) == .number(12))
+        #expect(node.propertyValue(key, at: .extraLarge) == .number(24))
+        #expect(!node.hasResponsiveOverride(key, at: .medium))
+        var screens = ScreenTokens.standard
+        screens.update(.medium) { $0.isEnabled = false }
+        #expect(node.propertyValue(key, at: .medium, screens: screens) == .number(4))
+        node.setResponsiveProperty(key, value: .number(18), at: .medium)
+        #expect(node.propertyValue(key, at: .medium) == .number(18))
+        #expect(node.propertyValue(key, at: .large) == .number(24))
+        #expect(node.propertyValue(key, at: .medium, screens: screens) == .number(4))
+        node.removeResponsiveOverride(key, at: .medium)
+        #expect(node.propertyValue(key, at: .medium) == .number(12))
+        let restored = try JSONDecoder().decode(PartNode.self, from: JSONEncoder().encode(node))
+        #expect(restored.propertyValue(key, at: .medium) == .number(12))
+        var site = Site(name: "Defaults", pages: [Page(title: "Home", slug: "index", parts: [node])])
+        let exported = try StaticSiteRenderer().render(site: site)
+        #expect(exported.files.contains { $0.contents.contains("gap: 12px") })
+        #expect(exported.files.contains { $0.contents.contains("gap: 24px") })
+        #expect(HTMLPageRenderer(site: site).render(page: site.pages[0], theme: site.theme).contains("gap: 24px"))
+        site.theme.screens = screens
+        let disabledExport = try StaticSiteRenderer().render(site: site)
+        #expect(!disabledExport.files.contains { $0.contents.contains("gap: 12px") })
+        #expect(disabledExport.files.contains { $0.contents.contains("gap: 24px") })
+    }
+
+    @Test func defaultsSchemaRejectsInvalidContracts() throws {
+        for fields in [
+            "<key>default</key><integer>1</integer>",
+            "<key>defaults</key><dict><key>large</key><integer>1</integer></dict>",
+            "<key>defaults</key><dict><key>base</key><integer>1</integer><key>desktop</key><integer>2</integer></dict>",
+            "<key>defaults</key><dict><key>base</key><integer>1</integer><key>large</key><integer>2</integer></dict>"
+        ] {
+            let item = "<dict><key>type</key><string>number</string><key>id</key><string>n</string>\(fields)</dict>"
+            #expect(try PartPackageManifestSchema.diagnostics(for: Data(manifest(withControls: item).utf8)).contains { $0.severity == .error })
+        }
+    }
+
     @Test @MainActor func themeSpacingLoadsPersistsAndRenders() throws {
         let control = """
         <dict><key>type</key><string>themeSpacing</string><key>id</key><string>themeSpacing</string>
-        <key>responsive</key><true/><key>default</key><string>sm</string></dict>
+        <key>responsive</key><true/><key>defaults</key><dict><key>base</key><string>sm</string></dict></dict>
         """
         let url = try makePackage(manifest: manifest(withControls: control), template: "<section {{ part.attributes }} data-spacing=\"{{ control.themeSpacing.css }}\" data-top=\"{{ control.themeSpacing }}\">{{ childArea(\"content\") }}</section>",
                                   additionalFiles: ["part.css": ":instance { gap: {{ control.themeSpacing }}; --numeric-top: {{ control.themeSpacing.value }}{{ control.themeSpacing.unit }}; }"])
@@ -51,7 +134,7 @@ struct PartPackageTests {
             "<dict><key>width</key><string>sm</string><key>color</key><dict><key>palette</key><string>accent</string><key>darkShade</key><integer>12</integer></dict></dict>"
         ]
         for value in invalid {
-            let url = try makePackage(manifest: manifest(withControls: "<dict><key>type</key><string>themeBorder</string><key>id</key><string>border</string><key>default</key>\(value)</dict>"), template: "<section {{ part.attributes }}>{{ childArea(\"content\") }}</section>")
+            let url = try makePackage(manifest: manifest(withControls: "<dict><key>type</key><string>themeBorder</string><key>id</key><string>border</string><key>defaults</key><dict><key>base</key>\(value)</dict></dict>"), template: "<section {{ part.attributes }}>{{ childArea(\"content\") }}</section>")
             defer { try? FileManager.default.removeItem(at: url) }
             #expect(throws: (any Error).self) { try PartPackageLoader.load(from: url) }
         }
@@ -60,8 +143,8 @@ struct PartPackageTests {
     @Test @MainActor func themeBorderLoadsPersistsAndRenders() throws {
         let control = """
         <dict><key>type</key><string>themeBorder</string><key>id</key><string>border</string>
-        <key>responsive</key><true/><key>showsStyle</key><true/><key>default</key><dict><key>width</key><string>sm</string><key>style</key><string>dashed</string></dict></dict>
-        <dict><key>type</key><string>themeColor</string><key>id</key><string>borderColour</string><key>group</key><string>Settings</string><key>default</key><dict><key>palette</key><string>standard.lime</string><key>lightShade</key><integer>8</integer></dict></dict>
+        <key>responsive</key><true/><key>showsStyle</key><true/><key>defaults</key><dict><key>base</key><dict><key>width</key><string>sm</string><key>style</key><string>dashed</string></dict></dict></dict>
+        <dict><key>type</key><string>themeColor</string><key>id</key><string>borderColour</string><key>group</key><string>Settings</string><key>defaults</key><dict><key>base</key><dict><key>palette</key><string>standard.lime</string><key>lightShade</key><integer>8</integer></dict></dict></dict>
         """
         let url = try makePackage(manifest: manifest(withControls: control), template: "<section {{ part.attributes }} data-borderWidth=\"{{ control.border.width.css }}\" data-top=\"{{ control.border.width.top }}\">{{ childArea(\"content\") }}</section>",
                                   additionalFiles: ["part.css": ":instance { border-width: {{ control.border.width }}; border-style: {{ control.border.style }}; border-color: {{ control.borderColour }}; --numeric-top: {{ control.border.width.values.top }}{{ control.border.width.units.top }}; }"])
@@ -104,7 +187,7 @@ struct PartPackageTests {
     @Test @MainActor func themeRadiusLoadsPersistsAndRenders() throws {
         let control = """
         <dict><key>type</key><string>themeRadius</string><key>id</key><string>themeRadius</string>
-        <key>responsive</key><true/><key>default</key><string>sm</string></dict>
+        <key>responsive</key><true/><key>defaults</key><dict><key>base</key><string>sm</string></dict></dict>
         """
         let url = try makePackage(manifest: manifest(withControls: control), template: "<section {{ part.attributes }} data-radius=\"{{ control.themeRadius.css }}\" data-top=\"{{ control.themeRadius.topLeft }}\">{{ childArea(\"content\") }}</section>",
                                   additionalFiles: ["part.css": ":instance { border-radius: {{ control.themeRadius }}; --numeric-top: {{ control.themeRadius.values.topLeft }}{{ control.themeRadius.units.topLeft }}; }"])
@@ -144,8 +227,8 @@ struct PartPackageTests {
         for palette in ColourPaletteDefaults.standard {
             let control = """
             <dict><key>type</key><string>themeColor</string><key>id</key><string>colour</string>
-            <key>default</key><dict><key>palette</key><string>\(palette.id)</string>
-            <key>lightShade</key><integer>8</integer><key>darkShade</key><integer>3</integer></dict></dict>
+            <key>defaults</key><dict><key>base</key><dict><key>palette</key><string>\(palette.id)</string>
+            <key>lightShade</key><integer>8</integer><key>darkShade</key><integer>3</integer></dict></dict></dict>
             """
             let url = try makePackage(manifest: manifest(withControls: control),
                 template: "<section {{ part.attributes }} style=\"color: {{ control.colour }}\">{{ childArea(\"content\") }}</section>")
@@ -165,7 +248,7 @@ struct PartPackageTests {
             #expect(try #require(StaticSiteRenderer().render(site: site).file(at: "index.html")?.contents).contains(expected))
         }
         for id in ["lime", "standard.unknown", "custom:missing"] {
-            let control = "<dict><key>type</key><string>themeColor</string><key>id</key><string>colour</string><key>default</key><dict><key>palette</key><string>\(id)</string></dict></dict>"
+            let control = "<dict><key>type</key><string>themeColor</string><key>id</key><string>colour</string><key>defaults</key><dict><key>base</key><dict><key>palette</key><string>\(id)</string></dict></dict></dict>"
             let decoded = try PropertyListDecoder().decode(PartPackageManifest.self, from: Data(manifest(withControls: control).utf8))
             #expect(PartPackageValidator.validate(decoded, rootURL: FileManager.default.temporaryDirectory).contains { $0.severity == .error })
         }
@@ -173,7 +256,7 @@ struct PartPackageTests {
     @Test @MainActor func themeMarginLoadsPersistsAndRenders() throws {
         let control = """
         <dict><key>type</key><string>themeMargin</string><key>id</key><string>themeMargin</string>
-        <key>responsive</key><true/><key>default</key><string>auto</string></dict>
+        <key>responsive</key><true/><key>defaults</key><dict><key>base</key><string>auto</string></dict></dict>
         """
         let url = try makePackage(manifest: manifest(withControls: control), template: "<section {{ part.attributes }} data-margin=\"{{ control.themeMargin.css }}\" data-top=\"{{ control.themeMargin.top }}\">{{ childArea(\"content\") }}</section>",
                                   additionalFiles: ["part.css": ":instance { margin: {{ control.themeMargin }}; --numeric-top: {{ control.themeMargin.values.top }}{{ control.themeMargin.units.top }}; }"])
@@ -212,7 +295,7 @@ struct PartPackageTests {
     @Test @MainActor func themePaddingLoadsPersistsAndRenders() throws {
         let control = """
         <dict><key>type</key><string>themePadding</string><key>id</key><string>themePadding</string>
-        <key>responsive</key><true/><key>default</key><string>sm</string></dict>
+        <key>responsive</key><true/><key>defaults</key><dict><key>base</key><string>sm</string></dict></dict>
         """
         let url = try makePackage(manifest: manifest(withControls: control), template: "<section {{ part.attributes }} data-padding=\"{{ control.themePadding.css }}\" data-top=\"{{ control.themePadding.top }}\">{{ childArea(\"content\") }}</section>",
                                   additionalFiles: ["part.css": ":instance { padding: {{ control.themePadding }}; --numeric-top: {{ control.themePadding.values.top }}{{ control.themePadding.units.top }}; }"])
@@ -252,7 +335,7 @@ struct PartPackageTests {
     @Test func themePaddingRejectsUnsupportedManifestKeys() throws {
         for extra in ["<key>count</key><integer>4</integer>", "<key>allowsCustom</key><true/>",
                       "<key>options</key><array/>", "<key>themeValues</key><string>spacing</string>"] {
-            let control = "<dict><key>type</key><string>themePadding</string><key>id</key><string>themePadding</string><key>default</key><string>sm</string>\(extra)</dict>"
+            let control = "<dict><key>type</key><string>themePadding</string><key>id</key><string>themePadding</string><key>defaults</key><dict><key>base</key><string>sm</string></dict>\(extra)</dict>"
             #expect(try PartPackageManifestSchema.diagnostics(for: Data(manifest(withControls: control).utf8)).contains { $0.severity == .error })
         }
     }
@@ -275,7 +358,7 @@ struct PartPackageTests {
     @Test func generatedFontRowsShareOneInspectorGrid() throws {
         let item = """
         <dict><key>type</key><string>themeFont</string><key>id</key><string>font</string>
-        <key>default</key><string>body</string><key>showsWeight</key><true/><key>showsStyle</key><true/></dict>
+        <key>defaults</key><dict><key>base</key><string>body</string></dict><key>showsWeight</key><true/><key>showsStyle</key><true/></dict>
         """
         let decoded = try PropertyListDecoder().decode(PartPackageManifest.self, from: Data(manifest(withControls: item).utf8))
         let property = try #require(decoded.properties.first)
@@ -294,7 +377,7 @@ struct PartPackageTests {
         let item = """
         <dict><key>type</key><string>select</string><key>id</key><string>choice</string>
         <key>options</key><array><dict><key>value</key><string>body</string><key>title</key><string>Body</string></dict></array>
-        <key>default</key><string>body</string></dict>
+        <key>defaults</key><dict><key>base</key><string>body</string></dict></dict>
         """
         let url = try makePackage(manifest: manifest(withControls: item),
             template: "<section {{ part.attributes }} data-choice=\"{{ control.choice }}\">{{ childArea(\"content\") }}</section>")
@@ -323,7 +406,7 @@ struct PartPackageTests {
         let item = """
         <dict><key>type</key><string>themeFont</string><key>id</key><string>typography</string>
         <key>showsWeight</key><true/><key>showsStyle</key><true/><key>responsive</key><true/>
-        <key>default</key><dict><key>family</key><string>body</string><key>weight</key><integer>650</integer><key>style</key><string>italic</string></dict></dict>
+        <key>defaults</key><dict><key>base</key><dict><key>family</key><string>body</string><key>weight</key><integer>650</integer><key>style</key><string>italic</string></dict></dict></dict>
         """
         let url = try makePackage(manifest: manifest(withControls: item), template: "<section {{ part.attributes }} data-face=\"{{ control.typography.family }}|{{ control.typography.weight }}|{{ control.typography.style }}\">{{ childArea(\"content\") }}</section>")
         defer { try? FileManager.default.removeItem(at: url) }
@@ -351,23 +434,23 @@ struct PartPackageTests {
     @Test func unifiedFontControlValidatesCapabilities() throws {
         for extra in [
             "<key>showsFamily</key><false/>",
-            "<key>default</key><dict><key>family</key><string>body</string><key>weight</key><integer>500</integer></dict>",
-            "<key>showsWeight</key><true/><key>default</key><dict><key>family</key><string>body</string><key>weight</key><integer>1001</integer></dict>",
-            "<key>showsStyle</key><true/><key>default</key><dict><key>family</key><string>body</string><key>style</key><string>bold</string></dict>"
+            "<key>defaults</key><dict><key>base</key><dict><key>family</key><string>body</string><key>weight</key><integer>500</integer></dict></dict>",
+            "<key>showsWeight</key><true/><key>defaults</key><dict><key>base</key><dict><key>family</key><string>body</string><key>weight</key><integer>1001</integer></dict></dict>",
+            "<key>showsStyle</key><true/><key>defaults</key><dict><key>base</key><dict><key>family</key><string>body</string><key>style</key><string>bold</string></dict></dict>"
         ] {
-            let defaultXML = extra.contains("<key>default</key>") ? "" : "<key>default</key><string>body</string>"
+            let defaultXML = extra.contains("<key>defaults</key>") ? "" : "<key>defaults</key><dict><key>base</key><string>body</string></dict>"
             let item = "<dict><key>type</key><string>themeFont</string><key>id</key><string>font</string>\(defaultXML)\(extra)</dict>"
             let decoded = try PropertyListDecoder().decode(PartPackageManifest.self, from: Data(manifest(withControls: item).utf8))
             #expect(PartPackageValidator.validate(decoded, rootURL: FileManager.default.temporaryDirectory).contains { $0.severity == .error && ($0.message.contains("default.") || $0.message.contains("at least one")) })
         }
         for kind in ["fontWeight", "fontStyle"] {
-            let item = "<dict><key>type</key><string>\(kind)</string><key>id</key><string>font</string><key>default</key><string>normal</string></dict>"
+            let item = "<dict><key>type</key><string>\(kind)</string><key>id</key><string>font</string><key>defaults</key><dict><key>base</key><string>normal</string></dict></dict>"
             #expect(try PartPackageManifestSchema.diagnostics(for: Data(manifest(withControls: item).utf8)).contains { $0.message.contains("Use one themeFont") })
         }
     }
 
     @Test @MainActor func fixedFamilyCanExposeOnlyWeight() throws {
-        let item = "<dict><key>type</key><string>themeFont</string><key>id</key><string>font</string><key>showsFamily</key><false/><key>showsWeight</key><true/><key>responsive</key><true/><key>default</key><string>body</string></dict>"
+        let item = "<dict><key>type</key><string>themeFont</string><key>id</key><string>font</string><key>showsFamily</key><false/><key>showsWeight</key><true/><key>responsive</key><true/><key>defaults</key><dict><key>base</key><string>body</string></dict></dict>"
         let url = try makePackage(manifest: manifest(withControls: item), template: "<section {{ part.attributes }}>{{ childArea(\"content\") }}</section>")
         defer { try? FileManager.default.removeItem(at: url) }
         let package = try PartPackageLoader.load(from: url)
@@ -389,7 +472,7 @@ struct PartPackageTests {
     @Test @MainActor
     func standaloneThemeFontLoadsAndRenders() throws {
         for role in ["body", "heading", "monospaced"] {
-            let item = "<dict><key>type</key><string>themeFont</string><key>id</key><string>family</string><key>default</key><string>\(role)</string><key>responsive</key><true/></dict>"
+            let item = "<dict><key>type</key><string>themeFont</string><key>id</key><string>family</string><key>defaults</key><dict><key>base</key><string>\(role)</string></dict><key>responsive</key><true/></dict>"
             let url = try makePackage(manifest: manifest(withControls: item), template: "<section {{ part.attributes }} style=\"font-family: {{ control.family.family }}\">{{ childArea(\"content\") }}</section>")
             defer { try? FileManager.default.removeItem(at: url) }
             let package = try PartPackageLoader.load(from: url)
@@ -408,12 +491,12 @@ struct PartPackageTests {
 
     @Test func standaloneThemeFontRejectsInvalidContracts() throws {
         for value in ["accent", "custom:anything", "Arial"] {
-            let item = "<dict><key>type</key><string>themeFont</string><key>id</key><string>family</string><key>default</key><string>\(value)</string></dict>"
+            let item = "<dict><key>type</key><string>themeFont</string><key>id</key><string>family</string><key>defaults</key><dict><key>base</key><string>\(value)</string></dict></dict>"
             let decoded = try PropertyListDecoder().decode(PartPackageManifest.self, from: Data(manifest(withControls: item).utf8))
             #expect(PartPackageValidator.validate(decoded, rootURL: FileManager.default.temporaryDirectory).contains { $0.message.contains("themeFont default") })
         }
         for extra in ["<key>count</key><integer>2</integer>", "<key>themeValues</key><string>fontFamilies</string>", "<key>options</key><array/>", "<key>allowsCustom</key><false/>"] {
-            let item = "<dict><key>type</key><string>themeFont</string><key>id</key><string>family</string><key>default</key><string>body</string>\(extra)</dict>"
+            let item = "<dict><key>type</key><string>themeFont</string><key>id</key><string>family</string><key>defaults</key><dict><key>base</key><string>body</string></dict>\(extra)</dict>"
             #expect(try PartPackageManifestSchema.diagnostics(for: Data(manifest(withControls: item).utf8)).contains { $0.message.contains("themeFont control does not accept") })
         }
     }
@@ -425,8 +508,8 @@ struct PartPackageTests {
             let item = """
             <dict><key>id</key><string>colour</string>
             <key>type</key><string>themeColor</string>
-            <key>default</key><dict><key>palette</key><string>accent</string>
-            \(shade.map { "<key>\(key)</key><integer>\($0)</integer>" } ?? "")</dict></dict>
+            <key>defaults</key><dict><key>base</key><dict><key>palette</key><string>accent</string>
+            \(shade.map { "<key>\(key)</key><integer>\($0)</integer>" } ?? "")</dict></dict></dict>
             """
             let url = try makePackage(manifest: manifest(withControls: item),
                                       template: "<div {{ part.attributes }}>{{ childArea(\"content\") }}</div>")
@@ -445,7 +528,7 @@ struct PartPackageTests {
                                        ("themeColor", "custom", 3)] {
             let item = """
             <dict><key>id</key><string>colour</string><key>type</key><string>\(type)</string>
-            <key>default</key><dict><key>palette</key><string>\(value)</string><key>lightShade</key><integer>\(initial)</integer></dict></dict>
+            <key>defaults</key><dict><key>base</key><dict><key>palette</key><string>\(value)</string><key>lightShade</key><integer>\(initial)</integer></dict></dict></dict>
             """
             let decoded = try PropertyListDecoder().decode(PartPackageManifest.self,
                 from: Data(manifest(withControls: item).utf8))
@@ -453,7 +536,7 @@ struct PartPackageTests {
                 .contains { $0.location.hasSuffix(".lightShade") && $0.severity == .error })
         }
         for invalid in ["<string>8</string>", "<true/>", "<real>2.5</real>"] {
-            let item = "<dict><key>id</key><string>colour</string><key>type</key><string>themeColor</string><key>default</key><dict><key>palette</key><string>accent</string><key>lightShade</key>\(invalid)</dict></dict>"
+            let item = "<dict><key>id</key><string>colour</string><key>type</key><string>themeColor</string><key>defaults</key><dict><key>base</key><dict><key>palette</key><string>accent</string><key>lightShade</key>\(invalid)</dict></dict></dict>"
             #expect(try PartPackageManifestSchema.diagnostics(for: Data(manifest(withControls: item).utf8))
                 .contains { $0.message == "lightShade must be an integer." })
         }
@@ -462,10 +545,10 @@ struct PartPackageTests {
     @Test func themeColourRejectsOldDefaultsAndUnknownNestedKeys() throws {
         for value in ["<string>accent</string>", "<array><string>accent</string></array>",
                       "<dict><key>palette</key><string>accent</string><key>shade</key><integer>3</integer></dict>"] {
-            let item = "<dict><key>id</key><string>colour</string><key>type</key><string>themeColor</string><key>default</key>\(value)</dict>"
+            let item = "<dict><key>id</key><string>colour</string><key>type</key><string>themeColor</string><key>defaults</key><dict><key>base</key>\(value)</dict></dict>"
             #expect(try PartPackageManifestSchema.diagnostics(for: Data(manifest(withControls: item).utf8)).contains { $0.severity == .error })
         }
-        let oldKeys = "<dict><key>id</key><string>colour</string><key>type</key><string>themeColor</string><key>default</key><dict><key>palette</key><string>accent</string></dict><key>lightShade</key><integer>8</integer></dict>"
+        let oldKeys = "<dict><key>id</key><string>colour</string><key>type</key><string>themeColor</string><key>defaults</key><dict><key>base</key><dict><key>palette</key><string>accent</string></dict></dict><key>lightShade</key><integer>8</integer></dict>"
         #expect(try PartPackageManifestSchema.diagnostics(for: Data(manifest(withControls: oldKeys).utf8)).contains { $0.message.contains("Unknown key 'lightShade'") })
     }
 
@@ -735,7 +818,7 @@ struct PartPackageTests {
         <key>subtitle</key><array><string>First</string><string>Second</string><string>Third</string><string>Fourth</string></array>
         <key>tooltip</key><string>Four colours</string>
         <key>type</key><string>color</string><key>count</key><integer>4</integer>
-        <key>default</key><array><string>#111111</string><string>#222222</string><string>#333333</string><string>#444444</string></array>
+        <key>defaults</key><dict><key>base</key><array><string>#111111</string><string>#222222</string><string>#333333</string><string>#444444</string></array></dict>
         <key>responsive</key><true/>        </dict></array>
         <key>templates</key><dict><key>html</key><string>part.html</string></dict>
         </dict></plist>
@@ -774,7 +857,7 @@ struct PartPackageTests {
         <key>type</key><string>select</string><key>themeValues</key><string>spacing</string>
         <key>allowsCustom</key><true/>
         <key>options</key><array><dict><key>value</key><string>inherit</string><key>title</key><string>Inherit</string></dict></array>
-        <key>default</key><string>md</string><key>responsive</key><false/>
+        <key>defaults</key><dict><key>base</key><string>md</string></dict><key>responsive</key><false/>
         </dict></array>
         <key>templates</key><dict><key>html</key><string>part.html</string></dict>
         </dict></plist>
@@ -809,8 +892,8 @@ struct PartPackageTests {
                 with: "<key>themeValues</key><string>fontSizes</string>"
             )
             .replacingOccurrences(
-                of: "<key>default</key><string>md</string><key>responsive</key><false/>",
-                with: "<key>default</key><string>base</string><key>responsive</key><false/><key>count</key><integer>2</integer>"
+                of: "<key>defaults</key><dict><key>base</key><string>md</string></dict><key>responsive</key><false/>",
+                with: "<key>defaults</key><dict><key>base</key><string>base</string></dict><key>responsive</key><false/><key>count</key><integer>2</integer>"
             )
         let schemaDiagnostics = try PartPackageManifestSchema.diagnostics(
             for: Data(countedThemeSelect.utf8)
@@ -864,7 +947,7 @@ struct PartPackageTests {
             <key>type</key><string>select</string>
             <key>themeValues</key><string>fontFamilies</string>
             <key>allowsCustom</key><true/>
-            <key>default</key><string>body</string>
+            <key>defaults</key><dict><key>base</key><string>body</string></dict>
             <key>responsive</key><true/>
         </dict>
         """
@@ -891,7 +974,7 @@ struct PartPackageTests {
             <key>group</key><string>Appearance</string>
             <key>type</key><string>shadow</string>
             <key>allowsCustom</key><true/>
-            <key>default</key><string>md</string>
+            <key>defaults</key><dict><key>base</key><string>md</string></dict>
             <key>responsive</key><false/>
         </dict>
         """
@@ -933,7 +1016,7 @@ struct PartPackageTests {
             <key>id</key><string>example</string>
             <key>label</key><string>Example</string>
             <key>type</key><string>text</string>
-            <key>default</key><string>Hello</string>
+            <key>defaults</key><dict><key>base</key><string>Hello</string></dict>
             <key>responsive</key><false/>
         </dict>
         """
@@ -941,7 +1024,7 @@ struct PartPackageTests {
             (
                 validItem
                     .replacingOccurrences(of: "<string>text</string>", with: "<string>themeColor</string>")
-                    .replacingOccurrences(of: "<string>Hello</string>", with: "<string>accent</string><key>colorMath</key><true/>"),
+                    .replacingOccurrences(of: "<key>label</key>", with: "<key>colorMath</key><true/><key>label</key>"),
                 ":colorMath", "Unknown key 'colorMath'. Check the spelling or remove it."
             ),
             (
@@ -965,8 +1048,8 @@ struct PartPackageTests {
                 ":responsive", "responsive must be a Boolean."
             ),
             (
-                validItem.replacingOccurrences(of: "<key>default</key><string>Hello</string>", with: "<key>default</key><dict/>"),
-                ":default", "default must be a string, number, Boolean, or array of those values."
+                validItem.replacingOccurrences(of: "<key>defaults</key><dict><key>base</key><string>Hello</string></dict>", with: "<key>defaults</key><dict><key>base</key><dict/></dict>"),
+                ":defaults.base", "defaults.base must be a string, number, Boolean, or array of those values."
             ),
             (
                 validItem.replacingOccurrences(of: "<key>responsive</key><false/>", with: "<key>responsive</key><false/><key>minimum</key><string>zero</string>"),
@@ -1018,9 +1101,9 @@ struct PartPackageTests {
         <key>version</key><string>1.0.0</string><key>group</key><string>Other</string>
         <key>assets</key><array/>
         <key>controls</key><array>
-        <dict><key>id</key><string>mode</string><key>label</key><string>Mode</string><key>type</key><string>select</string><key>options</key><array><dict><key>value</key><string>featured</string><key>title</key><string>Featured</string></dict></array><key>default</key><string>featured</string><key>responsive</key><false/></dict>
-        <dict><key>id</key><string>titles</string><key>label</key><string>Titles</string><key>type</key><string>text</string><key>count</key><integer>3</integer><key>default</key><array><string>One</string><string>Two</string><string>Featured story</string></array><key>responsive</key><false/></dict>
-        <dict><key>id</key><string>detail</string><key>label</key><string>Detail</string><key>type</key><string>text</string><key>default</key><string>Visible</string><key>responsive</key><false/><key>visibleWhen</key><dict><key>id</key><string>titles[2]</string><key>operation</key><string>containsInsensitive</string><key>value</key><string>featured</string></dict></dict>
+        <dict><key>id</key><string>mode</string><key>label</key><string>Mode</string><key>type</key><string>select</string><key>options</key><array><dict><key>value</key><string>featured</string><key>title</key><string>Featured</string></dict></array><key>defaults</key><dict><key>base</key><string>featured</string></dict><key>responsive</key><false/></dict>
+        <dict><key>id</key><string>titles</string><key>label</key><string>Titles</string><key>type</key><string>text</string><key>count</key><integer>3</integer><key>defaults</key><dict><key>base</key><array><string>One</string><string>Two</string><string>Featured story</string></array></dict><key>responsive</key><false/></dict>
+        <dict><key>id</key><string>detail</string><key>label</key><string>Detail</string><key>type</key><string>text</string><key>defaults</key><dict><key>base</key><string>Visible</string></dict><key>responsive</key><false/><key>visibleWhen</key><dict><key>id</key><string>titles[2]</string><key>operation</key><string>containsInsensitive</string><key>value</key><string>featured</string></dict></dict>
         </array><key>templates</key><dict><key>html</key><string>part.html</string></dict>
         </dict></plist>
         """
@@ -1054,8 +1137,8 @@ struct PartPackageTests {
         <key>version</key><string>1.0.0</string>
         <key>group</key><string>Other</string><key>assets</key><array/>
         <key>controls</key><array>
-        <dict><key>id</key><string>amount</string><key>label</key><string>Amount</string><key>group</key><string>Test</string><key>type</key><string>number</string><key>default</key><real>21</real><key>responsive</key><false/></dict>
-        <dict><key>id</key><string>action</string><key>label</key><string>Action</string><key>group</key><string>Test</string><key>type</key><string>button</string><key>trueValue</key><string>active</string><key>falseValue</key><string>ready</string><key>default</key><false/><key>responsive</key><false/></dict>
+        <dict><key>id</key><string>amount</string><key>label</key><string>Amount</string><key>group</key><string>Test</string><key>type</key><string>number</string><key>defaults</key><dict><key>base</key><real>21</real></dict><key>responsive</key><false/></dict>
+        <dict><key>id</key><string>action</string><key>label</key><string>Action</string><key>group</key><string>Test</string><key>type</key><string>button</string><key>trueValue</key><string>active</string><key>falseValue</key><string>ready</string><key>defaults</key><dict><key>base</key><false/></dict><key>responsive</key><false/></dict>
         <dict><key>id</key><string>doubled</string><key>group</key><string>Test</string><key>type</key><string>math</string><key>argument1</key><string>amount</string><key>argument2</key><real>2</real><key>operation</key><string>*</string><key>round</key><false/></dict>
         </array><key>templates</key><dict><key>html</key><string>part.html</string></dict>
         </dict></plist>
@@ -1080,12 +1163,12 @@ struct PartPackageTests {
         <key>version</key><string>1.0.0</string>
         <key>group</key><string>Other</string><key>assets</key><array/>
         <key>controls</key><array>
-        <dict><key>id</key><string>plain</string><key>subtitle</key><string>Optional help</string><key>type</key><string>button</string><key>default</key><false/></dict>
-        <dict><key>id</key><string>mapped</string><key>type</key><string>button</string><key>buttonText</key><string>Apply</string><key>buttonIcon</key><string>bolt.fill</string><key>trueValue</key><string>active</string><key>falseValue</key><string>idle</string><key>default</key><true/></dict>
-        <dict><key>id</key><string>multiple</string><key>type</key><string>button</string><key>count</key><integer>2</integer><key>subtitle</key><array><string>First</string><string>Second</string></array><key>buttonText</key><array><string>Previous</string><string>Next</string></array><key>buttonIcon</key><array><string>arrow.left</string><string>arrow.right</string></array><key>activeButtonText</key><array><string>Selected previous</string><string>Selected next</string></array><key>activeButtonIcon</key><array><string>checkmark</string><string>checkmark</string></array><key>trueValue</key><array><string>one</string><string>two</string></array><key>falseValue</key><string>off</string><key>default</key><array><true/><false/></array></dict>
-        <dict><key>id</key><string>singleChoice</string><key>type</key><string>button</string><key>count</key><integer>2</integer><key>selectionMode</key><string>single</string><key>trueValue</key><array><string>first</string><string>second</string></array><key>default</key><array><false/><true/></array></dict>
-        <dict><key>id</key><string>wrongDefault</string><key>type</key><string>button</string><key>default</key><string>no</string></dict>
-        <dict><key>id</key><string>wrongMapping</string><key>type</key><string>button</string><key>count</key><integer>2</integer><key>selectionMode</key><string>single</string><key>trueValue</key><array><string>only-one</string></array><key>default</key><array><true/><true/></array></dict>
+        <dict><key>id</key><string>plain</string><key>subtitle</key><string>Optional help</string><key>type</key><string>button</string><key>defaults</key><dict><key>base</key><false/></dict></dict>
+        <dict><key>id</key><string>mapped</string><key>type</key><string>button</string><key>buttonText</key><string>Apply</string><key>buttonIcon</key><string>bolt.fill</string><key>trueValue</key><string>active</string><key>falseValue</key><string>idle</string><key>defaults</key><dict><key>base</key><true/></dict></dict>
+        <dict><key>id</key><string>multiple</string><key>type</key><string>button</string><key>count</key><integer>2</integer><key>subtitle</key><array><string>First</string><string>Second</string></array><key>buttonText</key><array><string>Previous</string><string>Next</string></array><key>buttonIcon</key><array><string>arrow.left</string><string>arrow.right</string></array><key>activeButtonText</key><array><string>Selected previous</string><string>Selected next</string></array><key>activeButtonIcon</key><array><string>checkmark</string><string>checkmark</string></array><key>trueValue</key><array><string>one</string><string>two</string></array><key>falseValue</key><string>off</string><key>defaults</key><dict><key>base</key><array><true/><false/></array></dict></dict>
+        <dict><key>id</key><string>singleChoice</string><key>type</key><string>button</string><key>count</key><integer>2</integer><key>selectionMode</key><string>single</string><key>trueValue</key><array><string>first</string><string>second</string></array><key>defaults</key><dict><key>base</key><array><false/><true/></array></dict></dict>
+        <dict><key>id</key><string>wrongDefault</string><key>type</key><string>button</string><key>defaults</key><dict><key>base</key><string>no</string></dict></dict>
+        <dict><key>id</key><string>wrongMapping</string><key>type</key><string>button</string><key>count</key><integer>2</integer><key>selectionMode</key><string>single</string><key>trueValue</key><array><string>only-one</string></array><key>defaults</key><dict><key>base</key><array><true/><true/></array></dict></dict>
         </array><key>templates</key><dict><key>html</key><string>part.html</string></dict>
         </dict></plist>
         """
@@ -1134,7 +1217,7 @@ struct PartPackageTests {
         ]
         let declarations = formats.map { format in
             """
-            <dict><key>id</key><string>\(format)</string><key>type</key><string>color</string><key>opacity</key><true/><key>outputFormat</key><string>\(format)</string><key>default</key><string>#FF336680</string></dict>
+            <dict><key>id</key><string>\(format)</string><key>type</key><string>color</string><key>opacity</key><true/><key>outputFormat</key><string>\(format)</string><key>defaults</key><dict><key>base</key><string>#FF336680</string></dict></dict>
             """
         }.joined()
         let plist = """
@@ -1147,9 +1230,9 @@ struct PartPackageTests {
         <key>group</key><string>Other</string><key>assets</key><array/>
         <key>controls</key><array>
         \(declarations)
-        <dict><key>id</key><string>defaultHex</string><key>type</key><string>color</string><key>default</key><string>#FF3366</string></dict>
-        <dict><key>id</key><string>opaqueRGBA</string><key>type</key><string>color</string><key>outputFormat</key><string>rgba</string><key>default</key><string>#FF3366</string></dict>
-        <dict><key>id</key><string>array</string><key>type</key><string>color</string><key>count</key><integer>2</integer><key>outputFormat</key><string>rgbValues</string><key>default</key><array><string>#FF3366</string><string>#3366CC</string></array></dict>
+        <dict><key>id</key><string>defaultHex</string><key>type</key><string>color</string><key>defaults</key><dict><key>base</key><string>#FF3366</string></dict></dict>
+        <dict><key>id</key><string>opaqueRGBA</string><key>type</key><string>color</string><key>outputFormat</key><string>rgba</string><key>defaults</key><dict><key>base</key><string>#FF3366</string></dict></dict>
+        <dict><key>id</key><string>array</string><key>type</key><string>color</string><key>count</key><integer>2</integer><key>outputFormat</key><string>rgbValues</string><key>defaults</key><dict><key>base</key><array><string>#FF3366</string><string>#3366CC</string></array></dict></dict>
         </array><key>templates</key><dict><key>html</key><string>part.html</string></dict>
         </dict></plist>
         """
@@ -1231,8 +1314,8 @@ struct PartPackageTests {
         <key>version</key><string>1.0.0</string>
         <key>group</key><string>Other</string><key>assets</key><array/>
         <key>controls</key><array>
-        <dict><key>id</key><string>published</string><key>type</key><string>date</string><key>minimum</key><string>2026-01-01</string><key>maximum</key><string>2026-12-31</string><key>default</key><string>2026-09-08</string></dict>
-        <dict><key>id</key><string>schedule</string><key>type</key><string>date</string><key>count</key><integer>2</integer><key>default</key><array><string>2026-10-01</string><string>2026-10-20</string></array></dict>
+        <dict><key>id</key><string>published</string><key>type</key><string>date</string><key>minimum</key><string>2026-01-01</string><key>maximum</key><string>2026-12-31</string><key>defaults</key><dict><key>base</key><string>2026-09-08</string></dict></dict>
+        <dict><key>id</key><string>schedule</string><key>type</key><string>date</string><key>count</key><integer>2</integer><key>defaults</key><dict><key>base</key><array><string>2026-10-01</string><string>2026-10-20</string></array></dict></dict>
         </array><key>templates</key><dict><key>html</key><string>part.html</string></dict>
         </dict></plist>
         """
@@ -1719,7 +1802,7 @@ struct PartPackageTests {
             <key>type</key><string>number</string>
             <key>minimum</key><real>0</real>
             <key>maximum</key><real>12</real>
-            <key>default</key><real>4</real>
+            <key>defaults</key><dict><key>base</key><real>4</real></dict>
             <key>responsive</key><false/>
         </dict>
         """
@@ -2215,7 +2298,7 @@ struct PartPackageTests {
                 <key>label</key><string>Title</string>
                 <key>group</key><string>Content</string>
                 <key>type</key><string>text</string>
-                <key>default</key><string>Hello</string>
+                <key>defaults</key><dict><key>base</key><string>Hello</string></dict>
                 <key>responsive</key><false/>
             </dict>
             """)
@@ -2248,7 +2331,7 @@ struct PartPackageTests {
                 <key>label</key><string>Image</string>
                 <key>group</key><string>Content</string>
                 <key>type</key><string>image</string>
-                <key>default</key><string>images/icon.svg</string>
+                <key>defaults</key><dict><key>base</key><string>images/icon.svg</string></dict>
             </dict>
             """)
         let packageURL = try makePackage(
@@ -2272,8 +2355,8 @@ struct PartPackageTests {
         #expect(rendered.contains("src=\"files/icon.svg\""))
 
         let invalidManifest = validImageManifest.replacingOccurrences(
-            of: "<key>default</key><string>images/icon.svg</string>",
-            with: "<key>default</key><string>images/missing.svg</string>"
+            of: "<key>defaults</key><dict><key>base</key><string>images/icon.svg</string></dict>",
+            with: "<key>defaults</key><dict><key>base</key><string>images/missing.svg</string></dict>"
         )
         let invalidPackage = try makePackage(
             manifest: invalidManifest,
@@ -2784,7 +2867,7 @@ struct PartPackageTests {
             <key>label</key><string>Alignment</string>
             <key>group</key><string>Typography</string>
             <key>type</key><string>textAlignment</string>
-            <key>default</key><string>start</string>
+            <key>defaults</key><dict><key>base</key><string>start</string></dict>
             <key>responsive</key><true/>
         </dict>
         """
@@ -2827,7 +2910,7 @@ struct PartPackageTests {
             <key>type</key><string>select</string>
             <key>themeValues</key><string>fontSizes</string>
             <key>count</key><integer>2</integer>
-            <key>default</key><array><string>base</string><string>base</string></array>
+            <key>defaults</key><dict><key>base</key><array><string>base</string><string>base</string></array></dict>
             <key>responsive</key><false/>
         </dict>
         """
@@ -2853,7 +2936,7 @@ struct PartPackageTests {
             <key>id</key><string>spacing</string>
             <key>label</key><string>Spacing</string>
             <key>type</key><string>number</string>
-            <key>default</key><real>12</real>
+            <key>defaults</key><dict><key>base</key><real>12</real></dict>
             <key>responsive</key><false/>
         </dict>
         """
@@ -2892,7 +2975,7 @@ struct PartPackageTests {
             <key>maximum</key><real>100</real>
             <key>ticks</key><integer>11</integer>
             <key>units</key><string>%</string>
-            <key>default</key><real>50</real>
+            <key>defaults</key><dict><key>base</key><real>50</real></dict>
             <key>responsive</key><false/>
         </dict>
         """
@@ -2927,8 +3010,7 @@ struct PartPackageTests {
             <key>count</key><integer>3</integer>
             <key>units</key>
             <array><string>px</string><string>rem</string><string>%</string></array>
-            <key>default</key>
-            <array><real>20</real><real>4</real><real>80</real></array>
+            <key>defaults</key><dict><key>base</key><array><real>20</real><real>4</real><real>80</real></array></dict>
             <key>responsive</key><false/>
         </dict>
         """
@@ -2951,7 +3033,7 @@ struct PartPackageTests {
     }
 
     @Test
-    func sliderOmittedDefaultUsesZeroOrNearestRangeBound() throws {
+    func sliderRequiresExplicitBaseDefault() throws {
         let cases: [(minimum: Double, maximum: Double, expected: Double)] = [
             (-100, 100, 0),
             (10, 100, 10),
@@ -2970,12 +3052,9 @@ struct PartPackageTests {
             </dict>
             """
             let manifestText = manifest(withControls: item)
-            let manifest = try PropertyListDecoder().decode(
-                PartPackageManifest.self,
-                from: Data(manifestText.utf8)
-            )
-
-            #expect(manifest.properties.first?.defaultValue == .number(testCase.expected))
+            #expect(throws: (any Error).self) {
+                try PropertyListDecoder().decode(PartPackageManifest.self, from: Data(manifestText.utf8))
+            }
         }
     }
 
@@ -2987,6 +3066,7 @@ struct PartPackageTests {
             <key>label</key><string>Slider</string>
             <key>type</key><string>slider</string>
             <key>showsValueField</key><false/>
+            <key>defaults</key><dict><key>base</key><integer>0</integer></dict>
             <key>responsive</key><false/>
         </dict>
         """
@@ -3027,7 +3107,7 @@ struct PartPackageTests {
             <key>step</key><real>-1</real>
             <key>ticks</key><integer>1</integer>
             <key>units</key><string>pixels</string>
-            <key>default</key><real>10</real>
+            <key>defaults</key><dict><key>base</key><real>10</real></dict>
             <key>responsive</key><false/>
         </dict>
         """
@@ -3102,7 +3182,7 @@ struct PartPackageTests {
             let schemaDiagnostics = try PartPackageManifestSchema.diagnostics(
                 for: Data(manifest(withControls: invalidItem).utf8)
             )
-            #expect(schemaDiagnostics.contains { $0.message == "A divider control does not support \(key)." })
+            #expect(schemaDiagnostics.contains { $0.severity == .error })
         }
     }
 
@@ -3180,7 +3260,7 @@ struct PartPackageTests {
                 <key>id</key><string>destination</string>
                 <key>type</key><string>link</string>
                 <key>label</key><string>Destination</string>
-                <key>default</key><string></string>
+                <key>defaults</key><dict><key>base</key><string></string></dict>
                 <key>\(key)</key>\(value)
             </dict>
             """
@@ -3652,7 +3732,8 @@ struct PartPackageTests {
         }.map(\.key.rawValue) == (1...8).map { "slide-\($0)" })
         #expect(PartType.section.definition.allowsChildren)
         #expect(!PartType.section.definition.properties.contains { $0.key.rawValue == "contentWidth" })
-        #expect(!PartType.section.definition.properties.contains { ["themePadding", "margin"].contains($0.key.rawValue) })
+        #expect(PartType.section.definition.properties.contains { $0.key.rawValue == "themePadding" })
+        #expect(PartType.section.definition.properties.contains { $0.key.rawValue == "themeMargin" })
         #expect(PartType.image.definition.properties.contains { $0.key == .source && $0.isInspectorVisible })
         #expect(PartType.image.definition.properties.contains {
             $0.key.rawValue == "maxWidth" && $0.defaultValue == .number(1200) && $0.isResponsive
@@ -4116,7 +4197,7 @@ struct PartPackageTests {
             <key>label</key><string>Icon</string>
             <key>group</key><string>Content</string>
             <key>type</key><string>icon</string>
-            <key>default</key><string>stars</string>
+            <key>defaults</key><dict><key>base</key><string>stars</string></dict>
             <key>responsive</key><false/>
         </dict>
         """
@@ -4151,7 +4232,7 @@ struct PartPackageTests {
             <key>id</key><string>symbol</string>
             <key>label</key><string>Icon</string>
             <key>type</key><string>icon</string>
-            <key>default</key><string>not-a-real-foundry-icon</string>
+            <key>defaults</key><dict><key>base</key><string>not-a-real-foundry-icon</string></dict>
             <key>responsive</key><false/>
         </dict>
         """
@@ -4180,8 +4261,7 @@ struct PartPackageTests {
             <key>count</key><integer>2</integer>
             <key>subtitle</key>
             <array><string>Previous</string><string>Next</string></array>
-            <key>default</key>
-            <array><string>arrow-left</string><string>not-a-real-foundry-icon</string></array>
+            <key>defaults</key><dict><key>base</key><array><string>arrow-left</string><string>not-a-real-foundry-icon</string></array></dict>
         </dict>
         """
         let manifestText = manifest(withControls: item)
@@ -4274,7 +4354,7 @@ struct PartPackageTests {
                 <key>label</key><string>Title</string>
                 <key>group</key><string>Content</string>
                 <key>type</key><string>text</string>
-                <key>default</key><string>Hello</string>
+                <key>defaults</key><dict><key>base</key><string>Hello</string></dict>
                 <key>responsive</key><false/>
             </dict>
             <dict>

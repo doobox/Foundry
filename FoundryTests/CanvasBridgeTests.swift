@@ -3,6 +3,34 @@ import Testing
 @testable import Foundry
 
 struct CanvasBridgeTests {
+    @Test @MainActor
+    func breakpointChangeRefreshesAllPartsDespiteLastPropertyMutation() {
+        let key = PartProperty.Key(rawValue: "content")
+        var first = PartNode.make(.paragraph)
+        var second = PartNode.make(.paragraph)
+        first.setProperty(key, value: .string("First mobile"))
+        second.setProperty(key, value: .string("Second mobile"))
+        first.setResponsiveProperty(key, value: .string("First medium"), at: .medium)
+        second.setResponsiveProperty(key, value: .string("Second medium"), at: .medium)
+        let page = Page(title: "Responsive", slug: "responsive", parts: [first, second])
+        let transitions: [(ResponsiveBreakpoint, ResponsiveBreakpoint)] = [(.mobile, .medium), (.medium, .mobile)]
+        for (previous, current) in transitions {
+            let snapshot = CanvasRenderSnapshot(
+                renderer: HTMLPageRenderer(), page: page, language: "en", theme: .standard,
+                assets: [:], breakpoint: current,
+                impact: .partProperty(partID: first.id, propertyKey: key),
+                forcesReconciliation: false, previousBreakpoint: previous
+            )
+            guard case .page(let html) = snapshot.render() else {
+                Issue.record("Changing breakpoint must refresh every part, not just the last edited part")
+                continue
+            }
+            let suffix = current == .mobile ? "mobile" : "medium"
+            #expect(html.contains("First \(suffix)"))
+            #expect(html.contains("Second \(suffix)"))
+        }
+    }
+
     @Test
     func revisionGateRejectsStaleRequestsAndResults() {
         var gate = CanvasUpdateRevisionGate()

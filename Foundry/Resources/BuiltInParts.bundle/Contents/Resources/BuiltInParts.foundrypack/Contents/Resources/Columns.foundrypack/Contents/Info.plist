@@ -2,46 +2,98 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-    <key>minimumAPIVersion</key><integer>1</integer>
-    <key>id</key><string>foundry.layout.columns</string>
-    <key>title</key><string>Columns</string>
-    <key>description</key><string>Arranges child parts in a responsive grid.</string>
-    <key>author</key><string>Foundry</string>
-    <key>version</key><string>1.0.0</string>
-    <key>group</key><string>Layout</string>
-    <key>tags</key><array><string>Foundry</string><string>built-in</string><string>grid</string></array>
-    <key>controls</key>
-    <array>
-        <dict>
-            <key>id</key><string>columnCount</string>
-            <key>label</key><string>Columns</string>
-            <key>group</key><string>Layout</string>
-            <key>type</key><string>number</string>
-            <key>minimum</key><integer>1</integer>
-            <key>maximum</key><integer>6</integer>
-            <key>step</key><integer>1</integer>
-            <key>default</key><integer>2</integer>
-            <key>responsive</key><true/>
-        </dict>
-        <dict>
-            <key>id</key><string>gap</string>
-            <key>label</key><string>Gap</string>
-            <key>group</key><string>Layout</string>
-            <key>type</key><string>number</string>
-            <key>minimum</key><integer>0</integer>
-            <key>maximum</key><integer>120</integer>
-            <key>step</key><integer>4</integer>
-            <key>units</key><string>px</string>
-            <key>default</key><integer>24</integer>
-            <key>responsive</key><true/>
-        </dict>
-    </array>
-    <key>templates</key>
-    <dict>
-        <key>html</key><string>part.html</string>
-        <key>files</key>
-        <array><dict><key>path</key><string>part.css</string><key>scope</key><string>instance</string></dict></array>
-    </dict>
-    <key>assets</key><array/>
+<key>minimumAPIVersion</key><integer>1</integer>
+<key>id</key><string>foundry.layout.columns</string>
+<key>title</key><string>Columns</string>
+<key>description</key><string>Equal-width flex columns that stack on small screens and wrap into rows.</string>
+<key>author</key><string>Foundry</string>
+<key>version</key><string>1.1.0</string>
+<key>group</key><string>Layout</string>
+<key>tags</key><array><string>Foundry</string>
+<string>built-in</string>
+<string>layout</string>
+<string>flex</string></array>
+<key>controls</key><array><dict>
+<key>type</key><string>number</string>
+<key>id</key><string>columnCount</string>
+<key>label</key><string>Columns</string>
+<key>group</key><string>Layout</string>
+<key>defaults</key><dict>
+<key>base</key><integer>1</integer>
+<key>medium</key><integer>2</integer>
+</dict>
+<key>responsive</key><true/>
+<key>minimum</key><integer>1</integer>
+<key>maximum</key><integer>6</integer>
+<key>step</key><integer>1</integer>
+</dict>
+<dict>
+<key>type</key><string>themeSpacing</string>
+<key>id</key><string>themeGap</string>
+<key>label</key><string>Gap</string>
+<key>group</key><string>Layout</string>
+<key>defaults</key><dict>
+<key>base</key><string>md</string>
+</dict>
+<key>responsive</key><true/>
+</dict>
+<dict>
+<key>type</key><string>select</string>
+<key>id</key><string>alignItems</string>
+<key>label</key><string>Alignment</string>
+<key>group</key><string>Layout</string>
+<key>defaults</key><dict>
+<key>base</key><string>stretch</string>
+</dict>
+<key>responsive</key><true/>
+<key>options</key><array><dict>
+<key>value</key><string>stretch</string>
+<key>title</key><string>Stretch</string>
+</dict>
+<dict>
+<key>value</key><string>flex-start</string>
+<key>title</key><string>Start</string>
+</dict>
+<dict>
+<key>value</key><string>center</string>
+<key>title</key><string>Centre</string>
+</dict>
+<dict>
+<key>value</key><string>flex-end</string>
+<key>title</key><string>End</string>
+</dict>
+<dict>
+<key>value</key><string>baseline</string>
+<key>title</key><string>Baseline</string>
+</dict></array>
+</dict>
+<dict>
+<key>type</key><string>themePadding</string>
+<key>id</key><string>themePadding</string>
+<key>label</key><string>Padding</string>
+<key>group</key><string>Spacing</string>
+<key>defaults</key><dict>
+<key>base</key><string>none</string>
+</dict>
+<key>responsive</key><true/>
+</dict>
+<dict>
+<key>type</key><string>themeMargin</string>
+<key>id</key><string>themeMargin</string>
+<key>label</key><string>Margin</string>
+<key>group</key><string>Spacing</string>
+<key>defaults</key><dict>
+<key>base</key><string>none</string>
+</dict>
+<key>responsive</key><true/>
+</dict></array>
+<key>templates</key><dict>
+<key>html</key><string>part.html</string>
+<key>files</key><array><dict>
+<key>path</key><string>part.css</string>
+<key>scope</key><string>instance</string>
+</dict></array>
+</dict>
+<key>assets</key><array></array>
 </dict>
 </plist>

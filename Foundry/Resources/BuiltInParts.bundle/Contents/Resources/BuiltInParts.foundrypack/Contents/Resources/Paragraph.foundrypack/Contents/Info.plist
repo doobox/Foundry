@@ -27,19 +27,17 @@
 				<true />
 				<key>responsive</key>
 				<true />
-				<key>default</key>
-				<dict>
+				<key>defaults</key><dict><key>base</key><dict>
 					<key>family</key>
 					<string>body</string>
 					<key>weight</key>
 					<integer>400</integer>
 					<key>style</key>
 					<string>normal</string>
-				</dict>
+				</dict></dict>
 			</dict>
 			<dict>
-				<key>default</key>
-				<string>start</string>
+				<key>defaults</key><dict><key>base</key><string>start</string></dict>
 				<key>group</key>
 				<string>Typography</string>
 				<key>id</key>
@@ -52,8 +50,7 @@
 				<string>textAlignment</string>
 			</dict>
 			<dict>
-				<key>default</key>
-				<string>none</string>
+				<key>defaults</key><dict><key>base</key><string>none</string></dict>
 				<key>group</key>
 				<string>Typography</string>
 				<key>id</key>
@@ -93,11 +90,10 @@
 				<string>select</string>
 			</dict>
 			<dict>
-				<key>default</key>
-				<dict>
+				<key>defaults</key><dict><key>base</key><dict>
 					<key>palette</key>
 					<string>text</string>
-				</dict>
+				</dict></dict>
 				<key>group</key>
 				<string>Colour</string>
 				<key>id</key>

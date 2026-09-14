@@ -3,6 +3,7 @@ import Foundation
 import SwiftUI
 
 nonisolated enum AppPreferenceKey {
+    static let inspectorAccordion = "inspectorAccordion"
     static let previewApplication = "preview.destination"
     static let appearance = "appearance"
     static let externalPreviewAutoReload = "preview.externalAutoReload"

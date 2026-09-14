@@ -23,7 +23,7 @@ nonisolated enum PartPackageThemeBorderControl {
             key: .init(rawValue: property.id + ".style"), label: "Style", section: section,
             control: .choice(styles.map { .init(value: $0, label: $0.capitalized) }),
             defaultValue: .choice(initial["style"]?.stringValue ?? "solid"),
-            isResponsive: property.responsive && property.control.showsStyle == true,
+            isResponsive: property.responsive,
             isInspectorVisible: property.control.showsStyle == true, visibleWhen: property.visibleWhen
         ))
         for index in result.indices { result[index].inspectorControlID = property.id }

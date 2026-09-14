@@ -51,7 +51,7 @@ nonisolated enum PartPackageManifestSchema {
     ]
     private static let updateKeys: Set<String> = ["appcastURL", "publicKey"]
     private static let propertyKeys: Set<String> = [
-        "id", "label", "title", "body", "systemImage", "group", "default", "responsive", "subtitle", "buttonText", "units", "tooltip",
+        "id", "label", "title", "body", "systemImage", "group", "defaults", "responsive", "subtitle", "buttonText", "units", "tooltip",
         "type", "font", "showsFamily", "showsWeight", "showsStyle", "minimum", "maximum", "step", "options", "themeValues", "allowsCustom", "opacity", "outputFormat",
         "customColor", "count", "ticks", "showsValueField", "trueValue", "falseValue",
         "buttonIcon", "activeButtonText", "activeButtonIcon", "selectionMode", "fontSize", "argument1", "argument2", "operation", "round", "absoluteURL", "visibleWhen", "alt", "focalPoint", "renditions", "accepts", "pickerItems", "initial", "containment"
@@ -287,6 +287,55 @@ nonisolated enum PartPackageManifestSchema {
     }
 
     private static func validateProperty(_ property: [String: Any], location: String, into diagnostics: inout [PartPackageDiagnostic]) {
+        if property["default"] != nil {
+            diagnostics.append(.init(severity: .error, location: location, message: "default is no longer supported; use defaults with a base entry."))
+            return
+        }
+        var normalized = property
+        normalized.removeValue(forKey: "defaults")
+        guard let raw = property["defaults"] else {
+            var result: [PartPackageDiagnostic] = []
+            validateResolvedProperty(normalized, location: location, into: &result)
+            diagnostics += result.map { .init(severity: $0.severity, location: $0.location.replacingOccurrences(of: ":default", with: ":defaults"), message: $0.message.replacingOccurrences(of: "A default value", with: "A defaults dictionary with base")) }
+            return
+        }
+        if ["divider", "note", "math", "childPicker"].contains(property["type"] as? String ?? "") {
+            diagnostics.append(.init(severity: .error, location: location + ":defaults", message: "This control does not support defaults."))
+            return
+        }
+        guard let defaults = raw as? [String: Any], defaults["base"] != nil else {
+            diagnostics.append(.init(severity: .error, location: location + ".defaults", message: "defaults requires a dictionary containing base."))
+            return
+        }
+        let names = Set(ResponsiveBreakpoint.allCases.filter { $0 != .mobile }.map(\.rawValue))
+        for (name, value) in defaults {
+            guard name == "base" || names.contains(name) else {
+                diagnostics.append(.init(severity: .error, location: location + ".defaults." + name, message: "Unknown breakpoint name."))
+                continue
+            }
+            if name != "base" && property["responsive"] as? Bool != true {
+                diagnostics.append(.init(severity: .error, location: location + ".defaults." + name, message: "Breakpoint defaults require responsive: true."))
+            }
+            if name != "base" && property["type"] as? String == "image" {
+                diagnostics.append(.init(severity: .error, location: location + ".defaults." + name, message: "Image asset defaults support base only; responsive applies to focal points."))
+            }
+            if name != "base", property["type"] as? String == "themeFont", property["showsFamily"] as? Bool == false {
+                let baseFamily = (defaults["base"] as? [String: Any])?["family"] as? String ?? defaults["base"] as? String
+                let family = (value as? [String: Any])?["family"] as? String ?? value as? String
+                if family != baseFamily {
+                    diagnostics.append(.init(severity: .error, location: location + ".defaults." + name, message: "A hidden font family is fixed; use the same family as base."))
+                }
+            }
+            normalized["default"] = value
+            var result: [PartPackageDiagnostic] = []
+            validateResolvedProperty(normalized, location: location, into: &result)
+            diagnostics += result.map { .init(severity: $0.severity,
+                location: $0.location.replacingOccurrences(of: ":default", with: ":defaults." + name).replacingOccurrences(of: ".default", with: ".defaults." + name),
+                message: $0.message.replacingOccurrences(of: "default must", with: "defaults." + name + " must")) }
+        }
+    }
+
+    private static func validateResolvedProperty(_ property: [String: Any], location: String, into diagnostics: inout [PartPackageDiagnostic]) {
         requireString("id", in: property, location: location, into: &diagnostics)
         optionalString("group", in: property, location: location, into: &diagnostics)
         optionalString("tooltip", in: property, location: location, into: &diagnostics)
@@ -600,7 +649,7 @@ nonisolated enum PartPackageManifestSchema {
             optionalPartValue(key, in: property, location: location, into: &diagnostics)
         }
 
-        let permitsMissingDefault = type == .divider || type == .image || type == .note || type == .math || type == .slider
+        let permitsMissingDefault = type == .divider || type == .image || type == .note || type == .math
         if !permitsMissingDefault && property["default"] == nil {
             appendMissing("default", expected: "value", location: location, into: &diagnostics)
         }

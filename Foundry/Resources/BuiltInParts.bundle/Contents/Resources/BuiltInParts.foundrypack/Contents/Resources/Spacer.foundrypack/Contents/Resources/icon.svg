@@ -1,1 +1,18 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><path d="M12 8h40M12 56h40M32 14v36M24 22l8-8 8 8M24 42l8 8 8-8" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<svg width="100%" height="100%" viewBox="0 0 256 256" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" xml:space="preserve" xmlns:serif="http://www.serif.com/" style="fill-rule:evenodd;clip-rule:evenodd;stroke-linejoin:round;stroke-miterlimit:2;">
+    <g transform="matrix(1,0,0,1,-852,0)">
+        <g id="Artboard1" transform="matrix(0.25,0,0,0.25,852,0)">
+            <rect x="0" y="0" width="1024" height="1024" style="fill:none;"/>
+            <g transform="matrix(4,0,0,4,0,0)">
+                <rect x="0" y="0" width="256" height="256" style="fill:url(#_Linear1);"/>
+            </g>
+            <g transform="matrix(40.745671,0,0,40.745671,186.03463,188.036418)">
+                <path d="M1,8C1,7.726 1.226,7.5 1.5,7.5L14.5,7.5C14.774,7.5 15,7.726 15,8C15,8.274 14.774,8.5 14.5,8.5L1.5,8.5C1.226,8.5 1,8.274 1,8ZM7.646,0.146C7.74,0.052 7.867,-0.001 8,-0.001C8.133,-0.001 8.26,0.052 8.354,0.146L10.354,2.146C10.448,2.24 10.501,2.367 10.501,2.5C10.501,2.775 10.275,3.001 10,3.001C9.867,3.001 9.74,2.948 9.646,2.854L8.5,1.707L8.5,5.5C8.5,5.774 8.274,6 8,6C7.726,6 7.5,5.774 7.5,5.5L7.5,1.707L6.354,2.854C6.26,2.948 6.133,3.001 6,3.001C5.725,3.001 5.499,2.775 5.499,2.5C5.499,2.367 5.552,2.24 5.646,2.146L7.646,0.146ZM8,10C8.274,10 8.5,10.226 8.5,10.5L8.5,14.293L9.646,13.146C9.74,13.052 9.867,12.999 10,12.999C10.275,12.999 10.501,13.225 10.501,13.5C10.501,13.633 10.448,13.76 10.354,13.854L8.354,15.854C8.26,15.948 8.133,16.001 8,16.001C7.867,16.001 7.74,15.948 7.646,15.854L5.646,13.854C5.552,13.76 5.499,13.633 5.499,13.5C5.499,13.225 5.725,12.999 6,12.999C6.133,12.999 6.26,13.052 6.354,13.146L7.5,14.293L7.5,10.5C7.5,10.226 7.726,10 8,10Z" style="fill:white;"/>
+            </g>
+        </g>
+    </g>
+    <defs>
+        <linearGradient id="_Linear1" x1="0" y1="0" x2="1" y2="0" gradientUnits="userSpaceOnUse" gradientTransform="matrix(0,256,-256,0,128,0)"><stop offset="0" style="stop-color:rgb(46,133,248);stop-opacity:1"/><stop offset="1" style="stop-color:rgb(0,80,184);stop-opacity:1"/></linearGradient>
+    </defs>
+</svg>

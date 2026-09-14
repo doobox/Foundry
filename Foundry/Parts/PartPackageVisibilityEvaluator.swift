@@ -4,11 +4,12 @@ nonisolated enum PartPackageVisibilityEvaluator {
     static func isVisible(
         _ condition: PartPackageVisibilityCondition?,
         for part: PartNode,
-        at breakpoint: ResponsiveBreakpoint
+        at breakpoint: ResponsiveBreakpoint,
+        screens: ScreenTokens = .standard
     ) -> Bool {
         guard let condition,
               let reference = reference(condition.id),
-              var actual = partProperty(reference.key, part: part, breakpoint: breakpoint) else {
+              var actual = partProperty(reference.key, part: part, breakpoint: breakpoint, screens: screens) else {
             return condition == nil
         }
 
@@ -82,10 +83,11 @@ nonisolated enum PartPackageVisibilityEvaluator {
     private static func partProperty(
         _ key: PartProperty.Key,
         part: PartNode,
-        breakpoint: ResponsiveBreakpoint
+        breakpoint: ResponsiveBreakpoint,
+        screens: ScreenTokens
     ) -> PartProperty.Value? {
         guard part.type.definition.properties.contains(where: { $0.key == key }) else { return nil }
-        return part.propertyValue(key, at: breakpoint)
+        return part.propertyValue(key, at: breakpoint, screens: screens)
     }
 
     private static func isEmpty(_ value: PartProperty.Value) -> Bool {

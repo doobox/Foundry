@@ -231,7 +231,8 @@ nonisolated struct PartPackageProperty: Codable, Equatable, Identifiable, Sendab
     let noteSystemImage: String?
     let group: String
     let control: PartPackageControl
-    let defaultValue: PartPackageValue
+    var defaultValue: PartPackageValue
+    var breakpointDefaults: [String: PartPackageValue] = [:]
     let responsive: Bool
     let subtitles: [String]
     let buttonTexts: [String]
@@ -256,7 +257,7 @@ nonisolated struct PartPackageProperty: Codable, Equatable, Identifiable, Sendab
         case body
         case systemImage
         case group
-        case defaultValue = "default"
+        case defaultValue = "defaults"
         case responsive
         case subtitle
         case buttonText
@@ -318,20 +319,19 @@ nonisolated struct PartPackageProperty: Codable, Equatable, Identifiable, Sendab
             ? try container.decodeIfPresent(String.self, forKey: .systemImage)
             : nil
 
+        let defaults = try container.decodeIfPresent([String: PartPackageValue].self, forKey: .defaultValue)
+        if let defaults {
+            guard defaults["base"] != nil else { throw DecodingError.dataCorruptedError(forKey: .defaultValue, in: container, debugDescription: "defaults.base is required") }
+            breakpointDefaults = defaults.filter { $0.key != "base" }
+        }
         if control.type == .divider || control.type == .note || control.type == .image || control.type == .math || control.type == .childPicker {
-            defaultValue = try container.decodeIfPresent(PartPackageValue.self, forKey: .defaultValue) ?? .string("")
+            defaultValue = defaults?["base"] ?? .string("")
             responsive = control.type == .image && focalPoint
                 ? true
                 : try container.decodeIfPresent(Bool.self, forKey: .responsive) ?? false
-        } else if control.type == .slider {
-            let lowerBound = control.minimum ?? 0
-            let upperBound = control.maximum ?? 100
-            let implicitDefault = min(max(0, lowerBound), upperBound)
-            defaultValue = try container.decodeIfPresent(PartPackageValue.self, forKey: .defaultValue)
-                ?? .number(implicitDefault)
-            responsive = try container.decodeIfPresent(Bool.self, forKey: .responsive) ?? false
         } else {
-            defaultValue = try container.decode(PartPackageValue.self, forKey: .defaultValue)
+            guard let base = defaults?["base"] else { throw DecodingError.keyNotFound(CodingKeys.defaultValue, .init(codingPath: decoder.codingPath, debugDescription: "defaults.base is required")) }
+            defaultValue = base
             responsive = try container.decodeIfPresent(Bool.self, forKey: .responsive) ?? false
         }
     }
@@ -358,8 +358,8 @@ nonisolated struct PartPackageProperty: Codable, Equatable, Identifiable, Sendab
             try container.encodeIfPresent(noteSystemImage, forKey: .systemImage)
         }
         try container.encode(group, forKey: .group)
-        if control.type != .note {
-            try container.encode(defaultValue, forKey: .defaultValue)
+        if ![.note, .divider, .math, .childPicker].contains(control.type) {
+            try container.encode(breakpointDefaults.merging(["base": defaultValue]) { _, base in base }, forKey: .defaultValue)
             try container.encode(responsive, forKey: .responsive)
         }
         if control.type != .note, control.count != nil, !subtitles.isEmpty {

@@ -1,0 +1,32 @@
+#!/bin/sh
+set -eu
+
+# Sign the staged copy after Copy Bundle Resources, before the containing app.
+if [ "${CODE_SIGNING_ALLOWED:-NO}" != "YES" ]; then
+    echo "Skipping PHP signing for an unsigned build."
+    /usr/bin/touch "${DERIVED_FILE_DIR:?}/php-runtime-signing.stamp"
+    exit 0
+fi
+
+php_executable="${TARGET_BUILD_DIR:?}/${UNLOCALIZED_RESOURCES_FOLDER_PATH:?}/php-cgi"
+signing_identity="${EXPANDED_CODE_SIGN_IDENTITY:-}"
+if [ ! -f "$php_executable" ] || [ -z "$signing_identity" ]; then
+    echo "error: Bundled PHP or the configured signing identity is missing." >&2
+    exit 1
+fi
+
+# Release builds use a secure timestamp. Local Debug builds don't need one.
+timestamp_option=--timestamp
+if [ "$signing_identity" = "-" ] || [ "${CONFIGURATION:-}" = "Debug" ]; then
+    timestamp_option=--timestamp=none
+fi
+# codesign creates temporary siblings while replacing a signature. Xcode grants
+# its script sandbox access to TEMP_DIR, but not children of DERIVED_FILE_DIR.
+signing_directory="${TEMP_DIR:?}/php-runtime-signing"
+/bin/mkdir -p "$signing_directory"
+/bin/cp "$php_executable" "$signing_directory/php-cgi"
+/usr/bin/codesign --force --sign "$signing_identity" --options runtime \
+    "$timestamp_option" "$signing_directory/php-cgi"
+/bin/cp "$signing_directory/php-cgi" "$php_executable"
+/usr/bin/codesign --verify --strict "$php_executable"
+/usr/bin/touch "${DERIVED_FILE_DIR:?}/php-runtime-signing.stamp"

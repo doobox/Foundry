@@ -5,6 +5,45 @@ import WebKit
 @MainActor
 struct CanvasJavaScriptTests {
     @Test(.timeLimit(.minutes(1)))
+    func builtInFlexColumnsLayOutAtBaseAndMediumIncludingNestedColumns() async throws {
+        await PartPackageCatalog.shared.waitUntilLoaded()
+        var inner = PartNode.make(.columns)
+        inner.setResponsiveProperty(.init(rawValue: "columnCount"), value: .number(3), at: .medium)
+        inner.children = (0..<3).map { _ in PartNode.make(.spacer) }
+        var outer = PartNode.make(.columns)
+        outer.children = [inner, .make(.spacer)]
+        let page = Page(title: "Flex test", slug: "index", parts: [outer])
+        let webView = WKWebView(frame: CGRect(x: 0, y: 0, width: 900, height: 600))
+        defer { webView.stopLoading() }
+        for breakpoint in [ResponsiveBreakpoint.mobile, .medium] {
+            let html = HTMLPageRenderer().render(page: page, language: "en", theme: .standard, assets: [:], breakpoint: breakpoint)
+            webView.loadHTMLString(html.replacingOccurrences(of: "<html ", with: "<html data-layout-test=\"\(breakpoint.rawValue)\" "), baseURL: nil)
+            var ready = false
+            for _ in 0..<200 {
+                ready = (try? await webView.evaluateJavaScript("document.readyState === 'complete' && document.documentElement.dataset.layoutTest === '\(breakpoint.rawValue)' && document.querySelectorAll('.foundry-columns').length === 2")) as? Bool == true
+                if ready { break }
+                try await Task.sleep(for: .milliseconds(25))
+            }
+            try #require(ready)
+            let measurements = try #require(try await webView.evaluateJavaScript("""
+                (() => {
+                  const outer = document.querySelector('.foundry-columns');
+                  const inner = outer.children[0];
+                  return [outer.getBoundingClientRect().width, inner.getBoundingClientRect().width,
+                    parseFloat(getComputedStyle(outer).columnGap), inner.children[0].getBoundingClientRect().width,
+                    parseFloat(getComputedStyle(inner).columnGap)];
+                })()
+                """) as? [Double])
+            if breakpoint == .mobile {
+                #expect(abs(measurements[0] - measurements[1]) < 1)
+            } else {
+                #expect(abs(measurements[0] - (measurements[1] * 2 + measurements[2])) < 1)
+                #expect(abs(measurements[1] - (measurements[3] * 3 + measurements[4] * 2)) < 1)
+            }
+        }
+    }
+
+    @Test(.timeLimit(.minutes(1)))
     func selectionChromeTracksLateContentResizing() async throws {
         let configuration = WKWebViewConfiguration()
         configuration.userContentController.addUserScript(.init(

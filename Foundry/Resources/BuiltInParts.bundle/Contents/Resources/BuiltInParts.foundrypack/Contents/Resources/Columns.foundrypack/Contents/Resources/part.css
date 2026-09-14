@@ -1,7 +1,17 @@
 :instance {
     box-sizing: border-box;
-    display: grid;
-    grid-template-columns: repeat({{ control.columnCount }}, minmax(0, 1fr));
-    gap: {{ control.gap }}px;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: {{ control.alignItems }};
+    gap: {{ control.themeGap }};
     width: 100%;
+    min-width: 0;
+    padding: {{ control.themePadding }};
+    margin: {{ control.themeMargin }};
 }
+:instance > :not(.foundry-empty-drop-zone) {
+    box-sizing: border-box;
+    min-width: 0;
+    flex: 0 0 calc((100% - ({{ control.columnCount }} - 1) * {{ if control.themeGap.value == 0 }}0px{{ else }}{{ control.themeGap }}{{ endif }}) / {{ control.columnCount }});
+}
+:instance > .foundry-empty-drop-zone { flex: 1 0 100%; }

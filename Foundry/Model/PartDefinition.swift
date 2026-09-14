@@ -96,6 +96,7 @@ nonisolated struct PartPropertyDefinition: Identifiable, Sendable {
     let subtitle: String?
     let section: PartPropertySection
     let control: PartPropertyControl
+    var breakpointDefaults: [ResponsiveBreakpoint: PartProperty.Value] = [:]
     let defaultValue: PartProperty.Value
     let isResponsive: Bool
     let isInspectorVisible: Bool

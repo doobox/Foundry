@@ -626,8 +626,10 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
         return ResponsiveBreakpoint.allCases.dropFirst().compactMap { breakpoint in
             guard let minimumWidth = breakpoint.minimumWidth(in: site.theme.screens) else { return nil }
             let rules = nodes.compactMap { node -> String? in
-                guard node.responsiveOverrides?.contains(where: { $0.breakpoint == breakpoint }) == true else { return nil }
-                let resolved = node.resolved(at: breakpoint)
+                guard node.responsiveOverrides?.contains(where: { $0.breakpoint == breakpoint }) == true
+                    || node.responsiveDefaults?.contains(where: { $0.breakpoint == breakpoint }) == true
+                    || node.type.definition.properties.contains(where: { $0.breakpointDefaults[breakpoint] != nil }) else { return nil }
+                let resolved = node.resolved(at: breakpoint, screens: site.theme.screens)
                 if let package = resolved.type.definition.package {
                     let css = PartTemplateRenderer.render(
                         package.css,

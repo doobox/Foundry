@@ -4,8 +4,16 @@
     flex-direction: column;
     justify-content: {{ control.verticalAlignment }};
     width: 100%;
+    min-width: 0;
     min-height: {{ control.minimumHeight }}px;
-    margin: 0;
-    padding: var(--foundry-spacing-2xl, 4rem) 0;
-    background-color: {{ control.backgroundColor }};
+    gap: {{ control.themeGap }};
+    padding: {{ control.themePadding }};
+    margin: {{ control.themeMargin }};
+    background-color: transparent;
+    {{ if control.showsBackground }}background-color: {{ control.backgroundColor }};{{ endif }}
+    border-width: {{ control.themeBorder.width }};
+    border-style: {{ control.themeBorder.style }};
+    border-color: {{ control.themeBorderColour }};
+    border-radius: {{ control.themeRadius }};
 }
+:instance > * { min-width: 0; }

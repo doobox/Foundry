@@ -2,6 +2,7 @@ import AppKit
 import SwiftUI
 
 struct InspectorView: View {
+    @State private var partGroupExpansion: [UUID: PartInspectorExpansion] = [:]
     let page: Page?
     let currentPage: Page?
     let folder: PageFolder?
@@ -46,7 +47,8 @@ struct InspectorView: View {
                     setGlobalOverride: setGlobalOverride,
                     breakpoint: breakpoint,
                     importImage: importImage,
-                    editsSharedDefinition: $editsSharedDefinition
+                    editsSharedDefinition: $editsSharedDefinition,
+                    groupExpansion: $partGroupExpansion
                 )
             } else if partSelectionCount == 0,
                       page == nil,
@@ -677,7 +679,12 @@ private struct PageInspector: View {
     }
 }
 
+private struct PartInspectorExpansion {
+    var groups: [PartPropertySection] = []
+}
+
 private struct PartInspector: View {
+    @AppStorage(AppPreferenceKey.inspectorAccordion) private var usesAccordion = true
     @State private var loadedPartIcon: NSImage?
     @State private var showsAddAttributePopover = false
     let part: PartNode
@@ -695,6 +702,19 @@ private struct PartInspector: View {
     let breakpoint: ResponsiveBreakpoint
     let importImage: (URL) -> ProjectAsset?
     @Binding var editsSharedDefinition: Bool
+    @Binding var groupExpansion: [UUID: PartInspectorExpansion]
+
+    private var expandedGroups: [PartPropertySection] {
+        groupExpansion[part.id]?.groups ?? []
+    }
+
+    private func setExpanded(_ expanded: Bool, group: PartPropertySection) {
+        var groups = expandedGroups.filter { $0 != group }
+        if expanded {
+            groups = usesAccordion ? [group] : groups + [group]
+        }
+        groupExpansion[part.id] = PartInspectorExpansion(groups: groups)
+    }
 
     var body: some View {
         ScrollView {
@@ -733,7 +753,18 @@ private struct PartInspector: View {
                         editor: editor,
                         editsSharedDefinition: reusableDefinition != nil && !isGlobalOverride,
                         breakpoint: breakpoint,
-                        importImage: importImage
+                        importImage: importImage,
+                        isExpanded: Binding(
+                            get: { expandedGroups.contains(group) },
+                            set: { setExpanded($0, group: group) }
+                        ),
+                        usesAccordion: $usesAccordion,
+                        openAll: {
+                            groupExpansion[part.id] = PartInspectorExpansion(groups: inspectorGroups)
+                        },
+                        closeAll: {
+                            groupExpansion[part.id] = PartInspectorExpansion()
+                        }
                     )
                 }
             }
@@ -741,6 +772,14 @@ private struct PartInspector: View {
         }
         .controlSize(.small)
         .font(.callout)
+        .onChange(of: usesAccordion, initial: true) { _, enabled in
+            if enabled {
+                // Keep the most recently opened group for every remembered part.
+                groupExpansion = groupExpansion.mapValues {
+                    PartInspectorExpansion(groups: Array($0.groups.suffix(1)))
+                }
+            }
+        }
     }
 
     private var inspectorGroups: [PartPropertySection] {
@@ -775,14 +814,15 @@ private struct PartInspector: View {
     }
 
     private func isVisible(_ slot: PartPackageSlot) -> Bool {
-        PartPackageVisibilityEvaluator.isVisible(slot.visibleWhen, for: part, at: breakpoint)
+        PartPackageVisibilityEvaluator.isVisible(slot.visibleWhen, for: part, at: breakpoint, screens: theme.screens)
     }
 
     private func isVisible(_ property: PartPropertyDefinition) -> Bool {
         property.isInspectorVisible && PartPackageVisibilityEvaluator.isVisible(
             property.visibleWhen,
             for: part,
-            at: property.isResponsive ? breakpoint : .mobile
+            at: property.isResponsive ? breakpoint : .mobile,
+            screens: theme.screens
         )
     }
 
@@ -1235,7 +1275,10 @@ private struct PartInspectorGroup: View {
     let editsSharedDefinition: Bool
     let breakpoint: ResponsiveBreakpoint
     let importImage: (URL) -> ProjectAsset?
-    @State private var isExpanded = true
+    @Binding var isExpanded: Bool
+    @Binding var usesAccordion: Bool
+    let openAll: () -> Void
+    let closeAll: () -> Void
 
     var body: some View {
         DisclosureGroup(isExpanded: $isExpanded) {
@@ -1278,7 +1321,11 @@ private struct PartInspectorGroup: View {
         } label: {
             Text(group.rawValue)
         }
-        .disclosureGroupStyle(PartInspectorDisclosureStyle())
+        .disclosureGroupStyle(PartInspectorDisclosureStyle(
+            usesAccordion: $usesAccordion,
+            openAll: openAll,
+            closeAll: closeAll
+        ))
     }
 
     private func propertyEditor(for definition: PartPropertyDefinition) -> some View {
@@ -1325,6 +1372,10 @@ private struct InspectorCard<Content: View>: View {
 }
 
 private struct PartInspectorDisclosureStyle: DisclosureGroupStyle {
+    @Binding var usesAccordion: Bool
+    let openAll: () -> Void
+    let closeAll: () -> Void
+
     func makeBody(configuration: Configuration) -> some View {
         VStack(spacing: 0) {
             Button {
@@ -1351,6 +1402,14 @@ private struct PartInspectorDisclosureStyle: DisclosureGroupStyle {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+            .contextMenu {
+                Toggle("Accordion Mode", isOn: $usesAccordion)
+                if !usesAccordion {
+                    Divider()
+                    Button("Open All", action: openAll)
+                    Button("Close All", action: closeAll)
+                }
+            }
             .accessibilityValue(configuration.isExpanded ? "Expanded" : "Collapsed")
             .accessibilityHint(configuration.isExpanded ? "Collapses this group" : "Expands this group")
 

@@ -22,7 +22,7 @@
                 <dict><key>value</key><string>standard</string><key>title</key><string>Standard</string></dict>
                 <dict><key>value</key><string>featured</string><key>title</key><string>Featured</string></dict>
             </array>
-            <key>default</key><string>standard</string>
+            <key>defaults</key><dict><key>base</key><string>standard</string></dict>
             <key>responsive</key><false/>
         </dict>
         <dict>
@@ -30,7 +30,7 @@
             <key>label</key><string>Featured title</string>
             <key>group</key><string>Visibility Demo</string>
             <key>type</key><string>text</string>
-            <key>default</key><string>A featured title</string>
+            <key>defaults</key><dict><key>base</key><string>A featured title</string></dict>
             <key>responsive</key><false/>
             <key>visibleWhen</key><dict><key>id</key><string>mode</string><key>value</key><string>featured</string></dict>
         </dict>
@@ -41,7 +41,7 @@
             <key>type</key><string>number</string>
             <key>minimum</key><integer>0</integer><key>maximum</key><integer>1000</integer><key>step</key><integer>10</integer>
             <key>units</key><string>px</string>
-            <key>default</key><integer>400</integer>
+            <key>defaults</key><dict><key>base</key><integer>400</integer></dict>
             <key>responsive</key><false/>
         </dict>
         <dict>
@@ -58,7 +58,7 @@
             <key>group</key><string>Visibility Demo</string>
             <key>type</key><string>text</string>
             <key>count</key><integer>3</integer>
-            <key>default</key><array><string>Alpha</string><string>Beta</string><string>Ordinary</string></array>
+            <key>defaults</key><dict><key>base</key><array><string>Alpha</string><string>Beta</string><string>Ordinary</string></array></dict>
             <key>responsive</key><false/>
         </dict>
         <dict>
@@ -73,7 +73,7 @@
             <key>label</key><string>Optional note</string>
             <key>group</key><string>Visibility Demo</string>
             <key>type</key><string>text</string>
-            <key>default</key><string></string>
+            <key>defaults</key><dict><key>base</key><string></string></dict>
             <key>responsive</key><false/>
         </dict>
         <dict>
@@ -88,7 +88,7 @@
             <key>label</key><string>Note detail</string>
             <key>group</key><string>Visibility Demo</string>
             <key>type</key><string>textArea</string>
-            <key>default</key><string>This appears after entering a note.</string>
+            <key>defaults</key><dict><key>base</key><string>This appears after entering a note.</string></dict>
             <key>responsive</key><false/>
             <key>visibleWhen</key><dict><key>id</key><string>note</string><key>operation</key><string>isNotEmpty</string></dict>
         </dict>
