@@ -134,7 +134,6 @@ nonisolated struct PartProperty: Codable, Equatable, Identifiable, Sendable {
         static let text = Key(rawValue: "text")
         static let destination = Key(rawValue: "destination")
         static let alignment = Key(rawValue: "alignment")
-        static let padding = Key(rawValue: "padding")
         static let backgroundColor = Key(rawValue: "backgroundColor")
         static let textColor = Key(rawValue: "textColor")
         static let fontSize = Key(rawValue: "fontSize")
@@ -151,8 +150,6 @@ nonisolated struct PartProperty: Codable, Equatable, Identifiable, Sendable {
         static let themeWhitespace = Key(rawValue: "themeWhitespace")
         static let themeUnderline = Key(rawValue: "themeUnderline")
         static let accessibilityLabel = Key(rawValue: "accessibilityLabel")
-        static let marginTop = Key(rawValue: "marginTop")
-        static let marginBottom = Key(rawValue: "marginBottom")
         static let borderColor = Key(rawValue: "borderColor")
         static let borderWidth = Key(rawValue: "borderWidth")
         static let cornerRadius = Key(rawValue: "cornerRadius")
@@ -180,6 +177,11 @@ nonisolated struct PartProperty: Codable, Equatable, Identifiable, Sendable {
         // Retained only to decode saved values from the removed Select extension.
         case packageFontSize(PartPackageFontSizeValue)
         case packageShadow(PartPackageShadowValue)
+        case themeSpacing(ThemeSingleSpacingValue)
+        case themePadding(ThemePaddingValue)
+        case themeMargin(ThemeMarginValue)
+        case themeBorderWidth(ThemeBorderWidthValue)
+        case themeRadius(ThemeRadiusValue)
 
         var stringValue: String {
             switch self {
@@ -201,6 +203,8 @@ nonisolated struct PartProperty: Codable, Equatable, Identifiable, Sendable {
                 value.source
             case .packageShadow(let value):
                 value.source
+            case .themeSpacing, .themePadding, .themeMargin, .themeBorderWidth, .themeRadius:
+                ""
             }
         }
 
@@ -226,6 +230,21 @@ nonisolated struct PartProperty: Codable, Equatable, Identifiable, Sendable {
 
         func replacingThemeReference(_ reference: String, with replacement: String) -> Value {
             switch self {
+            case .themeSpacing(var value):
+                if value.selection.token == reference { value.selection.token = replacement }
+                return .themeSpacing(value)
+            case .themeBorderWidth(var value):
+                value.replaceReference(reference, with: replacement)
+                return .themeBorderWidth(value)
+            case .themeRadius(var value):
+                value.replaceReference(reference, with: replacement)
+                return .themeRadius(value)
+            case .themeMargin(var value):
+                value.replaceReference(reference, with: replacement)
+                return .themeMargin(value)
+            case .themePadding(var value):
+                value.replaceReference(reference, with: replacement)
+                return .themePadding(value)
             case .string(let value): return .string(value == reference ? replacement : value)
             case .choice(let value): return .choice(value == reference ? replacement : value)
             case .array(let values):

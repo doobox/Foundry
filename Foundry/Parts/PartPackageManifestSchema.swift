@@ -333,6 +333,10 @@ nonisolated enum PartPackageManifestSchema {
             diagnostics.append(.init(severity: .error, location: "\(location):type", message: "Unknown control type '\(typeName)'."))
             return
         }
+        if (type == .themeSpacing || type == .themePadding || type == .themeMargin || type == .themeRadius) {
+            let allowed: Set<String> = ["type", "id", "label", "subtitle", "group", "default", "responsive", "tooltip", "visibleWhen"]
+            unknownKeys(in: property, allowed: allowed, location: location, into: &diagnostics)
+        }
         if type == .themeFont {
             for key in ["showsFamily", "showsWeight", "showsStyle"] {
                 optionalBoolean(key, in: property, location: location, into: &diagnostics)
@@ -345,6 +349,12 @@ nonisolated enum PartPackageManifestSchema {
             }
             for key in ["count", "themeValues", "options", "allowsCustom"] where property[key] != nil {
                 diagnostics.append(.init(severity: .error, location: "\(location).\(key)", message: "A themeFont control does not accept \(key)."))
+            }
+        }
+        if type == .themeBorder {
+            unknownKeys(in: property, allowed: ["type", "id", "label", "subtitle", "group", "default", "responsive", "tooltip", "visibleWhen", "showsStyle"], location: location, into: &diagnostics)
+            for key in ["showsStyle"] {
+                optionalBoolean(key, in: property, location: location, into: &diagnostics)
             }
         }
         if type == .fontWeight || type == .fontStyle {
@@ -360,6 +370,7 @@ nonisolated enum PartPackageManifestSchema {
         }
         if type != .themeFont {
             for key in ["showsFamily", "showsWeight", "showsStyle"] where property[key] != nil {
+                if type == .themeBorder && key == "showsStyle" { continue }
                 diagnostics.append(.init(severity: .error, location: "\(location).\(key)", message: "\(key) requires a themeFont control."))
             }
         }
@@ -584,6 +595,7 @@ nonisolated enum PartPackageManifestSchema {
         )
         for key in ["default", "trueValue", "falseValue", "argument1", "argument2"] {
             if key == "default" && type == .themeColor { continue }
+            if key == "default" && (type == .themeSpacing || type == .themePadding || type == .themeMargin || type == .themeBorder || type == .themeRadius) { continue }
             if key == "default" && type == .themeFont && property[key] is [String: Any] { continue }
             optionalPartValue(key, in: property, location: location, into: &diagnostics)
         }

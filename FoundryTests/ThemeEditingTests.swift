@@ -320,9 +320,11 @@ struct ThemeEditingTests {
     func designTokenReferencesRoundTripThroughProjectJSON() throws {
         var site = TestSiteFixtures.populatedSite()
         let partID = try #require(site.pages.first?.parts.first?.id)
+        let marginKey = PartProperty.Key(rawValue: "themeMargin")
+        let margin = try #require(PartPackageThemeMarginControl.defaultValue(.string("lg")))
         site.updatePart(id: partID) {
             $0.setProperty(.backgroundColor, value: .token(.accentColor))
-            $0.setProperty(.padding, value: .token(.largeSpacing))
+            $0.setProperty(marginKey, value: .themeMargin(margin))
         }
 
         let data = try FoundryDocument.encoder.encode(site)
@@ -330,7 +332,7 @@ struct ThemeEditingTests {
         let part = try #require(decoded.part(withID: partID))
 
         #expect(part.propertyValue(.backgroundColor) == .token(.accentColor))
-        #expect(part.propertyValue(.padding) == .token(.largeSpacing))
+        #expect(part.propertyValue(marginKey) == .themeMargin(margin))
     }
 
     @Test

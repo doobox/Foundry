@@ -8,19 +8,25 @@ struct DocumentCodingTests {
     func responsiveOverridesRoundTripWithoutDuplicatingBaseProperties() throws {
         var site = TestSiteFixtures.populatedSite()
         let partID = try #require(site.pages.first?.parts.first?.id)
+        let key = PartProperty.Key(rawValue: "themePadding")
+        let base = ThemePaddingValue()
+        var override = base
+        var edge = override.value(for: .top)
+        edge.token = "lg"
+        override.set(edge, for: .top)
         site.updatePart(id: partID) {
-            $0.setResponsiveProperty(.padding, value: .number(6), at: .mobile)
-            $0.setResponsiveProperty(.padding, value: .number(12), at: .small)
+            $0.setResponsiveProperty(key, value: .themePadding(base), at: .mobile)
+            $0.setResponsiveProperty(key, value: .themePadding(override), at: .small)
         }
 
         let data = try FoundryDocument.encoder.encode(site)
         let decoded = try FoundryDocument.decoder.decode(Site.self, from: data)
         let part = try #require(decoded.part(withID: partID))
 
-        #expect(part.numberProperty(.padding) == 6)
-        #expect(part.propertyValue(.padding, at: .mobile) == .number(6))
-        #expect(part.propertyValue(.padding, at: .small) == .number(12))
-        #expect(part.propertyValue(.padding, at: .medium) == .number(12))
+        #expect(part.propertyValue(key) == .themePadding(base))
+        #expect(part.propertyValue(key, at: .mobile) == .themePadding(base))
+        #expect(part.propertyValue(key, at: .small) == .themePadding(override))
+        #expect(part.propertyValue(key, at: .medium) == .themePadding(override))
     }
 
     @Test

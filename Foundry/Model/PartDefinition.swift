@@ -141,8 +141,8 @@ nonisolated struct PartPropertyDefinition: Identifiable, Sendable {
     }
 
     private static let builtInResponsiveKeys: Set<PartProperty.Key> = [
-        .alignment, .padding, .backgroundColor, .textColor, .fontSize,
-        .marginTop, .marginBottom, .borderColor, .borderWidth, .cornerRadius,
+        .alignment, .backgroundColor, .textColor, .fontSize,
+        .borderColor, .borderWidth, .cornerRadius,
         .maxWidth, .horizontalAlignment, .height, .columnCount, .gap
     ]
 }
@@ -186,6 +186,11 @@ nonisolated enum PartPropertyControl: Sendable {
     case choice([PartPropertyChoice])
     case themeFontSize
     case themeFont
+    case themeBorderWidth
+    case themeRadius
+    case themeMargin
+    case themeSpacing
+    case themePadding
     case fontWeight(font: String?)
     case fontStyle(font: String?)
     case packageShadow
@@ -210,4 +215,13 @@ nonisolated struct PartPropertyChoice: Identifiable, Sendable {
     var separatorBefore: Bool = false
 
     var id: String { value }
+}
+
+extension PartPropertyControl {
+    nonisolated var isThemeSpacing: Bool {
+        switch self {
+        case .themeSpacing, .themePadding, .themeMargin, .themeBorderWidth, .themeRadius: true
+        default: false
+        }
+    }
 }

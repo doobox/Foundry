@@ -134,6 +134,7 @@ nonisolated enum PartPackageAdapter {
             )]
         }
         if property.control.type == .themeColor { return themeColorProperties(for: property) }
+        if property.control.type == .themeBorder { return PartPackageThemeBorderControl.properties(property) }
         if property.control.type == .themeFont { return PartPackageFontControl.properties(property) }
         if property.control.type == .shadow { return shadowProperties(for: property) }
         return [PartPropertyDefinition(
@@ -244,6 +245,11 @@ nonisolated enum PartPackageAdapter {
         case .color: .literalColor(allowsOpacity: control.opacity == true)
         case .themeColor: .derived
         case .themeFont: .themeFont
+        case .themePadding: .themePadding
+        case .themeMargin: .themeMargin
+        case .themeSpacing: .themeSpacing
+        case .themeBorder: .derived
+        case .themeRadius: .themeRadius
         case .fontWeight: .fontWeight(font: control.font)
         case .fontStyle: .fontStyle(font: control.font)
         case .icon: .icon
@@ -275,6 +281,22 @@ nonisolated enum PartPackageAdapter {
         _ value: PartPackageValue,
         control: PartPackageControl.Kind
     ) -> PartProperty.Value {
+        if control == .themeSpacing, let value = PartPackageSingleSpacingControl.defaultValue(value) {
+            return .themeSpacing(value)
+        }
+        if control == .themeRadius, let value = PartPackageThemeRadiusControl.defaultValue(value) {
+            return .themeRadius(value)
+        }
+        if control == .themeMargin, let margin = PartPackageThemeMarginControl.defaultValue(value) {
+            return .themeMargin(margin)
+        }
+        if control == .themePadding, let padding = PartPackageThemePaddingControl.defaultValue(value) {
+            return .themePadding(padding)
+        }
+        return convertedValue(value, control: control)
+    }
+
+    private static func convertedValue(_ value: PartPackageValue, control: PartPackageControl.Kind) -> PartProperty.Value {
         switch value {
         case .number(let value): .number(value)
         case .boolean(let value): .boolean(value)

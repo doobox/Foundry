@@ -107,7 +107,7 @@ nonisolated enum PartPackageVisibilityEvaluator {
         case .packageColor(let value): .string(value.source)
         case .packageFontSize(let value): .string(value.source)
         case .packageShadow(let value): .string(value.source)
-        case .link: nil
+        case .link, .themeSpacing, .themePadding, .themeMargin, .themeBorderWidth, .themeRadius: nil
         }
     }
 

@@ -4,6 +4,259 @@ import Testing
 @testable import Foundry
 
 struct PartPackageTests {
+    @Test @MainActor func themeSpacingLoadsPersistsAndRenders() throws {
+        let control = """
+        <dict><key>type</key><string>themeSpacing</string><key>id</key><string>themeSpacing</string>
+        <key>responsive</key><true/><key>default</key><string>sm</string></dict>
+        """
+        let url = try makePackage(manifest: manifest(withControls: control), template: "<section {{ part.attributes }} data-spacing=\"{{ control.themeSpacing.css }}\" data-top=\"{{ control.themeSpacing }}\">{{ childArea(\"content\") }}</section>",
+                                  additionalFiles: ["part.css": ":instance { gap: {{ control.themeSpacing }}; --numeric-top: {{ control.themeSpacing.value }}{{ control.themeSpacing.unit }}; }"])
+        defer { try? FileManager.default.removeItem(at: url) }
+        let package = try PartPackageLoader.load(from: url)
+        PartRegistry.register(package)
+        defer { PartRegistry.unregisterPackage(identifier: package.manifest.identifier) }
+        let definition = try #require(PartPackageAdapter.definition(from: package).properties.first)
+        guard case .themeSpacing = definition.control else { Issue.record("Expected themeSpacing"); return }
+        var node = PartNode(type: PartType(rawValue: package.manifest.identifier))
+        guard case .themeSpacing(var spacing) = node.propertyValue(.init(rawValue: "themeSpacing")) else {
+            Issue.record("Expected typed spacing"); return
+        }
+        var top = spacing.selection
+        top.isCustom = true
+        top.amount = 12
+        top.unit = "px"
+        spacing.selection = top
+        node.setResponsiveProperty(.init(rawValue: "themeSpacing"), value: .themeSpacing(spacing), at: .medium)
+        let saved = try JSONDecoder().decode(PartNode.self, from: JSONEncoder().encode(node))
+        #expect(saved.resolved(at: .medium).propertyValue(.init(rawValue: "themeSpacing")) == .themeSpacing(spacing))
+        #expect(saved.propertyValue(.init(rawValue: "themeSpacing")) == definition.defaultValue)
+        let site = Site(name: "Spacing", pages: [Page(title: "Home", slug: "index", parts: [saved.resolved(at: .medium)])])
+        let expected = "12.0px"
+        #expect(HTMLPageRenderer(site: site).render(page: site.pages[0], theme: site.theme).contains(expected))
+        #expect(try #require(StaticSiteRenderer().render(site: site).file(at: "index.html")?.contents).contains(expected))
+        let responsiveSite = Site(name: "Responsive spacing", pages: [Page(title: "Home", slug: "index", parts: [saved])])
+        let responsiveHTML = HTMLPageRenderer(site: responsiveSite).render(page: responsiveSite.pages[0], theme: responsiveSite.theme)
+        #expect(responsiveHTML.contains("gap: " + expected))
+        #expect(responsiveHTML.contains("--numeric-top: 12px"))
+        let exported = try StaticSiteRenderer().render(site: responsiveSite)
+        #expect(exported.files.contains { $0.contents.contains("gap: " + expected) })
+        #expect(exported.files.contains { $0.contents.contains("--numeric-top: 12px") })
+    }
+    @Test @MainActor func invalidBorderDefaultsAreRejected() throws {
+        let invalid = [
+            "<string>sm</string>",
+            "<dict><key>width</key><string>auto</string></dict>",
+            "<dict><key>width</key><string>sm</string><key>style</key><string>invalid</string></dict>",
+            "<dict><key>width</key><string>sm</string><key>color</key><dict><key>palette</key><string>bad</string></dict></dict>",
+            "<dict><key>width</key><string>sm</string><key>color</key><dict><key>palette</key><string>accent</string><key>darkShade</key><integer>12</integer></dict></dict>"
+        ]
+        for value in invalid {
+            let url = try makePackage(manifest: manifest(withControls: "<dict><key>type</key><string>themeBorder</string><key>id</key><string>border</string><key>default</key>\(value)</dict>"), template: "<section {{ part.attributes }}>{{ childArea(\"content\") }}</section>")
+            defer { try? FileManager.default.removeItem(at: url) }
+            #expect(throws: (any Error).self) { try PartPackageLoader.load(from: url) }
+        }
+    }
+
+    @Test @MainActor func themeBorderLoadsPersistsAndRenders() throws {
+        let control = """
+        <dict><key>type</key><string>themeBorder</string><key>id</key><string>border</string>
+        <key>responsive</key><true/><key>showsStyle</key><true/><key>default</key><dict><key>width</key><string>sm</string><key>style</key><string>dashed</string></dict></dict>
+        <dict><key>type</key><string>themeColor</string><key>id</key><string>borderColour</string><key>group</key><string>Settings</string><key>default</key><dict><key>palette</key><string>standard.lime</string><key>lightShade</key><integer>8</integer></dict></dict>
+        """
+        let url = try makePackage(manifest: manifest(withControls: control), template: "<section {{ part.attributes }} data-borderWidth=\"{{ control.border.width.css }}\" data-top=\"{{ control.border.width.top }}\">{{ childArea(\"content\") }}</section>",
+                                  additionalFiles: ["part.css": ":instance { border-width: {{ control.border.width }}; border-style: {{ control.border.style }}; border-color: {{ control.borderColour }}; --numeric-top: {{ control.border.width.values.top }}{{ control.border.width.units.top }}; }"])
+        defer { try? FileManager.default.removeItem(at: url) }
+        let package = try PartPackageLoader.load(from: url)
+        PartRegistry.register(package)
+        defer { PartRegistry.unregisterPackage(identifier: package.manifest.identifier) }
+        let definition = try #require(PartPackageAdapter.definition(from: package).properties.first)
+        guard case .themeBorderWidth = definition.control else { Issue.record("Expected themeBorderWidth"); return }
+        var node = PartNode(type: PartType(rawValue: package.manifest.identifier))
+        guard case .themeBorderWidth(var borderWidth) = node.propertyValue(.init(rawValue: "border.width")) else {
+            Issue.record("Expected typed borderWidth"); return
+        }
+        borderWidth.unlinkAll()
+        var top = borderWidth.value(for: .top)
+        top.isCustom = true
+        top.amount = 12
+        top.unit = "px"
+        borderWidth.set(top, for: .top)
+        node.setResponsiveProperty(.init(rawValue: "border.width"), value: .themeBorderWidth(borderWidth), at: .medium)
+        let saved = try JSONDecoder().decode(PartNode.self, from: JSONEncoder().encode(node))
+        #expect(saved.resolved(at: .medium).propertyValue(.init(rawValue: "border.width")) == .themeBorderWidth(borderWidth))
+        #expect(saved.propertyValue(.init(rawValue: "border.width")) == definition.defaultValue)
+        let site = Site(name: "BorderWidth", pages: [Page(title: "Home", slug: "index", parts: [saved.resolved(at: .medium)])])
+        let expected = "12.0px var(--foundry-border-width-sm) var(--foundry-border-width-sm) var(--foundry-border-width-sm)"
+        #expect(HTMLPageRenderer(site: site).render(page: site.pages[0], theme: site.theme).contains(expected))
+        #expect(try #require(StaticSiteRenderer().render(site: site).file(at: "index.html")?.contents).contains(expected))
+        let responsiveSite = Site(name: "Responsive borderWidth", pages: [Page(title: "Home", slug: "index", parts: [saved])])
+        let responsiveHTML = HTMLPageRenderer(site: responsiveSite).render(page: responsiveSite.pages[0], theme: responsiveSite.theme)
+        #expect(responsiveHTML.contains("border-width: " + expected))
+        #expect(responsiveHTML.contains("--numeric-top: 12px"))
+        #expect(responsiveHTML.contains("border-style: dashed"))
+        let lime = try #require(ColourPaletteDefaults.standard.first { $0.id == "standard.lime" })
+        #expect(responsiveHTML.contains(lime.colour(at: .shade(ColourShade(rawValue: 8)!))))
+        let exported = try StaticSiteRenderer().render(site: responsiveSite)
+        #expect(exported.files.contains { $0.contents.contains("border-width: " + expected) })
+        #expect(exported.files.contains { $0.contents.contains("--numeric-top: 12px") })
+    }
+
+    @Test @MainActor func themeRadiusLoadsPersistsAndRenders() throws {
+        let control = """
+        <dict><key>type</key><string>themeRadius</string><key>id</key><string>themeRadius</string>
+        <key>responsive</key><true/><key>default</key><string>sm</string></dict>
+        """
+        let url = try makePackage(manifest: manifest(withControls: control), template: "<section {{ part.attributes }} data-radius=\"{{ control.themeRadius.css }}\" data-top=\"{{ control.themeRadius.topLeft }}\">{{ childArea(\"content\") }}</section>",
+                                  additionalFiles: ["part.css": ":instance { border-radius: {{ control.themeRadius }}; --numeric-top: {{ control.themeRadius.values.topLeft }}{{ control.themeRadius.units.topLeft }}; }"])
+        defer { try? FileManager.default.removeItem(at: url) }
+        let package = try PartPackageLoader.load(from: url)
+        PartRegistry.register(package)
+        defer { PartRegistry.unregisterPackage(identifier: package.manifest.identifier) }
+        let definition = try #require(PartPackageAdapter.definition(from: package).properties.first)
+        guard case .themeRadius = definition.control else { Issue.record("Expected themeRadius"); return }
+        var node = PartNode(type: PartType(rawValue: package.manifest.identifier))
+        guard case .themeRadius(var radius) = node.propertyValue(.init(rawValue: "themeRadius")) else {
+            Issue.record("Expected typed radius"); return
+        }
+        radius.unlinkAll()
+        var top = radius.value(for: .top)
+        top.isCustom = true
+        top.amount = 12
+        top.unit = "px"
+        radius.set(top, for: .top)
+        node.setResponsiveProperty(.init(rawValue: "themeRadius"), value: .themeRadius(radius), at: .medium)
+        let saved = try JSONDecoder().decode(PartNode.self, from: JSONEncoder().encode(node))
+        #expect(saved.resolved(at: .medium).propertyValue(.init(rawValue: "themeRadius")) == .themeRadius(radius))
+        #expect(saved.propertyValue(.init(rawValue: "themeRadius")) == definition.defaultValue)
+        let site = Site(name: "Radius", pages: [Page(title: "Home", slug: "index", parts: [saved.resolved(at: .medium)])])
+        let expected = "12.0px var(--foundry-border-radius-sm) var(--foundry-border-radius-sm) var(--foundry-border-radius-sm)"
+        #expect(HTMLPageRenderer(site: site).render(page: site.pages[0], theme: site.theme).contains(expected))
+        #expect(try #require(StaticSiteRenderer().render(site: site).file(at: "index.html")?.contents).contains(expected))
+        let responsiveSite = Site(name: "Responsive radius", pages: [Page(title: "Home", slug: "index", parts: [saved])])
+        let responsiveHTML = HTMLPageRenderer(site: responsiveSite).render(page: responsiveSite.pages[0], theme: responsiveSite.theme)
+        #expect(responsiveHTML.contains("border-radius: " + expected))
+        #expect(responsiveHTML.contains("--numeric-top: 12px"))
+        let exported = try StaticSiteRenderer().render(site: responsiveSite)
+        #expect(exported.files.contains { $0.contents.contains("border-radius: " + expected) })
+        #expect(exported.files.contains { $0.contents.contains("--numeric-top: 12px") })
+    }
+    @Test @MainActor func standardPaletteDefaultsLoadAndRender() throws {
+        for palette in ColourPaletteDefaults.standard {
+            let control = """
+            <dict><key>type</key><string>themeColor</string><key>id</key><string>colour</string>
+            <key>default</key><dict><key>palette</key><string>\(palette.id)</string>
+            <key>lightShade</key><integer>8</integer><key>darkShade</key><integer>3</integer></dict></dict>
+            """
+            let url = try makePackage(manifest: manifest(withControls: control),
+                template: "<section {{ part.attributes }} style=\"color: {{ control.colour }}\">{{ childArea(\"content\") }}</section>")
+            defer { try? FileManager.default.removeItem(at: url) }
+            let package = try PartPackageLoader.load(from: url)
+            PartRegistry.register(package)
+            defer { PartRegistry.unregisterPackage(identifier: package.manifest.identifier) }
+            let definition = try #require(PartPackageAdapter.definition(from: package).properties.first)
+            guard case .packageColor(let colour) = definition.defaultValue else { Issue.record("Missing colour"); return }
+            #expect(colour.source == palette.id)
+            #expect(colour.shade.rawValue == 8)
+            #expect(colour.darkShade.rawValue == 3)
+            let node = PartNode(type: .init(rawValue: package.manifest.identifier))
+            let site = Site(name: "Standard palette", pages: [Page(title: "Home", slug: "index", parts: [node])])
+            let expected = palette.colour(at: .shade(.init(rawValue: 8)!))
+            #expect(HTMLPageRenderer(site: site).render(page: site.pages[0], theme: site.theme).contains(expected))
+            #expect(try #require(StaticSiteRenderer().render(site: site).file(at: "index.html")?.contents).contains(expected))
+        }
+        for id in ["lime", "standard.unknown", "custom:missing"] {
+            let control = "<dict><key>type</key><string>themeColor</string><key>id</key><string>colour</string><key>default</key><dict><key>palette</key><string>\(id)</string></dict></dict>"
+            let decoded = try PropertyListDecoder().decode(PartPackageManifest.self, from: Data(manifest(withControls: control).utf8))
+            #expect(PartPackageValidator.validate(decoded, rootURL: FileManager.default.temporaryDirectory).contains { $0.severity == .error })
+        }
+    }
+    @Test @MainActor func themeMarginLoadsPersistsAndRenders() throws {
+        let control = """
+        <dict><key>type</key><string>themeMargin</string><key>id</key><string>themeMargin</string>
+        <key>responsive</key><true/><key>default</key><string>auto</string></dict>
+        """
+        let url = try makePackage(manifest: manifest(withControls: control), template: "<section {{ part.attributes }} data-margin=\"{{ control.themeMargin.css }}\" data-top=\"{{ control.themeMargin.top }}\">{{ childArea(\"content\") }}</section>",
+                                  additionalFiles: ["part.css": ":instance { margin: {{ control.themeMargin }}; --numeric-top: {{ control.themeMargin.values.top }}{{ control.themeMargin.units.top }}; }"])
+        defer { try? FileManager.default.removeItem(at: url) }
+        let package = try PartPackageLoader.load(from: url)
+        PartRegistry.register(package)
+        defer { PartRegistry.unregisterPackage(identifier: package.manifest.identifier) }
+        let definition = try #require(PartPackageAdapter.definition(from: package).properties.first)
+        guard case .themeMargin = definition.control else { Issue.record("Expected themeMargin"); return }
+        var node = PartNode(type: PartType(rawValue: package.manifest.identifier))
+        guard case .themeMargin(var margin) = node.propertyValue(.init(rawValue: "themeMargin")) else {
+            Issue.record("Expected typed margin"); return
+        }
+        margin.unlinkAll()
+        var top = margin.value(for: .top)
+        top.isCustom = true
+        top.amount = -12
+        top.unit = "px"
+        margin.set(top, for: .top)
+        node.setResponsiveProperty(.init(rawValue: "themeMargin"), value: .themeMargin(margin), at: .medium)
+        let saved = try JSONDecoder().decode(PartNode.self, from: JSONEncoder().encode(node))
+        #expect(saved.resolved(at: .medium).propertyValue(.init(rawValue: "themeMargin")) == .themeMargin(margin))
+        #expect(saved.propertyValue(.init(rawValue: "themeMargin")) == definition.defaultValue)
+        let site = Site(name: "Margin", pages: [Page(title: "Home", slug: "index", parts: [saved.resolved(at: .medium)])])
+        let expected = "-12.0px auto auto auto"
+        #expect(HTMLPageRenderer(site: site).render(page: site.pages[0], theme: site.theme).contains(expected))
+        #expect(try #require(StaticSiteRenderer().render(site: site).file(at: "index.html")?.contents).contains(expected))
+        let responsiveSite = Site(name: "Responsive margin", pages: [Page(title: "Home", slug: "index", parts: [saved])])
+        let responsiveHTML = HTMLPageRenderer(site: responsiveSite).render(page: responsiveSite.pages[0], theme: responsiveSite.theme)
+        #expect(responsiveHTML.contains("margin: " + expected))
+        #expect(responsiveHTML.contains("--numeric-top: -12px"))
+        let exported = try StaticSiteRenderer().render(site: responsiveSite)
+        #expect(exported.files.contains { $0.contents.contains("margin: " + expected) })
+        #expect(exported.files.contains { $0.contents.contains("--numeric-top: -12px") })
+    }
+    @Test @MainActor func themePaddingLoadsPersistsAndRenders() throws {
+        let control = """
+        <dict><key>type</key><string>themePadding</string><key>id</key><string>themePadding</string>
+        <key>responsive</key><true/><key>default</key><string>sm</string></dict>
+        """
+        let url = try makePackage(manifest: manifest(withControls: control), template: "<section {{ part.attributes }} data-padding=\"{{ control.themePadding.css }}\" data-top=\"{{ control.themePadding.top }}\">{{ childArea(\"content\") }}</section>",
+                                  additionalFiles: ["part.css": ":instance { padding: {{ control.themePadding }}; --numeric-top: {{ control.themePadding.values.top }}{{ control.themePadding.units.top }}; }"])
+        defer { try? FileManager.default.removeItem(at: url) }
+        let package = try PartPackageLoader.load(from: url)
+        PartRegistry.register(package)
+        defer { PartRegistry.unregisterPackage(identifier: package.manifest.identifier) }
+        let definition = try #require(PartPackageAdapter.definition(from: package).properties.first)
+        guard case .themePadding = definition.control else { Issue.record("Expected themePadding"); return }
+        var node = PartNode(type: PartType(rawValue: package.manifest.identifier))
+        guard case .themePadding(var padding) = node.propertyValue(.init(rawValue: "themePadding")) else {
+            Issue.record("Expected typed padding"); return
+        }
+        padding.unlinkAll()
+        var top = padding.value(for: .top)
+        top.isCustom = true
+        top.amount = 12
+        top.unit = "px"
+        padding.set(top, for: .top)
+        node.setResponsiveProperty(.init(rawValue: "themePadding"), value: .themePadding(padding), at: .medium)
+        let saved = try JSONDecoder().decode(PartNode.self, from: JSONEncoder().encode(node))
+        #expect(saved.resolved(at: .medium).propertyValue(.init(rawValue: "themePadding")) == .themePadding(padding))
+        #expect(saved.propertyValue(.init(rawValue: "themePadding")) == definition.defaultValue)
+        let site = Site(name: "Padding", pages: [Page(title: "Home", slug: "index", parts: [saved.resolved(at: .medium)])])
+        let expected = "12.0px var(--foundry-space-sm) var(--foundry-space-sm) var(--foundry-space-sm)"
+        #expect(HTMLPageRenderer(site: site).render(page: site.pages[0], theme: site.theme).contains(expected))
+        #expect(try #require(StaticSiteRenderer().render(site: site).file(at: "index.html")?.contents).contains(expected))
+        let responsiveSite = Site(name: "Responsive padding", pages: [Page(title: "Home", slug: "index", parts: [saved])])
+        let responsiveHTML = HTMLPageRenderer(site: responsiveSite).render(page: responsiveSite.pages[0], theme: responsiveSite.theme)
+        #expect(responsiveHTML.contains("padding: " + expected))
+        #expect(responsiveHTML.contains("--numeric-top: 12px"))
+        let exported = try StaticSiteRenderer().render(site: responsiveSite)
+        #expect(exported.files.contains { $0.contents.contains("padding: " + expected) })
+        #expect(exported.files.contains { $0.contents.contains("--numeric-top: 12px") })
+    }
+
+    @Test func themePaddingRejectsUnsupportedManifestKeys() throws {
+        for extra in ["<key>count</key><integer>4</integer>", "<key>allowsCustom</key><true/>",
+                      "<key>options</key><array/>", "<key>themeValues</key><string>spacing</string>"] {
+            let control = "<dict><key>type</key><string>themePadding</string><key>id</key><string>themePadding</string><key>default</key><string>sm</string>\(extra)</dict>"
+            #expect(try PartPackageManifestSchema.diagnostics(for: Data(manifest(withControls: control).utf8)).contains { $0.severity == .error })
+        }
+    }
+
     @Test func explicitlyRequestedPackTreeLoadsUsingCurrentAPI() throws {
         guard let path = ProcessInfo.processInfo.environment["FOUNDRY_VALIDATE_PACK_TREE"] else { return }
         let urls = FoundryPackLoader.packURLs(in: URL(fileURLWithPath: path), includingRoot: true)
@@ -3399,7 +3652,7 @@ struct PartPackageTests {
         }.map(\.key.rawValue) == (1...8).map { "slide-\($0)" })
         #expect(PartType.section.definition.allowsChildren)
         #expect(!PartType.section.definition.properties.contains { $0.key.rawValue == "contentWidth" })
-        #expect(!PartType.section.definition.properties.contains { ["padding", "margin"].contains($0.key.rawValue) })
+        #expect(!PartType.section.definition.properties.contains { ["themePadding", "margin"].contains($0.key.rawValue) })
         #expect(PartType.image.definition.properties.contains { $0.key == .source && $0.isInspectorVisible })
         #expect(PartType.image.definition.properties.contains {
             $0.key.rawValue == "maxWidth" && $0.defaultValue == .number(1200) && $0.isResponsive

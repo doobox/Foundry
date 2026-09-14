@@ -139,11 +139,6 @@ struct PartPropertyEditor: View {
                     indicator: responsiveIndicator,
                     value: numberBinding
                 )
-                if supportsSpacingTokens {
-                    InspectorRow(title: "Source") {
-                        tokenPicker(tokens: DesignToken.spacingTokens, customLabel: "Custom value")
-                    }
-                }
             }
         case .slider(let range, let step, let ticks, let unit, let showsValueField):
             SliderPartControl(
@@ -231,6 +226,52 @@ struct PartPropertyEditor: View {
             )
         case .themeFont:
             ThemeFontPartControl(label: definition.label, theme: theme, indicator: responsiveIndicator, selection: stringBinding(as: .choice))
+        case .themeSpacing:
+            InspectorRow(title: definition.label.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "Spacing" : definition.label, indicator: responsiveIndicator) {
+                ThemeSpacingInput<PaddingPolicy>(binding: Binding(get: {
+                    if case .themeSpacing(let value) = displayPart.propertyValue(definition.key) { return value.selection }
+                    if case .themeSpacing(let value) = definition.defaultValue { return value.selection }
+                    return ThemePaddingValue.EdgeValue()
+                }, set: { setProperty(.themeSpacing(.init(selection: $0))) }), title: definition.label.isEmpty ? "Spacing" : definition.label, theme: theme)
+            }
+            .help(part.type.definition.package?.manifest.properties.first { $0.id == definition.key.rawValue }?.tooltip ?? "Spacing")
+            .contextMenu { resetButton }
+        case .themeBorderWidth:
+            ThemeBorderWidthPartControl(label: definition.label, theme: theme, indicator: responsiveIndicator,
+                value: Binding(get: {
+                    if case .themeBorderWidth(let value) = displayPart.propertyValue(definition.key) { return value }
+                    if case .themeBorderWidth(let value) = definition.defaultValue { return value }
+                    return ThemeBorderWidthValue()
+                }, set: { setProperty(.themeBorderWidth($0)) }))
+                .help(part.type.definition.package?.manifest.properties.first { $0.id == (definition.inspectorControlID ?? definition.key.rawValue) }?.tooltip ?? "Border")
+                .contextMenu { resetButton }
+        case .themeRadius:
+            ThemeRadiusPartControl(label: definition.label, theme: theme, indicator: responsiveIndicator,
+                value: Binding(get: {
+                    if case .themeRadius(let value) = displayPart.propertyValue(definition.key) { return value }
+                    if case .themeRadius(let value) = definition.defaultValue { return value }
+                    return ThemeRadiusValue()
+                }, set: { setProperty(.themeRadius($0)) }))
+                .help(part.type.definition.package?.manifest.properties.first { $0.id == definition.key.rawValue }?.tooltip ?? "Radius")
+                .contextMenu { resetButton }
+        case .themeMargin:
+            ThemeMarginPartControl(label: definition.label, theme: theme, indicator: responsiveIndicator,
+                value: Binding(get: {
+                    if case .themeMargin(let value) = displayPart.propertyValue(definition.key) { return value }
+                    if case .themeMargin(let value) = definition.defaultValue { return value }
+                    return ThemeMarginValue()
+                }, set: { setProperty(.themeMargin($0)) }))
+                .help(part.type.definition.package?.manifest.properties.first { $0.id == definition.key.rawValue }?.tooltip ?? "Margin")
+                .contextMenu { resetButton }
+        case .themePadding:
+            ThemePaddingPartControl(label: definition.label, theme: theme, indicator: responsiveIndicator,
+                value: Binding(get: {
+                    if case .themePadding(let value) = displayPart.propertyValue(definition.key) { return value }
+                    if case .themePadding(let value) = definition.defaultValue { return value }
+                    return ThemePaddingValue()
+                }, set: { setProperty(.themePadding($0)) }))
+                .help(part.type.definition.package?.manifest.properties.first { $0.id == definition.key.rawValue }?.tooltip ?? "Padding")
+                .contextMenu { resetButton }
         case .fontWeight(let font):
             FontFacePartControl(label: definition.label,
                 options: fontFaceOptions(font: font, editsWeight: true),
@@ -634,10 +675,6 @@ struct PartPropertyEditor: View {
         displayPart.propertyValue(definition.key).tokenValue
     }
 
-    private var supportsSpacingTokens: Bool {
-        [.padding, .marginTop, .marginBottom].contains(definition.key)
-    }
-
     private var alignmentSegments: [InspectorSegment<String>] {
         [
             InspectorSegment(value: "start", systemImage: "text.alignleft", accessibilityLabel: "Start", help: "Align text to the start"),
@@ -666,10 +703,8 @@ struct PartPropertyEditor: View {
             set: { token in
                 if let token {
                     setProperty(.token(token))
-                } else if allowedTokens == DesignToken.colorTokens {
-                    setProperty(.color(displayPart.colorProperty(definition.key, theme: theme)))
                 } else {
-                    setProperty(.number(displayPart.numberProperty(definition.key, theme: theme)))
+                    setProperty(.color(displayPart.colorProperty(definition.key, theme: theme)))
                 }
             }
         )

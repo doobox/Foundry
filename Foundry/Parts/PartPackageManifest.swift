@@ -469,6 +469,11 @@ nonisolated struct PartPackageControl: Codable, Equatable, Sendable {
         case color
         case themeColor
         case themeFont
+        case themeBorder
+    case themeRadius
+    case themeMargin
+    case themeSpacing
+    case themePadding
         case fontWeight
         case fontStyle
         case icon

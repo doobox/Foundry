@@ -892,6 +892,42 @@ nonisolated enum PartPackageValidator {
             if case .boolean = defaultValue {} else {
                 diagnostics.append(.init(severity: .error, location: location, message: "A \(property.control.type.rawValue) control requires a Boolean default value."))
             }
+        case .themeBorder:
+            guard case .object(let fields) = defaultValue else {
+                diagnostics.append(.init(severity: .error, location: location, message: "A themeBorder default requires a dictionary with width and optional style."))
+                return
+            }
+            for key in fields.keys where !["width", "style"].contains(key) {
+                diagnostics.append(.init(severity: .error, location: location, message: "Unknown border default key '\(key)'."))
+            }
+            if PartPackageThemeBorderWidthControl.defaultValue(fields["width"] ?? .string("")) == nil {
+                diagnostics.append(.init(severity: .error, location: location,
+                    message: "default.width requires a border width token, none, a nonnegative custom length (px/rem/em), or four edge defaults."))
+            }
+            if let style = fields["style"] {
+                if case .string(let name) = style, PartPackageThemeBorderControl.styles.contains(name) {} else {
+                    diagnostics.append(.init(severity: .error, location: location, message: "Invalid border style."))
+                }
+            }
+        case .themeSpacing:
+            if PartPackageSingleSpacingControl.defaultValue(defaultValue) == nil {
+                diagnostics.append(.init(severity: .error, location: location, message: "A themeSpacing default requires a spacing token, none, or a nonnegative {value, unit} length (px/rem/em/%)."))
+            }
+        case .themeRadius:
+            if PartPackageThemeRadiusControl.defaultValue(defaultValue) == nil {
+                diagnostics.append(.init(severity: .error, location: location,
+                    message: "A themeRadius default must be a radius token, none, a nonnegative {value, unit} length (px/rem/em/%), or a dictionary with topLeft/topRight/bottomLeft/bottomRight defaults."))
+            }
+        case .themeMargin:
+            if PartPackageThemeMarginControl.defaultValue(defaultValue) == nil {
+                diagnostics.append(.init(severity: .error, location: location,
+                    message: "A themeMargin default must be a spacing token, none, auto, a finite {value, unit} length (px/rem/em/%), or a dictionary with top/right/bottom/left defaults."))
+            }
+        case .themePadding:
+            if PartPackageThemePaddingControl.defaultValue(defaultValue) == nil {
+                diagnostics.append(.init(severity: .error, location: location,
+                    message: "A themePadding default must be a spacing token, a nonnegative {value, unit} length (px/rem/em/%), or a dictionary with top/right/bottom/left defaults."))
+            }
         case .themeFont:
             let fields = PartPackageFontControl.defaults(defaultValue)
             guard case .string(let family) = fields["family"], ThemeFontRole(rawValue: family) != nil else {
@@ -988,16 +1024,17 @@ nonisolated enum PartPackageValidator {
                 guard let supplied = initial[key] else { continue }
                 if case .number(let number) = supplied, let shade = Int(exactly: number), (1...11).contains(shade) {
                     if value == PartThemeValueSelection.manifestCustom {
-                        diagnostics.append(.init(severity: .error, location: "\(location).\(key)", message: "\(key) requires a theme-role palette, not custom."))
+                        diagnostics.append(.init(severity: .error, location: "\(location).\(key)", message: "\(key) requires a theme or standard palette, not custom."))
                     }
                 } else {
                     diagnostics.append(.init(severity: .error, location: "\(location).\(key)", message: "\(key) must be an integer from 1 to 11."))
                 }
             }
             let isThemeRole = ThemeColorRole(rawValue: value) != nil
+            let isStandard = ColourPaletteDefaults.standard.contains { $0.id == value }
             let isCustom = value == PartThemeValueSelection.manifestCustom && property.control.allowsCustom.orFalse
-            if !isThemeRole && !isCustom {
-                diagnostics.append(.init(severity: .error, location: location, message: "A themeColor default must be page, background, surface, text, muted-text, accent, links, or custom when allowsCustom is true."))
+            if !isThemeRole && !isStandard && !isCustom {
+                diagnostics.append(.init(severity: .error, location: location, message: "A themeColor default must be a theme role, a supported standard palette ID such as standard.lime, or custom when allowsCustom is true."))
             }
             if value == PartThemeValueSelection.manifestCustom && property.control.customColor == nil {
                 diagnostics.append(.init(severity: .error, location: location, message: "customColor is required when a themeColor default is custom."))

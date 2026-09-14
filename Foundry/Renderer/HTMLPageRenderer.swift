@@ -557,6 +557,21 @@ nonisolated struct HTMLPageRenderer: PageRendering {
     private func packageProperties(_ node: PartNode, theme: Theme, assets: [UUID: ProjectAssetContent]) -> [String: PartPackageValue] {
         var values: [String: PartPackageValue] = Dictionary(uniqueKeysWithValues: node.type.definition.properties.map { definition in
             let value = node.propertyValue(definition.key)
+            if case .themeBorderWidth(let width) = value {
+                return (definition.key.rawValue, PartPackageThemeBorderWidthControl.resolved(width, theme: theme))
+            }
+            if case .themeRadius(let radius) = value {
+                return (definition.key.rawValue, PartPackageThemeRadiusControl.resolved(radius, theme: theme))
+            }
+            if case .themeMargin(let margin) = value {
+                return (definition.key.rawValue, PartPackageThemeMarginControl.resolved(margin, theme: theme))
+            }
+            if case .themeSpacing(let spacing) = value {
+                return (definition.key.rawValue, PartPackageSingleSpacingControl.resolved(spacing, theme: theme))
+            }
+            if case .themePadding(let padding) = value {
+                return (definition.key.rawValue, PartPackageThemePaddingControl.resolved(padding, theme: theme))
+            }
             if case .themeFont = definition.control {
                 return (definition.key.rawValue, PartPackageFontControl.resolved(definition.key.rawValue, node: node, theme: theme))
             }
@@ -593,6 +608,18 @@ nonisolated struct HTMLPageRenderer: PageRendering {
             return (definition.key.rawValue, packageValue(value))
         })
         for definition in node.type.definition.properties {
+            if definition.control.isThemeSpacing,
+               case .object(let fields) = values[definition.key.rawValue] {
+                for (field, value) in fields {
+                    let key = definition.key.rawValue + "." + field
+                    values[key] = value
+                    if case .object(let edges) = value {
+                        for (edge, resolved) in edges { values[key + "." + edge] = resolved }
+                    }
+                }
+                // Direct interpolation is the shorthand; qualified fields remain available above.
+                values[definition.key.rawValue] = fields["css"]
+            }
             if case .themeFont = definition.control,
                case .object(let fields) = values[definition.key.rawValue] {
                 for (field, value) in fields { values[definition.key.rawValue + "." + field] = value }
@@ -658,6 +685,7 @@ nonisolated struct HTMLPageRenderer: PageRendering {
         case .packageColor(let value): .string(value.source)
         case .packageFontSize(let value): .string(value.source)
         case .packageShadow(let value): .string(value.source)
+        case .themeSpacing, .themePadding, .themeMargin, .themeBorderWidth, .themeRadius: .string("")
         }
     }
 
