@@ -4,6 +4,136 @@ import Testing
 @testable import Foundry
 
 struct PartPackageTests {
+    private static var developerDocsURL: URL {
+        URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .appending(path: "Foundry Developer API", directoryHint: .isDirectory)
+    }
+
+    @Test(.enabled(if: FileManager.default.fileExists(atPath: developerDocsURL.appending(path: "AGENTS.md").path)))
+    @MainActor func developerDocumentationQuickExamplesLoad() throws {
+        // Read the current sibling working tree, not copied or stale fixtures.
+        let pages = try FileManager.default.contentsOfDirectory(at: Self.developerDocsURL, includingPropertiesForKeys: nil)
+            .filter { $0.pathExtension == "md" }.sorted { $0.lastPathComponent < $1.lastPathComponent }
+        let expression = try NSRegularExpression(pattern: #"(?s)## Quick example\s+.*?```xml\s*\n(.*?)```"#)
+        var checked = 0
+        for page in pages {
+            let source = try String(contentsOf: page, encoding: .utf8)
+            guard let match = expression.firstMatch(in: source, range: NSRange(source.startIndex..., in: source)),
+                  let range = Range(match.range(at: 1), in: source) else { continue }
+            let controls = String(source[range])
+            let quickSection = String(source[source.range(of: "## Quick example")!.upperBound...])
+                .components(separatedBy: "\n## ")[0]
+            func output(_ language: String) throws -> String {
+                let pattern = try NSRegularExpression(pattern: "(?s)```\(language)\\s*\\n(.*?)```")
+                guard let outputMatch = pattern.firstMatch(in: quickSection, range: NSRange(quickSection.startIndex..., in: quickSection)),
+                      let outputRange = Range(outputMatch.range(at: 1), in: quickSection) else { return "" }
+                return String(quickSection[outputRange])
+            }
+            let packageURL = try makePackage(
+                manifest: manifest(withControls: controls),
+                template: "<section {{ part.attributes }}>\(try output("html")){{ childArea(\"content\") }}</section>",
+                additionalFiles: ["part.css": try output("css")]
+            )
+            defer { try? FileManager.default.removeItem(at: packageURL) }
+            do {
+                let package = try PartPackageLoader.load(from: packageURL)
+                try package.preparePayload()
+            } catch {
+                Issue.record("\(page.lastPathComponent): \(error.localizedDescription)")
+            }
+            checked += 1
+        }
+        #expect(checked == 24, "Expected every documented control's Quick example; update this count when adding a control.")
+    }
+
+    @Test(.enabled(if: FileManager.default.fileExists(atPath: developerDocsURL.appending(path: "AGENTS.md").path)))
+    @MainActor func developerDocumentationCompleteExamplesLoad() throws {
+        let pages = try FileManager.default.contentsOfDirectory(at: Self.developerDocsURL, includingPropertiesForKeys: nil)
+            .filter { $0.pathExtension == "md" }.sorted { $0.lastPathComponent < $1.lastPathComponent }
+        let sectionPattern = try NSRegularExpression(pattern: #"(?m)^## (?:Complete example|Example)\s*$"#)
+        let fencePattern = try NSRegularExpression(pattern: #"(?s)```(\w+)\s*\n(.*?)```"#)
+        var checked = 0
+        for page in pages {
+            let source = try String(contentsOf: page, encoding: .utf8)
+            guard source.contains("## Quick example"),
+                  let heading = sectionPattern.firstMatch(in: source, range: NSRange(source.startIndex..., in: source)),
+                  let headingRange = Range(heading.range, in: source) else { continue }
+            let section = String(source[headingRange.upperBound...]).components(separatedBy: "\n## ")[0]
+            var snippets: [String: String] = [:]
+            for fence in fencePattern.matches(in: section, range: NSRange(section.startIndex..., in: section)) {
+                let language = String(section[try #require(Range(fence.range(at: 1), in: section))])
+                let content = String(section[try #require(Range(fence.range(at: 2), in: section))])
+                snippets[language, default: ""] += content
+            }
+            let xml = try #require(snippets["xml"], "Missing declaration in \(page.lastPathComponent)")
+            // Older complete examples show the controls key and array; newer ones show a single item.
+            let controls: String
+            if xml.contains("<key>controls</key>") {
+                let start = try #require(xml.range(of: "<array>"))
+                let end = try #require(xml.range(of: "</array>", options: .backwards))
+                controls = String(xml[start.upperBound..<end.lowerBound])
+            } else {
+                controls = xml
+            }
+            var exampleManifest = try #require(PropertyListSerialization.propertyList(
+                from: Data(manifest(withControls: controls).utf8), format: nil
+            ) as? [String: Any])
+            var declarations = try #require(exampleManifest["controls"] as? [[String: Any]])
+            declarations.removeLast() // Remove the test helper's unrelated content childPicker.
+            exampleManifest["controls"] = declarations
+            let manifestData = try PropertyListSerialization.data(fromPropertyList: exampleManifest, format: .xml, options: 0)
+            let html = snippets["html", default: ""]
+            let template = html.contains("{{ part.attributes }}") ? html
+                : "<section {{ part.attributes }}>\(html)</section>"
+            let url = try makePackage(manifest: String(decoding: manifestData, as: UTF8.self), template: template,
+                                      additionalFiles: ["part.css": snippets["css", default: ""]])
+            defer { try? FileManager.default.removeItem(at: url) }
+            do {
+                let package = try PartPackageLoader.load(from: url)
+                try package.preparePayload()
+            } catch {
+                Issue.record("\(page.lastPathComponent) complete example: \(error.localizedDescription)")
+            }
+            checked += 1
+        }
+        #expect(checked == 24, "Expected all 24 control reference examples.")
+    }
+
+    @Test(.enabled(if: FileManager.default.fileExists(atPath: developerDocsURL.appending(path: "quick-start.md").path)))
+    @MainActor func developerDocumentationQuickStartLoads() throws {
+        let source = try String(contentsOf: Self.developerDocsURL.appending(path: "quick-start.md"), encoding: .utf8)
+        func snippet(_ marker: String) throws -> String {
+            let escaped = NSRegularExpression.escapedPattern(for: marker)
+            let expression = try NSRegularExpression(pattern: "(?s)<!-- \(escaped) -->\\s*```\\w+\\s*\\n(.*?)```")
+            let match = try #require(expression.firstMatch(in: source, range: NSRange(source.startIndex..., in: source)))
+            return String(source[try #require(Range(match.range(at: 1), in: source))])
+        }
+        for stage in ["starter", "complete"] {
+            let base = try snippet("starter:Info.plist")
+            var manifest = try #require(PropertyListSerialization.propertyList(from: Data(base.utf8), format: nil) as? [String: Any])
+            if stage == "complete" {
+                let fragment = try snippet("complete:controls")
+                let additions = try #require(PropertyListSerialization.propertyList(
+                    from: Data("<plist version=\"1.0\"><dict>\(fragment)</dict></plist>".utf8), format: nil
+                ) as? [String: Any])
+                manifest["controls"] = additions["controls"]
+            }
+            let encoded = try PropertyListSerialization.data(fromPropertyList: manifest, format: .xml, options: 0)
+            let packageURL = try makePackage(
+                manifest: String(decoding: encoded, as: UTF8.self), template: snippet("\(stage):part.html"),
+                additionalFiles: ["part.css": snippet("\(stage):part.css"), "icon.svg": snippet("starter:icon.svg")]
+            )
+            defer { try? FileManager.default.removeItem(at: packageURL) }
+            let package = try PartPackageLoader.load(from: packageURL)
+            try package.preparePayload()
+            #expect(package.manifest.identifier == "uk.co.example.callout")
+            #expect(package.dropZoneNames.contains("content") == (stage == "complete"))
+            #expect(package.manifest.properties.count == (stage == "complete" ? 2 : 0))
+        }
+    }
+
     @Test @MainActor func structuredAndArrayBreakpointDefaultsUseNormalConversion() throws {
         let controls = """
         <dict><key>type</key><string>number</string><key>id</key><string>pair</string><key>count</key><integer>2</integer><key>responsive</key><true/>
@@ -3893,7 +4023,7 @@ struct PartPackageTests {
         let textDecoration = try #require(properties.first(where: { $0.key.rawValue == "textDecoration" }))
 
         #expect(color.defaultValue == .packageColor(.init(
-            source: PartThemeValueSelection.manualCustom,
+            source: ThemeColorRole.text.rawValue,
             customColor: "#000000",
             opacity: 1
         )))

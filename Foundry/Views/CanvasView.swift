@@ -70,6 +70,9 @@ struct CanvasView: View {
     @State private var renderedPage: CanvasRenderedPage?
     @State private var renderRevision: UInt64 = 0
     @State private var forcedReconciliationRevision: UInt64?
+    @State private var reconciliationRequest: UInt64 = 0
+    @State private var renderedRequest: CanvasRenderRequestID?
+    @State private var acknowledgedRenderRevision: UInt64 = 0
     private let resizeEdgeHitTargetWidth = 12.0
     private let canvasHorizontalPadding = 24.0
     private let minimumViewportWidth = 320.0
@@ -115,6 +118,10 @@ struct CanvasView: View {
                                             handleContextMenuAction: handleContextMenuAction,
                                             requestFullReconciliation: {
                                                 forcedReconciliationRevision = mutationEvent.revision
+                                                reconciliationRequest &+= 1
+                                            },
+                                            didApplyRevision: { revision in
+                                                acknowledgedRenderRevision = max(acknowledgedRenderRevision, revision)
                                             }
                                         )
                                         .id(enablesCanvasWebInspector)
@@ -206,7 +213,8 @@ struct CanvasView: View {
             partPackageRevision: partPackageRevision,
             breakpoint: breakpoint,
             forcesReconciliation: forcedReconciliationRevision == mutationEvent.revision,
-            appearance: appearance
+            appearance: appearance,
+            reconciliationRequest: reconciliationRequest
         )
     }
 
@@ -226,7 +234,10 @@ struct CanvasView: View {
             assets: assets,
             breakpoint: requestID.breakpoint,
             impact: mutationEvent.impact,
-            forcesReconciliation: requestID.forcesReconciliation || requiresInitialPage || renderedAppearance != appearance,
+            forcesReconciliation: requestID.forcesReconciliation || requiresInitialPage || renderedAppearance != appearance
+                || !requestID.canPatch(after: renderedRequest,
+                                       submittedRevision: renderedPage?.operation.revision,
+                                       acknowledgedRevision: acknowledgedRenderRevision),
             previousBreakpoint: renderedBreakpoint
         )
         let operation = await Task.detached(priority: .userInitiated) {
@@ -236,6 +247,7 @@ struct CanvasView: View {
         renderedPage = .init(pageID: page.id, operation: operation.withRevision(revision))
         renderedAppearance = appearance
         renderedBreakpoint = requestID.breakpoint
+        renderedRequest = requestID
     }
 
     private func canvasPackages(for page: Page) -> [String: LoadedPartPackage] {
@@ -332,7 +344,7 @@ struct PartCatalogLoadingView: View {
     }
 }
 
-private struct CanvasRenderRequestID: Hashable {
+struct CanvasRenderRequestID: Hashable {
     let pageID: UUID
     let mutationRevision: UInt64
     let assetRevision: UInt64
@@ -340,6 +352,21 @@ private struct CanvasRenderRequestID: Hashable {
     let breakpoint: ResponsiveBreakpoint
     let forcesReconciliation: Bool
     let appearance: SiteAppearance
+    var reconciliationRequest: UInt64 = 0
+
+    // A part patch is a delta, not a complete snapshot. It is only safe when
+    // the immediately preceding mutation has reached WebKit successfully.
+    func canPatch(after previous: Self?, submittedRevision: UInt64?, acknowledgedRevision: UInt64) -> Bool {
+        guard let previous, let submittedRevision,
+              submittedRevision == acknowledgedRevision else { return false }
+        return previous.mutationRevision &+ 1 == mutationRevision
+            && previous.pageID == pageID
+            && previous.assetRevision == assetRevision
+            && previous.partPackageRevision == partPackageRevision
+            && previous.breakpoint == breakpoint
+            && previous.appearance == appearance
+            && previous.reconciliationRequest == reconciliationRequest
+    }
 }
 
 struct CanvasRenderedPage: Equatable {

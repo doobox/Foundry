@@ -1,17 +1,65 @@
 :instance {
     box-sizing: border-box;
+    min-width: 0;
+    width: 100%;
+    {{ if control.widthMode == "auto" }}width: auto;{{ endif }}
+    {{ if control.widthMode == "custom" }}width: min(100%, {{ control.customWidth }}px);{{ endif }}
+    max-width: {{ if control.maxWidth > 0 }}min(100%, {{ control.maxWidth }}px){{ else }}100%{{ endif }};
+    min-height: {{ control.minimumHeight }}px;
+    height: auto;
+    {{ if control.heightMode == "custom" }}height: {{ control.customHeight }}px;{{ endif }}
+    {{ if control.heightMode == "viewport" }}height: 100svh;{{ endif }}
+    padding: {{ if control.spacingEnabled }}{{ control.themePadding }}{{ else }}0{{ endif }};
+    margin: {{ if control.spacingEnabled }}{{ control.themeMargin }}{{ else }}0{{ endif }};
+    overflow: {{ control.overflow }};
+    {{ if control.itemEnabled }}
+    flex-grow: {{ control.flexGrow }};
+    flex-shrink: {{ control.flexShrink }};
+    align-self: {{ control.alignSelf }};
+    grid-column: span {{ control.columnSpan }};
+    grid-row: span {{ control.rowSpan }};
+    {{ else }}
+    flex-grow: 0;
+    flex-shrink: 1;
+    align-self: auto;
+    grid-column: auto;
+    grid-row: auto;
+    {{ endif }}
+    background-color: {{ if control.showsBackground }}{{ control.backgroundColor }}{{ else }}transparent{{ endif }};
+    border-width: {{ if control.borderEnabled }}{{ control.themeBorder.width }}{{ else }}0{{ endif }};
+    border-style: {{ control.themeBorder.style }};
+    border-color: {{ control.themeBorderColour }};
+    border-radius: {{ if control.borderEnabled }}{{ control.themeRadius }}{{ else }}0{{ endif }};
+    box-shadow: {{ if control.effectsEnabled }}{{ control.themeShadow }}{{ else }}none{{ endif }};
+    opacity: 1;
+    {{ if control.effectsEnabled }}opacity: calc({{ control.opacity }} / 100);{{ endif }}
+}
+:instance > * { min-width: 0; }
+:instance {
     display: flex;
     flex-wrap: wrap;
     align-items: {{ control.alignItems }};
-    gap: {{ control.themeGap }};
-    width: 100%;
-    min-width: 0;
-    padding: {{ control.themePadding }};
-    margin: {{ control.themeMargin }};
+    column-gap: {{ control.themeGap }};
+    row-gap: {{ control.rowGap }};
+    --foundry-column-gap: {{ if control.themeGap.value == 0 }}0px{{ else }}{{ control.themeGap }}{{ endif }};
 }
 :instance > :not(.foundry-empty-drop-zone) {
     box-sizing: border-box;
     min-width: 0;
-    flex: 0 0 calc((100% - ({{ control.columnCount }} - 1) * {{ if control.themeGap.value == 0 }}0px{{ else }}{{ control.themeGap }}{{ endif }}) / {{ control.columnCount }});
+    flex: 0 0 calc((100% - ({{ control.columnCount }} - 1) * var(--foundry-column-gap)) / {{ control.columnCount }});
+}
+:instance > :not(.foundry-empty-drop-zone):nth-child(odd) {
+    flex-basis: calc((100% - ({{ control.columnCount }} - 1) * var(--foundry-column-gap)) / {{ control.columnCount }});
+    {{ if control.columnCount == 2 && control.proportions == "1-2" }}flex-basis: calc((100% - var(--foundry-column-gap)) * 1 / 3);{{ endif }}
+    {{ if control.columnCount == 2 && control.proportions == "2-1" }}flex-basis: calc((100% - var(--foundry-column-gap)) * 2 / 3);{{ endif }}
+    {{ if control.columnCount == 2 && control.proportions == "1-3" }}flex-basis: calc((100% - var(--foundry-column-gap)) * 1 / 4);{{ endif }}
+    {{ if control.columnCount == 2 && control.proportions == "3-1" }}flex-basis: calc((100% - var(--foundry-column-gap)) * 3 / 4);{{ endif }}
+}
+:instance > :not(.foundry-empty-drop-zone):nth-child(even) {
+    flex-basis: calc((100% - ({{ control.columnCount }} - 1) * var(--foundry-column-gap)) / {{ control.columnCount }});
+    {{ if control.columnCount == 2 && control.proportions == "1-2" }}flex-basis: calc((100% - var(--foundry-column-gap)) * 2 / 3);{{ endif }}
+    {{ if control.columnCount == 2 && control.proportions == "2-1" }}flex-basis: calc((100% - var(--foundry-column-gap)) * 1 / 3);{{ endif }}
+    {{ if control.columnCount == 2 && control.proportions == "1-3" }}flex-basis: calc((100% - var(--foundry-column-gap)) * 3 / 4);{{ endif }}
+    {{ if control.columnCount == 2 && control.proportions == "3-1" }}flex-basis: calc((100% - var(--foundry-column-gap)) * 1 / 4);{{ endif }}
 }
 :instance > .foundry-empty-drop-zone { flex: 1 0 100%; }

@@ -155,6 +155,10 @@ struct CanvasUpdateRevisionGate {
         latestApplied = revision
         return true
     }
+
+    func isCurrent(_ revision: UInt64) -> Bool {
+        revision >= latestRequested && revision >= latestApplied
+    }
 }
 
 nonisolated enum CanvasWebOperation: Equatable, Sendable {
@@ -202,6 +206,7 @@ struct WebCanvasView: NSViewRepresentable {
     let handleMessage: (CanvasMessage) -> Void
     let handleContextMenuAction: (CanvasContextMenuAction, UUID, PartProperty.Key?, [Int]) -> Void
     let requestFullReconciliation: () -> Void
+    var didApplyRevision: (UInt64) -> Void = { _ in }
 
     func makeCoordinator() -> Coordinator {
         Coordinator(
@@ -273,6 +278,7 @@ struct WebCanvasView: NSViewRepresentable {
         context.coordinator.selectedPrimitive = selectedPrimitive
         context.coordinator.editorOptions = editorOptions
         context.coordinator.requestFullReconciliation = requestFullReconciliation
+        context.coordinator.didApplyRevision = didApplyRevision
         if context.coordinator.lastSubmittedRevision != operation.revision {
             context.coordinator.lastSubmittedRevision = operation.revision
             context.coordinator.apply(operation, in: webView)
@@ -350,12 +356,12 @@ struct WebCanvasView: NSViewRepresentable {
             position: 'fixed',
             display: 'none',
             boxSizing: 'border-box',
-            padding: '3px 10px',
-            borderRadius: '0 0 5px 0',
+            padding: '1px 10px 2px',
+            borderRadius: '999px',
             overflow: 'hidden',
             color: 'white',
             background: '#0A84FF',
-            font: '11px/16px system-ui, sans-serif',
+            font: '11px/14px system-ui, sans-serif',
             textAlign: 'center',
             whiteSpace: 'nowrap',
             textOverflow: 'ellipsis',
@@ -394,6 +400,7 @@ struct WebCanvasView: NSViewRepresentable {
           chromeLayer.appendChild(editableChrome);
           let chromeFrame = null;
 
+          const chromeStrokeWidth = 3;
           const editorChromeColor = '#0A84FF';
           const globalChromeColor = '#30D158';
           const partChromeColor = element => {
@@ -416,12 +423,55 @@ struct WebCanvasView: NSViewRepresentable {
             return contentRect;
           };
 
+          const pixelWidth = value => {
+            const number = Number.parseFloat(value);
+            return Number.isFinite(number) ? Math.max(0, number) : 0;
+          };
+
+          const innerCornerRadius = (value, horizontalInset, verticalInset) => {
+            const radii = String(value || '').split(/\\s+/).map(pixelWidth);
+            const horizontal = Math.max(0, (radii[0] || 0) - horizontalInset);
+            const vertical = Math.max(0, (radii[1] ?? radii[0] ?? 0) - verticalInset);
+            return [horizontal + 'px', vertical + 'px'];
+          };
+
+          const outlineGeometry = (target, isPrimitive) => {
+            const rect = chromeRect(target);
+            if (isPrimitive || rect.width <= 0 || rect.height <= 0) {
+              return { rect, radius: '0' };
+            }
+            const style = getComputedStyle(target);
+            const top = pixelWidth(style.borderTopWidth);
+            const right = pixelWidth(style.borderRightWidth);
+            const bottom = pixelWidth(style.borderBottomWidth);
+            const left = pixelWidth(style.borderLeftWidth);
+            const corners = [
+              innerCornerRadius(style.borderTopLeftRadius, left, top),
+              innerCornerRadius(style.borderTopRightRadius, right, top),
+              innerCornerRadius(style.borderBottomRightRadius, right, bottom),
+              innerCornerRadius(style.borderBottomLeftRadius, left, bottom)
+            ];
+            return {
+              rect: {
+                left: rect.left + left,
+                top: rect.top + top,
+                right: rect.right - right,
+                bottom: rect.bottom - bottom,
+                width: Math.max(0, rect.width - left - right),
+                height: Math.max(0, rect.height - top - bottom)
+              },
+              radius: corners.map(corner => corner[0]).join(' ')
+                + ' / ' + corners.map(corner => corner[1]).join(' ')
+            };
+          };
+
           const positionOutline = (outline, target, color, isPrimitive, isSelected) => {
             if (!target?.isConnected) {
               outline.style.setProperty('display', 'none', 'important');
               return;
             }
-            const rect = chromeRect(target);
+            const geometry = outlineGeometry(target, isPrimitive);
+            const rect = geometry.rect;
             if (rect.width <= 0 || rect.height <= 0 || rect.bottom < 0 || rect.top > window.innerHeight) {
               outline.style.setProperty('display', 'none', 'important');
               return;
@@ -432,9 +482,10 @@ struct WebCanvasView: NSViewRepresentable {
             outline.style.setProperty('height', rect.height + 'px', 'important');
             outline.style.setProperty(
               'border',
-              isSelected ? '3px solid ' + color : '3px solid ' + color + '8C',
+              chromeStrokeWidth + 'px solid ' + (isSelected ? color : color + '8C'),
               'important'
             );
+            outline.style.setProperty('border-radius', geometry.radius, 'important');
             outline.style.setProperty('display', 'block', 'important');
           };
 
@@ -517,18 +568,20 @@ struct WebCanvasView: NSViewRepresentable {
               chromeTitle.style.setProperty('display', 'none', 'important');
               return;
             }
-            const rect = chromeRect(hoveredPart);
+            const geometry = outlineGeometry(hoveredPart, false);
+            const rect = geometry.rect;
             if (rect.width <= 0 || rect.height <= 0 || rect.bottom < 0 || rect.top > window.innerHeight) {
               chromeTitle.style.setProperty('display', 'none', 'important');
               return;
             }
             chromeTitle.textContent = hoveredPart.dataset.foundryName || '';
             chromeTitle.style.setProperty('background', partChromeColor(hoveredPart), 'important');
-            chromeTitle.style.setProperty('left', Math.max(0, rect.left) + 'px', 'important');
-            chromeTitle.style.setProperty('top', Math.max(0, rect.top) + 'px', 'important');
+            chromeTitle.style.setProperty('left', (rect.left + rect.width / 2) + 'px', 'important');
+            chromeTitle.style.setProperty('top', (rect.top + chromeStrokeWidth / 2) + 'px', 'important');
+            chromeTitle.style.setProperty('transform', 'translate(-50%, -50%)', 'important');
             chromeTitle.style.setProperty(
               'max-width',
-              Math.max(0, Math.min(rect.width, window.innerWidth - Math.max(0, rect.left))) + 'px',
+              Math.max(0, rect.width) + 'px',
               'important'
             );
             chromeTitle.style.setProperty('display', 'block', 'important');
@@ -723,7 +776,7 @@ struct WebCanvasView: NSViewRepresentable {
                 isPrimitive
               });
             });
-            scheduleChromeTitleUpdate();
+            updateChromeTitle();
             if (firstElement && editorOptions.scrollsToSelection && shouldScroll) {
               firstElement.scrollIntoView({ block: 'nearest', inline: 'nearest' });
             }
@@ -892,7 +945,8 @@ struct WebCanvasView: NSViewRepresentable {
             return true;
           };
 
-          window.foundryReplaceDocument = html => {
+          window.foundryReplaceDocument = (html, revision = latestFoundryRevision) => {
+            if (!Number.isSafeInteger(revision) || revision < latestFoundryRevision) return false;
             const replacement = new DOMParser().parseFromString(html, 'text/html');
             replacement.querySelectorAll(selector).forEach(element => { element.draggable = true; });
 
@@ -940,6 +994,7 @@ struct WebCanvasView: NSViewRepresentable {
                 document.body.replaceChildren(...bodyNodes);
               }
             }
+            latestFoundryRevision = revision;
             installPartDragHandlers();
             observeChromeGeometry();
             hoveredPart = null;
@@ -1270,11 +1325,12 @@ struct WebCanvasView: NSViewRepresentable {
         var handleMessage: (CanvasMessage) -> Void
         var handleContextMenuAction: (CanvasContextMenuAction, UUID, PartProperty.Key?, [Int]) -> Void
         var requestFullReconciliation: () -> Void
+        var didApplyRevision: (UInt64) -> Void = { _ in }
+        private var loadingRevision: UInt64?
         private var contextMenuPartID: UUID?
         private var contextMenuImageProperty: PartProperty.Key?
         private var contextMenuGlobalTargetID: UUID?
         private var pendingHTML: (html: String, revision: UInt64)?
-        private var pendingPart: (subtree: RenderedPartSubtree, revision: UInt64)?
         private var loadedHTML: String?
         fileprivate var lastSubmittedRevision: UInt64?
         private var revisionGate = CanvasUpdateRevisionGate()
@@ -1572,13 +1628,20 @@ struct WebCanvasView: NSViewRepresentable {
             in webView: WKWebView
         ) {
             guard revisionGate.request(revision) else { return }
-            guard !isLoadingHTML, !isPatchingHTML, loadedHTML != nil else {
-                pendingPart = (subtree, revision)
+            guard !isLoadingHTML, !isCapturingScrollPosition, !isPatchingHTML, loadedHTML != nil else {
+                // A newer delta cannot stand in for an unapplied older delta.
+                // Ask for a complete current-page snapshot instead of dropping edits.
+                Task { @MainActor [weak self] in self?.requestFullReconciliation() }
                 return
             }
             isPatchingHTML = true
             Task { [weak self, weak webView] in
                 guard let self, let webView else { return }
+                guard self.revisionGate.isCurrent(revision) else {
+                    self.isPatchingHTML = false
+                    self.processPendingUpdate(in: webView)
+                    return
+                }
                 let didPatch = (try? await webView.callAsyncJavaScript(
                     "return window.foundryReplacePart?.(partID, html, css, revision) === true",
                     arguments: [
@@ -1592,7 +1655,6 @@ struct WebCanvasView: NSViewRepresentable {
                 )) as? Bool == true
                 self.isPatchingHTML = false
                 guard didPatch else {
-                    self.pendingPart = nil
                     self.requestFullReconciliation()
                     return
                 }
@@ -1601,6 +1663,7 @@ struct WebCanvasView: NSViewRepresentable {
                     return
                 }
                 self.applyCanvasState()
+                self.didApplyRevision(revision)
                 self.processPendingUpdate(in: webView)
             }
         }
@@ -1620,12 +1683,21 @@ struct WebCanvasView: NSViewRepresentable {
         }
 
         private func patchHTML(_ html: String, revision: UInt64, in webView: WKWebView) {
+            guard revisionGate.isCurrent(revision) else {
+                processPendingUpdate(in: webView)
+                return
+            }
             isPatchingHTML = true
             Task { [weak self, weak webView] in
                 guard let self, let webView else { return }
+                guard self.revisionGate.isCurrent(revision) else {
+                    self.isPatchingHTML = false
+                    self.processPendingUpdate(in: webView)
+                    return
+                }
                 let didPatch = (try? await webView.callAsyncJavaScript(
-                    "return window.foundryReplaceDocument?.(html) === true",
-                    arguments: ["html": html],
+                    "return window.foundryReplaceDocument?.(html, revision) === true",
+                    arguments: ["html": html, "revision": revision],
                     in: nil,
                     contentWorld: .defaultClient
                 )) as? Bool == true
@@ -1640,13 +1712,9 @@ struct WebCanvasView: NSViewRepresentable {
                     return
                 }
                 self.loadedHTML = html
-                if let pendingHTML = self.pendingHTML, pendingHTML.html != html {
-                    self.pendingHTML = nil
-                    self.patchHTML(pendingHTML.html, revision: pendingHTML.revision, in: webView)
-                } else {
-                    self.pendingHTML = nil
-                    self.applyCanvasState()
-                }
+                self.didApplyRevision(revision)
+                self.applyCanvasState()
+                self.processPendingUpdate(in: webView)
             }
         }
 
@@ -1668,8 +1736,12 @@ struct WebCanvasView: NSViewRepresentable {
 
         private func load(_ html: String, revision: UInt64, in webView: WKWebView) {
             pendingHTML = nil
-            guard revisionGate.apply(revision) else { return }
+            guard revisionGate.apply(revision) else {
+                processPendingUpdate(in: webView)
+                return
+            }
             loadedHTML = html
+            loadingRevision = revision
             isLoadingHTML = true
             webView.loadHTMLString(html, baseURL: nil)
         }
@@ -1684,6 +1756,7 @@ struct WebCanvasView: NSViewRepresentable {
             withError error: any Error
         ) {
             CanvasDiagnostics.navigationFailed(error, phase: "committed", url: webView.url)
+            loadingRevision = nil
             finishHTMLLoad(in: webView)
         }
 
@@ -1693,6 +1766,7 @@ struct WebCanvasView: NSViewRepresentable {
             withError error: any Error
         ) {
             CanvasDiagnostics.navigationFailed(error, phase: "provisional", url: webView.url)
+            loadingRevision = nil
             finishHTMLLoad(in: webView)
         }
 
@@ -1702,6 +1776,10 @@ struct WebCanvasView: NSViewRepresentable {
 
         private func finishHTMLLoad(in webView: WKWebView) {
             isLoadingHTML = false
+            if let revision = loadingRevision, revisionGate.isCurrent(revision) {
+                didApplyRevision(revision)
+            }
+            loadingRevision = nil
             if let pendingHTML, pendingHTML.html != loadedHTML {
                 load(pendingHTML.html, revision: pendingHTML.revision, in: webView)
             } else {
@@ -1712,14 +1790,10 @@ struct WebCanvasView: NSViewRepresentable {
         }
 
         private func processPendingUpdate(in webView: WKWebView) {
-            if let pendingHTML,
-               pendingHTML.revision >= (pendingPart?.revision ?? 0) {
+            guard !isLoadingHTML, !isCapturingScrollPosition, !isPatchingHTML else { return }
+            if let pendingHTML {
                 self.pendingHTML = nil
-                pendingPart = nil
                 patchHTML(pendingHTML.html, revision: pendingHTML.revision, in: webView)
-            } else if let pendingPart {
-                self.pendingPart = nil
-                patchPart(pendingPart.subtree, revision: pendingPart.revision, in: webView)
             }
         }
 

@@ -65,6 +65,30 @@ struct CanvasJavaScriptTests {
             try await Task.sleep(for: .milliseconds(25))
         }
         try #require(ready)
+        _ = try await webView.callAsyncJavaScript("""
+            const part = document.querySelector('[data-foundry-id]');
+            part.dataset.foundryName = 'Example';
+            part.style.cssText = 'box-sizing:content-box;width:100px;height:100px;border:10px solid red;border-radius:20px';
+            part.dispatchEvent(new PointerEvent('pointermove', { bubbles: true }));
+            """, arguments: [:], in: nil, contentWorld: .defaultClient)
+        var titleAligned = false
+        for _ in 0..<80 {
+            titleAligned = (try? await webView.callAsyncJavaScript("""
+                const host = document.querySelector('[data-foundry-editor-chrome="host"]');
+                const title = host.shadowRoot.querySelector('[data-foundry-editor-chrome="title"]');
+                return title.style.display === 'block'
+                  && title.style.left === '68px' && title.style.top === '19.5px'
+                  && title.style.transform === 'translate(-50%, -50%)'
+                  && title.style.maxWidth === '100px'
+                  && getComputedStyle(title).borderRadius === '999px';
+                """, arguments: [:], in: nil, contentWorld: .defaultClient)) as? Bool == true
+            if titleAligned { break }
+            try await Task.sleep(for: .milliseconds(25))
+        }
+        #expect(titleAligned)
+        _ = try await webView.callAsyncJavaScript(
+            "document.querySelector('[data-foundry-id]').style.cssText = ''",
+            arguments: [:], in: nil, contentWorld: .defaultClient)
         _ = try await webView.callAsyncJavaScript(
             "window.foundrySetSelection(['test-part'], {}, false)",
             arguments: [:], in: nil, contentWorld: .defaultClient)
