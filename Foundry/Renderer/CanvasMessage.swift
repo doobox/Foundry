@@ -72,6 +72,7 @@ nonisolated struct CanvasMessage: Codable, Equatable, Sendable {
     }
 
     nonisolated enum Event: String, Codable, Sendable {
+        case clearSelection
         case selectPart
         case selectPrimitive
         case deleteParts
@@ -139,6 +140,10 @@ nonisolated struct CanvasMessage: Codable, Equatable, Sendable {
     private var isValid: Bool {
         guard propertyPath?.allSatisfy({ $0 >= 0 }) != false else { return false }
         return switch event {
+        case .clearSelection:
+            partID == nil && partIDs == nil && extendsSelection == nil && partType == nil &&
+                reusableDefinitionID == nil && globalDefinitionID == nil && isGlobalLinked == nil && placement == nil &&
+                propertyKey == nil && propertyValue == nil && hasNoAssetPayload
         case .selectPart:
             partID != nil && partType == nil && reusableDefinitionID == nil && globalDefinitionID == nil && placement == nil &&
                 propertyKey == nil && propertyValue == nil && hasNoAssetPayload

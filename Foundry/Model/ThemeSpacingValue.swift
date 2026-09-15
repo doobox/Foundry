@@ -170,4 +170,5 @@ nonisolated struct ThemeSpacingValue<Policy: ThemeSpacingPolicy>: Codable, Equat
         horizontalLinked = false
         values = Array(repeating: shared, count: 4)
     }
+
 }

@@ -2036,10 +2036,10 @@ private struct CanvasOptionsButton: View {
 
                 Divider()
 
-                Toggle("Show Titles", isOn: $options.showsTitles)
-                Toggle("Show Outlines", isOn: $options.showsOutlines)
-                Toggle("Show Selection", isOn: $options.showsSelection)
-                Toggle("Scroll to Selection", isOn: $options.scrollsToSelection)
+                Toggle("Part Labels", isOn: $options.showsTitles)
+                Toggle("Hover Outlines", isOn: $options.showsOutlines)
+                Toggle("Selection Chrome", isOn: $options.showsSelection)
+                Toggle("Scroll Selection into View", isOn: $options.scrollsToSelection)
             }
             .padding(16)
             .frame(width: 240, alignment: .leading)

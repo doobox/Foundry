@@ -160,6 +160,21 @@ struct CanvasBridgeTests {
     }
 
     @Test
+    func decodesSelectionClearingMessageWithoutPayload() {
+        let message = CanvasMessage.decode([
+            "version": CanvasMessage.currentVersion,
+            "event": "clearSelection"
+        ])
+
+        #expect(message?.event == .clearSelection)
+        #expect(CanvasMessage.decode([
+            "version": CanvasMessage.currentVersion,
+            "event": "clearSelection",
+            "partID": UUID().uuidString
+        ]) == nil)
+    }
+
+    @Test
     func decodesPrimitiveSelectionMessage() {
         let partID = UUID()
         let propertyKey = PartProperty.Key(rawValue: "sourceRepeat3")
@@ -435,7 +450,7 @@ struct CanvasBridgeTests {
         #expect(interactionScript.contains("data-foundry-editor-chrome"))
         #expect(interactionScript.contains("data-foundry-editor-chrome', 'selection"))
         #expect(interactionScript.contains("position: 'fixed'"))
-        #expect(interactionScript.contains("'left', Math.max(0, rect.left)"))
+        #expect(interactionScript.contains("const visibleLeft = Math.max(0, rect.left)"))
         #expect(interactionScript.contains("pointerEvents: 'none'"))
         #expect(interactionScript.contains("if (event.altKey) return;"))
         #expect(interactionScript.contains("selectedChromeTargets.push({"))
@@ -449,6 +464,7 @@ struct CanvasBridgeTests {
         #expect(!html.contains("[data-foundry-id]:hover:not(:has([data-foundry-id]:hover))"))
         #expect(!html.contains("data-foundry-name); position: absolute"))
         #expect(!html.contains("position: relative; cursor: default"))
+        #expect(!html.contains(".foundry-drop-before"))
     }
 
     @Test

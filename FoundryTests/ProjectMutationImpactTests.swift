@@ -21,6 +21,48 @@ struct ProjectMutationImpactTests {
     }
 
     @Test
+    func multiPartPropertyEditUpdatesEveryInstanceAsOneUndoableMutation() throws {
+        let key = PartProperty.Key(rawValue: "content")
+        let first = PartNode(
+            type: .paragraph,
+            properties: [.init(key: key, value: .string("First"))]
+        )
+        let second = PartNode(
+            type: .paragraph,
+            properties: [.init(key: key, value: .string("Second"))]
+        )
+        let document = FoundryDocument(
+            site: Site(name: "Test", pages: [Page(title: "Home", slug: "index", parts: [first, second])])
+        )
+        let undoManager = UndoManager()
+        undoManager.groupsByEvent = false
+
+        undoManager.beginUndoGrouping()
+        ProjectEditor(document: document, undoManager: undoManager).setProperties(
+            ids: [first.id, second.id],
+            key: key,
+            value: .string("Shared")
+        )
+        undoManager.endUndoGrouping()
+
+        #expect(document.site.part(withID: first.id)?.propertyValue(key) == .string("Shared"))
+        #expect(document.site.part(withID: second.id)?.propertyValue(key) == .string("Shared"))
+        guard case .partProperties(let ids, let propertyKey) = document.mutationEvent.impact else {
+            Issue.record("Expected a multi-part mutation impact")
+            return
+        }
+        #expect(Set(ids) == Set([first.id, second.id]))
+        #expect(propertyKey == key)
+        #expect(undoManager.canUndo)
+
+        undoManager.undo()
+
+        #expect(document.site.part(withID: first.id)?.propertyValue(key) == .string("First"))
+        #expect(document.site.part(withID: second.id)?.propertyValue(key) == .string("Second"))
+        #expect(!undoManager.canUndo)
+    }
+
+    @Test
     func publishingEditDoesNotAffectRenderedOutput() {
         let document = TestSiteFixtures.populatedDocument()
 

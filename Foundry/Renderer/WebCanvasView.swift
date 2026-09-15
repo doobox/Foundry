@@ -177,6 +177,37 @@ nonisolated enum CanvasWebOperation: Equatable, Sendable {
 @MainActor
 final class CanvasWebView: WKWebView {
     weak var canvasCoordinator: WebCanvasView.Coordinator?
+    private var canvasTrackingArea: NSTrackingArea?
+
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        if let canvasTrackingArea { removeTrackingArea(canvasTrackingArea) }
+        let trackingArea = NSTrackingArea(
+            rect: .zero,
+            options: [.mouseEnteredAndExited, .activeAlways, .inVisibleRect],
+            owner: self,
+            userInfo: nil
+        )
+        addTrackingArea(trackingArea)
+        canvasTrackingArea = trackingArea
+    }
+
+    override func mouseExited(with event: NSEvent) {
+        super.mouseExited(with: event)
+        clearHoverChrome()
+    }
+
+    func clearHoverChrome() {
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            _ = try? await callAsyncJavaScript(
+                "window.foundryClearHoverChrome?.()",
+                arguments: [:],
+                in: nil,
+                contentWorld: .defaultClient
+            )
+        }
+    }
 
     override func menu(for event: NSEvent) -> NSMenu? {
         canvasCoordinator?.prepareForNativeContextMenu()
@@ -357,10 +388,10 @@ struct WebCanvasView: NSViewRepresentable {
             display: 'none',
             boxSizing: 'border-box',
             padding: '1px 10px 2px',
-            borderRadius: '999px',
+            borderRadius: '0 0 5px 0',
             overflow: 'hidden',
             color: 'white',
-            background: '#0A84FF',
+            background: '#007BFF',
             font: '11px/14px system-ui, sans-serif',
             textAlign: 'center',
             whiteSpace: 'nowrap',
@@ -376,11 +407,19 @@ struct WebCanvasView: NSViewRepresentable {
             );
           });
           chromeLayer.appendChild(chromeTitle);
+          const makeSelectionTitle = () => {
+            const title = chromeTitle.cloneNode(false);
+            title.setAttribute('data-foundry-editor-chrome', 'selection-title');
+            title.style.setProperty('z-index', '2147483646', 'important');
+            chromeLayer.appendChild(title);
+            return title;
+          };
           let hoveredPart = null;
           let hoveredPrimitive = null;
           let hoveredEditable = null;
           let selectedChromeTargets = [];
           let selectedChrome = [];
+          let selectedChromeTitles = [];
           const hoverChrome = document.createElement('div');
           hoverChrome.setAttribute('data-foundry-editor-chrome', 'hover');
           const applyOutlineBaseStyles = element => {
@@ -398,16 +437,29 @@ struct WebCanvasView: NSViewRepresentable {
           editableChrome.setAttribute('data-foundry-editor-chrome', 'editable');
           applyOutlineBaseStyles(editableChrome);
           chromeLayer.appendChild(editableChrome);
+          const dropChrome = document.createElement('div');
+          dropChrome.setAttribute('data-foundry-editor-chrome', 'drop');
+          applyOutlineBaseStyles(dropChrome);
+          dropChrome.style.setProperty('z-index', '2147483647', 'important');
+          chromeLayer.appendChild(dropChrome);
+          let activeDropChrome = null;
           let chromeFrame = null;
 
           const chromeStrokeWidth = 3;
-          const editorChromeColor = '#0A84FF';
+          const editorChromeColor = '#007BFF';
+          const hoverChromeColor = '#409CFF';
           const globalChromeColor = '#30D158';
           const partChromeColor = element => {
             if (!element || element.closest('[data-foundry-global-override="true"]')) {
               return editorChromeColor;
             }
             return element.closest('[data-foundry-global]') ? globalChromeColor : editorChromeColor;
+          };
+          const partChromeTitle = part => {
+            const name = part?.dataset.foundryName || '';
+            const isLinkedGlobal = !part?.closest('[data-foundry-global-override="true"]')
+              && part?.closest('[data-foundry-global]');
+            return isLinkedGlobal ? 'Global · ' + name : name;
           };
 
           const chromeRect = target => {
@@ -428,29 +480,16 @@ struct WebCanvasView: NSViewRepresentable {
             return Number.isFinite(number) ? Math.max(0, number) : 0;
           };
 
-          const innerCornerRadius = (value, horizontalInset, verticalInset) => {
-            const radii = String(value || '').split(/\\s+/).map(pixelWidth);
-            const horizontal = Math.max(0, (radii[0] || 0) - horizontalInset);
-            const vertical = Math.max(0, (radii[1] ?? radii[0] ?? 0) - verticalInset);
-            return [horizontal + 'px', vertical + 'px'];
-          };
-
           const outlineGeometry = (target, isPrimitive) => {
             const rect = chromeRect(target);
             if (isPrimitive || rect.width <= 0 || rect.height <= 0) {
-              return { rect, radius: '0' };
+              return { rect };
             }
             const style = getComputedStyle(target);
             const top = pixelWidth(style.borderTopWidth);
             const right = pixelWidth(style.borderRightWidth);
             const bottom = pixelWidth(style.borderBottomWidth);
             const left = pixelWidth(style.borderLeftWidth);
-            const corners = [
-              innerCornerRadius(style.borderTopLeftRadius, left, top),
-              innerCornerRadius(style.borderTopRightRadius, right, top),
-              innerCornerRadius(style.borderBottomRightRadius, right, bottom),
-              innerCornerRadius(style.borderBottomLeftRadius, left, bottom)
-            ];
             return {
               rect: {
                 left: rect.left + left,
@@ -459,20 +498,78 @@ struct WebCanvasView: NSViewRepresentable {
                 bottom: rect.bottom - bottom,
                 width: Math.max(0, rect.width - left - right),
                 height: Math.max(0, rect.height - top - bottom)
-              },
-              radius: corners.map(corner => corner[0]).join(' ')
-                + ' / ' + corners.map(corner => corner[1]).join(' ')
+              }
             };
           };
 
-          const positionOutline = (outline, target, color, isPrimitive, isSelected) => {
+          const rectanglesOverlap = (lhs, rhs) => !(
+            lhs.right <= rhs.left || lhs.left >= rhs.right || lhs.bottom <= rhs.top || lhs.top >= rhs.bottom
+          );
+
+          const positionChromeTitle = (title, target, text, color, isPrimitive, opacity, occupied = []) => {
+            if (!target?.isConnected) {
+              title.style.setProperty('display', 'none', 'important');
+              return false;
+            }
+            const geometry = outlineGeometry(target, isPrimitive);
+            const rect = geometry.rect;
+            const visibleLeft = Math.max(0, rect.left);
+            const visibleRight = Math.min(window.innerWidth, rect.right);
+            const visibleTop = Math.max(0, rect.top);
+            const visibleBottom = Math.min(window.innerHeight, rect.bottom);
+            if (rect.width <= 0 || rect.height <= 0 || visibleRight <= visibleLeft || visibleBottom <= visibleTop) {
+              title.style.setProperty('display', 'none', 'important');
+              return false;
+            }
+            title.textContent = text || '';
+            title.style.setProperty('background', color, 'important');
+            title.style.setProperty('opacity', String(opacity), 'important');
+            title.style.setProperty('transform', 'none', 'important');
+            title.style.setProperty('max-width', Math.max(0, visibleRight - visibleLeft) + 'px', 'important');
+            title.style.setProperty('visibility', 'hidden', 'important');
+            title.style.setProperty('display', 'block', 'important');
+            const measured = title.getBoundingClientRect();
+            const width = Math.min(measured.width, visibleRight - visibleLeft);
+            const height = measured.height;
+            const maximumLeft = Math.max(0, window.innerWidth - width);
+            const maximumTop = Math.max(0, window.innerHeight - height);
+            const leftCandidates = [
+              Math.min(Math.max(visibleLeft, 0), maximumLeft),
+              Math.min(Math.max(visibleRight - width, 0), maximumLeft)
+            ];
+            const startTop = Math.min(Math.max(visibleTop, 0), maximumTop);
+            const candidates = [];
+            leftCandidates.forEach(left => {
+              for (let offset = 0; offset < 8; offset += 1) {
+                const top = Math.min(startTop + offset * (height + 2), maximumTop);
+                if (!candidates.some(candidate => candidate.left === left && candidate.top === top)) {
+                  candidates.push({ left, top, right: left + width, bottom: top + height });
+                }
+              }
+            });
+            const position = candidates.find(candidate =>
+              !occupied.some(existing => rectanglesOverlap(candidate, existing))
+            );
+            if (!position) {
+              title.style.setProperty('display', 'none', 'important');
+              return false;
+            }
+            title.style.setProperty('left', position.left + 'px', 'important');
+            title.style.setProperty('top', position.top + 'px', 'important');
+            title.style.setProperty('visibility', 'visible', 'important');
+            occupied.push(position);
+            return true;
+          };
+
+          const positionOutline = (outline, target, color, isPrimitive) => {
             if (!target?.isConnected) {
               outline.style.setProperty('display', 'none', 'important');
               return;
             }
             const geometry = outlineGeometry(target, isPrimitive);
             const rect = geometry.rect;
-            if (rect.width <= 0 || rect.height <= 0 || rect.bottom < 0 || rect.top > window.innerHeight) {
+            if (rect.width <= 0 || rect.height <= 0 || rect.bottom < 0 || rect.top > window.innerHeight
+                || rect.right < 0 || rect.left > window.innerWidth) {
               outline.style.setProperty('display', 'none', 'important');
               return;
             }
@@ -482,44 +579,94 @@ struct WebCanvasView: NSViewRepresentable {
             outline.style.setProperty('height', rect.height + 'px', 'important');
             outline.style.setProperty(
               'border',
-              chromeStrokeWidth + 'px solid ' + (isSelected ? color : color + '8C'),
+              chromeStrokeWidth + 'px solid ' + color,
               'important'
             );
-            outline.style.setProperty('border-radius', geometry.radius, 'important');
+            outline.style.setProperty('border-radius', '0', 'important');
             outline.style.setProperty('display', 'block', 'important');
           };
 
-          const updateSelectionChrome = () => {
+          const selectionIsSuppressedByDrop = entry => {
+            if (!entry || activeDropChrome?.kind !== 'inside') return false;
+            const dropOwner = activeDropChrome.element?.closest(selector);
+            return entry.part === dropOwner
+              || entry.element === activeDropChrome.element
+              || (entry.isPrimitive && entry.element.closest(selector) === dropOwner);
+          };
+
+          const updateSelectionChrome = (occupiedTitles = []) => {
             while (selectedChrome.length < selectedChromeTargets.length) {
               const outline = document.createElement('div');
               outline.setAttribute('data-foundry-editor-chrome', 'selection');
               applyOutlineBaseStyles(outline);
               chromeLayer.appendChild(outline);
               selectedChrome.push(outline);
+              selectedChromeTitles.push(makeSelectionTitle());
             }
             selectedChrome.forEach((outline, index) => {
               const entry = selectedChromeTargets[index];
-              if (!entry || !editorOptions.showsSelection) {
+              const title = selectedChromeTitles[index];
+              if (!entry || !editorOptions.showsSelection || selectionIsSuppressedByDrop(entry)) {
                 outline.style.setProperty('display', 'none', 'important');
+                title.style.setProperty('display', 'none', 'important');
               } else {
-                positionOutline(outline, entry.element, entry.color, entry.isPrimitive, true);
+                const isPrimary = index === 0;
+                // Keep every selection layer below active drop feedback. The primary
+                // selection still paints above secondary selections.
+                outline.style.setProperty('z-index', isPrimary ? '2147483646' : '2147483645', 'important');
+                title.style.setProperty('z-index', isPrimary ? '2147483646' : '2147483645', 'important');
+                positionOutline(outline, entry.element, entry.color, entry.isPrimitive);
+                if (editorOptions.showsTitles) {
+                  positionChromeTitle(
+                    title,
+                    entry.element,
+                    partChromeTitle(entry.part),
+                    entry.color,
+                    entry.isPrimitive,
+                    1,
+                    occupiedTitles
+                  );
+                } else {
+                  title.style.setProperty('display', 'none', 'important');
+                }
               }
             });
           };
 
-          const hideSelectionChromeForImageDrop = imageTarget => {
-            const owner = imageTarget?.closest(selector);
-            selectedChrome.forEach((outline, index) => {
-              const entry = selectedChromeTargets[index];
-              const sharesImageRegion = entry && (
-                entry.element === imageTarget
-                || entry.element === owner
-                || (entry.isPrimitive && entry.element.closest(selector) === owner)
-              );
-              if (sharesImageRegion) {
-                outline.style.setProperty('display', 'none', 'important');
-              }
-            });
+          const updateDropChrome = () => {
+            const candidate = activeDropChrome;
+            const target = candidate?.element;
+            if (!target?.isConnected) {
+              dropChrome.style.setProperty('display', 'none', 'important');
+              return;
+            }
+            const rect = chromeRect(target);
+            if (rect.width <= 0 || rect.height <= 0 || rect.bottom < 0 || rect.top > window.innerHeight
+                || rect.right < 0 || rect.left > window.innerWidth) {
+              dropChrome.style.setProperty('display', 'none', 'important');
+              return;
+            }
+            const color = partChromeColor(target);
+            dropChrome.style.setProperty('background', 'transparent', 'important');
+            dropChrome.style.setProperty('border', '0', 'important');
+            if (candidate.kind === 'before' || candidate.kind === 'after') {
+              const top = candidate.kind === 'before' ? rect.top : rect.bottom - 4;
+              dropChrome.style.setProperty('left', rect.left + 'px', 'important');
+              dropChrome.style.setProperty('top', top + 'px', 'important');
+              dropChrome.style.setProperty('width', rect.width + 'px', 'important');
+              dropChrome.style.setProperty('height', '4px', 'important');
+              dropChrome.style.setProperty('background', color, 'important');
+            } else {
+              const compactZone = target.matches('[data-foundry-empty-parent], [data-foundry-image-drop-zone], [data-foundry-root-drop-zone]');
+              const inset = compactZone ? 4 : 8;
+              dropChrome.style.setProperty('left', rect.left + inset + 'px', 'important');
+              dropChrome.style.setProperty('top', rect.top + inset + 'px', 'important');
+              dropChrome.style.setProperty('width', Math.max(0, rect.width - inset * 2) + 'px', 'important');
+              dropChrome.style.setProperty('height', Math.max(0, rect.height - inset * 2) + 'px', 'important');
+              dropChrome.style.setProperty('border', '4px dashed ' + color, 'important');
+            }
+            dropChrome.style.setProperty('border-radius', '0', 'important');
+            dropChrome.style.setProperty('display', 'block', 'important');
           };
 
           const updateHoverChrome = () => {
@@ -533,9 +680,8 @@ struct WebCanvasView: NSViewRepresentable {
             positionOutline(
               hoverChrome,
               target,
-              partChromeColor(target),
-              isPrimitive,
-              false
+              hoverChromeColor,
+              isPrimitive
             );
           };
 
@@ -546,7 +692,8 @@ struct WebCanvasView: NSViewRepresentable {
               return;
             }
             const rect = chromeRect(target);
-            if (rect.width <= 0 || rect.height <= 0 || rect.bottom < 0 || rect.top > window.innerHeight) {
+            if (rect.width <= 0 || rect.height <= 0 || rect.bottom < 0 || rect.top > window.innerHeight
+                || rect.right < 0 || rect.left > window.innerWidth) {
               editableChrome.style.setProperty('display', 'none', 'important');
               return;
             }
@@ -561,30 +708,25 @@ struct WebCanvasView: NSViewRepresentable {
 
           const updateChromeTitle = () => {
             chromeFrame = null;
-            updateSelectionChrome();
+            const occupiedTitles = [];
+            updateSelectionChrome(occupiedTitles);
             updateHoverChrome();
             updateEditableChrome();
-            if (!hoveredPart || !hoveredPart.isConnected || !editorOptions.showsTitles) {
+            updateDropChrome();
+            const hoveredPartIsSelected = selectedChromeTargets.some(entry => entry.part === hoveredPart);
+            if (!hoveredPart || !hoveredPart.isConnected || hoveredPartIsSelected || !editorOptions.showsTitles) {
               chromeTitle.style.setProperty('display', 'none', 'important');
               return;
             }
-            const geometry = outlineGeometry(hoveredPart, false);
-            const rect = geometry.rect;
-            if (rect.width <= 0 || rect.height <= 0 || rect.bottom < 0 || rect.top > window.innerHeight) {
-              chromeTitle.style.setProperty('display', 'none', 'important');
-              return;
-            }
-            chromeTitle.textContent = hoveredPart.dataset.foundryName || '';
-            chromeTitle.style.setProperty('background', partChromeColor(hoveredPart), 'important');
-            chromeTitle.style.setProperty('left', (rect.left + rect.width / 2) + 'px', 'important');
-            chromeTitle.style.setProperty('top', (rect.top + chromeStrokeWidth / 2) + 'px', 'important');
-            chromeTitle.style.setProperty('transform', 'translate(-50%, -50%)', 'important');
-            chromeTitle.style.setProperty(
-              'max-width',
-              Math.max(0, rect.width) + 'px',
-              'important'
+            positionChromeTitle(
+              chromeTitle,
+              hoveredPart,
+              partChromeTitle(hoveredPart),
+              hoverChromeColor,
+              false,
+              1,
+              occupiedTitles
             );
-            chromeTitle.style.setProperty('display', 'block', 'important');
           };
 
           const scheduleChromeTitleUpdate = () => {
@@ -613,19 +755,30 @@ struct WebCanvasView: NSViewRepresentable {
             hoveredEditable = editable;
             scheduleChromeTitleUpdate();
           }, true);
-          document.addEventListener('pointerleave', () => {
+          const clearHoverChrome = () => {
             hoveredPart = null;
             hoveredPrimitive = null;
             hoveredEditable = null;
-            scheduleChromeTitleUpdate();
-          }, true);
+            updateChromeTitle();
+          };
+          window.foundryClearHoverChrome = clearHoverChrome;
+          document.documentElement.addEventListener('pointerleave', clearHoverChrome);
+          window.addEventListener('pointerout', event => {
+            if (event.relatedTarget === null) clearHoverChrome();
+          });
+          window.addEventListener('blur', clearHoverChrome);
           document.addEventListener('scroll', scheduleChromeTitleUpdate, true);
           window.addEventListener('resize', scheduleChromeTitleUpdate);
 
           const clearDrop = () => {
-            document.querySelectorAll('.foundry-drop-before,.foundry-drop-after,.foundry-drop-inside')
-              .forEach(e => e.classList.remove('foundry-drop-before','foundry-drop-after','foundry-drop-inside'));
             placement = null;
+            activeDropChrome = null;
+            dropChrome.style.setProperty('display', 'none', 'important');
+          };
+
+          const showDropChrome = candidate => {
+            activeDropChrome = candidate?.element ? candidate : null;
+            updateChromeTitle();
           };
 
           const clearDragSources = () => {
@@ -772,6 +925,7 @@ struct WebCanvasView: NSViewRepresentable {
               if (!firstElement) firstElement = selectionElement;
               selectedChromeTargets.push({
                 element: selectionElement,
+                part: element,
                 color: partChromeColor(selectionElement),
                 isPrimitive
               });
@@ -785,6 +939,15 @@ struct WebCanvasView: NSViewRepresentable {
           document.addEventListener('keydown', event => {
             const target = event.target;
             if (target?.isContentEditable || target?.closest?.('input, textarea, select, [contenteditable="true"]')) return;
+            if (event.key === 'Escape' && selectedPartIDs.length > 0) {
+              event.preventDefault();
+              event.stopPropagation();
+              window.webkit.messageHandlers.foundryCanvas.postMessage({
+                version: 1,
+                event: 'clearSelection'
+              });
+              return;
+            }
             if (selectedPartIDs.length === 0) return;
 
             const postSelectionAction = action => {
@@ -887,7 +1050,7 @@ struct WebCanvasView: NSViewRepresentable {
                 dragImage.textContent = selectedPartIDs.length + ' parts';
                 dragImage.style.setProperty(
                   '--foundry-drag-color',
-                  getComputedStyle(element).getPropertyValue('--foundry-editor-chrome').trim() || '#0A84FF'
+                  getComputedStyle(element).getPropertyValue('--foundry-editor-chrome').trim() || '#007BFF'
                 );
                 document.body.appendChild(dragImage);
                 event.dataTransfer.setDragImage(dragImage, 28, 20);
@@ -1015,11 +1178,10 @@ struct WebCanvasView: NSViewRepresentable {
               const imageZone = event.target.closest('[data-foundry-image-drop-zone]');
               const image = imageZone?.closest(selector);
               if (image) {
-                imageZone.classList.add('foundry-drop-inside');
-                hideSelectionChromeForImageDrop(imageZone);
+                showDropChrome({ kind: 'inside', targetID: image.dataset.foundryId, element: imageZone });
               } else {
                 placement = intendedPlacement(event);
-                if (placement.element) placement.element.classList.add('foundry-drop-' + placement.kind);
+                showDropChrome(placement);
               }
               event.dataTransfer.dropEffect = 'copy';
               return;
@@ -1040,8 +1202,7 @@ struct WebCanvasView: NSViewRepresentable {
               : null;
             const image = imageZone?.closest(selector);
             if (image) {
-              imageZone.classList.add('foundry-drop-inside');
-              hideSelectionChromeForImageDrop(imageZone);
+              showDropChrome({ kind: 'inside', targetID: image.dataset.foundryId, element: imageZone });
               event.dataTransfer.dropEffect = 'copy';
               return;
             }
@@ -1052,7 +1213,7 @@ struct WebCanvasView: NSViewRepresentable {
               return;
             }
             placement = candidate;
-            if (placement.element) placement.element.classList.add('foundry-drop-' + placement.kind);
+            showDropChrome(placement);
             const allowedEffect = event.dataTransfer.effectAllowed;
             event.dataTransfer.dropEffect = allowedEffect === 'move' ? 'move' : 'copy';
           });
@@ -1289,9 +1450,38 @@ struct WebCanvasView: NSViewRepresentable {
           document.addEventListener('click', event => {
             const element = event.target.closest(selector);
             if (element?.isContentEditable) return;
-            if (!element) return;
+            if (!element) {
+              if (event.button === 0 && selectedPartIDs.length > 0) {
+                event.preventDefault();
+                event.stopPropagation();
+                window.webkit.messageHandlers.foundryCanvas.postMessage({
+                  version: 1,
+                  event: 'clearSelection'
+                });
+              }
+              return;
+            }
             event.preventDefault();
             event.stopPropagation();
+            if (event.altKey && !event.metaKey && !event.shiftKey) {
+              const ancestors = [];
+              let candidate = element;
+              while (candidate) {
+                ancestors.push(candidate);
+                candidate = candidate.parentElement?.closest(selector) ?? null;
+              }
+              const selectedIndex = ancestors.findIndex(candidatePart =>
+                candidatePart.dataset.foundryId === selectedPartIDs[0]
+              );
+              const nextPart = ancestors[(selectedIndex + 1) % ancestors.length];
+              window.webkit.messageHandlers.foundryCanvas.postMessage({
+                version: 1,
+                event: 'selectPart',
+                partID: nextPart.dataset.foundryId,
+                extendsSelection: false
+              });
+              return;
+            }
             const primitive = event.target.closest('[data-foundry-primitive-property]');
             if (primitive && primitive.closest(selector) === element && !(event.metaKey || event.shiftKey)) {
               window.webkit.messageHandlers.foundryCanvas.postMessage({
@@ -1383,6 +1573,9 @@ struct WebCanvasView: NSViewRepresentable {
             guard message.name == Self.handlerName,
                   message.frameInfo.isMainFrame,
                   let canvasMessage = CanvasMessage.decode(message.body) else { return }
+            if canvasMessage.event == .clearSelection {
+                pendingCanvasSelection = []
+            }
             if let partID = canvasMessage.partID,
                canvasMessage.event == .selectPart || canvasMessage.event == .selectPrimitive {
                 if canvasMessage.event == .selectPart, canvasMessage.extendsSelection == true {

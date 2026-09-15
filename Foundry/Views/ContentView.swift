@@ -38,6 +38,7 @@ struct ContentView: View {
     @State private var expandedPageTreeItemIDs: Set<UUID> = []
     @State private var selectedAssetLibraryNodeID: UUID?
     @State private var selectedPartIDs: Set<UUID> = []
+    @State private var selectedPartSelectionOrder: [UUID] = []
     @State private var selectedPartID: UUID?
     @State private var expandedStructurePartIDs: Set<UUID> = []
     @State private var selectedPrimitive: CanvasPrimitiveSelection?
@@ -189,14 +190,28 @@ struct ContentView: View {
             selectedPageAssetID = nil
             selectedAssetLibraryNodeID = nil
         }
-        .onChange(of: selectedPartIDs) { _, partIDs in
+        .onChange(of: selectedPartIDs) { previousPartIDs, partIDs in
+            selectedPartSelectionOrder.removeAll { !partIDs.contains($0) }
+            var addedPartIDs = partIDs.subtracting(previousPartIDs)
+                .sorted { lhs, rhs in
+                    partDocumentOrderIndex(lhs) < partDocumentOrderIndex(rhs)
+                }
+            if let selectedPartID,
+               let primaryIndex = addedPartIDs.firstIndex(of: selectedPartID) {
+                addedPartIDs.append(addedPartIDs.remove(at: primaryIndex))
+            }
+            selectedPartSelectionOrder.append(contentsOf: addedPartIDs.filter {
+                !selectedPartSelectionOrder.contains($0)
+            })
             if partIDs.count != 1 || selectedPrimitive.map({ !partIDs.contains($0.partID) }) == true {
                 selectedPrimitive = nil
             }
-            if let selectedPartID, !partIDs.contains(selectedPartID) {
-                self.selectedPartID = partIDs.first
+            if !addedPartIDs.isEmpty {
+                selectedPartID = selectedPartSelectionOrder.last
+            } else if let selectedPartID, !partIDs.contains(selectedPartID) {
+                self.selectedPartID = selectedPartSelectionOrder.last
             } else if selectedPartID == nil {
-                selectedPartID = partIDs.first
+                selectedPartID = selectedPartSelectionOrder.last
             }
             guard !partIDs.isEmpty else { return }
             selectedLibraryPartType = nil
@@ -481,7 +496,8 @@ struct ContentView: View {
                     pages: document.site.pages,
                     publicURL: document.site.publicURL,
                     part: selectedPart,
-                    partSelectionCount: selectedPartIDs.count,
+                    selectedParts: selectedParts,
+                    allowsMultiPartEditing: allowsMultiPartEditing,
                     libraryPartType: selectedLibraryPartType,
                     theme: document.site.theme,
                     assets: document.site.assets,
@@ -558,6 +574,15 @@ struct ContentView: View {
                 markModified(page.id)
             } else {
                 markAllPages()
+            }
+        case .partProperties(let partIDs, _):
+            let affectedPageIDs = Set(document.site.pages.compactMap { page in
+                partIDs.contains { page.parts.node(withID: $0) != nil } ? page.id : nil
+            })
+            if affectedPageIDs.isEmpty {
+                markAllPages()
+            } else {
+                affectedPageIDs.forEach(markModified)
             }
         case .partStructure(let ownerID):
             if let ownerID,
@@ -716,6 +741,44 @@ struct ContentView: View {
         return selectedPage?.parts.node(withID: selectedPartID)
     }
 
+    private var selectedParts: [PartNode] {
+        guard let selectedPage else { return [] }
+        func flattened(_ nodes: [PartNode]) -> [PartNode] {
+            nodes.flatMap { [$0] + flattened($0.children) }
+        }
+        let ordered = flattened(selectedPage.parts).filter { selectedPartIDs.contains($0.id) }
+        let sourceOfTruthID = selectedPartSelectionOrder.last ?? selectedPartID
+        guard let sourceOfTruthID,
+              let primaryIndex = ordered.firstIndex(where: { $0.id == sourceOfTruthID }) else {
+            return ordered
+        }
+        var result = ordered
+        let primary = result.remove(at: primaryIndex)
+        result.insert(primary, at: 0)
+        return result
+    }
+
+    private func partDocumentOrderIndex(_ id: UUID) -> Int {
+        guard let selectedPage else { return .max }
+        func flattenedIDs(_ nodes: [PartNode]) -> [UUID] {
+            nodes.flatMap { [$0.id] + flattenedIDs($0.children) }
+        }
+        return flattenedIDs(selectedPage.parts).firstIndex(of: id) ?? .max
+    }
+
+    private var allowsMultiPartEditing: Bool {
+        guard selectedParts.count > 1,
+              let type = selectedParts.first?.type.rawValue,
+              selectedParts.allSatisfy({ $0.type.rawValue == type }) else { return false }
+        // A linked global edits its shared definition rather than just the selected
+        // instance. Keep that wider operation explicit instead of hiding it inside
+        // a local multi-edit.
+        return selectedParts.allSatisfy { part in
+            guard let context = document.site.globalPartContext(containing: part.id) else { return true }
+            return context.isOverridden
+        }
+    }
+
     private var topLevelSelectedPartIDs: [UUID] {
         topLevelPartIDs(from: selectedPartIDs)
     }
@@ -750,6 +813,10 @@ struct ContentView: View {
         guard let page = selectedPage else { return }
 
         switch message.event {
+        case .clearSelection:
+            selectedPrimitive = nil
+            selectedPartIDs = []
+            selectedPartID = nil
         case .selectPart:
             selectedPrimitive = nil
             guard let partID = message.partID,

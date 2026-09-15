@@ -56,9 +56,9 @@ nonisolated struct HTMLPageRenderer: PageRendering {
               --foundry-font-monospace: \(theme.typography.monospacedFont.cssFamily);
               \(theme.customFontCSSVariables)
               \(theme.fontSizeCSSVariables)
-              --foundry-editor-part: #0A84FF;
+              --foundry-editor-part: #007BFF;
               --foundry-editor-global: #30D158;
-              --foundry-editor-primitive: #0A84FF;
+              --foundry-editor-primitive: #007BFF;
               \(theme.spacingCSSVariables)
               \(theme.shadowCSSVariables)
               \(theme.borderCSSVariables)
@@ -92,27 +92,12 @@ nonisolated struct HTMLPageRenderer: PageRendering {
               outline: none !important;
             }
             .foundry-drag-source { opacity: 0.4 !important; }
-            .foundry-drop-before { box-shadow: inset 0 4px 0 var(--foundry-editor-chrome) !important; }
-            .foundry-drop-after { box-shadow: inset 0 -4px 0 var(--foundry-editor-chrome) !important; }
-            .foundry-drop-inside { outline: 4px dashed var(--foundry-editor-chrome) !important; outline-offset: -8px; }
-            .foundry-drop-end { border-color: var(--foundry-editor-chrome) !important; background: color-mix(in srgb, var(--foundry-editor-chrome) 12%, transparent) !important; }
-            [data-foundry-global].foundry-drop-before { box-shadow: inset 0 4px 0 var(--foundry-editor-chrome) !important; }
-            [data-foundry-global].foundry-drop-after { box-shadow: inset 0 -4px 0 var(--foundry-editor-chrome) !important; }
-            [data-foundry-global].foundry-drop-inside { outline-color: var(--foundry-editor-chrome) !important; }
-            [data-foundry-global].foundry-drop-end {
-              border-color: var(--foundry-editor-chrome) !important;
-              background: color-mix(in srgb, var(--foundry-editor-chrome) 12%, transparent) !important;
-            }
             .foundry-empty-drop-zone {
               display: grid; place-items: center; min-height: 64px; padding: 16px;
               border: 2px dashed color-mix(in srgb, var(--foundry-editor-chrome) 42%, transparent) !important;
               border-radius: 6px; color: color-mix(in srgb, var(--foundry-color-text) 58%, transparent);
               background: color-mix(in srgb, var(--foundry-color-surface) 72%, transparent);
               font: 600 13px system-ui; text-align: center;
-            }
-            .foundry-empty-drop-zone.foundry-drop-inside {
-              border-color: transparent !important;
-              outline-offset: -4px;
             }
             .foundry-empty-page { min-height: 100vh; }
             .foundry-contentless-drop-zone { min-height: 32px; padding: 6px 12px; }
@@ -141,16 +126,6 @@ nonisolated struct HTMLPageRenderer: PageRendering {
               border-radius: 6px; color: color-mix(in srgb, var(--foundry-color-text) 58%, transparent);
               background: color-mix(in srgb, var(--foundry-color-surface) 72%, transparent);
               font: 600 13px system-ui; text-align: center;
-            }
-            .foundry-image-drop-zone.foundry-drop-inside {
-              border-color: transparent !important;
-              outline-offset: -4px;
-            }
-            [data-foundry-image-drop-zone].foundry-image.foundry-drop-inside {
-              outline-offset: -4px;
-            }
-            [data-foundry-image-drop-zone][data-foundry-primitive-property].foundry-drop-inside {
-              outline-color: var(--foundry-editor-chrome) !important;
             }
             .foundry-spacer { min-height: 8px; }
             .unavailable { padding: 16px; border: 2px dashed #C33; color: #922; background: #FFF5F5; }

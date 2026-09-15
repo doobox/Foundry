@@ -2,6 +2,7 @@ import Foundation
 
 nonisolated enum ProjectMutationImpact: Equatable, Sendable {
     case partProperty(partID: UUID, propertyKey: PartProperty.Key)
+    case partProperties(partIDs: [UUID], propertyKey: PartProperty.Key)
     case partStructure(ownerID: UUID?)
     case page
     case theme
@@ -201,6 +202,28 @@ struct ProjectEditor {
         }
     }
 
+    func setProperties(
+        ids: [UUID],
+        key: PartProperty.Key,
+        value: PartProperty.Value
+    ) {
+        var seen = Set<UUID>()
+        let ids = ids.filter { seen.insert($0).inserted }
+        guard !ids.isEmpty else { return }
+        if ids.count == 1, let id = ids.first {
+            setProperty(id: id, key: key, value: value)
+            return
+        }
+        mutate(
+            actionName: "Edit \(ids.count) Parts",
+            impact: .partProperties(partIDs: ids, propertyKey: key)
+        ) { site in
+            for id in ids {
+                site.updatePart(id: id) { $0.setProperty(key, value: value) }
+            }
+        }
+    }
+
     func setProperty(id: UUID, key: PartProperty.Key, value: String) {
         let propertyValue: PartProperty.Value = key == .destination
             ? .link(.init(destination: value.isEmpty ? .none : .url(value)))
@@ -225,6 +248,31 @@ struct ProjectEditor {
         }
     }
 
+    func setResponsiveProperties(
+        ids: [UUID],
+        key: PartProperty.Key,
+        value: PartProperty.Value,
+        breakpoint: ResponsiveBreakpoint
+    ) {
+        var seen = Set<UUID>()
+        let ids = ids.filter { seen.insert($0).inserted }
+        guard !ids.isEmpty else { return }
+        if ids.count == 1, let id = ids.first {
+            setResponsiveProperty(id: id, key: key, value: value, breakpoint: breakpoint)
+            return
+        }
+        mutate(
+            actionName: "Edit \(breakpoint.displayName) on \(ids.count) Parts",
+            impact: .partProperties(partIDs: ids, propertyKey: key)
+        ) { site in
+            for id in ids {
+                site.updatePart(id: id) {
+                    $0.setResponsiveProperty(key, value: value, at: breakpoint)
+                }
+            }
+        }
+    }
+
     func removeResponsiveOverride(id: UUID, key: PartProperty.Key, breakpoint: ResponsiveBreakpoint) {
         if let context = document.site.globalPartContext(containing: id), !context.isOverridden {
             removeSharedReusableResponsiveOverride(partID: id, key: key, breakpoint: breakpoint)
@@ -232,6 +280,28 @@ struct ProjectEditor {
         }
         mutate(actionName: "Reset \(breakpoint.displayName) Part", impact: .partProperty(partID: id, propertyKey: key)) { site in
             site.updatePart(id: id) { $0.removeResponsiveOverride(key, at: breakpoint) }
+        }
+    }
+
+    func removeResponsiveOverrides(
+        ids: [UUID],
+        key: PartProperty.Key,
+        breakpoint: ResponsiveBreakpoint
+    ) {
+        var seen = Set<UUID>()
+        let ids = ids.filter { seen.insert($0).inserted }
+        guard !ids.isEmpty else { return }
+        if ids.count == 1, let id = ids.first {
+            removeResponsiveOverride(id: id, key: key, breakpoint: breakpoint)
+            return
+        }
+        mutate(
+            actionName: "Reset \(breakpoint.displayName) on \(ids.count) Parts",
+            impact: .partProperties(partIDs: ids, propertyKey: key)
+        ) { site in
+            for id in ids {
+                site.updatePart(id: id) { $0.removeResponsiveOverride(key, at: breakpoint) }
+            }
         }
     }
 

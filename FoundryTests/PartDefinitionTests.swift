@@ -184,7 +184,7 @@ struct PartDefinitionTests {
         // The removed font-size control still emits no styling.
         #expect(!PartType.paragraph.definition.package!.css.contains("font-size:"))
         #expect(html.contains("aria-label=\"Open &quot;details&quot;\""))
-        #expect(html.contains("--foundry-editor-part: #0A84FF"))
+        #expect(html.contains("--foundry-editor-part: #007BFF"))
         #expect(html.contains("--foundry-editor-global: #30D158"))
     }
 

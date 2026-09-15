@@ -98,7 +98,7 @@ struct CanvasSynchronizationTests {
             """, arguments: [:], in: nil, contentWorld: .defaultClient) as? [String])
         #expect(result[0] == "block")
         #expect(Array(result[1...5]) == ["30px", "30px", "100px", "100px", "3px"])
-        #expect(result[6].contains("10px"))
-        #expect(result[7].contains("rgb(10, 132, 255)"))
+        #expect(result[6] == "0px")
+        #expect(result[7].contains("rgb(0, 123, 255)"))
     }
 }

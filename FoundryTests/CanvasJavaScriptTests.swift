@@ -5,6 +5,76 @@ import WebKit
 @MainActor
 struct CanvasJavaScriptTests {
     @Test(.timeLimit(.minutes(1)))
+    func blankCanvasEscapeAndOptionClickDriveExpectedSelection() async throws {
+        let outerID = UUID()
+        let innerID = UUID()
+        let recorder = CanvasMessageRecorder()
+        let configuration = WKWebViewConfiguration()
+        configuration.userContentController.add(
+            recorder,
+            contentWorld: .defaultClient,
+            name: WebCanvasView.Coordinator.handlerName
+        )
+        configuration.userContentController.addUserScript(.init(
+            source: WebCanvasView.Coordinator.interactionScript,
+            injectionTime: .atDocumentEnd, forMainFrameOnly: true, in: .defaultClient))
+        let webView = WKWebView(frame: CGRect(x: 0, y: 0, width: 600, height: 400), configuration: configuration)
+        defer {
+            configuration.userContentController.removeScriptMessageHandler(
+                forName: WebCanvasView.Coordinator.handlerName,
+                contentWorld: .defaultClient
+            )
+            webView.stopLoading()
+        }
+        webView.loadHTMLString("""
+            <html><body><section data-foundry-id="\(outerID.uuidString)" data-foundry-name="Outer">
+            <p data-foundry-id="\(innerID.uuidString)" data-foundry-name="Inner">Text</p>
+            </section></body></html>
+            """, baseURL: nil)
+        var ready = false
+        for _ in 0..<200 {
+            ready = (try? await webView.callAsyncJavaScript(
+                "return typeof window.foundrySetSelection === 'function'",
+                arguments: [:], in: nil, contentWorld: .defaultClient)) as? Bool == true
+            if ready { break }
+            try await Task.sleep(for: .milliseconds(25))
+        }
+        try #require(ready)
+
+        let blankClickMessageCount = recorder.messages.count
+        _ = try await webView.callAsyncJavaScript("""
+            window.foundrySetSelection([innerID], {}, false);
+            document.body.dispatchEvent(new MouseEvent('click', { bubbles: true, button: 0 }));
+            """, arguments: ["innerID": innerID.uuidString], in: nil, contentWorld: .defaultClient)
+        for _ in 0..<40 where recorder.messages.count == blankClickMessageCount {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        #expect(recorder.messages.last?.event == .clearSelection)
+
+        let escapeMessageCount = recorder.messages.count
+        _ = try await webView.callAsyncJavaScript("""
+            window.foundrySetSelection([innerID], {}, false);
+            document.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: 'Escape' }));
+            """, arguments: ["innerID": innerID.uuidString], in: nil, contentWorld: .defaultClient)
+        for _ in 0..<40 where recorder.messages.count == escapeMessageCount {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        #expect(recorder.messages.last?.event == .clearSelection)
+
+        let optionClickMessageCount = recorder.messages.count
+        _ = try await webView.callAsyncJavaScript("""
+            window.foundrySetSelection([innerID], {}, false);
+            document.querySelector('[data-foundry-id="' + CSS.escape(innerID) + '"]')
+              .dispatchEvent(new MouseEvent('click', { bubbles: true, button: 0, altKey: true }));
+            """, arguments: ["innerID": innerID.uuidString], in: nil, contentWorld: .defaultClient)
+        for _ in 0..<40 where recorder.messages.count == optionClickMessageCount {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        #expect(recorder.messages.last?.event == .selectPart)
+        #expect(recorder.messages.last?.partID == outerID)
+    }
+
+    @Test(.timeLimit(.minutes(1)))
     func builtInFlexColumnsLayOutAtBaseAndMediumIncludingNestedColumns() async throws {
         await PartPackageCatalog.shared.waitUntilLoaded()
         var inner = PartNode.make(.columns)
@@ -49,7 +119,7 @@ struct CanvasJavaScriptTests {
         configuration.userContentController.addUserScript(.init(
             source: WebCanvasView.Coordinator.interactionScript,
             injectionTime: .atDocumentEnd, forMainFrameOnly: true, in: .defaultClient))
-        let webView = WKWebView(frame: CGRect(x: 0, y: 0, width: 600, height: 400), configuration: configuration)
+        let webView = CanvasWebView(frame: CGRect(x: 0, y: 0, width: 600, height: 400), configuration: configuration)
         let window = NSWindow(contentRect: webView.frame, styleMask: [.titled], backing: .buffered, defer: false)
         window.isReleasedWhenClosed = false
         window.contentView = webView
@@ -77,21 +147,49 @@ struct CanvasJavaScriptTests {
                 const host = document.querySelector('[data-foundry-editor-chrome="host"]');
                 const title = host.shadowRoot.querySelector('[data-foundry-editor-chrome="title"]');
                 return title.style.display === 'block'
-                  && title.style.left === '68px' && title.style.top === '19.5px'
-                  && title.style.transform === 'translate(-50%, -50%)'
+                  && title.style.left === '18px' && title.style.top === '18px'
+                  && title.style.transform === 'none'
                   && title.style.maxWidth === '100px'
-                  && getComputedStyle(title).borderRadius === '999px';
+                  && title.style.opacity === '1'
+                  && getComputedStyle(title).backgroundColor === 'rgb(64, 156, 255)'
+                  && getComputedStyle(title).borderRadius === '0px 0px 5px';
                 """, arguments: [:], in: nil, contentWorld: .defaultClient)) as? Bool == true
             if titleAligned { break }
             try await Task.sleep(for: .milliseconds(25))
         }
         #expect(titleAligned)
+        webView.clearHoverChrome()
+        var hoverCleared = false
+        for _ in 0..<80 {
+            hoverCleared = (try? await webView.callAsyncJavaScript("""
+                const root = document.querySelector('[data-foundry-editor-chrome="host"]').shadowRoot;
+                return root.querySelector('[data-foundry-editor-chrome="title"]').style.display === 'none'
+                  && root.querySelector('[data-foundry-editor-chrome="hover"]').style.display === 'none';
+                """, arguments: [:], in: nil, contentWorld: .defaultClient)) as? Bool == true
+            if hoverCleared { break }
+            try await Task.sleep(for: .milliseconds(25))
+        }
+        #expect(hoverCleared)
         _ = try await webView.callAsyncJavaScript(
             "document.querySelector('[data-foundry-id]').style.cssText = ''",
             arguments: [:], in: nil, contentWorld: .defaultClient)
         _ = try await webView.callAsyncJavaScript(
             "window.foundrySetSelection(['test-part'], {}, false)",
             arguments: [:], in: nil, contentWorld: .defaultClient)
+        webView.clearHoverChrome()
+        var selectionTitleRemains = false
+        for _ in 0..<80 {
+            selectionTitleRemains = (try? await webView.callAsyncJavaScript("""
+                const title = document.querySelector('[data-foundry-editor-chrome="host"]').shadowRoot
+                  .querySelector('[data-foundry-editor-chrome="selection-title"]');
+                return title.style.display === 'block'
+                  && title.style.opacity === '1'
+                  && title.textContent === 'Example';
+                """, arguments: [:], in: nil, contentWorld: .defaultClient)) as? Bool == true
+            if selectionTitleRemains { break }
+            try await Task.sleep(for: .milliseconds(25))
+        }
+        #expect(selectionTitleRemains)
         try await Task.sleep(for: .milliseconds(100))
         // Emulate asynchronous text reflow after the initial chrome update.
         _ = try await webView.callAsyncJavaScript(
@@ -109,6 +207,116 @@ struct CanvasJavaScriptTests {
             try await Task.sleep(for: .milliseconds(25))
         }
         #expect(aligned)
+
+        _ = try await webView.callAsyncJavaScript("""
+            const child = document.querySelector('[data-foundry-id="test-part"]');
+            const parent = document.createElement('div');
+            parent.dataset.foundryId = 'parent-part';
+            parent.dataset.foundryName = 'Parent';
+            child.before(parent);
+            parent.appendChild(child);
+            parent.dispatchEvent(new PointerEvent('pointermove', { bubbles: true }));
+            """, arguments: [:], in: nil, contentWorld: .defaultClient)
+        var parentHoverTitleIsFrontmost = false
+        for _ in 0..<80 {
+            parentHoverTitleIsFrontmost = (try? await webView.callAsyncJavaScript("""
+                const root = document.querySelector('[data-foundry-editor-chrome="host"]').shadowRoot;
+                const hoverTitle = root.querySelector('[data-foundry-editor-chrome="title"]');
+                const selectionTitle = root.querySelector('[data-foundry-editor-chrome="selection-title"]');
+                const hoverRect = hoverTitle.getBoundingClientRect();
+                const selectionRect = selectionTitle.getBoundingClientRect();
+                const overlap = !(hoverRect.right <= selectionRect.left || hoverRect.left >= selectionRect.right
+                  || hoverRect.bottom <= selectionRect.top || hoverRect.top >= selectionRect.bottom);
+                return hoverTitle.style.display === 'block'
+                  && hoverTitle.textContent === 'Parent'
+                  && selectionTitle.style.display === 'block'
+                  && !overlap
+                  && Number(getComputedStyle(hoverTitle).zIndex) > Number(getComputedStyle(selectionTitle).zIndex);
+                """, arguments: [:], in: nil, contentWorld: .defaultClient)) as? Bool == true
+            if parentHoverTitleIsFrontmost { break }
+            try await Task.sleep(for: .milliseconds(25))
+        }
+        #expect(parentHoverTitleIsFrontmost)
+
+        let multipleSelectionLabelsAreOrderedAndSeparated = try await webView.callAsyncJavaScript("""
+            window.foundrySetSelection(['test-part', 'parent-part'], {}, false);
+            window.foundryClearHoverChrome();
+            const root = document.querySelector('[data-foundry-editor-chrome="host"]').shadowRoot;
+            const titles = [...root.querySelectorAll('[data-foundry-editor-chrome="selection-title"]')]
+              .filter(title => title.style.display === 'block');
+            const first = titles[0].getBoundingClientRect();
+            const second = titles[1].getBoundingClientRect();
+            const overlap = !(first.right <= second.left || first.left >= second.right
+              || first.bottom <= second.top || first.top >= second.bottom);
+            return titles.length === 2 && !overlap
+              && Number(getComputedStyle(titles[0]).zIndex) > Number(getComputedStyle(titles[1]).zIndex);
+            """, arguments: [:], in: nil, contentWorld: .defaultClient)
+        #expect(multipleSelectionLabelsAreOrderedAndSeparated as? Bool == true)
+
+        let partiallyClippedPartKeepsVisibleLabel = try await webView.callAsyncJavaScript("""
+            const parent = document.querySelector('[data-foundry-id="parent-part"]');
+            parent.style.cssText = 'position:fixed;left:-20px;top:-20px;width:160px;height:100px';
+            window.foundrySetSelection(['parent-part'], {}, false);
+            const title = document.querySelector('[data-foundry-editor-chrome="host"]').shadowRoot
+              .querySelector('[data-foundry-editor-chrome="selection-title"]');
+            const rect = title.getBoundingClientRect();
+            const visible = title.style.display === 'block' && rect.left >= 0 && rect.top >= 0;
+            parent.style.cssText = '';
+            return visible;
+            """, arguments: [:], in: nil, contentWorld: .defaultClient)
+        #expect(partiallyClippedPartKeepsVisibleLabel as? Bool == true)
+
+        let activeDropStateIsExclusive = try await webView.callAsyncJavaScript("""
+            const parent = document.querySelector('[data-foundry-id="parent-part"]');
+            parent.dataset.foundryAcceptsChildren = 'true';
+            window.foundrySetSelection(['parent-part'], {}, false);
+            const rect = parent.getBoundingClientRect();
+            const drag = new Event('dragover', { bubbles: true, cancelable: true });
+            Object.defineProperties(drag, {
+              clientY: { value: rect.top + rect.height / 2 },
+              dataTransfer: { value: {
+                types: ['text/plain'], effectAllowed: 'copy', dropEffect: 'none',
+                getData: () => 'foundry-part-type:foundry.content.button'
+              }}
+            });
+            parent.dispatchEvent(drag);
+            const root = document.querySelector('[data-foundry-editor-chrome="host"]').shadowRoot;
+            const outline = root.querySelector('[data-foundry-editor-chrome="selection"]');
+            const title = root.querySelector('[data-foundry-editor-chrome="selection-title"]');
+            const drop = root.querySelector('[data-foundry-editor-chrome="drop"]');
+            return !parent.classList.contains('foundry-drop-inside')
+              && drop.style.display === 'block'
+              && getComputedStyle(drop).borderStyle === 'dashed'
+              && outline.style.display === 'none' && title.style.display === 'none';
+            """, arguments: [:], in: nil, contentWorld: .defaultClient)
+        #expect(activeDropStateIsExclusive as? Bool == true)
+
+        let selectionStaysSuppressedDuringDropUpdates = try await webView.callAsyncJavaScript("""
+            window.foundrySetSelection(['parent-part'], {}, false);
+            const root = document.querySelector('[data-foundry-editor-chrome="host"]').shadowRoot;
+            return root.querySelector('[data-foundry-editor-chrome="selection"]').style.display === 'none'
+              && root.querySelector('[data-foundry-editor-chrome="selection-title"]').style.display === 'none'
+              && root.querySelector('[data-foundry-editor-chrome="drop"]').style.display === 'block';
+            """, arguments: [:], in: nil, contentWorld: .defaultClient)
+        #expect(selectionStaysSuppressedDuringDropUpdates as? Bool == true)
+
+        _ = try await webView.callAsyncJavaScript("""
+            const leave = new Event('dragleave', { bubbles: true });
+            Object.defineProperty(leave, 'relatedTarget', { value: null });
+            document.querySelector('[data-foundry-id="parent-part"]').dispatchEvent(leave);
+            """, arguments: [:], in: nil, contentWorld: .defaultClient)
+        var selectionRestoredAfterDropExit = false
+        for _ in 0..<80 {
+            selectionRestoredAfterDropExit = (try? await webView.callAsyncJavaScript("""
+                const root = document.querySelector('[data-foundry-editor-chrome="host"]').shadowRoot;
+                return root.querySelector('[data-foundry-editor-chrome="selection"]').style.display === 'block'
+                  && root.querySelector('[data-foundry-editor-chrome="selection-title"]').style.display === 'block'
+                  && root.querySelector('[data-foundry-editor-chrome="drop"]').style.display === 'none';
+                """, arguments: [:], in: nil, contentWorld: .defaultClient)) as? Bool == true
+            if selectionRestoredAfterDropExit { break }
+            try await Task.sleep(for: .milliseconds(25))
+        }
+        #expect(selectionRestoredAfterDropExit)
     }
 
     @Test(.timeLimit(.minutes(1)))
@@ -300,6 +508,17 @@ struct CanvasJavaScriptTests {
         <!doctype html><html><head><style id="theme">:root { --foundry-color-accent: \(colour); }</style></head>
         <body><div data-foundry-id="test-part">Example</div></body></html>
         """
+    }
+}
+
+@MainActor
+private final class CanvasMessageRecorder: NSObject, WKScriptMessageHandler {
+    var messages: [CanvasMessage] = []
+
+    func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
+        if let decoded = CanvasMessage.decode(message.body) {
+            messages.append(decoded)
+        }
     }
 }
 

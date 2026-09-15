@@ -6,6 +6,7 @@ struct PartPropertyEditor: View {
     @Environment(\.canvasAppearance) private var appearance
     let definition: PartPropertyDefinition
     let part: PartNode
+    let selectedParts: [PartNode]
     let currentPage: Page?
     let theme: Theme
     let assets: [ProjectAsset]
@@ -21,6 +22,7 @@ struct PartPropertyEditor: View {
     init(
         definition: PartPropertyDefinition,
         part: PartNode,
+        selectedParts: [PartNode],
         currentPage: Page?,
         theme: Theme,
         assets: [ProjectAsset],
@@ -35,6 +37,7 @@ struct PartPropertyEditor: View {
     ) {
         self.definition = definition
         self.part = part
+        self.selectedParts = selectedParts
         self.currentPage = currentPage
         self.theme = theme
         self.assets = assets
@@ -651,7 +654,7 @@ struct PartPropertyEditor: View {
         }
         .disabled(effectiveBreakpoint != .mobile
             ? !part.hasResponsiveOverride(definition.key, at: effectiveBreakpoint)
-            : displayPart.propertyValue(definition.key) == definition.defaultValue)
+            : part.propertyValue(definition.key) == definition.defaultValue)
     }
 
     private var responsiveIndicator: InspectorRowIndicator {
@@ -719,6 +722,20 @@ struct PartPropertyEditor: View {
     ) {
         let key = key ?? definition.key
         let effectiveBreakpoint = effectiveBreakpoint(for: key)
+        if selectedParts.count > 1 {
+            let ids = selectedParts.map(\.id)
+            if effectiveBreakpoint == .mobile {
+                editor.setProperties(ids: ids, key: key, value: value)
+            } else {
+                editor.setResponsiveProperties(
+                    ids: ids,
+                    key: key,
+                    value: value,
+                    breakpoint: effectiveBreakpoint
+                )
+            }
+            return
+        }
         if effectiveBreakpoint == .mobile {
             if editsSharedDefinition {
                 editor.setSharedReusableProperty(partID: part.id, key: key, value: value)
@@ -738,6 +755,14 @@ struct PartPropertyEditor: View {
     }
 
     private func removeOverride(for key: PartProperty.Key) {
+        if selectedParts.count > 1 {
+            editor.removeResponsiveOverrides(
+                ids: selectedParts.map(\.id),
+                key: key,
+                breakpoint: breakpoint
+            )
+            return
+        }
         if editsSharedDefinition {
             editor.removeSharedReusableResponsiveOverride(
                 partID: part.id,

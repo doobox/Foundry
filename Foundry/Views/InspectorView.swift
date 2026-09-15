@@ -14,7 +14,8 @@ struct InspectorView: View {
     let pages: [Page]
     let publicURL: String
     let part: PartNode?
-    let partSelectionCount: Int
+    let selectedParts: [PartNode]
+    let allowsMultiPartEditing: Bool
     let libraryPartType: PartType?
     let theme: Theme
     let assets: [ProjectAsset]
@@ -31,9 +32,11 @@ struct InspectorView: View {
 
     var body: some View {
         Group {
-            if partSelectionCount == 1, let part {
+            if let part,
+               selectedParts.count == 1 || allowsMultiPartEditing {
                 PartInspector(
                     part: part,
+                    selectedParts: selectedParts,
                     currentPage: currentPage,
                     theme: theme,
                     assets: assets,
@@ -50,7 +53,7 @@ struct InspectorView: View {
                     editsSharedDefinition: $editsSharedDefinition,
                     groupExpansion: $partGroupExpansion
                 )
-            } else if partSelectionCount == 0,
+            } else if selectedParts.isEmpty,
                       page == nil,
                       folder == nil,
                       asset == nil,
@@ -69,10 +72,10 @@ struct InspectorView: View {
 
     @ViewBuilder
     private var inspectorFormContent: some View {
-        if partSelectionCount > 1 {
+        if selectedParts.count > 1 {
                 Section("Multiple Selection") {
-                    LabeledContent("Parts", value: partSelectionCount.formatted())
-                    Text("Group dragging and deletion apply to the selected parts.")
+                    LabeledContent("Parts", value: selectedParts.count.formatted())
+                    Text("Select instances of the same local component to edit their settings together.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -688,6 +691,7 @@ private struct PartInspector: View {
     @State private var loadedPartIcon: NSImage?
     @State private var showsAddAttributePopover = false
     let part: PartNode
+    let selectedParts: [PartNode]
     let currentPage: Page?
     let theme: Theme
     let assets: [ProjectAsset]
@@ -722,27 +726,30 @@ private struct PartInspector: View {
                 InspectorCard {
                     partIdentityHeader
 
-                    Divider()
-                    PartIdentityFields(
-                        anchor: partAnchorBinding,
-                        classes: partClassesBinding,
-                        attributes: partAttributesBinding,
-                        isDuplicateAnchor: partAnchorIsDuplicate,
-                        localOverride: reusableDefinition == nil ? nil : Binding(
-                            get: { isGlobalOverride },
-                            set: setGlobalOverride
-                        ),
-                        globalLabel: isGlobalOverride ? nil : globalIndicatorLabel,
-                        globalColor: globalIndicatorColor
-                    )
+                    if selectedParts.count == 1 {
+                        Divider()
+                        PartIdentityFields(
+                            anchor: partAnchorBinding,
+                            classes: partClassesBinding,
+                            attributes: partAttributesBinding,
+                            isDuplicateAnchor: partAnchorIsDuplicate,
+                            localOverride: reusableDefinition == nil ? nil : Binding(
+                                get: { isGlobalOverride },
+                                set: setGlobalOverride
+                            ),
+                            globalLabel: isGlobalOverride ? nil : globalIndicatorLabel,
+                            globalColor: globalIndicatorColor
+                        )
+                    }
                 }
 
                 ForEach(inspectorGroups, id: \.rawValue) { group in
                     PartInspectorGroup(
                         group: group,
                         properties: properties(in: group),
-                        childPickers: childPickers(in: group),
+                        childPickers: selectedParts.count == 1 ? childPickers(in: group) : [],
                         part: part,
+                        selectedParts: selectedParts,
                         currentPage: currentPage,
                         theme: theme,
                         assets: assets,
@@ -844,7 +851,7 @@ private struct PartInspector: View {
             .clipShape(RoundedRectangle(cornerRadius: 32 * 0.16))
 
             VStack(alignment: .leading, spacing: 3) {
-                Text(reusableDefinition?.name ?? part.type.displayName)
+                Text(partHeaderTitle)
                     .font(.headline)
                 Text(partDeveloper)
                     .font(.subheadline)
@@ -853,27 +860,29 @@ private struct PartInspector: View {
 
             Spacer(minLength: 0)
 
-            Menu {
-                Button("Add Attribute…") {
-                    showsAddAttributePopover = true
+            if selectedParts.count == 1 {
+                Menu {
+                    Button("Add Attribute…") {
+                        showsAddAttributePopover = true
+                    }
+                } label: {
+                    Image(systemName: "gearshape")
+                        .foregroundStyle(.secondary)
                 }
-            } label: {
-                Image(systemName: "gearshape")
-                    .foregroundStyle(.secondary)
-            }
-            .menuStyle(.borderlessButton)
-            .menuIndicator(.hidden)
-            .fixedSize()
-            .padding(.top, 1)
-            .help("Part options")
-            .popover(isPresented: $showsAddAttributePopover, arrowEdge: .trailing) {
-                PartAttributePopover(
-                    attribute: nil,
-                    existingAttributes: part.rootAttributes ?? []
-                ) { attribute in
-                    var attributes = part.rootAttributes ?? []
-                    attributes.append(attribute)
-                    editor.setPartRootAttributes(id: part.id, attributes: attributes)
+                .menuStyle(.borderlessButton)
+                .menuIndicator(.hidden)
+                .fixedSize()
+                .padding(.top, 1)
+                .help("Part options")
+                .popover(isPresented: $showsAddAttributePopover, arrowEdge: .trailing) {
+                    PartAttributePopover(
+                        attribute: nil,
+                        existingAttributes: part.rootAttributes ?? []
+                    ) { attribute in
+                        var attributes = part.rootAttributes ?? []
+                        attributes.append(attribute)
+                        editor.setPartRootAttributes(id: part.id, attributes: attributes)
+                    }
                 }
             }
         }
@@ -889,6 +898,11 @@ private struct PartInspector: View {
             }
             loadedPartIcon = await PartIconLoader.shared.icon(at: url)?.image
         }
+    }
+
+    private var partHeaderTitle: String {
+        let name = reusableDefinition?.name ?? part.type.displayName
+        return selectedParts.count > 1 ? "\(name) · \(selectedParts.count) selected" : name
     }
 
     private var globalIndicatorColor: Color {
@@ -1264,6 +1278,7 @@ private struct PartInspectorGroup: View {
     let properties: [PartPropertyDefinition]
     let childPickers: [PartPackageSlot]
     let part: PartNode
+    let selectedParts: [PartNode]
     let currentPage: Page?
     let theme: Theme
     let assets: [ProjectAsset]
@@ -1332,6 +1347,7 @@ private struct PartInspectorGroup: View {
         PartPropertyEditor(
             definition: definition,
             part: part,
+            selectedParts: selectedParts,
             currentPage: currentPage,
             theme: theme,
             assets: assets,
