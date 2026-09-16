@@ -2672,6 +2672,78 @@ struct PartPackageTests {
     }
 
     @Test
+    func validatorRequiresAllPrimaryHTMLOutputInsideOneStableRoot() throws {
+        let invalidTemplates = [
+            "Before {{ control.title }}<section class=\"sample {{ part.class }}\" {{ part.attributes }}></section>",
+            "<section class=\"sample {{ part.class }}\" {{ part.attributes }}></section>After",
+            "<section class=\"sample {{ part.class }}\" {{ part.attributes }}></section><aside>Sibling</aside>",
+            "{{ if control.title }}<section class=\"sample {{ part.class }}\" {{ part.attributes }}></section>{{ endif }}"
+        ]
+        let manifest = try PropertyListDecoder().decode(
+            PartPackageManifest.self,
+            from: Data(validManifest.utf8)
+        )
+
+        for template in invalidTemplates {
+            let packageURL = try makePackage(manifest: validManifest, template: template)
+            defer { try? FileManager.default.removeItem(at: packageURL) }
+            let diagnostics = PartPackageValidator.validate(
+                manifest,
+                rootURL: packageURL.appending(path: "Contents/Resources", directoryHint: .isDirectory)
+            )
+
+            #expect(diagnostics.contains {
+                $0.severity == .error
+                    && $0.message.contains("exactly one stable top-level root element")
+            })
+        }
+    }
+
+    @Test
+    func validatorAllowsCommentsWhitespaceAndNestedMarkupInsidePrimaryHTMLRoot() throws {
+        let packageURL = try makePackage(
+            manifest: validManifest,
+            template: """
+            <!-- The comment is outside the rendered part. -->
+            <section class="sample {{ part.class }}" {{ part.attributes }}>
+                <section>{{ control.title }}</section>
+                {{ loop 2 }}<span>{{ loop.position }}</span>{{ endloop }}
+                {{ childArea("content") }}
+            </section>
+            <!-- Trailing comments are also inert. -->
+            """
+        )
+        defer { try? FileManager.default.removeItem(at: packageURL) }
+        let manifest = try PropertyListDecoder().decode(
+            PartPackageManifest.self,
+            from: Data(validManifest.utf8)
+        )
+
+        let diagnostics = PartPackageValidator.validate(
+            manifest,
+            rootURL: packageURL.appending(path: "Contents/Resources", directoryHint: .isDirectory)
+        )
+
+        #expect(!diagnostics.contains { $0.message.contains("exactly one stable top-level root element") })
+    }
+
+    @Test
+    func loaderAppliesRootOwnershipRuleOnlyWhenValidationIsEnabled() throws {
+        let packageURL = try makePackage(
+            manifest: validManifest,
+            template: "Outside<section class=\"sample {{ part.class }}\" {{ part.attributes }}></section>"
+        )
+        defer { try? FileManager.default.removeItem(at: packageURL) }
+
+        #expect(throws: Never.self) {
+            _ = try PartPackageLoader.loadForCatalog(from: packageURL, validates: false)
+        }
+        #expect(throws: PartPackageLoadingError.self) {
+            _ = try PartPackageLoader.loadForCatalog(from: packageURL, validates: true)
+        }
+    }
+
+    @Test
     func validatorRejectsMoreThanFiveTags() throws {
         let manifestText = validManifest.replacingOccurrences(
             of: "<key>description</key><string>A test card.</string>",

@@ -59,6 +59,16 @@ struct FoundryApp: App {
         .windowToolbarStyle(.unified)
         .restorationBehavior(.disabled)
 
+        WindowGroup("Site Settings", id: "site-settings", for: UUID.self) { $presentationID in
+            ProjectSettingsWindowSceneContent(presentationID: presentationID)
+        }
+        .handlesExternalEvents(matching: [])
+        .commandsRemoved()
+        .defaultSize(width: 1_000, height: 680)
+        .windowResizability(.contentMinSize)
+        .windowToolbarStyle(.unified)
+        .restorationBehavior(.disabled)
+
         Window("Part Updates", id: "part-updates") {
             PartUpdatesWindow()
                 .frame(minWidth: 760, minHeight: 560)

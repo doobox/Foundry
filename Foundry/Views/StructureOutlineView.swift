@@ -2,12 +2,14 @@ import AppKit
 import SwiftUI
 
 struct StructureOutlineView: NSViewRepresentable {
-    private static let dropGuidance = "Drag between parts to reorder, or onto a container to place inside it."
+    private static let dropGuidance = "Drag between parts to reorder, onto the page for the root level, or onto a container to place inside it."
 
-    let parts: [PartNode]
+    let page: Page
     let globalPartNames: [UUID: String]
     @Binding var selectedPartIDs: Set<UUID>
     @Binding var primarySelectedPartID: UUID?
+    @Binding var isPageSelected: Bool
+    @Binding var isPageExpanded: Bool
     @Binding var expandedItemIDs: Set<UUID>
     let renamePart: (UUID, String) -> Void
     let canMoveParts: ([UUID], PartPlacement) -> Bool
@@ -39,7 +41,9 @@ struct StructureOutlineView: NSViewRepresentable {
         outlineView.headerView = nil
         outlineView.rowHeight = 24
         outlineView.indentationPerLevel = 14
+        outlineView.style = .inset
         outlineView.selectionHighlightStyle = .regular
+        outlineView.backgroundColor = .clear
         outlineView.allowsMultipleSelection = true
         outlineView.dataSource = context.coordinator
         outlineView.delegate = context.coordinator
@@ -57,25 +61,29 @@ struct StructureOutlineView: NSViewRepresentable {
         scrollView.hasVerticalScroller = true
         scrollView.hasHorizontalScroller = false
         scrollView.drawsBackground = false
+        scrollView.backgroundColor = .clear
+        scrollView.contentView.drawsBackground = false
         context.coordinator.outlineView = outlineView
-        context.coordinator.reload(parts: parts, selectedIDs: selectedPartIDs)
+        context.coordinator.reload(page: page, selectedIDs: selectedPartIDs)
         return scrollView
     }
 
     func updateNSView(_ scrollView: NSScrollView, context: Context) {
         context.coordinator.parent = self
-        context.coordinator.reload(parts: parts, selectedIDs: selectedPartIDs)
+        context.coordinator.reload(page: page, selectedIDs: selectedPartIDs)
     }
 
     @MainActor
     final class Coordinator: NSObject, NSOutlineViewDataSource, NSOutlineViewDelegate, NSTextFieldDelegate, NSMenuDelegate {
         var parent: StructureOutlineView
         weak var outlineView: NSOutlineView?
+        private var pageRoot: PageRootItem?
         private var roots: [Item] = []
         private var itemsByID: [UUID: Item] = [:]
         private var displayedSignature: [String] = []
         private var lastRequestedSelectedIDs: Set<UUID>?
         private var lastRequestedPrimaryID: UUID?
+        private var lastRequestedPageSelection = false
         private var isRestoringSelection = false
         private var isRestoringExpansion = false
 
@@ -83,23 +91,30 @@ struct StructureOutlineView: NSViewRepresentable {
             self.parent = parent
         }
 
-        func reload(parts: [PartNode], selectedIDs: Set<UUID>) {
-            let signature = flattenedSignature(parts, parentID: nil)
+        func reload(page: Page, selectedIDs: Set<UUID>) {
+            let signature = ["page:\(page.id.uuidString):\(page.title)"]
+                + flattenedSignature(page.parts, parentID: nil)
             if signature != displayedSignature {
                 let expandedIDs = parent.expandedItemIDs.union(expandedItemIDs())
                 displayedSignature = signature
                 itemsByID.removeAll(keepingCapacity: true)
-                roots = parts.map { makeItem($0) }
+                pageRoot = PageRootItem(id: page.id, title: page.title)
+                roots = page.parts.map { makeItem($0) }
                 outlineView?.reloadData()
                 isRestoringExpansion = true
+                if parent.isPageExpanded, let pageRoot {
+                    outlineView?.expandItem(pageRoot)
+                }
                 restoreExpansion(in: roots, expandedIDs: expandedIDs)
                 isRestoringExpansion = false
             }
             let shouldRevealSelection = lastRequestedSelectedIDs != selectedIDs
                 || lastRequestedPrimaryID != parent.primarySelectedPartID
+                || lastRequestedPageSelection != parent.isPageSelected
             restoreSelection(selectedIDs, reveal: shouldRevealSelection)
             lastRequestedSelectedIDs = selectedIDs
             lastRequestedPrimaryID = parent.primarySelectedPartID
+            lastRequestedPageSelection = parent.isPageSelected
         }
 
         func outlineView(_ outlineView: NSOutlineView, numberOfChildrenOfItem item: Any?) -> Int {
@@ -110,18 +125,51 @@ struct StructureOutlineView: NSViewRepresentable {
             children(of: item)[index]
         }
 
+        func outlineView(
+            _ outlineView: NSOutlineView,
+            selectionIndexesForProposedSelection proposedSelectionIndexes: IndexSet
+        ) -> IndexSet {
+            guard let pageRoot else { return proposedSelectionIndexes }
+            let pageRow = outlineView.row(forItem: pageRoot)
+            guard pageRow >= 0,
+                  proposedSelectionIndexes.contains(pageRow),
+                  proposedSelectionIndexes.count > 1 else {
+                return proposedSelectionIndexes
+            }
+            if outlineView.selectedRowIndexes == IndexSet(integer: pageRow) {
+                return proposedSelectionIndexes.subtracting(IndexSet(integer: pageRow))
+            }
+            return IndexSet(integer: pageRow)
+        }
+
         func outlineView(_ outlineView: NSOutlineView, isItemExpandable item: Any) -> Bool {
-            (item as? Item)?.children.isEmpty == false
+            if item is PageRootItem { return true }
+            return (item as? Item)?.children.isEmpty == false
         }
 
         func outlineView(_ outlineView: NSOutlineView, viewFor tableColumn: NSTableColumn?, item: Any) -> NSView? {
-            guard let item = item as? Item else { return nil }
             let identifier = NSUserInterfaceItemIdentifier.partCell
             let cell = outlineView.makeView(withIdentifier: identifier, owner: nil) as? StructureOutlineCell
                 ?? makeCell(identifier: identifier)
+            if let pageRoot = item as? PageRootItem {
+                cell.textField?.stringValue = pageRoot.title
+                cell.textField?.identifier = nil
+                cell.textField?.isEditable = false
+                cell.imageView?.image = NSImage(
+                    systemSymbolName: "doc",
+                    accessibilityDescription: "Page"
+                )
+                cell.imageView?.setAccessibilityLabel("Page: \(pageRoot.title)")
+                cell.globalIndicator.isHidden = true
+                cell.warningIndicator.isHidden = true
+                cell.unavailableDropZoneLabel.isHidden = true
+                return cell
+            }
+            guard let item = item as? Item else { return nil }
             let name = displayName(for: item.part)
             cell.textField?.stringValue = name
             cell.textField?.identifier = NSUserInterfaceItemIdentifier(item.id.uuidString)
+            cell.textField?.isEditable = true
             cell.textField?.delegate = self
             cell.imageView?.image = partIcon(for: item.part)
             cell.imageView?.setAccessibilityLabel(name)
@@ -242,12 +290,12 @@ struct StructureOutlineView: NSViewRepresentable {
         private var canDuplicateSelection: Bool {
             guard let id = parent.primarySelectedPartID,
                   parent.selectedPartIDs.count == 1,
-                  let source = parent.parts.node(withID: id) else { return false }
-            return parent.parts.accepts(source, at: .after(id))
+                  let source = parent.page.parts.node(withID: id) else { return false }
+            return parent.page.parts.accepts(source, at: .after(id))
         }
 
         private var canDeleteSelection: Bool {
-            var candidate = parent.parts
+            var candidate = parent.page.parts
             for id in parent.selectedPartIDs {
                 guard candidate.permitsRemoving(id) else { return false }
                 _ = candidate.extractNode(withID: id)
@@ -365,7 +413,7 @@ struct StructureOutlineView: NSViewRepresentable {
             if modifiers == .command {
                 switch character {
                 case "d" where canDuplicateSelection: parent.duplicatePart(); return true
-                case "c": parent.copyPart(); return true
+                case "c" where !parent.selectedPartIDs.isEmpty: parent.copyPart(); return true
                 case "v" where parent.canPastePart: parent.pastePart(); return true
                 default: break
                 }
@@ -412,6 +460,7 @@ struct StructureOutlineView: NSViewRepresentable {
 
         private func beginRenamingSelectedRow() {
             guard let outlineView, outlineView.selectedRow >= 0 else { return }
+            guard outlineView.item(atRow: outlineView.selectedRow) is Item else { return }
             outlineView.editColumn(0, row: outlineView.selectedRow, with: nil, select: true)
         }
 
@@ -489,7 +538,7 @@ struct StructureOutlineView: NSViewRepresentable {
             let submenu = NSMenu(title: "Move to Child Area")
             for name in package.dropZoneNames {
                 let slotID = package.dropZoneSlotID(for: name)
-                guard parent.parts.accepts(item.part, at: .insideSlot(parentItem.id, slotID)) else { continue }
+                guard parent.page.parts.accepts(item.part, at: .insideSlot(parentItem.id, slotID)) else { continue }
                 let menuItem = NSMenuItem(
                     title: "Drop zone: \(name)",
                     action: #selector(moveToAvailableDropZone(_:)),
@@ -504,7 +553,7 @@ struct StructureOutlineView: NSViewRepresentable {
                 submenu.addItem(menuItem)
             }
             for slot in package.manifest.slots {
-                guard parent.parts.accepts(item.part, at: .insideSlot(parentItem.id, slot.id)) else { continue }
+                guard parent.page.parts.accepts(item.part, at: .insideSlot(parentItem.id, slot.id)) else { continue }
                 let menuItem = NSMenuItem(
                     title: "Child picker: \(slot.title)",
                     action: #selector(moveToAvailableDropZone(_:)),
@@ -564,9 +613,22 @@ struct StructureOutlineView: NSViewRepresentable {
 
         func outlineViewSelectionDidChange(_ notification: Notification) {
             guard !isRestoringSelection, let outlineView else { return }
+            if let pageRoot {
+                let pageRow = outlineView.row(forItem: pageRoot)
+                if pageRow >= 0, outlineView.selectedRowIndexes.contains(pageRow) {
+                    parent.selectedPartIDs = []
+                    parent.primarySelectedPartID = nil
+                    parent.isPageSelected = true
+                    lastRequestedSelectedIDs = []
+                    lastRequestedPrimaryID = nil
+                    lastRequestedPageSelection = true
+                    return
+                }
+            }
             let selectedIDs = Set(outlineView.selectedRowIndexes.compactMap { row in
                 (outlineView.item(atRow: row) as? Item)?.id
             })
+            parent.isPageSelected = false
             parent.selectedPartIDs = selectedIDs
             let primaryRow = outlineView.selectedRow
             parent.primarySelectedPartID = primaryRow >= 0
@@ -574,13 +636,20 @@ struct StructureOutlineView: NSViewRepresentable {
                 : nil
             lastRequestedSelectedIDs = selectedIDs
             lastRequestedPrimaryID = parent.primarySelectedPartID
+            lastRequestedPageSelection = false
         }
 
         func outlineViewItemDidExpand(_ notification: Notification) {
+            if let pageRoot {
+                parent.isPageExpanded = outlineView?.isItemExpanded(pageRoot) == true
+            }
             synchronizeExpansionState()
         }
 
         func outlineViewItemDidCollapse(_ notification: Notification) {
+            if let pageRoot {
+                parent.isPageExpanded = outlineView?.isItemExpanded(pageRoot) == true
+            }
             synchronizeExpansionState()
         }
 
@@ -605,7 +674,7 @@ struct StructureOutlineView: NSViewRepresentable {
                   let proposal = dropProposal(
                     in: outlineView,
                     info: info,
-                    proposedItem: item as? Item,
+                    proposedItem: item,
                     proposedChildIndex: index
                   ) else {
                 describeRejectedDrop("That part cannot contain other parts.")
@@ -627,7 +696,7 @@ struct StructureOutlineView: NSViewRepresentable {
             childIndex index: Int
         ) -> Bool {
             guard let payload = payload(from: info),
-                  let placement = placement(parent: item as? Item, childIndex: index) else { return false }
+                  let placement = placement(parent: item, childIndex: index) else { return false }
             let accepted: Bool
             switch payload {
             case .library(let type):
@@ -642,13 +711,17 @@ struct StructureOutlineView: NSViewRepresentable {
                 accepted = parent.moveParts(ids, placement)
             }
             if accepted {
+                if item is PageRootItem, let pageRoot {
+                    parent.isPageExpanded = true
+                    outlineView.expandItem(pageRoot)
+                }
                 expandDestination(for: placement)
             }
             return accepted
         }
 
         private struct DropProposal {
-            let parentItem: Item?
+            let parentItem: Any?
             let childIndex: Int
             let placement: PartPlacement
         }
@@ -656,10 +729,17 @@ struct StructureOutlineView: NSViewRepresentable {
         private func dropProposal(
             in outlineView: NSOutlineView,
             info: any NSDraggingInfo,
-            proposedItem item: Item?,
+            proposedItem: Any?,
             proposedChildIndex index: Int
         ) -> DropProposal? {
-            guard index == NSOutlineViewDropOnItemIndex, let item else {
+            if proposedItem == nil || proposedItem is PageRootItem {
+                guard let pageRoot,
+                      let placement = placement(parent: pageRoot, childIndex: index) else { return nil }
+                let childIndex = index == NSOutlineViewDropOnItemIndex ? roots.count : max(0, index)
+                return DropProposal(parentItem: pageRoot, childIndex: childIndex, placement: placement)
+            }
+            guard let item = proposedItem as? Item else { return nil }
+            guard index == NSOutlineViewDropOnItemIndex else {
                 guard let placement = placement(parent: item, childIndex: index) else { return nil }
                 return DropProposal(parentItem: item, childIndex: index, placement: placement)
             }
@@ -678,7 +758,7 @@ struct StructureOutlineView: NSViewRepresentable {
                 )
             }
 
-            let parentItem = outlineView.parent(forItem: item) as? Item
+            let parentItem = outlineView.parent(forItem: item)
             let itemIndex = outlineView.childIndex(forItem: item)
             guard itemIndex >= 0 else { return nil }
             let childIndex = position < 0.5 ? itemIndex : itemIndex + 1
@@ -744,19 +824,24 @@ struct StructureOutlineView: NSViewRepresentable {
             outlineView?.setAccessibilityHelp(StructureOutlineView.dropGuidance)
         }
 
-        private func placement(parent item: Item?, childIndex index: Int) -> PartPlacement? {
-            let siblings = item?.children ?? roots
+        private func placement(parent item: Any?, childIndex index: Int) -> PartPlacement? {
+            if item == nil || item is PageRootItem {
+                if index == NSOutlineViewDropOnItemIndex { return .end }
+                if roots.indices.contains(index) {
+                    return .before(roots[index].id)
+                }
+                return .end
+            }
+            guard let item = item as? Item else { return nil }
+            let siblings = item.children
             if index == NSOutlineViewDropOnItemIndex {
-                guard let item, item.part.type.definition.allowsChildren else { return nil }
+                guard item.part.type.definition.allowsChildren else { return nil }
                 return .inside(item.id)
             }
             if siblings.indices.contains(index) {
                 return .before(siblings[index].id)
             }
-            if let item {
-                return siblings.map(\.part).endPlacement(in: item.id)
-            }
-            return .end
+            return siblings.map(\.part).endPlacement(in: item.id)
         }
 
         private func payload(from info: any NSDraggingInfo) -> PartDragPayload? {
@@ -764,8 +849,10 @@ struct StructureOutlineView: NSViewRepresentable {
             return PartDragPayload(value)
         }
 
-        private func children(of item: Any?) -> [Item] {
-            (item as? Item)?.children ?? roots
+        private func children(of item: Any?) -> [Any] {
+            if item == nil { return pageRoot.map { [$0] } ?? [] }
+            if item is PageRootItem { return roots }
+            return (item as? Item)?.children ?? []
         }
 
         private func makeItem(_ part: PartNode, parent: Item? = nil) -> Item {
@@ -855,6 +942,10 @@ struct StructureOutlineView: NSViewRepresentable {
                 isRestoringSelection = false
                 isRestoringExpansion = false
             }
+            if reveal, !selectedIDs.isEmpty, let pageRoot {
+                outlineView.expandItem(pageRoot)
+                parent.isPageExpanded = true
+            }
             if reveal {
                 for id in selectedIDs {
                     for ancestor in ancestorPath(of: id, in: roots) ?? [] {
@@ -862,13 +953,24 @@ struct StructureOutlineView: NSViewRepresentable {
                     }
                 }
             }
-            let rows = IndexSet(selectedIDs.compactMap { id in
-                guard let item = itemsByID[id] else { return nil }
-                let row = outlineView.row(forItem: item)
-                return row >= 0 ? row : nil
-            })
+            let rows: IndexSet
+            if parent.isPageSelected,
+               let pageRoot {
+                let pageRow = outlineView.row(forItem: pageRoot)
+                rows = pageRow >= 0 ? IndexSet(integer: pageRow) : []
+            } else {
+                rows = IndexSet(selectedIDs.compactMap { id in
+                    guard let item = itemsByID[id] else { return nil }
+                    let row = outlineView.row(forItem: item)
+                    return row >= 0 ? row : nil
+                })
+            }
             if outlineView.selectedRowIndexes != rows {
                 outlineView.selectRowIndexes(rows, byExtendingSelection: false)
+            }
+            if reveal, parent.isPageSelected, let pageRoot {
+                let row = outlineView.row(forItem: pageRoot)
+                if row >= 0 { outlineView.scrollRowToVisible(row) }
             }
             if reveal,
                let primaryID = parent.primarySelectedPartID,
@@ -963,6 +1065,16 @@ private final class Item: NSObject {
     init(part: PartNode, parent: Item?) {
         self.part = part
         self.parent = parent
+    }
+}
+
+private final class PageRootItem: NSObject {
+    let id: UUID
+    let title: String
+
+    init(id: UUID, title: String) {
+        self.id = id
+        self.title = title
     }
 }
 

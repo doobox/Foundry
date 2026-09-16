@@ -1,0 +1,18 @@
+Outside-root macro: {{ control.pageColour }}
+<section class="live-refresh-boundary {{ part.class }}" {{ part.attributes }}>
+    <p class="eyebrow">Renderer diagnostic</p>
+    <h2>Live Refresh Boundary</h2>
+    <p>Change <strong>Diagnostic Colour</strong> in the Inspector.</p>
+
+    <dl>
+        <div>
+            <dt>Inside-root macro</dt>
+            <dd>{{ control.pageColour }}</dd>
+        </div>
+    </dl>
+
+    <p class="explanation">
+        On initial load, the outside-root and inside-root values agree. Change the control and
+        compare them to reveal whether the complete template output was refreshed.
+    </p>
+</section>

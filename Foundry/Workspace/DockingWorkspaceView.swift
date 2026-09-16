@@ -2090,20 +2090,21 @@ private struct FixedCanvasColumn<Content: View>: View {
                         .accessibilityLabel(screen.id.shortTitle)
                         .help("\(screen.id.shortTitle) · \(Int(screens.canvasWidth(for: screen))) px")
                     }
-                    Divider().frame(height: 18)
-                    ForEach(SiteAppearance.allCases, id: \.self) { mode in
-                        Button { appearance = mode } label: {
-                            Image(systemName: mode.symbol)
-                                .font(.system(size: 15, weight: .medium))
-                                .frame(width: 22, height: 22)
-                                .contentShape(Rectangle())
+                    if appearanceMode == .both {
+                        Divider().frame(height: 18)
+                        ForEach(SiteAppearance.allCases, id: \.self) { mode in
+                            Button { appearance = mode } label: {
+                                Image(systemName: mode.symbol)
+                                    .font(.system(size: 15, weight: .medium))
+                                    .frame(width: 22, height: 22)
+                                    .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+                            .foregroundStyle(appearance == mode ? Color.accentColor : .secondary)
+                            .help("Preview \(mode.rawValue) appearance")
+                            .accessibilityLabel("\(mode.rawValue.capitalized) appearance")
+                            .controlSize(.small)
                         }
-                        .buttonStyle(.plain)
-                        .foregroundStyle((appearanceMode == .both ? appearance == mode : appearanceMode.rawValue == mode.rawValue) ? Color.accentColor : .secondary)
-                        .disabled(!appearanceMode.permits(mode))
-                        .help("Preview \(mode.rawValue) appearance")
-                        .accessibilityLabel("\(mode.rawValue.capitalized) appearance")
-                        .controlSize(.small)
                     }
                 }
             }
@@ -2117,7 +2118,7 @@ private struct FixedCanvasColumn<Content: View>: View {
             }
             .frame(minWidth: 0, maxWidth: .infinity, maxHeight: .infinity)
         }
-        .background(Color(nsColor: .windowBackgroundColor))
+        //.background(Color(nsColor: .windowBackgroundColor))
         .overlay(alignment: .leading) {
             SideDockTarget(title: "Dock Left", isTargeted: leadingTargeted)
                 .dropDestination(for: WorkspacePanelDragPayload.self) { values, _ in
@@ -2197,7 +2198,7 @@ private struct WorkspaceColumnView<PanelContent: View>: View {
                 SidebarMaterialBackground()
                     .ignoresSafeArea()
             } else {
-                Color(nsColor: .controlBackgroundColor)
+                Color(.windowBackgroundColor)
             }
         }
         .overlay {
@@ -2296,6 +2297,8 @@ private struct WorkspaceColumnView<PanelContent: View>: View {
         .background {
             if !usesSidebarMaterial {
                 Rectangle().fill(.bar)
+            } else {
+                Color(.windowBackgroundColor)
             }
         }
         .dropDestination(for: WorkspacePanelDragPayload.self) { values, _ in

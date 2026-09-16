@@ -25,6 +25,10 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
     }
 
     func generate(site: Site, assets: [UUID: ProjectAssetContent], emit: (SiteExportFile) throws -> Void) throws {
+        let webIconPlan = WebIconGenerator.exportPlan(
+            storedAssets: site.webIconAssets,
+            contents: assets
+        )
         for page in site.pages {
             try Task.checkCancellation()
             let isHome = page.slug == "index"
@@ -57,7 +61,8 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
                     assetPrefix: rootPrefix + "assets",
                     packageAssetPrefix: documentPackageAssetPrefix,
                     assets: assets,
-                    site: site
+                    site: site,
+                    webIconPlan: webIconPlan
                 )
             ), SiteExportFile(
                 path: Self.joinedPath(pageFilesDirectory, "page.css"),
@@ -109,7 +114,18 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
                 ))
             }
         }
+        for asset in site.siteLogoAssets {
+            try Task.checkCancellation()
+            if let content = assets[asset.id] {
+                try emit(SiteExportFile(
+                    path: SiteLogoStorage.exportPath(for: asset),
+                    data: content.data,
+                    contentFingerprint: content.digest?.map { String(format: "%02x", $0) }.joined()
+                ))
+            }
+        }
         try imageRenditionFiles(site: site, assets: assets, emit: emit)
+        for file in webIconPlan.files { try emit(file) }
         if site.generatesSitemap, let baseURL = validPublicURL(site.publicURL) {
             try emit(.init(path: "sitemap.xml", contents: sitemap(for: site, baseURL: baseURL)))
         }
@@ -157,11 +173,11 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
         prefix.isEmpty ? suffix : prefix + "/" + suffix
     }
 
-    private func render(page: Page, language: String, theme: Theme, stylesheetPaths: [String], scriptPaths: [String], assetPrefix: String, packageAssetPrefix: String, assets: [UUID: ProjectAssetContent], site: Site) -> String {
+    private func render(page: Page, language: String, theme: Theme, stylesheetPaths: [String], scriptPaths: [String], assetPrefix: String, packageAssetPrefix: String, assets: [UUID: ProjectAssetContent], site: Site, webIconPlan: WebIconExportPlan) -> String {
         let body = page.parts.map { render($0, page: page, theme: theme, assetPrefix: assetPrefix, packageAssetPrefix: packageAssetPrefix, assets: assets, site: site) }.joined(separator: "\n")
         let pageTitle = page.metadata.browserTitle.isEmpty ? page.title : page.metadata.browserTitle
         let browserTitle = pageTitle + site.titleSuffix
-        let metadata = metadataHTML(for: page, browserTitle: browserTitle, assetPrefix: assetPrefix, assets: assets, site: site)
+        let metadata = metadataHTML(for: page, browserTitle: browserTitle, assetPrefix: assetPrefix, assets: assets, site: site, webIconPlan: webIconPlan)
         let headStart = placedHTML(for: page, placement: .headStart, assetPrefix: assetPrefix, packageAssetPrefix: packageAssetPrefix, site: site)
         let headEnd = placedHTML(for: page, placement: .headEnd, assetPrefix: assetPrefix, packageAssetPrefix: packageAssetPrefix, site: site)
         let bodyStart = placedHTML(for: page, placement: .bodyStart, assetPrefix: assetPrefix, packageAssetPrefix: packageAssetPrefix, site: site)
@@ -302,7 +318,8 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
         browserTitle: String,
         assetPrefix: String,
         assets: [UUID: ProjectAssetContent],
-        site: Site
+        site: Site,
+        webIconPlan: WebIconExportPlan
     ) -> String {
         var tags: [String] = []
         let description = page.metadata.description.isEmpty ? site.defaultDescription : page.metadata.description
@@ -336,7 +353,10 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
                 tags.append("<meta property=\"og:image\" content=\"\(escapeAttribute(source))\">")
             }
         }
-        if !site.favicon.isEmpty {
+        tags.append(contentsOf: webIconPlan.markup(
+            rootPrefix: siteRootPrefix(from: assetPrefix)
+        ))
+        if site.favicon.foundryAssetID == nil, !site.favicon.isEmpty {
             let source = exportSource(site.favicon, assetPrefix: assetPrefix, assets: assets, site: site)
             if !source.isEmpty {
                 tags.append("<link rel=\"icon\" href=\"\(escapeAttribute(source))\">")

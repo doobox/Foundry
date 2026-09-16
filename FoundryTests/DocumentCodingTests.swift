@@ -66,6 +66,8 @@ struct DocumentCodingTests {
         original.defaultDescription = "The default site description"
         original.favicon = "foundry-asset:site-icon"
         original.defaultSocialImage = "foundry-asset:social-image"
+        original.logo = "foundry-asset:site-logo"
+        original.logoAlt = "Foundry"
         original.generatesCanonicalURLs = false
         original.generatesSitemap = false
         original.generatesRobotsTXT = false
@@ -93,6 +95,67 @@ struct DocumentCodingTests {
         let decoded = try FoundryDocument.decoder.decode(Site.self, from: data)
 
         #expect(decoded == original)
+    }
+
+    @Test
+    func projectsSavedBeforeSiteLogoSettingsUseEmptyDefaults() throws {
+        let data = try FoundryDocument.encoder.encode(Site.starter())
+        var object = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        object.removeValue(forKey: "logo")
+        object.removeValue(forKey: "logoAlt")
+
+        let legacyData = try JSONSerialization.data(withJSONObject: object)
+        let decoded = try FoundryDocument.decoder.decode(Site.self, from: legacyData)
+
+        #expect(decoded.logo.isEmpty)
+        #expect(decoded.logoAlt.isEmpty)
+    }
+
+    @Test
+    func projectsSavedBeforeGeneratedWebIconsUseAnEmptyCache() throws {
+        let data = try FoundryDocument.encoder.encode(Site.starter())
+        var object = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        object.removeValue(forKey: "webIconAssets")
+
+        let legacyData = try JSONSerialization.data(withJSONObject: object)
+        let decoded = try FoundryDocument.decoder.decode(Site.self, from: legacyData)
+
+        #expect(decoded.webIconAssets.isEmpty)
+    }
+
+    @Test
+    func projectsSavedBeforePrivateSiteLogosUseAnEmptyManagedSet() throws {
+        let data = try FoundryDocument.encoder.encode(Site.starter())
+        var object = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        object.removeValue(forKey: "siteLogoAssets")
+
+        let legacyData = try JSONSerialization.data(withJSONObject: object)
+        let decoded = try FoundryDocument.decoder.decode(Site.self, from: legacyData)
+
+        #expect(decoded.siteLogoAssets.isEmpty)
+    }
+
+    @Test
+    func generatedWebIconFilesLoadFromTheProjectPackage() throws {
+        let bytes = Data("cached icon".utf8)
+        let icon = ProjectAsset(
+            filename: "favicon.ico",
+            mediaType: "image/x-icon",
+            byteCount: bytes.count
+        )
+        var site = Site.starter()
+        site.webIconAssets = [icon]
+        let wrapper = FileWrapper(directoryWithFileWrappers: [
+            "project.json": FileWrapper(regularFileWithContents: try FoundryDocument.encoder.encode(site)),
+            "assets": FileWrapper(directoryWithFileWrappers: [
+                icon.storageFilename: FileWrapper(regularFileWithContents: bytes)
+            ])
+        ])
+
+        let decoded = try FoundryDocument.decodeSnapshot(from: wrapper)
+
+        #expect(decoded.site.webIconAssets == [icon])
+        #expect(decoded.assetData[icon.id] == bytes)
     }
 
     @Test

@@ -48,9 +48,8 @@ struct ContentView: View {
     @State private var workspaceLayout = WorkspacePresetStore.initialLayoutForNewDocument()
     @State private var detachedPanelWindows = DetachedPanelWindowCoordinator()
     @State private var themeWindowID = UUID()
+    @State private var siteSettingsWindowID = UUID()
     @State private var exportErrorMessage: String?
-    @State private var showsProjectSettings = false
-    @State private var projectSettingsSection: ProjectSettingsSection? = .general
     @State private var publishingCommandDispatcher = PublishingCommandDispatcher()
     @State private var showsPublishingProgress = false
     @State private var publishingState: PublishingModalState = .preparing
@@ -99,8 +98,7 @@ struct ContentView: View {
             canvasAppearance: $selectedAppearance,
             appearanceMode: document.site.appearanceMode,
             openProjectSettings: {
-                projectSettingsSection = .general
-                showsProjectSettings = true
+                openSiteSettings(section: .general)
             },
             openThemeEditor: {
                 ThemeWindowRegistry.shared.register(
@@ -151,6 +149,8 @@ struct ContentView: View {
         .onDisappear {
             dismissWindow(id: "theme-editor", value: themeWindowID)
             ThemeWindowRegistry.shared.remove(id: themeWindowID)
+            dismissWindow(id: "site-settings", value: siteSettingsWindowID)
+            ProjectSettingsWindowRegistry.shared.remove(id: siteSettingsWindowID)
         }
         .onChange(of: appearance) { _, newValue in
             newValue.apply()
@@ -241,37 +241,6 @@ struct ContentView: View {
             publishingTask?.cancel()
             publishingChangeTask?.cancel()
             Task { await browserPreviewServer.stop() }
-        }
-        .sheet(isPresented: $showsProjectSettings) {
-            ProjectSettingsView(
-                selection: $projectSettingsSection,
-                site: document.site,
-                assetContents: document.assetContents,
-                siteName: document.site.name,
-                language: document.site.language,
-                publicURL: document.site.publicURL,
-                titleSuffix: document.site.titleSuffix,
-                defaultDescription: document.site.defaultDescription,
-                favicon: document.site.favicon,
-                defaultSocialImage: document.site.defaultSocialImage,
-                assets: document.site.assets,
-                pages: document.site.pages,
-                pageFolders: document.site.pageFolders,
-                generatesCanonicalURLs: document.site.generatesCanonicalURLs,
-                generatesSitemap: document.site.generatesSitemap,
-                generatesRobotsTXT: document.site.generatesRobotsTXT,
-                allowsSearchIndexing: document.site.allowsSearchIndexing,
-                customCodeEnabled: document.site.customCodeEnabled,
-                headCode: document.site.headCode,
-                bodyStartCode: document.site.bodyStartCode,
-                bodyEndCode: document.site.bodyEndCode,
-                analyticsCode: document.site.analyticsCode,
-                editor: editor,
-                openPageMetadata: { pageID in
-                    showsProjectSettings = false
-                    inspectablePageSelection.wrappedValue = pageID
-                }
-            )
         }
         .sheet(isPresented: $showsPublishingProgress) {
             PublishingProgressView(
@@ -413,6 +382,7 @@ struct ContentView: View {
                 ),
                 selectedPartIDs: $selectedPartIDs,
                 selectedPartID: inspectablePartSelection,
+                isPageSelected: inspectableStructurePageSelection,
                 expandedPartIDs: $expandedStructurePartIDs,
                 renamePart: renamePart,
                 canMovePartsToPlacement: canMovePartsFromStructure,
@@ -678,6 +648,30 @@ struct ContentView: View {
                 selectedPageAssetID = nil
                 selectedAssetLibraryNodeID = nil
                 selectedLibraryPartType = nil
+            }
+        )
+    }
+
+    private var inspectableStructurePageSelection: Binding<Bool> {
+        Binding(
+            get: {
+                guard let selectedPage else { return false }
+                return selectedPartIDs.isEmpty && inspectedPageID == selectedPage.id
+            },
+            set: { isSelected in
+                guard let selectedPage else { return }
+                if isSelected {
+                    selectedPrimitive = nil
+                    selectedPartIDs = []
+                    selectedPartID = nil
+                    inspectedPageID = selectedPage.id
+                    selectedPageFolderID = nil
+                    selectedPageAssetID = nil
+                    selectedAssetLibraryNodeID = nil
+                    selectedLibraryPartType = nil
+                } else if inspectedPageID == selectedPage.id {
+                    inspectedPageID = nil
+                }
             }
         )
     }
@@ -1758,8 +1752,7 @@ struct ContentView: View {
     private func handlePublishingCommand(_ command: PublishingCommandDispatcher.Command) {
         switch command {
         case .settings:
-            projectSettingsSection = .publishing
-            showsProjectSettings = true
+            openSiteSettings(section: .publishing)
         case .publishSite:
             publishSite()
         case .republishAllFiles:
@@ -1769,6 +1762,19 @@ struct ContentView: View {
         case .markAllUnchanged:
             markAllPublishingFilesUnchanged()
         }
+    }
+
+    private func openSiteSettings(section: ProjectSettingsSection) {
+        ProjectSettingsWindowRegistry.shared.register(
+            id: siteSettingsWindowID,
+            document: document,
+            undoManager: undoManager,
+            selection: section,
+            openPageMetadata: { pageID in
+                inspectablePageSelection.wrappedValue = pageID
+            }
+        )
+        openWindow(id: "site-settings", value: siteSettingsWindowID)
     }
 
     private func publishSite(forceAllFiles: Bool = false) {

@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>minimumAPIVersion</key><integer>1</integer>
+    <key>id</key><string>dev.foundry.live-refresh-boundary</string>
+    <key>title</key><string>Live Refresh Boundary</string>
+    <key>description</key><string>Reproduces stale template output outside a part root after a control value changes.</string>
+    <key>author</key><string>Foundry Development</string>
+    <key>version</key><string>1.0.0</string>
+    <key>group</key><string>Other</string>
+    <key>tags</key>
+    <array>
+        <string>Development</string>
+        <string>Diagnostics</string>
+        <string>Live Refresh</string>
+    </array>
+    <key>controls</key>
+    <array>
+        <dict>
+            <key>id</key><string>pageColour</string>
+            <key>label</key><string>Diagnostic Colour</string>
+            <key>group</key><string>Reproduction</string>
+            <key>type</key><string>select</string>
+            <key>options</key>
+            <array>
+                <dict><key>value</key><string>#ff375f</string><key>title</key><string>Red</string></dict>
+                <dict><key>value</key><string>#0a84ff</string><key>title</key><string>Blue</string></dict>
+                <dict><key>value</key><string>#30d158</string><key>title</key><string>Green</string></dict>
+            </array>
+            <key>defaults</key>
+            <dict><key>base</key><string>#ff375f</string></dict>
+            <key>responsive</key><false/>
+        </dict>
+    </array>
+    <key>templates</key>
+    <dict>
+        <key>html</key><string>part.html</string>
+        <key>files</key>
+        <array>
+            <dict>
+                <key>path</key><string>part.css</string>
+                <key>scope</key><string>instance</string>
+            </dict>
+        </array>
+    </dict>
+</dict>
+</plist>

@@ -56,11 +56,67 @@ struct ProjectEditor {
     }
 
     func setSiteFavicon(_ favicon: String) {
-        mutate(actionName: "Set Site Icon") { $0.favicon = favicon }
+        let source = favicon.foundryAssetID.flatMap { document.assetContents[$0] }
+        document.setFaviconSource(source, undoManager: undoManager)
+    }
+
+    func importSiteFavicon(data: Data, filename: String, mediaType: String) {
+        let processed = PartImageProcessor.canonicalize(
+            data: data,
+            filename: filename,
+            mimeType: mediaType
+        )
+        let metadata = processed.metadata
+        let source = ProjectAsset(
+            filename: metadata.filename,
+            mediaType: metadata.mimeType,
+            byteCount: processed.data.count,
+            pixelWidth: metadata.width,
+            pixelHeight: metadata.height
+        )
+        document.setFaviconSource(
+            ProjectAssetContent(asset: source, data: processed.data),
+            undoManager: undoManager
+        )
     }
 
     func setSiteDefaultSocialImage(_ image: String) {
         mutate(actionName: "Set Default Social Image") { $0.defaultSocialImage = image }
+    }
+
+    func setSiteLogo(_ logo: String) {
+        let source = logo.foundryAssetID.flatMap { document.assetContents[$0] }
+        document.setSiteLogoSource(source, undoManager: undoManager)
+    }
+
+    func importSiteLogo(data: Data, filename: String, mediaType: String) {
+        let processed = PartImageProcessor.canonicalize(
+            data: data,
+            filename: filename,
+            mimeType: mediaType
+        )
+        let metadata = processed.metadata
+        let source = ProjectAsset(
+            filename: metadata.filename,
+            mediaType: metadata.mimeType,
+            byteCount: processed.data.count,
+            pixelWidth: metadata.width,
+            pixelHeight: metadata.height
+        )
+        document.setSiteLogoSource(
+            ProjectAssetContent(asset: source, data: processed.data),
+            undoManager: undoManager
+        )
+    }
+
+    func setSiteLogoAlt(_ alt: String) {
+        mutate(actionName: "Edit Site Logo Alt Text") { $0.logoAlt = alt }
+    }
+
+    func setSiteAllowsDarkMode(_ isEnabled: Bool) {
+        mutate(actionName: "Change Site Appearance", impact: .theme) {
+            $0.appearanceMode = isEnabled ? .both : .light
+        }
     }
 
     func setGeneratesCanonicalURLs(_ isEnabled: Bool) {

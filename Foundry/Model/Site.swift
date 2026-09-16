@@ -111,7 +111,7 @@ nonisolated enum PublishingDestinationKind: String, Codable, CaseIterable, Senda
 }
 
 nonisolated struct Site: Codable, Equatable, Identifiable, Sendable {
-    static let currentSchemaVersion = 12
+    static let currentSchemaVersion = 13
 
     let id: UUID
     var schemaVersion: Int
@@ -121,7 +121,11 @@ nonisolated struct Site: Codable, Equatable, Identifiable, Sendable {
     var titleSuffix: String
     var defaultDescription: String
     var favicon: String
+    var webIconAssets: [ProjectAsset]
     var defaultSocialImage: String
+    var logo: String
+    var siteLogoAssets: [ProjectAsset]
+    var logoAlt: String
     var generatesCanonicalURLs: Bool
     var generatesSitemap: Bool
     var generatesRobotsTXT: Bool
@@ -190,7 +194,11 @@ nonisolated struct Site: Codable, Equatable, Identifiable, Sendable {
         titleSuffix: String = "",
         defaultDescription: String = "",
         favicon: String = "",
+        webIconAssets: [ProjectAsset] = [],
         defaultSocialImage: String = "",
+        logo: String = "",
+        siteLogoAssets: [ProjectAsset] = [],
+        logoAlt: String = "",
         generatesCanonicalURLs: Bool = true,
         generatesSitemap: Bool = true,
         generatesRobotsTXT: Bool = true,
@@ -227,7 +235,11 @@ nonisolated struct Site: Codable, Equatable, Identifiable, Sendable {
         self.titleSuffix = titleSuffix
         self.defaultDescription = defaultDescription
         self.favicon = favicon
+        self.webIconAssets = webIconAssets
         self.defaultSocialImage = defaultSocialImage
+        self.logo = logo
+        self.siteLogoAssets = siteLogoAssets
+        self.logoAlt = logoAlt
         self.generatesCanonicalURLs = generatesCanonicalURLs
         self.generatesSitemap = generatesSitemap
         self.generatesRobotsTXT = generatesRobotsTXT
@@ -291,7 +303,7 @@ nonisolated struct Site: Codable, Equatable, Identifiable, Sendable {
 
     private enum CodingKeys: String, CodingKey {
         case appearanceMode
-        case id, schemaVersion, name, language, publicURL, titleSuffix, defaultDescription, favicon, defaultSocialImage, generatesCanonicalURLs, generatesSitemap, generatesRobotsTXT, allowsSearchIndexing, customCodeEnabled, headCode, bodyStartCode, bodyEndCode, analyticsCode, cleansObsoleteExportFiles, publishingDestination, publishingHost, publishingPort, publishingUsername, publishingRemotePath, publishingS3Bucket, publishingS3Region, pages, pageFolders, theme, themeSourceID, projectThemeValues, themeStates, reusableParts, globalParts, assetLibrary, partPackages
+        case id, schemaVersion, name, language, publicURL, titleSuffix, defaultDescription, favicon, webIconAssets, defaultSocialImage, logo, siteLogoAssets, logoAlt, generatesCanonicalURLs, generatesSitemap, generatesRobotsTXT, allowsSearchIndexing, customCodeEnabled, headCode, bodyStartCode, bodyEndCode, analyticsCode, cleansObsoleteExportFiles, publishingDestination, publishingHost, publishingPort, publishingUsername, publishingRemotePath, publishingS3Bucket, publishingS3Region, pages, pageFolders, theme, themeSourceID, projectThemeValues, themeStates, reusableParts, globalParts, assetLibrary, partPackages
     }
 
     init(from decoder: Decoder) throws {
@@ -305,7 +317,11 @@ nonisolated struct Site: Codable, Equatable, Identifiable, Sendable {
         titleSuffix = try container.decode(String.self, forKey: .titleSuffix)
         defaultDescription = try container.decode(String.self, forKey: .defaultDescription)
         favicon = try container.decode(String.self, forKey: .favicon)
+        webIconAssets = try container.decodeIfPresent([ProjectAsset].self, forKey: .webIconAssets) ?? []
         defaultSocialImage = try container.decode(String.self, forKey: .defaultSocialImage)
+        logo = try container.decodeIfPresent(String.self, forKey: .logo) ?? ""
+        siteLogoAssets = try container.decodeIfPresent([ProjectAsset].self, forKey: .siteLogoAssets) ?? []
+        logoAlt = try container.decodeIfPresent(String.self, forKey: .logoAlt) ?? ""
         generatesCanonicalURLs = try container.decode(Bool.self, forKey: .generatesCanonicalURLs)
         generatesSitemap = try container.decode(Bool.self, forKey: .generatesSitemap)
         generatesRobotsTXT = try container.decode(Bool.self, forKey: .generatesRobotsTXT)
@@ -358,6 +374,9 @@ nonisolated extension Site {
     }
 
     func publishedPath(for asset: ProjectAsset, managedAssetPaths: [UUID: String]) -> String {
+        if siteLogoAssets.contains(where: { $0.id == asset.id }) {
+            return SiteLogoStorage.exportPath(for: asset)
+        }
         let filename = (asset.filename as NSString).lastPathComponent
         let safeFilename = filename.isEmpty ? asset.storageFilename : filename
         switch asset.exportDirectory {

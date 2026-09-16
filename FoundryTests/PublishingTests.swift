@@ -98,6 +98,50 @@ struct PublishingTests {
     }
 
     @Test
+    func publishingPlanCanRemoveObsoleteManagedWebIconsIndependently() {
+        let iconPath = "assets/web-icons/favicon.ico"
+        let previous = PublishingManifest(files: [
+            "index.html": "old-page",
+            iconPath: "old-icon"
+        ])
+        let bundle = SiteExportBundle(files: [.init(path: "index.html", contents: "new")])
+
+        let plan = PublishingPlan.make(
+            bundle: bundle,
+            previous: previous,
+            removesObsoleteFiles: false,
+            removesManagedSiteAssets: true
+        )
+
+        #expect(plan.removals == [iconPath])
+        #expect(plan.removalHashes == [iconPath: "old-icon"])
+        #expect(plan.nextManifest.files[iconPath] == nil)
+        #expect(plan.nextManifest.files["index.html"] != nil)
+    }
+
+    @Test
+    func publishingPlanCanRemoveAnObsoleteManagedSiteLogoIndependently() {
+        let logoPath = "assets/site-logo/site-logo.png"
+        let previous = PublishingManifest(files: [
+            "index.html": "old-page",
+            logoPath: "old-logo"
+        ])
+        let bundle = SiteExportBundle(files: [.init(path: "index.html", contents: "new")])
+
+        let plan = PublishingPlan.make(
+            bundle: bundle,
+            previous: previous,
+            removesObsoleteFiles: false,
+            removesManagedSiteAssets: true
+        )
+
+        #expect(plan.removals == [logoPath])
+        #expect(plan.removalHashes == [logoPath: "old-logo"])
+        #expect(plan.nextManifest.files[logoPath] == nil)
+        #expect(plan.nextManifest.files["index.html"] != nil)
+    }
+
+    @Test
     func publishingManifestRoundTripsForDestination() throws {
         let directory = FileManager.default.temporaryDirectory
             .appending(path: UUID().uuidString, directoryHint: .isDirectory)

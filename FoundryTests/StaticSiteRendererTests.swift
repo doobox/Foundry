@@ -384,6 +384,31 @@ struct StaticSiteRendererTests {
     }
 
     @Test
+    func writerRemovesManagedWebIconsWhenGeneralCleanupIsDisabled() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appending(path: "FoundryWebIconCleanupTests-\(UUID().uuidString)", directoryHint: .isDirectory)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let writer = SiteExportWriter()
+        let iconPath = "assets/web-icons/favicon.ico"
+
+        try writer.write(
+            SiteExportBundle(files: [
+                .init(path: "index.html", contents: "old"),
+                .init(path: iconPath, contents: "icon")
+            ]),
+            to: directory
+        )
+        try writer.write(
+            SiteExportBundle(files: [.init(path: "index.html", contents: "new")]),
+            to: directory,
+            cleaningObsoleteFiles: false
+        )
+
+        #expect(!FileManager.default.fileExists(atPath: directory.appending(path: iconPath).path))
+        #expect(FileManager.default.fileExists(atPath: directory.appending(path: "index.html").path))
+    }
+
+    @Test
     func writerPreservesModifiedObsoleteFilesAndPrunesOnlyEmptyOwnedDirectories() throws {
         let directory = FileManager.default.temporaryDirectory
             .appending(path: "FoundryExportOwnershipTests-\(UUID().uuidString)", directoryHint: .isDirectory)

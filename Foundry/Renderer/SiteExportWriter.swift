@@ -29,10 +29,13 @@ nonisolated struct SiteExportWriter: SiteExportWriting {
             ($0.path, $0.contentFingerprint ?? PublishingPlan.hash($0.data))
         })
         let obsolete = previous.files.keys.filter { current[$0] == nil }.sorted()
+        let removals = cleaningObsoleteFiles
+            ? obsolete
+            : obsolete.filter(ManagedSiteAssetStorage.isManagedExportPath)
 
-        if cleaningObsoleteFiles {
+        if !removals.isEmpty {
             _ = try Self.removeOwnedFiles(
-                obsolete,
+                removals,
                 expectedHashes: previous.files,
                 from: root,
                 fileManager: fileManager
@@ -43,9 +46,10 @@ nonisolated struct SiteExportWriter: SiteExportWriting {
             try Self.write(file, to: root, fileManager: fileManager)
         }
 
-        let retained = cleaningObsoleteFiles
+        var retained = cleaningObsoleteFiles
             ? current
             : previous.files.merging(current) { _, new in new }
+        removals.forEach { retained[$0] = nil }
         try Self.writeOwnershipManifest(.init(files: retained), to: root, fileManager: fileManager)
     }
 

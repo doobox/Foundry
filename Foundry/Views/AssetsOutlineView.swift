@@ -19,6 +19,7 @@ struct AssetsOutlineView: NSViewRepresentable {
         outlineView.rowHeight = 24
         outlineView.indentationPerLevel = 14
         outlineView.selectionHighlightStyle = .regular
+        outlineView.backgroundColor = .clear
         outlineView.allowsMultipleSelection = false
         outlineView.dataSource = context.coordinator
         outlineView.delegate = context.coordinator
@@ -31,6 +32,8 @@ struct AssetsOutlineView: NSViewRepresentable {
         scrollView.hasVerticalScroller = true
         scrollView.hasHorizontalScroller = false
         scrollView.drawsBackground = false
+        scrollView.backgroundColor = .clear
+        scrollView.contentView.drawsBackground = false
         context.coordinator.outlineView = outlineView
         context.coordinator.reload(nodes: nodes, selectedNodeID: selectedNodeID)
         return scrollView

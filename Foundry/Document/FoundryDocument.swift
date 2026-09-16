@@ -123,11 +123,34 @@ final class FoundryDocument: ReferenceFileDocument {
               let projectData = wrappers["project.json"]?.regularFileContents else {
             throw CocoaError(.fileReadCorruptFile)
         }
-        let site = try decodeProject(from: projectData)
+        var site = try decodeProject(from: projectData)
         let assetWrappers = wrappers["assets"]?.fileWrappers ?? [:]
-        let data = Dictionary(uniqueKeysWithValues: site.assets.compactMap { asset in
+        var data = Dictionary(uniqueKeysWithValues: (site.assets + site.webIconAssets + site.siteLogoAssets).compactMap { asset in
             assetWrappers[asset.storageFilename]?.regularFileContents.map { (asset.id, $0) }
         })
+        if let sourceID = site.favicon.foundryAssetID,
+           !site.webIconAssets.contains(where: { $0.id == sourceID }),
+           let sourceAsset = (site.assets + site.webIconAssets).first(where: { $0.id == sourceID }),
+           let sourceData = data[sourceID] {
+            let oldManagedIDs = site.webIconAssets.map(\.id)
+            let records = managedWebIconRecords(sourceAsset: sourceAsset, sourceData: sourceData)
+            oldManagedIDs.forEach { data[$0] = nil }
+            site.webIconAssets = records.map(\.asset)
+            site.favicon = records.first?.asset.reference ?? ""
+            records.forEach { data[$0.asset.id] = $0.data }
+        }
+        if let sourceID = site.logo.foundryAssetID,
+           !site.siteLogoAssets.contains(where: { $0.id == sourceID }),
+           let sourceAsset = (site.assets + site.webIconAssets + site.siteLogoAssets)
+            .first(where: { $0.id == sourceID }),
+           let sourceData = data[sourceID] {
+            let oldManagedIDs = site.siteLogoAssets.map(\.id)
+            let record = managedSiteLogoRecord(sourceAsset: sourceAsset, sourceData: sourceData)
+            oldManagedIDs.forEach { data[$0] = nil }
+            site.siteLogoAssets = [record.asset]
+            site.logo = record.asset.reference
+            data[record.asset.id] = record.data
+        }
         return .init(site: site, assetData: data)
     }
 
@@ -140,7 +163,7 @@ final class FoundryDocument: ReferenceFileDocument {
         configuration: WriteConfiguration
     ) throws -> FileWrapper {
         let project = FileWrapper(regularFileWithContents: try Self.encoder.encode(snapshot.site))
-        let assets = Dictionary(uniqueKeysWithValues: snapshot.site.assets.compactMap { asset in
+        let assets = Dictionary(uniqueKeysWithValues: (snapshot.site.assets + snapshot.site.webIconAssets + snapshot.site.siteLogoAssets).compactMap { asset in
             snapshot.assetData[asset.id].map { (asset.storageFilename, FileWrapper(regularFileWithContents: $0)) }
         })
         return FileWrapper(directoryWithFileWrappers: [
@@ -178,7 +201,7 @@ final class FoundryDocument: ReferenceFileDocument {
         guard cachedAssetContentsRevision != snapshot.assetRevision else {
             return cachedAssetContents
         }
-        let contents = Dictionary(uniqueKeysWithValues: snapshot.site.assets.compactMap { asset in
+        let contents = Dictionary(uniqueKeysWithValues: (snapshot.site.assets + snapshot.site.webIconAssets + snapshot.site.siteLogoAssets).compactMap { asset in
             snapshot.assetData[asset.id].map {
                 (
                     asset.id,
@@ -242,6 +265,62 @@ final class FoundryDocument: ReferenceFileDocument {
         next.insertAssetData(processed.data, id: asset.id, digest: digest)
         replaceContents(with: next, undoManager: undoManager, actionName: "Import Asset")
         return asset.id
+    }
+
+    @MainActor
+    func setFaviconSource(
+        _ source: ProjectAssetContent?,
+        undoManager: UndoManager?
+    ) {
+        var next = storage.withLock { $0 }
+        if let sourceID = source?.asset.id,
+           next.site.favicon.foundryAssetID == sourceID,
+           next.site.webIconAssets.contains(where: { $0.id == sourceID }) {
+            return
+        }
+        guard source != nil || !next.site.favicon.isEmpty || !next.site.webIconAssets.isEmpty else { return }
+        next.site.webIconAssets.forEach { next.removeAssetData(id: $0.id) }
+        let records = source.map {
+            Self.managedWebIconRecords(sourceAsset: $0.asset, sourceData: $0.data)
+        } ?? []
+        next.site.favicon = records.first?.asset.reference ?? ""
+        next.site.webIconAssets = records.map(\.asset)
+        for record in records {
+            next.insertAssetData(
+                record.data,
+                id: record.asset.id,
+                digest: FoundryDocumentSnapshot.digest(for: record.data)
+            )
+        }
+        replaceContents(with: next, undoManager: undoManager, actionName: "Set Site Icon")
+    }
+
+    @MainActor
+    func setSiteLogoSource(
+        _ source: ProjectAssetContent?,
+        undoManager: UndoManager?
+    ) {
+        var next = storage.withLock { $0 }
+        if let sourceID = source?.asset.id,
+           next.site.logo.foundryAssetID == sourceID,
+           next.site.siteLogoAssets.contains(where: { $0.id == sourceID }) {
+            return
+        }
+        guard source != nil || !next.site.logo.isEmpty || !next.site.siteLogoAssets.isEmpty else { return }
+        next.site.siteLogoAssets.forEach { next.removeAssetData(id: $0.id) }
+        let record = source.map {
+            Self.managedSiteLogoRecord(sourceAsset: $0.asset, sourceData: $0.data)
+        }
+        next.site.logo = record?.asset.reference ?? ""
+        next.site.siteLogoAssets = record.map { [$0.asset] } ?? []
+        if let record {
+            next.insertAssetData(
+                record.data,
+                id: record.asset.id,
+                digest: FoundryDocumentSnapshot.digest(for: record.data)
+            )
+        }
+        replaceContents(with: next, undoManager: undoManager, actionName: "Set Site Logo")
     }
 
     @MainActor
@@ -356,6 +435,60 @@ final class FoundryDocument: ReferenceFileDocument {
 
     nonisolated static var decoder: JSONDecoder {
         JSONDecoder()
+    }
+
+    nonisolated private static func generatedWebIconRecords(
+        from files: [SiteExportFile]
+    ) -> [(asset: ProjectAsset, data: Data)] {
+        files.map { file in
+            let filename = URL(filePath: file.path).lastPathComponent
+            let mediaType = filename.hasSuffix(".ico") ? "image/x-icon" : "image/png"
+            return (
+                ProjectAsset(
+                    filename: filename,
+                    mediaType: mediaType,
+                    byteCount: file.data.count
+                ),
+                file.data
+            )
+        }
+    }
+
+    nonisolated private static func managedWebIconRecords(
+        sourceAsset: ProjectAsset,
+        sourceData: Data
+    ) -> [(asset: ProjectAsset, data: Data)] {
+        let sourceExtension = (sourceAsset.filename as NSString).pathExtension.lowercased()
+            .components(separatedBy: CharacterSet.alphanumerics.inverted)
+            .joined()
+        let source = ProjectAsset(
+            filename: "web-icon-source." + (sourceExtension.isEmpty ? "png" : sourceExtension),
+            mediaType: sourceAsset.mediaType,
+            byteCount: sourceData.count,
+            pixelWidth: sourceAsset.pixelWidth,
+            pixelHeight: sourceAsset.pixelHeight
+        )
+        return [(source, sourceData)]
+            + generatedWebIconRecords(from: WebIconGenerator.generateFiles(from: sourceData))
+    }
+
+    nonisolated private static func managedSiteLogoRecord(
+        sourceAsset: ProjectAsset,
+        sourceData: Data
+    ) -> (asset: ProjectAsset, data: Data) {
+        let sourceExtension = (sourceAsset.filename as NSString).pathExtension.lowercased()
+            .components(separatedBy: CharacterSet.alphanumerics.inverted)
+            .joined()
+        return (
+            ProjectAsset(
+                filename: "site-logo-source." + (sourceExtension.isEmpty ? "png" : sourceExtension),
+                mediaType: sourceAsset.mediaType,
+                byteCount: sourceData.count,
+                pixelWidth: sourceAsset.pixelWidth,
+                pixelHeight: sourceAsset.pixelHeight
+            ),
+            sourceData
+        )
     }
 }
 

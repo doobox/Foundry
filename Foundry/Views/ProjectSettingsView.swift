@@ -1,14 +1,135 @@
 import AppKit
+import Observation
 import SwiftUI
 import UniformTypeIdentifiers
 
-enum ProjectSettingsSection: String, Identifiable {
+enum ProjectSettingsSection: String, Identifiable, Sendable {
     case general
+    case webIcons
     case identity
+    case search
     case publishing
     case code
 
     var id: String { rawValue }
+}
+
+@MainActor
+@Observable
+final class ProjectSettingsWindowSession {
+    let document: FoundryDocument
+    let editor: ProjectEditor
+    var openPageMetadata: (UUID) -> Void
+    var selection: ProjectSettingsSection?
+
+    init(
+        document: FoundryDocument,
+        undoManager: UndoManager?,
+        selection: ProjectSettingsSection,
+        openPageMetadata: @escaping (UUID) -> Void
+    ) {
+        self.document = document
+        editor = ProjectEditor(document: document, undoManager: undoManager)
+        self.selection = selection
+        self.openPageMetadata = openPageMetadata
+    }
+}
+
+@MainActor
+final class ProjectSettingsWindowRegistry {
+    static let shared = ProjectSettingsWindowRegistry()
+
+    private var sessions: [UUID: ProjectSettingsWindowSession] = [:]
+
+    func register(
+        id: UUID,
+        document: FoundryDocument,
+        undoManager: UndoManager?,
+        selection: ProjectSettingsSection,
+        openPageMetadata: @escaping (UUID) -> Void
+    ) {
+        if let session = sessions[id], session.document === document {
+            session.selection = selection
+            session.openPageMetadata = openPageMetadata
+            return
+        }
+        sessions[id] = ProjectSettingsWindowSession(
+            document: document,
+            undoManager: undoManager,
+            selection: selection,
+            openPageMetadata: openPageMetadata
+        )
+    }
+
+    func session(for id: UUID) -> ProjectSettingsWindowSession? {
+        sessions[id]
+    }
+
+    func remove(id: UUID) {
+        sessions.removeValue(forKey: id)
+    }
+}
+
+struct ProjectSettingsWindowSceneContent: View {
+    let presentationID: UUID?
+
+    var body: some View {
+        Group {
+            if let presentationID,
+               let session = ProjectSettingsWindowRegistry.shared.session(for: presentationID) {
+                ProjectSettingsWindowContent(session: session)
+            } else {
+                ContentUnavailableView(
+                    "Site Settings Unavailable",
+                    systemImage: "gearshape",
+                    description: Text("Open Site Settings from a project window.")
+                )
+            }
+        }
+        .background(WindowGeometryPersistence(key: "siteSettings.windowFrame"))
+    }
+}
+
+private struct ProjectSettingsWindowContent: View {
+    @Bindable var session: ProjectSettingsWindowSession
+    @ObservedObject private var document: FoundryDocument
+
+    init(session: ProjectSettingsWindowSession) {
+        self.session = session
+        document = session.document
+    }
+
+    var body: some View {
+        ProjectSettingsView(
+            selection: $session.selection,
+            site: document.site,
+            assetContents: document.assetContents,
+            siteName: document.site.name,
+            language: document.site.language,
+            publicURL: document.site.publicURL,
+            titleSuffix: document.site.titleSuffix,
+            defaultDescription: document.site.defaultDescription,
+            favicon: document.site.favicon,
+            defaultSocialImage: document.site.defaultSocialImage,
+            logo: document.site.logo,
+            logoAlt: document.site.logoAlt,
+            assets: document.site.assets,
+            pages: document.site.pages,
+            pageFolders: document.site.pageFolders,
+            generatesCanonicalURLs: document.site.generatesCanonicalURLs,
+            generatesSitemap: document.site.generatesSitemap,
+            generatesRobotsTXT: document.site.generatesRobotsTXT,
+            allowsSearchIndexing: document.site.allowsSearchIndexing,
+            customCodeEnabled: document.site.customCodeEnabled,
+            headCode: document.site.headCode,
+            bodyStartCode: document.site.bodyStartCode,
+            bodyEndCode: document.site.bodyEndCode,
+            analyticsCode: document.site.analyticsCode,
+            editor: session.editor,
+            openPageMetadata: session.openPageMetadata
+        )
+        .navigationTitle("\(document.site.name) – Site Settings")
+    }
 }
 
 struct ProjectSettingsView: View {
@@ -22,6 +143,8 @@ struct ProjectSettingsView: View {
     let defaultDescription: String
     let favicon: String
     let defaultSocialImage: String
+    let logo: String
+    let logoAlt: String
     let assets: [ProjectAsset]
     let pages: [Page]
     let pageFolders: [PageFolder]
@@ -37,79 +160,84 @@ struct ProjectSettingsView: View {
     let editor: ProjectEditor
     let openPageMetadata: (UUID) -> Void
 
-    @Environment(\.dismiss) private var dismiss
     var body: some View {
         NavigationSplitView {
             List(selection: $selection) {
                 Label("General", systemImage: "gearshape")
                     .tag(ProjectSettingsSection.general)
+                Label("Web Icons", systemImage: "app.badge")
+                    .tag(ProjectSettingsSection.webIcons)
                 Label("Site Identity", systemImage: "globe")
                     .tag(ProjectSettingsSection.identity)
+                Label("SEO & Search", systemImage: "magnifyingglass")
+                    .tag(ProjectSettingsSection.search)
                 Label("Publishing", systemImage: "arrow.up.circle")
                     .tag(ProjectSettingsSection.publishing)
                 Label("Code & Analytics", systemImage: "chevron.left.forwardslash.chevron.right")
                     .tag(ProjectSettingsSection.code)
             }
+            .listStyle(.sidebar)
             .navigationTitle("Project Settings")
             .navigationSplitViewColumnWidth(min: 180, ideal: 210, max: 240)
         } detail: {
-            VStack(spacing: 0) {
-                switch selection ?? .general {
-                case .general:
-                    GeneralProjectSettingsView(
-                        siteName: siteName,
-                        language: language,
-                        publicURL: publicURL,
-                        editor: editor
-                    )
-                case .identity:
-                    SiteIdentityProjectSettingsView(
-                        siteName: siteName,
-                        publicURL: publicURL,
-                        titleSuffix: titleSuffix,
-                        defaultDescription: defaultDescription,
-                        favicon: favicon,
-                        defaultSocialImage: defaultSocialImage,
-                        pages: pages,
-                        assets: assets,
-                        editor: editor,
-                        openPageMetadata: openPageMetadata
-                    )
-                case .publishing:
-                    PublishingProjectSettingsView(
-                        site: site,
-                        assetContents: assetContents,
-                        publicURL: publicURL,
-                        pages: pages,
-                        pageFolders: pageFolders,
-                        generatesCanonicalURLs: generatesCanonicalURLs,
-                        generatesSitemap: generatesSitemap,
-                        generatesRobotsTXT: generatesRobotsTXT,
-                        allowsSearchIndexing: allowsSearchIndexing,
-                        editor: editor
-                    )
-                case .code:
-                    CodeAndAnalyticsProjectSettingsView(
-                        isEnabled: customCodeEnabled,
-                        headCode: headCode,
-                        bodyStartCode: bodyStartCode,
-                        bodyEndCode: bodyEndCode,
-                        analyticsCode: analyticsCode,
-                        editor: editor
-                    )
-                }
-                Divider()
-                HStack {
-                    Spacer()
-                    Button("Done") {
-                        dismiss()
-                    }
-                    .keyboardShortcut(.defaultAction)
-                }
-                .padding()
+            switch selection ?? .general {
+            case .general:
+                GeneralProjectSettingsView(
+                    siteName: siteName,
+                    language: language,
+                    publicURL: publicURL,
+                    logo: logo,
+                    logoAlt: logoAlt,
+                    allowsDarkMode: site.appearanceMode != .light,
+                    assets: assets,
+                    assetContents: assetContents,
+                    editor: editor
+                )
+            case .webIcons:
+                WebIconsProjectSettingsView(
+                    favicon: favicon,
+                    assets: assets,
+                    assetContents: assetContents,
+                    editor: editor
+                )
+            case .identity:
+                SiteIdentityProjectSettingsView(
+                    titleSuffix: titleSuffix,
+                    defaultDescription: defaultDescription,
+                    defaultSocialImage: defaultSocialImage,
+                    assets: assets,
+                    editor: editor
+                )
+            case .search:
+                SearchProjectSettingsView(
+                    publicURL: publicURL,
+                    generatesCanonicalURLs: generatesCanonicalURLs,
+                    generatesSitemap: generatesSitemap,
+                    generatesRobotsTXT: generatesRobotsTXT,
+                    allowsSearchIndexing: allowsSearchIndexing,
+                    editor: editor
+                )
+            case .publishing:
+                PublishingProjectSettingsView(
+                    site: site,
+                    assetContents: assetContents,
+                    publicURL: publicURL,
+                    pages: pages,
+                    pageFolders: pageFolders,
+                    editor: editor
+                )
+            case .code:
+                CodeAndAnalyticsProjectSettingsView(
+                    isEnabled: customCodeEnabled,
+                    headCode: headCode,
+                    bodyStartCode: bodyStartCode,
+                    bodyEndCode: bodyEndCode,
+                    analyticsCode: analyticsCode,
+                    editor: editor
+                )
             }
         }
-        .frame(minWidth: 680, idealWidth: 760, minHeight: 420, idealHeight: 480)
+        .frame(minWidth: 880, idealWidth: 1_000, minHeight: 560, idealHeight: 680)
     }
 }
 
@@ -206,16 +334,81 @@ private struct CodeAndAnalyticsProjectSettingsView: View {
     }
 }
 
+private struct SearchProjectSettingsView: View {
+    let publicURL: String
+    let generatesCanonicalURLs: Bool
+    let generatesSitemap: Bool
+    let generatesRobotsTXT: Bool
+    let allowsSearchIndexing: Bool
+    let editor: ProjectEditor
+
+    var body: some View {
+        ScrollView {
+            Grid(alignment: .topLeading, horizontalSpacing: 16, verticalSpacing: 14) {
+                ProjectSettingsGridRow("Search Options", alignment: .top) {
+                    VStack(alignment: .leading, spacing: 10) {
+                        VStack(alignment: .leading, spacing: 3) {
+                            Toggle(
+                                "Allow search engines to index this site",
+                                isOn: Binding(get: { allowsSearchIndexing }, set: editor.setAllowsSearchIndexing)
+                            )
+                            .toggleStyle(.checkbox)
+                            Text(allowsSearchIndexing
+                                 ? "Exported pages may be indexed by search engines."
+                                 : "Exported pages include a noindex directive and robots.txt prevents crawling.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .padding(.leading, 20)
+                        }
+
+                        Toggle(
+                            "Generate canonical URLs",
+                            isOn: Binding(get: { generatesCanonicalURLs }, set: editor.setGeneratesCanonicalURLs)
+                        )
+                        .toggleStyle(.checkbox)
+                        Toggle(
+                            "Generate sitemap.xml",
+                            isOn: Binding(get: { generatesSitemap }, set: editor.setGeneratesSitemap)
+                        )
+                        .toggleStyle(.checkbox)
+                        Toggle(
+                            "Generate robots.txt",
+                            isOn: Binding(get: { generatesRobotsTXT }, set: editor.setGeneratesRobotsTXT)
+                        )
+                        .toggleStyle(.checkbox)
+
+                        if needsPublicURL && !hasValidPublicURL {
+                            Label("Set a valid Web Address in General to generate canonical URLs and a sitemap.", systemImage: "exclamationmark.triangle")
+                                .font(.caption)
+                                .foregroundStyle(.orange)
+                        }
+                    }
+                }
+            }
+            .frame(maxWidth: 680)
+            .padding(28)
+            .frame(maxWidth: .infinity, alignment: .top)
+        }
+        .navigationTitle("SEO & Search")
+    }
+
+    private var needsPublicURL: Bool {
+        generatesCanonicalURLs || generatesSitemap
+    }
+
+    private var hasValidPublicURL: Bool {
+        guard let url = URL(string: publicURL),
+              let scheme = url.scheme?.lowercased() else { return false }
+        return (scheme == "http" || scheme == "https") && url.host != nil
+    }
+}
+
 private struct PublishingProjectSettingsView: View {
     let site: Site
     let assetContents: [UUID: ProjectAssetContent]
     let publicURL: String
     let pages: [Page]
     let pageFolders: [PageFolder]
-    let generatesCanonicalURLs: Bool
-    let generatesSitemap: Bool
-    let generatesRobotsTXT: Bool
-    let allowsSearchIndexing: Bool
     let editor: ProjectEditor
 
     @State private var localDestination: URL?
@@ -230,10 +423,6 @@ private struct PublishingProjectSettingsView: View {
         publicURL: String,
         pages: [Page],
         pageFolders: [PageFolder],
-        generatesCanonicalURLs: Bool,
-        generatesSitemap: Bool,
-        generatesRobotsTXT: Bool,
-        allowsSearchIndexing: Bool,
         editor: ProjectEditor
     ) {
         self.site = site
@@ -241,10 +430,6 @@ private struct PublishingProjectSettingsView: View {
         self.publicURL = publicURL
         self.pages = pages
         self.pageFolders = pageFolders
-        self.generatesCanonicalURLs = generatesCanonicalURLs
-        self.generatesSitemap = generatesSitemap
-        self.generatesRobotsTXT = generatesRobotsTXT
-        self.allowsSearchIndexing = allowsSearchIndexing
         self.editor = editor
         _localDestination = State(initialValue: PublishingDestinationStore.url(for: site.id))
         _credential = State(initialValue: PublishingCredentialStore.credential(site: site))
@@ -335,35 +520,6 @@ private struct PublishingProjectSettingsView: View {
                 }
             }
 
-            Section("Search Engines") {
-                Toggle(
-                    "Allow search engines to index this site",
-                    isOn: Binding(get: { allowsSearchIndexing }, set: editor.setAllowsSearchIndexing)
-                )
-                Text(allowsSearchIndexing
-                     ? "Exported pages may be indexed by search engines."
-                     : "Exported pages include a noindex directive and robots.txt parts crawling.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                Toggle(
-                    "Generate canonical URLs",
-                    isOn: Binding(get: { generatesCanonicalURLs }, set: editor.setGeneratesCanonicalURLs)
-                )
-                Toggle(
-                    "Generate sitemap.xml",
-                    isOn: Binding(get: { generatesSitemap }, set: editor.setGeneratesSitemap)
-                )
-                Toggle(
-                    "Generate robots.txt",
-                    isOn: Binding(get: { generatesRobotsTXT }, set: editor.setGeneratesRobotsTXT)
-                )
-                if needsPublicURL && validBaseURL == nil {
-                    Label("Set a valid Site URL in General to generate canonical URLs and a sitemap.", systemImage: "exclamationmark.triangle")
-                        .font(.caption)
-                        .foregroundStyle(.orange)
-                }
-            }
-
             Section("Published URLs") {
                 Text("Foundry publishes pages as clean directory URLs. The home page is index.html; other pages are written as path/index.html.")
                     .font(.caption)
@@ -437,10 +593,6 @@ private struct PublishingProjectSettingsView: View {
         }
     }
 
-    private var needsPublicURL: Bool {
-        generatesCanonicalURLs || generatesSitemap
-    }
-
     private var exportBundle: SiteExportBundle {
         StaticSiteRenderer().render(site: site, assets: assetContents)
     }
@@ -480,9 +632,6 @@ private struct PublishingProjectSettingsView: View {
             }
         if !unavailableParts.isEmpty {
             warnings.append("\(unavailableParts.count) parts use unavailable packages.")
-        }
-        if needsPublicURL && validBaseURL == nil {
-            warnings.append("Canonical URLs and sitemap.xml require a valid Site URL.")
         }
         if site.publishingDestination == .ftp {
             warnings.append("FTP sends credentials and content without encryption. Prefer SFTP or FTPS.")
@@ -556,15 +705,35 @@ private struct GeneralProjectSettingsView: View {
     let siteName: String
     let language: String
     let publicURL: String
+    let logo: String
+    let logoAlt: String
+    let allowsDarkMode: Bool
+    let assets: [ProjectAsset]
+    let assetContents: [UUID: ProjectAssetContent]
     let editor: ProjectEditor
 
     @State private var selectedLanguageCode: String
     @State private var customLanguage: String
 
-    init(siteName: String, language: String, publicURL: String, editor: ProjectEditor) {
+    init(
+        siteName: String,
+        language: String,
+        publicURL: String,
+        logo: String,
+        logoAlt: String,
+        allowsDarkMode: Bool,
+        assets: [ProjectAsset],
+        assetContents: [UUID: ProjectAssetContent],
+        editor: ProjectEditor
+    ) {
         self.siteName = siteName
         self.language = language
         self.publicURL = publicURL
+        self.logo = logo
+        self.logoAlt = logoAlt
+        self.allowsDarkMode = allowsDarkMode
+        self.assets = assets
+        self.assetContents = assetContents
         self.editor = editor
         let isCommonLanguage = Self.commonLanguages.contains { $0.code == language }
         _selectedLanguageCode = State(initialValue: isCommonLanguage ? language : Self.customLanguageCode)
@@ -572,64 +741,103 @@ private struct GeneralProjectSettingsView: View {
     }
 
     var body: some View {
-        Form {
-            Section("General") {
-                TextField(
-                    "Site Name",
-                    text: Binding(
-                        get: { siteName },
-                        set: editor.setSiteName
-                    )
-                )
-                Picker("Language", selection: languageSelection) {
-                    ForEach(Self.commonLanguages) { language in
-                        Text("\(language.name) — \(language.code)")
-                            .tag(language.code)
-                    }
-                    Divider()
-                    Text("Custom…").tag(Self.customLanguageCode)
-                }
-                if selectedLanguageCode == Self.customLanguageCode {
+        ScrollView {
+            Grid(alignment: .topLeading, horizontalSpacing: 16, verticalSpacing: 14) {
+                ProjectSettingsGridRow("Title") {
                     TextField(
-                        "Language Tag",
+                        "Title",
                         text: Binding(
-                            get: { customLanguage },
-                            set: { value in
-                                customLanguage = value
-                                editor.setSiteLanguage(value)
+                            get: { siteName },
+                            set: editor.setSiteName
+                        )
+                    )
+                    .labelsHidden()
+                }
+
+                ProjectSettingsGridRow("Web Address", alignment: .top) {
+                    VStack(alignment: .leading, spacing: 5) {
+                        TextField(
+                            "Web Address",
+                            text: Binding(get: { publicURL }, set: editor.setSitePublicURL),
+                            prompt: Text("https://example.com")
+                                .foregroundStyle(.secondary)
+                        )
+                        .labelsHidden()
+                        if !publicURL.isEmpty && !isValidPublicURL {
+                            Text("Enter a complete HTTP or HTTPS URL, such as https://example.com.")
+                                .font(.caption)
+                                .foregroundStyle(.red)
+                        }
+                    }
+                }
+
+                ProjectSettingsGridRow("Language", alignment: .top) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Picker("Language", selection: languageSelection) {
+                            ForEach(Self.commonLanguages) { language in
+                                Text("\(language.name) — \(language.code)")
+                                    .tag(language.code)
                             }
-                        ),
-                        prompt: Text("e.g. cy or zh-Hant-TW")
-                            .foregroundStyle(.secondary)
+                            Divider()
+                            Text("Custom…").tag(Self.customLanguageCode)
+                        }
+                        .labelsHidden()
+                        if selectedLanguageCode == Self.customLanguageCode {
+                            TextField(
+                                "Language Tag",
+                                text: Binding(
+                                    get: { customLanguage },
+                                    set: { value in
+                                        customLanguage = value
+                                        editor.setSiteLanguage(value)
+                                    }
+                                ),
+                                prompt: Text("e.g. cy or zh-Hant-TW")
+                                    .foregroundStyle(.secondary)
+                            )
+                            .labelsHidden()
+                        }
+                        if selectedLanguageCode == Self.customLanguageCode,
+                           !language.isEmpty,
+                           !isValidLanguage {
+                            Text("Enter a valid language tag, such as en, en-GB, or zh-Hant.")
+                                .font(.caption)
+                                .foregroundStyle(.red)
+                        }
+                    }
+                }
+
+                ProjectSettingsGridRow("Logo", alignment: .top) {
+                    SiteLogoImageWell(
+                        selection: Binding(get: { logo }, set: editor.setSiteLogo),
+                        assets: assets,
+                        assetContents: assetContents,
+                        importImage: editor.importSiteLogo
                     )
                 }
-                Text("Sets the language of exported pages for browsers, search engines and assistive technologies.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                if selectedLanguageCode == Self.customLanguageCode,
-                   !language.isEmpty,
-                   !isValidLanguage {
-                    Text("Enter a valid language tag, such as en, en-GB, or zh-Hant.")
-                        .font(.caption)
-                        .foregroundStyle(.red)
+
+                ProjectSettingsGridRow("Logo Alt") {
+                    TextField(
+                        "Logo Alt",
+                        text: Binding(get: { logoAlt }, set: editor.setSiteLogoAlt),
+                        prompt: Text("Describe the logo").foregroundStyle(.secondary)
+                    )
+                    .labelsHidden()
                 }
-                TextField(
-                    "Site URL",
-                    text: Binding(get: { publicURL }, set: editor.setSitePublicURL),
-                    prompt: Text("https://example.com")
-                        .foregroundStyle(.secondary)
-                )
-                Text("Used to create absolute links to pages and resources. Include http:// or https://. Foundry removes a trailing slash automatically.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                if !publicURL.isEmpty && !isValidPublicURL {
-                    Text("Enter a complete HTTP or HTTPS URL, such as https://example.com.")
-                        .font(.caption)
-                        .foregroundStyle(.red)
+
+                ProjectSettingsGridRow("Allow Dark Mode") {
+                    Toggle(
+                        "Allow Dark Mode",
+                        isOn: Binding(get: { allowsDarkMode }, set: editor.setSiteAllowsDarkMode)
+                    )
+                    .labelsHidden()
+                    .toggleStyle(.switch)
                 }
             }
+            .frame(maxWidth: 680)
+            .padding(28)
+            .frame(maxWidth: .infinity, alignment: .top)
         }
-        .formStyle(.grouped)
         .navigationTitle("General")
     }
 
@@ -691,120 +899,290 @@ private struct GeneralProjectSettingsView: View {
     }
 }
 
-private struct SiteIdentityProjectSettingsView: View {
-    let siteName: String
-    let publicURL: String
-    let titleSuffix: String
-    let defaultDescription: String
-    let favicon: String
-    let defaultSocialImage: String
-    let pages: [Page]
-    let assets: [ProjectAsset]
-    let editor: ProjectEditor
-    let openPageMetadata: (UUID) -> Void
+private struct ProjectSettingsGridRow<Content: View>: View {
+    let title: String
+    let alignment: VerticalAlignment
+    let content: Content
 
-    @State private var selectedPreviewPageID: UUID?
+    init(
+        _ title: String,
+        alignment: VerticalAlignment = .firstTextBaseline,
+        @ViewBuilder content: () -> Content
+    ) {
+        self.title = title
+        self.alignment = alignment
+        self.content = content()
+    }
 
     var body: some View {
-        Form {
-            Section("Appearance") {
-                Picker("Supported appearances", selection: Binding(
-                    get: { editor.document.site.appearanceMode },
-                    set: { mode in editor.mutate(actionName: "Change Site Appearance", impact: .theme) { $0.appearanceMode = mode } }
-                )) {
-                    ForEach(SiteAppearanceMode.allCases, id: \.self) { mode in
-                        Text(mode.title).tag(mode)
+        GridRow(alignment: alignment) {
+            Text(title)
+                .frame(width: 130, alignment: .trailing)
+                .foregroundStyle(.primary)
+            content
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+}
+
+private struct WebIconsProjectSettingsView: View {
+    let favicon: String
+    let assets: [ProjectAsset]
+    let assetContents: [UUID: ProjectAssetContent]
+    let editor: ProjectEditor
+
+    var body: some View {
+        ScrollView {
+            Grid(alignment: .topLeading, horizontalSpacing: 16, verticalSpacing: 18) {
+                ProjectSettingsGridRow("Favicon", alignment: .top) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        WebIconImageWell(
+                            selection: Binding(get: { favicon }, set: editor.setSiteFavicon),
+                            assets: assets,
+                            assetContents: assetContents,
+                            importImage: editor.importSiteFavicon
+                        )
+                        .frame(width: 128, height: 128)
+                        Text("Foundry generates favicon.ico, PNG favicons and Apple touch icons from a square image of at least 256 × 256 pixels.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
                 }
-                .controlSize(.small)
-            }
-            Section("Browser") {
-                TextField(
-                    "Title Suffix",
-                    text: Binding(get: { titleSuffix }, set: editor.setSiteTitleSuffix),
-                    prompt: Text(" – Site Name").foregroundStyle(.secondary)
-                )
-                Text("Appended to page titles in the browser and used by social sharing when a page has no custom social title.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                SiteIdentityImageField(
-                    title: "Site Icon",
-                    guidance: "Square PNG, SVG or ICO files work best. A 512 × 512 source gives browsers room to scale.",
-                    selection: Binding(get: { favicon }, set: editor.setSiteFavicon),
-                    assets: imageAssets,
-                    assetContents: editor.document.assetContents,
-                    importImage: { data, filename, mediaType in
-                        importImage(data, filename: filename, mediaType: mediaType, setter: editor.setSiteFavicon)
-                    }
-                )
-            }
 
-            Section("Defaults") {
-                TextField(
-                    "Description",
-                    text: Binding(get: { defaultDescription }, set: editor.setSiteDefaultDescription),
-                    prompt: Text("Default description for pages").foregroundStyle(.secondary),
-                    axis: .vertical
-                )
-                .lineLimit(3...6)
-                Text("Used for search and social metadata when a page does not provide its own description.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                SiteIdentityImageField(
-                    title: "Social Image",
-                    guidance: "Use a landscape image. 1200 × 630 pixels is the usual social-sharing size.",
-                    selection: Binding(get: { defaultSocialImage }, set: editor.setSiteDefaultSocialImage),
-                    assets: imageAssets,
-                    assetContents: editor.document.assetContents,
-                    importImage: { data, filename, mediaType in
-                        importImage(data, filename: filename, mediaType: mediaType, setter: editor.setSiteDefaultSocialImage)
-                    }
-                )
             }
+            .frame(maxWidth: 680)
+            .padding(28)
+            .frame(maxWidth: .infinity, alignment: .top)
+        }
+        .navigationTitle("Web Icons")
+    }
 
-            Section("Social Preview") {
-                Picker("Preview Page", selection: $selectedPreviewPageID) {
-                    ForEach(pages) { page in
-                        Text(page.title).tag(Optional(page.id))
+}
+
+private struct WebIconImageWell: View {
+    @Binding var selection: String
+    let assets: [ProjectAsset]
+    let assetContents: [UUID: ProjectAssetContent]
+    let importImage: (Data, String, String) -> Void
+
+    @State private var isDropTargeted = false
+    @State private var validationError: String?
+
+    private static let allowedExtensions = Set(["jpeg", "jpg", "png", "tif", "tiff", "webp"])
+    private static let maximumByteCount = 25 * 1_024 * 1_024
+
+    var body: some View {
+        ZStack(alignment: .topTrailing) {
+            Button(action: chooseImage) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 8)
+                        .fill(.quaternary)
+
+                    if let image = selectedImage {
+                        Image(nsImage: image)
+                            .resizable()
+                            .scaledToFit()
+                            .padding(14)
+                    } else {
+                        Image(systemName: "app.dashed")
+                            .font(.title2)
+                            .foregroundStyle(.secondary)
                     }
+
+                    RoundedRectangle(cornerRadius: 8)
+                        .stroke(isDropTargeted ? Color.accentColor : .clear, lineWidth: 2)
                 }
-                if let previewPage {
-                    metadataSourceRow("Title", source: titleSource)
-                    metadataSourceRow("Description", source: descriptionSource)
-                    metadataSourceRow("Image", source: imageSource)
-                    if effectiveDescription.isEmpty || effectiveImageReference.isEmpty {
-                        Label(missingMetadataMessage, systemImage: "exclamationmark.triangle")
-                            .font(.caption)
-                            .foregroundStyle(.orange)
-                    }
-                    SocialMetadataPreview(
-                        title: effectiveTitle,
-                        description: effectiveDescription,
-                        siteName: siteName,
-                        publicURL: publicURL,
-                        image: image(for: effectiveImageReference)
-                    )
-                    HStack {
-                        Text("Title \(effectiveTitle.count)/60 · Description \(effectiveDescription.count)/160")
-                            .font(.caption)
-                            .foregroundStyle(characterCountColor)
-                        Spacer()
-                        Button("Open Page Metadata") {
-                            openPageMetadata(previewPage.id)
-                        }
-                    }
-                } else {
-                    ContentUnavailableView("No Pages", systemImage: "doc")
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .help("Click to choose a square image, or drag one here.")
+            .accessibilityLabel(selection.isEmpty ? "Choose Web Icon Source" : "Change Web Icon Source")
+
+            if !selection.isEmpty {
+                Button {
+                    selection = ""
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .symbolRenderingMode(.hierarchical)
+                }
+                .buttonStyle(.borderless)
+                .padding(5)
+                .help("Remove Web Icons")
+            }
+        }
+        .dropDestination(for: URL.self) { urls, _ in
+            urls.contains(where: acceptImageURL)
+        } isTargeted: { targeted in
+            isDropTargeted = targeted
+        }
+        .contextMenu {
+            if !selection.isEmpty {
+                Button("Remove Web Icons", role: .destructive) {
+                    selection = ""
                 }
             }
         }
-        .formStyle(.grouped)
+        .alert("Web Icon Source Not Accepted", isPresented: Binding(
+            get: { validationError != nil },
+            set: { if !$0 { validationError = nil } }
+        )) {
+            Button("OK") { validationError = nil }
+        } message: {
+            Text(validationError ?? "")
+        }
+    }
+
+    private var selectedImage: NSImage? {
+        guard let id = selection.foundryAssetID,
+              let data = assetContents[id]?.data else { return nil }
+        return NSImage(data: data)
+    }
+
+    private func chooseImage() {
+        let panel = NSOpenPanel()
+        panel.title = "Choose a Web Icon Source"
+        panel.prompt = "Choose"
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = false
+        panel.allowsMultipleSelection = false
+        panel.allowedContentTypes = Self.allowedExtensions
+            .sorted()
+            .compactMap { UTType(filenameExtension: $0) }
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        _ = acceptImageURL(url)
+    }
+
+    private func acceptImageURL(_ url: URL) -> Bool {
+        if let id = draggedFoundryAssetID(from: url),
+           let asset = assets.first(where: { $0.id == id }),
+           let data = assetContents[id]?.data {
+            return accept(
+                data: data,
+                filename: asset.filename,
+                mediaType: asset.mediaType,
+                existingAsset: asset
+            )
+        }
+
+        guard let values = try? url.resourceValues(forKeys: [
+            .isRegularFileKey,
+            .contentTypeKey,
+            .fileSizeKey
+        ]),
+        values.isRegularFile == true,
+        (values.fileSize ?? 0) <= Self.maximumByteCount,
+        let type = values.contentType ?? UTType(filenameExtension: url.pathExtension),
+        type.conforms(to: .image),
+        let data = try? Data(contentsOf: url),
+        data.count <= Self.maximumByteCount else {
+            validationError = "Choose a supported image no larger than 25 MB."
+            return false
+        }
+        return accept(
+            data: data,
+            filename: url.lastPathComponent,
+            mediaType: type.preferredMIMEType ?? "application/octet-stream",
+            existingAsset: nil
+        )
+    }
+
+    private func accept(
+        data: Data,
+        filename: String,
+        mediaType: String,
+        existingAsset: ProjectAsset?
+    ) -> Bool {
+        let fileExtension = (filename as NSString).pathExtension.lowercased()
+        guard Self.allowedExtensions.contains(fileExtension), mediaType.hasPrefix("image/") else {
+            validationError = "Use a PNG, JPEG, WebP, or TIFF image."
+            return false
+        }
+        if let error = WebIconGenerator.sourceValidationError(for: data) {
+            validationError = error
+            return false
+        }
+        validationError = nil
+        if let existingAsset {
+            selection = existingAsset.reference
+        } else {
+            importImage(data, filename, mediaType)
+        }
+        return true
+    }
+
+    private func draggedFoundryAssetID(from url: URL) -> UUID? {
+        let filename = url.lastPathComponent
+        let prefix = "foundry-image-asset-"
+        guard filename.hasPrefix(prefix),
+              let separator = filename.range(of: "--") else { return nil }
+        let idStart = filename.index(filename.startIndex, offsetBy: prefix.count)
+        return UUID(uuidString: String(filename[idStart..<separator.lowerBound]))
+    }
+}
+
+private struct SiteIdentityProjectSettingsView: View {
+    let titleSuffix: String
+    let defaultDescription: String
+    let defaultSocialImage: String
+    let assets: [ProjectAsset]
+    let editor: ProjectEditor
+
+    var body: some View {
+        ScrollView {
+            Grid(alignment: .topLeading, horizontalSpacing: 16, verticalSpacing: 14) {
+                ProjectSettingsGridRow("Title Suffix", alignment: .top) {
+                    VStack(alignment: .leading, spacing: 5) {
+                        TextField(
+                            "Title Suffix",
+                            text: Binding(get: { titleSuffix }, set: editor.setSiteTitleSuffix),
+                            prompt: Text(" – Site Name").foregroundStyle(.secondary)
+                        )
+                        .labelsHidden()
+                        Text("Appended to page titles and used by social sharing when a page has no custom social title.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
+                ProjectSettingsGridRow("Description", alignment: .top) {
+                    VStack(alignment: .leading, spacing: 5) {
+                        TextField(
+                            "Description",
+                            text: Binding(get: { defaultDescription }, set: editor.setSiteDefaultDescription),
+                            prompt: Text("Default description for pages").foregroundStyle(.secondary),
+                            axis: .vertical
+                        )
+                        .labelsHidden()
+                        .lineLimit(3...6)
+                        Text("Used for search and social metadata when a page does not provide its own description.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
+                ProjectSettingsGridRow("Social Image", alignment: .top) {
+                    VStack(alignment: .leading, spacing: 5) {
+                        SiteLogoImageWell(
+                            selection: Binding(get: { defaultSocialImage }, set: editor.setSiteDefaultSocialImage),
+                            assets: imageAssets,
+                            assetContents: editor.document.assetContents,
+                            imageName: "Social Image",
+                            importImage: { data, filename, mediaType in
+                                importImage(data, filename: filename, mediaType: mediaType, setter: editor.setSiteDefaultSocialImage)
+                            }
+                        )
+                        Text("Used when a page does not provide its own social image. Use a landscape image; 1200 × 630 pixels is the usual sharing size.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+            .frame(maxWidth: 680)
+            .padding(28)
+            .frame(maxWidth: .infinity, alignment: .top)
+        }
         .navigationTitle("Site Identity")
-        .onAppear {
-            if selectedPreviewPageID == nil {
-                selectedPreviewPageID = pages.first?.id
-            }
-        }
     }
 
     private var imageAssets: [ProjectAsset] {
@@ -813,73 +1191,6 @@ private struct SiteIdentityProjectSettingsView: View {
             .sorted { $0.filename.localizedStandardCompare($1.filename) == .orderedAscending }
     }
 
-    private func image(for reference: String) -> NSImage? {
-        guard let id = reference.foundryAssetID,
-              let data = editor.document.assetContents[id]?.data else { return nil }
-        return NSImage(data: data)
-    }
-
-    private var previewPage: Page? {
-        guard let selectedPreviewPageID else { return pages.first }
-        return pages.first(where: { $0.id == selectedPreviewPageID }) ?? pages.first
-    }
-
-    private var effectiveTitle: String {
-        guard let page = previewPage else { return "" }
-        if !page.metadata.socialTitle.isEmpty { return page.metadata.socialTitle }
-        let pageTitle = page.metadata.browserTitle.isEmpty ? page.title : page.metadata.browserTitle
-        return pageTitle + titleSuffix
-    }
-
-    private var effectiveDescription: String {
-        guard let page = previewPage else { return defaultDescription }
-        if !page.metadata.socialDescription.isEmpty { return page.metadata.socialDescription }
-        return page.metadata.description.isEmpty ? defaultDescription : page.metadata.description
-    }
-
-    private var effectiveImageReference: String {
-        guard let page = previewPage else { return defaultSocialImage }
-        return page.metadata.socialImage.isEmpty ? defaultSocialImage : page.metadata.socialImage
-    }
-
-    private var titleSource: String {
-        guard let page = previewPage else { return "Site default" }
-        if !page.metadata.socialTitle.isEmpty || !page.metadata.browserTitle.isEmpty { return "Page override" }
-        return "Page title + site suffix"
-    }
-
-    private var descriptionSource: String {
-        guard let page = previewPage else { return "Site default" }
-        return page.metadata.socialDescription.isEmpty && page.metadata.description.isEmpty
-            ? "Site default"
-            : "Page override"
-    }
-
-    private var imageSource: String {
-        guard let page = previewPage else { return "Site default" }
-        return page.metadata.socialImage.isEmpty ? "Site default" : "Page override"
-    }
-
-    private var missingMetadataMessage: String {
-        switch (effectiveDescription.isEmpty, effectiveImageReference.isEmpty) {
-        case (true, true): "Add a description and social image for a complete sharing card."
-        case (true, false): "Add a description for a complete sharing card."
-        case (false, true): "Add a social image for a complete sharing card."
-        case (false, false): ""
-        }
-    }
-
-    private var characterCountColor: Color {
-        effectiveTitle.count > 60 || effectiveDescription.count > 160 ? .orange : .secondary
-    }
-
-    private func metadataSourceRow(_ title: String, source: String) -> some View {
-        LabeledContent(title) {
-            Text(source)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-        }
-    }
 
     private func importImage(
         _ data: Data,
@@ -901,60 +1212,86 @@ private struct SiteIdentityProjectSettingsView: View {
     }
 }
 
-private struct SiteIdentityImageField: View {
-    let title: String
-    let guidance: String
+private struct SiteLogoImageWell: View {
     @Binding var selection: String
     let assets: [ProjectAsset]
     let assetContents: [UUID: ProjectAssetContent]
+    let imageName: String
     let importImage: (Data, String, String) -> Void
 
     @State private var isDropTargeted = false
 
-    var body: some View {
-        LabeledContent(title) {
-            VStack(alignment: .leading, spacing: 8) {
-                HStack(spacing: 10) {
-                    imagePreview
-                    Picker("", selection: $selection) {
-                        Text("None").tag("")
-                        ForEach(assets) { asset in
-                            Text(asset.filename).tag(asset.reference)
-                        }
-                    }
-                    .labelsHidden()
-                    .frame(maxWidth: .infinity)
-                }
-                Text(guidance + " Drag an image here to import it.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-            .padding(8)
-            .background(.quaternary.opacity(isDropTargeted ? 1 : 0), in: RoundedRectangle(cornerRadius: 8))
-            .overlay {
-                RoundedRectangle(cornerRadius: 8)
-                    .stroke(isDropTargeted ? Color.accentColor : .clear, lineWidth: 2)
-                    .allowsHitTesting(false)
-            }
-            .contentShape(Rectangle())
-            .onDrop(of: [.fileURL], isTargeted: $isDropTargeted, perform: acceptImageProviders)
-        }
+    init(
+        selection: Binding<String>,
+        assets: [ProjectAsset],
+        assetContents: [UUID: ProjectAssetContent],
+        imageName: String = "Logo",
+        importImage: @escaping (Data, String, String) -> Void
+    ) {
+        _selection = selection
+        self.assets = assets
+        self.assetContents = assetContents
+        self.imageName = imageName
+        self.importImage = importImage
     }
 
-    @ViewBuilder
-    private var imagePreview: some View {
-        if let image = selectedImage {
-            Image(nsImage: image)
-                .resizable()
-                .scaledToFit()
-                .frame(width: 64, height: 48)
-                .background(.quaternary, in: RoundedRectangle(cornerRadius: 6))
-        } else {
-            Image(systemName: "photo")
-                .font(.title2)
-                .foregroundStyle(.secondary)
-                .frame(width: 64, height: 48)
-                .background(.quaternary, in: RoundedRectangle(cornerRadius: 6))
+    private static let allowedExtensions = Set([
+        "avif", "gif", "jpeg", "jpg", "png", "svg", "webp"
+    ])
+    private static let maximumByteCount = 25 * 1_024 * 1_024
+
+    var body: some View {
+        ZStack(alignment: .topTrailing) {
+            Button(action: chooseImage) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 8)
+                        .fill(.quaternary)
+
+                    if let image = selectedImage {
+                        Image(nsImage: image)
+                            .resizable()
+                            .scaledToFit()
+                            .padding(16)
+                    } else {
+                        Image(systemName: "photo")
+                            .font(.title2)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    RoundedRectangle(cornerRadius: 8)
+                        .stroke(isDropTargeted ? Color.accentColor : .clear, lineWidth: 2)
+                }
+                .frame(maxWidth: .infinity)
+                .frame(height: 150)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .help("Click to choose a \(imageName.lowercased()), or drag an image here.")
+            .accessibilityLabel(selection.isEmpty ? "Choose \(imageName)" : "Change \(imageName)")
+
+            if !selection.isEmpty {
+                Button {
+                    selection = ""
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .symbolRenderingMode(.hierarchical)
+                }
+                .buttonStyle(.borderless)
+                .padding(5)
+                .help("Remove \(imageName)")
+            }
+        }
+        .dropDestination(for: URL.self) { urls, _ in
+            urls.contains(where: acceptImageURL)
+        } isTargeted: { targeted in
+            isDropTargeted = targeted
+        }
+        .contextMenu {
+            if !selection.isEmpty {
+                Button("Remove \(imageName)", role: .destructive) {
+                    selection = ""
+                }
+            }
         }
     }
 
@@ -964,77 +1301,62 @@ private struct SiteIdentityImageField: View {
         return NSImage(data: data)
     }
 
-    private func acceptImageProviders(_ providers: [NSItemProvider]) -> Bool {
-        guard let provider = providers.first(where: {
-            $0.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier)
-        }) else { return false }
-        _ = provider.loadObject(ofClass: URL.self) { url, _ in
-            guard let url,
-                  let values = try? url.resourceValues(forKeys: [.isRegularFileKey, .contentTypeKey]),
-                  values.isRegularFile == true,
-                  let type = values.contentType ?? UTType(filenameExtension: url.pathExtension),
-                  type.conforms(to: .image),
-                  let data = try? Data(contentsOf: url) else { return }
-            let filename = provider.suggestedName.flatMap { suggestedName in
-                (suggestedName as NSString).pathExtension.isEmpty
-                    ? suggestedName + "." + url.pathExtension
-                    : suggestedName
-            } ?? url.lastPathComponent
-            Task { @MainActor in
-                importImage(data, filename, type.preferredMIMEType ?? "application/octet-stream")
-            }
+    private func chooseImage() {
+        let panel = NSOpenPanel()
+        panel.title = "Choose a \(imageName)"
+        panel.prompt = "Choose"
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = false
+        panel.allowsMultipleSelection = false
+        panel.allowedContentTypes = Self.allowedExtensions
+            .sorted()
+            .compactMap { UTType(filenameExtension: $0) }
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        _ = acceptImageURL(url)
+    }
+
+    private func acceptImageURL(_ url: URL) -> Bool {
+        if let id = draggedFoundryAssetID(from: url),
+           let asset = assets.first(where: { $0.id == id }),
+           isAllowed(filename: asset.filename, mediaType: asset.mediaType) {
+            selection = asset.reference
+            return true
         }
+
+        guard let values = try? url.resourceValues(forKeys: [
+            .isRegularFileKey,
+            .contentTypeKey,
+            .fileSizeKey
+        ]),
+        values.isRegularFile == true,
+        (values.fileSize ?? 0) <= Self.maximumByteCount,
+        let type = values.contentType ?? UTType(filenameExtension: url.pathExtension),
+        type.conforms(to: .image),
+        isAllowed(filename: url.lastPathComponent, mediaType: type.preferredMIMEType),
+        let data = try? Data(contentsOf: url),
+        data.count <= Self.maximumByteCount else { return false }
+
+        importImage(
+            data,
+            url.lastPathComponent,
+            type.preferredMIMEType ?? "application/octet-stream"
+        )
         return true
     }
-}
 
-private struct SocialMetadataPreview: View {
-    let title: String
-    let description: String
-    let siteName: String
-    let publicURL: String
-    let image: NSImage?
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            if let image {
-                Image(nsImage: image)
-                    .resizable()
-                    .scaledToFill()
-                    .frame(maxWidth: .infinity, minHeight: 110, maxHeight: 150)
-                    .clipped()
-            } else {
-                ZStack {
-                    Color.secondary.opacity(0.08)
-                    Image(systemName: "photo")
-                        .font(.largeTitle)
-                        .foregroundStyle(.tertiary)
-                }
-                .frame(height: 110)
-            }
-            VStack(alignment: .leading, spacing: 4) {
-                Text(previewHost)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                Text(title.isEmpty ? "Page Title" : title)
-                    .font(.headline)
-                    .lineLimit(2)
-                Text(description.isEmpty ? "Your default site description will appear here." : description)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(2)
-            }
-            .padding(12)
-        }
-        .background(.background, in: RoundedRectangle(cornerRadius: 10))
-        .overlay {
-            RoundedRectangle(cornerRadius: 10)
-                .stroke(.separator)
-        }
-        .clipShape(RoundedRectangle(cornerRadius: 10))
+    private func isAllowed(filename: String, mediaType: String?) -> Bool {
+        let fileExtension = (filename as NSString).pathExtension.lowercased()
+        guard Self.allowedExtensions.contains(fileExtension) else { return false }
+        guard let mediaType else { return true }
+        return mediaType.hasPrefix("image/") || mediaType == "application/xml"
     }
 
-    private var previewHost: String {
-        URL(string: publicURL)?.host ?? (siteName.isEmpty ? "Your Website" : siteName)
+    private func draggedFoundryAssetID(from url: URL) -> UUID? {
+        let filename = url.lastPathComponent
+        let prefix = "foundry-image-asset-"
+        guard filename.hasPrefix(prefix),
+              let separator = filename.range(of: "--") else { return nil }
+        let idStart = filename.index(filename.startIndex, offsetBy: prefix.count)
+        return UUID(uuidString: String(filename[idStart..<separator.lowerBound]))
     }
 }

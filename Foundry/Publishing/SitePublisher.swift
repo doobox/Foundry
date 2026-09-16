@@ -86,7 +86,8 @@ nonisolated struct PublishingPlan: Sendable, Equatable {
     static func make(
         bundle: SiteExportBundle,
         previous: PublishingManifest?,
-        removesObsoleteFiles: Bool
+        removesObsoleteFiles: Bool,
+        removesManagedSiteAssets: Bool = false
     ) -> PublishingPlan {
         let current = Dictionary(uniqueKeysWithValues: bundle.files.map {
             ($0.path, $0.contentFingerprint ?? hash($0.data))
@@ -94,15 +95,17 @@ nonisolated struct PublishingPlan: Sendable, Equatable {
         let previousFiles = previous?.files ?? [:]
         let uploads = bundle.files.filter { previousFiles[$0.path] != current[$0.path] }
         let obsolete = previousFiles.keys.filter { current[$0] == nil }.sorted()
-        let retained = removesObsoleteFiles ? current : previousFiles.merging(current) { _, new in new }
+        let removals = removesObsoleteFiles
+            ? obsolete
+            : removesManagedSiteAssets ? obsolete.filter(ManagedSiteAssetStorage.isManagedExportPath) : []
+        var retained = removesObsoleteFiles ? current : previousFiles.merging(current) { _, new in new }
+        removals.forEach { retained[$0] = nil }
         return PublishingPlan(
             uploads: uploads,
-            removals: removesObsoleteFiles ? obsolete : [],
-            removalHashes: removesObsoleteFiles
-                ? Dictionary(uniqueKeysWithValues: obsolete.compactMap { path in
+            removals: removals,
+            removalHashes: Dictionary(uniqueKeysWithValues: removals.compactMap { path in
                     previousFiles[path].map { (path, $0) }
-                })
-                : [:],
+                }),
             unchangedFileCount: bundle.files.count - uploads.count,
             nextManifest: PublishingManifest(files: retained)
         )
@@ -293,7 +296,8 @@ nonisolated struct SitePublisher: Sendable {
             let plan = PublishingPlan.make(
                 bundle: bundle,
                 previous: forceAllFiles ? nil : manifestStore.load(for: site, localDirectory: localDirectory),
-                removesObsoleteFiles: site.cleansObsoleteExportFiles
+                removesObsoleteFiles: site.cleansObsoleteExportFiles,
+                removesManagedSiteAssets: true
             )
             let removedFileCount = try await Task.detached {
                 try SiteExportWriter().apply(plan, bundle: bundle, to: localDirectory)

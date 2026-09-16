@@ -1,0 +1,59 @@
+:host {
+    display: block;
+}
+
+.live-refresh-boundary {
+    display: grid;
+    gap: 14px;
+    margin: 24px;
+    padding: 24px;
+    border: 2px solid currentColor;
+    border-radius: 14px;
+    background: color-mix(in srgb, currentColor 6%, var(--foundry-color-background));
+    color: var(--foundry-color-text);
+    font-family: system-ui, sans-serif;
+}
+
+.live-refresh-boundary h2,
+.live-refresh-boundary p,
+.live-refresh-boundary dl {
+    margin: 0;
+}
+
+.live-refresh-boundary .eyebrow {
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+}
+
+.live-refresh-boundary dl {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+}
+
+.live-refresh-boundary dl > div {
+    display: grid;
+    gap: 6px;
+    padding: 14px;
+    border-radius: 10px;
+    background: color-mix(in srgb, currentColor 9%, transparent);
+}
+
+.live-refresh-boundary dt {
+    font-size: 12px;
+    opacity: .7;
+}
+
+.live-refresh-boundary dd {
+    margin: 0;
+    font-family: ui-monospace, monospace;
+    font-weight: 700;
+}
+
+.live-refresh-boundary .explanation {
+    max-width: 70ch;
+    opacity: .76;
+    line-height: 1.5;
+}

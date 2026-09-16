@@ -270,6 +270,14 @@ nonisolated enum PartPackageValidator {
         let childPickerIDs = Set(manifest.slots.map(\.id))
 
         if requiresEditorAttributes {
+            if let issue = template.partRootStructureIssue {
+                diagnostics.append(templateDiagnostic(
+                    templateLocation,
+                    template: template,
+                    offset: issue.offset,
+                    message: issue.message
+                ))
+            }
             let rootTag = template.firstRootOpeningTag ?? ""
             if !rootTag.matches(#"\{\{\s*part\.attributes\s*\}\}"#) {
                 diagnostics.append(.init(
@@ -1225,7 +1233,175 @@ private nonisolated struct PartTemplateReference {
     let offset: Int
 }
 
+private nonisolated struct PartRootStructureIssue {
+    let offset: Int
+    let message: String
+}
+
+private nonisolated struct PartHTMLTag {
+    let range: Range<String.Index>
+    let name: String
+    let isClosing: Bool
+    let isSelfClosing: Bool
+}
+
 private nonisolated extension String {
+    private static var partRootStructureMessage: String {
+        "The primary HTML template must contain exactly one stable top-level root element. Put all rendered markup and template macros inside that root; only whitespace and HTML comments may appear outside it."
+    }
+
+    private static let htmlVoidElements: Set<String> = [
+        "area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "param", "source", "track", "wbr"
+    ]
+
+    var partRootStructureIssue: PartRootStructureIssue? {
+        guard let rootStart = indexAfterPartTemplateTrivia(from: startIndex),
+              rootStart < endIndex,
+              self[rootStart] == "<",
+              let root = partHTMLTag(at: rootStart),
+              !root.isClosing else {
+            return .init(offset: 0, message: Self.partRootStructureMessage)
+        }
+
+        if root.isSelfClosing || Self.htmlVoidElements.contains(root.name) {
+            return trailingPartRootIssue(after: root.range.upperBound)
+        }
+
+        var depth = 1
+        var cursor = root.range.upperBound
+        while cursor < endIndex,
+              let tagStart = self[cursor...].firstIndex(of: "<") {
+            if self[tagStart...].hasPrefix("<!--") {
+                guard let commentEnd = range(of: "-->", range: tagStart..<endIndex)?.upperBound else {
+                    return .init(offset: utf16Offset(of: tagStart), message: Self.partRootStructureMessage)
+                }
+                cursor = commentEnd
+                continue
+            }
+            guard let tag = partHTMLTag(at: tagStart) else {
+                cursor = index(after: tagStart)
+                continue
+            }
+            cursor = tag.range.upperBound
+            guard tag.name == root.name else { continue }
+            if tag.isClosing {
+                depth -= 1
+                if depth == 0 {
+                    return trailingPartRootIssue(after: tag.range.upperBound)
+                }
+            } else if !tag.isSelfClosing && !Self.htmlVoidElements.contains(tag.name) {
+                depth += 1
+            }
+        }
+
+        return .init(offset: utf16Offset(of: root.range.lowerBound), message: Self.partRootStructureMessage)
+    }
+
+    private func trailingPartRootIssue(after rootEnd: String.Index) -> PartRootStructureIssue? {
+        guard let trailingStart = indexAfterPartTemplateTrivia(from: rootEnd) else {
+            return .init(offset: utf16Offset(of: rootEnd), message: Self.partRootStructureMessage)
+        }
+        guard trailingStart == endIndex else {
+            return .init(offset: utf16Offset(of: trailingStart), message: Self.partRootStructureMessage)
+        }
+        return nil
+    }
+
+    private func indexAfterPartTemplateTrivia(from start: String.Index) -> String.Index? {
+        var cursor = start
+        while cursor < endIndex {
+            if self[cursor].isWhitespace {
+                cursor = index(after: cursor)
+                continue
+            }
+            if self[cursor...].hasPrefix("<!--") {
+                guard let commentEnd = range(of: "-->", range: cursor..<endIndex)?.upperBound else {
+                    return nil
+                }
+                cursor = commentEnd
+                continue
+            }
+            break
+        }
+        return cursor
+    }
+
+    private func partHTMLTag(at start: String.Index) -> PartHTMLTag? {
+        guard start < endIndex, self[start] == "<" else { return nil }
+        var cursor = index(after: start)
+        var isClosing = false
+        if cursor < endIndex, self[cursor] == "/" {
+            isClosing = true
+            cursor = index(after: cursor)
+        }
+        guard cursor < endIndex,
+              self[cursor] != "!",
+              self[cursor] != "?" else { return nil }
+
+        let nameStart = cursor
+        var templateDepth = 0
+        while cursor < endIndex {
+            if self[cursor...].hasPrefix("{{") {
+                templateDepth += 1
+                cursor = index(cursor, offsetBy: 2)
+                continue
+            }
+            if templateDepth > 0, self[cursor...].hasPrefix("}}") {
+                templateDepth -= 1
+                cursor = index(cursor, offsetBy: 2)
+                continue
+            }
+            let character = self[cursor]
+            if templateDepth == 0, character.isWhitespace || character == ">" || character == "/" {
+                break
+            }
+            cursor = index(after: cursor)
+        }
+        guard cursor > nameStart else { return nil }
+        let name = self[nameStart..<cursor]
+            .replacingOccurrences(of: #"\s+"#, with: "", options: .regularExpression)
+            .lowercased()
+
+        var tagCursor = cursor
+        var quote: Character?
+        var tagTemplateDepth = 0
+        while tagCursor < endIndex {
+            if quote == nil, self[tagCursor...].hasPrefix("{{") {
+                tagTemplateDepth += 1
+                tagCursor = index(tagCursor, offsetBy: 2)
+                continue
+            }
+            if quote == nil, tagTemplateDepth > 0, self[tagCursor...].hasPrefix("}}") {
+                tagTemplateDepth -= 1
+                tagCursor = index(tagCursor, offsetBy: 2)
+                continue
+            }
+            let character = self[tagCursor]
+            if tagTemplateDepth == 0 {
+                if let activeQuote = quote {
+                    if character == activeQuote { quote = nil }
+                } else if character == "\"" || character == "'" {
+                    quote = character
+                } else if character == ">" {
+                    let tagEnd = index(after: tagCursor)
+                    let body = self[start..<tagCursor].trimmingCharacters(in: .whitespacesAndNewlines)
+                    return .init(
+                        range: start..<tagEnd,
+                        name: name,
+                        isClosing: isClosing,
+                        isSelfClosing: !isClosing && body.hasSuffix("/")
+                    )
+                }
+            }
+            tagCursor = index(after: tagCursor)
+        }
+        return nil
+    }
+
+    private func utf16Offset(of index: String.Index) -> Int {
+        utf16.distance(from: utf16.startIndex, to: index.samePosition(in: utf16) ?? utf16.endIndex)
+    }
+
     var firstRootOpeningTag: String? {
         let pattern = #"(?is)\A\s*(?:(?:<!--.*?-->)|(?:<!DOCTYPE.*?>)|(?:<\?.*?\?>))*\s*(<(?!!|/)[^>]+>)"#
         let expression = try! NSRegularExpression(pattern: pattern)

@@ -1532,6 +1532,7 @@ struct StructurePanel: View {
     let globalPartNames: [UUID: String]
     @Binding var selectedPartIDs: Set<UUID>
     @Binding var selectedPartID: UUID?
+    @Binding var isPageSelected: Bool
     @Binding var expandedPartIDs: Set<UUID>
     let renamePart: (UUID, String) -> Void
     let canMovePartsToPlacement: ([UUID], PartPlacement) -> Bool
@@ -1553,15 +1554,18 @@ struct StructurePanel: View {
     @State private var reusablePartName = ""
     @State private var isNamingGlobalPart = false
     @State private var globalPartName = ""
+    @State private var isPageExpanded = true
 
     var body: some View {
         VStack(spacing: 0) {
             if let page {
                 StructureOutlineView(
-                    parts: page.parts,
+                    page: page,
                     globalPartNames: globalPartNames,
                     selectedPartIDs: $selectedPartIDs,
                     primarySelectedPartID: $selectedPartID,
+                    isPageSelected: $isPageSelected,
+                    isPageExpanded: $isPageExpanded,
                     expandedItemIDs: $expandedPartIDs,
                     renamePart: renamePart,
                     canMoveParts: canMovePartsToPlacement,
