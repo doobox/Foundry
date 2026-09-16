@@ -126,8 +126,8 @@ private struct PartUpdatePublishingSettingsView: View {
         status = nil
         Task {
             do {
-                try await SitePublisher().testConnection(site: connectionTestSite, credential: password)
-                status = "Connection successful."
+                let result = try await SitePublisher().testConnection(site: connectionTestSite, credential: password)
+                status = result.message
             } catch { status = error.localizedDescription }
             isTesting = false
         }

@@ -59,6 +59,49 @@ struct DocumentCodingTests {
     }
 
     @Test
+    func multiplePublishingDestinationsRoundTrip() throws {
+        var original = Site.starter()
+        let staging = PublishingDestination(
+            name: "Staging",
+            kind: .sftp,
+            host: "staging.example.com",
+            port: 22,
+            username: "deploy",
+            remotePath: "public_html"
+        )
+        original.publishingDestinations.append(staging)
+        original.defaultPublishingDestinationID = staging.id
+        original.synchronizeLegacyPublishingFields()
+
+        let data = try FoundryDocument.encoder.encode(original)
+        let decoded = try FoundryDocument.decoder.decode(Site.self, from: data)
+
+        #expect(decoded == original)
+        #expect(decoded.defaultPublishingDestination?.name == "Staging")
+        #expect(decoded.publishingDestination == .sftp)
+    }
+
+    @Test
+    func legacyPublishingSettingsMigrateToDefaultDestination() throws {
+        var original = Site.starter()
+        original.publishingDestination = .sftp
+        original.publishingHost = "legacy.example.com"
+        original.publishingUsername = "legacy-user"
+        let data = try FoundryDocument.encoder.encode(original)
+        var object = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        object.removeValue(forKey: "publishingDestinations")
+        object.removeValue(forKey: "defaultPublishingDestinationID")
+
+        let legacyData = try JSONSerialization.data(withJSONObject: object)
+        let decoded = try FoundryDocument.decoder.decode(Site.self, from: legacyData)
+
+        #expect(decoded.publishingDestinations.count == 1)
+        #expect(decoded.defaultPublishingDestination?.kind == .sftp)
+        #expect(decoded.defaultPublishingDestination?.host == "legacy.example.com")
+        #expect(decoded.defaultPublishingDestination?.username == "legacy-user")
+    }
+
+    @Test
     func siteMetadataRoundTripsThroughProjectJSON() throws {
         var original = Site.starter()
         original.language = "en-GB"

@@ -110,8 +110,45 @@ nonisolated enum PublishingDestinationKind: String, Codable, CaseIterable, Senda
     }
 }
 
+nonisolated struct PublishingDestination: Codable, Equatable, Identifiable, Sendable {
+    let id: UUID
+    var name: String
+    var kind: PublishingDestinationKind
+    var host: String
+    var port: Int
+    var username: String
+    var remotePath: String
+    var s3Bucket: String
+    var s3Region: String
+    var cleansObsoleteFiles: Bool
+
+    init(
+        id: UUID = UUID(),
+        name: String = "Publishing Destination",
+        kind: PublishingDestinationKind = .local,
+        host: String = "",
+        port: Int = 0,
+        username: String = "",
+        remotePath: String = "/",
+        s3Bucket: String = "",
+        s3Region: String = "us-east-1",
+        cleansObsoleteFiles: Bool = true
+    ) {
+        self.id = id
+        self.name = name
+        self.kind = kind
+        self.host = host
+        self.port = port
+        self.username = username
+        self.remotePath = remotePath
+        self.s3Bucket = s3Bucket
+        self.s3Region = s3Region
+        self.cleansObsoleteFiles = cleansObsoleteFiles
+    }
+}
+
 nonisolated struct Site: Codable, Equatable, Identifiable, Sendable {
-    static let currentSchemaVersion = 13
+    static let currentSchemaVersion = 14
 
     let id: UUID
     var schemaVersion: Int
@@ -143,6 +180,8 @@ nonisolated struct Site: Codable, Equatable, Identifiable, Sendable {
     var publishingRemotePath: String
     var publishingS3Bucket: String
     var publishingS3Region: String
+    var publishingDestinations: [PublishingDestination]
+    var defaultPublishingDestinationID: UUID?
     var pages: [Page]
     var pageFolders: [PageFolder]
     var theme: Theme
@@ -156,6 +195,23 @@ nonisolated struct Site: Codable, Equatable, Identifiable, Sendable {
     var partPackages: [PartPackageLock]
 
     var assets: [ProjectAsset] { assetLibrary.flatMap(\.allAssets) }
+
+    var defaultPublishingDestination: PublishingDestination? {
+        publishingDestinations.first { $0.id == defaultPublishingDestinationID } ?? publishingDestinations.first
+    }
+
+    mutating func synchronizeLegacyPublishingFields() {
+        guard let destination = defaultPublishingDestination else { return }
+        defaultPublishingDestinationID = destination.id
+        publishingDestination = destination.kind
+        publishingHost = destination.host
+        publishingPort = destination.port
+        publishingUsername = destination.username
+        publishingRemotePath = destination.remotePath
+        publishingS3Bucket = destination.s3Bucket
+        publishingS3Region = destination.s3Region
+        cleansObsoleteExportFiles = destination.cleansObsoleteFiles
+    }
 
     mutating func saveActiveThemeState() {
         let state = ProjectThemeState(sourceID: themeSourceID, theme: theme)
@@ -216,6 +272,8 @@ nonisolated struct Site: Codable, Equatable, Identifiable, Sendable {
         publishingRemotePath: String = "/",
         publishingS3Bucket: String = "",
         publishingS3Region: String = "us-east-1",
+        publishingDestinations: [PublishingDestination] = [],
+        defaultPublishingDestinationID: UUID? = nil,
         pages: [Page],
         pageFolders: [PageFolder] = [],
         theme: Theme = ThemeBundleStore.systemTheme,
@@ -257,6 +315,24 @@ nonisolated struct Site: Codable, Equatable, Identifiable, Sendable {
         self.publishingRemotePath = publishingRemotePath
         self.publishingS3Bucket = publishingS3Bucket
         self.publishingS3Region = publishingS3Region
+        if publishingDestinations.isEmpty {
+            let destination = PublishingDestination(
+                name: publishingDestination.title,
+                kind: publishingDestination,
+                host: publishingHost,
+                port: publishingPort,
+                username: publishingUsername,
+                remotePath: publishingRemotePath,
+                s3Bucket: publishingS3Bucket,
+                s3Region: publishingS3Region,
+                cleansObsoleteFiles: cleansObsoleteExportFiles
+            )
+            self.publishingDestinations = [destination]
+            self.defaultPublishingDestinationID = destination.id
+        } else {
+            self.publishingDestinations = publishingDestinations
+            self.defaultPublishingDestinationID = defaultPublishingDestinationID ?? publishingDestinations.first?.id
+        }
         self.pages = pages
         self.pageFolders = pageFolders
         self.theme = theme
@@ -303,7 +379,7 @@ nonisolated struct Site: Codable, Equatable, Identifiable, Sendable {
 
     private enum CodingKeys: String, CodingKey {
         case appearanceMode
-        case id, schemaVersion, name, language, publicURL, titleSuffix, defaultDescription, favicon, webIconAssets, defaultSocialImage, logo, siteLogoAssets, logoAlt, generatesCanonicalURLs, generatesSitemap, generatesRobotsTXT, allowsSearchIndexing, customCodeEnabled, headCode, bodyStartCode, bodyEndCode, analyticsCode, cleansObsoleteExportFiles, publishingDestination, publishingHost, publishingPort, publishingUsername, publishingRemotePath, publishingS3Bucket, publishingS3Region, pages, pageFolders, theme, themeSourceID, projectThemeValues, themeStates, reusableParts, globalParts, assetLibrary, partPackages
+        case id, schemaVersion, name, language, publicURL, titleSuffix, defaultDescription, favicon, webIconAssets, defaultSocialImage, logo, siteLogoAssets, logoAlt, generatesCanonicalURLs, generatesSitemap, generatesRobotsTXT, allowsSearchIndexing, customCodeEnabled, headCode, bodyStartCode, bodyEndCode, analyticsCode, cleansObsoleteExportFiles, publishingDestination, publishingHost, publishingPort, publishingUsername, publishingRemotePath, publishingS3Bucket, publishingS3Region, publishingDestinations, defaultPublishingDestinationID, pages, pageFolders, theme, themeSourceID, projectThemeValues, themeStates, reusableParts, globalParts, assetLibrary, partPackages
     }
 
     init(from decoder: Decoder) throws {
@@ -339,6 +415,28 @@ nonisolated struct Site: Codable, Equatable, Identifiable, Sendable {
         publishingRemotePath = try container.decode(String.self, forKey: .publishingRemotePath)
         publishingS3Bucket = try container.decode(String.self, forKey: .publishingS3Bucket)
         publishingS3Region = try container.decode(String.self, forKey: .publishingS3Region)
+        if let decodedDestinations = try container.decodeIfPresent([PublishingDestination].self, forKey: .publishingDestinations),
+           !decodedDestinations.isEmpty {
+            publishingDestinations = decodedDestinations
+            let decodedDefault = try container.decodeIfPresent(UUID.self, forKey: .defaultPublishingDestinationID)
+            defaultPublishingDestinationID = decodedDestinations.contains(where: { $0.id == decodedDefault })
+                ? decodedDefault
+                : decodedDestinations.first?.id
+        } else {
+            let destination = PublishingDestination(
+                name: publishingDestination.title,
+                kind: publishingDestination,
+                host: publishingHost,
+                port: publishingPort,
+                username: publishingUsername,
+                remotePath: publishingRemotePath,
+                s3Bucket: publishingS3Bucket,
+                s3Region: publishingS3Region,
+                cleansObsoleteFiles: cleansObsoleteExportFiles
+            )
+            publishingDestinations = [destination]
+            defaultPublishingDestinationID = destination.id
+        }
         pages = try container.decode([Page].self, forKey: .pages)
         pageFolders = try container.decode([PageFolder].self, forKey: .pageFolders)
         theme = try container.decode(Theme.self, forKey: .theme)

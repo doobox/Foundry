@@ -60,6 +60,20 @@ nonisolated struct PublishingResult: Sendable, Equatable {
     let removedFileCount: Int
 }
 
+nonisolated enum PublishingConnectionTestResult: Sendable, Equatable {
+    case connected
+    case connectedDestinationWillBeCreated
+
+    var message: String {
+        switch self {
+        case .connected:
+            "Connection succeeded."
+        case .connectedDestinationWillBeCreated:
+            "Connection succeeded. This directory does not exist yet and will be created when the site is published."
+        }
+    }
+}
+
 nonisolated struct PublishingManifest: Codable, Sendable, Equatable {
     var files: [String: String]
 }
@@ -332,17 +346,41 @@ nonisolated struct SitePublisher: Sendable {
         )
     }
 
-    func testConnection(site: Site, credential: String) async throws {
-        guard site.publishingDestination != .local else { return }
+    func testConnection(site: Site, credential: String) async throws -> PublishingConnectionTestResult {
+        guard site.publishingDestination != .local else { return .connected }
         try validate(site: site, credential: credential)
         let context = CurlProgressContext(file: "")
-        try await perform(
-            site: site,
-            relativePath: "",
-            credential: credential,
-            operation: .test,
-            context: context
-        )
+        do {
+            try await perform(
+                site: site,
+                relativePath: "",
+                credential: credential,
+                operation: .test,
+                context: context
+            )
+            return .connected
+        } catch is CancellationError {
+            throw CancellationError()
+        } catch {
+            guard site.publishingDestination != .amazonS3,
+                  !site.publishingRemotePath.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                throw error
+            }
+
+            // A directory listing cannot succeed before the configured destination exists.
+            // Verify the same credentials against the account root so this case is not
+            // presented as an authentication or server failure.
+            var rootSite = site
+            rootSite.publishingRemotePath = ""
+            try await perform(
+                site: rootSite,
+                relativePath: "",
+                credential: credential,
+                operation: .test,
+                context: CurlProgressContext(file: "")
+            )
+            return .connectedDestinationWillBeCreated
+        }
     }
 
     private func uploadConcurrently(
@@ -544,6 +582,15 @@ nonisolated enum PublishingRemoteURLBuilder {
 }
 
 enum PublishingDestinationStore {
+    static func url(for siteID: UUID, destinationID: UUID) -> URL? {
+        UserDefaults.standard.string(forKey: key(siteID, destinationID)).map { URL(filePath: $0) }
+            ?? url(for: siteID)
+    }
+
+    static func setURL(_ url: URL, for siteID: UUID, destinationID: UUID) {
+        UserDefaults.standard.set(url.path, forKey: key(siteID, destinationID))
+    }
+
     static func url(for siteID: UUID) -> URL? {
         UserDefaults.standard.string(forKey: key(siteID)).map { URL(filePath: $0) }
     }
@@ -555,11 +602,83 @@ enum PublishingDestinationStore {
     private static func key(_ siteID: UUID) -> String {
         "publishing.localDestination.\(siteID.uuidString)"
     }
+
+    private static func key(_ siteID: UUID, _ destinationID: UUID) -> String {
+        "publishing.localDestination.\(siteID.uuidString).\(destinationID.uuidString)"
+    }
+}
+
+nonisolated struct PublishingDestinationBookmark: Codable, Equatable, Identifiable, Sendable {
+    let id: UUID
+    var destination: PublishingDestination
+    var localDirectoryPath: String?
+
+    var name: String { destination.name }
+}
+
+enum PublishingDestinationBookmarkStore {
+    private static let defaultsKey = "publishing.destinationBookmarks"
+
+    static func bookmarks() -> [PublishingDestinationBookmark] {
+        guard let data = UserDefaults.standard.data(forKey: defaultsKey),
+              let bookmarks = try? JSONDecoder().decode([PublishingDestinationBookmark].self, from: data) else {
+            return []
+        }
+        return bookmarks.sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
+    }
+
+    @discardableResult
+    static func save(
+        destination: PublishingDestination,
+        localDirectory: URL?,
+        credential: String
+    ) -> PublishingDestinationBookmark {
+        var values = bookmarks()
+        let existingID = values.first(where: {
+            $0.name.compare(destination.name, options: [.caseInsensitive, .diacriticInsensitive]) == .orderedSame
+        })?.id
+        let bookmark = PublishingDestinationBookmark(
+            id: existingID ?? UUID(),
+            destination: destination,
+            localDirectoryPath: localDirectory?.path
+        )
+        values.removeAll { $0.id == bookmark.id }
+        values.append(bookmark)
+        if let data = try? JSONEncoder().encode(values) {
+            UserDefaults.standard.set(data, forKey: defaultsKey)
+        }
+        PublishingCredentialStore.setCredential(credential, bookmarkID: bookmark.id)
+        return bookmark
+    }
 }
 
 enum PublishingCredentialStore {
+    static func credential(bookmarkID: UUID) -> String {
+        credential(query: bookmarkQuery(bookmarkID: bookmarkID))
+    }
+
+    static func setCredential(_ credential: String, bookmarkID: UUID) {
+        setCredential(credential, query: bookmarkQuery(bookmarkID: bookmarkID))
+    }
+
+    static func credential(siteID: UUID, destinationID: UUID) -> String {
+        credential(query: baseQuery(siteID: siteID, destinationID: destinationID))
+    }
+
+    static func setCredential(_ credential: String, siteID: UUID, destinationID: UUID) {
+        setCredential(credential, query: baseQuery(siteID: siteID, destinationID: destinationID))
+    }
+
     static func credential(site: Site) -> String {
-        var query = baseQuery(site: site)
+        credential(query: baseQuery(site: site))
+    }
+
+    static func setCredential(_ credential: String, site: Site) {
+        setCredential(credential, query: baseQuery(site: site))
+    }
+
+    private static func credential(query originalQuery: [String: Any]) -> String {
+        var query = originalQuery
         query[kSecReturnData as String] = true
         query[kSecMatchLimit as String] = kSecMatchLimitOne
         var result: CFTypeRef?
@@ -568,13 +687,13 @@ enum PublishingCredentialStore {
         return String(decoding: data, as: UTF8.self)
     }
 
-    static func setCredential(_ credential: String, site: Site) {
-        let query = baseQuery(site: site)
+    private static func setCredential(_ credential: String, query: [String: Any]) {
         SecItemDelete(query as CFDictionary)
-        guard !credential.isEmpty else { return }
-        var item = query
-        item[kSecValueData as String] = Data(credential.utf8)
-        SecItemAdd(item as CFDictionary, nil)
+        if !credential.isEmpty {
+            var item = query
+            item[kSecValueData as String] = Data(credential.utf8)
+            SecItemAdd(item as CFDictionary, nil)
+        }
     }
 
     private static func baseQuery(site: Site) -> [String: Any] {
@@ -582,6 +701,22 @@ enum PublishingCredentialStore {
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: "uk.co.garysimpson.Foundry.publishing",
             kSecAttrAccount as String: "\(site.id.uuidString)|\(site.publishingDestination.rawValue)|\(site.publishingHost)|\(site.publishingUsername)|\(site.publishingS3Bucket)"
+        ]
+    }
+
+    private static func baseQuery(siteID: UUID, destinationID: UUID) -> [String: Any] {
+        [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: "uk.co.garysimpson.Foundry.publishing",
+            kSecAttrAccount as String: "\(siteID.uuidString)|destination|\(destinationID.uuidString)"
+        ]
+    }
+
+    private static func bookmarkQuery(bookmarkID: UUID) -> [String: Any] {
+        [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: "uk.co.garysimpson.Foundry.publishing-bookmarks",
+            kSecAttrAccount as String: bookmarkID.uuidString
         ]
     }
 }

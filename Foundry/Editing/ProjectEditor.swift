@@ -193,6 +193,70 @@ struct ProjectEditor {
         mutate(actionName: "Change Export Cleanup", impact: .publishingOnly) { $0.cleansObsoleteExportFiles = isEnabled }
     }
 
+    func addPublishingDestination(kind: PublishingDestinationKind, name: String? = nil) -> UUID {
+        let destination = PublishingDestination(name: name ?? kind.title, kind: kind)
+        mutate(actionName: "Add Publishing Destination", impact: .publishingOnly) { site in
+            site.publishingDestinations.append(destination)
+            if site.publishingDestinations.count == 1
+                || !site.publishingDestinations.contains(where: { $0.id == site.defaultPublishingDestinationID }) {
+                site.defaultPublishingDestinationID = destination.id
+                site.synchronizeLegacyPublishingFields()
+            }
+        }
+        return destination.id
+    }
+
+    func updatePublishingDestination(_ destination: PublishingDestination) {
+        mutate(actionName: "Edit Publishing Destination", impact: .publishingOnly) { site in
+            guard let index = site.publishingDestinations.firstIndex(where: { $0.id == destination.id }) else { return }
+            site.publishingDestinations[index] = destination
+            if site.publishingDestinations.count == 1 {
+                site.defaultPublishingDestinationID = destination.id
+            }
+            if site.defaultPublishingDestinationID == destination.id {
+                site.synchronizeLegacyPublishingFields()
+            }
+        }
+    }
+
+    func duplicatePublishingDestination(id: UUID) -> UUID? {
+        guard let source = document.site.publishingDestinations.first(where: { $0.id == id }) else { return nil }
+        let duplicate = PublishingDestination(
+            name: source.name + " Copy",
+            kind: source.kind,
+            host: source.host,
+            port: source.port,
+            username: source.username,
+            remotePath: source.remotePath,
+            s3Bucket: source.s3Bucket,
+            s3Region: source.s3Region,
+            cleansObsoleteFiles: source.cleansObsoleteFiles
+        )
+        mutate(actionName: "Duplicate Publishing Destination", impact: .publishingOnly) {
+            $0.publishingDestinations.append(duplicate)
+        }
+        return duplicate.id
+    }
+
+    func removePublishingDestination(id: UUID) {
+        mutate(actionName: "Remove Publishing Destination", impact: .publishingOnly) { site in
+            site.publishingDestinations.removeAll { $0.id == id }
+            if site.publishingDestinations.count == 1
+                || !site.publishingDestinations.contains(where: { $0.id == site.defaultPublishingDestinationID }) {
+                site.defaultPublishingDestinationID = site.publishingDestinations.first?.id
+                site.synchronizeLegacyPublishingFields()
+            }
+        }
+    }
+
+    func setDefaultPublishingDestination(id: UUID) {
+        mutate(actionName: "Set Default Publishing Destination", impact: .publishingOnly) { site in
+            guard site.publishingDestinations.contains(where: { $0.id == id }) else { return }
+            site.defaultPublishingDestinationID = id
+            site.synchronizeLegacyPublishingFields()
+        }
+    }
+
     func renamePart(id: UUID, name: String) {
         if let context = document.site.globalPartContext(containing: id), !context.isOverridden {
             renameSharedReusablePartInstance(partID: id, name: name)

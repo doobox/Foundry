@@ -12,6 +12,11 @@ struct DockingWorkspaceView<PanelContent: View>: View {
     let openThemeEditor: () -> Void
     let previewSite: () -> Void
     let publishSite: () -> Void
+    let publishingDestinations: [PublishingDestination]
+    let defaultPublishingDestinationID: UUID?
+    let selectPublishingDestination: (UUID) -> Void
+    let republishAllFiles: () -> Void
+    let openPublishingSetup: () -> Void
     let showPartUpdates: () -> Void
     @ViewBuilder let panelContent: (WorkspacePanel) -> PanelContent
     @Environment(WorkspacePresetLibrary.self) private var workspaceLibrary
@@ -223,15 +228,47 @@ struct DockingWorkspaceView<PanelContent: View>: View {
     }
 
     private var publishButton: some View {
-        Button {
-            publishSite()
-        } label: {
-            Label("Publish", systemImage: "cloud")
-                .labelStyle(.titleAndIcon)
-                .padding(.horizontal, 5)
+        Group {
+            if publishingDestinations.isEmpty {
+                Button(action: publishSite) {
+                    publishButtonLabel
+                }
+                .buttonStyle(.bordered)
+            } else {
+                Menu {
+                    ForEach(publishingDestinations) { destination in
+                        Toggle(
+                            destination.name,
+                            isOn: Binding(
+                                get: { destination.id == defaultPublishingDestinationID },
+                                set: { isSelected in
+                                    if isSelected {
+                                        selectPublishingDestination(destination.id)
+                                    }
+                                }
+                            )
+                        )
+                    }
+
+                    Divider()
+                    Button("Re-Publish All Files", action: republishAllFiles)
+                    Divider()
+                    Button("Publishing Setup…", action: openPublishingSetup)
+                } label: {
+                    publishButtonLabel
+                } primaryAction: {
+                    publishSite()
+                }
+                .buttonStyle(.bordered)
+            }
         }
-        .buttonStyle(.bordered)
         .help("Publish site")
+    }
+
+    private var publishButtonLabel: some View {
+        Label("Publish", systemImage: "cloud")
+            .labelStyle(.titleAndIcon)
+            .padding(.horizontal, 5)
     }
 
     private var workspacePresetsMenu: some View {

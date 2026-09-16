@@ -110,6 +110,11 @@ struct ContentView: View {
             },
             previewSite: previewSite,
             publishSite: { publishSite() },
+            publishingDestinations: validPublishingDestinations,
+            defaultPublishingDestinationID: document.site.defaultPublishingDestinationID,
+            selectPublishingDestination: { editor.setDefaultPublishingDestination(id: $0) },
+            republishAllFiles: { publishSite(forceAllFiles: true) },
+            openPublishingSetup: { openSiteSettings(section: .publishing) },
             showPartUpdates: {
                 openWindow(id: "available-part-updates")
             }
@@ -281,7 +286,7 @@ struct ContentView: View {
             Text(exportErrorMessage ?? "The site could not be generated.")
         }
         .alert(
-            "Delete \(pageDeletionRequest.map { "“\($0.title)”" } ?? "Page")?",
+            pageDeletionAlertTitle,
             isPresented: pageDeletionAlertBinding
         ) {
             Button("Delete Page Only", role: .destructive) {
@@ -496,7 +501,7 @@ struct ContentView: View {
             let site = document.site
             let assets = document.assetContents
             let localDirectory = site.publishingDestination == .local
-                ? PublishingDestinationStore.url(for: site.id)
+                ? site.defaultPublishingDestinationID.flatMap { PublishingDestinationStore.url(for: site.id, destinationID: $0) }
                 : nil
             let result = await Task.detached {
                 let bundle = StaticSiteRenderer().render(site: site, assets: assets)
@@ -573,6 +578,11 @@ struct ContentView: View {
 
     private var editor: ProjectEditor {
         ProjectEditor(document: document, undoManager: undoManager)
+    }
+
+    private var pageDeletionAlertTitle: String {
+        guard let pageDeletionRequest else { return "Delete Page?" }
+        return "Delete “\(pageDeletionRequest.title)”?"
     }
 
     private var inspectablePageSelection: Binding<UUID?> {
@@ -1777,16 +1787,53 @@ struct ContentView: View {
         openWindow(id: "site-settings", value: siteSettingsWindowID)
     }
 
-    private func publishSite(forceAllFiles: Bool = false) {
+    private var validPublishingDestinations: [PublishingDestination] {
+        document.site.publishingDestinations.filter { destination in
+            let nonempty: (String) -> Bool = {
+                !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            }
+            switch destination.kind {
+            case .local:
+                return PublishingDestinationStore.url(for: document.site.id, destinationID: destination.id) != nil
+            case .sftp:
+                return nonempty(destination.host) && nonempty(destination.username) && destination.port > 0
+            case .ftp, .ftps:
+                return nonempty(destination.host) && nonempty(destination.username) && destination.port > 0
+                    && !PublishingCredentialStore.credential(siteID: document.site.id, destinationID: destination.id).isEmpty
+            case .amazonS3:
+                return nonempty(destination.s3Bucket) && nonempty(destination.s3Region)
+                    && nonempty(destination.username)
+                    && !PublishingCredentialStore.credential(siteID: document.site.id, destinationID: destination.id).isEmpty
+            }
+        }
+    }
+
+    private func publishSite(destinationID: UUID? = nil, forceAllFiles: Bool = false) {
         guard let nativeDocument = NSDocumentController.shared.currentDocument else { return }
         if nativeDocument.fileURL == nil {
             nativeDocument.save(nil)
             return
         }
         nativeDocument.save(nil)
-        let site = document.site
+        var site = document.site
+        let selectedDestination = destinationID.flatMap { id in
+            site.publishingDestinations.first { $0.id == id }
+        } ?? site.defaultPublishingDestination
+        if let selectedDestination {
+            site.publishingDestination = selectedDestination.kind
+            site.publishingHost = selectedDestination.host
+            site.publishingPort = selectedDestination.port
+            site.publishingUsername = selectedDestination.username
+            site.publishingRemotePath = selectedDestination.remotePath
+            site.publishingS3Bucket = selectedDestination.s3Bucket
+            site.publishingS3Region = selectedDestination.s3Region
+            site.cleansObsoleteExportFiles = selectedDestination.cleansObsoleteFiles
+        }
+        let selectedDestinationID = selectedDestination?.id
         let assets = document.assetContents
-        var localDirectory = PublishingDestinationStore.url(for: site.id)
+        var localDirectory = selectedDestinationID.flatMap {
+            PublishingDestinationStore.url(for: site.id, destinationID: $0)
+        }
         if site.publishingDestination == .local, localDirectory == nil {
             let panel = NSOpenPanel()
             panel.title = "Choose Publishing Folder"
@@ -1797,11 +1844,15 @@ struct ContentView: View {
             panel.canCreateDirectories = true
             panel.allowsMultipleSelection = false
             guard panel.runModal() == .OK, let directory = panel.url else { return }
-            PublishingDestinationStore.setURL(directory, for: site.id)
+            if let destinationID = selectedDestinationID {
+                PublishingDestinationStore.setURL(directory, for: site.id, destinationID: destinationID)
+            }
             localDirectory = directory
         }
 
-        let credential = PublishingCredentialStore.credential(site: site)
+        let credential = selectedDestinationID.map {
+            PublishingCredentialStore.credential(siteID: site.id, destinationID: $0)
+        } ?? PublishingCredentialStore.credential(site: site)
         publishingState = .preparing
         showsPublishingProgress = true
         publishingTask?.cancel()
@@ -1838,7 +1889,7 @@ struct ContentView: View {
     private func markAllPublishingFilesChanged() {
         let site = document.site
         let localDirectory = site.publishingDestination == .local
-            ? PublishingDestinationStore.url(for: site.id)
+            ? site.defaultPublishingDestinationID.flatMap { PublishingDestinationStore.url(for: site.id, destinationID: $0) }
             : nil
         do {
             try PublishingManifestStore().remove(for: site, localDirectory: localDirectory)
@@ -1852,7 +1903,7 @@ struct ContentView: View {
         let site = document.site
         let assets = document.assetContents
         let localDirectory = site.publishingDestination == .local
-            ? PublishingDestinationStore.url(for: site.id)
+            ? site.defaultPublishingDestinationID.flatMap { PublishingDestinationStore.url(for: site.id, destinationID: $0) }
             : nil
         publishingChangeTask?.cancel()
         publishingChangeTask = Task {

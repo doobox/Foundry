@@ -3,15 +3,26 @@ import Observation
 import SwiftUI
 import UniformTypeIdentifiers
 
-enum ProjectSettingsSection: String, Identifiable, Sendable {
+enum ProjectSettingsSection: Hashable, Identifiable, Sendable {
     case general
     case webIcons
     case identity
     case search
     case publishing
+    case publishingDestination(UUID)
     case code
 
-    var id: String { rawValue }
+    var id: String {
+        switch self {
+        case .general: "general"
+        case .webIcons: "webIcons"
+        case .identity: "identity"
+        case .search: "search"
+        case .publishing: "publishing"
+        case .publishingDestination(let id): "publishingDestination.\(id.uuidString)"
+        case .code: "code"
+        }
+    }
 }
 
 @MainActor
@@ -173,6 +184,20 @@ struct ProjectSettingsView: View {
                     .tag(ProjectSettingsSection.search)
                 Label("Publishing", systemImage: "arrow.up.circle")
                     .tag(ProjectSettingsSection.publishing)
+                ForEach(site.publishingDestinations) { destination in
+                    Label(destination.name, systemImage: destination.kind == .local ? "externaldrive" : "cloud")
+                        .tag(ProjectSettingsSection.publishingDestination(destination.id))
+                        .padding(.leading, 18)
+                        .contextMenu {
+                            Button("Set as Default") { editor.setDefaultPublishingDestination(id: destination.id) }
+                            Button("Duplicate") { _ = editor.duplicatePublishingDestination(id: destination.id) }
+                            Divider()
+                            Button("Delete", role: .destructive) {
+                                editor.removePublishingDestination(id: destination.id)
+                                selection = .publishing
+                            }
+                        }
+                }
                 Label("Code & Analytics", systemImage: "chevron.left.forwardslash.chevron.right")
                     .tag(ProjectSettingsSection.code)
             }
@@ -218,14 +243,19 @@ struct ProjectSettingsView: View {
                     editor: editor
                 )
             case .publishing:
-                PublishingProjectSettingsView(
-                    site: site,
-                    assetContents: assetContents,
-                    publicURL: publicURL,
-                    pages: pages,
-                    pageFolders: pageFolders,
-                    editor: editor
-                )
+                PublishingDestinationsOverview(selection: $selection, site: site, editor: editor)
+            case .publishingDestination(let id):
+                if let destination = site.publishingDestinations.first(where: { $0.id == id }) {
+                    PublishingDestinationDetail(
+                        site: site,
+                        destination: destination,
+                        isDefault: site.defaultPublishingDestinationID == id,
+                        editor: editor
+                    )
+                    .id(destination.id)
+                } else {
+                    PublishingDestinationsOverview(selection: $selection, site: site, editor: editor)
+                }
             case .code:
                 CodeAndAnalyticsProjectSettingsView(
                     isEnabled: customCodeEnabled,
@@ -238,6 +268,293 @@ struct ProjectSettingsView: View {
             }
         }
         .frame(minWidth: 880, idealWidth: 1_000, minHeight: 560, idealHeight: 680)
+    }
+}
+
+private struct PublishingDestinationsOverview: View {
+    @Binding var selection: ProjectSettingsSection?
+    let site: Site
+    let editor: ProjectEditor
+
+    @State private var name = ""
+    @State private var kind = PublishingDestinationKind.local
+    @State private var bookmarks: [PublishingDestinationBookmark] = []
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 24) {
+                Text("Add a publishing destination")
+                    .font(.title2.weight(.semibold))
+
+                Grid(alignment: .topLeading, horizontalSpacing: 16, verticalSpacing: 14) {
+                    ProjectSettingsGridRow("Name") {
+                        TextField("Name", text: $name)
+                            .labelsHidden()
+                    }
+                    ProjectSettingsGridRow("Publishing Method") {
+                        Picker("Publishing Method", selection: $kind) {
+                            ForEach(PublishingDestinationKind.allCases, id: \.self) { kind in
+                                Text(kind.title).tag(kind)
+                            }
+                        }
+                        .labelsHidden()
+                    }
+                }
+
+                HStack {
+                    Button("Add Destination") {
+                        let id = editor.addPublishingDestination(kind: kind, name: name.trimmingCharacters(in: .whitespacesAndNewlines))
+                        name = ""
+                        selection = .publishingDestination(id)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+
+                    if !bookmarks.isEmpty {
+                        Menu("Add From Bookmark") {
+                            ForEach(bookmarks) { bookmark in
+                                Button(bookmark.name) { add(bookmark) }
+                            }
+                        }
+                    }
+                }
+            }
+            .frame(maxWidth: 680)
+            .padding(28)
+            .frame(maxWidth: .infinity, alignment: .top)
+        }
+        .navigationTitle("Publishing")
+        .onAppear { bookmarks = PublishingDestinationBookmarkStore.bookmarks() }
+    }
+
+    private func add(_ bookmark: PublishingDestinationBookmark) {
+        let template = bookmark.destination
+        let id = editor.addPublishingDestination(kind: template.kind, name: template.name)
+        let destination = PublishingDestination(
+            id: id,
+            name: template.name,
+            kind: template.kind,
+            host: template.host,
+            port: template.port,
+            username: template.username,
+            remotePath: template.remotePath,
+            s3Bucket: template.s3Bucket,
+            s3Region: template.s3Region,
+            cleansObsoleteFiles: template.cleansObsoleteFiles
+        )
+        editor.updatePublishingDestination(destination)
+        if let path = bookmark.localDirectoryPath {
+            PublishingDestinationStore.setURL(URL(filePath: path), for: site.id, destinationID: id)
+        }
+        PublishingCredentialStore.setCredential(
+            PublishingCredentialStore.credential(bookmarkID: bookmark.id),
+            siteID: site.id,
+            destinationID: id
+        )
+        selection = .publishingDestination(id)
+    }
+}
+
+private struct PublishingDestinationDetail: View {
+    let site: Site
+    let destination: PublishingDestination
+    let isDefault: Bool
+    let editor: ProjectEditor
+
+    @State private var credential: String
+    @State private var statusMessage: String?
+    @State private var statusSucceeded: Bool?
+    @State private var bookmarkMessage: String?
+    @State private var isTesting = false
+    @State private var localDestination: URL?
+
+    init(site: Site, destination: PublishingDestination, isDefault: Bool, editor: ProjectEditor) {
+        self.site = site
+        self.destination = destination
+        self.isDefault = isDefault
+        self.editor = editor
+        _credential = State(initialValue: PublishingCredentialStore.credential(siteID: site.id, destinationID: destination.id))
+        _localDestination = State(initialValue: PublishingDestinationStore.url(for: site.id, destinationID: destination.id))
+    }
+
+    var body: some View {
+        Form {
+            Section("Destination") {
+                TextField("Name", text: binding(\.name))
+                Picker("Publish To", selection: binding(\.kind)) {
+                    ForEach(PublishingDestinationKind.allCases, id: \.self) { kind in
+                        Text(kind.title).tag(kind)
+                    }
+                }
+                if !isDefault {
+                    Button("Make Default") { editor.setDefaultPublishingDestination(id: destination.id) }
+                } else {
+                    Label("Default destination", systemImage: "checkmark.circle.fill")
+                        .foregroundStyle(.green)
+                }
+            }
+
+            Section("Connection") {
+                connectionFields
+            }
+
+            Section("Options") {
+                Toggle("Remove obsolete files generated by Foundry", isOn: binding(\.cleansObsoleteFiles))
+                Text("Cleanup uses Foundry’s export manifest and never removes unrelated files.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Section {
+                HStack {
+                    if destination.kind == .local {
+                        Button("Choose Folder…", action: chooseLocalDestination)
+                        if localDestination != nil {
+                            Button("Reveal Folder") {
+                                if let url = localDestination {
+                                    NSWorkspace.shared.activateFileViewerSelecting([url])
+                                }
+                            }
+                        }
+                    } else {
+                        Button("Test Connection", action: testConnection)
+                            .buttonStyle(.borderedProminent)
+                            .disabled(isTesting || !isConnectionConfigurationComplete)
+                    }
+                    if isTesting { ProgressView().controlSize(.small) }
+                    Spacer()
+                    Button("Save as Bookmark", action: saveBookmark)
+                }
+                if let statusMessage {
+                    Text(statusMessage)
+                        .font(.caption)
+                        .foregroundStyle(statusSucceeded == true ? .green : .red)
+                }
+                if let bookmarkMessage {
+                    Text(bookmarkMessage)
+                        .font(.caption)
+                        .foregroundStyle(.green)
+                }
+            }
+        }
+        .formStyle(.grouped)
+        .navigationTitle(destination.name)
+    }
+
+    @ViewBuilder
+    private var connectionFields: some View {
+        switch destination.kind {
+        case .local:
+            LabeledContent("Folder") {
+                Text(localDestination?.path(percentEncoded: false) ?? "Not selected")
+                    .foregroundStyle(.secondary)
+            }
+        case .amazonS3:
+            TextField("Bucket", text: binding(\.s3Bucket))
+            TextField("Region", text: binding(\.s3Region))
+            TextField("Path Prefix", text: binding(\.remotePath))
+            TextField("Access Key ID", text: binding(\.username))
+            SecureField("Secret Access Key", text: credentialBinding)
+        case .sftp, .ftp, .ftps:
+            TextField("Host", text: binding(\.host))
+            TextField("Port", value: binding(\.port), format: .number.grouping(.never))
+            TextField("Username", text: binding(\.username))
+            TextField("Remote Path", text: binding(\.remotePath))
+            SecureField(destination.kind == .sftp ? "Password (Optional)" : "Password", text: credentialBinding)
+        }
+    }
+
+    private func binding<Value>(_ keyPath: WritableKeyPath<PublishingDestination, Value>) -> Binding<Value> {
+        Binding(
+            get: { destination[keyPath: keyPath] },
+            set: { value in
+                var updated = destination
+                updated[keyPath: keyPath] = value
+                if keyPath == \PublishingDestination.kind, updated.port == destination.kind.defaultPort {
+                    updated.port = updated.kind.defaultPort
+                }
+                editor.updatePublishingDestination(updated)
+                statusMessage = nil
+                statusSucceeded = nil
+                bookmarkMessage = nil
+            }
+        )
+    }
+
+    private var credentialBinding: Binding<String> {
+        Binding(
+            get: { credential },
+            set: { value in
+                credential = value
+                PublishingCredentialStore.setCredential(value, siteID: site.id, destinationID: destination.id)
+                statusMessage = nil
+                statusSucceeded = nil
+                bookmarkMessage = nil
+            }
+        )
+    }
+
+    private func chooseLocalDestination() {
+        let panel = NSOpenPanel()
+        panel.title = "Choose Publishing Folder"
+        panel.canChooseFiles = false
+        panel.canChooseDirectories = true
+        panel.canCreateDirectories = true
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        localDestination = url
+        PublishingDestinationStore.setURL(url, for: site.id, destinationID: destination.id)
+        editor.updatePublishingDestination(destination)
+    }
+
+    private func testConnection() {
+        var configuredSite = site
+        configuredSite.publishingDestination = destination.kind
+        configuredSite.publishingHost = destination.host
+        configuredSite.publishingPort = destination.port
+        configuredSite.publishingUsername = destination.username
+        configuredSite.publishingRemotePath = destination.remotePath
+        configuredSite.publishingS3Bucket = destination.s3Bucket
+        configuredSite.publishingS3Region = destination.s3Region
+        isTesting = true
+        statusMessage = nil
+        statusSucceeded = nil
+        Task {
+            defer { isTesting = false }
+            do {
+                let result = try await SitePublisher().testConnection(site: configuredSite, credential: credential)
+                statusMessage = result.message
+                statusSucceeded = true
+            } catch {
+                statusMessage = error.localizedDescription
+                statusSucceeded = false
+            }
+        }
+    }
+
+    private var isConnectionConfigurationComplete: Bool {
+        let nonempty: (String) -> Bool = {
+            !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        }
+        switch destination.kind {
+        case .local:
+            return localDestination != nil
+        case .sftp:
+            return nonempty(destination.host) && nonempty(destination.username) && destination.port > 0
+        case .ftp, .ftps:
+            return nonempty(destination.host) && nonempty(destination.username) && nonempty(credential) && destination.port > 0
+        case .amazonS3:
+            return nonempty(destination.s3Bucket) && nonempty(destination.s3Region)
+                && nonempty(destination.username) && nonempty(credential)
+        }
+    }
+
+    private func saveBookmark() {
+        PublishingDestinationBookmarkStore.save(
+            destination: destination,
+            localDirectory: localDestination,
+            credential: credential
+        )
+        bookmarkMessage = "Bookmark saved. It is available to new and existing projects."
     }
 }
 
@@ -671,8 +988,8 @@ private struct PublishingProjectSettingsView: View {
         statusMessage = nil
         connectionTask = Task {
             do {
-                try await SitePublisher().testConnection(site: site, credential: credential)
-                statusMessage = "Connection succeeded."
+                let result = try await SitePublisher().testConnection(site: site, credential: credential)
+                statusMessage = result.message
             } catch is CancellationError {
                 statusMessage = "Connection test cancelled."
             } catch {
