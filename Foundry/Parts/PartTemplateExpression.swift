@@ -119,7 +119,13 @@ nonisolated enum PartTemplateExpression {
         case .call(let name, let arguments):
             let argumentCounts = [
                 "abs": 1, "round": 1, "floor": 1, "ceil": 1,
-                "min": 2, "max": 2, "clamp": 3
+                "min": 2, "max": 2, "clamp": 3,
+                "contains": 2, "notContains": 2,
+                "containsInsensitive": 2, "notContainsInsensitive": 2,
+                "matches": 2, "notMatches": 2,
+                "matchesInsensitive": 2, "notMatchesInsensitive": 2,
+                "containsValue": 2, "notContainsValue": 2,
+                "isEmpty": 1, "isNotEmpty": 1
             ]
             guard argumentCounts[name] == arguments.count else {
                 throw ExpressionError(description: "Unknown function or incorrect number of arguments for '\(name)'.")
@@ -221,6 +227,19 @@ nonisolated enum PartTemplateExpression {
     }
 
     private static func call(_ name: String, arguments: [Value]) throws -> Value {
+        if PartExpressionPredicates.binaryFunctionNames.contains(name) ||
+            PartExpressionPredicates.unaryFunctionNames.contains(name) {
+            guard let lhs = arguments.first.flatMap(packageValue),
+                  let result = PartExpressionPredicates.evaluate(
+                    name,
+                    lhs: lhs,
+                    rhs: arguments.count > 1 ? packageValue(arguments[1]) : nil
+                  ) else {
+                throw ExpressionError(description: "Function '\(name)' received incompatible values.")
+            }
+            return .boolean(result)
+        }
+
         let numbers = try arguments.map(number)
         switch name {
         case "abs" where numbers.count == 1: return .number(abs(numbers[0]))
@@ -235,6 +254,17 @@ nonisolated enum PartTemplateExpression {
             }
             return .number(min(max(numbers[0], numbers[1]), numbers[2]))
         default: throw ExpressionError(description: "Unknown function or incorrect number of arguments for '\(name)'.")
+        }
+    }
+
+    private static func packageValue(_ value: Value) -> PartPackageValue? {
+        switch value {
+        case .number(let value): .number(value)
+        case .string(let value): .string(value)
+        case .boolean(let value): .boolean(value)
+        case .array(let values): .array(values)
+        case .object(let values): .object(values)
+        case .missing: nil
         }
     }
 

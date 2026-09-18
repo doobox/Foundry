@@ -72,7 +72,7 @@ nonisolated enum FoundryWebLibraryRegistry {
         var seen = Set<PartPackageLibraryRequirement>()
         return packages.flatMap { package in
             var requirements = package.manifest.libraries
-            if package.manifest.properties.contains(where: { $0.control.type == .icon }) {
+            if package.manifest.resolvedProperties.contains(where: { $0.control.type == .icon }) {
                 requirements.append(iconRequirement)
             }
             return requirements

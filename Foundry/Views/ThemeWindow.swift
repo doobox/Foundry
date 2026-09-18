@@ -129,6 +129,7 @@ enum ThemeWindowSection: String, CaseIterable, Identifiable, Hashable {
     case shadows
     case borderWidth
     case borderRadius
+    case zIndex
 
     var id: String { rawValue }
 
@@ -139,7 +140,8 @@ enum ThemeWindowSection: String, CaseIterable, Identifiable, Hashable {
         .spacing,
         .shadows,
         .borderWidth,
-        .borderRadius
+        .borderRadius,
+        .zIndex
     ]
 
     var title: String {
@@ -153,6 +155,7 @@ enum ThemeWindowSection: String, CaseIterable, Identifiable, Hashable {
         case .shadows: "Shadows"
         case .borderWidth: "Border Width"
         case .borderRadius: "Border Radius"
+        case .zIndex: "Stacking Order"
         }
     }
 
@@ -167,6 +170,7 @@ enum ThemeWindowSection: String, CaseIterable, Identifiable, Hashable {
         case .shadows: "square.stack"
         case .borderWidth: "square"
         case .borderRadius: "circle"
+        case .zIndex: "square.stack.3d.up"
         }
     }
 
@@ -190,6 +194,8 @@ enum ThemeWindowSection: String, CaseIterable, Identifiable, Hashable {
             "Set the width represented by each theme border token."
         case .borderRadius:
             "Set the corner radius represented by each theme radius token."
+        case .zIndex:
+            "Set the stacking order represented by each theme layering token."
         }
     }
 }
@@ -257,9 +263,11 @@ struct ThemeSettingsDetail: View {
         case .shadows:
             ThemeShadowSettings(shadows: theme.shadows, editor: editor)
         case .borderWidth:
-            ThemeDimensionSettings(tokens: theme.borderWidths, isRadius: false, setValue: editor.setThemeBorderWidth)
+            ThemeDimensionSettings(tokens: theme.borderWidths, kind: .borderWidth, setValue: editor.setThemeBorderWidth)
         case .borderRadius:
-            ThemeDimensionSettings(tokens: theme.borderRadii, isRadius: true, setValue: editor.setThemeBorderRadius)
+            ThemeDimensionSettings(tokens: theme.borderRadii, kind: .borderRadius, setValue: editor.setThemeBorderRadius)
+        case .zIndex:
+            ThemeDimensionSettings(tokens: theme.zIndexes, kind: .zIndex, setValue: editor.setThemeZIndex)
         case .colors:
             ProjectColourSettings(session: session)
         case .themes:
@@ -274,6 +282,7 @@ struct ThemeSettingsDetail: View {
         case .shadows: editor.resetThemeShadowScale
         case .borderWidth: editor.resetThemeBorderWidths
         case .borderRadius: editor.resetThemeBorderRadii
+        case .zIndex: editor.resetThemeZIndexes
         case .themes, .screens, .colors, .fontFamily: nil
         }
     }

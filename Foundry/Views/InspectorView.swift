@@ -1,5 +1,6 @@
 import AppKit
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct InspectorView: View {
     @State private var partGroupExpansion: [UUID: PartInspectorExpansion] = [:]
@@ -9,7 +10,7 @@ struct InspectorView: View {
     let asset: ProjectAsset?
     let assetLibraryNode: ProjectAssetNode?
     let assetLibrary: [ProjectAssetNode]
-    let assetContents: [UUID: ProjectAssetContent]
+    let assetContents: ProjectAssetContents
     let folders: [PageFolder]
     let pages: [Page]
     let publicURL: String
@@ -27,7 +28,7 @@ struct InspectorView: View {
     let assetUsageCount: (UUID) -> Int
     let renameAsset: (UUID, String) -> Void
     let renameAssetFolder: (UUID, String) -> Void
-    let importImage: (URL) -> ProjectAsset?
+    let importMedia: (URL, UTType) -> ProjectAsset?
     @Binding var editsSharedDefinition: Bool
 
     var body: some View {
@@ -49,7 +50,7 @@ struct InspectorView: View {
                     isGlobalOverride: isGlobalOverride,
                     setGlobalOverride: setGlobalOverride,
                     breakpoint: breakpoint,
-                    importImage: importImage,
+                    importMedia: importMedia,
                     editsSharedDefinition: $editsSharedDefinition,
                     groupExpansion: $partGroupExpansion
                 )
@@ -344,7 +345,7 @@ private struct PartLibraryInspectorTags: View {
 private struct AssetLibraryNodeInspector: View {
     let node: ProjectAssetNode
     let library: [ProjectAssetNode]
-    let contents: [UUID: ProjectAssetContent]
+    let contents: ProjectAssetContents
     let usageCount: (UUID) -> Int
     let renameAsset: (UUID, String) -> Void
     let renameFolder: (UUID, String) -> Void
@@ -695,7 +696,7 @@ private struct PartInspector: View {
     let currentPage: Page?
     let theme: Theme
     let assets: [ProjectAsset]
-    let assetContents: [UUID: ProjectAssetContent]
+    let assetContents: ProjectAssetContents
     let pages: [Page]
     let folders: [PageFolder]
     let publicURL: String
@@ -704,7 +705,7 @@ private struct PartInspector: View {
     let isGlobalOverride: Bool
     let setGlobalOverride: (Bool) -> Void
     let breakpoint: ResponsiveBreakpoint
-    let importImage: (URL) -> ProjectAsset?
+    let importMedia: (URL, UTType) -> ProjectAsset?
     @Binding var editsSharedDefinition: Bool
     @Binding var groupExpansion: [UUID: PartInspectorExpansion]
 
@@ -760,7 +761,7 @@ private struct PartInspector: View {
                         editor: editor,
                         editsSharedDefinition: reusableDefinition != nil && !isGlobalOverride,
                         breakpoint: breakpoint,
-                        importImage: importImage,
+                        importMedia: importMedia,
                         isExpanded: Binding(
                             get: { expandedGroups.contains(group) },
                             set: { setExpanded($0, group: group) }
@@ -1282,14 +1283,14 @@ private struct PartInspectorGroup: View {
     let currentPage: Page?
     let theme: Theme
     let assets: [ProjectAsset]
-    let assetContents: [UUID: ProjectAssetContent]
+    let assetContents: ProjectAssetContents
     let pages: [Page]
     let folders: [PageFolder]
     let publicURL: String
     let editor: ProjectEditor
     let editsSharedDefinition: Bool
     let breakpoint: ResponsiveBreakpoint
-    let importImage: (URL) -> ProjectAsset?
+    let importMedia: (URL, UTType) -> ProjectAsset?
     @Binding var isExpanded: Bool
     @Binding var usesAccordion: Bool
     let openAll: () -> Void
@@ -1334,7 +1335,11 @@ private struct PartInspectorGroup: View {
             }
             .padding(.vertical, InspectorMetrics.verticalSectionPadding)
         } label: {
-            Text(group.rawValue)
+            if group.rawValue == "Background" {
+                Label(group.rawValue, systemImage: "paintbrush.fill")
+            } else {
+                Text(group.rawValue)
+            }
         }
         .disclosureGroupStyle(PartInspectorDisclosureStyle(
             usesAccordion: $usesAccordion,
@@ -1358,7 +1363,7 @@ private struct PartInspectorGroup: View {
             editor: editor,
             editsSharedDefinition: editsSharedDefinition,
             breakpoint: breakpoint,
-            importImage: importImage
+            importMedia: importMedia
         )
     }
 }

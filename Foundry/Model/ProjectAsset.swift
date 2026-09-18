@@ -18,24 +18,31 @@ nonisolated enum PartImageProcessor {
 
     static func rendition(
         data: Data, filename: String, mimeType: String, maximumDimension: Int,
+        digest: String? = nil,
         cacheDirectory: URL? = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first?
-            .appending(path: "Foundry/ImageRenditions-v1", directoryHint: .isDirectory)
+            .appending(path: "Foundry/ImageRenditions-v2", directoryHint: .isDirectory)
     ) -> Result? {
         let dimension = min(max(maximumDimension, 1), canonicalMaximumDimension)
         let metadata = PartImageMetadata.inspect(data: data, filename: filename, mimeType: mimeType)
         guard let width = metadata.width, let height = metadata.height, max(width, height) > dimension else { return nil }
-        // Include processing version, source bytes and output-affecting inputs. No
-        // project paths or asset IDs: identical sources can share a cached variant.
+        // Include processing version and output-affecting inputs. No project
+        // paths or asset IDs: identical sources can share a cached variant.
+        // When a persisted digest is available, key on that instead of
+        // re-hashing the source bytes on every request.
         var hash = SHA256()
-        hash.update(data: data)
-        hash.update(data: Data("\u{0}v1\u{0}\(dimension)\u{0}\(filename)\u{0}\(mimeType)".utf8))
+        if let digest {
+            hash.update(data: Data("\u{0}v2\u{0}\(digest)\u{0}\(dimension)\u{0}\(filename)\u{0}\(mimeType)".utf8))
+        } else {
+            hash.update(data: data)
+            hash.update(data: Data("\u{0}v2\u{0}\(dimension)\u{0}\(filename)\u{0}\(mimeType)".utf8))
+        }
         let key = hash.finalize().map { String(format: "%02x", $0) }.joined()
         let cachedURL = cacheDirectory?.appending(path: key)
         if let cachedURL,
            let cached = try? Data(contentsOf: cachedURL, options: .mappedIfSafe),
            let source = CGImageSourceCreateWithData(cached as CFData, nil),
            CGImageSourceCreateImageAtIndex(source, 0, nil) != nil {
-            let ext = renditionFileExtension(data: data, fallback: (filename as NSString).pathExtension)
+            let ext = renditionFileExtension(mimeType: mimeType, fallback: (filename as NSString).pathExtension)
             let outputName = ext == (filename as NSString).pathExtension ? filename : (filename as NSString).deletingPathExtension + "." + ext
             let outputMIMEType = CGImageSourceGetType(source).flatMap { UTType($0 as String)?.preferredMIMEType } ?? mimeType
             let cachedMetadata = PartImageMetadata.inspect(data: cached, filename: outputName, mimeType: outputMIMEType)
@@ -75,6 +82,16 @@ nonisolated enum PartImageProcessor {
         guard let source = CGImageSourceCreateWithData(data as CFData, nil),
               let sourceType = CGImageSourceGetType(source),
               !(CGImageDestinationCopyTypeIdentifiers() as NSArray).contains(sourceType) else {
+            return fallback
+        }
+        return "png"
+    }
+
+    /// Byte-free variant: decides purely from the declared MIME type, which
+    /// is safe because `mediaType` is always derived from real bytes at import.
+    static func renditionFileExtension(mimeType: String, fallback: String) -> String {
+        guard let type = UTType(mimeType: mimeType),
+              !(CGImageDestinationCopyTypeIdentifiers() as NSArray).contains(type.identifier as CFString) else {
             return fallback
         }
         return "png"
@@ -136,7 +153,7 @@ nonisolated struct PartImageMetadata: Equatable, Sendable {
         filename: String,
         mimeType: String
     ) -> PartImageMetadata {
-        let dimensions = imageDimensions(in: data)
+        let dimensions = imageDimensions(from: CGImageSourceCreateWithData(data as CFData, nil))
         return PartImageMetadata(
             width: dimensions?.width,
             height: dimensions?.height,
@@ -146,8 +163,26 @@ nonisolated struct PartImageMetadata: Equatable, Sendable {
         )
     }
 
-    private static func imageDimensions(in data: Data) -> (width: Int, height: Int)? {
-        guard let source = CGImageSourceCreateWithData(data as CFData, nil),
+    /// Metadata-only inspection when the source already has a stable on-disk
+    /// location — ImageIO reads just the header, never the full file.
+    static func inspect(
+        url: URL,
+        byteCount: Int,
+        filename: String,
+        mimeType: String
+    ) -> PartImageMetadata {
+        let dimensions = imageDimensions(from: CGImageSourceCreateWithURL(url as CFURL, nil))
+        return PartImageMetadata(
+            width: dimensions?.width,
+            height: dimensions?.height,
+            mimeType: mimeType,
+            byteCount: byteCount,
+            filename: filename
+        )
+    }
+
+    private static func imageDimensions(from source: CGImageSource?) -> (width: Int, height: Int)? {
+        guard let source,
               let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any],
               let rawWidth = (properties[kCGImagePropertyPixelWidth] as? NSNumber)?.intValue,
               let rawHeight = (properties[kCGImagePropertyPixelHeight] as? NSNumber)?.intValue,
@@ -209,6 +244,147 @@ nonisolated enum PartImageTemplateValues {
     }
 }
 
+nonisolated enum PartVideoTemplateValues {
+    struct PlaybackOptions: Equatable, Sendable {
+        static let standard = Self(
+            autoplay: "never",
+            muted: false,
+            showsControls: true,
+            loops: false,
+            startAt: 0
+        )
+
+        let autoplay: String
+        let muted: Bool
+        let showsControls: Bool
+        let loops: Bool
+        let startAt: Double
+    }
+
+    static func posterPropertyKey(for propertyID: String) -> PartProperty.Key {
+        .init(rawValue: "__foundry_video_poster_" + propertyID)
+    }
+
+    static func autoplayPropertyKey(for propertyID: String) -> PartProperty.Key {
+        .init(rawValue: "__foundry_video_autoplay_" + propertyID)
+    }
+
+    static func mutedPropertyKey(for propertyID: String) -> PartProperty.Key {
+        .init(rawValue: "__foundry_video_muted_" + propertyID)
+    }
+
+    static func controlsPropertyKey(for propertyID: String) -> PartProperty.Key {
+        .init(rawValue: "__foundry_video_controls_" + propertyID)
+    }
+
+    static func loopPropertyKey(for propertyID: String) -> PartProperty.Key {
+        .init(rawValue: "__foundry_video_loop_" + propertyID)
+    }
+
+    static func startAtPropertyKey(for propertyID: String) -> PartProperty.Key {
+        .init(rawValue: "__foundry_video_start_at_" + propertyID)
+    }
+
+    static func playbackOptions(propertyID: String, node: PartNode) -> PlaybackOptions {
+        let autoplay = node.property(autoplayPropertyKey(for: propertyID))
+        return .init(
+            autoplay: autoplay == "onLoad" ? autoplay : PlaybackOptions.standard.autoplay,
+            muted: node.propertyValue(mutedPropertyKey(for: propertyID)).booleanValue ?? PlaybackOptions.standard.muted,
+            showsControls: node.propertyValue(controlsPropertyKey(for: propertyID)).booleanValue ?? PlaybackOptions.standard.showsControls,
+            loops: node.propertyValue(loopPropertyKey(for: propertyID)).booleanValue ?? PlaybackOptions.standard.loops,
+            startAt: max(node.propertyValue(startAtPropertyKey(for: propertyID)).numberValue ?? 0, 0)
+        )
+    }
+
+    static func insert(
+        propertyID: String,
+        href: String,
+        poster: String,
+        asset: ProjectAsset?,
+        playback: PlaybackOptions = .standard,
+        enablesEditorMarkup: Bool = false,
+        into values: inout [String: PartPackageValue]
+    ) {
+        values[propertyID + ".element"] = .string(element(
+            propertyID: propertyID,
+            href: href,
+            poster: poster,
+            playback: playback,
+            enablesEditorMarkup: enablesEditorMarkup
+        ))
+        values[propertyID + ".href"] = .string(href)
+        values[propertyID + ".poster"] = .string(poster)
+        values[propertyID + ".autoplay"] = .string(playback.autoplay)
+        values[propertyID + ".muted"] = .boolean(playback.muted)
+        values[propertyID + ".controls"] = .boolean(playback.showsControls)
+        values[propertyID + ".loop"] = .boolean(playback.loops)
+        values[propertyID + ".startAt"] = .number(playback.startAt)
+        values[propertyID + ".filename"] = .string(asset?.filename ?? "")
+        values[propertyID + ".extension"] = .string(
+            asset.map { ($0.filename as NSString).pathExtension.lowercased() } ?? ""
+        )
+        values[propertyID + ".mimeType"] = .string(asset?.mediaType ?? "")
+        values[propertyID + ".byteCount"] = asset.map { .number(Double($0.byteCount)) } ?? .string("")
+        values[propertyID + ".width"] = asset?.pixelWidth.map { .number(Double($0)) } ?? .string("")
+        values[propertyID + ".height"] = asset?.pixelHeight.map { .number(Double($0)) } ?? .string("")
+        if let width = asset?.pixelWidth, let height = asset?.pixelHeight, height > 0 {
+            values[propertyID + ".aspectRatio"] = .number(Double(width) / Double(height))
+        } else {
+            values[propertyID + ".aspectRatio"] = .string("")
+        }
+        values[propertyID + ".duration"] = asset?.videoMetadata.map { .number($0.duration) } ?? .string("")
+    }
+
+    private static func element(
+        propertyID: String,
+        href: String,
+        poster: String,
+        playback: PlaybackOptions,
+        enablesEditorMarkup: Bool
+    ) -> String {
+        guard !href.isEmpty || !poster.isEmpty else { return "" }
+        let source = source(href: href, startAt: playback.startAt)
+        let sourceAttribute = source.isEmpty ? "" : " src=\"\(escapeAttribute(source))\""
+        let posterAttribute = poster.isEmpty ? "" : " poster=\"\(escapeAttribute(poster))\""
+        let autoplayAttribute = playback.autoplay == "onLoad" ? " autoplay" : ""
+        let mutedAttribute = playback.muted ? " muted" : ""
+        let controlsAttribute = playback.showsControls ? " controls" : ""
+        let loopAttribute = playback.loops ? " loop" : ""
+        // On the canvas the video element doubles as the poster drop target,
+        // reusing the image drop pipeline against the poster companion key.
+        let editorAttributes = enablesEditorMarkup
+            ? " data-foundry-image-drop-zone data-foundry-image-property=\"\(escapeAttribute(posterPropertyKey(for: propertyID).rawValue))\""
+            : ""
+        return "<video\(sourceAttribute)\(posterAttribute)\(autoplayAttribute)\(mutedAttribute)\(controlsAttribute)\(loopAttribute)\(editorAttributes) playsinline></video>"
+    }
+
+    private static func source(href: String, startAt: Double) -> String {
+        guard !href.isEmpty, startAt > 0 else { return href }
+        let time = startAt.formatted(
+            .number.locale(Locale(identifier: "en_US_POSIX")).precision(.fractionLength(0...3))
+        )
+        return href + "#t=" + time
+    }
+
+    private static func escapeAttribute(_ value: String) -> String {
+        value
+            .replacingOccurrences(of: "&", with: "&amp;")
+            .replacingOccurrences(of: "\"", with: "&quot;")
+            .replacingOccurrences(of: "'", with: "&#39;")
+            .replacingOccurrences(of: "<", with: "&lt;")
+            .replacingOccurrences(of: ">", with: "&gt;")
+    }
+}
+
+nonisolated struct ProjectVideoMetadata: Codable, Equatable, Sendable {
+    let duration: Double
+    let posterJPEG: Data
+
+    var posterDataURL: String {
+        "data:image/jpeg;base64," + posterJPEG.base64EncodedString()
+    }
+}
+
 nonisolated struct ProjectAsset: Codable, Equatable, Identifiable, Sendable {
     enum ExportDirectory: Codable, Equatable, Sendable {
         case root
@@ -219,8 +395,11 @@ nonisolated struct ProjectAsset: Codable, Equatable, Identifiable, Sendable {
     var filename: String
     var mediaType: String
     var byteCount: Int
+    /// Lowercase SHA-256 hex digest of the asset's bytes, computed once at import.
+    var contentDigest: String
     var pixelWidth: Int?
     var pixelHeight: Int?
+    var videoMetadata: ProjectVideoMetadata?
     var exportDirectory: ExportDirectory?
     var exportOrder: Int
 
@@ -229,8 +408,10 @@ nonisolated struct ProjectAsset: Codable, Equatable, Identifiable, Sendable {
         filename: String,
         mediaType: String,
         byteCount: Int,
+        contentDigest: String,
         pixelWidth: Int? = nil,
         pixelHeight: Int? = nil,
+        videoMetadata: ProjectVideoMetadata? = nil,
         exportDirectory: ExportDirectory? = nil,
         exportOrder: Int = 0
     ) {
@@ -238,8 +419,10 @@ nonisolated struct ProjectAsset: Codable, Equatable, Identifiable, Sendable {
         self.filename = filename
         self.mediaType = mediaType
         self.byteCount = byteCount
+        self.contentDigest = contentDigest
         self.pixelWidth = pixelWidth
         self.pixelHeight = pixelHeight
+        self.videoMetadata = videoMetadata
         self.exportDirectory = exportDirectory
         self.exportOrder = exportOrder
     }
@@ -264,7 +447,7 @@ nonisolated struct ProjectAsset: Codable, Equatable, Identifiable, Sendable {
     }
 
     private enum CodingKeys: String, CodingKey {
-        case id, filename, mediaType, byteCount, pixelWidth, pixelHeight, exportDirectory, exportOrder
+        case id, filename, mediaType, byteCount, contentDigest, pixelWidth, pixelHeight, videoMetadata, exportDirectory, exportOrder
     }
 
     init(from decoder: Decoder) throws {
@@ -273,8 +456,10 @@ nonisolated struct ProjectAsset: Codable, Equatable, Identifiable, Sendable {
         filename = try container.decode(String.self, forKey: .filename)
         mediaType = try container.decode(String.self, forKey: .mediaType)
         byteCount = try container.decode(Int.self, forKey: .byteCount)
+        contentDigest = try container.decode(String.self, forKey: .contentDigest)
         pixelWidth = try container.decodeIfPresent(Int.self, forKey: .pixelWidth)
         pixelHeight = try container.decodeIfPresent(Int.self, forKey: .pixelHeight)
+        videoMetadata = try container.decodeIfPresent(ProjectVideoMetadata.self, forKey: .videoMetadata)
         exportDirectory = try container.decodeIfPresent(ExportDirectory.self, forKey: .exportDirectory)
         exportOrder = try container.decodeIfPresent(Int.self, forKey: .exportOrder) ?? 0
     }
@@ -395,12 +580,12 @@ nonisolated enum AssetPlacement: Equatable, Sendable {
 nonisolated struct ProjectAssetContent: Equatable, Sendable {
     let asset: ProjectAsset
     let data: Data
-    let digest: Data?
+    let digest: String?
 
-    init(asset: ProjectAsset, data: Data, digest: Data? = nil) {
+    init(asset: ProjectAsset, data: Data, digest: String? = nil) {
         self.asset = asset
         self.data = data
-        self.digest = digest
+        self.digest = digest ?? asset.contentDigest
     }
 }
 

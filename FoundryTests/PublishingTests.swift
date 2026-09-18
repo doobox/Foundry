@@ -249,6 +249,46 @@ struct PublishingTests {
     }
 
     @Test
+    func publishingChangesNeverResolveAssetBytesWhenAFingerprintIsPresent() {
+        let counter = ResolveCounter()
+        let file = SiteExportFile(
+            path: "assets/example.png",
+            fingerprint: "digest-abc",
+            resolve: {
+                counter.increment()
+                return Data("should not be read".utf8)
+            }
+        )
+        let bundle = SiteExportBundle(files: [file])
+
+        let changes = PublishingPlan.changes(bundle: bundle, previous: nil)
+
+        #expect(changes["assets/example.png"] == .new)
+        #expect(counter.count == 0, "Diffing by fingerprint must never resolve the file's bytes.")
+    }
+
+    @Test
+    func publishingPlanMakeNeverResolvesUnchangedAssetBytes() {
+        let counter = ResolveCounter()
+        let file = SiteExportFile(
+            path: "assets/example.png",
+            fingerprint: "digest-abc",
+            resolve: {
+                counter.increment()
+                return Data("should not be read".utf8)
+            }
+        )
+        let bundle = SiteExportBundle(files: [file])
+        let previous = PublishingManifest(files: ["assets/example.png": "digest-abc"])
+
+        let plan = PublishingPlan.make(bundle: bundle, previous: previous, removesObsoleteFiles: true)
+
+        #expect(plan.uploads.isEmpty)
+        #expect(plan.unchangedFileCount == 1)
+        #expect(counter.count == 0, "An unchanged file's bytes should never be resolved while planning a publish.")
+    }
+
+    @Test
     func localPublishingDestinationsKeepSeparateManifests() throws {
         let directory = FileManager.default.temporaryDirectory
             .appending(path: UUID().uuidString, directoryHint: .isDirectory)
@@ -265,4 +305,9 @@ struct PublishingTests {
         #expect(store.load(for: site, localDirectory: firstDestination) == manifest)
         #expect(store.load(for: site, localDirectory: secondDestination) == nil)
     }
+}
+
+private final class ResolveCounter: @unchecked Sendable {
+    private(set) var count = 0
+    func increment() { count += 1 }
 }

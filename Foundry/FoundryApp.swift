@@ -24,6 +24,10 @@ struct FoundryApp: App {
                 .environment(workspaceLibrary)
                 //.toolbarBackgroundVisibility(.hidden, for: .windowToolbar)
                 .toolbarBackground(.quinary, for: .windowToolbar)
+                .onAppear { file.document.adoptPackageURL(file.fileURL) }
+                .onChange(of: file.fileURL) { _, newURL in
+                    file.document.adoptPackageURL(newURL)
+                }
         }
         .commands {
             AboutMenuCommands()

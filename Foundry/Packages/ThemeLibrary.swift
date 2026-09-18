@@ -127,7 +127,7 @@ nonisolated enum ThemeBundleStore {
         preview: ThemePreviewImage,
         id: UUID = UUID(),
         createdAt: Date = Date(),
-        assetContents: [UUID: ProjectAssetContent] = [:],
+        assetContents: ProjectAssetContents = [:],
         to bundleURL: URL,
         fileManager: FileManager = .default
     ) throws -> SavedTheme {
@@ -189,7 +189,7 @@ nonisolated enum ThemeBundleStore {
             name: name,
             preview: preview,
             id: id,
-            assetContents: Dictionary(uniqueKeysWithValues: template.resources.map { ($0.asset.id, $0) }),
+            assetContents: ProjectAssetContents(Dictionary(uniqueKeysWithValues: template.resources.map { ($0.asset.id, $0) })),
             to: destination
         )
     }
@@ -376,7 +376,7 @@ final class ThemeLibrary {
     func update(
         _ savedTheme: SavedTheme,
         from theme: Theme,
-        assetContents: [UUID: ProjectAssetContent] = [:]
+        assetContents: ProjectAssetContents = [:]
     ) throws -> SavedTheme {
         guard !savedTheme.isBuiltIn else { return savedTheme }
         let preview = try ThemeBundleStore.preview(from: savedTheme.previewURL)

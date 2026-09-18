@@ -414,7 +414,7 @@ struct ThemeEditingTests {
         var theme = Theme.standard
         theme.colors.accent = "#123ABC"
         var container = PartNode.make(.container)
-        container.setProperty(.init(rawValue: "showsBackground"), value: .boolean(true))
+        container.setProperty(.init(rawValue: "backgroundMode"), value: .choice("static"))
         container.setProperty(.backgroundColor, value: .packageColor(.init(
             source: ThemeColorRole.accent.rawValue,
             customColor: "#000000",
@@ -530,6 +530,34 @@ struct ThemeEditingTests {
         #expect(decoded.theme.borderRadii.predefined.first { $0.id == "lg" }?.value == 14)
         #expect(decoded.theme.borderCSSVariables.contains("--foundry-border-width-md:3px"))
         #expect(decoded.theme.borderCSSVariables.contains("--foundry-border-radius-lg:14px"))
+    }
+
+    @Test
+    func zIndexScalePersistsAndEmitsCSSVariablesAndResets() throws {
+        let document = FoundryDocument()
+        let editor = ProjectEditor(document: document, undoManager: UndoManager())
+
+        editor.setThemeZIndex(id: "modal", value: 1_800)
+
+        let data = try FoundryDocument.encoder.encode(document.site)
+        let decoded = try FoundryDocument.decoder.decode(Site.self, from: data)
+        #expect(decoded.theme.zIndexes.predefined.first { $0.id == "modal" }?.value == 1_800)
+        #expect(decoded.theme.zIndexCSSVariables.contains("--foundry-z-index-modal:1800"))
+
+        editor.resetThemeZIndexes()
+        #expect(document.site.theme.zIndexes == .standardZIndexes)
+    }
+
+    @Test
+    func projectsSavedBeforeZIndexTokensUseTheStandardScale() throws {
+        let encoded = try FoundryDocument.encoder.encode(Theme.standard)
+        var object = try JSONSerialization.jsonObject(with: encoded) as? [String: Any]
+        object?["zIndexes"] = nil
+        let legacyData = try JSONSerialization.data(withJSONObject: object as Any)
+
+        let decoded = try FoundryDocument.decoder.decode(Theme.self, from: legacyData)
+
+        #expect(decoded.zIndexes == .standardZIndexes)
     }
 
     @Test
@@ -700,7 +728,8 @@ struct ThemeEditingTests {
         let fontAsset = ProjectAsset(
             filename: "Studio.woff2",
             mediaType: "font/woff2",
-            byteCount: fontData.count
+            byteCount: fontData.count,
+            contentDigest: FoundryDocumentSnapshot.digest(for: fontData)
         )
         theme.typography.bodyFont.source = .bundled(files: [fontAsset.reference])
 
@@ -804,9 +833,14 @@ struct ThemeEditingTests {
     @Test
     func bundledFontResourcesRenderForCanvasAndExport() throws {
         let data = try Data(contentsOf: URL(fileURLWithPath: "/System/Library/Fonts/Supplemental/Arial.ttf"))
-        let asset = ProjectAsset(filename: "Renamed.ttf", mediaType: "font/ttf", byteCount: data.count)
+        let asset = ProjectAsset(
+            filename: "Renamed.ttf",
+            mediaType: "font/ttf",
+            byteCount: data.count,
+            contentDigest: FoundryDocumentSnapshot.digest(for: data)
+        )
         let content = ProjectAssetContent(asset: asset, data: data)
-        let assets = [asset.id: content]
+        let assets: ProjectAssetContents = [asset.id: content]
         var theme = Theme.standard
         theme.typography.bodyFont.family = "Foundry Sans"
         theme.typography.bodyFont.source = .bundled(files: [asset.reference])

@@ -1,6 +1,22 @@
+import Darwin
 import Foundation
 import Testing
 @testable import Foundry
+
+private func residentMemoryBytes() -> UInt64 {
+    var info = mach_task_basic_info()
+    var count = mach_msg_type_number_t(MemoryLayout<mach_task_basic_info>.size / MemoryLayout<natural_t>.size)
+    let result: kern_return_t = withUnsafeMutablePointer(to: &info) { pointer in
+        pointer.withMemoryRebound(to: integer_t.self, capacity: Int(count)) {
+            task_info(mach_task_self_, task_flavor_t(MACH_TASK_BASIC_INFO), $0, &count)
+        }
+    }
+    return result == KERN_SUCCESS ? info.resident_size : 0
+}
+
+private func assetsByID(from snapshot: FoundryDocumentSnapshot) -> [UUID: ProjectAsset] {
+    Dictionary(uniqueKeysWithValues: snapshot.site.assets.map { ($0.id, $0) })
+}
 
 struct ProjectAssetStressTests {
     @Test
@@ -23,28 +39,36 @@ struct ProjectAssetStressTests {
         let documentStart = clock.now
         let snapshot = try FoundryDocument.decodeSnapshot(from: wrapper)
         let documentElapsed = documentStart.duration(to: clock.now)
-
-        let totalAssetBytes = snapshot.assetData.values.reduce(into: Int64(0)) { total, data in
-            total += Int64(data.count)
-        }
         let expectedAssetCount = snapshot.site.assets.count
-        let loadedAssetCount = snapshot.assetData.count
         let totalElapsed = wrapperStart.duration(to: clock.now)
+        let residentAfterOpen = residentMemoryBytes()
+
+        var resolvedBytes: Int64 = 0
+        for asset in snapshot.site.assets {
+            if let data = snapshot.byteStore.resolve(asset) {
+                resolvedBytes += Int64(data.count)
+            }
+        }
+        let residentAfterResolvingAll = residentMemoryBytes()
 
         print("""
         Loaded external project asset stress fixture:
           path: \(projectURL.path)
           declared assets: \(expectedAssetCount)
-          loaded assets: \(loadedAssetCount)
-          loaded asset bytes: \(totalAssetBytes)
+          resolved asset bytes: \(resolvedBytes)
           file-wrapper creation: \(wrapperElapsed)
-          document decoding, metadata hydration and hashing: \(documentElapsed)
-          measured total: \(totalElapsed)
+          document decoding (metadata only, no asset bytes touched): \(documentElapsed)
+          measured open total: \(totalElapsed)
+          resident memory right after open: \(residentAfterOpen)
+          resident memory after resolving every asset once: \(residentAfterResolvingAll)
         """)
 
-        #expect(loadedAssetCount == expectedAssetCount)
-        #expect(totalAssetBytes > 0)
+        #expect(expectedAssetCount > 0)
+        #expect(resolvedBytes > 0)
         #expect(totalElapsed < .seconds(10), "The external asset stress project should open within 10 seconds.")
+        // Opening must not have already faulted in every asset's bytes: the
+        // library's total size should dwarf what a metadata-only open uses.
+        #expect(Int64(residentAfterResolvingAll) - Int64(residentAfterOpen) < resolvedBytes)
     }
 
     @Test
@@ -61,18 +85,11 @@ struct ProjectAssetStressTests {
 
         let wrapper = try FileWrapper(url: projectURL, options: [])
         let snapshot = try FoundryDocument.decodeSnapshot(from: wrapper)
-        let assets = Dictionary(uniqueKeysWithValues: snapshot.site.assets.compactMap { asset in
-            snapshot.assetData[asset.id].map {
-                (
-                    asset.id,
-                    ProjectAssetContent(
-                        asset: asset,
-                        data: $0,
-                        digest: snapshot.assetDigestByID[asset.id]
-                    )
-                )
-            }
-        })
+        let assets = ProjectAssetContents(
+            store: snapshot.byteStore,
+            assetsByID: assetsByID(from: snapshot),
+            revision: snapshot.assetRevision
+        )
         let clock = ContinuousClock()
         let start = clock.now
         let bundle = await Task.detached(priority: .userInitiated) {
@@ -109,18 +126,11 @@ struct ProjectAssetStressTests {
 
         let wrapper = try FileWrapper(url: projectURL, options: [])
         let snapshot = try FoundryDocument.decodeSnapshot(from: wrapper)
-        let assets = Dictionary(uniqueKeysWithValues: snapshot.site.assets.compactMap { asset in
-            snapshot.assetData[asset.id].map {
-                (
-                    asset.id,
-                    ProjectAssetContent(
-                        asset: asset,
-                        data: $0,
-                        digest: snapshot.assetDigestByID[asset.id]
-                    )
-                )
-            }
-        })
+        let assets = ProjectAssetContents(
+            store: snapshot.byteStore,
+            assetsByID: assetsByID(from: snapshot),
+            revision: snapshot.assetRevision
+        )
         let staticBundle = StaticSiteRenderer(environment: .preview).render(site: snapshot.site, assets: assets)
         var convertedPage = false
         let phpFiles = staticBundle.files.map { file -> SiteExportFile in

@@ -43,7 +43,7 @@ struct CanvasView: View {
     let page: Page?
     let language: String
     let theme: Theme
-    let assets: [UUID: ProjectAssetContent]
+    let assets: ProjectAssetContents
     let assetRevision: UInt64
     let mutationEvent: ProjectMutationEvent
     let partPackageRevision: Int
@@ -379,7 +379,7 @@ nonisolated struct CanvasRenderSnapshot: Sendable {
     let page: Page
     let language: String
     let theme: Theme
-    let assets: [UUID: ProjectAssetContent]
+    let assets: ProjectAssetContents
     let breakpoint: ResponsiveBreakpoint
     let impact: ProjectMutationImpact
     let forcesReconciliation: Bool
@@ -426,7 +426,7 @@ nonisolated struct CanvasRenderSnapshot: Sendable {
               package.manifest.assets.isEmpty else {
             return false
         }
-        if case .image = property.control { return false }
+        if property.control.isMedia { return false }
         return true
     }
 

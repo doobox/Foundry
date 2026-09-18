@@ -29,15 +29,15 @@ nonisolated struct FontFileMetadata: Equatable, Sendable {
     }()
 
     static func read(_ data: Data) -> Self? {
-        read(data, digest: Data(SHA256.hash(data: data)))
+        read(data, digest: SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined())
     }
 
     static func read(_ content: ProjectAssetContent) -> Self? {
-        read(content.data, digest: content.digest ?? Data(SHA256.hash(data: content.data)))
+        read(content.data, digest: content.digest ?? content.asset.contentDigest)
     }
 
-    private static func read(_ data: Data, digest: Data) -> Self? {
-        let key = digest.base64EncodedString() as NSString
+    private static func read(_ data: Data, digest: String) -> Self? {
+        let key = digest as NSString
         if let cached = cache.object(forKey: key) { return cached.value }
         let value = inspect(data)
         cache.setObject(Entry(value), forKey: key)

@@ -6,12 +6,20 @@ struct FontFileMetadataTests {
     @Test func faceOptionsRespectUploadedWeightsAndStyles() throws {
         let contents = try ["Arial", "Arial Bold", "Arial Italic"].map { name in
             let bytes = try data(name)
-            return ProjectAssetContent(asset: ProjectAsset(filename: "\(name).ttf", mediaType: "font/ttf", byteCount: bytes.count), data: bytes)
+            return ProjectAssetContent(
+                asset: ProjectAsset(
+                    filename: "\(name).ttf",
+                    mediaType: "font/ttf",
+                    byteCount: bytes.count,
+                    contentDigest: FoundryDocumentSnapshot.digest(for: bytes)
+                ),
+                data: bytes
+            )
         }
         var theme = Theme.standard
         theme.typography.bodyFont.family = "Arial"
         theme.typography.bodyFont.source = .bundled(files: contents.map { $0.asset.reference })
-        let assets = Dictionary(uniqueKeysWithValues: contents.map { ($0.asset.id, $0) })
+        let assets = ProjectAssetContents(Dictionary(uniqueKeysWithValues: contents.map { ($0.asset.id, $0) }))
         let normal = FontFaceOptions(reference: "body", theme: theme, assets: assets, selectedStyle: "normal")
         #expect(normal.verified)
         #expect(normal.weights == [400, 700])
@@ -76,12 +84,20 @@ struct FontFileMetadataTests {
         let names = ["Arial", "Arial Bold", "Arial Italic", "Georgia"]
         let contents = try names.enumerated().map { index, name in
             let bytes = try data(name)
-            return ProjectAssetContent(asset: ProjectAsset(filename: "face-\(index).ttf", mediaType: "font/ttf", byteCount: bytes.count), data: bytes)
+            return ProjectAssetContent(
+                asset: ProjectAsset(
+                    filename: "face-\(index).ttf",
+                    mediaType: "font/ttf",
+                    byteCount: bytes.count,
+                    contentDigest: FoundryDocumentSnapshot.digest(for: bytes)
+                ),
+                data: bytes
+            )
         }
         var theme = Theme.standard
         theme.typography.bodyFont.family = "Project Font"
         theme.typography.bodyFont.source = .bundled(files: contents.map { $0.asset.reference })
-        let css = theme.fontSourceCSS(assets: Dictionary(uniqueKeysWithValues: contents.map { ($0.asset.id, $0) }), destination: .export)
+        let css = theme.fontSourceCSS(assets: ProjectAssetContents(Dictionary(uniqueKeysWithValues: contents.map { ($0.asset.id, $0) })), destination: .export)
         #expect(css.contains("font-style:normal;font-weight:400;"))
         #expect(css.contains("font-style:normal;font-weight:700;"))
         #expect(css.contains("font-style:italic;font-weight:400;"))

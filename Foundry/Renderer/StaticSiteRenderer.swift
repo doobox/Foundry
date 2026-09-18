@@ -11,7 +11,7 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
         render(site: site, assets: [:])
     }
 
-    func render(site: Site, assets: [UUID: ProjectAssetContent]) -> SiteExportBundle {
+    func render(site: Site, assets: ProjectAssetContents) -> SiteExportBundle {
         var files: [SiteExportFile] = []
         // The collecting API remains for export callers; preview uses the same
         // generator with a disk sink instead of retaining the complete bundle.
@@ -24,7 +24,7 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
         return SiteExportBundle(files: normalized.files, errors: normalized.errors)
     }
 
-    func generate(site: Site, assets: [UUID: ProjectAssetContent], emit: (SiteExportFile) throws -> Void) throws {
+    func generate(site: Site, assets: ProjectAssetContents, emit: (SiteExportFile) throws -> Void) throws {
         let webIconPlan = WebIconGenerator.exportPlan(
             storedAssets: site.webIconAssets,
             contents: assets
@@ -106,23 +106,21 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
         let managedAssetPaths = site.assetLibrary.managedExportPaths()
         for asset in site.assets {
             try Task.checkCancellation()
-            if let content = assets[asset.id] {
-                try emit(SiteExportFile(
-                    path: site.publishedPath(for: asset, managedAssetPaths: managedAssetPaths),
-                    data: content.data,
-                    contentFingerprint: content.digest?.map { String(format: "%02x", $0) }.joined()
-                ))
-            }
+            guard assets.hasContent(asset.id) else { continue }
+            try emit(SiteExportFile(
+                path: site.publishedPath(for: asset, managedAssetPaths: managedAssetPaths),
+                fingerprint: assets.digest(asset.id),
+                resolve: { assets[asset.id]?.data }
+            ))
         }
         for asset in site.siteLogoAssets {
             try Task.checkCancellation()
-            if let content = assets[asset.id] {
-                try emit(SiteExportFile(
-                    path: SiteLogoStorage.exportPath(for: asset),
-                    data: content.data,
-                    contentFingerprint: content.digest?.map { String(format: "%02x", $0) }.joined()
-                ))
-            }
+            guard assets.hasContent(asset.id) else { continue }
+            try emit(SiteExportFile(
+                path: SiteLogoStorage.exportPath(for: asset),
+                fingerprint: assets.digest(asset.id),
+                resolve: { assets[asset.id]?.data }
+            ))
         }
         try imageRenditionFiles(site: site, assets: assets, emit: emit)
         for file in webIconPlan.files { try emit(file) }
@@ -173,7 +171,7 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
         prefix.isEmpty ? suffix : prefix + "/" + suffix
     }
 
-    private func render(page: Page, language: String, theme: Theme, stylesheetPaths: [String], scriptPaths: [String], assetPrefix: String, packageAssetPrefix: String, assets: [UUID: ProjectAssetContent], site: Site, webIconPlan: WebIconExportPlan) -> String {
+    private func render(page: Page, language: String, theme: Theme, stylesheetPaths: [String], scriptPaths: [String], assetPrefix: String, packageAssetPrefix: String, assets: ProjectAssetContents, site: Site, webIconPlan: WebIconExportPlan) -> String {
         let body = page.parts.map { render($0, page: page, theme: theme, assetPrefix: assetPrefix, packageAssetPrefix: packageAssetPrefix, assets: assets, site: site) }.joined(separator: "\n")
         let pageTitle = page.metadata.browserTitle.isEmpty ? page.title : page.metadata.browserTitle
         let browserTitle = pageTitle + site.titleSuffix
@@ -213,7 +211,7 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
         return php.isEmpty ? document : php + "\n" + document
     }
 
-    private func packagePHP(for page: Page, theme: Theme, assetPrefix: String, packageAssetPrefix: String, assets: [UUID: ProjectAssetContent], site: Site) -> String {
+    private func packagePHP(for page: Page, theme: Theme, assetPrefix: String, packageAssetPrefix: String, assets: ProjectAssetContents, site: Site) -> String {
         let nodes = page.parts.flatMap(\.flattened)
         let instancePHP = nodes.compactMap { node -> String? in
             guard let package = node.type.definition.package else { return nil }
@@ -264,7 +262,7 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
         return (instancePHP + sharedPHP).joined(separator: "\n")
     }
 
-    private func pageScripts(for page: Page, theme: Theme, assetPrefix: String, packageAssetPrefix: String, assets: [UUID: ProjectAssetContent], site: Site) -> String {
+    private func pageScripts(for page: Page, theme: Theme, assetPrefix: String, packageAssetPrefix: String, assets: ProjectAssetContents, site: Site) -> String {
         let nodes = page.parts.flatMap(\.flattened)
         let instanceScripts = nodes.compactMap { node -> String? in
             guard let package = node.type.definition.package else { return nil }
@@ -317,7 +315,7 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
         for page: Page,
         browserTitle: String,
         assetPrefix: String,
-        assets: [UUID: ProjectAssetContent],
+        assets: ProjectAssetContents,
         site: Site,
         webIconPlan: WebIconExportPlan
     ) -> String {
@@ -403,7 +401,7 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
         return lines.joined(separator: "\n") + "\n"
     }
 
-    private func render(_ node: PartNode, page: Page, theme: Theme, assetPrefix: String, packageAssetPrefix: String, assets: [UUID: ProjectAssetContent], site: Site, parentPartID: UUID? = nil) -> String {
+    private func render(_ node: PartNode, page: Page, theme: Theme, assetPrefix: String, packageAssetPrefix: String, assets: ProjectAssetContents, site: Site, parentPartID: UUID? = nil) -> String {
         switch node.type.definition.renderKind {
         case .package:
             guard let package = node.type.definition.package else {
@@ -448,12 +446,11 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
             }.joined()
             let relationshipAttributes = "data-foundry-part data-foundry-package=\"\(escapeAttribute(package.manifest.identifier))\"" +
                 (parentPartID.map { " data-foundry-parent=\"\($0.uuidString)\"" } ?? "")
-            let rendered = PartTemplateRenderer.render(
-                package.htmlTemplate,
-                context: .init(
+            let properties = packageProperties(node, theme: theme, assetPrefix: assetPrefix, assets: assets, site: site)
+            let templateContext = PartTemplateContext(
                     instanceID: node.id,
                     packageIdentifier: package.manifest.identifier,
-                    properties: packageProperties(node, theme: theme, assetPrefix: assetPrefix, assets: assets, site: site),
+                    properties: properties,
                     templateValues: PartNavigationTemplateValues.values(site: site, currentPage: page),
                     slots: slots,
                     dropZones: dropZones,
@@ -476,12 +473,17 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
                         absoluteURL: false
                     )
                 )
+            let rendered = PartTemplateRenderer.render(package.htmlTemplate, context: templateContext)
+            let decorated = PartPackageHTMLContributionRenderer.decorate(
+                rendered,
+                contributions: package.manifest.htmlContributions,
+                context: templateContext
             )
             if package.htmlTemplate.contains("{{ part.attributes }}") ||
                 package.htmlTemplate.contains("{{part.attributes}}") {
-                return rendered
+                return decorated
             }
-            return "<div data-foundry-id=\"\(node.id.uuidString)\" \(relationshipAttributes) class=\"\(partClass(node)) \(PartTemplateRenderer.packageClass(for: package.manifest.identifier))\">\(rendered)</div>"
+            return "<div data-foundry-id=\"\(node.id.uuidString)\" \(relationshipAttributes) class=\"\(partClass(node)) \(PartTemplateRenderer.packageClass(for: package.manifest.identifier))\">\(decorated)</div>"
         case .unavailable:
             return missingPackageHTML(
                 node,
@@ -498,12 +500,12 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
     private func exportSource(
         _ source: String,
         assetPrefix: String,
-        assets: [UUID: ProjectAssetContent],
+        assets: ProjectAssetContents,
         site: Site
     ) -> String {
         guard let id = source.foundryAssetID else { return source }
-        guard let content = assets[id] else { return "" }
-        return siteRootPrefix(from: assetPrefix) + site.publishedPath(for: content.asset)
+        guard let asset = assets.asset(id) else { return "" }
+        return siteRootPrefix(from: assetPrefix) + site.publishedPath(for: asset)
     }
 
     private func siteRootPrefix(from assetPrefix: String) -> String {
@@ -512,7 +514,7 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
         return String(assetPrefix.dropLast(managedAssetsPath.count))
     }
 
-    private func stylesheet(for site: Site, assets: [UUID: ProjectAssetContent]) -> String {
+    private func stylesheet(for site: Site, assets: ProjectAssetContents) -> String {
         let theme = site.theme
         func colour(_ role: ThemeColorRole) -> String {
             site.appearanceMode.colour(light: theme.color(for: role), dark: theme.color(for: role, appearance: .dark))
@@ -524,7 +526,7 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
             destination: .export,
             exportedSource: { "../" + site.publishedPath(for: $0) }
         ))
-        :root{font-size:16px;color-scheme:\(site.appearanceMode.cssColorScheme);--foundry-color-background:\(colour(.background));--foundry-color-surface:\(colour(.surface));--foundry-color-text:\(colour(.text));--foundry-color-accent:\(colour(.accent));--foundry-color-links:\(colour(.links));--foundry-font-body:\(theme.typography.bodyFont.cssFamily);--foundry-font-heading:\(theme.typography.headingFont.cssFamily);--foundry-font-monospace:\(theme.typography.monospacedFont.cssFamily);\(theme.customFontCSSVariables)\(theme.fontSizeCSSVariables)\(theme.spacingCSSVariables)\(theme.shadowCSSVariables)\(theme.borderCSSVariables)}
+        :root{font-size:16px;color-scheme:\(site.appearanceMode.cssColorScheme);--foundry-color-background:\(colour(.background));--foundry-color-surface:\(colour(.surface));--foundry-color-text:\(colour(.text));--foundry-color-accent:\(colour(.accent));--foundry-color-links:\(colour(.links));--foundry-font-body:\(theme.typography.bodyFont.cssFamily);--foundry-font-heading:\(theme.typography.headingFont.cssFamily);--foundry-font-monospace:\(theme.typography.monospacedFont.cssFamily);\(theme.customFontCSSVariables)\(theme.fontSizeCSSVariables)\(theme.spacingCSSVariables)\(theme.shadowCSSVariables)\(theme.borderCSSVariables)\(theme.zIndexCSSVariables)}
         :root{--foundry-color-page:\(colour(.page));--foundry-color-muted-text:\(colour(.mutedText))}
         \(theme.screens.containerCSS)
         *,*::before,*::after{box-sizing:border-box}
@@ -532,7 +534,7 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
         body{margin:0;background:var(--foundry-color-page);color:var(--foundry-color-text);font-family:var(--foundry-font-body);font-size:var(--foundry-font-size-base);line-height:var(--foundry-font-size-base-line-height);display:flex;flex-direction:column;align-items:stretch}
         a{color:var(--foundry-color-links)}
         h1,h2,h3,h4,h5,h6,.foundry-heading{font-family:var(--foundry-font-heading)}code,pre,kbd,samp{font-family:var(--foundry-font-monospace)}
-        .foundry-container{width:100%;max-width:var(--foundry-container-width)!important}.foundry-button{display:block;width:fit-content;text-decoration:none;font-weight:600}.foundry-columns{display:grid}.foundry-image{display:block;width:100%;height:auto}.foundry-spacer{min-height:8px}
+        .foundry-container{width:100%;max-width:var(--foundry-container-width)!important}.foundry-button{display:block;width:fit-content;text-decoration:none;font-weight:600}.foundry-grid{display:grid}.foundry-image{display:block;width:100%;height:auto}
         \(FoundryWebLibraryRegistry.exportCSS(for: sitePackages))
         \(sitePackageStyles(for: site))
         """
@@ -653,7 +655,7 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
         in site: Site,
         assetPrefix: String,
         packageAssetPrefix: String,
-        assets: [UUID: ProjectAssetContent]
+        assets: ProjectAssetContents
     ) -> String {
         let nodes = page.parts.flatMap(\.flattened)
         return ResponsiveBreakpoint.allCases.dropFirst().compactMap { breakpoint in
@@ -665,7 +667,9 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
                 let resolved = node.resolved(at: breakpoint, screens: site.theme.screens)
                 if let package = resolved.type.definition.package {
                     let css = PartTemplateRenderer.render(
-                        package.css,
+                        [package.css, package.manifest.controlGroupCSS]
+                            .filter { !$0.isEmpty }
+                            .joined(separator: "\n"),
                         context: .init(
                             instanceID: resolved.id,
                             packageIdentifier: package.manifest.identifier,
@@ -712,13 +716,15 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
         site: Site,
         assetPrefix: String,
         packageAssetPrefix: String,
-        assets: [UUID: ProjectAssetContent]
+        assets: ProjectAssetContents
     ) -> String {
         let nodes = PartArtifactPlan(page: page).nodes
         let instanceStyles = nodes.compactMap { node in
             guard let package = node.type.definition.package else { return nil }
             let css = PartTemplateRenderer.render(
-                [package.css, PartArtifactPlan.htmlArtifact(for: node, suffix: "CSS")].filter { !$0.isEmpty }.joined(separator: "\n"),
+                [package.css, PartArtifactPlan.htmlArtifact(for: node, suffix: "CSS"), package.manifest.controlGroupCSS]
+                    .filter { !$0.isEmpty }
+                    .joined(separator: "\n"),
                 context: .init(
                     instanceID: node.id,
                     packageIdentifier: package.manifest.identifier,
@@ -819,7 +825,7 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
         _ node: PartNode,
         theme: Theme,
         assetPrefix: String,
-        assets: [UUID: ProjectAssetContent],
+        assets: ProjectAssetContents,
         site: Site
     ) -> [String: PartPackageValue] {
         var values: [String: PartPackageValue] = Dictionary(uniqueKeysWithValues: node.type.definition.properties.map { definition in
@@ -842,7 +848,7 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
             if case .themeFont = definition.control {
                 return (definition.key.rawValue, PartPackageFontControl.resolved(definition.key.rawValue, node: node, theme: theme))
             }
-            if case .image = definition.control {
+            if definition.control.isMedia {
                 return (
                     definition.key.rawValue,
                     resolvedImageValue(value, assetPrefix: assetPrefix, assets: assets, site: site)
@@ -895,10 +901,10 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
             }
         }
         if let package = node.type.definition.package {
-            for property in package.manifest.properties where property.control.type == .image {
+            for property in package.manifest.resolvedProperties where property.control.type == .image {
                 let key = PartProperty.Key(rawValue: property.id)
                 guard case .url(let source) = node.propertyValue(key) else { continue }
-                let metadata = source.foundryAssetID.flatMap { assets[$0]?.asset.imageMetadata }
+                let metadata = source.foundryAssetID.flatMap { assets.asset($0)?.imageMetadata }
                     ?? package.imageMetadata[source]
                 let focalPoint = PartImageTemplateValues.focalPoint(
                     from: node.propertyValue(PartPackageAdapter.imageFocalPointKey(for: property.id))
@@ -915,14 +921,14 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
                 for rendition in property.renditions {
                     let suffix = ".rendition.\(rendition.id)"
                     let href: String
-                    if let assetID = source.foundryAssetID, let content = assets[assetID],
-                       max(content.asset.pixelWidth ?? 0, content.asset.pixelHeight ?? 0) > rendition.effectiveMaximumDimension {
+                    if let assetID = source.foundryAssetID, let asset = assets.asset(assetID),
+                       max(asset.pixelWidth ?? 0, asset.pixelHeight ?? 0) > rendition.effectiveMaximumDimension {
                         href = siteRootPrefix(from: assetPrefix) + imageRenditionPath(
                             assetID: assetID,
                             maximumDimension: rendition.effectiveMaximumDimension,
                             fileExtension: PartImageProcessor.renditionFileExtension(
-                                data: content.data,
-                                fallback: content.asset.imageMetadata.fileExtension
+                                mimeType: asset.mediaType,
+                                fallback: asset.imageMetadata.fileExtension
                             )
                         )
                     } else {
@@ -931,6 +937,24 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
                     values[property.id + suffix] = .string(href)
                     values[property.id + suffix + ".href"] = .string(href)
                 }
+            }
+            for property in package.manifest.resolvedProperties where property.control.type == .video {
+                let key = PartProperty.Key(rawValue: property.id)
+                guard case .url(let source) = node.propertyValue(key) else { continue }
+                let asset = source.foundryAssetID.flatMap { assets.asset($0) }
+                let customPoster = node.property(
+                    PartVideoTemplateValues.posterPropertyKey(for: property.id)
+                )
+                PartVideoTemplateValues.insert(
+                    propertyID: property.id,
+                    href: values[property.id]?.stringValue ?? "",
+                    poster: customPoster.isEmpty
+                        ? ""
+                        : exportSource(customPoster, assetPrefix: assetPrefix, assets: assets, site: site),
+                    asset: asset,
+                    playback: PartVideoTemplateValues.playbackOptions(propertyID: property.id, node: node),
+                    into: &values
+                )
             }
         }
         for definition in node.type.definition.properties {
@@ -947,14 +971,14 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
         }
         return PartPackageDerivedValueResolver.resolve(
             values,
-            properties: node.type.definition.package?.manifest.properties ?? []
+            properties: node.type.definition.package?.manifest.resolvedProperties ?? []
         )
     }
 
     private func resolvedImageValue(
         _ value: PartProperty.Value,
         assetPrefix: String,
-        assets: [UUID: ProjectAssetContent],
+        assets: ProjectAssetContents,
         site: Site
     ) -> PartPackageValue {
         switch value {
@@ -971,14 +995,14 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
 
     private func imageRenditionFiles(
         site: Site,
-        assets: [UUID: ProjectAssetContent],
+        assets: ProjectAssetContents,
         emit: (SiteExportFile) throws -> Void
     ) throws {
         var requests = Set<ImageRenditionRequest>()
         for page in site.pages {
             for node in page.parts.flatMap(\.flattened) {
                 guard let package = node.type.definition.package else { continue }
-                for property in package.manifest.properties where property.control.type == .image {
+                for property in package.manifest.resolvedProperties where property.control.type == .image {
                     guard case .url(let source) = node.propertyValue(.init(rawValue: property.id)),
                           let assetID = source.foundryAssetID else { continue }
                     for rendition in property.renditions {
@@ -989,20 +1013,37 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
         }
         for request in requests {
             try Task.checkCancellation()
-            guard let content = assets[request.assetID],
-                  let output = PartImageProcessor.rendition(
-                    data: content.data,
-                    filename: content.asset.filename,
-                    mimeType: content.asset.mediaType,
-                    maximumDimension: request.maximumDimension
-                  ) else { continue }
+            guard let asset = assets.asset(request.assetID) else { continue }
+            // Skip the source read entirely when persisted metadata already
+            // shows no rendition is needed. Unknown dimensions fall through
+            // to `rendition`, which inspects the bytes itself.
+            if let width = asset.pixelWidth, let height = asset.pixelHeight,
+               max(width, height) <= request.maximumDimension {
+                continue
+            }
+            guard let digest = assets.digest(request.assetID) else { continue }
+            let path = imageRenditionPath(
+                assetID: request.assetID,
+                maximumDimension: request.maximumDimension,
+                fileExtension: PartImageProcessor.renditionFileExtension(
+                    mimeType: asset.mediaType,
+                    fallback: asset.imageMetadata.fileExtension
+                )
+            )
             try emit(SiteExportFile(
-                path: imageRenditionPath(
-                    assetID: request.assetID,
-                    maximumDimension: request.maximumDimension,
-                    fileExtension: output.metadata.fileExtension
-                ),
-                data: output.data
+                path: path,
+                fingerprint: "\(digest)-\(request.maximumDimension)",
+                resolve: {
+                    guard let content = assets[request.assetID],
+                          let output = PartImageProcessor.rendition(
+                              data: content.data,
+                              filename: content.asset.filename,
+                              mimeType: content.asset.mediaType,
+                              maximumDimension: request.maximumDimension,
+                              digest: content.digest
+                          ) else { return nil }
+                    return output.data
+                }
             ))
         }
     }
@@ -1049,7 +1090,7 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
         theme: Theme,
         assetPrefix: String,
         packageAssetPrefix: String,
-        assets: [UUID: ProjectAssetContent],
+        assets: ProjectAssetContents,
         site: Site
     ) -> String {
         if let preview = node.missingPackageSnapshot?.previewHTML { return preview }

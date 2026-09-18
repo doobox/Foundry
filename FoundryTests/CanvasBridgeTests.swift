@@ -411,7 +411,12 @@ struct CanvasBridgeTests {
     @Test @MainActor
     func canvasServesAStillFirstFrameForManagedGIFsWithoutInliningIt() throws {
         let gifData = try #require(Data(base64Encoded: "R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw=="))
-        let asset = ProjectAsset(filename: "animation.gif", mediaType: "image/gif", byteCount: gifData.count)
+        let asset = ProjectAsset(
+            filename: "animation.gif",
+            mediaType: "image/gif",
+            byteCount: gifData.count,
+            contentDigest: FoundryDocumentSnapshot.digest(for: gifData)
+        )
         var image = PartNode.make(.image)
         image.setProperty(.source, value: .url(asset.reference))
         let page = Page(title: "GIF", slug: "gif", parts: [image])

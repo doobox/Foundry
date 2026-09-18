@@ -106,6 +106,7 @@ nonisolated struct PartPropertyDefinition: Identifiable, Sendable {
     let supportsImageFocalPoint: Bool
     let dateMinimum: Date?
     let dateMaximum: Date?
+    let selectPresentation: PartPackageControl.SelectPresentation?
 
     var id: PartProperty.Key { key }
 
@@ -123,7 +124,8 @@ nonisolated struct PartPropertyDefinition: Identifiable, Sendable {
         allowsCustomThemeValue: Bool = false,
         supportsImageFocalPoint: Bool = false,
         dateMinimum: Date? = nil,
-        dateMaximum: Date? = nil
+        dateMaximum: Date? = nil,
+        selectPresentation: PartPackageControl.SelectPresentation? = nil
     ) {
         self.key = key
         self.label = label
@@ -139,6 +141,7 @@ nonisolated struct PartPropertyDefinition: Identifiable, Sendable {
         self.supportsImageFocalPoint = supportsImageFocalPoint
         self.dateMinimum = dateMinimum
         self.dateMaximum = dateMaximum
+        self.selectPresentation = selectPresentation
     }
 
     private static let builtInResponsiveKeys: Set<PartProperty.Key> = [
@@ -199,6 +202,7 @@ nonisolated enum PartPropertyControl: Sendable {
     case divider
     case toggle
     case image
+    case video
 
     var isThemeFontSize: Bool {
         if case .themeFontSize = self { true } else { false }
@@ -208,11 +212,19 @@ nonisolated enum PartPropertyControl: Sendable {
         if case .array = self { true } else { false }
     }
 
+    var isMedia: Bool {
+        switch self {
+        case .image, .video: true
+        default: false
+        }
+    }
+
 }
 
 nonisolated struct PartPropertyChoice: Identifiable, Sendable {
     let value: String
     let label: String
+    var systemImage: String? = nil
     var separatorBefore: Bool = false
 
     var id: String { value }

@@ -27,15 +27,15 @@ nonisolated enum WebIconGenerator {
 
     static func exportPlan(
         storedAssets: [ProjectAsset],
-        contents: [UUID: ProjectAssetContent]
+        contents: ProjectAssetContents
     ) -> WebIconExportPlan {
         let files = generatedFilenames.compactMap { filename -> SiteExportFile? in
             guard let asset = storedAssets.first(where: { $0.filename == filename }),
-                  let content = contents[asset.id] else { return nil }
+                  contents.hasContent(asset.id) else { return nil }
             return SiteExportFile(
                 path: exportDirectory + "/" + filename,
-                data: content.data,
-                contentFingerprint: content.digest?.map { String(format: "%02x", $0) }.joined()
+                fingerprint: contents.digest(asset.id),
+                resolve: { contents[asset.id]?.data }
             )
         }
         return WebIconExportPlan(files: files)

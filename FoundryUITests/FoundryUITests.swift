@@ -6,7 +6,7 @@ final class FoundryUITests: XCTestCase {
     }
 
     @MainActor
-    func testCreatesDocumentAddsPageAndPart() throws {
+    func testCreatesDocumentAddsPageAndPart() async throws {
         let app = XCUIApplication()
         app.launchArguments = [
             "-ApplePersistenceIgnoreState", "YES",
@@ -16,32 +16,41 @@ final class FoundryUITests: XCTestCase {
         app.typeKey("n", modifierFlags: .command)
 
         let pagesTab = app.buttons["Pages"]
-        XCTAssertTrue(pagesTab.waitForExistence(timeout: 5))
+        await assertExists(pagesTab)
         pagesTab.click()
 
         let addMenu = app.menuButtons["Add Page or Folder"]
-        XCTAssertTrue(addMenu.waitForExistence(timeout: 5))
+        await assertExists(addMenu)
         addMenu.click()
 
         let newPage = app.menuItems["New Page"]
-        XCTAssertTrue(newPage.waitForExistence(timeout: 5))
+        await assertExists(newPage)
         newPage.click()
 
-        XCTAssertTrue(app.descendants(matching: .any)["Page 2"].waitForExistence(timeout: 5))
+        await assertExists(app.descendants(matching: .any)["Page 2"])
 
         let partsTab = app.buttons["Parts"]
-        XCTAssertTrue(partsTab.waitForExistence(timeout: 5))
+        await assertExists(partsTab)
         partsTab.click()
 
         let paragraph = app.descendants(matching: .any)["part-library-foundry.content.paragraph"]
-        XCTAssertTrue(paragraph.waitForExistence(timeout: 5))
+        await assertExists(paragraph)
         paragraph.rightClick()
 
         let addToPageEnd = app.menuItems["Add to Page End"]
-        XCTAssertTrue(addToPageEnd.waitForExistence(timeout: 5))
+        await assertExists(addToPageEnd)
         addToPageEnd.click()
 
-        XCTAssertTrue(app.descendants(matching: .any)["Paragraph"].waitForExistence(timeout: 5))
+        await assertExists(app.descendants(matching: .any)["Paragraph"])
+    }
+
+    @MainActor
+    private func assertExists(_ element: XCUIElement, timeout: TimeInterval = 5) async {
+        let exists = expectation(
+            for: NSPredicate(format: "exists == true"),
+            evaluatedWith: element
+        )
+        await fulfillment(of: [exists], timeout: timeout)
     }
 
 }

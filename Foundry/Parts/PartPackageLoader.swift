@@ -145,7 +145,7 @@ nonisolated struct LoadedPartPackage: Sendable {
     }
 
     private static func loopMaximums(for manifest: PartPackageManifest) -> [String: Int] {
-        Dictionary(uniqueKeysWithValues: manifest.properties.compactMap { property in
+        Dictionary(uniqueKeysWithValues: manifest.resolvedProperties.compactMap { property in
             guard property.control.type == .number || property.control.type == .slider,
                   let maximum = property.control.maximum,
                   maximum.isFinite,
@@ -654,7 +654,7 @@ nonisolated enum PartPackageLoader {
         for manifest: PartPackageManifest,
         resourceRootURL: URL
     ) -> [String: PartImageMetadata] {
-        manifest.properties.reduce(into: [:]) { result, property in
+        manifest.resolvedProperties.reduce(into: [:]) { result, property in
             guard property.control.type == .image else { return }
             let path = property.defaultValue.stringValue
             guard !path.isEmpty else { return }

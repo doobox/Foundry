@@ -86,18 +86,18 @@ nonisolated enum PartPackageValidator {
             }
         }
 
-        validateUnique(manifest.properties.map(\.id), kind: "property", into: &diagnostics)
+        validateUnique(manifest.resolvedProperties.map(\.id), kind: "property", into: &diagnostics)
         validateUnique(manifest.slots.map(\.id), kind: "slot", into: &diagnostics)
-        for property in manifest.properties {
+        for property in manifest.resolvedProperties {
             validate(property.id, expression: propertyExpression, location: "Info.plist:controls.\(property.id)", message: "Property IDs must start with a letter and contain only letters, numbers, underscores, or hyphens.", into: &diagnostics)
             validate(property, into: &diagnostics)
-            validateVisibility(property, properties: manifest.properties, into: &diagnostics)
+            validateVisibility(property, properties: manifest.resolvedProperties, into: &diagnostics)
             if let font = property.control.font,
-               !manifest.properties.contains(where: { $0.id == font && $0.control.type == .themeFont }) {
+               !manifest.resolvedProperties.contains(where: { $0.id == font && $0.control.type == .themeFont }) {
                 diagnostics.append(.init(severity: .error, location: "Info.plist:controls.\(property.id).font", message: "font must reference a themeFont control in this part."))
             }
         }
-        validateVisibilityCycles(manifest.properties, into: &diagnostics)
+        validateVisibilityCycles(manifest.resolvedProperties, into: &diagnostics)
         for slot in manifest.slots {
             validate(slot.id, expression: propertyExpression, location: "Info.plist:slots.\(slot.id)", message: "Slot IDs must start with a letter and contain only letters, numbers, underscores, or hyphens.", into: &diagnostics)
             if slot.minimum < 0 || (slot.maximum.map { $0 < slot.minimum } == true) {
@@ -216,6 +216,15 @@ nonisolated enum PartPackageValidator {
                 into: &diagnostics
             )
         }
+        for (index, contribution) in manifest.htmlContributions.enumerated() {
+            validateTemplate(
+                contribution.template,
+                location: "Info.plist:templates.htmlContributions[\(index)].template",
+                requiresEditorAttributes: false,
+                manifest: manifest,
+                into: &diagnostics
+            )
+        }
         for file in manifest.render.files where file.scope != .instance {
             guard let template = templateContents[file.path] else {
                 continue
@@ -266,7 +275,7 @@ nonisolated enum PartPackageValidator {
         manifest: PartPackageManifest,
         into diagnostics: inout [PartPackageDiagnostic]
     ) {
-        let propertyIDs = Set(manifest.properties.filter { $0.control.type != .divider }.map(\.id))
+        let propertyIDs = Set(manifest.resolvedProperties.filter { $0.control.type != .divider }.map(\.id))
         let childPickerIDs = Set(manifest.slots.map(\.id))
 
         if requiresEditorAttributes {
@@ -309,6 +318,29 @@ nonisolated enum PartPackageValidator {
             }
         }
 
+        let backgroundMacroReferences = template.references(
+            matching: #"\{\{\s*(controlGroup\.background)\s*\}\}"#
+        )
+        let backgroundAttributeReferences = template.references(
+            matching: #"(?s)<[^>]*\{\{\s*(controlGroup\.background)\s*\}\}[^>]*>"#
+        )
+        let declaresBackgroundGroup = manifest.controlGroups.contains { $0.type == .background }
+        if requiresEditorAttributes,
+           declaresBackgroundGroup,
+           backgroundMacroReferences.count != 1 || backgroundAttributeReferences.count != 1 {
+            diagnostics.append(.init(
+                severity: .error,
+                location: templateLocation,
+                message: "A part declaring the Background control group must include exactly one {{ controlGroup.background }} macro as an attribute of the element that receives the background."
+            ))
+        } else if (!requiresEditorAttributes || !declaresBackgroundGroup), !backgroundMacroReferences.isEmpty {
+            diagnostics.append(.init(
+                severity: .error,
+                location: templateLocation,
+                message: "{{ controlGroup.background }} is available only once in the primary HTML template of a part that declares the Background control group."
+            ))
+        }
+
         let supportedFilters: Set<String> = [
             "lighten", "darken", "withAlpha", "mix", "formatDate", "addDays", "addMonths",
             "escapeHTML", "escapeHTMLAttribute", "encodeURL", "encodeURIComponent", "encodeJSON"
@@ -322,7 +354,7 @@ nonisolated enum PartPackageValidator {
                 message: "Unknown template filter '\(reference.value)'."
             ))
         }
-        for property in manifest.properties
+        for property in manifest.resolvedProperties
             where property.control.type != .color && property.control.type != .themeColor {
             let escapedID = NSRegularExpression.escapedPattern(for: property.id)
             if template.matches(#"\{\{\s*control\."# + escapedID + #"\s*\|\s*(?:lighten|darken|withAlpha|mix)\s*\("#) {
@@ -333,7 +365,7 @@ nonisolated enum PartPackageValidator {
                 ))
             }
         }
-        for property in manifest.properties where property.control.type != .date {
+        for property in manifest.resolvedProperties where property.control.type != .date {
             let escapedID = NSRegularExpression.escapedPattern(for: property.id)
             if template.matches(#"\{\{\s*control\."# + escapedID + #"(?:\[[0-9]+\])?\s*\|\s*(?:formatDate|addDays|addMonths)\s*\("#) {
                 diagnostics.append(.init(
@@ -419,7 +451,7 @@ nonisolated enum PartPackageValidator {
             }
         }
 
-        for (index, property) in manifest.properties.enumerated() where property.control.type == .image {
+        for (index, property) in manifest.resolvedProperties.enumerated() where property.control.type == .image {
             let defaultPath = property.defaultValue.stringValue
             if !defaultPath.isEmpty && manifest.assetDeclaration(containing: defaultPath) == nil {
                 diagnostics.append(.init(
@@ -434,7 +466,7 @@ nonisolated enum PartPackageValidator {
             matching: #"<img\b[^>]*\bsrc\s*=\s*[\"']\{\{\s*control\.([A-Za-z][A-Za-z0-9_-]*)(?:\.href|\.rendition\.[A-Za-z][A-Za-z0-9_-]*(?:\.href)?)?\s*\}\}[\"']"#
         ) {
             let propertyID = replacingLoopMetadata(in: reference.value)
-            guard let property = manifest.properties.first(where: { $0.id == propertyID }),
+            guard let property = manifest.resolvedProperties.first(where: { $0.id == propertyID }),
                   property.control.type == .image else {
                 diagnostics.append(templateDiagnostic(
                     templateLocation,
@@ -450,7 +482,7 @@ nonisolated enum PartPackageValidator {
         ) {
             let parts = reference.value.split(separator: ".").map(String.init)
             guard parts.count == 3,
-                  let property = manifest.properties.first(where: { $0.id == parts[0] }),
+                  let property = manifest.resolvedProperties.first(where: { $0.id == parts[0] }),
                   property.control.type == .image,
                   property.renditions.contains(where: { $0.id == parts[2] }) else {
                 diagnostics.append(templateDiagnostic(
@@ -484,7 +516,7 @@ nonisolated enum PartPackageValidator {
                 message: "Loop directives are unbalanced; every loop requires one endloop."
             ))
         } else if loopCount > 0 {
-            let maximums = Dictionary(uniqueKeysWithValues: manifest.properties.compactMap { property -> (String, Int)? in
+            let maximums = Dictionary(uniqueKeysWithValues: manifest.resolvedProperties.compactMap { property -> (String, Int)? in
                 guard property.control.type == .number || property.control.type == .slider,
                       let maximum = property.control.maximum,
                       maximum.isFinite,
@@ -495,7 +527,7 @@ nonisolated enum PartPackageValidator {
             do {
                 _ = try PartTemplateLoop.expand(
                     template,
-                    properties: Dictionary(uniqueKeysWithValues: manifest.properties.map { ($0.id, $0.defaultValue) }),
+                    properties: Dictionary(uniqueKeysWithValues: manifest.resolvedProperties.map { ($0.id, $0.defaultValue) }),
                     maximums: maximums,
                     usingMaximumCounts: true
                 )
@@ -561,7 +593,7 @@ nonisolated enum PartPackageValidator {
                 continue
             }
             let propertyID = String(count.dropFirst("control.".count))
-            guard let property = manifest.properties.first(where: { $0.id == propertyID }) else {
+            guard let property = manifest.resolvedProperties.first(where: { $0.id == propertyID }) else {
                 diagnostics.append(templateDiagnostic(
                     templateLocation,
                     template: template,
@@ -617,7 +649,7 @@ nonisolated enum PartPackageValidator {
                 source.hasPrefix("loop ") || source == "endloop" || source.hasPrefix("loop.") ||
                 source.hasPrefix("slot ") || source.hasPrefix("text(") || source.hasPrefix("html(") ||
                 source.hasPrefix("image(") || source.hasPrefix("dropZone(") || source.hasPrefix("childArea(") || source.hasPrefix("asset(") ||
-                ["text", "html", "image", "instance.id", "package.id", "site.baseURL", "page.url", "path.siteRoot", "path.siteAssets", "part.class", "part.attributes", "dropZone", "childArea", "asset"].contains(source) {
+                ["text", "html", "image", "instance.id", "package.id", "site.baseURL", "page.url", "path.siteRoot", "path.siteAssets", "part.class", "part.attributes", "controlGroup.background", "dropZone", "childArea", "asset"].contains(source) {
                 continue
             }
             if loopAliases.contains(where: { source == $0 || source.hasPrefix($0 + ".") }) { continue }
@@ -645,7 +677,7 @@ nonisolated enum PartPackageValidator {
         }
 
         let supportedMacroNames: Set<String> = [
-            "id", "instance", "package", "site", "page", "path", "part", "control", "asset", "slot", "dropZone", "childArea",
+            "id", "instance", "package", "site", "page", "path", "part", "control", "controlGroup", "asset", "slot", "dropZone", "childArea",
             "if", "elseif", "else", "endif", "loop", "endloop", "text", "html", "image", "canvas", "preview", "published", "navigation", "pages", "assets"
         ]
         for reference in template.references(matching: #"\{\{\s*([A-Za-z]+)(?:\.|\s|\}\})"#)
@@ -654,7 +686,9 @@ nonisolated enum PartPackageValidator {
                 templateLocation,
                 template: template,
                 offset: reference.offset,
-                message: "Unknown template macro '\(reference.value)'."
+                message: reference.value == "block"
+                    ? "The block template namespace has been removed. Use part.class and part.attributes."
+                    : "Unknown template macro '\(reference.value)'."
             ))
         }
     }
@@ -1143,13 +1177,39 @@ nonisolated enum PartPackageValidator {
     ) {
         guard let visibleWhen = property.visibleWhen else { return }
         let location = "Info.plist:controls.\(property.id).visibleWhen"
+        validateVisibilityCondition(visibleWhen, property: property, properties: properties, location: location, into: &diagnostics)
+    }
+
+    private static func validateVisibilityCondition(
+        _ visibleWhen: PartPackageVisibilityCondition,
+        property: PartPackageProperty,
+        properties: [PartPackageProperty],
+        location: String,
+        into diagnostics: inout [PartPackageDiagnostic]
+    ) {
+        if let all = visibleWhen.all {
+            for (index, condition) in all.enumerated() {
+                validateVisibilityCondition(condition, property: property, properties: properties, location: "\(location).all[\(index)]", into: &diagnostics)
+            }
+            return
+        }
+        if let any = visibleWhen.any {
+            for (index, condition) in any.enumerated() {
+                validateVisibilityCondition(condition, property: property, properties: properties, location: "\(location).any[\(index)]", into: &diagnostics)
+            }
+            return
+        }
+        guard let id = visibleWhen.id else {
+            diagnostics.append(.init(severity: .error, location: location, message: "visibleWhen requires an id, all, or any expression."))
+            return
+        }
         let expression = try! NSRegularExpression(pattern: #"^([A-Za-z][A-Za-z0-9_-]*)(?:\[([0-9]+)\])?$"#)
-        guard let match = expression.firstMatch(in: visibleWhen.id, range: NSRange(visibleWhen.id.startIndex..., in: visibleWhen.id)),
-              let keyRange = Range(match.range(at: 1), in: visibleWhen.id) else {
+        guard let match = expression.firstMatch(in: id, range: NSRange(id.startIndex..., in: id)),
+              let keyRange = Range(match.range(at: 1), in: id) else {
             diagnostics.append(.init(severity: .error, location: location, message: "visibleWhen id must reference a control, optionally followed by a zero-based array index."))
             return
         }
-        let key = String(visibleWhen.id[keyRange])
+        let key = String(id[keyRange])
         guard key != property.id else {
             diagnostics.append(.init(severity: .error, location: location, message: "A control's visibleWhen condition cannot reference itself."))
             return
@@ -1158,7 +1218,7 @@ nonisolated enum PartPackageValidator {
             diagnostics.append(.init(severity: .error, location: location, message: "visibleWhen references unknown control '\(key)'."))
             return
         }
-        if let indexRange = Range(match.range(at: 2), in: visibleWhen.id), let index = Int(visibleWhen.id[indexRange]) {
+        if let indexRange = Range(match.range(at: 2), in: id), let index = Int(id[indexRange]) {
             guard let count = source.control.count else {
                 diagnostics.append(.init(severity: .error, location: location, message: "visibleWhen index requires '\(key)' to be a multi-control."))
                 return
@@ -1189,21 +1249,27 @@ nonisolated enum PartPackageValidator {
         _ properties: [PartPackageProperty],
         into diagnostics: inout [PartPackageDiagnostic]
     ) {
-        let dependencies = Dictionary(uniqueKeysWithValues: properties.compactMap { property -> (String, String)? in
-            guard let id = property.visibleWhen?.id else { return nil }
-            return (property.id, String(id.prefix { $0 != "[" }))
+        let dependencies = Dictionary(uniqueKeysWithValues: properties.map { property in
+            (property.id, visibilityReferences(property.visibleWhen))
         })
         for property in properties {
             var visited = Set<String>()
-            var current: String? = property.id
-            while let value = current, let next = dependencies[value] {
+            func visit(_ value: String) {
                 guard visited.insert(value).inserted else {
                     diagnostics.append(.init(severity: .error, location: "Info.plist:controls.\(property.id).visibleWhen", message: "visibleWhen conditions contain a dependency cycle."))
-                    break
+                    return
                 }
-                current = next
+                for next in dependencies[value] ?? [] { visit(next) }
+                visited.remove(value)
             }
+            visit(property.id)
         }
+    }
+
+    private static func visibilityReferences(_ condition: PartPackageVisibilityCondition?) -> Set<String> {
+        guard let condition else { return [] }
+        if let id = condition.id { return [String(id.prefix { $0 != "[" })] }
+        return Set((condition.all ?? condition.any ?? []).flatMap { visibilityReferences($0) })
     }
 
     private static func validate(

@@ -224,43 +224,117 @@ struct ThemeSpacingSettings: View {
     }
 }
 
+/// Which flavour of `ThemeDimensionTokens` scale is being edited. Each kind
+/// describes its own title/unit/range and whether the shared shape preview
+/// (which only makes visual sense for border width/radius) applies.
+enum ThemeDimensionScaleKind {
+    case borderWidth
+    case borderRadius
+    case zIndex
+
+    var isRadius: Bool { self == .borderRadius }
+
+    var title: String {
+        switch self {
+        case .borderWidth: "Border width scale"
+        case .borderRadius: "Corner radius scale"
+        case .zIndex: "Stacking order scale"
+        }
+    }
+
+    var subtitle: String {
+        switch self {
+        case .borderWidth, .borderRadius: "Values are in pixels. Edit a field for precise control."
+        case .zIndex: "Values set stacking order. Higher values sit in front."
+        }
+    }
+
+    var unit: String {
+        switch self {
+        case .borderWidth, .borderRadius: "px"
+        case .zIndex: ""
+        }
+    }
+
+    var range: ClosedRange<Double> {
+        switch self {
+        case .borderWidth: 0...20
+        case .borderRadius: 0...100
+        case .zIndex: 0...2_000
+        }
+    }
+
+    var step: Double {
+        switch self {
+        case .borderWidth, .borderRadius: 0.5
+        case .zIndex: 10
+        }
+    }
+
+    var showsShapePreview: Bool { self != .zIndex }
+}
+
 struct ThemeDimensionSettings: View {
     let tokens: ThemeDimensionTokens
-    let isRadius: Bool
+    let kind: ThemeDimensionScaleKind
     let setValue: (String, Double) -> Void
 
     var body: some View {
         ThemeEditorColumns {
-            ThemeEditorCard(title: isRadius ? "Corner radius scale" : "Border width scale", subtitle: "Values are in pixels. Edit a field for precise control.") {
+            ThemeEditorCard(title: kind.title, subtitle: kind.subtitle) {
                 VStack(spacing: 0) {
                     ForEach(tokens.predefined) { token in
                         ThemeScaleValueRow(
                             title: themeScaleTitle(id: token.id, fallback: token.title),
                             value: Binding(get: { token.value }, set: { setValue(token.id, $0) }),
-                            range: isRadius ? 0...100 : 0...20,
-                            step: 0.5,
-                            detail: token.id == "full" ? "Fully rounded at the usual element sizes." : nil,
-                            showsSlider: token.id != "full"
+                            range: kind.range,
+                            unit: kind.unit,
+                            step: kind.step,
+                            detail: kind.isRadius && token.id == "full" ? "Fully rounded at the usual element sizes." : nil,
+                            showsSlider: !(kind.isRadius && token.id == "full")
                         )
                         if token.id != tokens.predefined.last?.id { Divider() }
                     }
                 }
             }
         } preview: {
-            ThemeEditorCard(title: "Preview", subtitle: isRadius ? "The same shape, with each radius." : "The same shape, with each border width.") {
-                LazyVGrid(columns: [GridItem(.adaptive(minimum: 86), spacing: 16)], spacing: 20) {
-                    ForEach(tokens.predefined) { token in
-                        VStack(spacing: 8) {
-                            RoundedRectangle(cornerRadius: isRadius ? min(28, token.value) : 8, style: .circular)
-                                .fill(Color.accentColor.opacity(0.09))
-                                .overlay {
-                                    RoundedRectangle(cornerRadius: isRadius ? min(28, token.value) : 8, style: .circular)
-                                        .strokeBorder(Color.accentColor.opacity(0.8), lineWidth: isRadius ? 1.5 : min(25, token.value))
-                                }
-                                .frame(width: 86, height: 56)
-                            Text(themeScaleTitle(id: token.id, fallback: token.title)).font(.caption).foregroundStyle(.secondary)
+            if kind.showsShapePreview {
+                ThemeEditorCard(title: "Preview", subtitle: kind.isRadius ? "The same shape, with each radius." : "The same shape, with each border width.") {
+                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 86), spacing: 16)], spacing: 20) {
+                        ForEach(tokens.predefined) { token in
+                            VStack(spacing: 8) {
+                                RoundedRectangle(cornerRadius: kind.isRadius ? min(28, token.value) : 8, style: .circular)
+                                    .fill(Color.accentColor.opacity(0.09))
+                                    .overlay {
+                                        RoundedRectangle(cornerRadius: kind.isRadius ? min(28, token.value) : 8, style: .circular)
+                                            .strokeBorder(Color.accentColor.opacity(0.8), lineWidth: kind.isRadius ? 1.5 : min(25, token.value))
+                                    }
+                                    .frame(width: 86, height: 56)
+                                Text(themeScaleTitle(id: token.id, fallback: token.title)).font(.caption).foregroundStyle(.secondary)
+                            }
                         }
                     }
+                }
+            } else {
+                ThemeEditorCard(title: "Preview", subtitle: "Later tokens stack in front of earlier ones.") {
+                    ZStack {
+                        ForEach(Array(tokens.predefined.enumerated()), id: \.element.id) { index, token in
+                            VStack(spacing: 4) {
+                                RoundedRectangle(cornerRadius: 8, style: .circular)
+                                    .fill(Color.accentColor.opacity(0.15 + 0.6 * Double(index) / Double(max(1, tokens.predefined.count - 1))))
+                                    .overlay {
+                                        Text(themeScaleTitle(id: token.id, fallback: token.title))
+                                            .font(.caption2)
+                                            .fontWeight(.medium)
+                                    }
+                                    .frame(width: 72, height: 44)
+                            }
+                            .zIndex(token.value)
+                            .offset(x: CGFloat(index) * 14, y: CGFloat(index) * 8)
+                        }
+                    }
+                    .frame(maxWidth: .infinity, minHeight: 140, alignment: .topLeading)
+                    .padding(.leading, 8)
                 }
             }
         }

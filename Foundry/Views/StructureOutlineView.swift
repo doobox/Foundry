@@ -640,6 +640,7 @@ struct StructureOutlineView: NSViewRepresentable {
         }
 
         func outlineViewItemDidExpand(_ notification: Notification) {
+            guard !isRestoringExpansion else { return }
             if let pageRoot {
                 parent.isPageExpanded = outlineView?.isItemExpanded(pageRoot) == true
             }
@@ -647,6 +648,7 @@ struct StructureOutlineView: NSViewRepresentable {
         }
 
         func outlineViewItemDidCollapse(_ notification: Notification) {
+            guard !isRestoringExpansion else { return }
             if let pageRoot {
                 parent.isPageExpanded = outlineView?.isItemExpanded(pageRoot) == true
             }
@@ -944,7 +946,6 @@ struct StructureOutlineView: NSViewRepresentable {
             }
             if reveal, !selectedIDs.isEmpty, let pageRoot {
                 outlineView.expandItem(pageRoot)
-                parent.isPageExpanded = true
             }
             if reveal {
                 for id in selectedIDs {

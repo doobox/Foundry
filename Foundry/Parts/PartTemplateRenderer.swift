@@ -155,7 +155,7 @@ nonisolated enum PartTemplateRenderer {
     private static let outputEncodingFilters: Set<String> = [
         "escapeHTML", "escapeHTMLAttribute", "encodeURL", "encodeURIComponent", "encodeJSON"
     ]
-    private static let conditionBlockExpression = try! NSRegularExpression(pattern: #"\{\{\s*if\s+([^{}]+?)\s*\}\}([\s\S]*?)\{\{\s*endif\s*\}\}"#)
+    private static let conditionBoundaryExpression = try! NSRegularExpression(pattern: #"\{\{\s*(if\s+([^{}]+?)|endif)\s*\}\}"#)
     private static let conditionBranchExpression = try! NSRegularExpression(pattern: #"\{\{\s*(elseif\s+([^{}]+?)|else)\s*\}\}"#)
     private static let keyedTextExpression = try! NSRegularExpression(pattern: #"\{\{\s*__foundry_text\s+key=\"([^\"]+)\"\s+default=\"([^\"]*)\"(?:\s+repeated=\"(true)\"\s+path=\"([0-9,]+)\")?\s*\}\}"#)
     private static let keyedHTMLExpression = try! NSRegularExpression(pattern: #"\{\{\s*__foundry_html\s+key=\"([^\"]+)\"\s+default=\"([^\"]*)\"(?:\s+repeated=\"(true)\"\s+path=\"([0-9,]+)\")?\s*\}\}"#)
@@ -500,7 +500,7 @@ nonisolated enum PartTemplateRenderer {
            let filteredColor = filteredColor(for: key, filters: filters, context: context) {
             return escape(filteredColor)
         }
-        let simpleValue = #"^(?:instance\.id|package\.id|site\.baseURL|page\.url|path\.(?:siteRoot|siteAssets)|part\.(?:class|attributes)|control\.[A-Za-z][A-Za-z0-9_.-]*(?:\[[0-9]+\])?)$"#
+        let simpleValue = #"^(?:instance\.id|package\.id|site\.baseURL|page\.url|path\.(?:siteRoot|siteAssets)|part\.(?:class|attributes)|controlGroup\.background|control\.[A-Za-z][A-Za-z0-9_.-]*(?:\[[0-9]+\])?)$"#
         var result: String
         if key.range(of: simpleValue, options: .regularExpression) != nil {
             result = value(for: key, context: context)
@@ -566,8 +566,15 @@ nonisolated enum PartTemplateRenderer {
             return escapeAttribute(context.partClass)
         }
         if key == "part.attributes" { return context.partAttributes }
+        if key == "controlGroup.background" {
+            return #"data-foundry-control-group-background="\#(context.instanceID.uuidString)""#
+        }
         guard key.hasPrefix("control.") else { return "" }
         let reference = String(key.dropFirst("control.".count))
+        if !reference.contains("."), !reference.contains("["),
+           case .string(let element)? = context.allProperties[reference + ".element"] {
+            return element
+        }
         let value: PartPackageValue
         if let bracket = reference.lastIndex(of: "["), reference.hasSuffix("]"),
            let index = Int(reference[reference.index(after: bracket)..<reference.index(before: reference.endIndex)]),
@@ -872,14 +879,26 @@ nonisolated enum PartTemplateRenderer {
     private static func renderConditions(in template: String, context: PartTemplateContext) -> String {
         var result = template
         var remainingPasses = 100
-        while let match = conditionBlockExpression.firstMatch(in: result, range: NSRange(result.startIndex..., in: result)),
-              let wholeRange = Range(match.range(at: 0), in: result),
-              let conditionRange = Range(match.range(at: 1), in: result),
-              let bodyRange = Range(match.range(at: 2), in: result),
-              remainingPasses > 0 {
+        while remainingPasses > 0 {
+            let boundaries = conditionBoundaryExpression.matches(in: result, range: NSRange(result.startIndex..., in: result))
+            var opening: NSTextCheckingResult?
+            var closing: NSTextCheckingResult?
+            for boundary in boundaries {
+                guard let keywordRange = Range(boundary.range(at: 1), in: result) else { continue }
+                if result[keywordRange].hasPrefix("if") {
+                    opening = boundary
+                } else if opening != nil {
+                    closing = boundary
+                    break
+                }
+            }
+            guard let opening, let closing,
+                  let openingRange = Range(opening.range(at: 0), in: result),
+                  let conditionRange = Range(opening.range(at: 2), in: result),
+                  let closingRange = Range(closing.range(at: 0), in: result) else { break }
             remainingPasses -= 1
             let firstCondition = String(result[conditionRange])
-            let body = String(result[bodyRange])
+            let body = String(result[openingRange.upperBound..<closingRange.lowerBound])
             let matches = conditionBranchExpression.matches(in: body, range: NSRange(body.startIndex..., in: body))
             var branches: [(condition: String?, body: String)] = []
             var condition: String? = firstCondition
@@ -895,7 +914,7 @@ nonisolated enum PartTemplateRenderer {
                 guard let condition = branch.condition else { return true }
                 return conditionIsTrue(condition, context: context)
             }?.body ?? ""
-            result.replaceSubrange(wholeRange, with: replacement)
+            result.replaceSubrange(openingRange.lowerBound..<closingRange.upperBound, with: replacement)
         }
         return result
     }

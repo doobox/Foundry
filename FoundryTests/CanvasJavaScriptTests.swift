@@ -75,14 +75,14 @@ struct CanvasJavaScriptTests {
     }
 
     @Test(.timeLimit(.minutes(1)))
-    func builtInFlexColumnsLayOutAtBaseAndMediumIncludingNestedColumns() async throws {
+    func builtInGridsLayOutAtBaseAndMediumIncludingNestedGrids() async throws {
         await PartPackageCatalog.shared.waitUntilLoaded()
-        var inner = PartNode.make(.columns)
+        var inner = PartNode.make(.grid)
         inner.setResponsiveProperty(.init(rawValue: "columnCount"), value: .number(3), at: .medium)
-        inner.children = (0..<3).map { _ in PartNode.make(.spacer) }
-        var outer = PartNode.make(.columns)
-        outer.children = [inner, .make(.spacer)]
-        let page = Page(title: "Flex test", slug: "index", parts: [outer])
+        inner.children = (0..<3).map { _ in PartNode.make(.paragraph) }
+        var outer = PartNode.make(.grid)
+        outer.children = [inner, .make(.paragraph)]
+        let page = Page(title: "Grid test", slug: "index", parts: [outer])
         let webView = WKWebView(frame: CGRect(x: 0, y: 0, width: 900, height: 600))
         defer { webView.stopLoading() }
         for breakpoint in [ResponsiveBreakpoint.mobile, .medium] {
@@ -90,14 +90,14 @@ struct CanvasJavaScriptTests {
             webView.loadHTMLString(html.replacingOccurrences(of: "<html ", with: "<html data-layout-test=\"\(breakpoint.rawValue)\" "), baseURL: nil)
             var ready = false
             for _ in 0..<200 {
-                ready = (try? await webView.evaluateJavaScript("document.readyState === 'complete' && document.documentElement.dataset.layoutTest === '\(breakpoint.rawValue)' && document.querySelectorAll('.foundry-columns').length === 2")) as? Bool == true
+                ready = (try? await webView.evaluateJavaScript("document.readyState === 'complete' && document.documentElement.dataset.layoutTest === '\(breakpoint.rawValue)' && document.querySelectorAll('.foundry-grid').length === 2")) as? Bool == true
                 if ready { break }
                 try await Task.sleep(for: .milliseconds(25))
             }
             try #require(ready)
             let measurements = try #require(try await webView.evaluateJavaScript("""
                 (() => {
-                  const outer = document.querySelector('.foundry-columns');
+                  const outer = document.querySelector('.foundry-grid');
                   const inner = outer.children[0];
                   return [outer.getBoundingClientRect().width, inner.getBoundingClientRect().width,
                     parseFloat(getComputedStyle(outer).columnGap), inner.children[0].getBoundingClientRect().width,

@@ -1,52 +1,46 @@
 import Combine
 import CryptoKit
+import Darwin
 import SwiftUI
 import Synchronization
 import UniformTypeIdentifiers
 
 nonisolated struct FoundryDocumentSnapshot: Sendable {
-    private let assetBacking: DocumentAssetBacking
     var site: Site
-    var assetData: [UUID: Data]
     var assetRevision: UInt64 = 0
-    private(set) var assetDigestByID: [UUID: Data]
-    private(set) var assetIDsByDigest: [Data: Set<UUID>]
+    let byteStore: AssetByteStore
+    private(set) var assetDigestByID: [UUID: String]
+    private(set) var assetIDsByDigest: [String: Set<UUID>]
 
-    init(site: Site, assetData: [UUID: Data], assetRevision: UInt64 = 0) {
-        let backing = DocumentAssetBacking()
-        assetBacking = backing
-        var site = site
-        site.assetLibrary.hydrateImageMetadata(from: assetData)
+    init(site: Site, byteStore: AssetByteStore = AssetByteStore(), assetRevision: UInt64 = 0) {
         self.site = site
-        self.assetData = assetData.mapValues { backing.back($0) }
+        self.byteStore = byteStore
         self.assetRevision = assetRevision
 
-        var digestByID: [UUID: Data] = [:]
-        var IDsByDigest: [Data: Set<UUID>] = [:]
-        for (assetID, data) in assetData {
-            let digest = Self.digest(for: data)
-            digestByID[assetID] = digest
-            IDsByDigest[digest, default: []].insert(assetID)
+        // Every asset already carries its own digest as persisted metadata, so
+        // building this index never needs to hash bytes at document open.
+        var digestByID: [UUID: String] = [:]
+        var idsByDigest: [String: Set<UUID>] = [:]
+        for asset in site.assets + site.webIconAssets + site.siteLogoAssets {
+            digestByID[asset.id] = asset.contentDigest
+            idsByDigest[asset.contentDigest, default: []].insert(asset.id)
         }
         assetDigestByID = digestByID
-        assetIDsByDigest = IDsByDigest
+        assetIDsByDigest = idsByDigest
     }
 
-    func matchingAssetID(for data: Data, digest: Data) -> UUID? {
-        guard let candidates = assetIDsByDigest[digest] else { return nil }
-        return site.assets.first { asset in
-            candidates.contains(asset.id) && assetData[asset.id] == data
-        }?.id
+    /// A persisted digest is the sole correctness signal for dedup; there is
+    /// no legacy, digest-less data it needs to fall back for.
+    func matchingAssetID(for digest: String) -> UUID? {
+        assetIDsByDigest[digest]?.first
     }
 
-    mutating func insertAssetData(_ data: Data, id: UUID, digest: Data) {
-        assetData[id] = assetBacking.back(data)
+    mutating func insertAssetIndex(id: UUID, digest: String) {
         assetDigestByID[id] = digest
         assetIDsByDigest[digest, default: []].insert(id)
     }
 
-    mutating func removeAssetData(id: UUID) {
-        assetData.removeValue(forKey: id)
+    mutating func removeAssetIndex(id: UUID) {
         guard let digest = assetDigestByID.removeValue(forKey: id) else { return }
         assetIDsByDigest[digest]?.remove(id)
         if assetIDsByDigest[digest]?.isEmpty == true {
@@ -54,34 +48,194 @@ nonisolated struct FoundryDocumentSnapshot: Sendable {
         }
     }
 
-    static func digest(for data: Data) -> Data {
-        Data(SHA256.hash(data: data))
+    static func digest(for data: Data) -> String {
+        SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
     }
 }
 
-/// Keep large retained assets in reclaimable, read-only file mappings rather
-/// than heap buffers. Snapshots share this owner; undo and saves retain their
-/// own immutable Data mappings. Failure falls back to the original bytes.
-nonisolated final class DocumentAssetBacking: @unchecked Sendable {
-    private let root = FileManager.default.temporaryDirectory.appending(path: "FoundryAssets-\(UUID().uuidString)", directoryHint: .isDirectory)
+/// A directory of on-disk files that need a stable URL: bytes imported this
+/// session but not yet proven saved, and bytes pinned for undo after a
+/// delete. Unlike a throwaway temp copy, spool files are not unlinked on
+/// creation — callers need the URL to remain valid for as long as the entry
+/// exists.
+nonisolated final class AssetSpool: @unchecked Sendable {
+    private let root = FileManager.default.temporaryDirectory.appending(path: "FoundryAssetSpool-\(UUID().uuidString)", directoryHint: .isDirectory)
 
     deinit { try? FileManager.default.removeItem(at: root) }
 
-    func back(_ data: Data) -> Data {
-        guard data.count >= 256 * 1_024 else { return data }
+    func write(_ data: Data) -> URL? {
         let url = root.appending(path: UUID().uuidString)
         do {
             try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
             try data.write(to: url, options: .atomic)
-            let mapped = try Data(contentsOf: url, options: .alwaysMapped)
-            // The mapping retains its inode until the final Data reference dies.
-            // Unlink now so deleted assets and crashed sessions leave no files.
-            try? FileManager.default.removeItem(at: url)
-            return mapped
+            return url
         } catch {
-            try? FileManager.default.removeItem(at: url)
+            return nil
+        }
+    }
+
+    /// A copy-on-write clone when possible; a real copy otherwise. Either
+    /// way the result is an independent file the source can be deleted
+    /// out from under.
+    func clone(from source: URL) -> URL? {
+        let url = root.appending(path: UUID().uuidString)
+        guard (try? FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)) != nil else {
+            return nil
+        }
+        if clonefile(source.path, url.path, 0) == 0 {
+            return url
+        }
+        return (try? FileManager.default.copyItem(at: source, to: url)) != nil ? url : nil
+    }
+
+    func remove(_ url: URL) {
+        try? FileManager.default.removeItem(at: url)
+    }
+}
+
+/// Keeps a deleted asset's bytes resolvable for as long as any undo entry
+/// referencing this token is reachable. Releasing it (on dealloc) unpins the
+/// spool copy once nothing else still holds a pin for the same asset.
+nonisolated final class AssetBytePin: Sendable {
+    private let id: UUID
+    private let store: AssetByteStore
+
+    fileprivate init(id: UUID, store: AssetByteStore) {
+        self.id = id
+        self.store = store
+    }
+
+    deinit { store.releasePin(for: id) }
+}
+
+/// The shared owner of resolved asset bytes for one document's lifetime.
+/// Resolution order: the bounded cache, the real package file on disk, a
+/// pending import staged this session, an undo pin for a deleted asset,
+/// then — only before a package URL exists — a synthetic `FileWrapper`
+/// fallback used while opening a document and in tests.
+nonisolated final class AssetByteStore: @unchecked Sendable {
+    private struct State {
+        var packageURL: URL?
+        var fallbackWrapper: FileWrapper?
+        var pending: [UUID: URL] = [:]
+        var pinURLs: [UUID: URL] = [:]
+        var pinRefCounts: [UUID: Int] = [:]
+    }
+
+    private let state = Mutex(State())
+    private let cache = NSCache<NSString, NSData>()
+    private let spool = AssetSpool()
+
+    init() {
+        cache.totalCostLimit = 192 * 1_024 * 1_024
+        cache.countLimit = 64
+    }
+
+    /// Adopted once the document's on-disk package URL becomes known; a
+    /// brand-new, unsaved document has none yet.
+    func adoptPackageURL(_ url: URL?) {
+        state.withLock { $0.packageURL = url }
+    }
+
+    /// Used only before a package URL exists: reading a just-opened document
+    /// straight from its `FileWrapper`, or a synthetic wrapper in tests.
+    func adoptFallbackWrapper(_ wrapper: FileWrapper?) {
+        state.withLock { $0.fallbackWrapper = wrapper }
+    }
+
+    /// Stages bytes imported this session so they resolve before the next
+    /// save proves them written into the package.
+    func stagePendingImport(id: UUID, data: Data) {
+        guard let url = spool.write(data) else { return }
+        state.withLock { $0.pending[id] = url }
+        cache.setObject(data as NSData, forKey: cacheKey(id), cost: data.count)
+    }
+
+    func hasContent(for asset: ProjectAsset) -> Bool {
+        let id = asset.id
+        if cache.object(forKey: cacheKey(id)) != nil { return true }
+        let (packageURL, hasPending, hasPin) = state.withLock {
+            ($0.packageURL, $0.pending[id] != nil, $0.pinURLs[id] != nil)
+        }
+        if let packageURL, FileManager.default.fileExists(atPath: packagePath(packageURL, asset: asset).path) {
+            return true
+        }
+        if hasPending || hasPin { return true }
+        return state.withLock { $0.fallbackWrapper?.fileWrappers?[asset.storageFilename]?.isRegularFile } ?? false
+    }
+
+    func resolve(_ asset: ProjectAsset) -> Data? {
+        let id = asset.id
+        let key = cacheKey(id)
+        if let cached = cache.object(forKey: key) { return cached as Data }
+        let (packageURL, pendingURL, pinnedURL) = state.withLock {
+            ($0.packageURL, $0.pending[id], $0.pinURLs[id])
+        }
+        if let packageURL, let data = try? Data(contentsOf: packagePath(packageURL, asset: asset), options: .mappedIfSafe) {
+            cache.setObject(data as NSData, forKey: key, cost: data.count)
             return data
         }
+        if let pendingURL, let data = try? Data(contentsOf: pendingURL, options: .mappedIfSafe) {
+            cache.setObject(data as NSData, forKey: key, cost: data.count)
+            return data
+        }
+        if let pinnedURL, let data = try? Data(contentsOf: pinnedURL, options: .mappedIfSafe) {
+            cache.setObject(data as NSData, forKey: key, cost: data.count)
+            return data
+        }
+        if let data = state.withLock({ $0.fallbackWrapper?.fileWrappers?[asset.storageFilename]?.regularFileContents }) {
+            cache.setObject(data as NSData, forKey: key, cost: data.count)
+            return data
+        }
+        return nil
+    }
+
+    /// Pins a deleted asset's bytes so undo can restore them, for as long as
+    /// the returned token is reachable. Cheap when the bytes already live in
+    /// the saved package (a `clonefile` copy); otherwise resolves once and
+    /// spools the result.
+    func pinForUndo(_ asset: ProjectAsset) -> AssetBytePin? {
+        let id = asset.id
+        let alreadyPinned = state.withLock { state in
+            if state.pinRefCounts[id] != nil {
+                state.pinRefCounts[id, default: 0] += 1
+                return true
+            }
+            return false
+        }
+        if alreadyPinned { return AssetBytePin(id: id, store: self) }
+
+        let packageURL = state.withLock { $0.packageURL }
+        let spooledURL = packageURL.flatMap { spool.clone(from: packagePath($0, asset: asset)) }
+            ?? resolve(asset).flatMap { spool.write($0) }
+        guard let spooledURL else { return nil }
+        state.withLock { state in
+            state.pinURLs[id] = spooledURL
+            state.pinRefCounts[id, default: 0] += 1
+        }
+        return AssetBytePin(id: id, store: self)
+    }
+
+    fileprivate func releasePin(for id: UUID) {
+        state.withLock { state in
+            guard let count = state.pinRefCounts[id] else { return }
+            if count <= 1 {
+                state.pinRefCounts.removeValue(forKey: id)
+                if let url = state.pinURLs.removeValue(forKey: id) {
+                    spool.remove(url)
+                }
+            } else {
+                state.pinRefCounts[id] = count - 1
+            }
+        }
+    }
+
+    private func packagePath(_ packageURL: URL, asset: ProjectAsset) -> URL {
+        packageURL.appending(path: "assets/\(asset.storageFilename)")
+    }
+
+    private func cacheKey(_ id: UUID) -> NSString {
+        id.uuidString as NSString
     }
 }
 
@@ -94,7 +248,7 @@ final class FoundryDocument: ReferenceFileDocument {
     private let storage: Mutex<FoundryDocumentSnapshot>
     @MainActor private(set) var mutationEvent = ProjectMutationEvent(revision: 0, impact: .page)
     @MainActor private var cachedAssetContentsRevision: UInt64?
-    @MainActor private var cachedAssetContents: [UUID: ProjectAssetContent] = [:]
+    @MainActor private var cachedAssetContents: ProjectAssetContents = [:]
     @MainActor private(set) var assetContentsBuildCount = 0
 
     @MainActor
@@ -106,7 +260,7 @@ final class FoundryDocument: ReferenceFileDocument {
     }
 
     init(site: Site = .starter()) {
-        storage = Mutex(.init(site: site, assetData: [:]))
+        storage = Mutex(.init(site: site))
     }
 
     required init(configuration: ReadConfiguration) throws {
@@ -114,44 +268,18 @@ final class FoundryDocument: ReferenceFileDocument {
     }
 
     nonisolated static func decodeSnapshot(from file: FileWrapper) throws -> FoundryDocumentSnapshot {
-        if file.isRegularFile,
-           let data = file.regularFileContents {
-            return .init(site: try decodeProject(from: data), assetData: [:])
+        if file.isRegularFile, let data = file.regularFileContents {
+            return .init(site: try decodeProject(from: data))
         }
         guard file.isDirectory,
               let wrappers = file.fileWrappers,
               let projectData = wrappers["project.json"]?.regularFileContents else {
             throw CocoaError(.fileReadCorruptFile)
         }
-        var site = try decodeProject(from: projectData)
-        let assetWrappers = wrappers["assets"]?.fileWrappers ?? [:]
-        var data = Dictionary(uniqueKeysWithValues: (site.assets + site.webIconAssets + site.siteLogoAssets).compactMap { asset in
-            assetWrappers[asset.storageFilename]?.regularFileContents.map { (asset.id, $0) }
-        })
-        if let sourceID = site.favicon.foundryAssetID,
-           !site.webIconAssets.contains(where: { $0.id == sourceID }),
-           let sourceAsset = (site.assets + site.webIconAssets).first(where: { $0.id == sourceID }),
-           let sourceData = data[sourceID] {
-            let oldManagedIDs = site.webIconAssets.map(\.id)
-            let records = managedWebIconRecords(sourceAsset: sourceAsset, sourceData: sourceData)
-            oldManagedIDs.forEach { data[$0] = nil }
-            site.webIconAssets = records.map(\.asset)
-            site.favicon = records.first?.asset.reference ?? ""
-            records.forEach { data[$0.asset.id] = $0.data }
-        }
-        if let sourceID = site.logo.foundryAssetID,
-           !site.siteLogoAssets.contains(where: { $0.id == sourceID }),
-           let sourceAsset = (site.assets + site.webIconAssets + site.siteLogoAssets)
-            .first(where: { $0.id == sourceID }),
-           let sourceData = data[sourceID] {
-            let oldManagedIDs = site.siteLogoAssets.map(\.id)
-            let record = managedSiteLogoRecord(sourceAsset: sourceAsset, sourceData: sourceData)
-            oldManagedIDs.forEach { data[$0] = nil }
-            site.siteLogoAssets = [record.asset]
-            site.logo = record.asset.reference
-            data[record.asset.id] = record.data
-        }
-        return .init(site: site, assetData: data)
+        let site = try decodeProject(from: projectData)
+        let byteStore = AssetByteStore()
+        byteStore.adoptFallbackWrapper(wrappers["assets"])
+        return .init(site: site, byteStore: byteStore)
     }
 
     nonisolated func snapshot(contentType: UTType) throws -> FoundryDocumentSnapshot {
@@ -163,13 +291,31 @@ final class FoundryDocument: ReferenceFileDocument {
         configuration: WriteConfiguration
     ) throws -> FileWrapper {
         let project = FileWrapper(regularFileWithContents: try Self.encoder.encode(snapshot.site))
-        let assets = Dictionary(uniqueKeysWithValues: (snapshot.site.assets + snapshot.site.webIconAssets + snapshot.site.siteLogoAssets).compactMap { asset in
-            snapshot.assetData[asset.id].map { (asset.storageFilename, FileWrapper(regularFileWithContents: $0)) }
-        })
+        let existingAssetWrappers = configuration.existingFile?.fileWrappers?["assets"]?.fileWrappers ?? [:]
+        var assets: [String: FileWrapper] = [:]
+        for asset in snapshot.site.assets + snapshot.site.webIconAssets + snapshot.site.siteLogoAssets {
+            // Reusing the existing child lets `FileWrapper` avoid rewriting
+            // bytes that haven't changed; asset ids are never reused for
+            // different content, so presence plus a size check is enough.
+            if let existing = existingAssetWrappers[asset.storageFilename], existing.isRegularFile,
+               (existing.fileAttributes[FileAttributeKey.size.rawValue] as? Int) == asset.byteCount {
+                assets[asset.storageFilename] = existing
+                continue
+            }
+            guard let data = snapshot.byteStore.resolve(asset) else { continue }
+            assets[asset.storageFilename] = FileWrapper(regularFileWithContents: data)
+        }
         return FileWrapper(directoryWithFileWrappers: [
             "project.json": project,
             "assets": FileWrapper(directoryWithFileWrappers: assets)
         ])
+    }
+
+    /// Adopted once SwiftUI's `DocumentGroup` reports the document's on-disk
+    /// URL — nil for a brand-new, unsaved document.
+    @MainActor
+    func adoptPackageURL(_ url: URL?) {
+        storage.withLock { $0.byteStore }.adoptPackageURL(url)
     }
 
     @MainActor
@@ -196,23 +342,13 @@ final class FoundryDocument: ReferenceFileDocument {
     }
 
     @MainActor
-    var assetContents: [UUID: ProjectAssetContent] {
+    var assetContents: ProjectAssetContents {
         let snapshot = storage.withLock { $0 }
         guard cachedAssetContentsRevision != snapshot.assetRevision else {
             return cachedAssetContents
         }
-        let contents = Dictionary(uniqueKeysWithValues: (snapshot.site.assets + snapshot.site.webIconAssets + snapshot.site.siteLogoAssets).compactMap { asset in
-            snapshot.assetData[asset.id].map {
-                (
-                    asset.id,
-                    ProjectAssetContent(
-                        asset: asset,
-                        data: $0,
-                        digest: snapshot.assetDigestByID[asset.id]
-                    )
-                )
-            }
-        })
+        let assetsByID = Dictionary(uniqueKeysWithValues: (snapshot.site.assets + snapshot.site.webIconAssets + snapshot.site.siteLogoAssets).map { ($0.id, $0) })
+        let contents = ProjectAssetContents(store: snapshot.byteStore, assetsByID: assetsByID, revision: snapshot.assetRevision)
         cachedAssetContents = contents
         cachedAssetContentsRevision = snapshot.assetRevision
         assetContentsBuildCount += 1
@@ -237,7 +373,7 @@ final class FoundryDocument: ReferenceFileDocument {
         let digest = FoundryDocumentSnapshot.digest(for: processed.data)
         var next = storage.withLock { $0 }
         if reuseIdenticalContent,
-           let existingID = next.matchingAssetID(for: processed.data, digest: digest) {
+           let existingID = next.matchingAssetID(for: digest) {
             return existingID
         }
         let metadata = processed.metadata
@@ -245,6 +381,7 @@ final class FoundryDocument: ReferenceFileDocument {
             filename: metadata.filename,
             mediaType: metadata.mimeType,
             byteCount: processed.data.count,
+            contentDigest: digest,
             pixelWidth: metadata.width,
             pixelHeight: metadata.height
         )
@@ -262,7 +399,8 @@ final class FoundryDocument: ReferenceFileDocument {
             destination = .inside(folderID: folder.id)
         }
         guard next.site.assetLibrary.insert(.asset(asset), at: destination) else { return asset.id }
-        next.insertAssetData(processed.data, id: asset.id, digest: digest)
+        next.insertAssetIndex(id: asset.id, digest: digest)
+        next.byteStore.stagePendingImport(id: asset.id, data: processed.data)
         replaceContents(with: next, undoManager: undoManager, actionName: "Import Asset")
         return asset.id
     }
@@ -279,18 +417,15 @@ final class FoundryDocument: ReferenceFileDocument {
             return
         }
         guard source != nil || !next.site.favicon.isEmpty || !next.site.webIconAssets.isEmpty else { return }
-        next.site.webIconAssets.forEach { next.removeAssetData(id: $0.id) }
+        next.site.webIconAssets.forEach { next.removeAssetIndex(id: $0.id) }
         let records = source.map {
             Self.managedWebIconRecords(sourceAsset: $0.asset, sourceData: $0.data)
         } ?? []
         next.site.favicon = records.first?.asset.reference ?? ""
         next.site.webIconAssets = records.map(\.asset)
         for record in records {
-            next.insertAssetData(
-                record.data,
-                id: record.asset.id,
-                digest: FoundryDocumentSnapshot.digest(for: record.data)
-            )
+            next.insertAssetIndex(id: record.asset.id, digest: record.asset.contentDigest)
+            next.byteStore.stagePendingImport(id: record.asset.id, data: record.data)
         }
         replaceContents(with: next, undoManager: undoManager, actionName: "Set Site Icon")
     }
@@ -307,18 +442,15 @@ final class FoundryDocument: ReferenceFileDocument {
             return
         }
         guard source != nil || !next.site.logo.isEmpty || !next.site.siteLogoAssets.isEmpty else { return }
-        next.site.siteLogoAssets.forEach { next.removeAssetData(id: $0.id) }
+        next.site.siteLogoAssets.forEach { next.removeAssetIndex(id: $0.id) }
         let record = source.map {
             Self.managedSiteLogoRecord(sourceAsset: $0.asset, sourceData: $0.data)
         }
         next.site.logo = record?.asset.reference ?? ""
         next.site.siteLogoAssets = record.map { [$0.asset] } ?? []
         if let record {
-            next.insertAssetData(
-                record.data,
-                id: record.asset.id,
-                digest: FoundryDocumentSnapshot.digest(for: record.data)
-            )
+            next.insertAssetIndex(id: record.asset.id, digest: record.asset.contentDigest)
+            next.byteStore.stagePendingImport(id: record.asset.id, data: record.data)
         }
         replaceContents(with: next, undoManager: undoManager, actionName: "Set Site Logo")
     }
@@ -349,10 +481,22 @@ final class FoundryDocument: ReferenceFileDocument {
     }
 
     @MainActor
+    func setVideoMetadata(id: UUID, result: VideoPosterGenerator.Result) {
+        var nextSite = site
+        guard nextSite.assetLibrary.setVideoMetadata(
+            id: id,
+            metadata: result.metadata,
+            pixelWidth: result.pixelWidth,
+            pixelHeight: result.pixelHeight
+        ) else { return }
+        replaceSite(with: nextSite, undoManager: nil, actionName: "Analyse Video", impact: .assets)
+    }
+
+    @MainActor
     func removeAssetFolder(id: UUID, undoManager: UndoManager?) {
         var next = storage.withLock { $0 }
         guard let node = next.site.assetLibrary.removeNode(id: id) else { return }
-        for assetID in node.assetIDs { next.removeAssetData(id: assetID) }
+        for assetID in node.assetIDs { next.removeAssetIndex(id: assetID) }
         replaceContents(with: next, undoManager: undoManager, actionName: "Delete Asset Folder")
     }
 
@@ -377,7 +521,7 @@ final class FoundryDocument: ReferenceFileDocument {
     func removeAsset(id: UUID, undoManager: UndoManager?) {
         var next = storage.withLock { $0 }
         guard next.site.assetLibrary.removeNode(id: id) != nil else { return }
-        next.removeAssetData(id: id)
+        next.removeAssetIndex(id: id)
         replaceContents(with: next, undoManager: undoManager, actionName: "Delete Asset")
     }
 
@@ -388,7 +532,16 @@ final class FoundryDocument: ReferenceFileDocument {
         actionName: String
     ) {
         let previous = storage.withLock { $0 }
+
+        // Bytes for any asset the new snapshot no longer references must stay
+        // resolvable for as long as undo can bring it back. Pin exactly those
+        // (not the whole library) for the lifetime of the undo entry itself.
+        let pins: [AssetBytePin] = undoManager == nil ? [] : (previous.site.assets + previous.site.webIconAssets + previous.site.siteLogoAssets)
+            .filter { newSnapshot.assetDigestByID[$0.id] == nil }
+            .compactMap { previous.byteStore.pinForUndo($0) }
+
         undoManager?.registerUndo(withTarget: self) { document in
+            _ = pins
             document.replaceContents(with: previous, undoManager: undoManager, actionName: actionName)
         }
         undoManager?.setActionName(actionName)
@@ -447,7 +600,8 @@ final class FoundryDocument: ReferenceFileDocument {
                 ProjectAsset(
                     filename: filename,
                     mediaType: mediaType,
-                    byteCount: file.data.count
+                    byteCount: file.data.count,
+                    contentDigest: FoundryDocumentSnapshot.digest(for: file.data)
                 ),
                 file.data
             )
@@ -465,6 +619,7 @@ final class FoundryDocument: ReferenceFileDocument {
             filename: "web-icon-source." + (sourceExtension.isEmpty ? "png" : sourceExtension),
             mediaType: sourceAsset.mediaType,
             byteCount: sourceData.count,
+            contentDigest: FoundryDocumentSnapshot.digest(for: sourceData),
             pixelWidth: sourceAsset.pixelWidth,
             pixelHeight: sourceAsset.pixelHeight
         )
@@ -484,6 +639,7 @@ final class FoundryDocument: ReferenceFileDocument {
                 filename: "site-logo-source." + (sourceExtension.isEmpty ? "png" : sourceExtension),
                 mediaType: sourceAsset.mediaType,
                 byteCount: sourceData.count,
+                contentDigest: FoundryDocumentSnapshot.digest(for: sourceData),
                 pixelWidth: sourceAsset.pixelWidth,
                 pixelHeight: sourceAsset.pixelHeight
             ),

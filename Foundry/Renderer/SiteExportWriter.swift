@@ -125,7 +125,7 @@ nonisolated struct SiteExportWriter: SiteExportWriting {
         let url = try safeURL(for: file.path, under: root, fileManager: fileManager)
         try fileManager.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
         _ = try safeURL(for: file.path, under: root, fileManager: fileManager)
-        try file.data.write(to: url, options: .atomic)
+        try file.resolvedData().write(to: url, options: .atomic)
     }
 
     private static func removeOwnedFiles(

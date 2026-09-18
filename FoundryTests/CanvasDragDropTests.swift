@@ -69,10 +69,10 @@ struct CanvasDragDropTests {
     @Test
     func structureDragPayloadDistinguishesLibraryPartsFromExistingNodes() {
         let nodeID = UUID()
-        let libraryValue = PartDragPayload.library(.columns).stringValue
+        let libraryValue = PartDragPayload.library(.grid).stringValue
         let nodeValue = PartDragPayload.node(nodeID).stringValue
 
-        #expect(PartDragPayload(libraryValue) == .library(.columns))
+        #expect(PartDragPayload(libraryValue) == .library(.grid))
         #expect(PartDragPayload(nodeValue) == .node(nodeID))
         #expect(nodeValue == "foundry-node:\(nodeID.uuidString)")
         #expect(PartDragPayload(nodeID.uuidString) == nil)
@@ -85,12 +85,12 @@ struct CanvasDragDropTests {
         let emptyPage = Page(title: "Empty", slug: "empty", parts: [])
         let container = PartNode.make(.container)
         let section = PartNode.make(.section)
-        let columns = PartNode.make(.columns)
-        let spacer = PartNode.make(.spacer)
+        let grid = PartNode.make(.grid)
+        let paragraph = PartNode.make(.paragraph)
         let partPage = Page(
             title: "Drop zones",
             slug: "drop-zones",
-            parts: [container, section, columns, spacer]
+            parts: [container, section, grid, paragraph]
         )
         let renderer = HTMLPageRenderer()
 
@@ -100,8 +100,8 @@ struct CanvasDragDropTests {
         #expect(emptyHTML.contains("data-foundry-root-drop-zone"))
         #expect(partHTML.contains("data-foundry-empty-parent=\"\(container.id.uuidString)\""))
         #expect(partHTML.contains("data-foundry-empty-parent=\"\(section.id.uuidString)\""))
-        #expect(partHTML.contains("data-foundry-empty-parent=\"\(columns.id.uuidString)\""))
-        #expect(partHTML.contains("data-foundry-adjacent-target=\"\(spacer.id.uuidString)\""))
+        #expect(partHTML.contains("data-foundry-empty-parent=\"\(grid.id.uuidString)\""))
+        #expect(partHTML.contains("data-foundry-adjacent-target=\"\(paragraph.id.uuidString)\""))
     }
 
     @Test @MainActor

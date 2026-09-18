@@ -16,8 +16,10 @@ nonisolated struct PartType: RawRepresentable, Codable, Hashable, Identifiable, 
             "Groups parts inside a constrained, styled wrapper."
         case .section:
             "Creates a full-width page region for organising related content."
-        case .columns:
-            "Arranges child parts in a responsive multi-column layout."
+        case .flex:
+            "Arranges child parts with CSS Flexbox."
+        case .grid:
+            "Arranges child parts with CSS Grid."
         case .paragraph:
             "Adds editable paragraph or body text to the page."
         case .heading:
@@ -28,8 +30,6 @@ nonisolated struct PartType: RawRepresentable, Codable, Hashable, Identifiable, 
             "Displays an imported asset or an image from a web address."
         case .divider:
             "Adds a visual rule to separate groups of content."
-        case .spacer:
-            "Adds adjustable vertical space between parts."
         default:
             "Adds this part to the page."
         }
@@ -51,13 +51,13 @@ nonisolated struct PartType: RawRepresentable, Codable, Hashable, Identifiable, 
 
     static let container = PartType(rawValue: "foundry.layout.container")
     static let section = PartType(rawValue: "foundry.layout.section")
-    static let columns = PartType(rawValue: "foundry.layout.columns")
+    static let flex = PartType(rawValue: "foundry.layout.flex")
+    static let grid = PartType(rawValue: "foundry.layout.grid")
     static let paragraph = PartType(rawValue: "foundry.content.paragraph")
     static let heading = PartType(rawValue: "foundry.content.heading")
     static let button = PartType(rawValue: "foundry.content.button")
     static let image = PartType(rawValue: "foundry.media.image")
     static let divider = PartType(rawValue: "foundry.content.divider")
-    static let spacer = PartType(rawValue: "foundry.layout.spacer")
 
     static var allCases: [PartType] { PartRegistry.availableTypes }
 

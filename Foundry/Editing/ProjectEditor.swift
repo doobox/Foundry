@@ -71,6 +71,7 @@ struct ProjectEditor {
             filename: metadata.filename,
             mediaType: metadata.mimeType,
             byteCount: processed.data.count,
+            contentDigest: FoundryDocumentSnapshot.digest(for: processed.data),
             pixelWidth: metadata.width,
             pixelHeight: metadata.height
         )
@@ -100,6 +101,7 @@ struct ProjectEditor {
             filename: metadata.filename,
             mediaType: metadata.mimeType,
             byteCount: processed.data.count,
+            contentDigest: FoundryDocumentSnapshot.digest(for: processed.data),
             pixelWidth: metadata.width,
             pixelHeight: metadata.height
         )
@@ -566,6 +568,21 @@ struct ProjectEditor {
     func resetThemeBorderRadii() {
         mutate(actionName: "Reset Theme Border Radii", impact: .theme) {
             $0.theme.borderRadii = .standardBorderRadii
+        }
+    }
+
+    func setThemeZIndex(id: String, value: Double) {
+        setThemeDimension(
+            id: id,
+            value: value,
+            actionName: "Edit Theme Z-Index",
+            keyPath: \Theme.zIndexes
+        )
+    }
+
+    func resetThemeZIndexes() {
+        mutate(actionName: "Reset Theme Z-Indexes", impact: .theme) {
+            $0.theme.zIndexes = .standardZIndexes
         }
     }
 

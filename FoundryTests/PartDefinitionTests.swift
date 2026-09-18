@@ -43,7 +43,8 @@ struct PartDefinitionTests {
     func registryDeclaresChildCapabilities() {
         #expect(PartType.container.definition.allowsChildren)
         #expect(PartType.section.definition.allowsChildren)
-        #expect(PartType.columns.definition.allowsChildren)
+        #expect(PartType.flex.definition.allowsChildren)
+        #expect(PartType.grid.definition.allowsChildren)
         #expect(!PartType.paragraph.definition.allowsChildren)
         #expect(!PartType.button.definition.allowsChildren)
         #expect(!PartType.image.definition.allowsChildren)
@@ -52,28 +53,31 @@ struct PartDefinitionTests {
     @Test
     func flexLayoutsUseThemeControlsAndResponsiveDefaults() throws {
         let container = PartNode.make(.container)
-        #expect(container.propertyValue(.init(rawValue: "direction")) == .choice("column"))
-        #expect(container.type.definition.package!.css.contains("display: flex"))
-        #expect(!container.type.definition.package!.css.contains("data-alignment"))
-        #expect(!container.type.definition.package!.css.contains("box-shadow"))
-        for type in [PartType.section, .container, .columns] {
+        let flex = PartNode.make(.flex)
+        #expect(flex.propertyValue(.init(rawValue: "direction")) == .choice("column"))
+        #expect(flex.type.definition.package!.css.contains("display: flex"))
+        #expect(!container.type.definition.package!.css.contains("display: flex"))
+        #expect(!flex.type.definition.package!.css.contains("data-alignment"))
+        #expect(container.type.definition.package!.css.contains("box-shadow"))
+        for type in [PartType.section, .container, .flex, .grid] {
             #expect(type.definition.properties.contains { $0.key.rawValue == "themePadding" && $0.isResponsive })
+        }
+        for type in [PartType.section, .flex, .grid] {
             #expect(type.definition.properties.contains { $0.key.rawValue == "themeGap" && $0.isResponsive })
         }
-        let columns = PartNode.make(.columns)
-        #expect(columns.propertyValue(.init(rawValue: "columnCount")) == .number(1))
-        #expect(columns.propertyValue(.init(rawValue: "columnCount"), at: .medium) == .number(2))
-        let site = Site(name: "Flex", pages: [Page(title: "Layout", slug: "index", parts: [columns])])
-        let output = try StaticSiteRenderer().render(site: site)
-        #expect(output.files.contains { $0.contents.contains("(2 - 1)") })
+        let grid = PartNode.make(.grid)
+        #expect(grid.propertyValue(.init(rawValue: "columnCount")) == .number(1))
+        #expect(grid.propertyValue(.init(rawValue: "columnCount"), at: .medium) == .number(2))
+        let site = Site(name: "Grid", pages: [Page(title: "Layout", slug: "index", parts: [grid])])
+        let output = StaticSiteRenderer().render(site: site)
+        #expect(output.files.contains { $0.contents.contains("repeat(2, minmax(0, 1fr))") })
         #expect(output.files.contains { $0.contents.contains("var(--foundry-space-md)") })
         var unlimited = container
         unlimited.setProperty(.maxWidth, value: .number(0))
         let html = HTMLPageRenderer().render(page: Page(title: "Full", slug: "full", parts: [unlimited]), theme: .standard)
-        #expect(html.contains("max-width: none"))
+        #expect(html.contains("max-width: 100%"))
         #expect(!html.contains("max-width: 0px"))
         #expect(html.contains("background-color: transparent"))
-        #expect(PartType.spacer.definition.properties.contains { $0.key.rawValue == "space" && $0.isResponsive })
     }
 
     @Test
@@ -81,13 +85,13 @@ struct PartDefinitionTests {
         let identifiers = [
             PartType.container,
             .section,
-            .columns,
+            .flex,
+            .grid,
             .paragraph,
             .heading,
             .button,
             .image,
-            .divider,
-            .spacer
+            .divider
         ].map(\.rawValue)
 
         #expect(!identifiers.isEmpty)
@@ -122,7 +126,7 @@ struct PartDefinitionTests {
             customValue: "1rem"
         )))
         #expect(decoded.propertyValue(.init(rawValue: "textColor")) == .packageColor(.init(
-            source: PartThemeValueSelection.manualCustom,
+            source: "text",
             customColor: "#000000",
             opacity: 1
         )))
@@ -137,7 +141,7 @@ struct PartDefinitionTests {
 
         #expect(!text.type.definition.properties.contains { ["typeface", "textSize"].contains($0.key.rawValue) })
         #expect(text.propertyValue(.init(rawValue: "textColor")) == .packageColor(.init(
-            source: PartThemeValueSelection.manualCustom, customColor: "#000000", opacity: 1
+            source: "text", customColor: "#000000", opacity: 1
         )))
     }
 
@@ -176,7 +180,7 @@ struct PartDefinitionTests {
         #expect(html.contains("border-width: 2.0px"))
         #expect(html.contains("border-color: #ABCDEF"))
         #expect(html.contains("border-radius: 28.0px"))
-        #expect(html.contains("max-width: 920px"))
+        #expect(html.contains("920px"))
         // Paragraph now uses the dedicated font control, not the removed select extension.
         #expect(PartType.paragraph.definition.package!.css.contains("font-family: {{ control.font.family }}"))
         #expect(PartType.paragraph.definition.package!.css.contains("font-weight: {{ control.font.weight }}"))
@@ -190,12 +194,11 @@ struct PartDefinitionTests {
 
     @Test
     func rendererSupportsExpandedStockPartSet() {
-        var columns = PartNode.make(.columns)
-        columns.children = [PartNode.make(.heading), PartNode.make(.image)]
+        var grid = PartNode.make(.grid)
+        grid.children = [PartNode.make(.heading), PartNode.make(.image)]
         let parts: [PartNode] = [
-            PartNode(type: .section, children: [columns]),
-            PartNode.make(.divider),
-            PartNode.make(.spacer)
+            PartNode(type: .section, children: [grid]),
+            PartNode.make(.divider)
         ]
         let html = HTMLPageRenderer().render(
             page: Page(title: "Parts", slug: "parts", parts: parts),
@@ -203,11 +206,10 @@ struct PartDefinitionTests {
         )
 
         #expect(html.contains("class=\"foundry-section"))
-        #expect(html.contains("class=\"foundry-columns"))
+        #expect(html.contains("class=\"foundry-grid"))
         #expect(html.contains("<h2 class=\"foundry-heading"))
         #expect(html.contains("class=\"foundry-image"))
         #expect(html.contains("class=\"foundry-divider"))
-        #expect(html.contains("class=\"foundry-spacer"))
     }
 
     @Test

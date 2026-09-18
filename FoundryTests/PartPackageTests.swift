@@ -45,7 +45,7 @@ struct PartPackageTests {
             }
             checked += 1
         }
-        #expect(checked == 24, "Expected every documented control's Quick example; update this count when adding a control.")
+        #expect(checked == 26, "Expected every documented control's Quick example; update this count when adding a control.")
     }
 
     @Test(.enabled(if: FileManager.default.fileExists(atPath: developerDocsURL.appending(path: "AGENTS.md").path)))
@@ -130,7 +130,7 @@ struct PartPackageTests {
             try package.preparePayload()
             #expect(package.manifest.identifier == "uk.co.example.callout")
             #expect(package.dropZoneNames.contains("content") == (stage == "complete"))
-            #expect(package.manifest.properties.count == (stage == "complete" ? 2 : 0))
+            #expect(package.manifest.resolvedProperties.count == (stage == "complete" ? 2 : 0))
         }
     }
 
@@ -164,7 +164,7 @@ struct PartPackageTests {
         #expect(colour.darkShade.rawValue == 3)
         let encoded = try PropertyListEncoder().encode(package.manifest)
         let decoded = try PropertyListDecoder().decode(PartPackageManifest.self, from: encoded)
-        #expect(decoded.properties.first?.breakpointDefaults["large"] == .array([.number(3), .number(4)]))
+        #expect(decoded.resolvedProperties.first?.breakpointDefaults["large"] == .array([.number(3), .number(4)]))
     }
 
     @Test @MainActor func developerBreakpointDefaultsCascadeAndExport() throws {
@@ -195,12 +195,12 @@ struct PartPackageTests {
         let restored = try JSONDecoder().decode(PartNode.self, from: JSONEncoder().encode(node))
         #expect(restored.propertyValue(key, at: .medium) == .number(12))
         var site = Site(name: "Defaults", pages: [Page(title: "Home", slug: "index", parts: [node])])
-        let exported = try StaticSiteRenderer().render(site: site)
+        let exported = StaticSiteRenderer().render(site: site)
         #expect(exported.files.contains { $0.contents.contains("gap: 12px") })
         #expect(exported.files.contains { $0.contents.contains("gap: 24px") })
         #expect(HTMLPageRenderer(site: site).render(page: site.pages[0], theme: site.theme).contains("gap: 24px"))
         site.theme.screens = screens
-        let disabledExport = try StaticSiteRenderer().render(site: site)
+        let disabledExport = StaticSiteRenderer().render(site: site)
         #expect(!disabledExport.files.contains { $0.contents.contains("gap: 12px") })
         #expect(disabledExport.files.contains { $0.contents.contains("gap: 24px") })
     }
@@ -251,7 +251,7 @@ struct PartPackageTests {
         let responsiveHTML = HTMLPageRenderer(site: responsiveSite).render(page: responsiveSite.pages[0], theme: responsiveSite.theme)
         #expect(responsiveHTML.contains("gap: " + expected))
         #expect(responsiveHTML.contains("--numeric-top: 12px"))
-        let exported = try StaticSiteRenderer().render(site: responsiveSite)
+        let exported = StaticSiteRenderer().render(site: responsiveSite)
         #expect(exported.files.contains { $0.contents.contains("gap: " + expected) })
         #expect(exported.files.contains { $0.contents.contains("--numeric-top: 12px") })
     }
@@ -309,7 +309,7 @@ struct PartPackageTests {
         #expect(responsiveHTML.contains("border-style: dashed"))
         let lime = try #require(ColourPaletteDefaults.standard.first { $0.id == "standard.lime" })
         #expect(responsiveHTML.contains(lime.colour(at: .shade(ColourShade(rawValue: 8)!))))
-        let exported = try StaticSiteRenderer().render(site: responsiveSite)
+        let exported = StaticSiteRenderer().render(site: responsiveSite)
         #expect(exported.files.contains { $0.contents.contains("border-width: " + expected) })
         #expect(exported.files.contains { $0.contents.contains("--numeric-top: 12px") })
     }
@@ -349,7 +349,7 @@ struct PartPackageTests {
         let responsiveHTML = HTMLPageRenderer(site: responsiveSite).render(page: responsiveSite.pages[0], theme: responsiveSite.theme)
         #expect(responsiveHTML.contains("border-radius: " + expected))
         #expect(responsiveHTML.contains("--numeric-top: 12px"))
-        let exported = try StaticSiteRenderer().render(site: responsiveSite)
+        let exported = StaticSiteRenderer().render(site: responsiveSite)
         #expect(exported.files.contains { $0.contents.contains("border-radius: " + expected) })
         #expect(exported.files.contains { $0.contents.contains("--numeric-top: 12px") })
     }
@@ -418,7 +418,7 @@ struct PartPackageTests {
         let responsiveHTML = HTMLPageRenderer(site: responsiveSite).render(page: responsiveSite.pages[0], theme: responsiveSite.theme)
         #expect(responsiveHTML.contains("margin: " + expected))
         #expect(responsiveHTML.contains("--numeric-top: -12px"))
-        let exported = try StaticSiteRenderer().render(site: responsiveSite)
+        let exported = StaticSiteRenderer().render(site: responsiveSite)
         #expect(exported.files.contains { $0.contents.contains("margin: " + expected) })
         #expect(exported.files.contains { $0.contents.contains("--numeric-top: -12px") })
     }
@@ -457,7 +457,7 @@ struct PartPackageTests {
         let responsiveHTML = HTMLPageRenderer(site: responsiveSite).render(page: responsiveSite.pages[0], theme: responsiveSite.theme)
         #expect(responsiveHTML.contains("padding: " + expected))
         #expect(responsiveHTML.contains("--numeric-top: 12px"))
-        let exported = try StaticSiteRenderer().render(site: responsiveSite)
+        let exported = StaticSiteRenderer().render(site: responsiveSite)
         #expect(exported.files.contains { $0.contents.contains("padding: " + expected) })
         #expect(exported.files.contains { $0.contents.contains("--numeric-top: 12px") })
     }
@@ -491,7 +491,7 @@ struct PartPackageTests {
         <key>defaults</key><dict><key>base</key><string>body</string></dict><key>showsWeight</key><true/><key>showsStyle</key><true/></dict>
         """
         let decoded = try PropertyListDecoder().decode(PartPackageManifest.self, from: Data(manifest(withControls: item).utf8))
-        let property = try #require(decoded.properties.first)
+        let property = try #require(decoded.resolvedProperties.first)
         let rows = PartPackageFontControl.properties(property)
         let separate = PartPropertyDefinition(key: .init(rawValue: "other"), label: "Other",
             section: rows[0].section, control: .singleLineText, defaultValue: .string(""))
@@ -724,11 +724,18 @@ struct PartPackageTests {
     func oldRootMacroIsRejectedWithoutAnAlias() throws {
         let url = try makePackage(
             manifest: validManifest,
-            template: "<section {{ component.attributes }}>{{ childArea(\"content\") }}</section>"
+            template: "<section class=\"{{ block.class }}\" {{ block.attributes }}>{{ childArea(\"content\") }}</section>"
         )
         defer { try? FileManager.default.removeItem(at: url) }
-        #expect(throws: PartPackageLoadingError.self) {
-            try PartPackageLoader.load(from: url)
+        do {
+            _ = try PartPackageLoader.load(from: url)
+            Issue.record("Expected the removed block namespace to fail validation")
+        } catch PartPackageLoadingError.invalid(let diagnostics) {
+            #expect(diagnostics.contains {
+                $0.message == "The block template namespace has been removed. Use part.class and part.attributes."
+            })
+        } catch {
+            Issue.record("Expected validation diagnostics, received \(error)")
         }
     }
 
@@ -814,17 +821,17 @@ struct PartPackageTests {
             from: repositoryURL.appending(path: "DevelopmentFixtures/EnableConditions.foundrydevpack")
         )
         #expect(enablePackage.manifest.identifier == "dev.foundry.enable-conditions")
-        #expect(enablePackage.manifest.properties.contains { $0.visibleWhen?.id == "titles[2]" })
+        #expect(enablePackage.manifest.resolvedProperties.contains { $0.visibleWhen?.id == "titles[2]" })
 
         let themePackage = try PartPackageLoader.load(
             from: repositoryURL.appending(path: "DevelopmentFixtures/ThemeValues.foundrydevpack")
         )
         #expect(themePackage.manifest.identifier == "dev.foundry.theme-values")
-        #expect(!themePackage.manifest.properties.contains { $0.control.type == .select && $0.control.themeValues != nil })
-        #expect(themePackage.manifest.properties.contains {
+        #expect(!themePackage.manifest.resolvedProperties.contains { $0.control.type == .select && $0.control.themeValues != nil })
+        #expect(themePackage.manifest.resolvedProperties.contains {
             $0.id == "topBorder" && $0.control.type == .themeColor && $0.control.allowsCustom == true
         })
-        #expect(themePackage.manifest.properties.contains {
+        #expect(themePackage.manifest.resolvedProperties.contains {
             $0.id == "bottomBorder" && $0.control.type == .themeColor && $0.control.allowsCustom == true
         })
 
@@ -868,7 +875,7 @@ struct PartPackageTests {
     @Test
     func linkControlResolvesPagesResourcesAnchorsTargetsAndAttributes() {
         let page = Page(title: "Profile", slug: "profile")
-        let asset = ProjectAsset(filename: "guide.pdf", mediaType: "application/pdf", byteCount: 10)
+        let asset = ProjectAsset(filename: "guide.pdf", mediaType: "application/pdf", byteCount: 10, contentDigest: "test-digest")
         let link = PartLink(
             destination: .page(page.id),
             anchor: "bio",
@@ -934,6 +941,512 @@ struct PartPackageTests {
     }
 
     @Test
+    func backgroundControlGroupExpandsIntoFoundryOwnedControls() throws {
+        let plist = """
+        <?xml version="1.0" encoding="UTF-8"?>
+        <plist version="1.0"><dict>
+        <key>minimumAPIVersion</key><integer>1</integer>
+        <key>id</key><string>com.example.background-group</string>
+        <key>title</key><string>Background Group</string>
+        <key>version</key><string>1.0.0</string>
+        <key>controls</key><array><dict><key>type</key><string>background</string></dict></array>
+        <key>templates</key><dict><key>html</key><string>part.html</string></dict>
+        </dict></plist>
+        """
+
+        let data = Data(plist.utf8)
+        let manifest = try PropertyListDecoder().decode(PartPackageManifest.self, from: data)
+        #expect(manifest.controlGroups == [.init(type: .background)])
+        #expect(manifest.resolvedProperties.first?.id == "backgroundMode")
+        #expect(manifest.resolvedProperties.first?.defaultValue == .string("none"))
+        #expect(manifest.resolvedProperties.contains { $0.id == "backgroundImage" && $0.control.type == .image })
+        #expect(manifest.resolvedProperties.contains { $0.id == "backgroundGradientFrom" && $0.control.type == .themeColor })
+        #expect(manifest.resolvedProperties.contains { $0.id == "backgroundVideo" && $0.control.type == .video })
+        #expect(manifest.controlGroupCSS.contains(#"[data-foundry-control-group-background="{{ instance.id }}"]:hover"#))
+        #expect(try PartPackageManifestSchema.diagnostics(for: data).isEmpty)
+    }
+
+    @Test
+    func backgroundControlGroupCanSelectStylesAndStates() throws {
+        let plist = """
+        <?xml version="1.0" encoding="UTF-8"?>
+        <plist version="1.0"><dict>
+        <key>minimumAPIVersion</key><integer>1</integer>
+        <key>id</key><string>com.example.selective-background-group</string>
+        <key>title</key><string>Selective Background Group</string>
+        <key>version</key><string>1.0.0</string>
+        <key>controls</key><array><dict>
+            <key>type</key><string>background</string>
+            <key>styles</key><array><string>colour</string><string>image</string></array>
+            <key>states</key><array><string>static</string></array>
+        </dict></array>
+        <key>templates</key><dict><key>html</key><string>part.html</string></dict>
+        </dict></plist>
+        """
+
+        let data = Data(plist.utf8)
+        let manifest = try PropertyListDecoder().decode(PartPackageManifest.self, from: data)
+        #expect(manifest.controlGroups == [
+            .init(type: .background, styles: [.colour, .image], states: [.staticState])
+        ])
+        let identifiers = Set(manifest.resolvedProperties.map(\.id))
+        #expect(identifiers.contains("backgroundColor"))
+        #expect(identifiers.contains("backgroundImage"))
+        #expect(!identifiers.contains("backgroundGradientType"))
+        #expect(!identifiers.contains("backgroundVideo"))
+        #expect(!identifiers.contains("backgroundHoverStyle"))
+        let mode = try #require(manifest.resolvedProperties.first { $0.id == "backgroundMode" })
+        #expect(mode.control.options?.map(\.value) == ["none", "static"])
+        let style = try #require(manifest.resolvedProperties.first { $0.id == "backgroundStyle" })
+        #expect(style.control.options?.map(\.value) == ["color", "image"])
+        #expect(style.defaultValue == .string("color"))
+        #expect(!manifest.controlGroupCSS.contains(#"[data-foundry-control-group-background="{{ instance.id }}"]:hover"#))
+        #expect(!manifest.controlGroupCSS.contains("backgroundGradient"))
+        #expect(!manifest.controlGroupCSS.contains("backgroundVideo"))
+        #expect(manifest.htmlContributions.isEmpty)
+        #expect(try PartPackageManifestSchema.diagnostics(for: data).isEmpty)
+    }
+
+    @Test
+    func backgroundControlGroupValidatesSelectedStylesAndStates() throws {
+        let plist = """
+        <?xml version="1.0" encoding="UTF-8"?>
+        <plist version="1.0"><dict>
+        <key>minimumAPIVersion</key><integer>1</integer>
+        <key>id</key><string>com.example.invalid-background-group</string>
+        <key>title</key><string>Invalid Background Group</string>
+        <key>version</key><string>1.0.0</string>
+        <key>controls</key><array><dict>
+            <key>type</key><string>background</string>
+            <key>styles</key><array/>
+            <key>states</key><array><string>hover</string><string>hover</string></array>
+        </dict></array>
+        <key>templates</key><dict><key>html</key><string>part.html</string></dict>
+        </dict></plist>
+        """
+
+        let diagnostics = try PartPackageManifestSchema.diagnostics(for: Data(plist.utf8))
+        let messages = diagnostics.map(\.message)
+        #expect(messages.contains("styles must contain at least one value."))
+        #expect(messages.contains("Duplicate states value 'hover'."))
+        #expect(messages.contains("states must include 'static'; hover augments the static background."))
+    }
+
+    @Test
+    func backgroundControlGroupDecoratesVideoHTML() throws {
+        let plist = """
+        <?xml version="1.0" encoding="UTF-8"?>
+        <plist version="1.0"><dict>
+        <key>minimumAPIVersion</key><integer>1</integer>
+        <key>id</key><string>com.example.background-video</string>
+        <key>title</key><string>Background Video</string>
+        <key>version</key><string>1.0.0</string>
+        <key>controls</key><array><dict><key>type</key><string>background</string></dict></array>
+        <key>templates</key><dict><key>html</key><string>part.html</string></dict>
+        </dict></plist>
+        """
+        let manifest = try PropertyListDecoder().decode(PartPackageManifest.self, from: Data(plist.utf8))
+        let properties: [String: PartPackageValue] = [
+            "backgroundMode": .string("hover"),
+            "backgroundStyle": .string("color"),
+            "backgroundHoverStyle": .string("video"),
+            "backgroundHoverVideo": .string(#"assets/film&trailer.mp4"#),
+            "backgroundHoverVideo.href": .string(#"assets/film&trailer.mp4"#),
+            "backgroundHoverVideo.poster": .string("data:image/jpeg;base64,poster-frame")
+        ]
+        let instanceID = UUID()
+        let context = PartTemplateContext(
+            instanceID: instanceID,
+            packageIdentifier: manifest.identifier,
+            properties: properties,
+            slots: [:]
+        )
+        let html = PartTemplateRenderer.render(
+            #"<section class="example" {{ controlGroup.background }}><p>Content</p></section>"#,
+            context: context
+        )
+        let rendered = PartPackageHTMLContributionRenderer.decorate(
+            html,
+            contributions: manifest.htmlContributions,
+            context: context
+        )
+
+        #expect(rendered.contains(#"class="foundry-background-video foundry-background-video--hover""#))
+        #expect(rendered.contains(#"src="assets/film&amp;trailer.mp4""#))
+        #expect(rendered.contains(#"poster="data:image/jpeg;base64,poster-frame""#))
+        #expect(rendered.contains("autoplay muted loop playsinline"))
+        #expect(rendered.hasPrefix(#"<section class="example" data-foundry-control-group-background="\#(instanceID.uuidString)">"#))
+        #expect(rendered.contains(">\n<video class=\"foundry-background-video foundry-background-video--hover\""))
+
+        let canvasContext = PartTemplateContext(
+            instanceID: instanceID,
+            packageIdentifier: manifest.identifier,
+            properties: properties,
+            slots: [:],
+            environment: .canvas
+        )
+        let canvasHTML = PartTemplateRenderer.render(
+            #"<section class="example" {{ controlGroup.background }}><p>Content</p></section>"#,
+            context: canvasContext
+        )
+        let canvasRendered = PartPackageHTMLContributionRenderer.decorate(
+            canvasHTML,
+            contributions: manifest.htmlContributions,
+            context: canvasContext
+        )
+        #expect(canvasRendered.contains(#"<img class="foundry-background-video foundry-background-video--hover""#))
+        #expect(canvasRendered.contains(#"src="data:image/jpeg;base64,poster-frame""#))
+        #expect(!canvasRendered.contains("<video"))
+        #expect(!canvasRendered.contains("assets/film&amp;trailer.mp4"))
+        #expect(!canvasRendered.contains("autoplay"))
+    }
+
+    @Test
+    func backgroundControlGroupRequiresExactlyOnePlacementMacro() throws {
+        let plist = """
+        <?xml version="1.0" encoding="UTF-8"?>
+        <plist version="1.0"><dict>
+        <key>minimumAPIVersion</key><integer>1</integer>
+        <key>id</key><string>com.example.background-placement</string>
+        <key>title</key><string>Background Placement</string>
+        <key>version</key><string>1.0.0</string>
+        <key>controls</key><array><dict><key>type</key><string>background</string></dict></array>
+        <key>templates</key><dict><key>html</key><string>part.html</string></dict>
+        </dict></plist>
+        """
+        let manifest = try PropertyListDecoder().decode(PartPackageManifest.self, from: Data(plist.utf8))
+
+        for template in [
+            #"<section class="sample {{ part.class }}" {{ part.attributes }}></section>"#,
+            #"<section class="sample {{ part.class }}" {{ part.attributes }} {{ controlGroup.background }}><div {{ controlGroup.background }}></div></section>"#
+        ] {
+            let packageURL = try makePackage(manifest: plist, template: template)
+            defer { try? FileManager.default.removeItem(at: packageURL) }
+            let diagnostics = PartPackageValidator.validate(
+                manifest,
+                rootURL: packageURL.appending(path: "Contents/Resources", directoryHint: .isDirectory)
+            )
+            #expect(diagnostics.contains { $0.message.contains("exactly one {{ controlGroup.background }}") })
+        }
+    }
+
+    @Test
+    func sharedPropertyControlGroupsInjectPropertiesWithoutCSSOrHTML() throws {
+        for (kind, expectedIDs) in [
+            ("spacing", ["spacingEnabled", "themePadding", "themeMargin"]),
+            ("sizing", ["widthMode", "customWidth", "maxWidth", "minimumHeight", "heightMode", "customHeight"]),
+            ("borders", ["borderEnabled", "themeBorder", "themeBorderColour", "themeRadius"]),
+            ("effects", ["effectsEnabled", "themeShadow", "opacity"]),
+            ("layoutItem", ["itemEnabled", "flexGrow", "flexShrink", "alignSelf", "columnSpan", "rowSpan"])
+        ] {
+            let plist = """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <plist version="1.0"><dict>
+            <key>minimumAPIVersion</key><integer>1</integer>
+            <key>id</key><string>com.example.\(kind)-group</string>
+            <key>title</key><string>\(kind) Group</string>
+            <key>version</key><string>1.0.0</string>
+            <key>controls</key><array><dict><key>type</key><string>\(kind)</string></dict></array>
+            <key>templates</key><dict><key>html</key><string>part.html</string></dict>
+            </dict></plist>
+            """
+            let data = Data(plist.utf8)
+            let manifest = try PropertyListDecoder().decode(PartPackageManifest.self, from: data)
+            #expect(manifest.resolvedProperties.map(\.id) == expectedIDs)
+            #expect(manifest.controlGroupCSS.isEmpty)
+            #expect(manifest.htmlContributions.isEmpty)
+            #expect(try PartPackageManifestSchema.diagnostics(for: data).isEmpty)
+        }
+    }
+
+    @Test
+    func sharedControlGroupDefaultOverridesReplaceOnlyTheNamedProperty() throws {
+        let plist = """
+        <?xml version="1.0" encoding="UTF-8"?>
+        <plist version="1.0"><dict>
+        <key>minimumAPIVersion</key><integer>1</integer>
+        <key>id</key><string>com.example.spacing-override-group</string>
+        <key>title</key><string>Spacing Override Group</string>
+        <key>version</key><string>1.0.0</string>
+        <key>controls</key><array><dict>
+            <key>type</key><string>spacing</string>
+            <key>defaultOverrides</key><dict>
+                <key>themePadding</key><dict><key>left</key><string>sm</string></dict>
+            </dict>
+        </dict></array>
+        <key>templates</key><dict><key>html</key><string>part.html</string></dict>
+        </dict></plist>
+        """
+        let data = Data(plist.utf8)
+        let manifest = try PropertyListDecoder().decode(PartPackageManifest.self, from: data)
+        #expect(manifest.resolvedProperties.first { $0.id == "themePadding" }?.defaultValue == .object(["left": .string("sm")]))
+        #expect(manifest.resolvedProperties.first { $0.id == "themeMargin" }?.defaultValue == .string("none"))
+        #expect(manifest.resolvedProperties.first { $0.id == "spacingEnabled" }?.defaultValue == .boolean(true))
+        #expect(try PartPackageManifestSchema.diagnostics(for: data).isEmpty)
+    }
+
+    @Test
+    func unknownControlGroupTypeIsRejected() throws {
+        let plist = """
+        <?xml version="1.0" encoding="UTF-8"?>
+        <plist version="1.0"><dict>
+        <key>minimumAPIVersion</key><integer>1</integer>
+        <key>id</key><string>com.example.unknown-group</string>
+        <key>title</key><string>Unknown Group</string>
+        <key>version</key><string>1.0.0</string>
+        <key>controls</key><array><dict><key>id</key><string>gradientField</string><key>type</key><string>gradient</string></dict></array>
+        <key>templates</key><dict><key>html</key><string>part.html</string></dict>
+        </dict></plist>
+        """
+        let diagnostics = try PartPackageManifestSchema.diagnostics(for: Data(plist.utf8))
+        // "gradient" isn't a recognised Grouped-control kind, so it falls
+        // through to standard property validation, which rejects it as an
+        // unrecognised control type instead.
+        #expect(diagnostics.contains { $0.message.contains("Unknown control type 'gradient'") })
+    }
+
+    @Test
+    func duplicateControlGroupTypeIsRejected() throws {
+        let plist = """
+        <?xml version="1.0" encoding="UTF-8"?>
+        <plist version="1.0"><dict>
+        <key>minimumAPIVersion</key><integer>1</integer>
+        <key>id</key><string>com.example.duplicate-group</string>
+        <key>title</key><string>Duplicate Group</string>
+        <key>version</key><string>1.0.0</string>
+        <key>controls</key><array>
+            <dict><key>type</key><string>spacing</string></dict>
+            <dict><key>type</key><string>spacing</string></dict>
+        </array>
+        <key>templates</key><dict><key>html</key><string>part.html</string></dict>
+        </dict></plist>
+        """
+        let diagnostics = try PartPackageManifestSchema.diagnostics(for: Data(plist.utf8))
+        #expect(diagnostics.contains { $0.message.contains("declared more than once") })
+    }
+
+    @Test
+    func groupedControlReferencesExpandInlineAtTheAuthorsDeclaredPosition() throws {
+        let plist = """
+        <?xml version="1.0" encoding="UTF-8"?>
+        <plist version="1.0"><dict>
+        <key>minimumAPIVersion</key><integer>1</integer>
+        <key>id</key><string>com.example.inline-ordering</string>
+        <key>title</key><string>Inline Ordering</string>
+        <key>version</key><string>1.0.0</string>
+        <key>controls</key><array>
+            <dict>
+                <key>id</key><string>before</string>
+                <key>label</key><string>Before</string>
+                <key>type</key><string>toggle</string>
+                <key>defaults</key><dict><key>base</key><true/></dict>
+            </dict>
+            <dict><key>type</key><string>borders</string></dict>
+            <dict>
+                <key>id</key><string>after</string>
+                <key>label</key><string>After</string>
+                <key>type</key><string>toggle</string>
+                <key>defaults</key><dict><key>base</key><false/></dict>
+            </dict>
+        </array>
+        <key>templates</key><dict><key>html</key><string>part.html</string></dict>
+        </dict></plist>
+        """
+        let data = Data(plist.utf8)
+        let manifest = try PropertyListDecoder().decode(PartPackageManifest.self, from: data)
+
+        #expect(manifest.resolvedProperties.map(\.id) == [
+            "before", "borderEnabled", "themeBorder", "themeBorderColour", "themeRadius", "after"
+        ])
+        #expect(try PartPackageManifestSchema.diagnostics(for: data).isEmpty)
+    }
+
+    @Test
+    func theOldSeparateControlGroupsKeyIsNoLongerRecognised() throws {
+        let plist = """
+        <?xml version="1.0" encoding="UTF-8"?>
+        <plist version="1.0"><dict>
+        <key>minimumAPIVersion</key><integer>1</integer>
+        <key>id</key><string>com.example.legacy-control-groups-key</string>
+        <key>title</key><string>Legacy Control Groups Key</string>
+        <key>version</key><string>1.0.0</string>
+        <key>controlGroups</key><array><dict><key>type</key><string>background</string></dict></array>
+        <key>templates</key><dict><key>html</key><string>part.html</string></dict>
+        </dict></plist>
+        """
+        let data = Data(plist.utf8)
+        let diagnostics = try PartPackageManifestSchema.diagnostics(for: data)
+
+        #expect(diagnostics.contains { $0.message.contains("Unknown key 'controlGroups'") })
+        // Grouped controls declared this way are also silently absent from
+        // decode, since the separate key is no longer read at all.
+        let manifest = try PropertyListDecoder().decode(PartPackageManifest.self, from: data)
+        #expect(manifest.controlGroups.isEmpty)
+    }
+
+    @Test @MainActor
+    func videoControlProvidesStructuredTemplateValues() throws {
+        let control = """
+        <dict>
+            <key>id</key><string>film</string>
+            <key>label</key><string>Film</string>
+            <key>type</key><string>video</string>
+            <key>defaults</key><dict><key>base</key><string></string></dict>
+        </dict>
+        """
+        let data = Data(manifest(withControls: control).utf8)
+        let decodedManifest = try PropertyListDecoder().decode(PartPackageManifest.self, from: data)
+        let property = try #require(decodedManifest.resolvedProperties.first)
+        #expect(property.control.type == .video)
+        #expect(!property.responsive)
+        let responsiveControl = control.replacingOccurrences(
+            of: "<key>defaults</key><dict><key>base</key><string></string></dict>",
+            with: "<key>defaults</key><dict><key>base</key><string></string></dict><key>responsive</key><true/>"
+        )
+        let responsiveDiagnostics = try PartPackageManifestSchema.diagnostics(
+            for: Data(manifest(withControls: responsiveControl).utf8)
+        )
+        #expect(responsiveDiagnostics.contains { $0.message == "A video control does not support responsive." })
+        let packageURL = try makePackage(
+            manifest: manifest(withControls: control),
+            template: #"<section class="sample {{ part.class }}" {{ part.attributes }}>{{ control.film }}{{ childArea("content") }}</section>"#
+        )
+        defer { try? FileManager.default.removeItem(at: packageURL) }
+        let package = try PartPackageLoader.load(from: packageURL)
+        guard case .video = PartPackageAdapter.definition(from: package).properties.first?.control else {
+            Issue.record("Expected a video property control")
+            return
+        }
+        let definitions = PartPackageAdapter.definition(from: package).properties
+        #expect(definitions.count == 7)
+        #expect(definitions.first?.isResponsive == false)
+        let posterDefinition = try #require(definitions.first {
+            $0.key == PartVideoTemplateValues.posterPropertyKey(for: "film")
+        })
+        #expect(posterDefinition.key == PartVideoTemplateValues.posterPropertyKey(for: "film"))
+        guard case .derived = posterDefinition.control else {
+            Issue.record("Expected the poster companion to be a derived property")
+            return
+        }
+        #expect(!posterDefinition.isResponsive)
+        #expect(!posterDefinition.isInspectorVisible)
+        #expect(definitions.dropFirst().allSatisfy { !$0.isResponsive && !$0.isInspectorVisible })
+
+        var values: [String: PartPackageValue] = ["film": .string("assets/demo.mp4")]
+        let posterData = Data("frame".utf8)
+        let asset = ProjectAsset(
+            filename: "Demo Film.mp4",
+            mediaType: "video/mp4",
+            byteCount: 42_000,
+            contentDigest: "test-digest-film",
+            pixelWidth: 1920,
+            pixelHeight: 1080,
+            videoMetadata: .init(duration: 12.5, posterJPEG: posterData)
+        )
+        let decodedAsset = try JSONDecoder().decode(
+            ProjectAsset.self,
+            from: JSONEncoder().encode(asset)
+        )
+        #expect(decodedAsset == asset)
+        PartVideoTemplateValues.insert(
+            propertyID: "film",
+            href: "assets/demo.mp4",
+            poster: "data:image/jpeg;base64,frame",
+            asset: asset,
+            into: &values
+        )
+        let rendered = PartTemplateRenderer.render(
+            #"{{ control.film }}|{{ control.film.href }}|{{ control.film.poster }}|{{ control.film.autoplay }}|{{ control.film.muted }}|{{ control.film.controls }}|{{ control.film.loop }}|{{ control.film.startAt }}|{{ control.film.filename }}|{{ control.film.extension }}|{{ control.film.mimeType }}|{{ control.film.byteCount }}|{{ control.film.width }}|{{ control.film.height }}|{{ control.film.duration }}"#,
+            context: .init(instanceID: UUID(), packageIdentifier: decodedManifest.identifier, properties: values, slots: [:])
+        )
+        #expect(rendered == #"<video src="assets/demo.mp4" poster="data:image/jpeg;base64,frame" controls playsinline></video>|assets/demo.mp4|data:image/jpeg;base64,frame|never|false|true|false|0|Demo Film.mp4|mp4|video/mp4|42000|1920|1080|12.5"#)
+
+        PartVideoTemplateValues.insert(
+            propertyID: "film",
+            href: "assets/demo.mp4",
+            poster: "poster.jpg",
+            asset: asset,
+            playback: .init(autoplay: "onLoad", muted: true, showsControls: false, loops: true, startAt: 4.5),
+            into: &values
+        )
+        let configured = PartTemplateRenderer.render(
+            "{{ control.film }}",
+            context: .init(instanceID: UUID(), packageIdentifier: decodedManifest.identifier, properties: values, slots: [:])
+        )
+        #expect(configured == #"<video src="assets/demo.mp4#t=4.5" poster="poster.jpg" autoplay muted loop playsinline></video>"#)
+
+        PartRegistry.register(package)
+        defer { PartRegistry.unregisterPackage(identifier: package.manifest.identifier) }
+        var node = PartNode(type: .init(rawValue: package.manifest.identifier))
+        node.setProperty(.init(rawValue: "film"), value: .url(asset.reference))
+        let page = Page(title: "Video", slug: "index", parts: [node])
+        let assets: ProjectAssetContents = [asset.id: ProjectAssetContent(asset: asset, data: Data())]
+        let canvasHTML = HTMLPageRenderer().render(
+            page: page,
+            language: "en",
+            theme: .standard,
+            assets: assets,
+            breakpoint: .extraLarge
+        )
+        #expect(canvasHTML.contains(#"<video poster="data:image/jpeg;base64,ZnJhbWU=" controls data-foundry-image-drop-zone data-foundry-image-property="__foundry_video_poster_film" playsinline></video>"#))
+        #expect(!canvasHTML.contains(asset.id.uuidString))
+
+        var site = Site.starter()
+        site.pages = [page]
+        site.assetLibrary = [.asset(asset)]
+        let exported = StaticSiteRenderer().render(site: site, assets: assets)
+        let posterPath = "assets/foundry-video-posters/\(asset.id.uuidString.lowercased()).jpg"
+        #expect(exported.file(at: posterPath) == nil)
+        #expect(exported.file(at: "index.html")?.contents.contains(#"<video src="assets/"#) == true)
+        #expect(exported.file(at: "index.html")?.contents.contains("poster=") == false)
+        #expect(exported.file(at: "index.html")?.contents.contains("data-foundry-image-drop-zone") == false)
+        #expect(exported.file(at: "index.html")?.contents.contains("data:image/jpeg") == false)
+
+        let posterAsset = ProjectAsset(
+            filename: "Cover.jpg",
+            mediaType: "image/jpeg",
+            byteCount: 10,
+            contentDigest: "test-digest-cover",
+            pixelWidth: 8,
+            pixelHeight: 8
+        )
+        var posterNode = node
+        posterNode.setProperty(
+            PartVideoTemplateValues.posterPropertyKey(for: "film"),
+            value: .url(posterAsset.reference)
+        )
+        var posterSite = Site.starter()
+        posterSite.pages = [Page(title: "Video", slug: "index", parts: [posterNode])]
+        posterSite.assetLibrary = [.asset(asset), .asset(posterAsset)]
+        let posterExported = StaticSiteRenderer().render(
+            site: posterSite,
+            assets: [
+                asset.id: ProjectAssetContent(asset: asset, data: Data()),
+                posterAsset.id: ProjectAssetContent(asset: posterAsset, data: Data())
+            ]
+        )
+        #expect(posterExported.file(at: "index.html")?.contents.contains(#"poster="assets/"#) == true)
+    }
+
+    @Test
+    func controlGroupsUseCurrentPartAPI() throws {
+        let plist = """
+        <?xml version="1.0" encoding="UTF-8"?>
+        <plist version="1.0"><dict>
+        <key>minimumAPIVersion</key><integer>1</integer>
+        <key>id</key><string>com.example.background-group</string>
+        <key>title</key><string>Background Group</string>
+        <key>version</key><string>1.0.0</string>
+        <key>controls</key><array><dict><key>type</key><string>background</string></dict></array>
+        <key>templates</key><dict><key>html</key><string>part.html</string></dict>
+        </dict></plist>
+        """
+
+        let diagnostics = try PartPackageManifestSchema.diagnostics(for: Data(plist.utf8))
+        #expect(diagnostics.isEmpty)
+    }
+
+    @Test
     func controlArraysDecodePersistAndRenderIndexedValues() throws {
         let plist = """
         <?xml version="1.0" encoding="UTF-8"?>
@@ -954,7 +1467,7 @@ struct PartPackageTests {
         </dict></plist>
         """
         let manifest = try PropertyListDecoder().decode(PartPackageManifest.self, from: Data(plist.utf8))
-        let property = try #require(manifest.properties.first)
+        let property = try #require(manifest.resolvedProperties.first)
         #expect(property.control.count == 4)
         #expect(property.label == "Palette")
         #expect(property.subtitles == ["First", "Second", "Third", "Fourth"])
@@ -993,7 +1506,7 @@ struct PartPackageTests {
         </dict></plist>
         """
         let manifest = try PropertyListDecoder().decode(PartPackageManifest.self, from: Data(plist.utf8))
-        let property = try #require(manifest.properties.first)
+        let property = try #require(manifest.resolvedProperties.first)
 
         #expect(property.control.themeValues == .source(.spacing))
         #expect(property.control.themeValueSource == nil)
@@ -1112,7 +1625,7 @@ struct PartPackageTests {
             PartPackageManifest.self,
             from: Data(manifest(withControls: item).utf8)
         )
-        let property = try #require(decodedManifest.properties.first)
+        let property = try #require(decodedManifest.resolvedProperties.first)
         #expect(property.control.type == .shadow)
         #expect(property.control.themeValues == nil)
         #expect(property.control.themeValueSource == .shadows)
@@ -1217,7 +1730,7 @@ struct PartPackageTests {
         let withoutResponsiveData = Data(manifest(withControls: withoutResponsive).utf8)
         #expect(try PartPackageManifestSchema.diagnostics(for: withoutResponsiveData).isEmpty)
         let decoded = try PropertyListDecoder().decode(PartPackageManifest.self, from: withoutResponsiveData)
-        #expect(decoded.properties.first?.responsive == false)
+        #expect(decoded.resolvedProperties.first?.responsive == false)
     }
 
     @Test
@@ -1234,11 +1747,12 @@ struct PartPackageTests {
         <dict><key>id</key><string>mode</string><key>label</key><string>Mode</string><key>type</key><string>select</string><key>options</key><array><dict><key>value</key><string>featured</string><key>title</key><string>Featured</string></dict></array><key>defaults</key><dict><key>base</key><string>featured</string></dict><key>responsive</key><false/></dict>
         <dict><key>id</key><string>titles</string><key>label</key><string>Titles</string><key>type</key><string>text</string><key>count</key><integer>3</integer><key>defaults</key><dict><key>base</key><array><string>One</string><string>Two</string><string>Featured story</string></array></dict><key>responsive</key><false/></dict>
         <dict><key>id</key><string>detail</string><key>label</key><string>Detail</string><key>type</key><string>text</string><key>defaults</key><dict><key>base</key><string>Visible</string></dict><key>responsive</key><false/><key>visibleWhen</key><dict><key>id</key><string>titles[2]</string><key>operation</key><string>containsInsensitive</string><key>value</key><string>featured</string></dict></dict>
+        <dict><key>id</key><string>compoundDetail</string><key>label</key><string>Compound detail</string><key>type</key><string>text</string><key>defaults</key><dict><key>base</key><string>Visible</string></dict><key>responsive</key><false/><key>visibleWhen</key><dict><key>all</key><array><dict><key>id</key><string>mode</string><key>value</key><string>featured</string></dict><dict><key>any</key><array><dict><key>id</key><string>titles[0]</string><key>value</key><string>One</string></dict><dict><key>id</key><string>titles[1]</string><key>value</key><string>Other</string></dict></array></dict></array></dict></dict>
         </array><key>templates</key><dict><key>html</key><string>part.html</string></dict>
         </dict></plist>
         """
         let manifest = try PropertyListDecoder().decode(PartPackageManifest.self, from: Data(plist.utf8))
-        let enabledProperty = try #require(manifest.properties.last)
+        let enabledProperty = try #require(manifest.resolvedProperties.first { $0.id == "detail" })
         #expect(enabledProperty.visibleWhen?.id == "titles[2]")
         #expect(enabledProperty.visibleWhen?.operation == "containsInsensitive")
 
@@ -1254,6 +1768,10 @@ struct PartPackageTests {
         ))
         #expect(PartPackageVisibilityEvaluator.evaluate(.string(""), operation: "isEmpty", expected: nil))
         #expect(PartPackageVisibilityEvaluator.evaluate(.number(10), operation: ">=", expected: .number(10)))
+        let compound = try #require(manifest.resolvedProperties.first { $0.id == "compoundDetail" }?.visibleWhen)
+        #expect(compound.all?.count == 2)
+        #expect(compound.all?.last?.any?.count == 2)
+        #expect(try PartPackageManifestSchema.diagnostics(for: Data(plist.utf8)).isEmpty)
     }
 
     @Test
@@ -1276,7 +1794,7 @@ struct PartPackageTests {
         let manifest = try PropertyListDecoder().decode(PartPackageManifest.self, from: Data(plist.utf8))
         let resolved = PartPackageDerivedValueResolver.resolve(
             ["amount": .number(21), "action": .boolean(true)],
-            properties: manifest.properties
+            properties: manifest.resolvedProperties
         )
         #expect(resolved["doubled"] == .number(42))
         #expect(resolved["action"] == .string("active"))
@@ -1306,18 +1824,18 @@ struct PartPackageTests {
         #expect(try PartPackageManifestSchema.diagnostics(for: data).isEmpty)
 
         let manifest = try PropertyListDecoder().decode(PartPackageManifest.self, from: data)
-        #expect(manifest.properties[0].label.isEmpty)
-        #expect(manifest.properties[0].subtitles == ["Optional help"])
-        #expect(manifest.properties[1].buttonTexts == ["Apply"])
-        #expect(manifest.properties[1].buttonIcons == ["bolt.fill"])
-        #expect(manifest.properties[2].subtitles == ["First", "Second"])
-        #expect(manifest.properties[2].buttonTexts == ["Previous", "Next"])
-        #expect(manifest.properties[2].buttonIcons == ["arrow.left", "arrow.right"])
-        #expect(manifest.properties[2].activeButtonTexts == ["Selected previous", "Selected next"])
-        #expect(manifest.properties[2].activeButtonIcons == ["checkmark", "checkmark"])
-        #expect(manifest.properties[2].control.selectionMode == nil)
-        #expect(manifest.properties[3].control.selectionMode == .single)
-        #expect(manifest.properties[5].control.selectionMode == .single)
+        #expect(manifest.resolvedProperties[0].label.isEmpty)
+        #expect(manifest.resolvedProperties[0].subtitles == ["Optional help"])
+        #expect(manifest.resolvedProperties[1].buttonTexts == ["Apply"])
+        #expect(manifest.resolvedProperties[1].buttonIcons == ["bolt.fill"])
+        #expect(manifest.resolvedProperties[2].subtitles == ["First", "Second"])
+        #expect(manifest.resolvedProperties[2].buttonTexts == ["Previous", "Next"])
+        #expect(manifest.resolvedProperties[2].buttonIcons == ["arrow.left", "arrow.right"])
+        #expect(manifest.resolvedProperties[2].activeButtonTexts == ["Selected previous", "Selected next"])
+        #expect(manifest.resolvedProperties[2].activeButtonIcons == ["checkmark", "checkmark"])
+        #expect(manifest.resolvedProperties[2].control.selectionMode == nil)
+        #expect(manifest.resolvedProperties[3].control.selectionMode == .single)
+        #expect(manifest.resolvedProperties[5].control.selectionMode == .single)
 
         let resolved = PartPackageDerivedValueResolver.resolve(
             [
@@ -1326,7 +1844,7 @@ struct PartPackageTests {
                 "multiple": .array([.boolean(true), .boolean(false)]),
                 "singleChoice": .array([.boolean(false), .boolean(true)])
             ],
-            properties: manifest.properties
+            properties: manifest.resolvedProperties
         )
         #expect(resolved["plain"] == .boolean(false))
         #expect(resolved["mapped"] == .string("active"))
@@ -1370,10 +1888,10 @@ struct PartPackageTests {
         #expect(try PartPackageManifestSchema.diagnostics(for: data).isEmpty)
 
         let manifest = try PropertyListDecoder().decode(PartPackageManifest.self, from: data)
-        let values = Dictionary(uniqueKeysWithValues: manifest.properties.map {
+        let values = Dictionary(uniqueKeysWithValues: manifest.resolvedProperties.map {
             ($0.id, $0.defaultValue)
         })
-        let resolved = PartPackageDerivedValueResolver.resolve(values, properties: manifest.properties)
+        let resolved = PartPackageDerivedValueResolver.resolve(values, properties: manifest.resolvedProperties)
 
         #expect(resolved["hex"] == .string("#FF336680"))
         #expect(resolved["hexValue"] == .string("FF336680"))
@@ -1453,10 +1971,10 @@ struct PartPackageTests {
         #expect(try PartPackageManifestSchema.diagnostics(for: data).isEmpty)
 
         let manifest = try PropertyListDecoder().decode(PartPackageManifest.self, from: data)
-        #expect(manifest.properties.first?.control.minimumDate == "2026-01-01")
-        #expect(manifest.properties.first?.control.maximumDate == "2026-12-31")
-        let values = Dictionary(uniqueKeysWithValues: manifest.properties.map { ($0.id, $0.defaultValue) })
-        let resolved = PartPackageDerivedValueResolver.resolve(values, properties: manifest.properties)
+        #expect(manifest.resolvedProperties.first?.control.minimumDate == "2026-01-01")
+        #expect(manifest.resolvedProperties.first?.control.maximumDate == "2026-12-31")
+        let values = Dictionary(uniqueKeysWithValues: manifest.resolvedProperties.map { ($0.id, $0.defaultValue) })
+        let resolved = PartPackageDerivedValueResolver.resolve(values, properties: manifest.resolvedProperties)
 
         #expect(resolved["published"] == .string("2026-09-08"))
         #expect(resolved["published.year"] == .number(2026))
@@ -2191,7 +2709,7 @@ struct PartPackageTests {
                 </dict>
                 """).utf8)
         )
-        let image = try #require(manifest.properties.first)
+        let image = try #require(manifest.resolvedProperties.first)
 
         #expect(image.defaultValue == .string(""))
         #expect(!image.responsive)
@@ -2217,7 +2735,7 @@ struct PartPackageTests {
                 </dict>
                 """).utf8)
         )
-        let image = try #require(manifest.properties.first)
+        let image = try #require(manifest.resolvedProperties.first)
         #expect(image.renditions.map(\.id) == ["thumbnail", "hero"])
         #expect(image.renditions.map(\.effectiveMaximumDimension) == [480, 3_840])
 
@@ -2280,6 +2798,7 @@ struct PartPackageTests {
             filename: "hero.png",
             mediaType: "image/png",
             byteCount: data.count,
+            contentDigest: FoundryDocumentSnapshot.digest(for: data),
             pixelWidth: 100,
             pixelHeight: 50
         )
@@ -2317,8 +2836,8 @@ struct PartPackageTests {
         defer { try? FileManager.default.removeItem(at: packageURL) }
         PartRegistry.register(try PartPackageLoader.load(from: packageURL))
 
-        let first = ProjectAsset(filename: "first.png", mediaType: "image/png", byteCount: 1)
-        let second = ProjectAsset(filename: "second.png", mediaType: "image/png", byteCount: 1)
+        let first = ProjectAsset(filename: "first.png", mediaType: "image/png", byteCount: 1, contentDigest: "test-digest-first")
+        let second = ProjectAsset(filename: "second.png", mediaType: "image/png", byteCount: 1, contentDigest: "test-digest-second")
         var part = PartNode(type: .init(rawValue: identifier))
         part.setProperty(
             .init(rawValue: "photo"),
@@ -2362,7 +2881,7 @@ struct PartPackageTests {
         )
         defer { try? FileManager.default.removeItem(at: packageURL) }
         let package = try PartPackageLoader.load(from: packageURL)
-        #expect(package.manifest.properties.first?.responsive == true)
+        #expect(package.manifest.resolvedProperties.first?.responsive == true)
         let definitions = PartPackageAdapter.definition(from: package).properties
         let altDefinition = try #require(definitions.first {
             $0.key == PartPackageAdapter.imageAltKey(for: "source")
@@ -2373,7 +2892,7 @@ struct PartPackageTests {
         #expect(!altDefinition.isInspectorVisible)
         let imageDefinition = try #require(definitions.first { $0.key.rawValue == "source" })
         #expect(imageDefinition.supportsImageFocalPoint)
-        #expect(!imageDefinition.isResponsive)
+        #expect(imageDefinition.isResponsive)
         let focalPointDefinition = try #require(definitions.first {
             $0.key == PartPackageAdapter.imageFocalPointKey(for: "source")
         })
@@ -2470,7 +2989,7 @@ struct PartPackageTests {
         )
         defer { try? FileManager.default.removeItem(at: packageURL) }
         let package = try PartPackageLoader.load(from: packageURL)
-        #expect(package.manifest.properties.first?.defaultValue == .string("images/icon.svg"))
+        #expect(package.manifest.resolvedProperties.first?.defaultValue == .string("images/icon.svg"))
 
         let rendered = PartTemplateRenderer.render(
             package.htmlTemplate,
@@ -3100,7 +3619,7 @@ struct PartPackageTests {
             from: Data(manifestText.utf8)
         )
 
-        #expect(manifest.properties.first?.group == "Settings")
+        #expect(manifest.resolvedProperties.first?.group == "Settings")
     }
 
     @Test
@@ -3147,7 +3666,7 @@ struct PartPackageTests {
             PartPackageManifest.self,
             from: Data(manifestText.utf8)
         )
-        let property = try #require(manifest.properties.first)
+        let property = try #require(manifest.resolvedProperties.first)
         #expect(property.units == [""])
 
         let invalidText = manifestText.replacingOccurrences(
@@ -3403,7 +3922,7 @@ struct PartPackageTests {
         #expect(try PartPackageManifestSchema.diagnostics(for: validData).isEmpty)
 
         let decodedManifest = try PropertyListDecoder().decode(PartPackageManifest.self, from: validData)
-        let property = try #require(decodedManifest.properties.first)
+        let property = try #require(decodedManifest.resolvedProperties.first)
         #expect(property.noteTitle == "About this setting")
         #expect(property.noteBody == "Helpful guidance.")
         #expect(property.noteSystemImage == "info.circle")
@@ -4471,7 +4990,7 @@ struct PartPackageTests {
             PartPackageManifest.self,
             from: Data(manifestText.utf8)
         )
-        let property = try #require(manifest.properties.first)
+        let property = try #require(manifest.resolvedProperties.first)
         #expect(property.defaultValue == .array([.string("arrow-left"), .string("not-a-real-foundry-icon")]))
 
         let diagnostics = PartPackageValidator.validate(

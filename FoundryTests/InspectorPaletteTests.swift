@@ -14,7 +14,7 @@ struct InspectorPaletteTests {
         #expect(PartPackageColorResolver.resolve(value, theme: .standard, opacity: true, appearance: .dark).contains("171 205 239 / 0.4"))
         var node = PartNode(type: .container)
         node.setProperty(.backgroundColor, value: .packageColor(value))
-        node.setProperty(.init(rawValue: "showsBackground"), value: .boolean(true))
+        node.setProperty(.init(rawValue: "backgroundMode"), value: .choice("static"))
         var wide = value
         wide.darkShade = .eleven
         node.setResponsiveProperty(.backgroundColor, value: .packageColor(wide), at: .large)
@@ -49,7 +49,7 @@ struct InspectorPaletteTests {
         #expect(PartPackageColorResolver.resolve(value, theme: site.theme, opacity: false, appearance: .dark) == "#ABCDEF")
         var node = PartNode.make(.container)
         node.setProperty(.backgroundColor, value: .packageColor(value))
-        node.setProperty(.init(rawValue: "showsBackground"), value: .boolean(true))
+        node.setProperty(.init(rawValue: "backgroundMode"), value: .choice("static"))
         let page = Page(title: "Appearance", slug: "index", parts: [node])
         site.pages = [page]
         #expect(HTMLPageRenderer(appearance: .light).render(page: page, theme: site.theme).contains("background-color: #123456"))
@@ -145,7 +145,7 @@ struct InspectorPaletteTests {
         var node = PartNode.make(.container)
         node.setProperty(.backgroundColor, value: .packageColor(.init(source: palette.id,
             customColor: "#000000", opacity: 1, shade: .eight)))
-        node.setProperty(.init(rawValue: "showsBackground"), value: .boolean(true))
+        node.setProperty(.init(rawValue: "backgroundMode"), value: .choice("static"))
         let page = Page(title: "Palette", slug: "index", parts: [node])
         site.pages = [page]
         let html = HTMLPageRenderer().render(page: page, theme: site.theme)

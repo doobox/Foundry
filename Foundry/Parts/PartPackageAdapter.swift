@@ -46,7 +46,7 @@ nonisolated enum PartPackageAdapter {
             category: PartCategory(rawValue: PartPackageGroup.resolve(manifest.category).rawValue),
             allowsChildren: package.hasDropZone || !manifest.slots.isEmpty,
             renderKind: .package,
-            properties: manifest.properties.filter { $0.control.type != .childPicker }.flatMap(propertyDefinitions) + implicitTextProperties + implicitHTMLProperties + implicitHTMLArtifactProperties + implicitImageProperties,
+            properties: manifest.resolvedProperties.filter { $0.control.type != .childPicker }.flatMap(propertyDefinitions) + implicitTextProperties + implicitHTMLProperties + implicitHTMLArtifactProperties + implicitImageProperties,
             package: package
         )
     }
@@ -67,6 +67,79 @@ nonisolated enum PartPackageAdapter {
     }
 
     private static func basePropertyDefinitions(_ property: PartPackageProperty) -> [PartPropertyDefinition] {
+        if property.control.type == .video {
+            return [
+                PartPropertyDefinition(
+                    key: .init(rawValue: property.id),
+                    label: property.label,
+                    section: .init(rawValue: property.group),
+                    control: .video,
+                    defaultValue: value(property.defaultValue, control: .video),
+                    isResponsive: false,
+                    visibleWhen: property.visibleWhen
+                ),
+                PartPropertyDefinition(
+                    key: PartVideoTemplateValues.posterPropertyKey(for: property.id),
+                    label: "Poster",
+                    section: .init(rawValue: property.group),
+                    control: .derived,
+                    defaultValue: .url(""),
+                    isResponsive: false,
+                    isInspectorVisible: false,
+                    visibleWhen: property.visibleWhen
+                ),
+                PartPropertyDefinition(
+                    key: PartVideoTemplateValues.autoplayPropertyKey(for: property.id),
+                    label: "Autoplay",
+                    section: .init(rawValue: property.group),
+                    control: .derived,
+                    defaultValue: .choice("never"),
+                    isResponsive: false,
+                    isInspectorVisible: false,
+                    visibleWhen: property.visibleWhen
+                ),
+                PartPropertyDefinition(
+                    key: PartVideoTemplateValues.mutedPropertyKey(for: property.id),
+                    label: "Muted",
+                    section: .init(rawValue: property.group),
+                    control: .derived,
+                    defaultValue: .boolean(false),
+                    isResponsive: false,
+                    isInspectorVisible: false,
+                    visibleWhen: property.visibleWhen
+                ),
+                PartPropertyDefinition(
+                    key: PartVideoTemplateValues.controlsPropertyKey(for: property.id),
+                    label: "Controls",
+                    section: .init(rawValue: property.group),
+                    control: .derived,
+                    defaultValue: .boolean(true),
+                    isResponsive: false,
+                    isInspectorVisible: false,
+                    visibleWhen: property.visibleWhen
+                ),
+                PartPropertyDefinition(
+                    key: PartVideoTemplateValues.loopPropertyKey(for: property.id),
+                    label: "Loop",
+                    section: .init(rawValue: property.group),
+                    control: .derived,
+                    defaultValue: .boolean(false),
+                    isResponsive: false,
+                    isInspectorVisible: false,
+                    visibleWhen: property.visibleWhen
+                ),
+                PartPropertyDefinition(
+                    key: PartVideoTemplateValues.startAtPropertyKey(for: property.id),
+                    label: "Time (seconds)",
+                    section: .init(rawValue: property.group),
+                    control: .derived,
+                    defaultValue: .number(0),
+                    isResponsive: false,
+                    isInspectorVisible: false,
+                    visibleWhen: property.visibleWhen
+                )
+            ]
+        }
         if property.control.type == .image {
             var definitions = [
                 PartPropertyDefinition(
@@ -75,7 +148,7 @@ nonisolated enum PartPackageAdapter {
                     section: .init(rawValue: property.group),
                     control: .image,
                     defaultValue: value(property.defaultValue, control: .image),
-                    isResponsive: false,
+                    isResponsive: property.responsive,
                     visibleWhen: property.visibleWhen,
                     supportsImageFocalPoint: property.focalPoint
                 ),
@@ -144,8 +217,8 @@ nonisolated enum PartPackageAdapter {
                 themeValueSource: property.control.themeValueSource,
                 allowsCustomThemeValue: property.control.allowsCustom == true,
                 dateMinimum: property.control.minimumDate.flatMap(PartDateValue.init).map(\.date),
-                dateMaximum: property.control.maximumDate.flatMap(PartDateValue.init)
-                    .map(\.date)
+                dateMaximum: property.control.maximumDate.flatMap(PartDateValue.init).map(\.date),
+                selectPresentation: property.control.presentation
             )]
         }
         if property.control.type == .themeColor { return themeColorProperties(for: property) }
@@ -176,7 +249,8 @@ nonisolated enum PartPackageAdapter {
             allowsCustomThemeValue: property.control.allowsCustom == true
                 && property.control.themeValueSource != .fontFamilies,
             dateMinimum: property.control.minimumDate.flatMap(PartDateValue.init).map(\.date),
-            dateMaximum: property.control.maximumDate.flatMap(PartDateValue.init).map(\.date)
+            dateMaximum: property.control.maximumDate.flatMap(PartDateValue.init).map(\.date),
+            selectPresentation: property.control.presentation
         )]
     }
 
@@ -269,7 +343,7 @@ nonisolated enum PartPackageAdapter {
         case .fontStyle: .fontStyle(font: control.font)
         case .icon: .icon
         case .select:
-            .choice((control.options ?? []).map { .init(value: $0.value, label: $0.title) })
+            .choice((control.options ?? []).map { .init(value: $0.value, label: $0.title, systemImage: $0.systemImage) })
         case .link: .link(absoluteURL: control.absoluteURL ?? false)
         case .toggle: .toggle
         case .textAlignment: .textAlignment
@@ -286,6 +360,7 @@ nonisolated enum PartPackageAdapter {
         case .note: .note(systemImage: nil)
         case .button: .button(icon: nil, text: "Button", activeIcon: nil, activeText: nil)
         case .image: .image
+        case .video: .video
         case .math: .derived
         case .shadow: .packageShadow
         case .childPicker: .derived
@@ -322,7 +397,7 @@ nonisolated enum PartPackageAdapter {
             case .themeColor: .choice(value)
             case .icon, .select, .themeFont, .fontStyle, .textAlignment, .shadow: .choice(value)
             case .date: .string(value)
-            case .image: .url(value)
+            case .image, .video: .url(value)
             default: .string(value)
             }
         case .array(let values):

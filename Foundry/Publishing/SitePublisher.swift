@@ -422,7 +422,7 @@ nonisolated struct SitePublisher: Sendable {
                 site: site,
                 relativePath: file.path,
                 credential: credential,
-                operation: .upload(file.data),
+                operation: .upload(try file.resolvedData()),
                 context: context
             )
             tracker.finish(file: file)

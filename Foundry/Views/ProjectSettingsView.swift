@@ -146,7 +146,7 @@ private struct ProjectSettingsWindowContent: View {
 struct ProjectSettingsView: View {
     @Binding var selection: ProjectSettingsSection?
     let site: Site
-    let assetContents: [UUID: ProjectAssetContent]
+    let assetContents: ProjectAssetContents
     let siteName: String
     let language: String
     let publicURL: String
@@ -722,7 +722,7 @@ private struct SearchProjectSettingsView: View {
 
 private struct PublishingProjectSettingsView: View {
     let site: Site
-    let assetContents: [UUID: ProjectAssetContent]
+    let assetContents: ProjectAssetContents
     let publicURL: String
     let pages: [Page]
     let pageFolders: [PageFolder]
@@ -736,7 +736,7 @@ private struct PublishingProjectSettingsView: View {
 
     init(
         site: Site,
-        assetContents: [UUID: ProjectAssetContent],
+        assetContents: ProjectAssetContents,
         publicURL: String,
         pages: [Page],
         pageFolders: [PageFolder],
@@ -939,7 +939,7 @@ private struct PublishingProjectSettingsView: View {
 
     private var publishingWarnings: [String] {
         var warnings: [String] = []
-        let missingAssets = site.assets.filter { assetContents[$0.id] == nil }
+        let missingAssets = site.assets.filter { !assetContents.hasContent($0.id) }
         if !missingAssets.isEmpty {
             warnings.append("\(missingAssets.count) project resource files are unavailable and cannot be published.")
         }
@@ -1026,7 +1026,7 @@ private struct GeneralProjectSettingsView: View {
     let logoAlt: String
     let allowsDarkMode: Bool
     let assets: [ProjectAsset]
-    let assetContents: [UUID: ProjectAssetContent]
+    let assetContents: ProjectAssetContents
     let editor: ProjectEditor
 
     @State private var selectedLanguageCode: String
@@ -1040,7 +1040,7 @@ private struct GeneralProjectSettingsView: View {
         logoAlt: String,
         allowsDarkMode: Bool,
         assets: [ProjectAsset],
-        assetContents: [UUID: ProjectAssetContent],
+        assetContents: ProjectAssetContents,
         editor: ProjectEditor
     ) {
         self.siteName = siteName
@@ -1245,7 +1245,7 @@ private struct ProjectSettingsGridRow<Content: View>: View {
 private struct WebIconsProjectSettingsView: View {
     let favicon: String
     let assets: [ProjectAsset]
-    let assetContents: [UUID: ProjectAssetContent]
+    let assetContents: ProjectAssetContents
     let editor: ProjectEditor
 
     var body: some View {
@@ -1280,7 +1280,7 @@ private struct WebIconsProjectSettingsView: View {
 private struct WebIconImageWell: View {
     @Binding var selection: String
     let assets: [ProjectAsset]
-    let assetContents: [UUID: ProjectAssetContent]
+    let assetContents: ProjectAssetContents
     let importImage: (Data, String, String) -> Void
 
     @State private var isDropTargeted = false
@@ -1430,7 +1430,7 @@ private struct WebIconImageWell: View {
 
     private func draggedFoundryAssetID(from url: URL) -> UUID? {
         let filename = url.lastPathComponent
-        let prefix = "foundry-image-asset-"
+        let prefix = "foundry-asset-"
         guard filename.hasPrefix(prefix),
               let separator = filename.range(of: "--") else { return nil }
         let idStart = filename.index(filename.startIndex, offsetBy: prefix.count)
@@ -1532,7 +1532,7 @@ private struct SiteIdentityProjectSettingsView: View {
 private struct SiteLogoImageWell: View {
     @Binding var selection: String
     let assets: [ProjectAsset]
-    let assetContents: [UUID: ProjectAssetContent]
+    let assetContents: ProjectAssetContents
     let imageName: String
     let importImage: (Data, String, String) -> Void
 
@@ -1541,7 +1541,7 @@ private struct SiteLogoImageWell: View {
     init(
         selection: Binding<String>,
         assets: [ProjectAsset],
-        assetContents: [UUID: ProjectAssetContent],
+        assetContents: ProjectAssetContents,
         imageName: String = "Logo",
         importImage: @escaping (Data, String, String) -> Void
     ) {
@@ -1670,7 +1670,7 @@ private struct SiteLogoImageWell: View {
 
     private func draggedFoundryAssetID(from url: URL) -> UUID? {
         let filename = url.lastPathComponent
-        let prefix = "foundry-image-asset-"
+        let prefix = "foundry-asset-"
         guard filename.hasPrefix(prefix),
               let separator = filename.range(of: "--") else { return nil }
         let idStart = filename.index(filename.startIndex, offsetBy: prefix.count)

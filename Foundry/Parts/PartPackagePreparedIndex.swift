@@ -26,7 +26,7 @@ nonisolated enum PartPackagePreparedIndex {
         var isDirty = false
     }
 
-    private static let formatVersion = 4
+    private static let formatVersion = 5
     private static let state = Mutex(State())
 
     static func entry(for rootURL: URL) -> PartPackagePreparedIndexEntry? {

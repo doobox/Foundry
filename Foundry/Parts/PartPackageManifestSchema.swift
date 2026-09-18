@@ -54,16 +54,18 @@ nonisolated enum PartPackageManifestSchema {
         "id", "label", "title", "body", "systemImage", "group", "defaults", "responsive", "subtitle", "buttonText", "units", "tooltip",
         "type", "font", "showsFamily", "showsWeight", "showsStyle", "minimum", "maximum", "step", "options", "themeValues", "allowsCustom", "opacity", "outputFormat",
         "customColor", "count", "ticks", "showsValueField", "trueValue", "falseValue",
-        "buttonIcon", "activeButtonText", "activeButtonIcon", "selectionMode", "fontSize", "argument1", "argument2", "operation", "round", "absoluteURL", "visibleWhen", "alt", "focalPoint", "renditions", "accepts", "pickerItems", "initial", "containment"
+        "buttonIcon", "activeButtonText", "activeButtonIcon", "selectionMode", "fontSize", "argument1", "argument2", "operation", "round", "absoluteURL", "presentation", "visibleWhen", "alt", "focalPoint", "renditions", "accepts", "pickerItems", "initial", "containment"
     ]
-    private static let visibleWhenKeys: Set<String> = ["id", "operation", "value"]
-    private static let optionKeys: Set<String> = ["value", "title"]
-    private static let templateKeys: Set<String> = ["html", "editorCSS", "files"]
+    private static let visibleWhenKeys: Set<String> = ["id", "operation", "value", "all", "any"]
+    private static let optionKeys: Set<String> = ["value", "title", "systemImage"]
+    private static let templateKeys: Set<String> = ["html", "editorCSS", "files", "htmlContributions"]
     private static let templateFileKeys: Set<String> = ["path", "scope", "placement", "closure"]
+    private static let htmlContributionKeys: Set<String> = ["placement", "template"]
     private static let missingPartKeys: Set<String> = ["message", "preview"]
     private static let libraryKeys: Set<String> = ["id", "majorVersion"]
     private static let assetKeys: Set<String> = ["path", "scope"]
     private static let renditionKeys: Set<String> = ["id", "maximumDimension"]
+    private static let controlGroupKeys: Set<String> = ["type", "styles", "states", "defaultOverrides"]
 
     static func inspect(_ data: Data) throws -> Inspection {
         let dictionary = try rootDictionary(from: data)
@@ -116,59 +118,21 @@ nonisolated enum PartPackageManifestSchema {
         validateUpdates(in: dictionary, into: &diagnostics)
 
         validateDictionaryArray(dictionary["controls"], key: "controls", parent: "Info.plist", into: &diagnostics)
-        dictionaries(in: dictionary["controls"]).enumerated().forEach { index, property in
+        let knownControlGroupKinds = Set(PartPackageControlGroup.Kind.allCases.map(\.rawValue))
+        var seenControlGroupKinds: Set<String> = []
+        dictionaries(in: dictionary["controls"]).enumerated().forEach { index, entry in
             let location = "Info.plist:controls[\(index)]"
-            unknownKeys(in: property, allowed: propertyKeys, location: location, into: &diagnostics)
-            validateProperty(property, location: location, into: &diagnostics)
-            if let themeValues = property["themeValues"], !(themeValues is String) {
-                diagnostics.append(.init(
-                    severity: .error,
-                    location: "\(location).themeValues",
-                    message: "themeValues must be a string."
-                ))
+            guard let type = entry["type"] as? String, knownControlGroupKinds.contains(type) else {
+                validateStandardOrThemeControl(entry, location: location, into: &diagnostics)
+                return
             }
-            if property["type"] as? String == PartPackageControl.Kind.select.rawValue {
-                for key in ["themeValues", "allowsCustom"] where property[key] != nil {
-                    diagnostics.append(.init(severity: .error, location: "\(location).\(key)",
-                        message: "Select supports only declared options; remove \(key)."))
-                }
-            }
-            if property["type"] as? String == PartPackageControl.Kind.themeColor.rawValue,
-               property["count"] != nil {
-                diagnostics.append(.init(
-                    severity: .error,
-                    location: "\(location).count",
-                    message: "A themeColor control cannot be a multi control; remove count."
-                ))
-            }
-            if property["type"] as? String == PartPackageControl.Kind.shadow.rawValue,
-               property["themeValues"] != nil {
-                diagnostics.append(.init(
-                    severity: .error,
-                    location: "\(location).themeValues",
-                    message: "A shadow control automatically uses theme shadows; remove themeValues."
-                ))
-            }
-
-            if let visibleWhen = property["visibleWhen"] as? [String: Any] {
-                unknownKeys(in: visibleWhen, allowed: visibleWhenKeys, location: "\(location).visibleWhen", into: &diagnostics)
-                validateVisibility(visibleWhen, location: "\(location).visibleWhen", into: &diagnostics)
-            }
-            if let visibleWhen = property["visibleWhen"], !(visibleWhen is [String: Any]) {
-                appendTypeError(key: "visibleWhen", expected: "a dictionary", location: location, into: &diagnostics)
-            }
-            validateDictionaryArray(property["options"], key: "options", parent: location, into: &diagnostics)
-            dictionaries(in: property["options"]).enumerated().forEach { optionIndex, option in
-                let optionLocation = "\(location):options[\(optionIndex)]"
-                unknownKeys(
-                    in: option,
-                    allowed: optionKeys,
-                    location: optionLocation,
-                    into: &diagnostics
-                )
-                requireString("value", in: option, location: optionLocation, into: &diagnostics)
-                requireString("title", in: option, location: optionLocation, into: &diagnostics)
-            }
+            validateGroupedControlReference(
+                entry,
+                type: type,
+                location: location,
+                seenKinds: &seenControlGroupKinds,
+                into: &diagnostics
+            )
         }
         if let templates = dictionary["templates"], !(templates is [String: Any]) {
             appendTypeError(key: "templates", expected: "a dictionary", location: "Info.plist", into: &diagnostics)
@@ -192,6 +156,17 @@ nonisolated enum PartPackageManifestSchema {
                     into: &diagnostics
                 )
                 validateTemplateFile(file, location: fileLocation, into: &diagnostics)
+            }
+            validateDictionaryArray(templates["htmlContributions"], key: "htmlContributions", parent: "Info.plist:templates", into: &diagnostics)
+            dictionaries(in: templates["htmlContributions"]).enumerated().forEach { index, contribution in
+                let location = "Info.plist:templates.htmlContributions[\(index)]"
+                unknownKeys(in: contribution, allowed: htmlContributionKeys, location: location, into: &diagnostics)
+                requireString("placement", in: contribution, location: location, into: &diagnostics)
+                requireString("template", in: contribution, location: location, into: &diagnostics)
+                if let placement = contribution["placement"] as? String,
+                   PartPackageHTMLContribution.Placement(rawValue: placement) == nil {
+                    diagnostics.append(.init(severity: .error, location: "\(location).placement", message: "Unknown HTML contribution placement '\(placement)'."))
+                }
             }
         }
         if let rawAssets = dictionary["assets"], !(rawAssets is [Any]) {
@@ -283,6 +258,120 @@ nonisolated enum PartPackageManifestSchema {
         }
         if dictionary["templates"] == nil {
             appendMissing("templates", expected: "dictionary", location: "Info.plist", into: &diagnostics)
+        }
+    }
+
+    /// Validates one `controls` entry that is a plain Standard/Theme
+    /// property (i.e. its `type` didn't match a Grouped-control kind).
+    private static func validateStandardOrThemeControl(
+        _ property: [String: Any],
+        location: String,
+        into diagnostics: inout [PartPackageDiagnostic]
+    ) {
+        unknownKeys(in: property, allowed: propertyKeys, location: location, into: &diagnostics)
+        validateProperty(property, location: location, into: &diagnostics)
+        if let themeValues = property["themeValues"], !(themeValues is String) {
+            diagnostics.append(.init(
+                severity: .error,
+                location: "\(location).themeValues",
+                message: "themeValues must be a string."
+            ))
+        }
+        if property["type"] as? String == PartPackageControl.Kind.select.rawValue {
+            for key in ["themeValues", "allowsCustom"] where property[key] != nil {
+                diagnostics.append(.init(severity: .error, location: "\(location).\(key)",
+                    message: "Select supports only declared options; remove \(key)."))
+            }
+            if let presentation = property["presentation"] as? String,
+               PartPackageControl.SelectPresentation(rawValue: presentation) == nil {
+                diagnostics.append(.init(severity: .error, location: "\(location).presentation", message: "Unknown select presentation '\(presentation)'."))
+            }
+        } else if property["presentation"] != nil {
+            diagnostics.append(.init(severity: .error, location: "\(location).presentation", message: "presentation is available only for select controls."))
+        }
+        if property["type"] as? String == PartPackageControl.Kind.themeColor.rawValue,
+           property["count"] != nil {
+            diagnostics.append(.init(
+                severity: .error,
+                location: "\(location).count",
+                message: "A themeColor control cannot be a multi control; remove count."
+            ))
+        }
+        if property["type"] as? String == PartPackageControl.Kind.shadow.rawValue,
+           property["themeValues"] != nil {
+            diagnostics.append(.init(
+                severity: .error,
+                location: "\(location).themeValues",
+                message: "A shadow control automatically uses theme shadows; remove themeValues."
+            ))
+        }
+
+        if let visibleWhen = property["visibleWhen"] as? [String: Any] {
+            unknownKeys(in: visibleWhen, allowed: visibleWhenKeys, location: "\(location).visibleWhen", into: &diagnostics)
+            validateVisibility(visibleWhen, location: "\(location).visibleWhen", into: &diagnostics)
+        }
+        if let visibleWhen = property["visibleWhen"], !(visibleWhen is [String: Any]) {
+            appendTypeError(key: "visibleWhen", expected: "a dictionary", location: location, into: &diagnostics)
+        }
+        validateDictionaryArray(property["options"], key: "options", parent: location, into: &diagnostics)
+        dictionaries(in: property["options"]).enumerated().forEach { optionIndex, option in
+            let optionLocation = "\(location):options[\(optionIndex)]"
+            unknownKeys(
+                in: option,
+                allowed: optionKeys,
+                location: optionLocation,
+                into: &diagnostics
+            )
+            requireString("value", in: option, location: optionLocation, into: &diagnostics)
+            requireString("title", in: option, location: optionLocation, into: &diagnostics)
+            optionalString("systemImage", in: option, location: optionLocation, into: &diagnostics)
+        }
+    }
+
+    /// Validates one `controls` entry that references a prebuilt Grouped
+    /// control (`background`, `spacing`, `sizing`, `borders`, `effects`,
+    /// `layoutItem`) — a `type` plus, for `background` only, `styles`/
+    /// `states`, plus the generic `defaultOverrides`.
+    private static func validateGroupedControlReference(
+        _ controlGroup: [String: Any],
+        type: String,
+        location: String,
+        seenKinds: inout Set<String>,
+        into diagnostics: inout [PartPackageDiagnostic]
+    ) {
+        unknownKeys(in: controlGroup, allowed: controlGroupKeys, location: location, into: &diagnostics)
+        if !seenKinds.insert(type).inserted {
+            diagnostics.append(.init(
+                severity: .error,
+                location: "\(location).type",
+                message: "Control group '\(type)' is declared more than once."
+            ))
+        }
+        optionalStringArray("styles", in: controlGroup, location: location, into: &diagnostics)
+        optionalStringArray("states", in: controlGroup, location: location, into: &diagnostics)
+        if type == PartPackageControlGroup.Kind.background.rawValue {
+            validateControlGroupValues(
+                controlGroup["styles"],
+                key: "styles",
+                permitted: Set(PartPackageControlGroup.BackgroundStyle.allCases.map(\.rawValue)),
+                location: location,
+                into: &diagnostics
+            )
+            validateControlGroupValues(
+                controlGroup["states"],
+                key: "states",
+                permitted: Set(PartPackageControlGroup.BackgroundState.allCases.map(\.rawValue)),
+                location: location,
+                into: &diagnostics
+            )
+            if let states = controlGroup["states"] as? [String],
+               !states.contains(PartPackageControlGroup.BackgroundState.staticState.rawValue) {
+                diagnostics.append(.init(
+                    severity: .error,
+                    location: "\(location).states",
+                    message: "states must include 'static'; hover augments the static background."
+                ))
+            }
         }
     }
 
@@ -551,6 +640,13 @@ nonisolated enum PartPackageManifestSchema {
                 ))
             }
         }
+        if type == .video, property["responsive"] != nil {
+            diagnostics.append(.init(
+                severity: .error,
+                location: "\(location):responsive",
+                message: "A video control does not support responsive."
+            ))
+        }
         if type != .image, property["alt"] != nil {
             diagnostics.append(.init(
                 severity: .error,
@@ -589,6 +685,13 @@ nonisolated enum PartPackageManifestSchema {
                 severity: .error,
                 location: "\(location).count",
                 message: "A shadow control cannot be a multi control; use its visual layer editor instead."
+            ))
+        }
+        if type == .video, property["count"] != nil {
+            diagnostics.append(.init(
+                severity: .error,
+                location: "\(location).count",
+                message: "A video control represents one named video; remove count and declare each video property explicitly."
             ))
         }
         if property["count"] != nil {
@@ -649,7 +752,7 @@ nonisolated enum PartPackageManifestSchema {
             optionalPartValue(key, in: property, location: location, into: &diagnostics)
         }
 
-        let permitsMissingDefault = type == .divider || type == .image || type == .note || type == .math
+        let permitsMissingDefault = type == .divider || type == .image || type == .video || type == .note || type == .math
         if !permitsMissingDefault && property["default"] == nil {
             appendMissing("default", expected: "value", location: location, into: &diagnostics)
         }
@@ -694,9 +797,27 @@ nonisolated enum PartPackageManifestSchema {
     }
 
     private static func validateVisibility(_ visibleWhen: [String: Any], location: String, into diagnostics: inout [PartPackageDiagnostic]) {
-        requireString("id", in: visibleWhen, location: location, into: &diagnostics)
+        let expressionKeys = ["id", "all", "any"].filter { visibleWhen[$0] != nil }
+        if expressionKeys.count != 1 {
+            diagnostics.append(.init(severity: .error, location: location, message: "visibleWhen requires exactly one of id, all, or any."))
+            return
+        }
+        if visibleWhen["id"] != nil {
+            requireString("id", in: visibleWhen, location: location, into: &diagnostics)
+        }
         optionalString("operation", in: visibleWhen, location: location, into: &diagnostics)
         optionalPartValue("value", in: visibleWhen, location: location, into: &diagnostics)
+        for key in ["all", "any"] where visibleWhen[key] != nil {
+            validateDictionaryArray(visibleWhen[key], key: key, parent: location, into: &diagnostics)
+            if let conditions = visibleWhen[key] as? [Any], conditions.isEmpty {
+                diagnostics.append(.init(severity: .error, location: "\(location).\(key)", message: "\(key) requires at least one condition."))
+            }
+            dictionaries(in: visibleWhen[key]).enumerated().forEach { index, condition in
+                let childLocation = "\(location).\(key)[\(index)]"
+                unknownKeys(in: condition, allowed: visibleWhenKeys, location: childLocation, into: &diagnostics)
+                validateVisibility(condition, location: childLocation, into: &diagnostics)
+            }
+        }
     }
 
     private static func validateTemplateFile(_ file: [String: Any], location: String, into diagnostics: inout [PartPackageDiagnostic]) {
@@ -864,6 +985,40 @@ nonisolated enum PartPackageManifestSchema {
         guard let array = value as? [Any], array.allSatisfy({ $0 is String }) else {
             appendTypeError(key: key, expected: "an array of strings", location: location, into: &diagnostics)
             return
+        }
+    }
+
+    private static func validateControlGroupValues(
+        _ value: Any?,
+        key: String,
+        permitted: Set<String>,
+        location: String,
+        into diagnostics: inout [PartPackageDiagnostic]
+    ) {
+        guard let value else { return }
+        guard let values = value as? [String] else { return }
+        if values.isEmpty {
+            diagnostics.append(.init(
+                severity: .error,
+                location: "\(location).\(key)",
+                message: "\(key) must contain at least one value."
+            ))
+            return
+        }
+        for (index, value) in values.enumerated() where !permitted.contains(value) {
+            diagnostics.append(.init(
+                severity: .error,
+                location: "\(location).\(key)[\(index)]",
+                message: "Unknown \(key) value '\(value)'."
+            ))
+        }
+        var seen: Set<String> = []
+        for (index, value) in values.enumerated() where !seen.insert(value).inserted {
+            diagnostics.append(.init(
+                severity: .error,
+                location: "\(location).\(key)[\(index)]",
+                message: "Duplicate \(key) value '\(value)'."
+            ))
         }
     }
 

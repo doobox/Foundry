@@ -114,7 +114,7 @@ nonisolated struct PartNode: Codable, Equatable, Identifiable, Sendable {
                 var initialValue = initialValue
                 if case .packageColor(var colour) = initialValue,
                    let palette = theme.colourPalettes.resolvedPalette(id: colour.paletteID) {
-                    let declaration = type.definition.package?.manifest.properties.first { $0.id == definition.key.rawValue }?.breakpointDefaults[breakpoint.rawValue]
+                    let declaration = type.definition.package?.manifest.resolvedProperties.first { $0.id == definition.key.rawValue }?.breakpointDefaults[breakpoint.rawValue]
                     if case .object(let fields) = declaration {
                         if fields["lightShade"] == nil { colour.shade = palette.lightDefaultShade }
                         if fields["darkShade"] == nil { colour.darkShade = palette.darkDefaultShade }

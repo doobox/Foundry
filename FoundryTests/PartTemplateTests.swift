@@ -158,6 +158,10 @@ struct PartTemplateTests {
         #expect(PartTemplateRenderer.render(environmentTemplate, context: canvasContext) == "Canvas")
         #expect(PartTemplateRenderer.render(environmentTemplate, context: previewContext) == "Preview")
         #expect(PartTemplateRenderer.render(environmentTemplate, context: publishedContext) == "Published")
+
+        let nested = "{{ if control.variant == \"compact\" }}Outer {{ if canvas }}Canvas{{ else }}Published{{ endif }} End{{ endif }}"
+        #expect(PartTemplateRenderer.render(nested, context: canvasContext) == "Outer Canvas End")
+        #expect(PartTemplateRenderer.render(nested, context: publishedContext).isEmpty)
     }
 
     @Test
@@ -183,6 +187,43 @@ struct PartTemplateTests {
         let condition = #"{{ if control.text == "xxxx" && control.number == control.otherNumber + 32 && !control.disabled }}Matched{{ else }}Missed{{ endif }}"#
         #expect(PartTemplateRenderer.render(condition, context: context) == "Matched")
         #expect(PartTemplateRenderer.render("{{ if control.number < 10 || control.number >= 42 }}Matched{{ endif }}", context: context) == "Matched")
+    }
+
+    @Test
+    func supportsStringWildcardCollectionAndEmptyPredicates() {
+        let context = PartTemplateContext(
+            instanceID: UUID(),
+            packageIdentifier: "com.example.predicates",
+            properties: [
+                "title": .string("Foundry Layout"),
+                "slug": .string("docs-layout-2"),
+                "tags": .array([.string("featured"), .string("layout")]),
+                "emptyText": .string(""),
+                "emptyItems": .array([])
+            ],
+            slots: [:]
+        )
+
+        let expressions = [
+            #"contains(control.title, "Layout")"#,
+            #"notContains(control.title, "Video")"#,
+            #"containsInsensitive(control.title, "foundry")"#,
+            #"notContainsInsensitive(control.title, "video")"#,
+            #"matches(control.slug, "docs-*-?")"#,
+            #"notMatches(control.slug, "blog-*")"#,
+            #"matchesInsensitive(control.title, "FOUNDRY*")"#,
+            #"notMatchesInsensitive(control.title, "VIDEO*")"#,
+            #"containsValue(control.tags, "featured")"#,
+            #"notContainsValue(control.tags, "draft")"#,
+            #"isEmpty(control.emptyText)"#,
+            #"isEmpty(control.emptyItems)"#,
+            #"isNotEmpty(control.tags)"#
+        ]
+
+        for expression in expressions {
+            let template = "{{ if \(expression) }}Matched{{ else }}Missed{{ endif }}"
+            #expect(PartTemplateRenderer.render(template, context: context) == "Matched", "Failed: \(expression)")
+        }
     }
 
     @Test

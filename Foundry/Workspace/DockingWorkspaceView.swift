@@ -144,11 +144,20 @@ struct DockingWorkspaceView<PanelContent: View>: View {
     }
 
     private func movePanel(_ panel: WorkspacePanel, _ destinationID: UUID, _ target: WorkspacePanel?) {
-        layout.move(panel, to: destinationID, before: target)
+        // A drop destination invokes this while SwiftUI is updating its targeted
+        // state. Defer the layout publication until that update has completed.
+        Task { @MainActor in
+            await Task.yield()
+            layout.move(panel, to: destinationID, before: target)
+        }
     }
 
     private func dockBeside(_ panel: WorkspacePanel, _ columnID: UUID, _ before: Bool) {
-        layout.dockAsColumn(panel, beside: columnID, before: before)
+        // Side docking is also initiated by a dropDestination callback.
+        Task { @MainActor in
+            await Task.yield()
+            layout.dockAsColumn(panel, beside: columnID, before: before)
+        }
     }
 
     private func sizing(for column: WorkspaceColumn) -> PanelSizing {
@@ -562,6 +571,7 @@ private final class AppKitWorkspaceSplitViewController: NSSplitViewController, N
     private var dividerCommitTask: Task<Void, Never>?
     private var widthApplicationGeneration = 0
     private var visibilityUpdateGeneration = 0
+    private var toolbarInstallationScheduled = false
     private var needsInitialWidthApplication = false
     private var isApplyingInitialWidths = false
     private var lastShowsSidebar: Bool?
@@ -587,12 +597,12 @@ private final class AppKitWorkspaceSplitViewController: NSSplitViewController, N
 
     override func viewDidAppear() {
         super.viewDidAppear()
-        installWindowToolbarIfNeeded()
+        scheduleWindowToolbarInstallation()
     }
 
     override func viewDidLayout() {
         super.viewDidLayout()
-        installWindowToolbarIfNeeded()
+        scheduleWindowToolbarInstallation()
         guard needsInitialWidthApplication else { return }
         needsInitialWidthApplication = false
         scheduleInitialWidths()
@@ -725,7 +735,7 @@ private final class AppKitWorkspaceSplitViewController: NSSplitViewController, N
         lastShowsInspector = showsInspector
         needsInitialWidthApplication = true
         view.needsLayout = true
-        installWindowToolbarIfNeeded()
+        scheduleWindowToolbarInstallation()
     }
 
     private func updateOuterEntries(
@@ -950,6 +960,16 @@ private final class AppKitWorkspaceSplitViewController: NSSplitViewController, N
 
     private func constrained(_ width: CGFloat, for sizing: PanelSizing) -> CGFloat {
         min(max(width, sizing.minimum), sizing.maximum)
+    }
+
+    private func scheduleWindowToolbarInstallation() {
+        guard !toolbarInstallationScheduled else { return }
+        toolbarInstallationScheduled = true
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            self.toolbarInstallationScheduled = false
+            self.installWindowToolbarIfNeeded()
+        }
     }
 
     private func installWindowToolbarIfNeeded() {

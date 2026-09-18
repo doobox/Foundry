@@ -1,6 +1,5 @@
 import SwiftUI
 import WebKit
-import CryptoKit
 
 struct GoogleFontSpecimenView: NSViewRepresentable {
     let family: String
@@ -34,7 +33,7 @@ struct GoogleFontSpecimenView: NSViewRepresentable {
     }
 
     func updateNSView(_ webView: WKWebView, context: Context) {
-        let digest = fontContent.map { ($0.digest ?? Data(SHA256.hash(data: $0.data))).base64EncodedString() } ?? ""
+        let digest = fontContent?.digest ?? ""
         let key = family + "|" + (stylesheetURL?.absoluteString ?? "") + "|" + digest + "|\(weight)|\(italic)" + (includedFaces?.map(\.id).joined(separator: "|") ?? "")
         guard context.coordinator.loadedKey != key else { return }
         context.coordinator.loadedKey = key

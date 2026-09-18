@@ -2,7 +2,7 @@ import SwiftUI
 
 struct AssetsPanel: View {
     let library: [ProjectAssetNode]
-    let assetContents: [UUID: ProjectAssetContent]
+    let assetContents: ProjectAssetContents
     @Binding var selectedNodeID: UUID?
     let importFiles: () -> Void
     let importURLs: ([URL], AssetPlacement) -> Void

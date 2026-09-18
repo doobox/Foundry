@@ -8,7 +8,7 @@ nonisolated struct FontFaceOptions {
     let selectedWeight: Int?
     let selectedStyle: String?
 
-    init(reference: String?, theme: Theme, assets: [UUID: ProjectAssetContent], selectedWeight: Int? = nil, selectedStyle: String? = nil) {
+    init(reference: String?, theme: Theme, assets: ProjectAssetContents, selectedWeight: Int? = nil, selectedStyle: String? = nil) {
         self.selectedWeight = selectedWeight
         self.selectedStyle = selectedStyle
         let font: ThemeFontDefinition?

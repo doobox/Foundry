@@ -259,7 +259,7 @@ struct ThemeEditorPresentationTests {
 
         let sections: [ThemeWindowSection] = [
             .colors, .screens, .fontFamily, .fontSize, .spacing,
-            .shadows, .borderWidth, .borderRadius
+            .shadows, .borderWidth, .borderRadius, .zIndex
         ].filter {
             let requested = ProcessInfo.processInfo.environment["FOUNDRY_THEME_UI_SECTION"]
             return requested == nil || $0.rawValue == requested

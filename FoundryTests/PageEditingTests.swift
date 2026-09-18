@@ -305,7 +305,7 @@ struct PageEditingTests {
         let parent = PageFolder(name: "Company", slug: "company")
         let folder = PageFolder(name: "Team", slug: "team", parentID: parent.id)
         let childFolder = PageFolder(name: "Photos", slug: "photos", parentID: folder.id)
-        let asset = ProjectAsset(filename: "team.txt", mediaType: "text/plain", byteCount: 12)
+        let asset = ProjectAsset(filename: "team.txt", mediaType: "text/plain", byteCount: 12, contentDigest: "test-digest")
         let site = Site(
             name: "Tree",
             pages: [page],
@@ -410,7 +410,7 @@ struct PageEditingTests {
 
     @Test
     func placesManagedAssetsInThePageExportTree() throws {
-        let asset = ProjectAsset(filename: "robots.txt", mediaType: "text/plain", byteCount: 12)
+        let asset = ProjectAsset(filename: "robots.txt", mediaType: "text/plain", byteCount: 12, contentDigest: "test-digest")
         let folder = PageFolder(name: "Public", slug: "public")
         let site = Site(
             name: "Assets",

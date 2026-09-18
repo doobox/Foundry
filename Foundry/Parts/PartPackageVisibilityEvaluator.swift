@@ -7,10 +7,17 @@ nonisolated enum PartPackageVisibilityEvaluator {
         at breakpoint: ResponsiveBreakpoint,
         screens: ScreenTokens = .standard
     ) -> Bool {
-        guard let condition,
-              let reference = reference(condition.id),
+        guard let condition else { return true }
+        if let all = condition.all {
+            return !all.isEmpty && all.allSatisfy { isVisible($0, for: part, at: breakpoint, screens: screens) }
+        }
+        if let any = condition.any {
+            return !any.isEmpty && any.contains { isVisible($0, for: part, at: breakpoint, screens: screens) }
+        }
+        guard let id = condition.id,
+              let reference = reference(id),
               var actual = partProperty(reference.key, part: part, breakpoint: breakpoint, screens: screens) else {
-            return condition == nil
+            return false
         }
 
         if let index = reference.index {
@@ -46,12 +53,9 @@ nonisolated enum PartPackageVisibilityEvaluator {
             }
         case "contains", "notContains", "containsInsensitive", "notContainsInsensitive",
              "matches", "notMatches", "matchesInsensitive", "notMatchesInsensitive":
-            guard case .string(let lhs) = comparable, case .string(let rhs) = expected else { return false }
-            return stringComparison(lhs, rhs, operation: operation)
+            return PartExpressionPredicates.evaluate(operation, lhs: comparable, rhs: expected) ?? false
         case "containsValue", "notContainsValue":
-            guard case .array(let values) = comparable else { return false }
-            let contains = values.contains(expected)
-            return operation == "containsValue" ? contains : !contains
+            return PartExpressionPredicates.evaluate(operation, lhs: comparable, rhs: expected) ?? false
         default:
             return false
         }
@@ -65,9 +69,6 @@ nonisolated enum PartPackageVisibilityEvaluator {
         case "<=", "lessThanOrEqualTo", "lessThanOrEquals": "<="
         case ">", "greaterThan": ">"
         case ">=", "greaterThanOrEqualTo", "greaterThanOrEquals": ">="
-        case "doesntcontain": "notContainsInsensitive"
-        case "caseInsensitiveMatches": "matchesInsensitive"
-        case "caseInsensitiveDoesntMatch": "notMatchesInsensitive"
         default: operation
         }
     }
@@ -91,11 +92,12 @@ nonisolated enum PartPackageVisibilityEvaluator {
     }
 
     private static func isEmpty(_ value: PartProperty.Value) -> Bool {
+        if let comparable = packageValue(value) {
+            return PartExpressionPredicates.isEmpty(comparable)
+        }
         switch value {
-        case .string(let value), .url(let value), .color(let value), .choice(let value): value.isEmpty
-        case .array(let values): values.isEmpty
-        case .link(let link): link.destination == .none
-        default: false
+        case .link(let link): return link.destination == .none
+        default: return false
         }
     }
 
@@ -113,25 +115,4 @@ nonisolated enum PartPackageVisibilityEvaluator {
         }
     }
 
-    private static func stringComparison(_ lhs: String, _ rhs: String, operation: String) -> Bool {
-        let insensitive = operation.contains("Insensitive")
-        let negative = operation.hasPrefix("not")
-        let options: String.CompareOptions = insensitive ? [.caseInsensitive] : []
-        let matches: Bool
-        if operation.contains("matches") || operation.contains("Matches") {
-            matches = wildcardMatch(lhs, pattern: rhs, caseInsensitive: insensitive)
-        } else {
-            matches = lhs.range(of: rhs, options: options) != nil
-        }
-        return negative ? !matches : matches
-    }
-
-    private static func wildcardMatch(_ value: String, pattern: String, caseInsensitive: Bool) -> Bool {
-        var expression = NSRegularExpression.escapedPattern(for: pattern)
-        expression = expression.replacingOccurrences(of: #"\*"#, with: ".*")
-        expression = expression.replacingOccurrences(of: #"\?"#, with: ".")
-        let options: NSRegularExpression.Options = caseInsensitive ? [.caseInsensitive] : []
-        guard let regex = try? NSRegularExpression(pattern: "^\(expression)$", options: options) else { return false }
-        return regex.firstMatch(in: value, range: NSRange(value.startIndex..., in: value)) != nil
-    }
 }

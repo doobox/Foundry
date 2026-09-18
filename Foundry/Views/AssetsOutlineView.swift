@@ -3,7 +3,7 @@ import SwiftUI
 
 struct AssetsOutlineView: NSViewRepresentable {
     let nodes: [ProjectAssetNode]
-    let assetContents: [UUID: ProjectAssetContent]
+    let assetContents: ProjectAssetContents
     @Binding var selectedNodeID: UUID?
     let moveNode: (UUID, AssetPlacement) -> Bool
     let importURLs: ([URL], AssetPlacement) -> Void
@@ -114,10 +114,10 @@ struct AssetsOutlineView: NSViewRepresentable {
                 pasteboardItem.setString(prefix + asset.id.uuidString, forType: .string)
                 if isImage {
                     pasteboardItem.setString(asset.id.uuidString, forType: .imageAsset)
-                    if let content = parent.assetContents[asset.id],
-                       let fileURL = temporaryDragFile(for: content) {
-                        pasteboardItem.setString(fileURL.absoluteString, forType: .fileURL)
-                    }
+                }
+                if let content = parent.assetContents[asset.id],
+                   let fileURL = temporaryDragFile(for: content) {
+                    pasteboardItem.setString(fileURL.absoluteString, forType: .fileURL)
                 }
             }
             return pasteboardItem
@@ -140,7 +140,7 @@ struct AssetsOutlineView: NSViewRepresentable {
                 .appending(path: "FoundryAssetDrag-\(UUID().uuidString)", directoryHint: .isDirectory)
             let originalName = (content.asset.filename as NSString).lastPathComponent
             guard !originalName.isEmpty else { return nil }
-            let filename = "foundry-image-asset-\(content.asset.id.uuidString)--\(originalName)"
+            let filename = "foundry-asset-\(content.asset.id.uuidString)--\(originalName)"
             let fileURL = directory.appending(path: filename)
             do {
                 try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)

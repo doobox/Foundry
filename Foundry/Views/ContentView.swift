@@ -178,52 +178,18 @@ struct ContentView: View {
             selectedPartID = nil
         }
         .onChange(of: selectedPartID) { _, partID in
-            editsSharedReusableDefinition = false
-            if selectedPrimitive?.partID != partID {
-                selectedPrimitive = nil
+            Task { @MainActor in
+                await Task.yield()
+                guard selectedPartID == partID else { return }
+                synchronizePrimaryPartSelection(partID)
             }
-            guard let partID else {
-                selectedPartIDs = []
-                return
-            }
-            if !selectedPartIDs.contains(partID) {
-                selectedPartIDs = [partID]
-            }
-            selectedLibraryPartType = nil
-            inspectedPageID = nil
-            selectedPageFolderID = nil
-            selectedPageAssetID = nil
-            selectedAssetLibraryNodeID = nil
         }
         .onChange(of: selectedPartIDs) { previousPartIDs, partIDs in
-            selectedPartSelectionOrder.removeAll { !partIDs.contains($0) }
-            var addedPartIDs = partIDs.subtracting(previousPartIDs)
-                .sorted { lhs, rhs in
-                    partDocumentOrderIndex(lhs) < partDocumentOrderIndex(rhs)
-                }
-            if let selectedPartID,
-               let primaryIndex = addedPartIDs.firstIndex(of: selectedPartID) {
-                addedPartIDs.append(addedPartIDs.remove(at: primaryIndex))
+            Task { @MainActor in
+                await Task.yield()
+                guard selectedPartIDs == partIDs else { return }
+                synchronizePartSelection(previous: previousPartIDs, current: partIDs)
             }
-            selectedPartSelectionOrder.append(contentsOf: addedPartIDs.filter {
-                !selectedPartSelectionOrder.contains($0)
-            })
-            if partIDs.count != 1 || selectedPrimitive.map({ !partIDs.contains($0.partID) }) == true {
-                selectedPrimitive = nil
-            }
-            if !addedPartIDs.isEmpty {
-                selectedPartID = selectedPartSelectionOrder.last
-            } else if let selectedPartID, !partIDs.contains(selectedPartID) {
-                self.selectedPartID = selectedPartSelectionOrder.last
-            } else if selectedPartID == nil {
-                selectedPartID = selectedPartSelectionOrder.last
-            }
-            guard !partIDs.isEmpty else { return }
-            selectedLibraryPartType = nil
-            inspectedPageID = nil
-            selectedPageFolderID = nil
-            selectedPageAssetID = nil
-            selectedAssetLibraryNodeID = nil
         }
         .onDeleteCommand {
             if selectedPrimitive != nil { return }
@@ -484,7 +450,7 @@ struct ContentView: View {
                     assetUsageCount: assetUsageCount,
                     renameAsset: { document.renameAsset(id: $0, filename: $1, undoManager: undoManager) },
                     renameAssetFolder: { document.renameAssetFolder(id: $0, name: $1, undoManager: undoManager) },
-                    importImage: importImageAsset,
+                    importMedia: importMediaAsset,
                     editsSharedDefinition: $editsSharedReusableDefinition
                 )
             }
@@ -770,6 +736,56 @@ struct ContentView: View {
         return flattenedIDs(selectedPage.parts).firstIndex(of: id) ?? .max
     }
 
+    private func synchronizePrimaryPartSelection(_ partID: UUID?) {
+        editsSharedReusableDefinition = false
+        if selectedPrimitive?.partID != partID {
+            selectedPrimitive = nil
+        }
+        guard let partID else {
+            selectedPartIDs = []
+            return
+        }
+        if !selectedPartIDs.contains(partID) {
+            selectedPartIDs = [partID]
+        }
+        selectedLibraryPartType = nil
+        inspectedPageID = nil
+        selectedPageFolderID = nil
+        selectedPageAssetID = nil
+        selectedAssetLibraryNodeID = nil
+    }
+
+    private func synchronizePartSelection(previous previousPartIDs: Set<UUID>, current partIDs: Set<UUID>) {
+        selectedPartSelectionOrder.removeAll { !partIDs.contains($0) }
+        var addedPartIDs = partIDs.subtracting(previousPartIDs)
+            .sorted { lhs, rhs in
+                partDocumentOrderIndex(lhs) < partDocumentOrderIndex(rhs)
+            }
+        if let selectedPartID,
+           let primaryIndex = addedPartIDs.firstIndex(of: selectedPartID) {
+            addedPartIDs.append(addedPartIDs.remove(at: primaryIndex))
+        }
+        selectedPartSelectionOrder.append(contentsOf: addedPartIDs.filter {
+            !selectedPartSelectionOrder.contains($0)
+        })
+        if partIDs.count != 1 || selectedPrimitive.map({ !partIDs.contains($0.partID) }) == true {
+            selectedPrimitive = nil
+        }
+        if !addedPartIDs.isEmpty {
+            selectedPartID = selectedPartSelectionOrder.last
+        } else if let selectedPartID, !partIDs.contains(selectedPartID) {
+            self.selectedPartID = selectedPartSelectionOrder.last
+        } else if selectedPartID == nil {
+            selectedPartID = selectedPartSelectionOrder.last
+        }
+        guard !partIDs.isEmpty else { return }
+        selectedLibraryPartType = nil
+        inspectedPageID = nil
+        selectedPageFolderID = nil
+        selectedPageAssetID = nil
+        selectedAssetLibraryNodeID = nil
+    }
+
     private var allowsMultiPartEditing: Bool {
         guard selectedParts.count > 1,
               let type = selectedParts.first?.type.rawValue,
@@ -837,7 +853,6 @@ struct ContentView: View {
                 selectedPartIDs = [partID]
                 selectedPartID = partID
             }
-            workspaceLayout.activate(.structure)
         case .selectPrimitive:
             guard let partID = message.partID,
                   let propertyKey = message.propertyKey,
@@ -850,7 +865,6 @@ struct ContentView: View {
                 propertyKey: propertyKey,
                 propertyPath: message.propertyPath ?? []
             )
-            workspaceLayout.activate(.structure)
         case .deleteParts:
             deleteParts(message.partIDs ?? [])
         case .duplicateParts:
@@ -960,8 +974,10 @@ struct ContentView: View {
                   let partID = message.partID,
                   let part = page.parts.node(withID: partID),
                   part.type.definition.properties.contains(where: {
-                      guard $0.key == propertyKey else { return false }
-                      if case .image = $0.control { return true }
+                      if $0.key == propertyKey, case .image = $0.control { return true }
+                      if case .video = $0.control {
+                          return PartVideoTemplateValues.posterPropertyKey(for: $0.key.rawValue) == propertyKey
+                      }
                       return false
                   }) else { return }
             undoManager?.beginUndoGrouping()
@@ -1373,8 +1389,13 @@ struct ContentView: View {
     }
 
     private func addPartToPageEnd(_ type: PartType) {
-        guard insertPartFromLibrary(type, .end) else { return }
-        workspaceLayout.activate(.structure)
+        // Context-menu actions can arrive while SwiftUI is completing the menu's
+        // own update transaction. Apply the document and selection mutation on
+        // the next main-actor turn so it does not publish during that update.
+        Task { @MainActor in
+            await Task.yield()
+            guard insertPartFromLibrary(type, .end) else { return }
+        }
     }
 
     private func insertPartFromLibrary(_ type: PartType, _ placement: PartPlacement) -> Bool {
@@ -1661,7 +1682,7 @@ struct ContentView: View {
         }
     }
 
-    private func buildBrowserPreview(site: Site, assets: [UUID: ProjectAssetContent]) async throws -> PreviewDiskSnapshot {
+    private func buildBrowserPreview(site: Site, assets: ProjectAssetContents) async throws -> PreviewDiskSnapshot {
         let previous = await browserPreviewServer.currentSnapshot()
         let task = Task.detached(priority: .utility) {
             try PreviewDiskSnapshot.build(previous: previous) { emit in
@@ -2023,22 +2044,25 @@ struct ContentView: View {
         )
     }
 
-    private func importImageAsset(_ url: URL) -> ProjectAsset? {
+    private func importMediaAsset(_ url: URL, expectedType: UTType) -> ProjectAsset? {
         let filename = url.lastPathComponent
-        let dragPrefix = "foundry-image-asset-"
+        let dragPrefix = "foundry-asset-"
         if filename.hasPrefix(dragPrefix),
            let separator = filename.range(of: "--"),
            let id = UUID(uuidString: String(filename[filename.index(filename.startIndex, offsetBy: dragPrefix.count)..<separator.lowerBound])),
-           let asset = document.site.assets.first(where: { $0.id == id && $0.mediaType.hasPrefix("image/") }) {
+           let asset = document.site.assets.first(where: {
+               $0.id == id && UTType(mimeType: $0.mediaType)?.conforms(to: expectedType) == true
+           }) {
             return asset
         }
 
-        guard let values = try? url.resourceValues(forKeys: [.isRegularFileKey, .contentTypeKey]),
+        let maximumByteCount = expectedType == .image ? 25_000_000 : 1_000_000_000
+        guard let values = try? url.resourceValues(forKeys: [.isRegularFileKey, .contentTypeKey, .fileSizeKey]),
               values.isRegularFile == true,
               let type = values.contentType ?? UTType(filenameExtension: url.pathExtension),
-              type.conforms(to: .image),
-              let data = try? Data(contentsOf: url),
-              data.count <= 25_000_000 else { return nil }
+              type.conforms(to: expectedType),
+              (values.fileSize ?? 0) <= maximumByteCount,
+              let data = try? Data(contentsOf: url, options: .mappedIfSafe) else { return nil }
         let id = document.importAsset(
             data: data,
             filename: filename,
@@ -2068,7 +2092,29 @@ struct ContentView: View {
     }
 
     private func assetUsageCount(_ id: UUID, in node: PartNode) -> Int {
-        (node.property(.source).foundryAssetID == id ? 1 : 0) + node.children.reduce(0) { $0 + assetUsageCount(id, in: $1) }
+        let directValues = node.properties.map(\.value)
+            + (node.responsiveOverrides ?? []).map(\.value)
+            + (node.responsiveDefaults ?? []).map(\.value)
+        let directCount = directValues.reduce(0) { count, value in
+            count + value.assetReferenceCount(to: id)
+        }
+        return directCount + node.children.reduce(0) { $0 + assetUsageCount(id, in: $1) }
+    }
+}
+
+private extension PartProperty.Value {
+    func assetReferenceCount(to id: UUID) -> Int {
+        switch self {
+        case .url(let value):
+            return value.foundryAssetID == id ? 1 : 0
+        case .array(let values):
+            return values.reduce(0) { $0 + $1.assetReferenceCount(to: id) }
+        case .link(let link):
+            if case .resource(let resourceID) = link.destination, resourceID == id { return 1 }
+            return 0
+        default:
+            return 0
+        }
     }
 }
 

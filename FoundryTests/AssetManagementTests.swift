@@ -86,7 +86,7 @@ struct AssetManagementTests {
 
     @Test
     func assetLibrarySupportsNestedOrderedFolders() {
-        let hero = ProjectAsset(filename: "hero.png", mediaType: "image/png", byteCount: 4)
+        let hero = ProjectAsset(filename: "hero.png", mediaType: "image/png", byteCount: 4, contentDigest: "test-digest-hero")
         let nestedFolder = ProjectAssetFolder(name: "Homepage")
         let imagesFolder = ProjectAssetFolder(name: "Images", children: [.folder(nestedFolder)])
         var library: [ProjectAssetNode] = [.folder(imagesFolder)]
@@ -112,7 +112,7 @@ struct AssetManagementTests {
 
     @Test
     func recursiveAssetLibraryRoundTripsThroughProjectJSON() throws {
-        let asset = ProjectAsset(filename: "logo.png", mediaType: "image/png", byteCount: 12)
+        let asset = ProjectAsset(filename: "logo.png", mediaType: "image/png", byteCount: 12, contentDigest: "test-digest-logo")
         let folder = ProjectAssetFolder(name: "Brand", children: [.asset(asset)])
         let site = Site(name: "Assets", pages: [Page(title: "Home", slug: "index")], assetLibrary: [.folder(folder)])
 
@@ -124,7 +124,7 @@ struct AssetManagementTests {
 
     @Test
     func assetMetadataRoundTripsWithStableIdentifier() throws {
-        let asset = ProjectAsset(filename: "hero.png", mediaType: "image/png", byteCount: 4)
+        let asset = ProjectAsset(filename: "hero.png", mediaType: "image/png", byteCount: 4, contentDigest: "test-digest-hero")
         let site = Site(name: "Assets", pages: [Page(title: "Home", slug: "index")], assets: [asset])
 
         let decoded = try FoundryDocument.decodeProject(from: FoundryDocument.encoder.encode(site))
@@ -136,7 +136,12 @@ struct AssetManagementTests {
     @Test
     func staticExportIncludesManagedImageAndRewritesItsSource() {
         let data = Data([0x89, 0x50, 0x4E, 0x47])
-        let asset = ProjectAsset(filename: "hero.png", mediaType: "image/png", byteCount: data.count)
+        let asset = ProjectAsset(
+            filename: "hero.png",
+            mediaType: "image/png",
+            byteCount: data.count,
+            contentDigest: FoundryDocumentSnapshot.digest(for: data)
+        )
         var image = PartNode.make(.image)
         image.setProperty(.source, value: .url(asset.reference))
         let site = Site(
@@ -157,7 +162,12 @@ struct AssetManagementTests {
     @Test
     func managedExportPreservesNestedResourceFolderStructure() throws {
         let data = Data([0x89, 0x50, 0x4E, 0x47])
-        let asset = ProjectAsset(filename: "hero.png", mediaType: "image/png", byteCount: data.count)
+        let asset = ProjectAsset(
+            filename: "hero.png",
+            mediaType: "image/png",
+            byteCount: data.count,
+            contentDigest: FoundryDocumentSnapshot.digest(for: data)
+        )
         let nested = ProjectAssetFolder(name: "Test Folder", children: [.asset(asset)])
         let parent = ProjectAssetFolder(name: "Downloads", children: [.folder(nested)])
         let site = Site(
@@ -183,15 +193,17 @@ struct AssetManagementTests {
             id: UUID(uuidString: "11111111-1111-1111-1111-111111111111")!,
             filename: "Team Photo@2x.PNG",
             mediaType: "image/png",
-            byteCount: 1
+            byteCount: 1,
+            contentDigest: "test-digest-first"
         )
         let second = ProjectAsset(
             id: UUID(uuidString: "22222222-2222-2222-2222-222222222222")!,
             filename: "Team Photo 2x.png",
             mediaType: "image/png",
-            byteCount: 1
+            byteCount: 1,
+            contentDigest: "test-digest-second"
         )
-        let unique = ProjectAsset(filename: "Company Logo.svg", mediaType: "image/svg+xml", byteCount: 1)
+        let unique = ProjectAsset(filename: "Company Logo.svg", mediaType: "image/svg+xml", byteCount: 1, contentDigest: "test-digest-unique")
         let library: [ProjectAssetNode] = [.asset(first), .asset(second), .asset(unique)]
 
         #expect(library.managedExportPath(for: first) == "assets/team-photo-2x--11111111.png")
@@ -201,8 +213,8 @@ struct AssetManagementTests {
 
     @Test
     func managedExportDisambiguatesSanitizedFolderNameCollisions() {
-        let firstAsset = ProjectAsset(filename: "Photo.png", mediaType: "image/png", byteCount: 1)
-        let secondAsset = ProjectAsset(filename: "Photo.png", mediaType: "image/png", byteCount: 1)
+        let firstAsset = ProjectAsset(filename: "Photo.png", mediaType: "image/png", byteCount: 1, contentDigest: "test-digest-first")
+        let secondAsset = ProjectAsset(filename: "Photo.png", mediaType: "image/png", byteCount: 1, contentDigest: "test-digest-second")
         let firstFolder = ProjectAssetFolder(
             id: UUID(uuidString: "aaaaaaaa-1111-1111-1111-111111111111")!,
             name: "Team Photos",
@@ -221,11 +233,12 @@ struct AssetManagementTests {
 
     @Test
     func resourcesViewOmitsPagePlacedAssetsWithoutDiscardingTheirFolders() throws {
-        let resource = ProjectAsset(filename: "library.png", mediaType: "image/png", byteCount: 1)
+        let resource = ProjectAsset(filename: "library.png", mediaType: "image/png", byteCount: 1, contentDigest: "test-digest-resource")
         let placed = ProjectAsset(
             filename: "download.png",
             mediaType: "image/png",
             byteCount: 1,
+            contentDigest: "test-digest-placed",
             exportDirectory: .root
         )
         let folder = ProjectAssetFolder(name: "Images", children: [.asset(resource), .asset(placed)])
@@ -244,6 +257,7 @@ struct AssetManagementTests {
             filename: "guide.pdf",
             mediaType: "application/pdf",
             byteCount: 1,
+            contentDigest: "test-digest-guide",
             exportDirectory: .root
         )
         let document = FoundryDocument(site: Site(
@@ -363,6 +377,60 @@ struct AssetManagementTests {
 
         #expect(reusedID == secondID)
         #expect(document.site.assets.map(\.id) == [secondID])
+    }
+
+    @Test @MainActor
+    func deletedAssetBytesAreRestoredAfterUndo() {
+        let document = FoundryDocument()
+        let undo = UndoManager()
+        undo.groupsByEvent = false
+        let data = Data("undo me back to life".utf8)
+
+        undo.beginUndoGrouping()
+        let assetID = document.importAsset(
+            data: data,
+            filename: "restorable.png",
+            mediaType: "image/png",
+            undoManager: undo
+        )
+        undo.endUndoGrouping()
+
+        undo.beginUndoGrouping()
+        document.removeAsset(id: assetID, undoManager: undo)
+        undo.endUndoGrouping()
+        #expect(document.site.assets.isEmpty)
+
+        undo.undo()
+
+        #expect(document.site.assets.map(\.id) == [assetID])
+        #expect(document.assetContents[assetID]?.data == data)
+    }
+
+    @Test @MainActor
+    func undoPinIsReleasedOnceItsUndoEntryIsCleared() {
+        let document = FoundryDocument()
+        let undo = UndoManager()
+        undo.groupsByEvent = false
+        let data = Data("gone for good".utf8)
+
+        undo.beginUndoGrouping()
+        let assetID = document.importAsset(
+            data: data,
+            filename: "disposable.png",
+            mediaType: "image/png",
+            undoManager: undo
+        )
+        undo.endUndoGrouping()
+
+        undo.beginUndoGrouping()
+        document.removeAsset(id: assetID, undoManager: undo)
+        undo.endUndoGrouping()
+        undo.removeAllActions()
+
+        // With the deleting undo entry cleared, the asset is gone for good;
+        // nothing should still resolve its bytes.
+        undo.undo()
+        #expect(document.site.assets.isEmpty)
     }
 }
 

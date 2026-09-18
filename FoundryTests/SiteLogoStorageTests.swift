@@ -64,7 +64,12 @@ struct SiteLogoStorageTests {
     @Test
     func rendererPublishesOnlyTheManagedLogoCopyInItsOwnDirectory() throws {
         let data = Data("logo".utf8)
-        let logo = ProjectAsset(filename: "site-logo-source.svg", mediaType: "image/svg+xml", byteCount: data.count)
+        let logo = ProjectAsset(
+            filename: "site-logo-source.svg",
+            mediaType: "image/svg+xml",
+            byteCount: data.count,
+            contentDigest: FoundryDocumentSnapshot.digest(for: data)
+        )
         var site = Site.starter()
         site.logo = logo.reference
         site.siteLogoAssets = [logo]
@@ -79,26 +84,4 @@ struct SiteLogoStorageTests {
         #expect(bundle.files.filter { $0.path.hasPrefix("assets/site-logo/") }.map(\.path) == [path])
     }
 
-    @Test
-    func legacyVisibleLogoMigratesIntoPrivateStorage() throws {
-        let data = Data("legacy logo".utf8)
-        let visible = ProjectAsset(filename: "old-logo.png", mediaType: "image/png", byteCount: data.count)
-        var site = Site.starter()
-        site.logo = visible.reference
-        site.assetLibrary = [.asset(visible)]
-        let wrapper = FileWrapper(directoryWithFileWrappers: [
-            "project.json": FileWrapper(regularFileWithContents: try FoundryDocument.encoder.encode(site)),
-            "assets": FileWrapper(directoryWithFileWrappers: [
-                visible.storageFilename: FileWrapper(regularFileWithContents: data)
-            ])
-        ])
-
-        let decoded = try FoundryDocument.decodeSnapshot(from: wrapper)
-        let privateID = try #require(decoded.site.logo.foundryAssetID)
-
-        #expect(privateID != visible.id)
-        #expect(decoded.site.assets.contains(where: { $0.id == visible.id }))
-        #expect(decoded.site.siteLogoAssets.contains(where: { $0.id == privateID }))
-        #expect(decoded.assetData[privateID] == data)
-    }
 }

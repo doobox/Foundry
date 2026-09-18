@@ -45,17 +45,17 @@ struct PartPlacementTests {
     }
 
     @Test
-    func sectionAndColumnsAcceptChildren() {
+    func sectionAndGridAcceptChildren() {
         let heading = PartNode.make(.heading)
-        var tree = [PartNode.make(.section), PartNode.make(.columns), heading]
+        var tree = [PartNode.make(.section), PartNode.make(.grid), heading]
 
         let movedIntoSection = tree.moveNode(withID: heading.id, to: .inside(tree[0].id))
         let section = tree[0]
-        let movedIntoColumns = tree.moveNode(withID: heading.id, to: .inside(tree[1].id))
+        let movedIntoGrid = tree.moveNode(withID: heading.id, to: .inside(tree[1].id))
 
         #expect(movedIntoSection)
         #expect(section.children.first?.id == heading.id)
-        #expect(movedIntoColumns)
+        #expect(movedIntoGrid)
         #expect(tree[1].children.first?.id == heading.id)
     }
 

@@ -27,20 +27,22 @@ final class CanvasAssetSchemeHandler: NSObject, WKURLSchemeHandler {
     nonisolated static let scheme = "foundry-asset"
     nonisolated static let packageScheme = "foundry-package-asset"
 
-    private var assets: [UUID: ProjectAssetContent]
+    private var assets: ProjectAssetContents
     private var packages: [String: LoadedPartPackage]
-    private var gifPreviews: [UUID: Data] = [:]
+    private let gifPreviews = NSCache<NSString, NSData>()
 
     init(
-        assets: [UUID: ProjectAssetContent],
+        assets: ProjectAssetContents,
         packages: [String: LoadedPartPackage] = [:]
     ) {
         self.assets = assets
         self.packages = packages
+        gifPreviews.totalCostLimit = 64 * 1_024 * 1_024
+        gifPreviews.countLimit = 128
     }
 
-    func update(assets: [UUID: ProjectAssetContent]) {
-        gifPreviews.removeAll(keepingCapacity: true)
+    func update(assets: ProjectAssetContents) {
+        gifPreviews.removeAllObjects()
         self.assets = assets
     }
 
@@ -105,8 +107,9 @@ final class CanvasAssetSchemeHandler: NSObject, WKURLSchemeHandler {
     }
 
     private func gifPreview(for id: UUID, data: Data) -> Data? {
-        if let preview = gifPreviews[id] {
-            return preview
+        let key = id.uuidString as NSString
+        if let cached = gifPreviews.object(forKey: key) {
+            return cached as Data
         }
         guard let source = CGImageSourceCreateWithData(data as CFData, nil),
               let image = CGImageSourceCreateImageAtIndex(source, 0, nil) else { return nil }
@@ -120,7 +123,7 @@ final class CanvasAssetSchemeHandler: NSObject, WKURLSchemeHandler {
         CGImageDestinationAddImage(destination, image, nil)
         guard CGImageDestinationFinalize(destination) else { return nil }
         let preview = output as Data
-        gifPreviews[id] = preview
+        gifPreviews.setObject(preview as NSData, forKey: key, cost: preview.count)
         return preview
     }
 }
@@ -224,7 +227,7 @@ final class CanvasWebView: WKWebView {
 
 struct WebCanvasView: NSViewRepresentable {
     let operation: CanvasWebOperation
-    let assets: [UUID: ProjectAssetContent]
+    let assets: ProjectAssetContents
     let packages: [String: LoadedPartPackage]
     let assetRevision: UInt64
     let selectedPartIDs: Set<UUID>
@@ -1239,7 +1242,7 @@ struct WebCanvasView: NSViewRepresentable {
               clearDrop();
               const isImage = file.type.startsWith('image/') || /\\.(?:avif|gif|heic|heif|jpe?g|png|svg|webp)$/i.test(file.name);
               if (!isImage || file.size > 25000000) return;
-              const internalAssetMatch = file.name.match(/^foundry-image-asset-([0-9a-f-]{36})--/i);
+              const internalAssetMatch = file.name.match(/^foundry-asset-([0-9a-f-]{36})--/i);
               if (internalAssetMatch) {
                 const message = {
                   version: 1,
@@ -1535,7 +1538,7 @@ struct WebCanvasView: NSViewRepresentable {
         private var isPatchingHTML = false
 
         init(
-            assets: [UUID: ProjectAssetContent],
+            assets: ProjectAssetContents,
             packages: [String: LoadedPartPackage],
             canClearImage: @escaping (UUID, PartProperty.Key, [Int]) -> Bool,
             handleMessage: @escaping (CanvasMessage) -> Void,

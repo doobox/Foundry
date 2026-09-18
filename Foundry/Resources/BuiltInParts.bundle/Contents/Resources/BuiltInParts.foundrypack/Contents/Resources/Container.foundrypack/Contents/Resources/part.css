@@ -25,7 +25,6 @@
     grid-column: auto;
     grid-row: auto;
     {{ endif }}
-    background-color: {{ if control.showsBackground }}{{ control.backgroundColor }}{{ else }}transparent{{ endif }};
     border-width: {{ if control.borderEnabled }}{{ control.themeBorder.width }}{{ else }}0{{ endif }};
     border-style: {{ control.themeBorder.style }};
     border-color: {{ control.themeBorderColour }};
@@ -35,12 +34,3 @@
     {{ if control.effectsEnabled }}opacity: calc({{ control.opacity }} / 100);{{ endif }}
 }
 :instance > * { min-width: 0; }
-:instance {
-    display: flex;
-    flex-direction: {{ control.direction }};
-    flex-wrap: {{ control.wrap }};
-    justify-content: {{ control.justifyContent }};
-    align-items: {{ control.alignItems }};
-    gap: {{ control.themeGap }};
-}
-:instance > .foundry-empty-drop-zone { flex: 1 0 100%; }

@@ -4,20 +4,24 @@ import UniformTypeIdentifiers
 
 struct PartPropertyEditor: View {
     @Environment(\.canvasAppearance) private var appearance
+    @State private var videoPosterTask: Task<Void, Never>?
+    @State private var generatedVideoPoster: NSImage?
+    @State private var isAnalysingVideo = false
+    @State private var videoAnalysisError: String?
     let definition: PartPropertyDefinition
     let part: PartNode
     let selectedParts: [PartNode]
     let currentPage: Page?
     let theme: Theme
     let assets: [ProjectAsset]
-    let assetContents: [UUID: ProjectAssetContent]
+    let assetContents: ProjectAssetContents
     let pages: [Page]
     let folders: [PageFolder]
     let publicURL: String
     let editor: ProjectEditor
     let editsSharedDefinition: Bool
     let breakpoint: ResponsiveBreakpoint
-    let importImage: (URL) -> ProjectAsset?
+    let importMedia: (URL, UTType) -> ProjectAsset?
 
     init(
         definition: PartPropertyDefinition,
@@ -26,14 +30,14 @@ struct PartPropertyEditor: View {
         currentPage: Page?,
         theme: Theme,
         assets: [ProjectAsset],
-        assetContents: [UUID: ProjectAssetContent],
+        assetContents: ProjectAssetContents,
         pages: [Page],
         folders: [PageFolder],
         publicURL: String,
         editor: ProjectEditor,
         editsSharedDefinition: Bool,
         breakpoint: ResponsiveBreakpoint,
-        importImage: @escaping (URL) -> ProjectAsset?
+        importMedia: @escaping (URL, UTType) -> ProjectAsset?
     ) {
         self.definition = definition
         self.part = part
@@ -48,7 +52,7 @@ struct PartPropertyEditor: View {
         self.editor = editor
         self.editsSharedDefinition = editsSharedDefinition
         self.breakpoint = breakpoint
-        self.importImage = importImage
+        self.importMedia = importMedia
     }
 
     @ViewBuilder
@@ -219,14 +223,23 @@ struct PartPropertyEditor: View {
                 indicator: responsiveIndicator
             )
         case .choice(let choices):
-            SelectPartControl(
-                label: definition.label,
-                options: choices.map {
-                    .init(title: $0.label, value: $0.value, separatorBefore: $0.separatorBefore)
-                },
-                indicator: responsiveIndicator,
-                selection: stringBinding(as: .choice)
-            )
+            if definition.selectPresentation == .segmented {
+                InspectorRow(title: definition.label, indicator: responsiveIndicator) {
+                    InspectorSegmentedControl(
+                        selection: stringBinding(as: .choice),
+                        segments: segmentedOptions(for: choices)
+                    )
+                }
+            } else {
+                SelectPartControl(
+                    label: definition.label,
+                    options: choices.map {
+                        .init(title: $0.label, value: $0.value, separatorBefore: $0.separatorBefore)
+                    },
+                    indicator: responsiveIndicator,
+                    selection: stringBinding(as: .choice)
+                )
+            }
         case .themeFont:
             ThemeFontPartControl(label: definition.label, theme: theme, indicator: responsiveIndicator, selection: stringBinding(as: .choice))
         case .themeSpacing:
@@ -237,7 +250,7 @@ struct PartPropertyEditor: View {
                     return ThemePaddingValue.EdgeValue()
                 }, set: { setProperty(.themeSpacing(.init(selection: $0))) }), title: definition.label.isEmpty ? "Spacing" : definition.label, theme: theme)
             }
-            .help(part.type.definition.package?.manifest.properties.first { $0.id == definition.key.rawValue }?.tooltip ?? "Spacing")
+            .help(part.type.definition.package?.manifest.resolvedProperties.first { $0.id == definition.key.rawValue }?.tooltip ?? "Spacing")
             .contextMenu { resetButton }
         case .themeBorderWidth:
             ThemeBorderWidthPartControl(label: definition.label, theme: theme, indicator: responsiveIndicator,
@@ -246,7 +259,7 @@ struct PartPropertyEditor: View {
                     if case .themeBorderWidth(let value) = definition.defaultValue { return value }
                     return ThemeBorderWidthValue()
                 }, set: { setProperty(.themeBorderWidth($0)) }))
-                .help(part.type.definition.package?.manifest.properties.first { $0.id == (definition.inspectorControlID ?? definition.key.rawValue) }?.tooltip ?? "Border")
+                .help(part.type.definition.package?.manifest.resolvedProperties.first { $0.id == (definition.inspectorControlID ?? definition.key.rawValue) }?.tooltip ?? "Border")
                 .contextMenu { resetButton }
         case .themeRadius:
             ThemeRadiusPartControl(label: definition.label, theme: theme, indicator: responsiveIndicator,
@@ -255,7 +268,7 @@ struct PartPropertyEditor: View {
                     if case .themeRadius(let value) = definition.defaultValue { return value }
                     return ThemeRadiusValue()
                 }, set: { setProperty(.themeRadius($0)) }))
-                .help(part.type.definition.package?.manifest.properties.first { $0.id == definition.key.rawValue }?.tooltip ?? "Radius")
+                .help(part.type.definition.package?.manifest.resolvedProperties.first { $0.id == definition.key.rawValue }?.tooltip ?? "Radius")
                 .contextMenu { resetButton }
         case .themeMargin:
             ThemeMarginPartControl(label: definition.label, theme: theme, indicator: responsiveIndicator,
@@ -264,7 +277,7 @@ struct PartPropertyEditor: View {
                     if case .themeMargin(let value) = definition.defaultValue { return value }
                     return ThemeMarginValue()
                 }, set: { setProperty(.themeMargin($0)) }))
-                .help(part.type.definition.package?.manifest.properties.first { $0.id == definition.key.rawValue }?.tooltip ?? "Margin")
+                .help(part.type.definition.package?.manifest.resolvedProperties.first { $0.id == definition.key.rawValue }?.tooltip ?? "Margin")
                 .contextMenu { resetButton }
         case .themePadding:
             ThemePaddingPartControl(label: definition.label, theme: theme, indicator: responsiveIndicator,
@@ -273,7 +286,7 @@ struct PartPropertyEditor: View {
                     if case .themePadding(let value) = definition.defaultValue { return value }
                     return ThemePaddingValue()
                 }, set: { setProperty(.themePadding($0)) }))
-                .help(part.type.definition.package?.manifest.properties.first { $0.id == definition.key.rawValue }?.tooltip ?? "Padding")
+                .help(part.type.definition.package?.manifest.resolvedProperties.first { $0.id == definition.key.rawValue }?.tooltip ?? "Padding")
                 .contextMenu { resetButton }
         case .fontWeight(let font):
             FontFacePartControl(label: definition.label,
@@ -321,12 +334,52 @@ struct PartPropertyEditor: View {
                 chooseImage: chooseImageFromFinder,
                 clearImage: { setProperty(definition.defaultValue) },
                 importImage: { url in
-                    guard let asset = importImage(url) else { return false }
+                    guard let asset = importMedia(url, .image) else { return false }
                     setProperty(.url(asset.reference))
                     return true
                 },
                 setFocalPoint: setImageFocalPoint
             )
+        case .video:
+            VideoPartControl(
+                label: definition.label,
+                filename: selectedVideoFilename,
+                posterImage: selectedVideoPoster,
+                hasCustomPoster: !displayPart.property(videoPosterKey).isEmpty,
+                details: selectedVideoDetails,
+                compatibilityWarning: selectedVideoCompatibilityWarning,
+                isProcessing: isAnalysingVideo,
+                errorMessage: videoAnalysisError,
+                choices: availableVideos.map { .init(id: $0.id, title: $0.filename) },
+                indicator: responsiveIndicator,
+                showsPlaybackOptions: showsVideoPlaybackOptions,
+                autoplay: videoAutoplayBinding,
+                muted: videoBooleanBinding(videoMutedKey, fallback: false),
+                showsControls: videoBooleanBinding(videoControlsKey, fallback: true),
+                loops: videoBooleanBinding(videoLoopKey, fallback: false),
+                startAt: videoStartAtBinding,
+                isClearDisabled: displayPart.propertyValue(definition.key) == definition.defaultValue,
+                importVideoFromMac: chooseVideoFromFinder,
+                selectVideo: selectExistingVideo,
+                clearVideo: clearVideo,
+                importVideo: { url in
+                    guard let asset = importMedia(url, .movie) else { return false }
+                    selectVideo(asset)
+                    return true
+                },
+                choosePoster: chooseVideoPosterFromFinder,
+                clearPoster: { setProperty(.url(""), key: videoPosterKey) }
+            )
+            .task(id: selectedAsset?.id) {
+                await Task.yield()
+                guard !Task.isCancelled else { return }
+                videoPosterTask?.cancel()
+                isAnalysingVideo = false
+                generatedVideoPoster = nil
+                videoAnalysisError = nil
+                if let asset = selectedAsset { analyseVideoIfNeeded(asset) }
+            }
+            .onDisappear { videoPosterTask?.cancel() }
         }
     }
 
@@ -344,6 +397,111 @@ struct PartPropertyEditor: View {
               let package = part.type.definition.package,
               package.manifest.assetDeclaration(containing: source) != nil else { return nil }
         return NSImage(contentsOf: package.resourceRootURL.appending(path: source))
+    }
+
+    private var selectedAsset: ProjectAsset? {
+        guard let id = displayPart.property(definition.key).foundryAssetID else { return nil }
+        return assets.first { $0.id == id }
+    }
+
+    private var selectedVideoFilename: String? {
+        if let filename = selectedAsset?.filename { return filename }
+        let source = displayPart.property(definition.key)
+        guard !source.isEmpty else { return nil }
+        return (source as NSString).lastPathComponent
+    }
+
+    private var selectedVideoPoster: NSImage? {
+        let source = displayPart.property(videoPosterKey)
+        if let id = source.foundryAssetID,
+           let data = assetContents[id]?.data,
+           let image = NSImage(data: data) {
+            return image
+        }
+        return generatedVideoPoster ?? selectedAsset?.videoMetadata.flatMap { NSImage(data: $0.posterJPEG) }
+    }
+
+    private var videoPosterKey: PartProperty.Key {
+        PartVideoTemplateValues.posterPropertyKey(for: definition.key.rawValue)
+    }
+
+    private var showsVideoPlaybackOptions: Bool {
+        guard let package = part.type.definition.package else { return true }
+        return !package.manifest.controlGroups
+            .flatMap(\.properties)
+            .contains { $0.id == definition.key.rawValue && $0.control.type == .video }
+    }
+
+    private var videoAutoplayKey: PartProperty.Key {
+        PartVideoTemplateValues.autoplayPropertyKey(for: definition.key.rawValue)
+    }
+
+    private var videoMutedKey: PartProperty.Key {
+        PartVideoTemplateValues.mutedPropertyKey(for: definition.key.rawValue)
+    }
+
+    private var videoControlsKey: PartProperty.Key {
+        PartVideoTemplateValues.controlsPropertyKey(for: definition.key.rawValue)
+    }
+
+    private var videoLoopKey: PartProperty.Key {
+        PartVideoTemplateValues.loopPropertyKey(for: definition.key.rawValue)
+    }
+
+    private var videoStartAtKey: PartProperty.Key {
+        PartVideoTemplateValues.startAtPropertyKey(for: definition.key.rawValue)
+    }
+
+    private var videoAutoplayBinding: Binding<String> {
+        Binding(
+            get: { displayPart.property(videoAutoplayKey) == "onLoad" ? "onLoad" : "never" },
+            set: { setProperty(.choice($0), key: videoAutoplayKey) }
+        )
+    }
+
+    private func videoBooleanBinding(_ key: PartProperty.Key, fallback: Bool) -> Binding<Bool> {
+        Binding(
+            get: { displayPart.propertyValue(key).booleanValue ?? fallback },
+            set: { setProperty(.boolean($0), key: key) }
+        )
+    }
+
+    private var videoStartAtBinding: Binding<Double> {
+        Binding(
+            get: { max(displayPart.propertyValue(videoStartAtKey).numberValue ?? 0, 0) },
+            set: { setProperty(.number(max($0, 0)), key: videoStartAtKey) }
+        )
+    }
+
+    private var selectedVideoDetails: String? {
+        guard let asset = selectedAsset else { return nil }
+        var components: [String] = []
+        if let width = asset.pixelWidth, let height = asset.pixelHeight {
+            components.append("\(width) × \(height)")
+        }
+        if let duration = asset.videoMetadata?.duration {
+            let seconds = max(Int(duration.rounded()), 0)
+            components.append(String(format: "%d:%02d", seconds / 60, seconds % 60))
+        }
+        components.append(asset.byteCount.formatted(.byteCount(style: .file)))
+        return components.joined(separator: " · ")
+    }
+
+    private var selectedVideoCompatibilityWarning: String? {
+        guard let asset = selectedAsset else { return nil }
+        let ext = (asset.filename as NSString).pathExtension.lowercased()
+        guard ["mp4", "m4v", "webm"].contains(ext) else {
+            return "This format may not play in every browser"
+        }
+        return nil
+    }
+
+    private var availableVideos: [ProjectAsset] {
+        assets.filter { asset in
+            UTType(mimeType: asset.mediaType)?.conforms(to: .movie) == true
+                || asset.mediaType.hasPrefix("video/")
+        }
+        .sorted { $0.filename.localizedStandardCompare($1.filename) == .orderedAscending }
     }
 
     private var imageFocalPoint: CGPoint {
@@ -386,8 +544,83 @@ struct PartPropertyEditor: View {
         panel.allowsMultipleSelection = false
         guard panel.runModal() == .OK,
               let url = panel.url,
-              let asset = importImage(url) else { return }
+              let asset = importMedia(url, .image) else { return }
         setProperty(.url(asset.reference))
+    }
+
+    private func chooseVideoFromFinder() {
+        let panel = NSOpenPanel()
+        panel.title = "Choose Video"
+        panel.allowedContentTypes = [.movie]
+        panel.canChooseDirectories = false
+        panel.allowsMultipleSelection = false
+        guard panel.runModal() == .OK,
+              let url = panel.url,
+              let asset = importMedia(url, .movie) else { return }
+        selectVideo(asset)
+    }
+
+    private func chooseVideoPosterFromFinder() {
+        let panel = NSOpenPanel()
+        panel.title = "Choose Poster Image"
+        panel.allowedContentTypes = [.image]
+        panel.canChooseDirectories = false
+        panel.allowsMultipleSelection = false
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        _ = importVideoPoster(url)
+    }
+
+    private func importVideoPoster(_ url: URL) -> Bool {
+        guard let asset = importMedia(url, .image) else { return false }
+        setProperty(.url(asset.reference), key: videoPosterKey)
+        return true
+    }
+
+    private func selectExistingVideo(_ id: UUID) {
+        guard let asset = assets.first(where: { $0.id == id }) else { return }
+        selectVideo(asset)
+    }
+
+    private func selectVideo(_ asset: ProjectAsset) {
+        videoPosterTask?.cancel()
+        generatedVideoPoster = nil
+        videoAnalysisError = nil
+        let wasAlreadySelected = selectedAsset?.id == asset.id
+        setProperty(.url(asset.reference))
+        if wasAlreadySelected { analyseVideoIfNeeded(asset) }
+    }
+
+    private func analyseVideoIfNeeded(_ asset: ProjectAsset) {
+        guard asset.videoMetadata == nil else {
+            isAnalysingVideo = false
+            return
+        }
+        guard let data = editor.document.assetContents[asset.id]?.data else {
+            isAnalysingVideo = false
+            videoAnalysisError = "Video data is unavailable"
+            return
+        }
+        isAnalysingVideo = true
+        videoPosterTask = Task {
+            let result = await VideoPosterGenerator.metadata(for: data, filename: asset.filename)
+            guard !Task.isCancelled else { return }
+            isAnalysingVideo = false
+            guard let result else {
+                videoAnalysisError = "Couldn’t read this video"
+                return
+            }
+            generatedVideoPoster = NSImage(data: result.metadata.posterJPEG)
+            editor.document.setVideoMetadata(id: asset.id, result: result)
+        }
+    }
+
+    private func clearVideo() {
+        videoPosterTask?.cancel()
+        generatedVideoPoster = nil
+        isAnalysingVideo = false
+        videoAnalysisError = nil
+        setProperty(.url(""), key: videoPosterKey)
+        setProperty(definition.defaultValue)
     }
 
     private var assetBinding: Binding<UUID?> {
@@ -688,6 +921,18 @@ struct PartPropertyEditor: View {
             InspectorSegment(value: "end", systemImage: "text.alignright", accessibilityLabel: "End", help: "Align text to the end"),
             InspectorSegment(value: "justify", systemImage: "text.justify", accessibilityLabel: "Justify", help: "Justify text")
         ]
+    }
+
+    private func segmentedOptions(for choices: [PartPropertyChoice]) -> [InspectorSegment<String>] {
+        choices.map { choice in
+            return InspectorSegment(
+                value: choice.value,
+                title: choice.systemImage == nil ? choice.label : nil,
+                systemImage: choice.systemImage,
+                accessibilityLabel: choice.label,
+                help: choice.label
+            )
+        }
     }
 
     private func tokenPicker(tokens: [DesignToken], customLabel: String) -> some View {

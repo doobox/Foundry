@@ -5,22 +5,22 @@ import Testing
 @MainActor
 struct DocumentCodingTests {
     @Test
-    func fileBackedAssetsSurviveSnapshotOwnerAndRoundTrip() throws {
+    func fileBackedAssetsResolveLazilyFromTheDecodedWrapper() throws {
         let bytes = Data(repeating: 123, count: 2 * 1_024 * 1_024)
-        let asset = ProjectAsset(filename: "large.bin", mediaType: "application/octet-stream", byteCount: bytes.count)
+        let asset = ProjectAsset(
+            filename: "large.bin",
+            mediaType: "application/octet-stream",
+            byteCount: bytes.count,
+            contentDigest: FoundryDocumentSnapshot.digest(for: bytes)
+        )
         var site = Site.starter()
         site.assetLibrary = [.asset(asset)]
-        var snapshot: FoundryDocumentSnapshot? = .init(site: site, assetData: [asset.id: bytes])
-        let retained = try #require(snapshot?.assetData[asset.id])
-        snapshot = nil
-        #expect(retained == bytes)
-        // Saving still uses the same Data API, including after its backing owner dies.
         let wrapper = FileWrapper(directoryWithFileWrappers: [
             "project.json": FileWrapper(regularFileWithContents: try JSONEncoder().encode(site)),
-            "assets": FileWrapper(directoryWithFileWrappers: [asset.storageFilename: FileWrapper(regularFileWithContents: retained)])
+            "assets": FileWrapper(directoryWithFileWrappers: [asset.storageFilename: FileWrapper(regularFileWithContents: bytes)])
         ])
         let loaded = try FoundryDocument.decodeSnapshot(from: wrapper)
-        #expect(loaded.assetData[asset.id] == bytes)
+        #expect(loaded.byteStore.resolve(asset) == bytes)
     }
     @Test
     func responsiveOverridesRoundTripWithoutDuplicatingBaseProperties() throws {
@@ -184,7 +184,8 @@ struct DocumentCodingTests {
         let icon = ProjectAsset(
             filename: "favicon.ico",
             mediaType: "image/x-icon",
-            byteCount: bytes.count
+            byteCount: bytes.count,
+            contentDigest: FoundryDocumentSnapshot.digest(for: bytes)
         )
         var site = Site.starter()
         site.webIconAssets = [icon]
@@ -198,7 +199,7 @@ struct DocumentCodingTests {
         let decoded = try FoundryDocument.decodeSnapshot(from: wrapper)
 
         #expect(decoded.site.webIconAssets == [icon])
-        #expect(decoded.assetData[icon.id] == bytes)
+        #expect(decoded.byteStore.resolve(icon) == bytes)
     }
 
     @Test

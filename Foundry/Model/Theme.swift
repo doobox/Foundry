@@ -47,6 +47,7 @@ nonisolated struct Theme: Codable, Equatable, Sendable {
     var screens: ScreenTokens
     var borderWidths: ThemeDimensionTokens
     var borderRadii: ThemeDimensionTokens
+    var zIndexes: ThemeDimensionTokens
 
     init(
         colors: ColorTokens,
@@ -55,7 +56,8 @@ nonisolated struct Theme: Codable, Equatable, Sendable {
         typography: TypographyTokens,
         screens: ScreenTokens = .standard,
         borderWidths: ThemeDimensionTokens = .standardBorderWidths,
-        borderRadii: ThemeDimensionTokens = .standardBorderRadii
+        borderRadii: ThemeDimensionTokens = .standardBorderRadii,
+        zIndexes: ThemeDimensionTokens = .standardZIndexes
     ) {
         self.colourPalettes = ColourPaletteDefaults.make(colors: colors)
         self.spacing = spacing
@@ -64,10 +66,11 @@ nonisolated struct Theme: Codable, Equatable, Sendable {
         self.screens = screens
         self.borderWidths = borderWidths
         self.borderRadii = borderRadii
+        self.zIndexes = zIndexes
     }
 
     enum CodingKeys: String, CodingKey {
-        case colors, colourPalettes, spacing, shadows, typography, screens, borderWidths, borderRadii
+        case colors, colourPalettes, spacing, shadows, typography, screens, borderWidths, borderRadii, zIndexes
     }
 
     init(from decoder: Decoder) throws {
@@ -84,6 +87,7 @@ nonisolated struct Theme: Codable, Equatable, Sendable {
         screens = try container.decode(ScreenTokens.self, forKey: .screens)
         borderWidths = try container.decodeIfPresent(ThemeDimensionTokens.self, forKey: .borderWidths) ?? .standardBorderWidths
         borderRadii = try container.decodeIfPresent(ThemeDimensionTokens.self, forKey: .borderRadii) ?? .standardBorderRadii
+        zIndexes = try container.decodeIfPresent(ThemeDimensionTokens.self, forKey: .zIndexes) ?? .standardZIndexes
     }
 
     func encode(to encoder: Encoder) throws {
@@ -95,6 +99,7 @@ nonisolated struct Theme: Codable, Equatable, Sendable {
         try values.encode(screens, forKey: .screens)
         try values.encode(borderWidths, forKey: .borderWidths)
         try values.encode(borderRadii, forKey: .borderRadii)
+        try values.encode(zIndexes, forKey: .zIndexes)
     }
 
     static let standard = Theme(
@@ -143,6 +148,16 @@ nonisolated struct ThemeDimensionTokens: Codable, Equatable, Sendable {
         .init(id: "xl", title: "XL", value: 16),
         .init(id: "2xl", title: "2XL", value: 24),
         .init(id: "full", title: "Full", value: 9_999)
+    ])
+
+    static let standardZIndexes = ThemeDimensionTokens(predefined: [
+        .init(id: "base", title: "Base", value: 0),
+        .init(id: "dropdown", title: "Dropdown", value: 1_000),
+        .init(id: "sticky", title: "Sticky", value: 1_100),
+        .init(id: "overlay", title: "Overlay", value: 1_200),
+        .init(id: "modal", title: "Modal", value: 1_300),
+        .init(id: "tooltip", title: "Tooltip", value: 1_400),
+        .init(id: "toast", title: "Toast", value: 1_500)
     ])
 }
 
@@ -824,6 +839,12 @@ nonisolated extension Theme {
         return widths + radii
     }
 
+    var zIndexCSSVariables: String {
+        zIndexes.predefined.map {
+            "--foundry-z-index-\($0.id):\($0.value.cssNumber);"
+        }.joined()
+    }
+
     func spacingCSSVariable(for reference: String) -> String? {
         let predefined = Set(["3xs", "2xs", "xs", "sm", "md", "lg", "xl", "2xl", "3xl"])
         if predefined.contains(reference) {
@@ -878,7 +899,7 @@ nonisolated extension Theme {
     }
 
     func fontSourceCSS(
-        assets: [UUID: ProjectAssetContent],
+        assets: ProjectAssetContents,
         destination: ThemeFontCSSDestination,
         exportedSource: ((ProjectAsset) -> String)? = nil
     ) -> String {

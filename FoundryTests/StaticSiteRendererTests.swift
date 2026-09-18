@@ -88,9 +88,9 @@ struct StaticSiteRendererTests {
         #expect(css.contains("@media(min-width:768px)"))
         #expect(css.contains("@media(min-width:1024px)"))
         #expect(!css.contains("@media(max-width:"))
-        #expect(css.contains("max-width: 800px"))
-        #expect(css.contains("max-width: 900px"))
-        #expect(css.contains("max-width: 1000px"))
+        #expect(css.contains("max-width: min(100%, 800px)"))
+        #expect(css.contains("max-width: min(100%, 900px)"))
+        #expect(css.contains("max-width: min(100%, 1000px)"))
         #expect(html.contains("data-foundry-id=\"\(partID.uuidString)\""))
         #expect(!html.contains("data-foundry-part-type"))
     }
@@ -141,6 +141,7 @@ struct StaticSiteRendererTests {
             filename: "guide.txt",
             mediaType: "text/plain",
             byteCount: data.count,
+            contentDigest: FoundryDocumentSnapshot.digest(for: data),
             exportDirectory: .folder(folder.id)
         )
         let site = Site(
@@ -168,6 +169,7 @@ struct StaticSiteRendererTests {
             filename: "hero.png",
             mediaType: "image/png",
             byteCount: data.count,
+            contentDigest: FoundryDocumentSnapshot.digest(for: data),
             pixelWidth: 1600,
             pixelHeight: 900,
             exportDirectory: .folder(filesFolder.id)

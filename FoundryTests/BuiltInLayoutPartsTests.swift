@@ -6,7 +6,7 @@ import WebKit
 @Suite("Built-in layout parts", .serialized)
 @MainActor
 struct BuiltInLayoutPartsTests {
-    private let names = ["Section", "Container", "Stack", "Columns", "Grid"]
+    private let names = ["Section", "Container", "Stack", "Grid"]
 
     private func package(_ name: String) throws -> LoadedPartPackage {
         let root = URL(fileURLWithPath: #filePath)
@@ -19,7 +19,9 @@ struct BuiltInLayoutPartsTests {
         for name in names {
             let loaded = try package(name)
             #expect(loaded.hasDropZone)
-            let properties = loaded.manifest.properties
+            let properties = loaded.manifest.resolvedProperties
+            #expect(Set(loaded.manifest.controlGroups.map(\.type)) == Set(PartPackageControlGroup.Kind.allCases))
+            #expect(Set(loaded.manifest.controlGroups.map(\.type)).count == loaded.manifest.controlGroups.count)
             for (id, group) in [("widthMode", "Sizing"), ("themePadding", "Spacing"),
                                 ("themeMargin", "Spacing"), ("backgroundColor", "Background"),
                                 ("themeRadius", "Borders"), ("flexGrow", "Layout item")] {
@@ -42,7 +44,7 @@ struct BuiltInLayoutPartsTests {
             "themeBorderColour": .string("black"), "themeRadius": .string("0"),
             "themeGap": .string("16px"), "themeGap.value": .number(16), "rowGap": .string("16px"),
             "direction": .string("column"), "wrap": .string("nowrap"), "justifyContent": .string("flex-start"),
-            "alignItems": .string("stretch"), "verticalAlignment": .string("start"),
+            "alignItems": .string("stretch"), "alignContent": .string("normal"), "verticalAlignment": .string("start"),
             "constrainContent": .boolean(true), "innerMaxWidth": .number(1120),
             "columnCount": .number(2), "proportions": .string("equal"), "gridMode": .string("count"),
             "rowSizing": .string("auto"), "justifyItems": .string("stretch"), "minimumColumnWidth": .number(240)
@@ -72,13 +74,59 @@ struct BuiltInLayoutPartsTests {
         #expect(try package("Section").htmlTemplate.contains("foundry-section-content"))
     }
 
-    @Test func columnsResetPairWidthsAtOtherBreakpoints() throws {
-        let pair = try css("Columns", values: ["proportions": .string("1-2")])
-        #expect(pair.contains("* 1 / 3)"))
-        #expect(pair.contains("* 2 / 3)"))
-        let single = try css("Columns", values: ["columnCount": .number(1), "proportions": .string("1-2")])
-        #expect(!single.contains("* 1 / 3)"))
-        #expect(single.components(separatedBy: "flex-basis: calc((100% - (1 - 1)").count == 3)
+    @Test func backgroundGroupRendersEveryGradientType() throws {
+        let common: [String: PartPackageValue] = [
+            "backgroundMode": .string("static"),
+            "backgroundStyle": .string("gradient"),
+            "backgroundGradientDirection": .string("to right"),
+            "backgroundGradientFrom": .string("#112233"),
+            "backgroundGradientFromPosition": .number(0),
+            "backgroundGradientTo": .string("#AABBCC"),
+            "backgroundGradientToPosition": .number(100)
+        ]
+
+        for type in ["linear", "radial", "conic"] {
+            var values = common
+            values["backgroundGradientType"] = .string(type)
+            let loaded = try package("Section")
+            let output = PartTemplateRenderer.render(
+                loaded.manifest.controlGroupCSS,
+                context: PartTemplateContext(
+                    instanceID: UUID(),
+                    packageIdentifier: loaded.manifest.identifier,
+                    properties: values,
+                    slots: [:]
+                )
+            )
+            #expect(output.contains("background-image: \(type)-gradient("))
+            #expect(!output.contains("{{"))
+        }
+    }
+
+    @Test func backgroundGroupRetainsStaticBackgroundWhileEditingAndRenderingHover() throws {
+        let loaded = try package("Section")
+        let values: [String: PartPackageValue] = [
+            "backgroundMode": .string("hover"),
+            "backgroundStyle": .string("color"),
+            "backgroundColor": .string("#112233"),
+            "backgroundHoverStyle": .string("gradient"),
+            "backgroundHoverGradientType": .string("radial"),
+            "backgroundHoverGradientFrom": .string("#445566"),
+            "backgroundHoverGradientFromPosition": .number(0),
+            "backgroundHoverGradientTo": .string("#AABBCC"),
+            "backgroundHoverGradientToPosition": .number(100)
+        ]
+        let output = PartTemplateRenderer.render(
+            loaded.manifest.controlGroupCSS,
+            context: .init(instanceID: UUID(), packageIdentifier: loaded.manifest.identifier, properties: values, slots: [:])
+        )
+
+        #expect(output.contains("background-color: #112233;"))
+        #expect(output.contains(#"[data-foundry-control-group-background=""#))
+        #expect(output.contains("\"]:hover"))
+        #expect(output.contains("background-image: radial-gradient(#445566 0%, #AABBCC 100%);"))
+        #expect(loaded.manifest.resolvedProperties.first { $0.id == "backgroundMode" }?.control.presentation == .segmented)
+        #expect(loaded.manifest.resolvedProperties.first { $0.id == "backgroundStyle" }?.control.options?.first?.systemImage == "paintbrush.fill")
     }
 
     @Test func gridAutoFitCannotDemandMoreThanAvailableWidth() throws {
@@ -91,24 +139,25 @@ struct BuiltInLayoutPartsTests {
     @Test func bundledLayoutsRenderThroughTheCanvasPipeline() async throws {
         await PartPackageCatalog.shared.waitUntilLoaded()
         for name in names {
-            let type = PartType(rawValue: "foundry.layout.\(name.lowercased())")
-            #expect(type.definition.package?.manifest.version == "1.2.0")
+            let identifier = name == "Stack" ? "flex" : name.lowercased()
+            let type = PartType(rawValue: "foundry.layout.\(identifier)")
+            #expect(type.definition.package?.manifest.version == "2.0.0")
             var node = PartNode.make(type)
             node.children = [.make(.paragraph)]
             let page = Page(title: "Layout", slug: "index", parts: [node])
             for breakpoint in [ResponsiveBreakpoint.mobile, .medium, .large] {
                 let html = HTMLPageRenderer().render(page: page, language: "en", theme: .standard, assets: [:], breakpoint: breakpoint)
-                #expect(html.contains("foundry-\(name.lowercased())"))
+                #expect(html.contains("foundry-\(identifier)"))
                 #expect(!html.contains("{{ control."))
                 #expect(html.contains("padding:"))
             }
         }
     }
 
-    @Test(.timeLimit(.minutes(1))) func webKitMeasuresGridAndProportionalColumns() async throws {
+    @Test(.timeLimit(.minutes(1))) func webKitMeasuresResponsiveGrid() async throws {
         let web = WKWebView(frame: CGRect(x: 0, y: 0, width: 900, height: 600))
         defer { web.stopLoading() }
-        for (name, width) in [("Grid", 180), ("Grid", 800), ("Columns", 800)] {
+        for (name, width) in [("Grid", 180), ("Grid", 800)] {
             let token = UUID().uuidString
             let style = try css(name, values: ["gridMode": .string("auto"), "proportions": .string("1-2"), "spacingEnabled": .boolean(false)])
                 .replacingOccurrences(of: ":instance", with: "#layout")
@@ -130,7 +179,6 @@ struct BuiltInLayoutPartsTests {
                 e.children[0].getBoundingClientRect().width,e.children[1].getBoundingClientRect().width]; })()
                 """) as? [Double])
             #expect(sizes[1] <= sizes[0] + 1)
-            if name == "Columns" { #expect(abs(sizes[3] - sizes[2] * 2) < 1) }
             if name == "Grid" && width == 180 { #expect(abs(sizes[2] - 180) < 1) }
         }
     }

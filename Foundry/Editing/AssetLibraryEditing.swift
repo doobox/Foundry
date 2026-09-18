@@ -85,6 +85,37 @@ nonisolated extension Array where Element == ProjectAssetNode {
         return false
     }
 
+    mutating func setVideoMetadata(
+        id: UUID,
+        metadata: ProjectVideoMetadata,
+        pixelWidth: Int,
+        pixelHeight: Int
+    ) -> Bool {
+        for index in indices {
+            switch self[index] {
+            case .asset(var asset) where asset.id == id:
+                asset.videoMetadata = metadata
+                asset.pixelWidth = pixelWidth
+                asset.pixelHeight = pixelHeight
+                self[index] = .asset(asset)
+                return true
+            case .folder(var folder):
+                if folder.children.setVideoMetadata(
+                    id: id,
+                    metadata: metadata,
+                    pixelWidth: pixelWidth,
+                    pixelHeight: pixelHeight
+                ) {
+                    self[index] = .folder(folder)
+                    return true
+                }
+            case .asset:
+                continue
+            }
+        }
+        return false
+    }
+
     mutating func clearExportDirectory(forAssetID id: UUID) -> Bool {
         for index in indices {
             switch self[index] {

@@ -13,6 +13,7 @@ struct WebIconGeneratorTests {
             filename: "web-icon.png",
             mediaType: "image/png",
             byteCount: source.count,
+            contentDigest: FoundryDocumentSnapshot.digest(for: source),
             pixelWidth: 256,
             pixelHeight: 256
         )
@@ -25,8 +26,10 @@ struct WebIconGeneratorTests {
 
         let bundle = StaticSiteRenderer().render(
             site: site,
-            assets: [sourceAsset.id: ProjectAssetContent(asset: sourceAsset, data: source)]
-                .merging(generated.contents) { _, generated in generated }
+            assets: ProjectAssetContents(
+                [sourceAsset.id: ProjectAssetContent(asset: sourceAsset, data: source)]
+                    .merging(generated.contents) { _, generated in generated }
+            )
         )
 
         #expect(bundle.file(at: "assets/web-icons/favicon.ico") != nil)
@@ -51,6 +54,7 @@ struct WebIconGeneratorTests {
             filename: "web-icon.png",
             mediaType: "image/png",
             byteCount: source.count,
+            contentDigest: FoundryDocumentSnapshot.digest(for: source),
             pixelWidth: 256,
             pixelHeight: 256
         )
@@ -116,35 +120,6 @@ struct WebIconGeneratorTests {
     }
 
     @Test
-    func legacyVisibleFaviconSourceMigratesIntoManagedStorage() throws {
-        let data = try squarePNG(size: 256)
-        let visibleSource = ProjectAsset(
-            filename: "old-site-icon.png",
-            mediaType: "image/png",
-            byteCount: data.count,
-            pixelWidth: 256,
-            pixelHeight: 256
-        )
-        var site = Site.starter()
-        site.favicon = visibleSource.reference
-        site.assetLibrary = [.asset(visibleSource)]
-        let wrapper = FileWrapper(directoryWithFileWrappers: [
-            "project.json": FileWrapper(regularFileWithContents: try FoundryDocument.encoder.encode(site)),
-            "assets": FileWrapper(directoryWithFileWrappers: [
-                visibleSource.storageFilename: FileWrapper(regularFileWithContents: data)
-            ])
-        ])
-
-        let decoded = try FoundryDocument.decodeSnapshot(from: wrapper)
-        let managedSourceID = try #require(decoded.site.favicon.foundryAssetID)
-
-        #expect(managedSourceID != visibleSource.id)
-        #expect(decoded.site.assets.contains(where: { $0.id == visibleSource.id }))
-        #expect(decoded.site.webIconAssets.contains(where: { $0.id == managedSourceID }))
-        #expect(decoded.assetData[managedSourceID] == data)
-    }
-
-    @Test
     func sourceValidationRequiresASquareImageAtLeast256Pixels() throws {
         #expect(WebIconGenerator.sourceValidationError(for: try squarePNG(size: 255)) != nil)
         #expect(WebIconGenerator.sourceValidationError(for: try squarePNG(size: 256)) == nil)
@@ -189,7 +164,8 @@ struct WebIconGeneratorTests {
                 ProjectAsset(
                     filename: filename,
                     mediaType: filename.hasSuffix(".ico") ? "image/x-icon" : "image/png",
-                    byteCount: file.data.count
+                    byteCount: file.data.count,
+                    contentDigest: FoundryDocumentSnapshot.digest(for: file.data)
                 ),
                 file.data
             )
