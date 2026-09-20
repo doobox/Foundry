@@ -9,7 +9,7 @@ struct DockingWorkspaceView<PanelContent: View>: View {
     @Binding var canvasAppearance: SiteAppearance
     let appearanceMode: SiteAppearanceMode
     let openProjectSettings: () -> Void
-    let openThemeEditor: () -> Void
+    let openFrameworkEditor: () -> Void
     let previewSite: () -> Void
     let publishSite: () -> Void
     let publishingDestinations: [PublishingDestination]
@@ -95,7 +95,7 @@ struct DockingWorkspaceView<PanelContent: View>: View {
                     screens: canvasScreens,
                     appearance: $canvasAppearance,
                     appearanceMode: appearanceMode,
-                    openThemeEditor: openThemeEditor,
+                    openFrameworkEditor: openFrameworkEditor,
                     dockBeside: dockBeside,
                     content: { panelContent(.canvas) }
                 )
@@ -2111,7 +2111,7 @@ private struct FixedCanvasColumn<Content: View>: View {
     let screens: ScreenTokens
     @Binding var appearance: SiteAppearance
     let appearanceMode: SiteAppearanceMode
-    let openThemeEditor: () -> Void
+    let openFrameworkEditor: () -> Void
     let dockBeside: (WorkspacePanel, UUID, Bool) -> Void
     @ViewBuilder let content: () -> Content
     @State private var leadingTargeted = false
@@ -2121,16 +2121,16 @@ private struct FixedCanvasColumn<Content: View>: View {
         VStack(spacing: 0) {
             HStack {
                 CanvasOptionsButton(options: $editorOptions)
-                Button(action: openThemeEditor) {
-                    Image(systemName: "theatermask.and.paintbrush")
+                Button(action: openFrameworkEditor) {
+                    Image(systemName: "shippingbox")
                         .font(.system(size: 15, weight: .medium))
                         .frame(width: 22, height: 22)
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
                 .foregroundStyle(.secondary)
-                .accessibilityLabel("Theme Editor")
-                .help("Open Theme Editor")
+                .accessibilityLabel("Framework Editor")
+                .help("Open Framework Editor")
                 Spacer()
                 HStack(spacing: 12) {
                     ForEach(screens.enabledScreens) { screen in
@@ -2194,7 +2194,7 @@ private struct FixedCanvasColumn<Content: View>: View {
         }
     }
 
-    private func isSelected(_ screen: ThemeScreen) -> Bool {
+    private func isSelected(_ screen: FrameworkScreen) -> Bool {
         screens.activeScreen(for: viewportWidth).id == screen.id
     }
 

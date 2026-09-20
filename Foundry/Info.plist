@@ -44,14 +44,14 @@
 		</dict>
 		<dict>
 			<key>CFBundleTypeName</key>
-			<string>Foundry Theme</string>
+			<string>Foundry Framework</string>
 			<key>CFBundleTypeRole</key>
 			<string>Viewer</string>
 			<key>LSHandlerRank</key>
 			<string>Owner</string>
 			<key>LSItemContentTypes</key>
 			<array>
-				<string>uk.co.garysimpson.foundry.theme</string>
+				<string>uk.co.garysimpson.foundry.framework</string>
 			</array>
 		</dict>
 	</array>
@@ -135,18 +135,18 @@
 				<string>com.apple.package</string>
 			</array>
 			<key>UTTypeDescription</key>
-			<string>Foundry Theme</string>
+			<string>Foundry Framework</string>
 			<key>UTTypeIdentifier</key>
-			<string>uk.co.garysimpson.foundry.theme</string>
+			<string>uk.co.garysimpson.foundry.framework</string>
 			<key>UTTypeTagSpecification</key>
 			<dict>
 				<key>public.filename-extension</key>
 				<array>
-					<string>foundrytheme</string>
+					<string>foundryframework</string>
 				</array>
 				<key>public.mime-type</key>
 				<array>
-					<string>application/vnd.foundry.theme</string>
+					<string>application/vnd.foundry.framework</string>
 				</array>
 			</dict>
 		</dict>

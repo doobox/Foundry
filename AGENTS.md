@@ -1,8 +1,8 @@
 # Foundry workspace notes
 
-## Built-in theme artwork
+## Built-in framework artwork
 
-Always ask Gary for a supplied tile image when creating a built-in theme. Do not generate or substitute fallback artwork. See `.cursor/rules/theme-artwork.mdc`.
+Always ask Gary for a supplied tile image when creating a built-in framework. Do not generate or substitute fallback artwork. See `.cursor/rules/framework-artwork.mdc`.
 
 ## API documentation
 

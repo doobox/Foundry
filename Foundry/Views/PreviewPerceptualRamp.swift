@@ -1,7 +1,7 @@
 import AppKit
 import SwiftUI
 
-/// Palette editing generator. Its resolved sRGB shades are stored with the theme;
+/// Palette editing generator. Its resolved sRGB shades are stored with the framework;
 /// rendering and export read those stored values rather than rerunning this algorithm.
 /// Oklab matrices: Björn Ottosson's public-domain reference implementation:
 /// https://bottosson.github.io/posts/oklab/

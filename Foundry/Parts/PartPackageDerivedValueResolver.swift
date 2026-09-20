@@ -120,13 +120,13 @@ nonisolated enum PartPackageDerivedValueResolver {
         values["\(reference).__colorOpacity"] = .boolean(control.opacity == true)
     }
 
-    /// Derived values for a theme colour, which is a light/dark pair rather than one
+    /// Derived values for a framework colour, which is a light/dark pair rather than one
     /// fixed colour. Everything numeric lives behind `.light`/`.dark` qualification —
     /// a bare number baked into a static file cannot follow an appearance switch.
     /// Colour-valued outputs (`contrastColor`, filter sources) stay unqualified: on a
     /// dual-appearance site they combine via `light-dark()`, which the browser
     /// resolves live, exactly like the control's main output.
-    static func addThemeColorValues(
+    static func addFrameworkColorValues(
         for propertyID: String,
         light: PartColorChannels?,
         dark: PartColorChannels?,

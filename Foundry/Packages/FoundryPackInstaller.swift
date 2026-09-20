@@ -60,11 +60,11 @@ enum FoundryPackInstaller {
 final class FoundryApplicationDelegate: NSObject, NSApplicationDelegate {
     func application(_ application: NSApplication, open urls: [URL]) {
         for url in urls {
-            if ThemeBundleStore.isThemeURL(url) {
+            if FrameworkBundleStore.isFrameworkURL(url) {
                 do {
-                    try ThemeLibrary.shared.install(from: url)
+                    try FrameworkLibrary.shared.install(from: url)
                 } catch {
-                    presentInstallError(error, title: "Foundry Theme Could Not Be Installed")
+                    presentInstallError(error, title: "Foundry Framework Could Not Be Installed")
                 }
                 continue
             }

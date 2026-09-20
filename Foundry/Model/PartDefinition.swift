@@ -101,8 +101,8 @@ nonisolated struct PartPropertyDefinition: Identifiable, Sendable {
     let isResponsive: Bool
     let isInspectorVisible: Bool
     let visibleWhen: PartPackageVisibilityCondition?
-    let themeValueSource: PartPackageThemeValueSource?
-    let allowsCustomThemeValue: Bool
+    let frameworkValueSource: PartPackageFrameworkValueSource?
+    let allowsCustomFrameworkValue: Bool
     let supportsImageFocalPoint: Bool
     let dateMinimum: Date?
     let dateMaximum: Date?
@@ -120,8 +120,8 @@ nonisolated struct PartPropertyDefinition: Identifiable, Sendable {
         isResponsive: Bool? = nil,
         isInspectorVisible: Bool = true,
         visibleWhen: PartPackageVisibilityCondition? = nil,
-        themeValueSource: PartPackageThemeValueSource? = nil,
-        allowsCustomThemeValue: Bool = false,
+        frameworkValueSource: PartPackageFrameworkValueSource? = nil,
+        allowsCustomFrameworkValue: Bool = false,
         supportsImageFocalPoint: Bool = false,
         dateMinimum: Date? = nil,
         dateMaximum: Date? = nil,
@@ -136,8 +136,8 @@ nonisolated struct PartPropertyDefinition: Identifiable, Sendable {
         self.isResponsive = isResponsive ?? Self.builtInResponsiveKeys.contains(key)
         self.isInspectorVisible = isInspectorVisible
         self.visibleWhen = visibleWhen
-        self.themeValueSource = themeValueSource
-        self.allowsCustomThemeValue = allowsCustomThemeValue
+        self.frameworkValueSource = frameworkValueSource
+        self.allowsCustomFrameworkValue = allowsCustomFrameworkValue
         self.supportsImageFocalPoint = supportsImageFocalPoint
         self.dateMinimum = dateMinimum
         self.dateMaximum = dateMaximum
@@ -182,19 +182,19 @@ nonisolated enum PartPropertyControl: Sendable {
     case literalColor(allowsOpacity: Bool)
     case icon
     case packageColor(
-        themeValues: Bool,
+        frameworkValues: Bool,
         opacity: Bool,
         initialLightShade: ColourShade? = nil,
         initialDarkShade: ColourShade? = nil
     )
     case choice([PartPropertyChoice])
-    case themeFontSize
-    case themeFont
-    case themeBorderWidth
-    case themeRadius
-    case themeMargin
-    case themeSpacing
-    case themePadding
+    case frameworkFontSize
+    case frameworkFont
+    case frameworkBorderWidth
+    case frameworkRadius
+    case frameworkMargin
+    case frameworkSpacing
+    case frameworkPadding
     case edges(units: [String])
     case corners(units: [String])
     case fontWeight(font: String?)
@@ -206,8 +206,8 @@ nonisolated enum PartPropertyControl: Sendable {
     case image
     case video
 
-    var isThemeFontSize: Bool {
-        if case .themeFontSize = self { true } else { false }
+    var isFrameworkFontSize: Bool {
+        if case .frameworkFontSize = self { true } else { false }
     }
 
     var isArray: Bool {
@@ -233,9 +233,9 @@ nonisolated struct PartPropertyChoice: Identifiable, Sendable {
 }
 
 extension PartPropertyControl {
-    nonisolated var isThemeSpacing: Bool {
+    nonisolated var isFrameworkSpacing: Bool {
         switch self {
-        case .themeSpacing, .themePadding, .themeMargin, .themeBorderWidth, .themeRadius, .edges, .corners: true
+        case .frameworkSpacing, .frameworkPadding, .frameworkMargin, .frameworkBorderWidth, .frameworkRadius, .edges, .corners: true
         default: false
         }
     }

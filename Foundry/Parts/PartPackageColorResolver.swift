@@ -3,19 +3,19 @@ import Foundation
 nonisolated enum PartPackageColorResolver {
     static func resolve(
         _ value: PartPackageColorValue,
-        theme: Theme,
+        framework: Framework,
         opacity: Bool,
         appearance: SiteAppearance = .light
     ) -> String {
         let baseColor: String
-        if PartThemeValueSelection.isManualCustom(value.source) {
+        if PartFrameworkValueSelection.isManualCustom(value.source) {
             baseColor = appearance == .light ? value.customColor : value.darkCustomColor
-        } else if let resolved = PaletteColourValue.palette(id: value.paletteID, selection: .shade(appearance == .light ? value.shade : value.darkShade)).resolve(in: theme.colourPalettes) {
+        } else if let resolved = PaletteColourValue.palette(id: value.paletteID, selection: .shade(appearance == .light ? value.shade : value.darkShade)).resolve(in: framework.colourPalettes) {
             baseColor = resolved
         } else {
             baseColor = value.customColor
         }
-        guard opacity, PartThemeValueSelection.isManualCustom(value.source) else { return baseColor }
+        guard opacity, PartFrameworkValueSelection.isManualCustom(value.source) else { return baseColor }
         return PartTemplateRenderer.colorWithAlpha(
             baseColor,
             alpha: min(max(appearance == .light ? value.opacity : value.darkOpacity, 0), 1)
@@ -29,20 +29,20 @@ nonisolated enum PartPackageColorResolver {
     /// rather than inventing numbers.
     static func channels(
         _ value: PartPackageColorValue,
-        theme: Theme,
+        framework: Framework,
         opacity: Bool,
         appearance: SiteAppearance
     ) -> PartColorChannels? {
         let baseColor: String
-        if PartThemeValueSelection.isManualCustom(value.source) {
+        if PartFrameworkValueSelection.isManualCustom(value.source) {
             baseColor = appearance == .light ? value.customColor : value.darkCustomColor
-        } else if let resolved = PaletteColourValue.palette(id: value.paletteID, selection: .shade(appearance == .light ? value.shade : value.darkShade)).resolve(in: theme.colourPalettes) {
+        } else if let resolved = PaletteColourValue.palette(id: value.paletteID, selection: .shade(appearance == .light ? value.shade : value.darkShade)).resolve(in: framework.colourPalettes) {
             baseColor = resolved
         } else {
             baseColor = value.customColor
         }
         guard let channels = PartColorChannels(hex: baseColor) else { return nil }
-        guard opacity, PartThemeValueSelection.isManualCustom(value.source) else { return channels }
+        guard opacity, PartFrameworkValueSelection.isManualCustom(value.source) else { return channels }
         return channels.withAlpha(min(max(appearance == .light ? value.opacity : value.darkOpacity, 0), 1))
     }
 }

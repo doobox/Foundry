@@ -31,7 +31,7 @@ nonisolated struct GoogleFontConfiguration: Codable, Equatable, Sendable {
     }
 }
 
-extension ThemeFontDefinition {
+extension FrameworkFontDefinition {
     mutating func applyGoogleConfiguration(_ configuration: GoogleFontConfiguration) {
         guard let url = configuration.stylesheetURL(family: family) else { return }
         googleConfiguration = configuration

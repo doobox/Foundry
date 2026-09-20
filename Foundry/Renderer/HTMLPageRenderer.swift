@@ -5,14 +5,14 @@ nonisolated struct HTMLPageRenderer: PageRendering {
     let appearance: SiteAppearance
 
     init(site: Site? = nil, appearance: SiteAppearance = .light) { self.site = site; self.appearance = appearance }
-    func render(page: Page, theme: Theme) -> String {
-        render(page: page, language: "en", theme: theme, assets: [:], breakpoint: .extraLarge)
+    func render(page: Page, framework: Framework) -> String {
+        render(page: page, language: "en", framework: framework, assets: [:], breakpoint: .extraLarge)
     }
 
-    func render(page: Page, language: String, theme: Theme, assets: ProjectAssetContents, breakpoint: ResponsiveBreakpoint) -> String {
+    func render(page: Page, language: String, framework: Framework, assets: ProjectAssetContents, breakpoint: ResponsiveBreakpoint) -> String {
         let body = page.parts.isEmpty
             ? rootDropZone
-            : page.parts.map { render($0, page: page, theme: theme, assets: assets, globalDefinitionID: $0.reusableDefinitionID, breakpoint: breakpoint) }.joined(separator: "\n")
+            : page.parts.map { render($0, page: page, framework: framework, assets: assets, globalDefinitionID: $0.reusableDefinitionID, breakpoint: breakpoint) }.joined(separator: "\n")
         let pageTitle = page.metadata.browserTitle.isEmpty ? page.title : page.metadata.browserTitle
         let browserTitle = pageTitle + (site?.titleSuffix ?? "")
         let metadata = metadataHTML(for: page, browserTitle: browserTitle, site: site, assets: assets)
@@ -20,7 +20,7 @@ nonisolated struct HTMLPageRenderer: PageRendering {
         let headEnd = placedHTML(for: page, placement: .headEnd)
         let bodyStart = placedHTML(for: page, placement: .bodyStart)
         let bodyEnd = placedHTML(for: page, placement: .bodyEnd)
-        let scripts = packageScripts(for: page, theme: theme, assets: assets, breakpoint: breakpoint)
+        let scripts = packageScripts(for: page, framework: framework, assets: assets, breakpoint: breakpoint)
         let customHeadCode = site?.customCodeEnabled == true ? site?.headCode ?? "" : ""
         let customBodyStartCode = site?.customCodeEnabled == true ? site?.bodyStartCode ?? "" : ""
         let customBodyEndCode = site?.customCodeEnabled == true ? site?.bodyEndCode ?? "" : ""
@@ -38,35 +38,35 @@ nonisolated struct HTMLPageRenderer: PageRendering {
           <title>\(escape(browserTitle))</title>
         \(metadata)
           <style data-foundry-font-sources>
-            \(theme.fontSourceCSS(assets: assets, destination: .canvas))
+            \(framework.fontSourceCSS(assets: assets, destination: .canvas))
           </style>
           <style>
             :root {
               font-size: 16px;
               color-scheme: \(appearance.rawValue);
-              --foundry-color-page: \(theme.color(for: .page, appearance: appearance));
-              --foundry-color-background: \(theme.color(for: .background, appearance: appearance));
-              --foundry-color-surface: \(theme.color(for: .surface, appearance: appearance));
-              --foundry-color-text: \(theme.color(for: .text, appearance: appearance));
-              --foundry-color-accent: \(theme.color(for: .accent, appearance: appearance));
-              --foundry-color-links: \(theme.color(for: .links, appearance: appearance));
-              --foundry-color-muted-text: \(theme.color(for: .mutedText, appearance: appearance));
-              --foundry-font-body: \(theme.typography.bodyFont.cssFamily);
-              --foundry-font-heading: \(theme.typography.headingFont.cssFamily);
-              --foundry-font-monospace: \(theme.typography.monospacedFont.cssFamily);
-              \(theme.customFontCSSVariables)
-              \(theme.fontSizeCSSVariables)
+              --foundry-color-page: \(framework.color(for: .page, appearance: appearance));
+              --foundry-color-background: \(framework.color(for: .background, appearance: appearance));
+              --foundry-color-surface: \(framework.color(for: .surface, appearance: appearance));
+              --foundry-color-text: \(framework.color(for: .text, appearance: appearance));
+              --foundry-color-accent: \(framework.color(for: .accent, appearance: appearance));
+              --foundry-color-links: \(framework.color(for: .links, appearance: appearance));
+              --foundry-color-muted-text: \(framework.color(for: .mutedText, appearance: appearance));
+              --foundry-font-body: \(framework.typography.bodyFont.cssFamily);
+              --foundry-font-heading: \(framework.typography.headingFont.cssFamily);
+              --foundry-font-monospace: \(framework.typography.monospacedFont.cssFamily);
+              \(framework.customFontCSSVariables)
+              \(framework.fontSizeCSSVariables)
               --foundry-editor-part: #007BFF;
               --foundry-editor-global: #30D158;
               --foundry-editor-primitive: #007BFF;
-              \(theme.spacingCSSVariables)
-              \(theme.shadowCSSVariables)
-              \(theme.borderCSSVariables)
-              \(theme.zIndexCSSVariables)
+              \(framework.spacingCSSVariables)
+              \(framework.shadowCSSVariables)
+              \(framework.borderCSSVariables)
+              \(framework.zIndexCSSVariables)
             }
             *, *::before, *::after { box-sizing: border-box; }
             a { color: var(--foundry-color-links); }
-            \(theme.screens.containerCSS)
+            \(framework.screens.containerCSS)
             .foundry-container { width: 100%; max-width: var(--foundry-container-width) !important; }
             [data-foundry-id] {
               --foundry-editor-chrome: var(--foundry-editor-part);
@@ -109,7 +109,7 @@ nonisolated struct HTMLPageRenderer: PageRendering {
             [data-foundry-global].foundry-editing { outline-color: var(--foundry-editor-chrome) !important; }
             html, body { min-height: 100%; }
             body {
-              margin: 0; background: \(page.backgroundColour(theme: theme, appearance: appearance));
+              margin: 0; background: \(page.backgroundColour(framework: framework, appearance: appearance));
               color: var(--foundry-color-text); font-family: var(--foundry-font-body);
               font-size: var(--foundry-font-size-base); line-height: var(--foundry-font-size-base-line-height);
               display: flex; flex-direction: column; align-items: stretch;
@@ -130,7 +130,7 @@ nonisolated struct HTMLPageRenderer: PageRendering {
             }
             .unavailable { padding: 16px; border: 2px dashed #C33; color: #922; background: #FFF5F5; }
             \(FoundryWebLibraryRegistry.canvasCSS(for: PartArtifactPlan(page: page).packages))
-            \(packageStyles(for: page, theme: theme, assets: assets, breakpoint: breakpoint))
+            \(packageStyles(for: page, framework: framework, assets: assets, breakpoint: breakpoint))
           </style>
         \(analyticsCode)
         \(headEnd)
@@ -143,7 +143,7 @@ nonisolated struct HTMLPageRenderer: PageRendering {
     func renderSubtree(
         partID: UUID,
         page: Page,
-        theme: Theme,
+        framework: Framework,
         assets: ProjectAssetContents,
         breakpoint: ResponsiveBreakpoint
     ) -> RenderedPartSubtree? {
@@ -153,7 +153,7 @@ nonisolated struct HTMLPageRenderer: PageRendering {
             html: render(
                 target.node,
                 page: page,
-                theme: theme,
+                framework: framework,
                 assets: assets,
                 globalDefinitionID: target.inheritedGlobalDefinitionID,
                 breakpoint: breakpoint,
@@ -164,7 +164,7 @@ nonisolated struct HTMLPageRenderer: PageRendering {
             instanceCSS: partStyles(
                 for: flattened(target.node),
                 page: page,
-                theme: theme,
+                framework: framework,
                 assets: assets,
                 breakpoint: breakpoint
             )
@@ -173,20 +173,20 @@ nonisolated struct HTMLPageRenderer: PageRendering {
 
     private func packageScripts(
         for page: Page,
-        theme: Theme,
+        framework: Framework,
         assets: ProjectAssetContents,
         breakpoint: ResponsiveBreakpoint
     ) -> String {
         let nodes = page.parts.flatMap(flattened)
         let instanceScripts = nodes.compactMap { sourceNode -> String? in
-            let node = sourceNode.resolved(at: breakpoint, screens: theme.screens)
+            let node = sourceNode.resolved(at: breakpoint, screens: framework.screens)
             guard let package = node.type.definition.package, !package.instanceJavaScript.isEmpty else { return nil }
             return PartTemplateRenderer.render(
                 package.instanceJavaScript,
                 context: .init(
                     instanceID: node.id,
                     packageIdentifier: package.manifest.identifier,
-                    properties: packageProperties(node, theme: theme, assets: assets),
+                    properties: packageProperties(node, framework: framework, assets: assets),
                     templateValues: site.map { PartNavigationTemplateValues.values(site: $0, currentPage: page) } ?? [:],
                     slots: [:],
                     assetBasePath: canvasAssetBasePath(for: package),
@@ -208,7 +208,7 @@ nonisolated struct HTMLPageRenderer: PageRendering {
             )
         }
         let htmlScripts = nodes.map {
-            PartArtifactPlan.htmlArtifact(for: $0.resolved(at: breakpoint, screens: theme.screens), suffix: "JavaScript")
+            PartArtifactPlan.htmlArtifact(for: $0.resolved(at: breakpoint, screens: framework.screens), suffix: "JavaScript")
         }
             .filter { !$0.isEmpty }
         let source = (instanceScripts + htmlScripts + sharedScripts).joined(separator: "\n")
@@ -306,25 +306,25 @@ nonisolated struct HTMLPageRenderer: PageRendering {
         return baseURL + "/" + slugs.joined(separator: "/") + "/"
     }
 
-    private func render(_ sourceNode: PartNode, page: Page, theme: Theme, assets: ProjectAssetContents, globalDefinitionID: UUID?, breakpoint: ResponsiveBreakpoint, parentPartID: UUID? = nil, parentSlot: PartPackageSlot? = nil, parentDropZoneSlotID: String? = nil) -> String {
-        let node = sourceNode.resolved(at: breakpoint, screens: theme.screens)
+    private func render(_ sourceNode: PartNode, page: Page, framework: Framework, assets: ProjectAssetContents, globalDefinitionID: UUID?, breakpoint: ResponsiveBreakpoint, parentPartID: UUID? = nil, parentSlot: PartPackageSlot? = nil, parentDropZoneSlotID: String? = nil) -> String {
+        let node = sourceNode.resolved(at: breakpoint, screens: framework.screens)
         let globalDefinitionID = node.reusableDefinitionID ?? globalDefinitionID
         switch node.type.definition.renderKind {
         case .package:
             guard let package = node.type.definition.package else {
-                return unavailablePart(node, page: page, theme: theme, assets: assets, globalDefinitionID: globalDefinitionID, breakpoint: breakpoint, parentPartID: parentPartID)
+                return unavailablePart(node, page: page, framework: framework, assets: assets, globalDefinitionID: globalDefinitionID, breakpoint: breakpoint, parentPartID: parentPartID)
             }
             do {
                 try package.preparePayload()
             } catch {
-                return failedPart(node, page: page, package: package, theme: theme, assets: assets, globalDefinitionID: globalDefinitionID, breakpoint: breakpoint, parentPartID: parentPartID)
+                return failedPart(node, page: page, package: package, framework: framework, assets: assets, globalDefinitionID: globalDefinitionID, breakpoint: breakpoint, parentPartID: parentPartID)
             }
             let slots = Dictionary(uniqueKeysWithValues: package.manifest.slots.map { slot in
                 let children = node.children.filter {
                     ($0.slotID ?? (package.hasDropZone ? nil : package.manifest.slots.first?.id)) == slot.id
                 }
                 let html = children.map {
-                    render($0, page: page, theme: theme, assets: assets, globalDefinitionID: globalDefinitionID, breakpoint: breakpoint, parentPartID: node.id, parentSlot: slot)
+                    render($0, page: page, framework: framework, assets: assets, globalDefinitionID: globalDefinitionID, breakpoint: breakpoint, parentPartID: node.id, parentSlot: slot)
                 }.joined()
                 return (slot.id, html.isEmpty ? "<div class=\"foundry-empty-drop-zone\" data-foundry-empty-parent=\"\(node.id.uuidString)\" data-foundry-slot-id=\"\(escapeAttribute(slot.id))\">Drop part here</div>" : html)
             })
@@ -332,7 +332,7 @@ nonisolated struct HTMLPageRenderer: PageRendering {
                 let slotID = package.dropZoneSlotID(for: name)
                 let children = node.children.filter { $0.slotID == slotID || (index == 0 && $0.slotID == nil) }
                 let html = children.map {
-                    render($0, page: page, theme: theme, assets: assets, globalDefinitionID: globalDefinitionID, breakpoint: breakpoint, parentPartID: node.id, parentDropZoneSlotID: slotID)
+                    render($0, page: page, framework: framework, assets: assets, globalDefinitionID: globalDefinitionID, breakpoint: breakpoint, parentPartID: node.id, parentDropZoneSlotID: slotID)
                 }.joined()
                 let output = html.isEmpty
                     ? "<div class=\"foundry-empty-drop-zone\" data-foundry-empty-parent=\"\(node.id.uuidString)\" data-foundry-slot-id=\"\(escapeAttribute(slotID))\">Drop part here</div>"
@@ -347,7 +347,7 @@ nonisolated struct HTMLPageRenderer: PageRendering {
             let canvasAttributes = attributes(for: node, globalDefinitionID: globalDefinitionID, parentPartID: parentPartID, parentSlot: parentSlot, parentDropZoneSlotID: parentDropZoneSlotID) +
                 (defaultSlotID.map { " data-foundry-default-slot=\"\(escapeAttribute($0))\"" } ?? "") +
                 adjacentDropAttribute
-            let renderedProperties = packageProperties(node, theme: theme, assets: assets)
+            let renderedProperties = packageProperties(node, framework: framework, assets: assets)
             let templateContext = PartTemplateContext(
                     instanceID: node.id,
                     packageIdentifier: package.manifest.identifier,
@@ -377,7 +377,7 @@ nonisolated struct HTMLPageRenderer: PageRendering {
             }
             return "<div \(canvasAttributes)>\(decorated)</div>"
         case .unavailable:
-            return unavailablePart(node, page: page, theme: theme, assets: assets, globalDefinitionID: globalDefinitionID, breakpoint: breakpoint, parentPartID: parentPartID)
+            return unavailablePart(node, page: page, framework: framework, assets: assets, globalDefinitionID: globalDefinitionID, breakpoint: breakpoint, parentPartID: parentPartID)
         }
     }
 
@@ -394,7 +394,7 @@ nonisolated struct HTMLPageRenderer: PageRendering {
 
     private func packageStyles(
         for page: Page,
-        theme: Theme,
+        framework: Framework,
         assets: ProjectAssetContents,
         breakpoint: ResponsiveBreakpoint
     ) -> String {
@@ -402,7 +402,7 @@ nonisolated struct HTMLPageRenderer: PageRendering {
         let partStyles = partStyles(
             for: nodes,
             page: page,
-            theme: theme,
+            framework: framework,
             assets: assets,
             breakpoint: breakpoint
         )
@@ -432,12 +432,12 @@ nonisolated struct HTMLPageRenderer: PageRendering {
     private func partStyles(
         for nodes: [PartNode],
         page: Page,
-        theme: Theme,
+        framework: Framework,
         assets: ProjectAssetContents,
         breakpoint: ResponsiveBreakpoint
     ) -> String {
         let instanceStyles = nodes.compactMap { sourceNode in
-            let node = sourceNode.resolved(at: breakpoint, screens: theme.screens)
+            let node = sourceNode.resolved(at: breakpoint, screens: framework.screens)
             guard let package = node.type.definition.package else { return nil }
             let css = PartTemplateRenderer.render(
                 [package.css, package.editorCSS, package.manifest.controlGroupCSS]
@@ -446,7 +446,7 @@ nonisolated struct HTMLPageRenderer: PageRendering {
                 context: .init(
                     instanceID: node.id,
                     packageIdentifier: package.manifest.identifier,
-                    properties: packageProperties(node, theme: theme, assets: assets),
+                    properties: packageProperties(node, framework: framework, assets: assets),
                     templateValues: site.map { PartNavigationTemplateValues.values(site: $0, currentPage: page) } ?? [:],
                     slots: [:],
                     assetBasePath: canvasAssetBasePath(for: package),
@@ -462,7 +462,7 @@ nonisolated struct HTMLPageRenderer: PageRendering {
             )
         }.joined(separator: "\n")
         let htmlStyles = nodes.map {
-            PartArtifactPlan.htmlArtifact(for: $0.resolved(at: breakpoint, screens: theme.screens), suffix: "CSS")
+            PartArtifactPlan.htmlArtifact(for: $0.resolved(at: breakpoint, screens: framework.screens), suffix: "CSS")
         }
             .filter { !$0.isEmpty }
             .joined(separator: "\n")
@@ -535,26 +535,26 @@ nonisolated struct HTMLPageRenderer: PageRendering {
         })
     }
 
-    private func packageProperties(_ node: PartNode, theme: Theme, assets: ProjectAssetContents) -> [String: PartPackageValue] {
+    private func packageProperties(_ node: PartNode, framework: Framework, assets: ProjectAssetContents) -> [String: PartPackageValue] {
         var values: [String: PartPackageValue] = Dictionary(uniqueKeysWithValues: node.type.definition.properties.map { definition in
             let value = node.propertyValue(definition.key)
-            if case .themeBorderWidth(let width) = value {
-                return (definition.key.rawValue, PartPackageThemeBorderWidthControl.resolved(width, theme: theme))
+            if case .frameworkBorderWidth(let width) = value {
+                return (definition.key.rawValue, PartPackageFrameworkBorderWidthControl.resolved(width, framework: framework))
             }
-            if case .themeRadius(let radius) = value {
-                return (definition.key.rawValue, PartPackageThemeRadiusControl.resolved(radius, theme: theme))
+            if case .frameworkRadius(let radius) = value {
+                return (definition.key.rawValue, PartPackageFrameworkRadiusControl.resolved(radius, framework: framework))
             }
-            if case .themeMargin(let margin) = value {
-                return (definition.key.rawValue, PartPackageThemeMarginControl.resolved(margin, theme: theme))
+            if case .frameworkMargin(let margin) = value {
+                return (definition.key.rawValue, PartPackageFrameworkMarginControl.resolved(margin, framework: framework))
             }
-            if case .themeSpacing(let spacing) = value {
-                return (definition.key.rawValue, PartPackageSingleSpacingControl.resolved(spacing, theme: theme))
+            if case .frameworkSpacing(let spacing) = value {
+                return (definition.key.rawValue, PartPackageSingleSpacingControl.resolved(spacing, framework: framework))
             }
-            if case .themePadding(let padding) = value {
-                return (definition.key.rawValue, PartPackageThemePaddingControl.resolved(padding, theme: theme))
+            if case .frameworkPadding(let padding) = value {
+                return (definition.key.rawValue, PartPackageFrameworkPaddingControl.resolved(padding, framework: framework))
             }
-            if case .themeFont = definition.control {
-                return (definition.key.rawValue, PartPackageFontControl.resolved(definition.key.rawValue, node: node, theme: theme))
+            if case .frameworkFont = definition.control {
+                return (definition.key.rawValue, PartPackageFontControl.resolved(definition.key.rawValue, node: node, framework: framework))
             }
             if case .video = definition.control {
                 // Preserve selection state for template conditions while keeping
@@ -566,35 +566,35 @@ nonisolated struct HTMLPageRenderer: PageRendering {
                 return (definition.key.rawValue, .string(canvasSource(source, assets: assets)))
             }
             if case .color = definition.control {
-                return (definition.key.rawValue, .string(node.colorProperty(definition.key, theme: theme)))
+                return (definition.key.rawValue, .string(node.colorProperty(definition.key, framework: framework)))
             }
             if case .packageColor(_, let opacity, _, _) = definition.control,
                case .packageColor(let colorValue) = value {
                 return (
                     definition.key.rawValue,
                     .string(PartPackageColorResolver.resolve(
-                        colorValue, theme: theme,
+                        colorValue, framework: framework,
                         opacity: opacity, appearance: appearance
                     ))
                 )
             }
-            if case .themeFontSize = definition.control {
-                return (definition.key.rawValue, .string(theme.fontSizeCSSVariable(for: node.property(definition.key))))
+            if case .frameworkFontSize = definition.control {
+                return (definition.key.rawValue, .string(framework.fontSizeCSSVariable(for: node.property(definition.key))))
             }
             if case .packageShadow = definition.control,
                case .packageShadow(let shadowValue) = value {
                 return (
                     definition.key.rawValue,
-                    .string(PartPackageShadowResolver.resolve(shadowValue, theme: theme))
+                    .string(PartPackageShadowResolver.resolve(shadowValue, framework: framework))
                 )
             }
             if case .number = definition.control {
-                return (definition.key.rawValue, .number(node.numberProperty(definition.key, theme: theme)))
+                return (definition.key.rawValue, .number(node.numberProperty(definition.key, framework: framework)))
             }
             return (definition.key.rawValue, packageValue(value))
         })
         for definition in node.type.definition.properties {
-            if definition.control.isThemeSpacing,
+            if definition.control.isFrameworkSpacing,
                case .object(let fields) = values[definition.key.rawValue] {
                 for (field, value) in fields {
                     let key = definition.key.rawValue + "." + field
@@ -606,7 +606,7 @@ nonisolated struct HTMLPageRenderer: PageRendering {
                 // Direct interpolation is the shorthand; qualified fields remain available above.
                 values[definition.key.rawValue] = fields["css"]
             }
-            if case .themeFont = definition.control,
+            if case .frameworkFont = definition.control,
                case .object(let fields) = values[definition.key.rawValue] {
                 for (field, value) in fields { values[definition.key.rawValue + "." + field] = value }
             }
@@ -614,9 +614,9 @@ nonisolated struct HTMLPageRenderer: PageRendering {
                case .packageColor(let colorValue) = node.propertyValue(definition.key) {
                 // The canvas renders one appearance at a time, so unqualified
                 // colour outputs resolve concretely for whichever is on screen.
-                let light = PartPackageColorResolver.channels(colorValue, theme: theme, opacity: opacity, appearance: .light)
-                let dark = PartPackageColorResolver.channels(colorValue, theme: theme, opacity: opacity, appearance: .dark)
-                PartPackageDerivedValueResolver.addThemeColorValues(
+                let light = PartPackageColorResolver.channels(colorValue, framework: framework, opacity: opacity, appearance: .light)
+                let dark = PartPackageColorResolver.channels(colorValue, framework: framework, opacity: opacity, appearance: .dark)
+                PartPackageDerivedValueResolver.addFrameworkColorValues(
                     for: definition.key.rawValue,
                     light: light,
                     dark: dark,
@@ -711,18 +711,18 @@ nonisolated struct HTMLPageRenderer: PageRendering {
         case .packageColor(let value): .string(value.source)
         case .packageFontSize(let value): .string(value.source)
         case .packageShadow(let value): .string(value.source)
-        case .themeSpacing, .themePadding, .themeMargin, .themeBorderWidth, .themeRadius: .string("")
+        case .frameworkSpacing, .frameworkPadding, .frameworkMargin, .frameworkBorderWidth, .frameworkRadius: .string("")
         }
     }
 
-    private func unavailablePart(_ node: PartNode, page: Page, theme: Theme, assets: ProjectAssetContents, globalDefinitionID: UUID?, breakpoint: ResponsiveBreakpoint, parentPartID: UUID?) -> String {
-        let children = node.children.map { render($0, page: page, theme: theme, assets: assets, globalDefinitionID: globalDefinitionID, breakpoint: breakpoint, parentPartID: node.id) }.joined()
+    private func unavailablePart(_ node: PartNode, page: Page, framework: Framework, assets: ProjectAssetContents, globalDefinitionID: UUID?, breakpoint: ResponsiveBreakpoint, parentPartID: UUID?) -> String {
+        let children = node.children.map { render($0, page: page, framework: framework, assets: assets, globalDefinitionID: globalDefinitionID, breakpoint: breakpoint, parentPartID: node.id) }.joined()
         let name = node.missingPackageSnapshot?.name ?? node.type.rawValue
         return "<div class=\"unavailable\" \(attributes(for: node, globalDefinitionID: globalDefinitionID, parentPartID: parentPartID))>Missing part: \(escape(name))\(children)</div>"
     }
 
-    private func failedPart(_ node: PartNode, page: Page, package: LoadedPartPackage, theme: Theme, assets: ProjectAssetContents, globalDefinitionID: UUID?, breakpoint: ResponsiveBreakpoint, parentPartID: UUID?) -> String {
-        let children = node.children.map { render($0, page: page, theme: theme, assets: assets, globalDefinitionID: globalDefinitionID, breakpoint: breakpoint, parentPartID: node.id) }.joined()
+    private func failedPart(_ node: PartNode, page: Page, package: LoadedPartPackage, framework: Framework, assets: ProjectAssetContents, globalDefinitionID: UUID?, breakpoint: ResponsiveBreakpoint, parentPartID: UUID?) -> String {
+        let children = node.children.map { render($0, page: page, framework: framework, assets: assets, globalDefinitionID: globalDefinitionID, breakpoint: breakpoint, parentPartID: node.id) }.joined()
         return "<div class=\"unavailable\" \(attributes(for: node, globalDefinitionID: globalDefinitionID, parentPartID: parentPartID))>Part files could not be loaded: \(escape(package.manifest.name))\(children)</div>"
     }
 

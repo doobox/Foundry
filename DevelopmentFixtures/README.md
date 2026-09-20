@@ -8,7 +8,7 @@ The fixture lives outside the app's synchronized `Foundry` source group, so it i
 
 `EnableConditions.foundrydevpack` is a valid development part demonstrating the shared `enable` API with equality, numeric comparison, empty-value checks, and a zero-based indexed multi-control reference. A working copy may also be installed in `~/Library/Application Support/Foundry/Packs` for interactive testing.
 
-`ThemeValues.foundrydevpack` exercises dedicated theme colour controls. Removed theme Select controls have no replacement styling. Ordinary Select controls contain only explicitly declared options.
+`FrameworkValues.foundrydevpack` exercises dedicated framework colour controls. Removed framework Select controls have no replacement styling. Ordinary Select controls contain only explicitly declared options.
 
 `ExpressionEngine.foundrydevpack` is an interactive showcase for inline arithmetic, operator precedence, numeric functions, comparisons, `&&`, `||`, `!`, indexed control values, `if`/`elseif`/`else`, and the mutually exclusive `canvas`, `preview`, and `published` environment values.
 

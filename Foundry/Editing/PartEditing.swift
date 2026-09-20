@@ -9,7 +9,7 @@ extension ProjectEditor {
         placement: PartPlacement
     ) -> UUID? {
         guard let page = document.site.pages.first(where: { $0.id == pageID }) else { return nil }
-        let part = PartNode.make(type, theme: document.site.theme)
+        let part = PartNode.make(type, framework: document.site.framework)
         let sharedInsertion = document.site.sharedGlobalInsertion(on: page, at: placement)
         var inserted = false
         mutate(actionName: "Add \(type.displayName)") { site in

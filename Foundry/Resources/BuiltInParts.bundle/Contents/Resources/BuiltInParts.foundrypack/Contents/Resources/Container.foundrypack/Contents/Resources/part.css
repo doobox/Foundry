@@ -9,8 +9,8 @@
     height: auto;
     {{ if control.heightMode == "custom" }}height: {{ control.customHeight }}px;{{ endif }}
     {{ if control.heightMode == "viewport" }}height: 100svh;{{ endif }}
-    padding: {{ if control.spacingEnabled }}{{ control.themePadding }}{{ else }}0{{ endif }};
-    margin: {{ if control.spacingEnabled }}{{ control.themeMargin }}{{ else }}0{{ endif }};
+    padding: {{ if control.spacingEnabled }}{{ control.frameworkPadding }}{{ else }}0{{ endif }};
+    margin: {{ if control.spacingEnabled }}{{ control.frameworkMargin }}{{ else }}0{{ endif }};
     overflow: {{ control.overflow }};
     {{ if control.itemEnabled }}
     flex-grow: {{ control.flexGrow }};
@@ -25,11 +25,11 @@
     grid-column: auto;
     grid-row: auto;
     {{ endif }}
-    border-width: {{ if control.borderEnabled }}{{ control.themeBorder.width }}{{ else }}0{{ endif }};
-    border-style: {{ control.themeBorder.style }};
-    border-color: {{ control.themeBorderColour }};
-    border-radius: {{ if control.borderEnabled }}{{ control.themeRadius }}{{ else }}0{{ endif }};
-    box-shadow: {{ if control.effectsEnabled }}{{ control.themeShadow }}{{ else }}none{{ endif }};
+    border-width: {{ if control.borderEnabled }}{{ control.frameworkBorder.width }}{{ else }}0{{ endif }};
+    border-style: {{ control.frameworkBorder.style }};
+    border-color: {{ control.frameworkBorderColour }};
+    border-radius: {{ if control.borderEnabled }}{{ control.frameworkRadius }}{{ else }}0{{ endif }};
+    box-shadow: {{ if control.effectsEnabled }}{{ control.frameworkShadow }}{{ else }}none{{ endif }};
     opacity: 1;
     {{ if control.effectsEnabled }}opacity: calc({{ control.opacity }} / 100);{{ endif }}
 }

@@ -8,12 +8,12 @@ struct PartPropertyEditor: View {
     @State private var generatedVideoPoster: NSImage?
     @State private var isAnalysingVideo = false
     @State private var videoAnalysisError: String?
-    @Namespace private var themeSpacingFocusNamespace
+    @Namespace private var frameworkSpacingFocusNamespace
     let definition: PartPropertyDefinition
     let part: PartNode
     let selectedParts: [PartNode]
     let currentPage: Page?
-    let theme: Theme
+    let framework: Framework
     let assets: [ProjectAsset]
     let assetContents: ProjectAssetContents
     let pages: [Page]
@@ -29,7 +29,7 @@ struct PartPropertyEditor: View {
         part: PartNode,
         selectedParts: [PartNode],
         currentPage: Page?,
-        theme: Theme,
+        framework: Framework,
         assets: [ProjectAsset],
         assetContents: ProjectAssetContents,
         pages: [Page],
@@ -44,7 +44,7 @@ struct PartPropertyEditor: View {
         self.part = part
         self.selectedParts = selectedParts
         self.currentPage = currentPage
-        self.theme = theme
+        self.framework = framework
         self.assets = assets
         self.assetContents = assetContents
         self.pages = pages
@@ -128,7 +128,7 @@ struct PartPropertyEditor: View {
                     return Self.anchorIDs(
                         in: HTMLPageRenderer(site: site).render(
                             page: renderedPage,
-                            theme: theme,
+                            framework: framework,
                             assets: assetContents
                         )
                     )
@@ -211,12 +211,12 @@ struct PartPropertyEditor: View {
             )
         case .icon:
             IconPartControl(label: definition.label, indicator: responsiveIndicator, selection: stringBinding(as: .choice))
-        case .packageColor(let themeValues, let opacity, _, _):
-            ThemeColorPartControl(
+        case .packageColor(let frameworkValues, let opacity, _, _):
+            FrameworkColorPartControl(
                 label: definition.label,
-                choices: themeValues ? theme.colorChoices : [],
-                allowsCustom: definition.allowsCustomThemeValue,
-                theme: theme,
+                choices: frameworkValues ? framework.colorChoices : [],
+                allowsCustom: definition.allowsCustomFrameworkValue,
+                framework: framework,
                 source: packageColorSourceBinding,
                 shade: packageColorShadeBinding,
                 customColor: packageCustomColorBinding,
@@ -241,86 +241,86 @@ struct PartPropertyEditor: View {
                     selection: stringBinding(as: .choice)
                 )
             }
-        case .themeFont:
-            ThemeFontPartControl(label: definition.label, theme: theme, indicator: responsiveIndicator, selection: stringBinding(as: .choice))
-        case .themeSpacing:
-            let singleSpacingSelection: ThemePaddingValue.EdgeValue = {
-                if case .themeSpacing(let value) = displayPart.propertyValue(definition.key) { return value.selection }
-                if case .themeSpacing(let value) = definition.defaultValue { return value.selection }
-                return ThemePaddingValue.EdgeValue()
+        case .frameworkFont:
+            FrameworkFontPartControl(label: definition.label, framework: framework, indicator: responsiveIndicator, selection: stringBinding(as: .choice))
+        case .frameworkSpacing:
+            let singleSpacingSelection: FrameworkPaddingValue.EdgeValue = {
+                if case .frameworkSpacing(let value) = displayPart.propertyValue(definition.key) { return value.selection }
+                if case .frameworkSpacing(let value) = definition.defaultValue { return value.selection }
+                return FrameworkPaddingValue.EdgeValue()
             }()
             InspectorRow(title: definition.label.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "Spacing" : definition.label, indicator: responsiveIndicator) {
                 HStack(spacing: 8) {
-                    ThemeSpacingInput<PaddingPolicy>(binding: Binding(get: {
-                        if case .themeSpacing(let value) = displayPart.propertyValue(definition.key) { return value.selection }
-                        if case .themeSpacing(let value) = definition.defaultValue { return value.selection }
-                        return ThemePaddingValue.EdgeValue()
-                    }, set: { setProperty(.themeSpacing(.init(selection: $0))) }), title: definition.label.isEmpty ? "Spacing" : definition.label, theme: theme, focusNamespace: themeSpacingFocusNamespace)
+                    FrameworkSpacingInput<PaddingPolicy>(binding: Binding(get: {
+                        if case .frameworkSpacing(let value) = displayPart.propertyValue(definition.key) { return value.selection }
+                        if case .frameworkSpacing(let value) = definition.defaultValue { return value.selection }
+                        return FrameworkPaddingValue.EdgeValue()
+                    }, set: { setProperty(.frameworkSpacing(.init(selection: $0))) }), title: definition.label.isEmpty ? "Spacing" : definition.label, framework: framework, focusNamespace: frameworkSpacingFocusNamespace)
 
-                    ThemeModeToggle(usesThemeTokens: !singleSpacingSelection.isCustom) {
-                        var value = ThemeSingleSpacingValue(selection: singleSpacingSelection)
-                        value.setUsesThemeTokens(singleSpacingSelection.isCustom, theme: theme)
-                        setProperty(.themeSpacing(value))
+                    FrameworkModeToggle(usesFrameworkTokens: !singleSpacingSelection.isCustom) {
+                        var value = FrameworkSingleSpacingValue(selection: singleSpacingSelection)
+                        value.setUsesFrameworkTokens(singleSpacingSelection.isCustom, framework: framework)
+                        setProperty(.frameworkSpacing(value))
                     }
                 }
             }
-            .focusScope(themeSpacingFocusNamespace)
+            .focusScope(frameworkSpacingFocusNamespace)
             .help(part.type.definition.package?.manifest.resolvedProperties.first { $0.id == definition.key.rawValue }?.tooltip ?? "Spacing")
             .contextMenu { resetButton }
-        case .themeBorderWidth:
-            ThemeBorderWidthPartControl(label: definition.label, theme: theme, indicator: responsiveIndicator,
+        case .frameworkBorderWidth:
+            FrameworkBorderWidthPartControl(label: definition.label, framework: framework, indicator: responsiveIndicator,
                 value: Binding(get: {
-                    if case .themeBorderWidth(let value) = displayPart.propertyValue(definition.key) { return value }
-                    if case .themeBorderWidth(let value) = definition.defaultValue { return value }
-                    return ThemeBorderWidthValue()
-                }, set: { setProperty(.themeBorderWidth($0)) }))
+                    if case .frameworkBorderWidth(let value) = displayPart.propertyValue(definition.key) { return value }
+                    if case .frameworkBorderWidth(let value) = definition.defaultValue { return value }
+                    return FrameworkBorderWidthValue()
+                }, set: { setProperty(.frameworkBorderWidth($0)) }))
                 .help(part.type.definition.package?.manifest.resolvedProperties.first { $0.id == (definition.inspectorControlID ?? definition.key.rawValue) }?.tooltip ?? "Border")
                 .contextMenu { resetButton }
-        case .themeRadius:
-            ThemeRadiusPartControl(label: definition.label, theme: theme, indicator: responsiveIndicator,
+        case .frameworkRadius:
+            FrameworkRadiusPartControl(label: definition.label, framework: framework, indicator: responsiveIndicator,
                 value: Binding(get: {
-                    if case .themeRadius(let value) = displayPart.propertyValue(definition.key) { return value }
-                    if case .themeRadius(let value) = definition.defaultValue { return value }
-                    return ThemeRadiusValue()
-                }, set: { setProperty(.themeRadius($0)) }))
+                    if case .frameworkRadius(let value) = displayPart.propertyValue(definition.key) { return value }
+                    if case .frameworkRadius(let value) = definition.defaultValue { return value }
+                    return FrameworkRadiusValue()
+                }, set: { setProperty(.frameworkRadius($0)) }))
                 .help(part.type.definition.package?.manifest.resolvedProperties.first { $0.id == definition.key.rawValue }?.tooltip ?? "Radius")
                 .contextMenu { resetButton }
-        case .themeMargin:
-            ThemeMarginPartControl(label: definition.label, theme: theme, indicator: responsiveIndicator,
+        case .frameworkMargin:
+            FrameworkMarginPartControl(label: definition.label, framework: framework, indicator: responsiveIndicator,
                 value: Binding(get: {
-                    if case .themeMargin(let value) = displayPart.propertyValue(definition.key) { return value }
-                    if case .themeMargin(let value) = definition.defaultValue { return value }
-                    return ThemeMarginValue()
-                }, set: { setProperty(.themeMargin($0)) }))
+                    if case .frameworkMargin(let value) = displayPart.propertyValue(definition.key) { return value }
+                    if case .frameworkMargin(let value) = definition.defaultValue { return value }
+                    return FrameworkMarginValue()
+                }, set: { setProperty(.frameworkMargin($0)) }))
                 .help(part.type.definition.package?.manifest.resolvedProperties.first { $0.id == definition.key.rawValue }?.tooltip ?? "Margin")
                 .contextMenu { resetButton }
-        case .themePadding:
-            ThemePaddingPartControl(label: definition.label, theme: theme, indicator: responsiveIndicator,
+        case .frameworkPadding:
+            FrameworkPaddingPartControl(label: definition.label, framework: framework, indicator: responsiveIndicator,
                 value: Binding(get: {
-                    if case .themePadding(let value) = displayPart.propertyValue(definition.key) { return value }
-                    if case .themePadding(let value) = definition.defaultValue { return value }
-                    return ThemePaddingValue()
-                }, set: { setProperty(.themePadding($0)) }))
+                    if case .frameworkPadding(let value) = displayPart.propertyValue(definition.key) { return value }
+                    if case .frameworkPadding(let value) = definition.defaultValue { return value }
+                    return FrameworkPaddingValue()
+                }, set: { setProperty(.frameworkPadding($0)) }))
                 .help(part.type.definition.package?.manifest.resolvedProperties.first { $0.id == definition.key.rawValue }?.tooltip ?? "Padding")
                 .contextMenu { resetButton }
         case .edges(let units):
-            ThemeMarginPartControl(label: definition.label, theme: theme, indicator: responsiveIndicator,
-                allowsThemeTokens: false, unitChoices: units, fallbackLabel: "Edges",
+            FrameworkMarginPartControl(label: definition.label, framework: framework, indicator: responsiveIndicator,
+                allowsFrameworkTokens: false, unitChoices: units, fallbackLabel: "Edges",
                 value: Binding(get: {
-                    if case .themeMargin(let value) = displayPart.propertyValue(definition.key) { return value }
-                    if case .themeMargin(let value) = definition.defaultValue { return value }
-                    return PartPackageThemeMarginControl.customZero(units: units)
-                }, set: { setProperty(.themeMargin($0)) }))
+                    if case .frameworkMargin(let value) = displayPart.propertyValue(definition.key) { return value }
+                    if case .frameworkMargin(let value) = definition.defaultValue { return value }
+                    return PartPackageFrameworkMarginControl.customZero(units: units)
+                }, set: { setProperty(.frameworkMargin($0)) }))
                 .help(part.type.definition.package?.manifest.resolvedProperties.first { $0.id == definition.key.rawValue }?.tooltip ?? "Edges")
                 .contextMenu { resetButton }
         case .corners(let units):
-            ThemeRadiusPartControl(label: definition.label, theme: theme, indicator: responsiveIndicator,
-                allowsThemeTokens: false, unitChoices: units, fallbackLabel: "Corners",
+            FrameworkRadiusPartControl(label: definition.label, framework: framework, indicator: responsiveIndicator,
+                allowsFrameworkTokens: false, unitChoices: units, fallbackLabel: "Corners",
                 value: Binding(get: {
-                    if case .themeRadius(let value) = displayPart.propertyValue(definition.key) { return value }
-                    if case .themeRadius(let value) = definition.defaultValue { return value }
-                    return PartPackageThemeRadiusControl.customZero(units: units)
-                }, set: { setProperty(.themeRadius($0)) }))
+                    if case .frameworkRadius(let value) = displayPart.propertyValue(definition.key) { return value }
+                    if case .frameworkRadius(let value) = definition.defaultValue { return value }
+                    return PartPackageFrameworkRadiusControl.customZero(units: units)
+                }, set: { setProperty(.frameworkRadius($0)) }))
                 .help(part.type.definition.package?.manifest.resolvedProperties.first { $0.id == definition.key.rawValue }?.tooltip ?? "Corners")
                 .contextMenu { resetButton }
         case .fontWeight(let font):
@@ -331,17 +331,17 @@ struct PartPropertyEditor: View {
             FontFacePartControl(label: definition.label,
                 options: fontFaceOptions(font: font, editsWeight: false),
                 indicator: responsiveIndicator, weight: .constant(400), style: stringBinding(as: .choice), editsWeight: false)
-        case .themeFontSize:
+        case .frameworkFontSize:
             SelectPartControl(
                 label: definition.label,
-                options: theme.fontSizeChoices.map { .init(title: $0.label, value: $0.value) },
+                options: framework.fontSizeChoices.map { .init(title: $0.label, value: $0.value) },
                 indicator: responsiveIndicator,
                 selection: stringBinding(as: .choice)
             )
         case .packageShadow:
             ShadowPartControl(
                 label: definition.label,
-                choices: theme.shadowChoices,
+                choices: framework.shadowChoices,
                 source: packageShadowSourceBinding,
                 customLayers: packageShadowLayersBinding,
                 indicator: responsiveIndicator
@@ -541,7 +541,7 @@ struct PartPropertyEditor: View {
 
     private var imageFocalPoint: CGPoint {
         let point = PartImageTemplateValues.focalPoint(
-            from: part.propertyValue(imageFocalPointKey, at: effectiveBreakpoint(for: imageFocalPointKey), screens: theme.screens)
+            from: part.propertyValue(imageFocalPointKey, at: effectiveBreakpoint(for: imageFocalPointKey), screens: framework.screens)
         )
         return CGPoint(x: point.x / 100, y: point.y / 100)
     }
@@ -689,21 +689,21 @@ struct PartPropertyEditor: View {
         let companion = companions.count == 1 ? companions.first.map { displayPart.propertyValue($0.key) } : nil
         return FontFaceOptions(
             reference: font.map { PartPackageFontControl.familyReference($0, node: displayPart) },
-            theme: theme, assets: assetContents,
+            framework: framework, assets: assetContents,
             selectedWeight: editsWeight ? nil : companion?.numberValue.map(Int.init),
             selectedStyle: editsWeight ? companion?.stringValue : nil)
     }
 
     private var numberBinding: Binding<Double> {
         Binding(
-            get: { displayPart.numberProperty(definition.key, theme: theme) },
+            get: { displayPart.numberProperty(definition.key, framework: framework) },
             set: { setProperty(.number($0)) }
         )
     }
 
     private var colorBinding: Binding<Color> {
         Binding(
-            get: { Color(hex: displayPart.colorProperty(definition.key, theme: theme)) ?? .white },
+            get: { Color(hex: displayPart.colorProperty(definition.key, framework: framework)) ?? .white },
             set: {
                 setProperty(.color(
                     definition.control.allowsLiteralColorOpacity
@@ -781,7 +781,7 @@ struct PartPropertyEditor: View {
     private var packageColorValue: PartPackageColorValue {
         if case .packageColor(let value) = displayPart.propertyValue(definition.key) { return value }
         if case .packageColor(let value) = definition.defaultValue { return value }
-        return .init(source: PartThemeValueSelection.manualCustom, customColor: "#000000", opacity: 1)
+        return .init(source: PartFrameworkValueSelection.manualCustom, customColor: "#000000", opacity: 1)
     }
 
     private var packageColorSourceBinding: Binding<String> {
@@ -790,7 +790,7 @@ struct PartPropertyEditor: View {
             set: { source in
                 var value = packageColorValue
                 value.source = source
-                if let palette = theme.colourPalettes.resolvedPalette(id: value.paletteID) {
+                if let palette = framework.colourPalettes.resolvedPalette(id: value.paletteID) {
                     value.shade = palette.lightDefaultShade
                     value.darkShade = palette.darkDefaultShade
                 }
@@ -841,7 +841,7 @@ struct PartPropertyEditor: View {
         )
     }
 
-    private var packageShadowLayersBinding: Binding<[ThemeShadowLayer]> {
+    private var packageShadowLayersBinding: Binding<[FrameworkShadowLayer]> {
         Binding(
             get: { packageShadowValue.customLayers },
             set: { layers in
@@ -990,7 +990,7 @@ struct PartPropertyEditor: View {
                 if let token {
                     setProperty(.token(token))
                 } else {
-                    setProperty(.color(displayPart.colorProperty(definition.key, theme: theme)))
+                    setProperty(.color(displayPart.colorProperty(definition.key, framework: framework)))
                 }
             }
         )
@@ -1062,12 +1062,12 @@ struct PartPropertyEditor: View {
         if part.hasResponsiveOverride(key, at: breakpoint) {
             removeOverride(for: key)
         } else {
-            setProperty(part.propertyValue(key, at: breakpoint, screens: theme.screens), key: key)
+            setProperty(part.propertyValue(key, at: breakpoint, screens: framework.screens), key: key)
         }
     }
 
     private var displayPart: PartNode {
-        part.resolved(at: effectiveBreakpoint, screens: theme.screens)
+        part.resolved(at: effectiveBreakpoint, screens: framework.screens)
     }
 
     private var effectiveBreakpoint: ResponsiveBreakpoint {

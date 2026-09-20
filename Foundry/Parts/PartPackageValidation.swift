@@ -93,8 +93,8 @@ nonisolated enum PartPackageValidator {
             validate(property, into: &diagnostics)
             validateVisibility(property, properties: manifest.resolvedProperties, into: &diagnostics)
             if let font = property.control.font,
-               !manifest.resolvedProperties.contains(where: { $0.id == font && $0.control.type == .themeFont }) {
-                diagnostics.append(.init(severity: .error, location: "Info.plist:controls.\(property.id).font", message: "font must reference a themeFont control in this part."))
+               !manifest.resolvedProperties.contains(where: { $0.id == font && $0.control.type == .frameworkFont }) {
+                diagnostics.append(.init(severity: .error, location: "Info.plist:controls.\(property.id).font", message: "font must reference a frameworkFont control in this part."))
             }
         }
         validateVisibilityCycles(manifest.resolvedProperties, into: &diagnostics)
@@ -355,7 +355,7 @@ nonisolated enum PartPackageValidator {
             ))
         }
         for property in manifest.resolvedProperties
-            where property.control.type != .color && property.control.type != .themeColor {
+            where property.control.type != .color && property.control.type != .frameworkColor {
             let escapedID = NSRegularExpression.escapedPattern(for: property.id)
             if template.matches(#"\{\{\s*control\."# + escapedID + #"\s*\|\s*(?:lighten|darken|withAlpha|mix)\s*\("#) {
                 diagnostics.append(.init(
@@ -731,7 +731,7 @@ nonisolated enum PartPackageValidator {
 
     private static func validateBase(_ property: PartPackageProperty, into diagnostics: inout [PartPackageDiagnostic]) {
         let location = "Info.plist:controls.\(property.id)"
-        validateThemeValues(property, location: location, into: &diagnostics)
+        validateFrameworkValues(property, location: location, into: &diagnostics)
         validateDateBounds(property, location: location, into: &diagnostics)
         if let count = property.control.count {
             guard (2...4).contains(count) else {
@@ -793,22 +793,22 @@ nonisolated enum PartPackageValidator {
         return filtered.isEmpty ? fallback : filtered
     }
 
-    private static func validateThemeValues(
+    private static func validateFrameworkValues(
         _ property: PartPackageProperty,
         location: String,
         into diagnostics: inout [PartPackageDiagnostic]
     ) {
-        if property.control.type == .select, property.control.themeValues != nil {
-            diagnostics.append(.init(severity: .error, location: "\(location).themeValues",
-                message: "Select supports only declared options; remove themeValues."))
+        if property.control.type == .select, property.control.frameworkValues != nil {
+            diagnostics.append(.init(severity: .error, location: "\(location).frameworkValues",
+                message: "Select supports only declared options; remove frameworkValues."))
         }
-        let supportsCustomThemeValue = property.control.type == .shadow
-            || property.control.type == .themeColor
-        if property.control.allowsCustom != nil, !supportsCustomThemeValue {
+        let supportsCustomFrameworkValue = property.control.type == .shadow
+            || property.control.type == .frameworkColor
+        if property.control.allowsCustom != nil, !supportsCustomFrameworkValue {
             diagnostics.append(.init(
                 severity: .error,
                 location: "\(location).allowsCustom",
-                message: "allowsCustom requires a theme-aware control."
+                message: "allowsCustom requires a framework-aware control."
             ))
         }
 
@@ -824,26 +824,26 @@ nonisolated enum PartPackageValidator {
             let fragmentFormats: Set<PartPackageControl.ColorOutputFormat> = [
                 .hexValue, .rgbValues, .rgbaValues, .hslValues, .hslaValues
             ]
-            if property.control.type == .themeColor, fragmentFormats.contains(outputFormat) {
+            if property.control.type == .frameworkColor, fragmentFormats.contains(outputFormat) {
                 diagnostics.append(.init(
                     severity: .error,
                     location: "\(location).outputFormat",
-                    message: "A themeColor outputs a complete CSS colour so it can adapt between light and dark; use the light/dark qualified fields for \(outputFormat.rawValue)."
+                    message: "A frameworkColor outputs a complete CSS colour so it can adapt between light and dark; use the light/dark qualified fields for \(outputFormat.rawValue)."
                 ))
-            } else if property.control.type != .color, property.control.type != .themeColor {
+            } else if property.control.type != .color, property.control.type != .frameworkColor {
                 diagnostics.append(.init(
                     severity: .error,
                     location: "\(location).outputFormat",
-                    message: "outputFormat is supported only by color and themeColor controls."
+                    message: "outputFormat is supported only by color and frameworkColor controls."
                 ))
             }
         }
         if property.control.type == .color {
-            if property.control.themeValues != nil {
+            if property.control.frameworkValues != nil {
                 diagnostics.append(.init(
                     severity: .error,
-                    location: "\(location).themeValues",
-                    message: "A color control does not use themeValues; use type themeColor."
+                    location: "\(location).frameworkValues",
+                    message: "A color control does not use frameworkValues; use type frameworkColor."
                 ))
             }
             if property.control.customColor != nil {
@@ -854,34 +854,34 @@ nonisolated enum PartPackageValidator {
                 ))
             }
             return
-        } else if property.control.type == .themeColor {
-            if property.control.themeValues != nil {
-                diagnostics.append(.init(severity: .error, location: "\(location).themeValues", message: "A themeColor control uses theme colours automatically; remove themeValues."))
+        } else if property.control.type == .frameworkColor {
+            if property.control.frameworkValues != nil {
+                diagnostics.append(.init(severity: .error, location: "\(location).frameworkValues", message: "A frameworkColor control uses framework colours automatically; remove frameworkValues."))
             }
             if property.control.count != nil {
-                diagnostics.append(.init(severity: .error, location: "\(location).count", message: "A themeColor control cannot be a multi control; remove count."))
+                diagnostics.append(.init(severity: .error, location: "\(location).count", message: "A frameworkColor control cannot be a multi control; remove count."))
             }
             if property.control.customColor != nil, property.control.allowsCustom != true {
                 diagnostics.append(.init(severity: .error, location: "\(location).customColor", message: "customColor requires allowsCustom to be true."))
             }
             return
-        } else if property.control.themeValueDefault != nil {
+        } else if property.control.frameworkValueDefault != nil {
             diagnostics.append(.init(
                 severity: .error,
-                location: "\(location).themeValues",
-                message: "The \(property.control.type.rawValue) control does not accept a theme role as themeValues."
+                location: "\(location).frameworkValues",
+                message: "The \(property.control.type.rawValue) control does not accept a framework role as frameworkValues."
             ))
         }
-        if property.control.type == .shadow, property.control.themeValues != nil {
+        if property.control.type == .shadow, property.control.frameworkValues != nil {
             diagnostics.append(.init(
                 severity: .error,
-                location: "\(location).themeValues",
-                message: "A shadow control automatically uses theme shadows; remove themeValues."
+                location: "\(location).frameworkValues",
+                message: "A shadow control automatically uses framework shadows; remove frameworkValues."
             ))
             return
         }
 
-        guard let source = property.control.themeValueSource else { return }
+        guard let source = property.control.frameworkValueSource else { return }
         let supported: Bool
         switch (property.control.type, source) {
         case (.shadow, .shadows):
@@ -892,8 +892,8 @@ nonisolated enum PartPackageValidator {
         if !supported {
             diagnostics.append(.init(
                 severity: .error,
-                location: "\(location).themeValues",
-                message: "The \(property.control.type.rawValue) control cannot request \(source.rawValue) theme values."
+                location: "\(location).frameworkValues",
+                message: "The \(property.control.type.rawValue) control cannot request \(source.rawValue) framework values."
             ))
         }
     }
@@ -972,70 +972,70 @@ nonisolated enum PartPackageValidator {
             if case .boolean = defaultValue {} else {
                 diagnostics.append(.init(severity: .error, location: location, message: "A \(property.control.type.rawValue) control requires a Boolean default value."))
             }
-        case .themeBorder:
+        case .frameworkBorder:
             guard case .object(let fields) = defaultValue else {
-                diagnostics.append(.init(severity: .error, location: location, message: "A themeBorder default requires a dictionary with width and optional style."))
+                diagnostics.append(.init(severity: .error, location: location, message: "A frameworkBorder default requires a dictionary with width and optional style."))
                 return
             }
             for key in fields.keys where !["width", "style"].contains(key) {
                 diagnostics.append(.init(severity: .error, location: location, message: "Unknown border default key '\(key)'."))
             }
-            if PartPackageThemeBorderWidthControl.defaultValue(fields["width"] ?? .string("")) == nil {
+            if PartPackageFrameworkBorderWidthControl.defaultValue(fields["width"] ?? .string("")) == nil {
                 diagnostics.append(.init(severity: .error, location: location,
                     message: "default.width requires a border width token, none, a nonnegative custom length (px/rem/em), or four edge defaults."))
             }
             if let style = fields["style"] {
-                if case .string(let name) = style, PartPackageThemeBorderControl.styles.contains(name) {} else {
+                if case .string(let name) = style, PartPackageFrameworkBorderControl.styles.contains(name) {} else {
                     diagnostics.append(.init(severity: .error, location: location, message: "Invalid border style."))
                 }
             }
-        case .themeSpacing:
+        case .frameworkSpacing:
             if PartPackageSingleSpacingControl.defaultValue(defaultValue) == nil {
-                diagnostics.append(.init(severity: .error, location: location, message: "A themeSpacing default requires a spacing token, none, or a nonnegative {value, unit} length (px/rem/em/%)."))
+                diagnostics.append(.init(severity: .error, location: location, message: "A frameworkSpacing default requires a spacing token, none, or a nonnegative {value, unit} length (px/rem/em/%)."))
             }
-        case .themeRadius:
-            if PartPackageThemeRadiusControl.defaultValue(defaultValue) == nil {
+        case .frameworkRadius:
+            if PartPackageFrameworkRadiusControl.defaultValue(defaultValue) == nil {
                 diagnostics.append(.init(severity: .error, location: location,
-                    message: "A themeRadius default must be a radius token, none, a nonnegative {value, unit} length (px/rem/em/%), or a dictionary with topLeft/topRight/bottomLeft/bottomRight defaults."))
+                    message: "A frameworkRadius default must be a radius token, none, a nonnegative {value, unit} length (px/rem/em/%), or a dictionary with topLeft/topRight/bottomLeft/bottomRight defaults."))
             }
-        case .themeMargin:
-            if PartPackageThemeMarginControl.defaultValue(defaultValue) == nil {
+        case .frameworkMargin:
+            if PartPackageFrameworkMarginControl.defaultValue(defaultValue) == nil {
                 diagnostics.append(.init(severity: .error, location: location,
-                    message: "A themeMargin default must be a spacing token, none, auto, a finite {value, unit} length (px/rem/em/%), or a dictionary with top/right/bottom/left defaults."))
+                    message: "A frameworkMargin default must be a spacing token, none, auto, a finite {value, unit} length (px/rem/em/%), or a dictionary with top/right/bottom/left defaults."))
             }
-        case .themePadding:
-            if PartPackageThemePaddingControl.defaultValue(defaultValue) == nil {
+        case .frameworkPadding:
+            if PartPackageFrameworkPaddingControl.defaultValue(defaultValue) == nil {
                 diagnostics.append(.init(severity: .error, location: location,
-                    message: "A themePadding default must be a spacing token, a nonnegative {value, unit} length (px/rem/em/%), or a dictionary with top/right/bottom/left defaults."))
+                    message: "A frameworkPadding default must be a spacing token, a nonnegative {value, unit} length (px/rem/em/%), or a dictionary with top/right/bottom/left defaults."))
             }
         case .edges:
-            if let converted = PartPackageThemeMarginControl.customDefaultValue(defaultValue, units: boxUnits(for: property, fallback: MarginPolicy.units)) {
+            if let converted = PartPackageFrameworkMarginControl.customDefaultValue(defaultValue, units: boxUnits(for: property, fallback: MarginPolicy.units)) {
                 if property.control.linked == true, !converted.allEqual {
                     diagnostics.append(.init(severity: .error, location: location,
                         message: "linked: true requires all four edge defaults to be equal."))
                 }
             } else {
                 diagnostics.append(.init(severity: .error, location: location,
-                    message: "An edges default must be a {value, unit} length in a declared unit, or a dictionary with top/right/bottom/left lengths. Theme tokens are not accepted."))
+                    message: "An edges default must be a {value, unit} length in a declared unit, or a dictionary with top/right/bottom/left lengths. Framework tokens are not accepted."))
             }
         case .corners:
-            if let converted = PartPackageThemeRadiusControl.customDefaultValue(defaultValue, units: boxUnits(for: property, fallback: RadiusPolicy.units)) {
+            if let converted = PartPackageFrameworkRadiusControl.customDefaultValue(defaultValue, units: boxUnits(for: property, fallback: RadiusPolicy.units)) {
                 if property.control.linked == true, !converted.allEqual {
                     diagnostics.append(.init(severity: .error, location: location,
                         message: "linked: true requires all four corner defaults to be equal."))
                 }
             } else {
                 diagnostics.append(.init(severity: .error, location: location,
-                    message: "A corners default must be a nonnegative {value, unit} length in a declared unit, or a dictionary with topLeft/topRight/bottomLeft/bottomRight lengths. Theme tokens are not accepted."))
+                    message: "A corners default must be a nonnegative {value, unit} length in a declared unit, or a dictionary with topLeft/topRight/bottomLeft/bottomRight lengths. Framework tokens are not accepted."))
             }
-        case .themeFont:
+        case .frameworkFont:
             let fields = PartPackageFontControl.defaults(defaultValue)
-            guard case .string(let family) = fields["family"], ThemeFontRole(rawValue: family) != nil else {
-                diagnostics.append(.init(severity: .error, location: location, message: "A themeFont default family must be body, heading, or monospaced."))
+            guard case .string(let family) = fields["family"], FrameworkFontRole(rawValue: family) != nil else {
+                diagnostics.append(.init(severity: .error, location: location, message: "A frameworkFont default family must be body, heading, or monospaced."))
                 return
             }
             if property.control.showsFamily == false && property.control.showsWeight != true && property.control.showsStyle != true {
-                diagnostics.append(.init(severity: .error, location: location, message: "A themeFont must expose at least one field."))
+                diagnostics.append(.init(severity: .error, location: location, message: "A frameworkFont must expose at least one field."))
             }
             if let weight = fields["weight"] {
                 if property.control.showsWeight != true {
@@ -1111,33 +1111,33 @@ nonisolated enum PartPackageValidator {
                     ? "A color default must be a six- or eight-digit hexadecimal colour."
                     : "A color default must be a six-digit hexadecimal colour; visibleWhen opacity to use alpha."))
             }
-        case .themeColor:
+        case .frameworkColor:
             guard case .object(let initial) = defaultValue,
                   case .string(let value)? = initial["palette"] else {
-                diagnostics.append(.init(severity: .error, location: location, message: "A themeColor default requires a dictionary with a string palette."))
+                diagnostics.append(.init(severity: .error, location: location, message: "A frameworkColor default requires a dictionary with a string palette."))
                 return
             }
             for key in initial.keys where !["palette", "lightShade", "darkShade"].contains(key) {
-                diagnostics.append(.init(severity: .error, location: "\(location).\(key)", message: "Unknown themeColor default key '\(key)'."))
+                diagnostics.append(.init(severity: .error, location: "\(location).\(key)", message: "Unknown frameworkColor default key '\(key)'."))
             }
             for key in ["lightShade", "darkShade"] {
                 guard let supplied = initial[key] else { continue }
                 if case .number(let number) = supplied, let shade = Int(exactly: number), (1...11).contains(shade) {
-                    if value == PartThemeValueSelection.manifestCustom {
-                        diagnostics.append(.init(severity: .error, location: "\(location).\(key)", message: "\(key) requires a theme or standard palette, not custom."))
+                    if value == PartFrameworkValueSelection.manifestCustom {
+                        diagnostics.append(.init(severity: .error, location: "\(location).\(key)", message: "\(key) requires a framework or standard palette, not custom."))
                     }
                 } else {
                     diagnostics.append(.init(severity: .error, location: "\(location).\(key)", message: "\(key) must be an integer from 1 to 11."))
                 }
             }
-            let isThemeRole = ThemeColorRole(rawValue: value) != nil
+            let isFrameworkRole = FrameworkColorRole(rawValue: value) != nil
             let isStandard = ColourPaletteDefaults.standard.contains { $0.id == value }
-            let isCustom = value == PartThemeValueSelection.manifestCustom && property.control.allowsCustom.orFalse
-            if !isThemeRole && !isStandard && !isCustom {
-                diagnostics.append(.init(severity: .error, location: location, message: "A themeColor default must be a theme role, a supported standard palette ID such as standard.lime, or custom when allowsCustom is true."))
+            let isCustom = value == PartFrameworkValueSelection.manifestCustom && property.control.allowsCustom.orFalse
+            if !isFrameworkRole && !isStandard && !isCustom {
+                diagnostics.append(.init(severity: .error, location: location, message: "A frameworkColor default must be a framework role, a supported standard palette ID such as standard.lime, or custom when allowsCustom is true."))
             }
-            if value == PartThemeValueSelection.manifestCustom && property.control.customColor == nil {
-                diagnostics.append(.init(severity: .error, location: location, message: "customColor is required when a themeColor default is custom."))
+            if value == PartFrameworkValueSelection.manifestCustom && property.control.customColor == nil {
+                diagnostics.append(.init(severity: .error, location: location, message: "customColor is required when a frameworkColor default is custom."))
             }
             if let customColor = property.control.customColor,
                !customColor.matches(#"^#[0-9A-Fa-f]{6}$"#) {
@@ -1148,14 +1148,14 @@ nonisolated enum PartPackageValidator {
                 diagnostics.append(.init(severity: .error, location: location, message: "A shadow control requires a string default value."))
                 return
             }
-            let isThemeShadow = Theme.standard.shadowChoices.contains { $0.value == value }
-            let isAllowedCustom = value == PartThemeValueSelection.manifestCustom
+            let isFrameworkShadow = Framework.standard.shadowChoices.contains { $0.value == value }
+            let isAllowedCustom = value == PartFrameworkValueSelection.manifestCustom
                 && property.control.allowsCustom.orFalse
-            if !isThemeShadow && !isAllowedCustom {
+            if !isFrameworkShadow && !isAllowedCustom {
                 diagnostics.append(.init(
                     severity: .error,
                     location: location,
-                    message: "A shadow default must be a standard theme shadow ID, or custom when allowsCustom is enabled."
+                    message: "A shadow default must be a standard framework shadow ID, or custom when allowsCustom is enabled."
                 ))
             }
         case .textAlignment:

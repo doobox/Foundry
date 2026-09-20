@@ -7,7 +7,7 @@ nonisolated enum ColourPaletteDefaults {
             ("background", "Background", colors.background, 0), ("surface", "Surface", colors.surface, 0),
             ("text", "Text", colors.text, 9), ("muted-text", "Muted Text", "#64748B", 5),
             ("accent", "Accent", colors.accent, 5), ("links", "Links", colors.links, 6)]
-        return roles.map { make(id: "theme." + $0.0, name: $0.1, hex: $0.2, origin: .theme, anchor: $0.3) } + standard
+        return roles.map { make(id: "framework." + $0.0, name: $0.1, hex: $0.2, origin: .framework, anchor: $0.3) } + standard
     }
 
     static let standard: [ColourPalette] = {

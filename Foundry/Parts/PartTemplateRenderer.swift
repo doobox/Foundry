@@ -673,7 +673,7 @@ nonisolated enum PartTemplateRenderer {
         let declaredOpacity = context.allProperties["\(reference).__colorOpacity"] == .boolean(true)
 
         guard let light = applyColorFilters(filters, to: color, declaredOpacity: declaredOpacity, format: format, context: context) else { return nil }
-        // A theme colour on a dual-appearance site carries a second source; the
+        // A framework colour on a dual-appearance site carries a second source; the
         // filtered result stays appearance-aware the same way the base colour does.
         if case .string(let darkSource)? = context.allProperties["\(reference).__colorSourceDark"],
            let darkColor = PartColorChannels(hex: darkSource),

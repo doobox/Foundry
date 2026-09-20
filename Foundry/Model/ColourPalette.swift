@@ -1,10 +1,10 @@
 import Foundation
 
-/// A persisted theme palette, including resolved colours and optional editing settings.
+/// A persisted framework palette, including resolved colours and optional editing settings.
 nonisolated struct ColourPalette: Codable, Equatable, Identifiable, Sendable {
-    enum Origin: String, Codable, Sendable { case theme, custom, standard }
+    enum Origin: String, Codable, Sendable { case framework, custom, standard }
 
-    /// Stable across renames. Built-in IDs should be namespaced (e.g. theme.accent).
+    /// Stable across renames. Built-in IDs should be namespaced (e.g. framework.accent).
     let id: String
     var name: String
     let origin: Origin

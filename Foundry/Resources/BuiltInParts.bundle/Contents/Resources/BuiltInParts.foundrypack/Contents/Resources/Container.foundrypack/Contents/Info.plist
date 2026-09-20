@@ -64,7 +64,7 @@
 			<string>spacing</string>
 			<key>defaultOverrides</key>
 			<dict>
-				<key>themeMargin</key>
+				<key>frameworkMargin</key>
 				<dict>
 					<key>left</key>
 					<string>auto</string>

@@ -21,7 +21,7 @@ nonisolated enum ResponsiveBreakpoint: String, Codable, CaseIterable, Identifiab
         }
     }
 
-    var screenID: ThemeScreenID {
+    var screenID: FrameworkScreenID {
         switch self {
         case .mobile: .mobile
         case .small: .small

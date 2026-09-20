@@ -48,7 +48,7 @@ nonisolated struct Page: Codable, Equatable, Identifiable, Sendable {
     var parentPageID: UUID?
     var order: Int
     var includeInNavigation: Bool
-    /// Nil intentionally follows the theme's Page defaults in both appearances.
+    /// Nil intentionally follows the framework's Page defaults in both appearances.
     var backgroundOverride: PartPackageColorValue?
 
     init(
@@ -93,17 +93,17 @@ nonisolated struct Page: Codable, Equatable, Identifiable, Sendable {
         backgroundOverride = try container.decodeIfPresent(PartPackageColorValue.self, forKey: .backgroundOverride)
     }
 
-    func backgroundColour(theme: Theme, appearance: SiteAppearance) -> String {
-        guard let backgroundOverride else { return theme.color(for: .page, appearance: appearance) }
-        return PartPackageColorResolver.resolve(backgroundOverride, theme: theme, opacity: false, appearance: appearance)
+    func backgroundColour(framework: Framework, appearance: SiteAppearance) -> String {
+        guard let backgroundOverride else { return framework.color(for: .page, appearance: appearance) }
+        return PartPackageColorResolver.resolve(backgroundOverride, framework: framework, opacity: false, appearance: appearance)
     }
 
-    func backgroundSelection(theme: Theme) -> PartPackageColorValue {
+    func backgroundSelection(framework: Framework) -> PartPackageColorValue {
         if let backgroundOverride { return backgroundOverride }
-        let palette = theme.colourPalettes.resolvedPalette(id: "theme.page")
-        var value = PartPackageColorValue(source: "page", customColor: theme.color(for: .page), opacity: 1,
+        let palette = framework.colourPalettes.resolvedPalette(id: "framework.page")
+        var value = PartPackageColorValue(source: "page", customColor: framework.color(for: .page), opacity: 1,
             shade: palette?.lightDefaultShade, darkShade: palette?.darkDefaultShade)
-        value.darkCustomColor = theme.color(for: .page, appearance: .dark)
+        value.darkCustomColor = framework.color(for: .page, appearance: .dark)
         return value
     }
 

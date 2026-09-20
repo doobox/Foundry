@@ -18,7 +18,7 @@ struct InspectorView: View {
     let selectedParts: [PartNode]
     let allowsMultiPartEditing: Bool
     let libraryPartType: PartType?
-    let theme: Theme
+    let framework: Framework
     let assets: [ProjectAsset]
     let editor: ProjectEditor
     let reusableDefinition: ReusablePartDefinition?
@@ -39,7 +39,7 @@ struct InspectorView: View {
                     part: part,
                     selectedParts: selectedParts,
                     currentPage: currentPage,
-                    theme: theme,
+                    framework: framework,
                     assets: assets,
                     assetContents: assetContents,
                     pages: pages,
@@ -588,13 +588,13 @@ private struct PageInspector: View {
 
         Section("Appearance") {
             Grid(horizontalSpacing: 8) {
-                ThemeColorPartControl(
-                    label: "Background", choices: theme.colorChoices, allowsCustom: true, theme: theme,
+                FrameworkColorPartControl(
+                    label: "Background", choices: framework.colorChoices, allowsCustom: true, framework: framework,
                     source: backgroundSource, shade: backgroundShade, customColor: backgroundCustomColour,
                     allowsOpacity: false,
                     indicator: .init(isVisible: false, isOverridden: false, breakpointName: "", toggle: {}),
-                    resetToTheme: { editor.setPageBackground(id: page.id, value: nil) },
-                    canResetToTheme: page.backgroundOverride != nil)
+                    resetToFramework: { editor.setPageBackground(id: page.id, value: nil) },
+                    canResetToFramework: page.backgroundOverride != nil)
             }
             .controlSize(.small)
         }
@@ -625,14 +625,14 @@ private struct PageInspector: View {
         PageRouteResolver.path(for: page, pages: pages, folders: folders)
     }
 
-    private var theme: Theme { editor.document.site.theme }
-    private var background: PartPackageColorValue { page.backgroundSelection(theme: theme) }
+    private var framework: Framework { editor.document.site.framework }
+    private var background: PartPackageColorValue { page.backgroundSelection(framework: framework) }
 
     private var backgroundSource: Binding<String> {
         Binding(get: { background.source }, set: { source in
             var value = background
             value.source = source
-            if let palette = theme.colourPalettes.resolvedPalette(id: value.paletteID) {
+            if let palette = framework.colourPalettes.resolvedPalette(id: value.paletteID) {
                 value.shade = palette.lightDefaultShade
                 value.darkShade = palette.darkDefaultShade
             }
@@ -694,7 +694,7 @@ private struct PartInspector: View {
     let part: PartNode
     let selectedParts: [PartNode]
     let currentPage: Page?
-    let theme: Theme
+    let framework: Framework
     let assets: [ProjectAsset]
     let assetContents: ProjectAssetContents
     let pages: [Page]
@@ -753,7 +753,7 @@ private struct PartInspector: View {
                         part: part,
                         selectedParts: selectedParts,
                         currentPage: currentPage,
-                        theme: theme,
+                        framework: framework,
                         assets: assets,
                         assetContents: assetContents,
                         pages: pages,
@@ -822,7 +822,7 @@ private struct PartInspector: View {
     }
 
     private func isVisible(_ slot: PartPackageSlot) -> Bool {
-        PartPackageVisibilityEvaluator.isVisible(slot.visibleWhen, for: part, at: breakpoint, screens: theme.screens)
+        PartPackageVisibilityEvaluator.isVisible(slot.visibleWhen, for: part, at: breakpoint, screens: framework.screens)
     }
 
     private func isVisible(_ property: PartPropertyDefinition) -> Bool {
@@ -830,7 +830,7 @@ private struct PartInspector: View {
             property.visibleWhen,
             for: part,
             at: property.isResponsive ? breakpoint : .mobile,
-            screens: theme.screens
+            screens: framework.screens
         )
     }
 
@@ -1303,7 +1303,7 @@ private struct PartInspectorGroup: View {
     let part: PartNode
     let selectedParts: [PartNode]
     let currentPage: Page?
-    let theme: Theme
+    let framework: Framework
     let assets: [ProjectAsset]
     let assetContents: ProjectAssetContents
     let pages: [Page]
@@ -1376,7 +1376,7 @@ private struct PartInspectorGroup: View {
             part: part,
             selectedParts: selectedParts,
             currentPage: currentPage,
-            theme: theme,
+            framework: framework,
             assets: assets,
             assetContents: assetContents,
             pages: pages,
@@ -1495,7 +1495,7 @@ private struct PartInspectorPreviewHarness: View {
                     selectedParts: [part],
                     allowsMultiPartEditing: false,
                     libraryPartType: nil,
-                    theme: document.site.theme,
+                    framework: document.site.framework,
                     assets: document.site.assets,
                     editor: ProjectEditor(document: document, undoManager: nil),
                     reusableDefinition: nil,

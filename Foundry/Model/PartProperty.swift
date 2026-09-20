@@ -1,6 +1,6 @@
 import Foundation
 
-nonisolated enum PartThemeValueSelection {
+nonisolated enum PartFrameworkValueSelection {
     static let manualCustom = "foundry:manual-custom"
     static let manifestCustom = "custom"
 
@@ -27,19 +27,19 @@ nonisolated struct PartPackageColorValue: Codable, Equatable, Sendable {
         self.source = source
         self.customColor = customColor
         self.opacity = opacity
-        let id = ThemeColorRole(rawValue: source) != nil ? "theme." + source : source
-        self.shade = shade ?? Theme.standard.colourPalettes.resolvedPalette(id: id)?.lightDefaultShade ?? .six
-        self.darkShade = darkShade ?? Theme.standard.colourPalettes.resolvedPalette(id: id)?.darkDefaultShade ?? .six
+        let id = FrameworkColorRole(rawValue: source) != nil ? "framework." + source : source
+        self.shade = shade ?? Framework.standard.colourPalettes.resolvedPalette(id: id)?.lightDefaultShade ?? .six
+        self.darkShade = darkShade ?? Framework.standard.colourPalettes.resolvedPalette(id: id)?.darkDefaultShade ?? .six
         self.darkCustomColor = customColor
         self.darkOpacity = opacity
     }
 
     var paletteID: String {
-        ThemeColorRole(rawValue: source) != nil ? "theme." + source : source
+        FrameworkColorRole(rawValue: source) != nil ? "framework." + source : source
     }
 
     var selection: PaletteColourValue {
-        PartThemeValueSelection.isManualCustom(source) ? .custom(hex: customColor)
+        PartFrameworkValueSelection.isManualCustom(source) ? .custom(hex: customColor)
             : .palette(id: paletteID, selection: .shade(shade))
     }
 
@@ -96,20 +96,20 @@ nonisolated struct PartPackageFontSizeValue: Codable, Equatable, Sendable {
 
 nonisolated struct PartPackageShadowValue: Codable, Equatable, Sendable {
     var source: String
-    var customLayers: [ThemeShadowLayer]
+    var customLayers: [FrameworkShadowLayer]
 
     static let defaultCustom = PartPackageShadowValue(
-        source: PartThemeValueSelection.manualCustom,
+        source: PartFrameworkValueSelection.manualCustom,
         customLayers: [.init(x: 0, y: 4, blur: 8, opacity: 0.15)]
     )
 }
 
 nonisolated enum PartPackageShadowResolver {
-    static func resolve(_ value: PartPackageShadowValue, theme: Theme) -> String {
-        if PartThemeValueSelection.isManualCustom(value.source) {
+    static func resolve(_ value: PartPackageShadowValue, framework: Framework) -> String {
+        if PartFrameworkValueSelection.isManualCustom(value.source) {
             return value.customLayers.isEmpty ? "none" : value.customLayers.map(\.cssValue).joined(separator: ", ")
         }
-        return theme.shadowCSSVariable(for: value.source) ?? "none"
+        return framework.shadowCSSVariable(for: value.source) ?? "none"
     }
 }
 
@@ -137,18 +137,18 @@ nonisolated struct PartProperty: Codable, Equatable, Identifiable, Sendable {
         static let backgroundColor = Key(rawValue: "backgroundColor")
         static let textColor = Key(rawValue: "textColor")
         static let fontSize = Key(rawValue: "fontSize")
-        static let themeFontSize = Key(rawValue: "themeFontSize")
-        static let themeColor = Key(rawValue: "themeColor")
-        static let themeColorShade = Key(rawValue: "themeColorShade")
-        static let themeTextAlignment = Key(rawValue: "themeTextAlignment")
-        static let themeFontWeight = Key(rawValue: "themeFontWeight")
-        static let themeLineHeight = Key(rawValue: "themeLineHeight")
-        static let themeLetterSpacing = Key(rawValue: "themeLetterSpacing")
-        static let themeItalic = Key(rawValue: "themeItalic")
-        static let themeTextShadow = Key(rawValue: "themeTextShadow")
-        static let themeTextCase = Key(rawValue: "themeTextCase")
-        static let themeWhitespace = Key(rawValue: "themeWhitespace")
-        static let themeUnderline = Key(rawValue: "themeUnderline")
+        static let frameworkFontSize = Key(rawValue: "frameworkFontSize")
+        static let frameworkColor = Key(rawValue: "frameworkColor")
+        static let frameworkColorShade = Key(rawValue: "frameworkColorShade")
+        static let frameworkTextAlignment = Key(rawValue: "frameworkTextAlignment")
+        static let frameworkFontWeight = Key(rawValue: "frameworkFontWeight")
+        static let frameworkLineHeight = Key(rawValue: "frameworkLineHeight")
+        static let frameworkLetterSpacing = Key(rawValue: "frameworkLetterSpacing")
+        static let frameworkItalic = Key(rawValue: "frameworkItalic")
+        static let frameworkTextShadow = Key(rawValue: "frameworkTextShadow")
+        static let frameworkTextCase = Key(rawValue: "frameworkTextCase")
+        static let frameworkWhitespace = Key(rawValue: "frameworkWhitespace")
+        static let frameworkUnderline = Key(rawValue: "frameworkUnderline")
         static let accessibilityLabel = Key(rawValue: "accessibilityLabel")
         static let borderColor = Key(rawValue: "borderColor")
         static let borderWidth = Key(rawValue: "borderWidth")
@@ -177,11 +177,11 @@ nonisolated struct PartProperty: Codable, Equatable, Identifiable, Sendable {
         // Retained only to decode saved values from the removed Select extension.
         case packageFontSize(PartPackageFontSizeValue)
         case packageShadow(PartPackageShadowValue)
-        case themeSpacing(ThemeSingleSpacingValue)
-        case themePadding(ThemePaddingValue)
-        case themeMargin(ThemeMarginValue)
-        case themeBorderWidth(ThemeBorderWidthValue)
-        case themeRadius(ThemeRadiusValue)
+        case frameworkSpacing(FrameworkSingleSpacingValue)
+        case frameworkPadding(FrameworkPaddingValue)
+        case frameworkMargin(FrameworkMarginValue)
+        case frameworkBorderWidth(FrameworkBorderWidthValue)
+        case frameworkRadius(FrameworkRadiusValue)
 
         var stringValue: String {
             switch self {
@@ -203,7 +203,7 @@ nonisolated struct PartProperty: Codable, Equatable, Identifiable, Sendable {
                 value.source
             case .packageShadow(let value):
                 value.source
-            case .themeSpacing, .themePadding, .themeMargin, .themeBorderWidth, .themeRadius:
+            case .frameworkSpacing, .frameworkPadding, .frameworkMargin, .frameworkBorderWidth, .frameworkRadius:
                 ""
             }
         }
@@ -228,27 +228,27 @@ nonisolated struct PartProperty: Codable, Equatable, Identifiable, Sendable {
             return value
         }
 
-        func replacingThemeReference(_ reference: String, with replacement: String) -> Value {
+        func replacingFrameworkReference(_ reference: String, with replacement: String) -> Value {
             switch self {
-            case .themeSpacing(var value):
+            case .frameworkSpacing(var value):
                 if value.selection.token == reference { value.selection.token = replacement }
-                return .themeSpacing(value)
-            case .themeBorderWidth(var value):
+                return .frameworkSpacing(value)
+            case .frameworkBorderWidth(var value):
                 value.replaceReference(reference, with: replacement)
-                return .themeBorderWidth(value)
-            case .themeRadius(var value):
+                return .frameworkBorderWidth(value)
+            case .frameworkRadius(var value):
                 value.replaceReference(reference, with: replacement)
-                return .themeRadius(value)
-            case .themeMargin(var value):
+                return .frameworkRadius(value)
+            case .frameworkMargin(var value):
                 value.replaceReference(reference, with: replacement)
-                return .themeMargin(value)
-            case .themePadding(var value):
+                return .frameworkMargin(value)
+            case .frameworkPadding(var value):
                 value.replaceReference(reference, with: replacement)
-                return .themePadding(value)
+                return .frameworkPadding(value)
             case .string(let value): return .string(value == reference ? replacement : value)
             case .choice(let value): return .choice(value == reference ? replacement : value)
             case .array(let values):
-                return .array(values.map { $0.replacingThemeReference(reference, with: replacement) })
+                return .array(values.map { $0.replacingFrameworkReference(reference, with: replacement) })
             case .packageFontSize(var value):
                 if value.source == reference { value.source = replacement }
                 return .packageFontSize(value)

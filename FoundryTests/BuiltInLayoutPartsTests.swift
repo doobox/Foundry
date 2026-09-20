@@ -22,13 +22,13 @@ struct BuiltInLayoutPartsTests {
             let properties = loaded.manifest.resolvedProperties
             #expect(Set(loaded.manifest.controlGroups.map(\.type)) == Set(PartPackageControlGroup.Kind.allCases))
             #expect(Set(loaded.manifest.controlGroups.map(\.type)).count == loaded.manifest.controlGroups.count)
-            for (id, group) in [("widthMode", "Sizing"), ("themePadding", "Spacing"),
-                                ("themeMargin", "Spacing"), ("backgroundColor", "Background"),
-                                ("themeRadius", "Borders"), ("flexGrow", "Layout item")] {
+            for (id, group) in [("widthMode", "Sizing"), ("frameworkPadding", "Spacing"),
+                                ("frameworkMargin", "Spacing"), ("backgroundColor", "Background"),
+                                ("frameworkRadius", "Borders"), ("flexGrow", "Layout item")] {
                 #expect(properties.first { $0.id == id }?.group == group)
             }
-            #expect(properties.first { $0.id == "themePadding" }?.visibleWhen?.id == "spacingEnabled")
-            #expect(properties.first { $0.id == "themeMargin" }?.visibleWhen?.id == "spacingEnabled")
+            #expect(properties.first { $0.id == "frameworkPadding" }?.visibleWhen?.id == "spacingEnabled")
+            #expect(properties.first { $0.id == "frameworkMargin" }?.visibleWhen?.id == "spacingEnabled")
             #expect(Set(properties.map(\.id)).count == properties.count)
         }
     }
@@ -38,11 +38,11 @@ struct BuiltInLayoutPartsTests {
         var values: [String: PartPackageValue] = [
             "widthMode": .string("full"), "customWidth": .number(320), "maxWidth": .number(0),
             "minimumHeight": .number(0), "heightMode": .string("auto"), "customHeight": .number(400),
-            "spacingEnabled": .boolean(true), "themePadding": .string("16px"), "themeMargin": .string("0"),
+            "spacingEnabled": .boolean(true), "frameworkPadding": .string("16px"), "frameworkMargin": .string("0"),
             "overflow": .string("visible"), "itemEnabled": .boolean(false), "showsBackground": .boolean(false),
-            "themeBorder.width": .string("0"), "themeBorder.style": .string("solid"),
-            "themeBorderColour": .string("black"), "themeRadius": .string("0"),
-            "themeGap": .string("16px"), "themeGap.value": .number(16), "rowGap": .string("16px"),
+            "frameworkBorder.width": .string("0"), "frameworkBorder.style": .string("solid"),
+            "frameworkBorderColour": .string("black"), "frameworkRadius": .string("0"),
+            "frameworkGap": .string("16px"), "frameworkGap.value": .number(16), "rowGap": .string("16px"),
             "direction": .string("column"), "wrap": .string("nowrap"), "justifyContent": .string("flex-start"),
             "alignItems": .string("stretch"), "alignContent": .string("normal"), "verticalAlignment": .string("start"),
             "constrainContent": .boolean(true), "innerMaxWidth": .number(1120),
@@ -146,7 +146,7 @@ struct BuiltInLayoutPartsTests {
             node.children = [.make(.paragraph)]
             let page = Page(title: "Layout", slug: "index", parts: [node])
             for breakpoint in [ResponsiveBreakpoint.mobile, .medium, .large] {
-                let html = HTMLPageRenderer().render(page: page, language: "en", theme: .standard, assets: [:], breakpoint: breakpoint)
+                let html = HTMLPageRenderer().render(page: page, language: "en", framework: .standard, assets: [:], breakpoint: breakpoint)
                 #expect(html.contains("foundry-\(identifier)"))
                 #expect(!html.contains("{{ control."))
                 #expect(html.contains("padding:"))

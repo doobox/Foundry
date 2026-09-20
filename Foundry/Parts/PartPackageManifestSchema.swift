@@ -52,7 +52,7 @@ nonisolated enum PartPackageManifestSchema {
     private static let updateKeys: Set<String> = ["appcastURL", "publicKey"]
     private static let propertyKeys: Set<String> = [
         "id", "label", "title", "body", "systemImage", "group", "defaults", "responsive", "subtitle", "buttonText", "units", "tooltip", "linked",
-        "type", "font", "showsFamily", "showsWeight", "showsStyle", "minimum", "maximum", "step", "options", "themeValues", "allowsCustom", "opacity", "outputFormat",
+        "type", "font", "showsFamily", "showsWeight", "showsStyle", "minimum", "maximum", "step", "options", "frameworkValues", "allowsCustom", "opacity", "outputFormat",
         "customColor", "count", "ticks", "showsValueField", "trueValue", "falseValue",
         "buttonIcon", "activeButtonText", "activeButtonIcon", "selectionMode", "fontSize", "argument1", "argument2", "operation", "round", "absoluteURL", "presentation", "visibleWhen", "alt", "focalPoint", "renditions", "accepts", "pickerItems", "initial", "containment"
     ]
@@ -123,7 +123,7 @@ nonisolated enum PartPackageManifestSchema {
         dictionaries(in: dictionary["controls"]).enumerated().forEach { index, entry in
             let location = "Info.plist:controls[\(index)]"
             guard let type = entry["type"] as? String, knownControlGroupKinds.contains(type) else {
-                validateStandardOrThemeControl(entry, location: location, into: &diagnostics)
+                validateStandardOrFrameworkControl(entry, location: location, into: &diagnostics)
                 return
             }
             validateGroupedControlReference(
@@ -261,24 +261,24 @@ nonisolated enum PartPackageManifestSchema {
         }
     }
 
-    /// Validates one `controls` entry that is a plain Standard/Theme
+    /// Validates one `controls` entry that is a plain Standard/Framework
     /// property (i.e. its `type` didn't match a Grouped-control kind).
-    private static func validateStandardOrThemeControl(
+    private static func validateStandardOrFrameworkControl(
         _ property: [String: Any],
         location: String,
         into diagnostics: inout [PartPackageDiagnostic]
     ) {
         unknownKeys(in: property, allowed: propertyKeys, location: location, into: &diagnostics)
         validateProperty(property, location: location, into: &diagnostics)
-        if let themeValues = property["themeValues"], !(themeValues is String) {
+        if let frameworkValues = property["frameworkValues"], !(frameworkValues is String) {
             diagnostics.append(.init(
                 severity: .error,
-                location: "\(location).themeValues",
-                message: "themeValues must be a string."
+                location: "\(location).frameworkValues",
+                message: "frameworkValues must be a string."
             ))
         }
         if property["type"] as? String == PartPackageControl.Kind.select.rawValue {
-            for key in ["themeValues", "allowsCustom"] where property[key] != nil {
+            for key in ["frameworkValues", "allowsCustom"] where property[key] != nil {
                 diagnostics.append(.init(severity: .error, location: "\(location).\(key)",
                     message: "Select supports only declared options; remove \(key)."))
             }
@@ -289,20 +289,20 @@ nonisolated enum PartPackageManifestSchema {
         } else if property["presentation"] != nil {
             diagnostics.append(.init(severity: .error, location: "\(location).presentation", message: "presentation is available only for select controls."))
         }
-        if property["type"] as? String == PartPackageControl.Kind.themeColor.rawValue,
+        if property["type"] as? String == PartPackageControl.Kind.frameworkColor.rawValue,
            property["count"] != nil {
             diagnostics.append(.init(
                 severity: .error,
                 location: "\(location).count",
-                message: "A themeColor control cannot be a multi control; remove count."
+                message: "A frameworkColor control cannot be a multi control; remove count."
             ))
         }
         if property["type"] as? String == PartPackageControl.Kind.shadow.rawValue,
-           property["themeValues"] != nil {
+           property["frameworkValues"] != nil {
             diagnostics.append(.init(
                 severity: .error,
-                location: "\(location).themeValues",
-                message: "A shadow control automatically uses theme shadows; remove themeValues."
+                location: "\(location).frameworkValues",
+                message: "A shadow control automatically uses framework shadows; remove frameworkValues."
             ))
         }
 
@@ -408,7 +408,7 @@ nonisolated enum PartPackageManifestSchema {
             if name != "base" && property["type"] as? String == "image" {
                 diagnostics.append(.init(severity: .error, location: location + ".defaults." + name, message: "Image asset defaults support base only; responsive applies to focal points."))
             }
-            if name != "base", property["type"] as? String == "themeFont", property["showsFamily"] as? Bool == false {
+            if name != "base", property["type"] as? String == "frameworkFont", property["showsFamily"] as? Bool == false {
                 let baseFamily = (defaults["base"] as? [String: Any])?["family"] as? String ?? defaults["base"] as? String
                 let family = (value as? [String: Any])?["family"] as? String ?? value as? String
                 if family != baseFamily {
@@ -471,7 +471,7 @@ nonisolated enum PartPackageManifestSchema {
             diagnostics.append(.init(severity: .error, location: "\(location):type", message: "Unknown control type '\(typeName)'."))
             return
         }
-        if (type == .themeSpacing || type == .themePadding || type == .themeMargin || type == .themeRadius) {
+        if (type == .frameworkSpacing || type == .frameworkPadding || type == .frameworkMargin || type == .frameworkRadius) {
             let allowed: Set<String> = ["type", "id", "label", "subtitle", "group", "default", "responsive", "tooltip", "visibleWhen"]
             unknownKeys(in: property, allowed: allowed, location: location, into: &diagnostics)
         }
@@ -492,7 +492,7 @@ nonisolated enum PartPackageManifestSchema {
                 }
             }
         }
-        if type == .themeFont {
+        if type == .frameworkFont {
             for key in ["showsFamily", "showsWeight", "showsStyle"] {
                 optionalBoolean(key, in: property, location: location, into: &diagnostics)
             }
@@ -502,19 +502,19 @@ nonisolated enum PartPackageManifestSchema {
                 optionalInteger("weight", in: fields, location: "\(location).default", into: &diagnostics)
                 if fields["style"] != nil { requireString("style", in: fields, location: "\(location).default", into: &diagnostics) }
             }
-            for key in ["count", "themeValues", "options", "allowsCustom"] where property[key] != nil {
-                diagnostics.append(.init(severity: .error, location: "\(location).\(key)", message: "A themeFont control does not accept \(key)."))
+            for key in ["count", "frameworkValues", "options", "allowsCustom"] where property[key] != nil {
+                diagnostics.append(.init(severity: .error, location: "\(location).\(key)", message: "A frameworkFont control does not accept \(key)."))
             }
         }
-        if type == .themeBorder {
+        if type == .frameworkBorder {
             unknownKeys(in: property, allowed: ["type", "id", "label", "subtitle", "group", "default", "responsive", "tooltip", "visibleWhen", "showsStyle"], location: location, into: &diagnostics)
             for key in ["showsStyle"] {
                 optionalBoolean(key, in: property, location: location, into: &diagnostics)
             }
         }
         if type == .fontWeight || type == .fontStyle {
-            diagnostics.append(.init(severity: .error, location: "\(location).type", message: "Use one themeFont control with showsWeight/showsStyle instead of separate font controls."))
-            for key in ["count", "options", "themeValues", "allowsCustom"] where property[key] != nil {
+            diagnostics.append(.init(severity: .error, location: "\(location).type", message: "Use one frameworkFont control with showsWeight/showsStyle instead of separate font controls."))
+            for key in ["count", "options", "frameworkValues", "allowsCustom"] where property[key] != nil {
                 diagnostics.append(.init(severity: .error, location: "\(location).\(key)", message: "A \(type.rawValue) control does not accept \(key)."))
             }
             if property["font"] != nil {
@@ -523,10 +523,10 @@ nonisolated enum PartPackageManifestSchema {
         } else if property["font"] != nil {
             diagnostics.append(.init(severity: .error, location: "\(location).font", message: "font is only supported by fontWeight and fontStyle controls."))
         }
-        if type != .themeFont {
+        if type != .frameworkFont {
             for key in ["showsFamily", "showsWeight", "showsStyle"] where property[key] != nil {
-                if type == .themeBorder && key == "showsStyle" { continue }
-                diagnostics.append(.init(severity: .error, location: "\(location).\(key)", message: "\(key) requires a themeFont control."))
+                if type == .frameworkBorder && key == "showsStyle" { continue }
+                diagnostics.append(.init(severity: .error, location: "\(location).\(key)", message: "\(key) requires a frameworkFont control."))
             }
         }
         if type != .edges, type != .corners, property["linked"] != nil {
@@ -748,7 +748,7 @@ nonisolated enum PartPackageManifestSchema {
             optionalBoolean(key, in: property, location: location, into: &diagnostics)
         }
         optionalInteger("ticks", in: property, location: location, into: &diagnostics)
-        if type == .themeColor {
+        if type == .frameworkColor {
             if let initial = property["default"] as? [String: Any] {
                 unknownKeys(in: initial, allowed: ["palette", "lightShade", "darkShade"], location: "\(location).default", into: &diagnostics)
                 optionalString("palette", in: initial, location: "\(location).default", into: &diagnostics)
@@ -759,7 +759,7 @@ nonisolated enum PartPackageManifestSchema {
                     optionalInteger(key, in: initial, location: "\(location).default", into: &diagnostics)
                 }
             } else {
-                diagnostics.append(.init(severity: .error, location: "\(location).default", message: "A themeColor default must be a dictionary containing palette and optional lightShade/darkShade."))
+                diagnostics.append(.init(severity: .error, location: "\(location).default", message: "A frameworkColor default must be a dictionary containing palette and optional lightShade/darkShade."))
             }
         }
         for key in ["customColor", "operation"] { optionalString(key, in: property, location: location, into: &diagnostics) }
@@ -772,9 +772,9 @@ nonisolated enum PartPackageManifestSchema {
             into: &diagnostics
         )
         for key in ["default", "trueValue", "falseValue", "argument1", "argument2"] {
-            if key == "default" && type == .themeColor { continue }
-            if key == "default" && (type == .themeSpacing || type == .themePadding || type == .themeMargin || type == .themeBorder || type == .themeRadius || type == .edges || type == .corners) { continue }
-            if key == "default" && type == .themeFont && property[key] is [String: Any] { continue }
+            if key == "default" && type == .frameworkColor { continue }
+            if key == "default" && (type == .frameworkSpacing || type == .frameworkPadding || type == .frameworkMargin || type == .frameworkBorder || type == .frameworkRadius || type == .edges || type == .corners) { continue }
+            if key == "default" && type == .frameworkFont && property[key] is [String: Any] { continue }
             optionalPartValue(key, in: property, location: location, into: &diagnostics)
         }
 

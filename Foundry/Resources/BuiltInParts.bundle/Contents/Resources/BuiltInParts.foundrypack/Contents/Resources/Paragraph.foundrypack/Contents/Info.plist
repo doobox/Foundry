@@ -14,7 +14,7 @@
 		<array>
 			<dict>
 				<key>type</key>
-				<string>themeFont</string>
+				<string>frameworkFont</string>
 				<key>id</key>
 				<string>font</string>
 				<key>label</key>
@@ -109,7 +109,7 @@
 				<key>allowsCustom</key>
 				<true />
 				<key>type</key>
-				<string>themeColor</string>
+				<string>frameworkColor</string>
 			</dict>
 		</array>
 		<key>description</key>

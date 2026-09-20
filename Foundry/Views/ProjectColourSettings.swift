@@ -1,16 +1,16 @@
 import SwiftUI
 
 struct ProjectColourSettings: View {
-    let session: ThemeEditorSession
+    let session: FrameworkEditorSession
     @ObservedObject private var document: FoundryDocument
-    @State private var model: ThemeColourPreviewModel
+    @State private var model: FrameworkColourPreviewModel
     @State private var deleting: PreviewColourPalette?
     @State private var replacement = ""
 
-    init(session: ThemeEditorSession) {
+    init(session: FrameworkEditorSession) {
         self.session = session
         document = session.document
-        let model = ThemeColourPreviewModel(storedPalettes: session.document.site.theme.colourPalettes)
+        let model = FrameworkColourPreviewModel(storedPalettes: session.document.site.framework.colourPalettes)
         model.onChange = { [weak session] palettes, editSession in
             session?.setColourPalettes(palettes, session: editSession)
         }
@@ -18,7 +18,7 @@ struct ProjectColourSettings: View {
     }
 
     var body: some View {
-        ThemeColoursPreview(model: model, canEditTheme: session.canEditTheme, requestDelete: { palette in
+        FrameworkColoursPreview(model: model, canEditFramework: session.canEditFramework, requestDelete: { palette in
             replacement = ""
             deleting = palette
         })
@@ -30,7 +30,7 @@ struct ProjectColourSettings: View {
                         Text("This colour is in use. Choose a replacement. Each part’s currently selected shade will be kept.")
                         Picker("Replace with", selection: $replacement) {
                             Text("Choose a colour").tag("")
-                            ForEach(document.site.theme.colourPalettes.filter { $0.id != palette.id }) { value in
+                            ForEach(document.site.framework.colourPalettes.filter { $0.id != palette.id }) { value in
                                 Text("\(value.name) — \(String(describing: value.origin).capitalized)").tag(value.id)
                             }
                         }
@@ -40,7 +40,7 @@ struct ProjectColourSettings: View {
                         Button("Cancel") { deleting = nil }.keyboardShortcut(.cancelAction)
                         Button("Delete Colour", role: .destructive) {
                             session.deleteColour(palette.id, replacement: replacement.isEmpty ? nil : replacement)
-                            model.synchronize(document.site.theme.colourPalettes)
+                            model.synchronize(document.site.framework.colourPalettes)
                             deleting = nil
                         }
                         .disabled(inUse && replacement.isEmpty)
@@ -50,9 +50,9 @@ struct ProjectColourSettings: View {
                 .frame(width: 380)
                 .controlSize(.small)
             }
-            .onChange(of: document.site.theme.colourPalettes) { _, values in
+            .onChange(of: document.site.framework.colourPalettes) { _, values in
                 model.synchronize(values)
             }
-            .onAppear { model.synchronize(document.site.theme.colourPalettes) }
+            .onAppear { model.synchronize(document.site.framework.colourPalettes) }
     }
 }

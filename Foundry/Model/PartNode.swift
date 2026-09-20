@@ -99,21 +99,21 @@ nonisolated struct PartNode: Codable, Equatable, Identifiable, Sendable {
         self.rootAttributes = rootAttributes
     }
 
-    static func make(_ type: PartType, theme: Theme = .standard) -> PartNode {
+    static func make(_ type: PartType, framework: Framework = .standard) -> PartNode {
         var ancestry: Set<PartType> = []
         var remainingNodeCount = 1_000
         var node = make(type, ancestry: &ancestry, remainingNodeCount: &remainingNodeCount)
-        node.selectInitialColourShades(from: theme)
+        node.selectInitialColourShades(from: framework)
         return node
     }
 
-    mutating func selectInitialColourShades(from theme: Theme) {
+    mutating func selectInitialColourShades(from framework: Framework) {
         var initialDefaults: [ResponsivePropertyOverride] = []
         for definition in type.definition.properties {
             for (breakpoint, initialValue) in definition.breakpointDefaults {
                 var initialValue = initialValue
                 if case .packageColor(var colour) = initialValue,
-                   let palette = theme.colourPalettes.resolvedPalette(id: colour.paletteID) {
+                   let palette = framework.colourPalettes.resolvedPalette(id: colour.paletteID) {
                     let declaration = type.definition.package?.manifest.resolvedProperties.first { $0.id == definition.key.rawValue }?.breakpointDefaults[breakpoint.rawValue]
                     if case .object(let fields) = declaration {
                         if fields["lightShade"] == nil { colour.shade = palette.lightDefaultShade }
@@ -127,7 +127,7 @@ nonisolated struct PartNode: Codable, Equatable, Identifiable, Sendable {
         responsiveDefaults = initialDefaults.isEmpty ? nil : initialDefaults
         for index in properties.indices {
             if case .packageColor(var value) = properties[index].value,
-               let palette = theme.colourPalettes.resolvedPalette(id: value.paletteID) {
+               let palette = framework.colourPalettes.resolvedPalette(id: value.paletteID) {
                 if let definition = type.definition.properties.first(where: { $0.key == properties[index].key }),
                    case .packageColor(_, _, let initialLightShade, let initialDarkShade) = definition.control {
                     value.shade = initialLightShade ?? palette.lightDefaultShade
@@ -139,7 +139,7 @@ nonisolated struct PartNode: Codable, Equatable, Identifiable, Sendable {
                 properties[index].value = .packageColor(value)
             }
         }
-        for index in children.indices { children[index].selectInitialColourShades(from: theme) }
+        for index in children.indices { children[index].selectInitialColourShades(from: framework) }
     }
 
     private static func make(
@@ -235,17 +235,17 @@ nonisolated struct PartNode: Codable, Equatable, Identifiable, Sendable {
         propertyValue(key).numberValue ?? 0
     }
 
-    func colorProperty(_ key: PartProperty.Key, theme: Theme) -> String {
+    func colorProperty(_ key: PartProperty.Key, framework: Framework) -> String {
         let value = propertyValue(key)
-        if let token = value.tokenValue, let color = theme.color(for: token) {
+        if let token = value.tokenValue, let color = framework.color(for: token) {
             return color
         }
         return value.stringValue
     }
 
-    func numberProperty(_ key: PartProperty.Key, theme: Theme) -> Double {
+    func numberProperty(_ key: PartProperty.Key, framework: Framework) -> Double {
         let value = propertyValue(key)
-        if let token = value.tokenValue, let number = theme.number(for: token) {
+        if let token = value.tokenValue, let number = framework.number(for: token) {
             return number
         }
         return value.numberValue ?? 0
@@ -289,19 +289,19 @@ nonisolated struct PartNode: Codable, Equatable, Identifiable, Sendable {
         setProperty(key, value: propertyValue)
     }
 
-    mutating func replaceThemeReference(_ reference: String, with replacement: String) {
+    mutating func replaceFrameworkReference(_ reference: String, with replacement: String) {
         for index in properties.indices {
-            properties[index].value = properties[index].value.replacingThemeReference(reference, with: replacement)
+            properties[index].value = properties[index].value.replacingFrameworkReference(reference, with: replacement)
         }
         if var overrides = responsiveOverrides {
             for index in overrides.indices {
                 overrides[index].value = overrides[index].value
-                    .replacingThemeReference(reference, with: replacement)
+                    .replacingFrameworkReference(reference, with: replacement)
             }
             responsiveOverrides = overrides
         }
         for index in children.indices {
-            children[index].replaceThemeReference(reference, with: replacement)
+            children[index].replaceFrameworkReference(reference, with: replacement)
         }
     }
 }

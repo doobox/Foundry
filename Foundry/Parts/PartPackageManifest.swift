@@ -1,6 +1,6 @@
 import Foundation
 
-/// One entry of a manifest's `controls` array: either a single Standard/Theme
+/// One entry of a manifest's `controls` array: either a single Standard/Framework
 /// property, or a reference to a prebuilt Grouped control (`background`,
 /// `spacing`, `sizing`, `borders`, `effects`, `layoutItem`) that expands into
 /// several properties at this exact position.
@@ -155,7 +155,7 @@ nonisolated struct PartPackageAsset: Codable, Equatable, Hashable, Sendable {
 }
 
 extension PartPackageManifest {
-    /// Standard/Theme properties in the exact order the manifest declared
+    /// Standard/Framework properties in the exact order the manifest declared
     /// them, with each Grouped-control reference expanded in place.
     nonisolated var resolvedProperties: [PartPackageProperty] {
         controlsEntries.flatMap { entry in
@@ -861,7 +861,7 @@ nonisolated extension PartPackageProperty {
             id: "backgroundColor",
             label: "Colour",
             group: "Background",
-            control: .init(type: .themeColor, allowsCustom: true, opacity: true),
+            control: .init(type: .frameworkColor, allowsCustom: true, opacity: true),
             defaultValue: .object(["palette": .string("surface")]),
             responsive: true,
             visibleWhen: backgroundVisibility(mode: "static", style: "color")
@@ -938,7 +938,7 @@ nonisolated extension PartPackageProperty {
             id: "backgroundGradientFrom",
             label: "From colour",
             group: "Background",
-            control: .init(type: .themeColor, allowsCustom: true, opacity: true),
+            control: .init(type: .frameworkColor, allowsCustom: true, opacity: true),
             defaultValue: .object(["palette": .string("surface")]),
             responsive: true,
             visibleWhen: backgroundVisibility(mode: "static", style: "gradient")
@@ -956,7 +956,7 @@ nonisolated extension PartPackageProperty {
             id: "backgroundGradientTo",
             label: "To colour",
             group: "Background",
-            control: .init(type: .themeColor, allowsCustom: true, opacity: true),
+            control: .init(type: .frameworkColor, allowsCustom: true, opacity: true),
             defaultValue: .object(["palette": .string("accent")]),
             responsive: true,
             visibleWhen: backgroundVisibility(mode: "static", style: "gradient")
@@ -993,16 +993,16 @@ nonisolated extension PartPackageProperty {
 
     private static let backgroundHoverControlGroup: [Self] = [
         Self(id: "backgroundHoverStyle", label: "Style", group: "Background", control: backgroundStyleControl(includesNone: true), defaultValue: .string("none"), responsive: true, visibleWhen: backgroundVisibility(mode: "hover")),
-        Self(id: "backgroundHoverColor", label: "Colour", group: "Background", control: .init(type: .themeColor, allowsCustom: true, opacity: true), defaultValue: .object(["palette": .string("surface")]), responsive: true, visibleWhen: backgroundVisibility(mode: "hover", style: "color")),
+        Self(id: "backgroundHoverColor", label: "Colour", group: "Background", control: .init(type: .frameworkColor, allowsCustom: true, opacity: true), defaultValue: .object(["palette": .string("surface")]), responsive: true, visibleWhen: backgroundVisibility(mode: "hover", style: "color")),
         Self(id: "backgroundHoverImage", label: "Image", group: "Background", control: .init(type: .image), defaultValue: .string(""), responsive: true, visibleWhen: backgroundVisibility(mode: "hover", style: "image")),
         Self(id: "backgroundHoverPosition", label: "Position", group: "Background", control: .select([("center", "Centre"), ("top", "Top"), ("right", "Right"), ("bottom", "Bottom"), ("left", "Left"), ("left top", "Top left"), ("right top", "Top right"), ("left bottom", "Bottom left"), ("right bottom", "Bottom right")]), defaultValue: .string("center"), responsive: true, visibleWhen: backgroundVisibility(mode: "hover", style: "image")),
         Self(id: "backgroundHoverSize", label: "Size", group: "Background", control: .select([("cover", "Cover"), ("contain", "Contain"), ("auto", "Auto")]), defaultValue: .string("cover"), responsive: true, visibleWhen: backgroundVisibility(mode: "hover", style: "image")),
         Self(id: "backgroundHoverRepeat", label: "Repeat", group: "Background", control: .select([("no-repeat", "No repeat"), ("repeat", "Repeat"), ("repeat-x", "Repeat horizontally"), ("repeat-y", "Repeat vertically"), ("space", "Space"), ("round", "Round")]), defaultValue: .string("no-repeat"), responsive: true, visibleWhen: backgroundVisibility(mode: "hover", style: "image")),
         Self(id: "backgroundHoverGradientType", label: "Type", group: "Background", control: .select([("linear", "Linear"), ("radial", "Radial"), ("conic", "Conic")], presentation: .segmented), defaultValue: .string("linear"), responsive: true, visibleWhen: backgroundVisibility(mode: "hover", style: "gradient")),
         Self(id: "backgroundHoverGradientDirection", label: "Direction", group: "Background", control: .select([("to bottom", "To bottom"), ("to top", "To top"), ("to right", "To right"), ("to left", "To left"), ("to bottom right", "To bottom right"), ("to bottom left", "To bottom left"), ("to top right", "To top right"), ("to top left", "To top left")]), defaultValue: .string("to bottom"), responsive: true, visibleWhen: backgroundVisibility(mode: "hover", style: "gradient", extra: .init(id: "backgroundHoverGradientType", value: .string("linear")))),
-        Self(id: "backgroundHoverGradientFrom", label: "From colour", group: "Background", control: .init(type: .themeColor, allowsCustom: true, opacity: true), defaultValue: .object(["palette": .string("surface")]), responsive: true, visibleWhen: backgroundVisibility(mode: "hover", style: "gradient")),
+        Self(id: "backgroundHoverGradientFrom", label: "From colour", group: "Background", control: .init(type: .frameworkColor, allowsCustom: true, opacity: true), defaultValue: .object(["palette": .string("surface")]), responsive: true, visibleWhen: backgroundVisibility(mode: "hover", style: "gradient")),
         Self(id: "backgroundHoverGradientFromPosition", label: "From position", group: "Background", control: .init(type: .slider, minimum: 0, maximum: 100, step: 1, showsValueField: true), defaultValue: .number(0), responsive: true, visibleWhen: backgroundVisibility(mode: "hover", style: "gradient")),
-        Self(id: "backgroundHoverGradientTo", label: "To colour", group: "Background", control: .init(type: .themeColor, allowsCustom: true, opacity: true), defaultValue: .object(["palette": .string("accent")]), responsive: true, visibleWhen: backgroundVisibility(mode: "hover", style: "gradient")),
+        Self(id: "backgroundHoverGradientTo", label: "To colour", group: "Background", control: .init(type: .frameworkColor, allowsCustom: true, opacity: true), defaultValue: .object(["palette": .string("accent")]), responsive: true, visibleWhen: backgroundVisibility(mode: "hover", style: "gradient")),
         Self(id: "backgroundHoverGradientToPosition", label: "To position", group: "Background", control: .init(type: .slider, minimum: 0, maximum: 100, step: 1, showsValueField: true), defaultValue: .number(100), responsive: true, visibleWhen: backgroundVisibility(mode: "hover", style: "gradient")),
         Self(id: "backgroundHoverVideo", label: "Video", group: "Background", control: .init(type: .video), defaultValue: .string(""), responsive: false, visibleWhen: backgroundVisibility(mode: "hover", style: "video"), tooltip: "Choose a video from project resources."),
         Self(id: "backgroundHoverVideoAspectRatio", label: "Force 16:9 aspect ratio", group: "Background", control: .init(type: .toggle), defaultValue: .boolean(false), responsive: true, visibleWhen: backgroundVisibility(mode: "hover", style: "video"))
@@ -1032,20 +1032,20 @@ nonisolated extension PartPackageProperty {
 
     static let spacingControlGroup: [Self] = [
         Self(id: "spacingEnabled", label: "Enable", group: "Spacing", control: .init(type: .toggle), defaultValue: .boolean(true), responsive: true),
-        Self(id: "themePadding", label: "Padding", group: "Spacing", control: .init(type: .themePadding), defaultValue: .string("none"), responsive: true, visibleWhen: visibleWhenEnabled("spacingEnabled")),
-        Self(id: "themeMargin", label: "Margin", group: "Spacing", control: .init(type: .themeMargin), defaultValue: .string("none"), responsive: true, visibleWhen: visibleWhenEnabled("spacingEnabled"))
+        Self(id: "frameworkPadding", label: "Padding", group: "Spacing", control: .init(type: .frameworkPadding), defaultValue: .string("none"), responsive: true, visibleWhen: visibleWhenEnabled("spacingEnabled")),
+        Self(id: "frameworkMargin", label: "Margin", group: "Spacing", control: .init(type: .frameworkMargin), defaultValue: .string("none"), responsive: true, visibleWhen: visibleWhenEnabled("spacingEnabled"))
     ]
 
     static let bordersControlGroup: [Self] = [
         Self(id: "borderEnabled", label: "Enable", group: "Borders", control: .init(type: .toggle), defaultValue: .boolean(false), responsive: true),
-        Self(id: "themeBorder", label: "Border", group: "Borders", control: .init(type: .themeBorder, showsStyle: true), defaultValue: .object(["width": .string("none"), "style": .string("solid")]), responsive: true, visibleWhen: visibleWhenEnabled("borderEnabled")),
-        Self(id: "themeBorderColour", label: "Colour", group: "Borders", control: .init(type: .themeColor, allowsCustom: true, opacity: true), defaultValue: .object(["palette": .string("muted-text")]), responsive: true, visibleWhen: visibleWhenEnabled("borderEnabled")),
-        Self(id: "themeRadius", label: "Radius", group: "Borders", control: .init(type: .themeRadius), defaultValue: .string("none"), responsive: true, visibleWhen: visibleWhenEnabled("borderEnabled"))
+        Self(id: "frameworkBorder", label: "Border", group: "Borders", control: .init(type: .frameworkBorder, showsStyle: true), defaultValue: .object(["width": .string("none"), "style": .string("solid")]), responsive: true, visibleWhen: visibleWhenEnabled("borderEnabled")),
+        Self(id: "frameworkBorderColour", label: "Colour", group: "Borders", control: .init(type: .frameworkColor, allowsCustom: true, opacity: true), defaultValue: .object(["palette": .string("muted-text")]), responsive: true, visibleWhen: visibleWhenEnabled("borderEnabled")),
+        Self(id: "frameworkRadius", label: "Radius", group: "Borders", control: .init(type: .frameworkRadius), defaultValue: .string("none"), responsive: true, visibleWhen: visibleWhenEnabled("borderEnabled"))
     ]
 
     static let effectsControlGroup: [Self] = [
         Self(id: "effectsEnabled", label: "Enable", group: "Effects", control: .init(type: .toggle), defaultValue: .boolean(false), responsive: true),
-        Self(id: "themeShadow", label: "Shadow", group: "Effects", control: .init(type: .shadow), defaultValue: .string("none"), responsive: true, visibleWhen: visibleWhenEnabled("effectsEnabled")),
+        Self(id: "frameworkShadow", label: "Shadow", group: "Effects", control: .init(type: .shadow), defaultValue: .string("none"), responsive: true, visibleWhen: visibleWhenEnabled("effectsEnabled")),
         Self(id: "opacity", label: "Opacity", group: "Effects", control: .init(type: .slider, minimum: 0, maximum: 100, step: 1, showsValueField: true), defaultValue: .number(100), responsive: true, visibleWhen: visibleWhenEnabled("effectsEnabled"), units: ["%"])
     ]
 }
@@ -1127,13 +1127,13 @@ nonisolated struct PartPackageControl: Codable, Equatable, Sendable {
         case textArea
         case number
         case color
-        case themeColor
-        case themeFont
-        case themeBorder
-    case themeRadius
-    case themeMargin
-    case themeSpacing
-    case themePadding
+        case frameworkColor
+        case frameworkFont
+        case frameworkBorder
+    case frameworkRadius
+    case frameworkMargin
+    case frameworkSpacing
+    case frameworkPadding
         case edges
         case corners
         case fontWeight
@@ -1166,7 +1166,7 @@ nonisolated struct PartPackageControl: Codable, Equatable, Sendable {
     let maximumDate: String?
     let step: Double?
     let options: [PartPackageOption]?
-    let themeValues: PartPackageThemeValues?
+    let frameworkValues: PartPackageFrameworkValues?
     let allowsCustom: Bool?
     let opacity: Bool?
     let outputFormat: ColorOutputFormat?
@@ -1188,7 +1188,7 @@ nonisolated struct PartPackageControl: Codable, Equatable, Sendable {
     let linked: Bool?
 
     enum CodingKeys: String, CodingKey {
-        case type, font, minimum, maximum, step, options, themeValues, allowsCustom
+        case type, font, minimum, maximum, step, options, frameworkValues, allowsCustom
         case showsFamily, showsWeight, showsStyle
         case opacity, outputFormat, customColor, count, ticks, showsValueField
         case trueValue, falseValue, selectionMode, argument1, argument2, operation, round, absoluteURL, presentation, linked
@@ -1218,7 +1218,7 @@ nonisolated struct PartPackageControl: Codable, Equatable, Sendable {
         maximumDate = nil
         self.step = step
         self.options = options
-        themeValues = nil
+        frameworkValues = nil
         self.allowsCustom = allowsCustom
         self.opacity = opacity
         outputFormat = nil
@@ -1262,7 +1262,7 @@ nonisolated struct PartPackageControl: Codable, Equatable, Sendable {
         }
         step = try container.decodeIfPresent(Double.self, forKey: .step)
         options = try container.decodeIfPresent([PartPackageOption].self, forKey: .options)
-        themeValues = try container.decodeIfPresent(PartPackageThemeValues.self, forKey: .themeValues)
+        frameworkValues = try container.decodeIfPresent(PartPackageFrameworkValues.self, forKey: .frameworkValues)
         allowsCustom = try container.decodeIfPresent(Bool.self, forKey: .allowsCustom)
         opacity = try container.decodeIfPresent(Bool.self, forKey: .opacity)
         outputFormat = try container.decodeIfPresent(ColorOutputFormat.self, forKey: .outputFormat)
@@ -1298,7 +1298,7 @@ nonisolated struct PartPackageControl: Codable, Equatable, Sendable {
         }
         try container.encodeIfPresent(step, forKey: .step)
         try container.encodeIfPresent(options, forKey: .options)
-        try container.encodeIfPresent(themeValues, forKey: .themeValues)
+        try container.encodeIfPresent(frameworkValues, forKey: .frameworkValues)
         try container.encodeIfPresent(allowsCustom, forKey: .allowsCustom)
         try container.encodeIfPresent(opacity, forKey: .opacity)
         try container.encodeIfPresent(outputFormat, forKey: .outputFormat)
@@ -1319,7 +1319,7 @@ nonisolated struct PartPackageControl: Codable, Equatable, Sendable {
     }
 }
 
-nonisolated enum PartPackageThemeValueSource: String, Codable, CaseIterable, Sendable {
+nonisolated enum PartPackageFrameworkValueSource: String, Codable, CaseIterable, Sendable {
     case colors
     case fontFamilies
     case fontSizes
@@ -1327,14 +1327,14 @@ nonisolated enum PartPackageThemeValueSource: String, Codable, CaseIterable, Sen
     case shadows
 }
 
-nonisolated enum PartPackageThemeValues: Codable, Equatable, Sendable {
-    case source(PartPackageThemeValueSource)
+nonisolated enum PartPackageFrameworkValues: Codable, Equatable, Sendable {
+    case source(PartPackageFrameworkValueSource)
     case defaultValue(String)
 
     init(from decoder: Decoder) throws {
         let container = try decoder.singleValueContainer()
         let value = try container.decode(String.self)
-        self = PartPackageThemeValueSource(rawValue: value).map(Self.source) ?? .defaultValue(value)
+        self = PartPackageFrameworkValueSource(rawValue: value).map(Self.source) ?? .defaultValue(value)
     }
 
     func encode(to encoder: Encoder) throws {
@@ -1347,14 +1347,14 @@ nonisolated enum PartPackageThemeValues: Codable, Equatable, Sendable {
 }
 
 nonisolated extension PartPackageControl {
-    var themeValueSource: PartPackageThemeValueSource? {
+    var frameworkValueSource: PartPackageFrameworkValueSource? {
         if type == .shadow { return .shadows }
-        if type == .themeColor { return .colors }
+        if type == .frameworkColor { return .colors }
         return nil
     }
 
-    var themeValueDefault: String? {
-        guard case .defaultValue(let value) = themeValues else { return nil }
+    var frameworkValueDefault: String? {
+        guard case .defaultValue(let value) = frameworkValues else { return nil }
         return value
     }
 }

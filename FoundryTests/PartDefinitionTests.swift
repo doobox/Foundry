@@ -51,7 +51,7 @@ struct PartDefinitionTests {
     }
 
     @Test
-    func flexLayoutsUseThemeControlsAndResponsiveDefaults() throws {
+    func flexLayoutsUseFrameworkControlsAndResponsiveDefaults() throws {
         let container = PartNode.make(.container)
         let flex = PartNode.make(.flex)
         #expect(flex.propertyValue(.init(rawValue: "direction")) == .choice("column"))
@@ -60,10 +60,10 @@ struct PartDefinitionTests {
         #expect(!flex.type.definition.package!.css.contains("data-alignment"))
         #expect(container.type.definition.package!.css.contains("box-shadow"))
         for type in [PartType.section, .container, .flex, .grid] {
-            #expect(type.definition.properties.contains { $0.key.rawValue == "themePadding" && $0.isResponsive })
+            #expect(type.definition.properties.contains { $0.key.rawValue == "frameworkPadding" && $0.isResponsive })
         }
         for type in [PartType.section, .flex, .grid] {
-            #expect(type.definition.properties.contains { $0.key.rawValue == "themeGap" && $0.isResponsive })
+            #expect(type.definition.properties.contains { $0.key.rawValue == "frameworkGap" && $0.isResponsive })
         }
         let grid = PartNode.make(.grid)
         #expect(grid.propertyValue(.init(rawValue: "columnCount")) == .number(1))
@@ -74,7 +74,7 @@ struct PartDefinitionTests {
         #expect(output.files.contains { $0.contents.contains("var(--foundry-space-md)") })
         var unlimited = container
         unlimited.setProperty(.maxWidth, value: .number(0))
-        let html = HTMLPageRenderer().render(page: Page(title: "Full", slug: "full", parts: [unlimited]), theme: .standard)
+        let html = HTMLPageRenderer().render(page: Page(title: "Full", slug: "full", parts: [unlimited]), framework: .standard)
         #expect(html.contains("max-width: 100%"))
         #expect(!html.contains("max-width: 0px"))
         #expect(html.contains("background-color: transparent"))
@@ -162,9 +162,9 @@ struct PartDefinitionTests {
         var container = PartNode.make(.container)
         var text = PartNode.make(.paragraph)
         var button = PartNode.make(.button)
-        container.setProperty(.init(rawValue: "themeBorder.width"), value: .themeBorderWidth(PartPackageThemeBorderWidthControl.defaultValue(.object(["value": .number(2), "unit": .string("px")]))!))
-        container.setProperty(.init(rawValue: "themeBorderColour"), value: .packageColor(.init(source: "custom", customColor: "#ABCDEF", opacity: 1)))
-        container.setProperty(.init(rawValue: "themeRadius"), value: .themeRadius(PartPackageThemeRadiusControl.defaultValue(.object(["value": .number(28), "unit": .string("px")]))!))
+        container.setProperty(.init(rawValue: "frameworkBorder.width"), value: .frameworkBorderWidth(PartPackageFrameworkBorderWidthControl.defaultValue(.object(["value": .number(2), "unit": .string("px")]))!))
+        container.setProperty(.init(rawValue: "frameworkBorderColour"), value: .packageColor(.init(source: "custom", customColor: "#ABCDEF", opacity: 1)))
+        container.setProperty(.init(rawValue: "frameworkRadius"), value: .frameworkRadius(PartPackageFrameworkRadiusControl.defaultValue(.object(["value": .number(28), "unit": .string("px")]))!))
         container.setProperty(.maxWidth, value: .number(920))
         text.setProperty(.init(rawValue: "typeface"), value: .choice("heading"))
         text.setProperty(.init(rawValue: "textSize"), value: .packageFontSize(.init(
@@ -175,7 +175,7 @@ struct PartDefinitionTests {
         container.children = [text, button]
 
         let page = Page(title: "Test", slug: "test", parts: [container])
-        let html = HTMLPageRenderer().render(page: page, theme: .standard)
+        let html = HTMLPageRenderer().render(page: page, framework: .standard)
 
         #expect(html.contains("border-width: 2.0px"))
         #expect(html.contains("border-color: #ABCDEF"))
@@ -202,7 +202,7 @@ struct PartDefinitionTests {
         ]
         let html = HTMLPageRenderer().render(
             page: Page(title: "Parts", slug: "parts", parts: parts),
-            theme: .standard
+            framework: .standard
         )
 
         #expect(html.contains("class=\"foundry-section"))
@@ -218,7 +218,7 @@ struct PartDefinitionTests {
         let unknown = PartNode(type: unknownType, children: [PartNode.make(.paragraph)])
         let html = HTMLPageRenderer().render(
             page: Page(title: "Unknown", slug: "unknown", parts: [unknown]),
-            theme: .standard
+            framework: .standard
         )
 
         #expect(html.contains("Missing part: com.example.gallery"))

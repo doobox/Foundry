@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// A compact box-model widget: four edge fields with independently linkable vertical
-/// and horizontal pairs, plus a single toggle that switches every edge between theme
+/// and horizontal pairs, plus a single toggle that switches every edge between framework
 /// tokens and raw custom values. Fields sit in plain VStack/HStack + Spacer layouts
 /// rather than fixed offsets, so the horizontal pair naturally stretches to fill
 /// whatever width is available. The connecting line for each axis is drawn in the
@@ -11,13 +11,13 @@ import SwiftUI
 struct EdgesControl<Top: View, Right: View, Bottom: View, Left: View>: View {
     let verticalLinked: Bool
     let horizontalLinked: Bool
-    let usesThemeTokens: Bool
+    let usesFrameworkTokens: Bool
     let focusNamespace: Namespace.ID
     let toggleVerticalLink: () -> Void
     let toggleHorizontalLink: () -> Void
-    /// Nil hides the theme/custom toggle entirely — the generic edges control has
-    /// no theme mode to switch to.
-    let toggleUsesThemeTokens: (() -> Void)?
+    /// Nil hides the framework/custom toggle entirely — the generic edges control has
+    /// no framework mode to switch to.
+    let toggleUsesFrameworkTokens: (() -> Void)?
     @ViewBuilder let top: () -> Top
     @ViewBuilder let right: () -> Right
     @ViewBuilder let bottom: () -> Bottom
@@ -68,7 +68,7 @@ struct EdgesControl<Top: View, Right: View, Bottom: View, Left: View>: View {
         .frame(maxWidth: .infinity)
         .padding(.vertical, 5)
         .overlay(alignment: .topTrailing) {
-            if toggleUsesThemeTokens != nil { modeToggle.padding(.top, 5) }
+            if toggleUsesFrameworkTokens != nil { modeToggle.padding(.top, 5) }
         }
         .focusScope(focusNamespace)
         .onExitCommand { resetFocus(in: focusNamespace) }
@@ -76,10 +76,10 @@ struct EdgesControl<Top: View, Right: View, Bottom: View, Left: View>: View {
     }
 
     private var modeToggle: some View {
-        ThemeModeToggle(usesThemeTokens: usesThemeTokens) {
+        FrameworkModeToggle(usesFrameworkTokens: usesFrameworkTokens) {
             resetFocus(in: focusNamespace)
             hoverTarget = nil
-            toggleUsesThemeTokens?()
+            toggleUsesFrameworkTokens?()
         }
     }
 
@@ -162,7 +162,7 @@ private struct EdgesLinkShape: Shape {
     @Previewable @State var left = 0.0
     @Previewable @State var verticalLinked = true
     @Previewable @State var horizontalLinked = true
-    @Previewable @State var usesThemeTokens = false
+    @Previewable @State var usesFrameworkTokens = false
     @Previewable @Namespace var focusNamespace
 
     PartControlPreview {
@@ -170,7 +170,7 @@ private struct EdgesLinkShape: Shape {
             EdgesControl(
                 verticalLinked: verticalLinked,
                 horizontalLinked: horizontalLinked,
-                usesThemeTokens: usesThemeTokens,
+                usesFrameworkTokens: usesFrameworkTokens,
                 focusNamespace: focusNamespace,
                 toggleVerticalLink: {
                     verticalLinked.toggle()
@@ -180,7 +180,7 @@ private struct EdgesLinkShape: Shape {
                     horizontalLinked.toggle()
                     if horizontalLinked { right = left }
                 },
-                toggleUsesThemeTokens: { usesThemeTokens.toggle() },
+                toggleUsesFrameworkTokens: { usesFrameworkTokens.toggle() },
                 top: {
                     EdgesControlPreviewField(value: Binding(
                         get: { top },

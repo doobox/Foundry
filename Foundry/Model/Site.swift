@@ -1,10 +1,10 @@
 import Foundation
 
-nonisolated struct ProjectThemeValues: Codable, Equatable, Sendable {
-    var spacing: [ThemeSpacing] = []
-    var fonts: [ThemeCustomFont] = []
-    var fontSizes: [ThemeFontSize] = []
-    var shadows: [ThemeShadow] = []
+nonisolated struct ProjectFrameworkValues: Codable, Equatable, Sendable {
+    var spacing: [FrameworkSpacing] = []
+    var fonts: [FrameworkCustomFont] = []
+    var fontSizes: [FrameworkFontSize] = []
+    var shadows: [FrameworkShadow] = []
     var colours: [ColourPalette] = []
 
     private enum CodingKeys: String, CodingKey {
@@ -15,30 +15,30 @@ nonisolated struct ProjectThemeValues: Codable, Equatable, Sendable {
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        spacing = try container.decodeIfPresent([ThemeSpacing].self, forKey: .spacing) ?? []
-        fonts = try container.decodeIfPresent([ThemeCustomFont].self, forKey: .fonts) ?? []
-        fontSizes = try container.decodeIfPresent([ThemeFontSize].self, forKey: .fontSizes) ?? []
-        shadows = try container.decodeIfPresent([ThemeShadow].self, forKey: .shadows) ?? []
+        spacing = try container.decodeIfPresent([FrameworkSpacing].self, forKey: .spacing) ?? []
+        fonts = try container.decodeIfPresent([FrameworkCustomFont].self, forKey: .fonts) ?? []
+        fontSizes = try container.decodeIfPresent([FrameworkFontSize].self, forKey: .fontSizes) ?? []
+        shadows = try container.decodeIfPresent([FrameworkShadow].self, forKey: .shadows) ?? []
         colours = try container.decodeIfPresent([ColourPalette].self, forKey: .colours) ?? []
     }
 
-    mutating func absorb(_ theme: Theme) {
-        spacing = theme.spacing.custom
-        fonts = theme.typography.customFonts
-        fontSizes = theme.typography.customFontSizes
-        shadows = theme.shadows.custom
-        colours = theme.colourPalettes.filter { $0.origin == .custom }
+    mutating func absorb(_ framework: Framework) {
+        spacing = framework.spacing.custom
+        fonts = framework.typography.customFonts
+        fontSizes = framework.typography.customFontSizes
+        shadows = framework.shadows.custom
+        colours = framework.colourPalettes.filter { $0.origin == .custom }
     }
 
-    mutating func include(_ theme: Theme) {
-        Self.mergeKeepingExisting(theme.spacing.custom, into: &spacing, id: \.id)
-        Self.mergeKeepingExisting(theme.typography.customFonts, into: &fonts, id: \.id)
-        Self.mergeKeepingExisting(theme.typography.customFontSizes, into: &fontSizes, id: \.id)
-        Self.mergeKeepingExisting(theme.shadows.custom, into: &shadows, id: \.id)
+    mutating func include(_ framework: Framework) {
+        Self.mergeKeepingExisting(framework.spacing.custom, into: &spacing, id: \.id)
+        Self.mergeKeepingExisting(framework.typography.customFonts, into: &fonts, id: \.id)
+        Self.mergeKeepingExisting(framework.typography.customFontSizes, into: &fontSizes, id: \.id)
+        Self.mergeKeepingExisting(framework.shadows.custom, into: &shadows, id: \.id)
     }
 
-    func applied(to theme: Theme) -> Theme {
-        var result = theme
+    func applied(to framework: Framework) -> Framework {
+        var result = framework
         Self.mergeReplacingExisting(spacing, into: &result.spacing.custom, id: \.id)
         Self.mergeReplacingExisting(fonts, into: &result.typography.customFonts, id: \.id)
         Self.mergeReplacingExisting(fontSizes, into: &result.typography.customFontSizes, id: \.id)
@@ -72,9 +72,9 @@ nonisolated struct ProjectThemeValues: Codable, Equatable, Sendable {
     }
 }
 
-nonisolated struct ProjectThemeState: Codable, Equatable, Identifiable, Sendable {
+nonisolated struct ProjectFrameworkState: Codable, Equatable, Identifiable, Sendable {
     let sourceID: UUID
-    var theme: Theme
+    var framework: Framework
 
     var id: UUID { sourceID }
 }
@@ -184,11 +184,11 @@ nonisolated struct Site: Codable, Equatable, Identifiable, Sendable {
     var defaultPublishingDestinationID: UUID?
     var pages: [Page]
     var pageFolders: [PageFolder]
-    var theme: Theme
-    var themeSourceID: UUID
+    var framework: Framework
+    var frameworkSourceID: UUID
     var appearanceMode: SiteAppearanceMode = .light
-    var projectThemeValues: ProjectThemeValues
-    var themeStates: [ProjectThemeState]
+    var projectFrameworkValues: ProjectFrameworkValues
+    var frameworkStates: [ProjectFrameworkState]
     var reusableParts: [ReusablePartDefinition]
     var globalParts: [ReusablePartDefinition]
     var assetLibrary: [ProjectAssetNode]
@@ -213,31 +213,31 @@ nonisolated struct Site: Codable, Equatable, Identifiable, Sendable {
         cleansObsoleteExportFiles = destination.cleansObsoleteFiles
     }
 
-    mutating func saveActiveThemeState() {
-        let state = ProjectThemeState(sourceID: themeSourceID, theme: theme)
-        if let index = themeStates.firstIndex(where: { $0.sourceID == themeSourceID }) {
-            themeStates[index] = state
+    mutating func saveActiveFrameworkState() {
+        let state = ProjectFrameworkState(sourceID: frameworkSourceID, framework: framework)
+        if let index = frameworkStates.firstIndex(where: { $0.sourceID == frameworkSourceID }) {
+            frameworkStates[index] = state
         } else {
-            themeStates.append(state)
+            frameworkStates.append(state)
         }
     }
 
-    mutating func replacePartThemeReference(_ reference: String, with replacement: String) {
+    mutating func replacePartFrameworkReference(_ reference: String, with replacement: String) {
         for pageIndex in pages.indices {
             if let background = pages[pageIndex].backgroundOverride,
                case .packageColor(let updated) = PartProperty.Value.packageColor(background)
-                .replacingThemeReference(reference, with: replacement) {
+                .replacingFrameworkReference(reference, with: replacement) {
                 pages[pageIndex].backgroundOverride = updated
             }
             for partIndex in pages[pageIndex].parts.indices {
-                pages[pageIndex].parts[partIndex].replaceThemeReference(reference, with: replacement)
+                pages[pageIndex].parts[partIndex].replaceFrameworkReference(reference, with: replacement)
             }
         }
         for index in reusableParts.indices {
-            reusableParts[index].root.replaceThemeReference(reference, with: replacement)
+            reusableParts[index].root.replaceFrameworkReference(reference, with: replacement)
         }
         for index in globalParts.indices {
-            globalParts[index].root.replaceThemeReference(reference, with: replacement)
+            globalParts[index].root.replaceFrameworkReference(reference, with: replacement)
         }
     }
 
@@ -276,10 +276,10 @@ nonisolated struct Site: Codable, Equatable, Identifiable, Sendable {
         defaultPublishingDestinationID: UUID? = nil,
         pages: [Page],
         pageFolders: [PageFolder] = [],
-        theme: Theme = ThemeBundleStore.systemTheme,
-        themeSourceID: UUID = ThemeBundleStore.systemThemeID,
-        projectThemeValues: ProjectThemeValues = .init(),
-        themeStates: [ProjectThemeState] = [],
+        framework: Framework = FrameworkBundleStore.systemFramework,
+        frameworkSourceID: UUID = FrameworkBundleStore.systemFrameworkID,
+        projectFrameworkValues: ProjectFrameworkValues = .init(),
+        frameworkStates: [ProjectFrameworkState] = [],
         reusableParts: [ReusablePartDefinition] = [],
         globalParts: [ReusablePartDefinition] = [],
         assetLibrary: [ProjectAssetNode],
@@ -335,10 +335,10 @@ nonisolated struct Site: Codable, Equatable, Identifiable, Sendable {
         }
         self.pages = pages
         self.pageFolders = pageFolders
-        self.theme = theme
-        self.themeSourceID = themeSourceID
-        self.projectThemeValues = projectThemeValues
-        self.themeStates = themeStates
+        self.framework = framework
+        self.frameworkSourceID = frameworkSourceID
+        self.projectFrameworkValues = projectFrameworkValues
+        self.frameworkStates = frameworkStates
         self.reusableParts = reusableParts
         self.globalParts = globalParts
         self.assetLibrary = assetLibrary
@@ -350,10 +350,10 @@ nonisolated struct Site: Codable, Equatable, Identifiable, Sendable {
         schemaVersion: Int = currentSchemaVersion,
         name: String,
         pages: [Page],
-        theme: Theme = ThemeBundleStore.systemTheme,
+        framework: Framework = FrameworkBundleStore.systemFramework,
         reusableParts: [ReusablePartDefinition] = []
     ) {
-        self.init(id: id, schemaVersion: schemaVersion, name: name, pages: pages, theme: theme, reusableParts: reusableParts, globalParts: [], assetLibrary: [])
+        self.init(id: id, schemaVersion: schemaVersion, name: name, pages: pages, framework: framework, reusableParts: reusableParts, globalParts: [], assetLibrary: [])
     }
 
     init(
@@ -361,7 +361,7 @@ nonisolated struct Site: Codable, Equatable, Identifiable, Sendable {
         schemaVersion: Int = currentSchemaVersion,
         name: String,
         pages: [Page],
-        theme: Theme = ThemeBundleStore.systemTheme,
+        framework: Framework = FrameworkBundleStore.systemFramework,
         reusableParts: [ReusablePartDefinition] = [],
         assets: [ProjectAsset]
     ) {
@@ -370,7 +370,7 @@ nonisolated struct Site: Codable, Equatable, Identifiable, Sendable {
             schemaVersion: schemaVersion,
             name: name,
             pages: pages,
-            theme: theme,
+            framework: framework,
             reusableParts: reusableParts,
             globalParts: [],
             assetLibrary: assets.map(ProjectAssetNode.asset)
@@ -379,7 +379,7 @@ nonisolated struct Site: Codable, Equatable, Identifiable, Sendable {
 
     private enum CodingKeys: String, CodingKey {
         case appearanceMode
-        case id, schemaVersion, name, language, publicURL, titleSuffix, defaultDescription, favicon, webIconAssets, defaultSocialImage, logo, siteLogoAssets, logoAlt, generatesCanonicalURLs, generatesSitemap, generatesRobotsTXT, allowsSearchIndexing, customCodeEnabled, headCode, bodyStartCode, bodyEndCode, analyticsCode, cleansObsoleteExportFiles, publishingDestination, publishingHost, publishingPort, publishingUsername, publishingRemotePath, publishingS3Bucket, publishingS3Region, publishingDestinations, defaultPublishingDestinationID, pages, pageFolders, theme, themeSourceID, projectThemeValues, themeStates, reusableParts, globalParts, assetLibrary, partPackages
+        case id, schemaVersion, name, language, publicURL, titleSuffix, defaultDescription, favicon, webIconAssets, defaultSocialImage, logo, siteLogoAssets, logoAlt, generatesCanonicalURLs, generatesSitemap, generatesRobotsTXT, allowsSearchIndexing, customCodeEnabled, headCode, bodyStartCode, bodyEndCode, analyticsCode, cleansObsoleteExportFiles, publishingDestination, publishingHost, publishingPort, publishingUsername, publishingRemotePath, publishingS3Bucket, publishingS3Region, publishingDestinations, defaultPublishingDestinationID, pages, pageFolders, framework, frameworkSourceID, projectFrameworkValues, frameworkStates, reusableParts, globalParts, assetLibrary, partPackages
     }
 
     init(from decoder: Decoder) throws {
@@ -439,10 +439,10 @@ nonisolated struct Site: Codable, Equatable, Identifiable, Sendable {
         }
         pages = try container.decode([Page].self, forKey: .pages)
         pageFolders = try container.decode([PageFolder].self, forKey: .pageFolders)
-        theme = try container.decode(Theme.self, forKey: .theme)
-        themeSourceID = try container.decode(UUID.self, forKey: .themeSourceID)
-        projectThemeValues = try container.decode(ProjectThemeValues.self, forKey: .projectThemeValues)
-        themeStates = try container.decode([ProjectThemeState].self, forKey: .themeStates)
+        framework = try container.decode(Framework.self, forKey: .framework)
+        frameworkSourceID = try container.decode(UUID.self, forKey: .frameworkSourceID)
+        projectFrameworkValues = try container.decode(ProjectFrameworkValues.self, forKey: .projectFrameworkValues)
+        frameworkStates = try container.decode([ProjectFrameworkState].self, forKey: .frameworkStates)
         reusableParts = try container.decode([ReusablePartDefinition].self, forKey: .reusableParts)
         globalParts = try container.decode([ReusablePartDefinition].self, forKey: .globalParts)
         assetLibrary = try container.decode([ProjectAssetNode].self, forKey: .assetLibrary)

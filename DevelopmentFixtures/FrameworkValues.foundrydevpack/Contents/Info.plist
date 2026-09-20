@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>minimumAPIVersion</key><integer>1</integer>
+    <key>id</key><string>dev.foundry.framework-values</string>
+    <key>title</key><string>Framework Values Demo</string>
+    <key>description</key><string>Demonstrates basic select controls populated from named framework sources.</string>
+    <key>author</key><string>Foundry Development</string>
+    <key>version</key><string>1.0.0</string>
+    <key>group</key><string>Other</string>
+    <key>tags</key><array><string>Development</string><string>Framework</string></array>
+    <key>assets</key><array><dict><key>path</key><string>icon.svg</string></dict></array>
+    <key>controls</key><array>
+        <dict>
+            <key>id</key><string>foreground</string><key>label</key><string>Foreground</string><key>group</key><string>Framework Values</string>
+            <key>type</key><string>frameworkColor</string><key>allowsCustom</key><true/>
+            <key>customColor</key><string>#D946EF</string><key>defaults</key><dict><key>base</key><dict><key>palette</key><string>custom</string></dict></dict><key>responsive</key><true/>
+        </dict>
+        <dict>
+            <key>id</key><string>background</string><key>label</key><string>Background</string><key>group</key><string>Framework Values</string>
+            <key>type</key><string>frameworkColor</string><key>allowsCustom</key><true/>
+            <key>customColor</key><string>#FFF1F2</string>
+            <key>defaults</key><dict><key>base</key><dict><key>palette</key><string>custom</string></dict></dict><key>responsive</key><true/>
+        </dict>
+        <dict>
+            <key>id</key><string>topBorder</string><key>label</key><string>Top border</string><key>group</key><string>Framework Values</string>
+            <key>type</key><string>frameworkColor</string><key>allowsCustom</key><true/>
+            <key>customColor</key><string>#5B5BD6</string><key>defaults</key><dict><key>base</key><dict><key>palette</key><string>custom</string></dict></dict><key>responsive</key><false/>
+        </dict>
+        <dict>
+            <key>id</key><string>bottomBorder</string><key>label</key><string>Bottom border</string><key>group</key><string>Framework Values</string>
+            <key>type</key><string>frameworkColor</string><key>allowsCustom</key><true/>
+            <key>customColor</key><string>#5B5BD6</string><key>defaults</key><dict><key>base</key><dict><key>palette</key><string>custom</string></dict></dict><key>responsive</key><false/>
+        </dict>
+    </array>
+    <key>templates</key><dict><key>html</key><string>part.html</string></dict>
+</dict>
+</plist>

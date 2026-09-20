@@ -26,7 +26,8 @@ nonisolated enum PartPackagePreparedIndex {
         var isDirty = false
     }
 
-    private static let formatVersion = 5
+    // 6: theme→framework rename of control kinds and manifest keys.
+    private static let formatVersion = 6
     private static let state = Mutex(State())
 
     static func entry(for rootURL: URL) -> PartPackagePreparedIndexEntry? {

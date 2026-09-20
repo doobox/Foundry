@@ -5,7 +5,7 @@ nonisolated enum ProjectMutationImpact: Equatable, Sendable {
     case partProperties(partIDs: [UUID], propertyKey: PartProperty.Key)
     case partStructure(ownerID: UUID?)
     case page
-    case theme
+    case framework
     case assets
     case package
     case publishingOnly
@@ -116,7 +116,7 @@ struct ProjectEditor {
     }
 
     func setSiteAllowsDarkMode(_ isEnabled: Bool) {
-        mutate(actionName: "Change Site Appearance", impact: .theme) {
+        mutate(actionName: "Change Site Appearance", impact: .framework) {
             $0.appearanceMode = isEnabled ? .both : .light
         }
     }
@@ -427,14 +427,14 @@ struct ProjectEditor {
         }
     }
 
-    func setThemeColor(_ token: DesignToken, value: String) {
-        mutate(actionName: "Edit Theme Color", impact: .theme) { site in
+    func setFrameworkColor(_ token: DesignToken, value: String) {
+        mutate(actionName: "Edit Framework Color", impact: .framework) { site in
             switch token {
-            case .backgroundColor: site.theme.colors.background = value
-            case .surfaceColor: site.theme.colors.surface = value
-            case .textColor: site.theme.colors.text = value
-            case .accentColor: site.theme.colors.accent = value
-            case .linksColor: site.theme.colors.links = value
+            case .backgroundColor: site.framework.colors.background = value
+            case .surfaceColor: site.framework.colors.surface = value
+            case .textColor: site.framework.colors.text = value
+            case .accentColor: site.framework.colors.accent = value
+            case .linksColor: site.framework.colors.links = value
             case .threeExtraSmallSpacing, .doubleExtraSmallSpacing, .extraSmallSpacing,
                  .smallSpacing, .mediumSpacing, .largeSpacing, .extraLargeSpacing,
                  .doubleExtraLargeSpacing, .threeExtraLargeSpacing: break
@@ -442,22 +442,22 @@ struct ProjectEditor {
         }
     }
 
-    func setThemeScreenEnabled(_ id: ThemeScreenID, value: Bool) {
-        mutate(actionName: "Enable Theme Screen", impact: .theme) { site in
-            site.theme.screens.update(id) { $0.isEnabled = value }
+    func setFrameworkScreenEnabled(_ id: FrameworkScreenID, value: Bool) {
+        mutate(actionName: "Enable Framework Screen", impact: .framework) { site in
+            site.framework.screens.update(id) { $0.isEnabled = value }
         }
     }
 
-    func setThemeScreenMinimumWidth(_ id: ThemeScreenID, value: Double) {
+    func setFrameworkScreenMinimumWidth(_ id: FrameworkScreenID, value: Double) {
         guard value.isFinite else { return }
-        mutate(actionName: "Edit Theme Screen Width", impact: .theme) { site in
-            site.theme.screens.update(id) { $0.minimumWidth = value }
+        mutate(actionName: "Edit Framework Screen Width", impact: .framework) { site in
+            site.framework.screens.update(id) { $0.minimumWidth = value }
         }
     }
 
-    func setThemeScreenContainerUnit(_ id: ThemeScreenID, value: ThemeContainerUnit) {
-        mutate(actionName: "Edit Theme Container Unit", impact: .theme) { site in
-            site.theme.screens.update(id) { screen in
+    func setFrameworkScreenContainerUnit(_ id: FrameworkScreenID, value: FrameworkContainerUnit) {
+        mutate(actionName: "Edit Framework Container Unit", impact: .framework) { site in
+            site.framework.screens.update(id) { screen in
                 screen.container.unit = value
                 if value == .auto {
                     screen.container.value = screen.minimumWidth
@@ -466,259 +466,259 @@ struct ProjectEditor {
         }
     }
 
-    func setThemeScreenContainerWidth(_ id: ThemeScreenID, value: Double) {
+    func setFrameworkScreenContainerWidth(_ id: FrameworkScreenID, value: Double) {
         guard value.isFinite else { return }
-        mutate(actionName: "Edit Theme Container Width", impact: .theme) { site in
-            site.theme.screens.update(id) { $0.container.value = value }
+        mutate(actionName: "Edit Framework Container Width", impact: .framework) { site in
+            site.framework.screens.update(id) { $0.container.value = value }
         }
     }
 
-    func setThemeSpacing(_ token: DesignToken, value: Double) {
+    func setFrameworkSpacing(_ token: DesignToken, value: Double) {
         guard value.isFinite, value >= 0 else { return }
-        mutate(actionName: "Edit Theme Spacing", impact: .theme) { site in
+        mutate(actionName: "Edit Framework Spacing", impact: .framework) { site in
             switch token {
-            case .threeExtraSmallSpacing: site.theme.spacing.threeExtraSmall = value
-            case .doubleExtraSmallSpacing: site.theme.spacing.doubleExtraSmall = value
-            case .extraSmallSpacing: site.theme.spacing.extraSmall = value
-            case .smallSpacing: site.theme.spacing.small = value
-            case .mediumSpacing: site.theme.spacing.medium = value
-            case .largeSpacing: site.theme.spacing.large = value
-            case .extraLargeSpacing: site.theme.spacing.extraLarge = value
-            case .doubleExtraLargeSpacing: site.theme.spacing.doubleExtraLarge = value
-            case .threeExtraLargeSpacing: site.theme.spacing.threeExtraLarge = value
+            case .threeExtraSmallSpacing: site.framework.spacing.threeExtraSmall = value
+            case .doubleExtraSmallSpacing: site.framework.spacing.doubleExtraSmall = value
+            case .extraSmallSpacing: site.framework.spacing.extraSmall = value
+            case .smallSpacing: site.framework.spacing.small = value
+            case .mediumSpacing: site.framework.spacing.medium = value
+            case .largeSpacing: site.framework.spacing.large = value
+            case .extraLargeSpacing: site.framework.spacing.extraLarge = value
+            case .doubleExtraLargeSpacing: site.framework.spacing.doubleExtraLarge = value
+            case .threeExtraLargeSpacing: site.framework.spacing.threeExtraLarge = value
             case .backgroundColor, .surfaceColor, .textColor, .accentColor, .linksColor: break
             }
         }
     }
 
-    func resetThemeSpacingScale() {
-        mutate(actionName: "Reset Theme Spacing Scale", impact: .theme) { site in
-            guard let source = ThemeLibrary.shared.themes.first(where: { $0.id == site.themeSourceID }) else { return }
-            let defaults = source.theme.spacing
-            site.theme.spacing.threeExtraSmall = defaults.threeExtraSmall
-            site.theme.spacing.doubleExtraSmall = defaults.doubleExtraSmall
-            site.theme.spacing.extraSmall = defaults.extraSmall
-            site.theme.spacing.small = defaults.small
-            site.theme.spacing.medium = defaults.medium
-            site.theme.spacing.large = defaults.large
-            site.theme.spacing.extraLarge = defaults.extraLarge
-            site.theme.spacing.doubleExtraLarge = defaults.doubleExtraLarge
-            site.theme.spacing.threeExtraLarge = defaults.threeExtraLarge
+    func resetFrameworkSpacingScale() {
+        mutate(actionName: "Reset Framework Spacing Scale", impact: .framework) { site in
+            guard let source = FrameworkLibrary.shared.frameworks.first(where: { $0.id == site.frameworkSourceID }) else { return }
+            let defaults = source.framework.spacing
+            site.framework.spacing.threeExtraSmall = defaults.threeExtraSmall
+            site.framework.spacing.doubleExtraSmall = defaults.doubleExtraSmall
+            site.framework.spacing.extraSmall = defaults.extraSmall
+            site.framework.spacing.small = defaults.small
+            site.framework.spacing.medium = defaults.medium
+            site.framework.spacing.large = defaults.large
+            site.framework.spacing.extraLarge = defaults.extraLarge
+            site.framework.spacing.doubleExtraLarge = defaults.doubleExtraLarge
+            site.framework.spacing.threeExtraLarge = defaults.threeExtraLarge
         }
     }
 
     @discardableResult
-    func addThemeSpacing() -> UUID {
-        let spacing = ThemeSpacing(name: "Custom Spacing", value: 5)
-        mutate(actionName: "Add Theme Spacing", impact: .theme) { $0.theme.spacing.custom.append(spacing) }
+    func addFrameworkSpacing() -> UUID {
+        let spacing = FrameworkSpacing(name: "Custom Spacing", value: 5)
+        mutate(actionName: "Add Framework Spacing", impact: .framework) { $0.framework.spacing.custom.append(spacing) }
         return spacing.id
     }
 
-    func setThemeSpacingName(id: UUID, value: String) {
-        mutate(actionName: "Rename Theme Spacing", impact: .theme) { site in
-            guard let index = site.theme.spacing.custom.firstIndex(where: { $0.id == id }) else { return }
-            site.theme.spacing.custom[index].name = value
+    func setFrameworkSpacingName(id: UUID, value: String) {
+        mutate(actionName: "Rename Framework Spacing", impact: .framework) { site in
+            guard let index = site.framework.spacing.custom.firstIndex(where: { $0.id == id }) else { return }
+            site.framework.spacing.custom[index].name = value
         }
     }
 
-    func setThemeSpacingValue(id: UUID, value: Double) {
+    func setFrameworkSpacingValue(id: UUID, value: Double) {
         guard value.isFinite, value >= 0 else { return }
-        mutate(actionName: "Edit Theme Spacing", impact: .theme) { site in
-            guard let index = site.theme.spacing.custom.firstIndex(where: { $0.id == id }) else { return }
-            site.theme.spacing.custom[index].value = value
+        mutate(actionName: "Edit Framework Spacing", impact: .framework) { site in
+            guard let index = site.framework.spacing.custom.firstIndex(where: { $0.id == id }) else { return }
+            site.framework.spacing.custom[index].value = value
         }
     }
 
-    func removeThemeSpacing(id: UUID, replacingWith replacement: String) {
+    func removeFrameworkSpacing(id: UUID, replacingWith replacement: String) {
         let reference = "custom:\(id.uuidString.lowercased())"
-        mutate(actionName: "Replace and Delete Theme Spacing", impact: .theme) { site in
-            site.replacePartThemeReference(reference, with: replacement)
-            site.theme.spacing.custom.removeAll(where: { $0.id == id })
-            site.projectThemeValues.spacing.removeAll(where: { $0.id == id })
-            for index in site.themeStates.indices {
-                site.themeStates[index].theme.spacing.custom.removeAll(where: { $0.id == id })
+        mutate(actionName: "Replace and Delete Framework Spacing", impact: .framework) { site in
+            site.replacePartFrameworkReference(reference, with: replacement)
+            site.framework.spacing.custom.removeAll(where: { $0.id == id })
+            site.projectFrameworkValues.spacing.removeAll(where: { $0.id == id })
+            for index in site.frameworkStates.indices {
+                site.frameworkStates[index].framework.spacing.custom.removeAll(where: { $0.id == id })
             }
         }
     }
 
-    func setThemeBorderWidth(id: String, value: Double) {
-        setThemeDimension(
+    func setFrameworkBorderWidth(id: String, value: Double) {
+        setFrameworkDimension(
             id: id,
             value: value,
-            actionName: "Edit Theme Border Width",
-            keyPath: \Theme.borderWidths
+            actionName: "Edit Framework Border Width",
+            keyPath: \Framework.borderWidths
         )
     }
 
-    func setThemeBorderRadius(id: String, value: Double) {
-        setThemeDimension(
+    func setFrameworkBorderRadius(id: String, value: Double) {
+        setFrameworkDimension(
             id: id,
             value: value,
-            actionName: "Edit Theme Border Radius",
-            keyPath: \Theme.borderRadii
+            actionName: "Edit Framework Border Radius",
+            keyPath: \Framework.borderRadii
         )
     }
 
-    func resetThemeBorderWidths() {
-        mutate(actionName: "Reset Theme Border Widths", impact: .theme) {
-            $0.theme.borderWidths = .standardBorderWidths
+    func resetFrameworkBorderWidths() {
+        mutate(actionName: "Reset Framework Border Widths", impact: .framework) {
+            $0.framework.borderWidths = .standardBorderWidths
         }
     }
 
-    func resetThemeBorderRadii() {
-        mutate(actionName: "Reset Theme Border Radii", impact: .theme) {
-            $0.theme.borderRadii = .standardBorderRadii
+    func resetFrameworkBorderRadii() {
+        mutate(actionName: "Reset Framework Border Radii", impact: .framework) {
+            $0.framework.borderRadii = .standardBorderRadii
         }
     }
 
-    func setThemeZIndex(id: String, value: Double) {
-        setThemeDimension(
+    func setFrameworkZIndex(id: String, value: Double) {
+        setFrameworkDimension(
             id: id,
             value: value,
-            actionName: "Edit Theme Z-Index",
-            keyPath: \Theme.zIndexes
+            actionName: "Edit Framework Z-Index",
+            keyPath: \Framework.zIndexes
         )
     }
 
-    func resetThemeZIndexes() {
-        mutate(actionName: "Reset Theme Z-Indexes", impact: .theme) {
-            $0.theme.zIndexes = .standardZIndexes
+    func resetFrameworkZIndexes() {
+        mutate(actionName: "Reset Framework Z-Indexes", impact: .framework) {
+            $0.framework.zIndexes = .standardZIndexes
         }
     }
 
-    private func setThemeDimension(
+    private func setFrameworkDimension(
         id: String,
         value: Double,
         actionName: String,
-        keyPath: WritableKeyPath<Theme, ThemeDimensionTokens>
+        keyPath: WritableKeyPath<Framework, FrameworkDimensionTokens>
     ) {
         guard value.isFinite, value >= 0 else { return }
-        mutate(actionName: actionName, impact: .theme) { site in
-            guard let index = site.theme[keyPath: keyPath].predefined.firstIndex(where: { $0.id == id }) else { return }
-            site.theme[keyPath: keyPath].predefined[index].value = value
+        mutate(actionName: actionName, impact: .framework) { site in
+            guard let index = site.framework[keyPath: keyPath].predefined.firstIndex(where: { $0.id == id }) else { return }
+            site.framework[keyPath: keyPath].predefined[index].value = value
         }
     }
 
     @discardableResult
-    func addThemeShadow() -> String {
+    func addFrameworkShadow() -> String {
         let id = "user-\(UUID().uuidString.lowercased())"
-        let shadow = ThemeShadow(
+        let shadow = FrameworkShadow(
             id: id,
             title: "Custom Shadow",
             layers: [.init(x: 0, y: 4, blur: 8, opacity: 0.15)]
         )
-        mutate(actionName: "Add Theme Shadow", impact: .theme) { $0.theme.shadows.custom.insert(shadow, at: 0) }
+        mutate(actionName: "Add Framework Shadow", impact: .framework) { $0.framework.shadows.custom.insert(shadow, at: 0) }
         return id
     }
 
-    func removeThemeShadow(id: String, replacingWith replacement: String) {
-        mutate(actionName: "Replace and Delete Theme Shadow", impact: .theme) { site in
-            site.replacePartThemeReference(id, with: replacement)
-            site.theme.shadows.custom.removeAll { $0.id == id }
-            site.projectThemeValues.shadows.removeAll { $0.id == id }
-            for index in site.themeStates.indices {
-                site.themeStates[index].theme.shadows.custom.removeAll { $0.id == id }
+    func removeFrameworkShadow(id: String, replacingWith replacement: String) {
+        mutate(actionName: "Replace and Delete Framework Shadow", impact: .framework) { site in
+            site.replacePartFrameworkReference(id, with: replacement)
+            site.framework.shadows.custom.removeAll { $0.id == id }
+            site.projectFrameworkValues.shadows.removeAll { $0.id == id }
+            for index in site.frameworkStates.indices {
+                site.frameworkStates[index].framework.shadows.custom.removeAll { $0.id == id }
             }
         }
     }
 
-    func setThemeShadowTitle(id: String, value: String) {
-        mutateThemeShadow(id: id, actionName: "Rename Theme Shadow") { $0.title = value }
+    func setFrameworkShadowTitle(id: String, value: String) {
+        mutateFrameworkShadow(id: id, actionName: "Rename Framework Shadow") { $0.title = value }
     }
 
-    func setThemeShadowLayer(shadowID: String, layer: ThemeShadowLayer) {
-        mutateThemeShadow(id: shadowID, actionName: "Edit Theme Shadow") { shadow in
+    func setFrameworkShadowLayer(shadowID: String, layer: FrameworkShadowLayer) {
+        mutateFrameworkShadow(id: shadowID, actionName: "Edit Framework Shadow") { shadow in
             guard let index = shadow.layers.firstIndex(where: { $0.id == layer.id }) else { return }
             shadow.layers[index] = layer
         }
     }
 
-    func setThemeShadowLayers(shadowID: String, layers: [ThemeShadowLayer]) {
-        mutateThemeShadow(id: shadowID, actionName: "Edit Theme Shadow") { $0.layers = layers }
+    func setFrameworkShadowLayers(shadowID: String, layers: [FrameworkShadowLayer]) {
+        mutateFrameworkShadow(id: shadowID, actionName: "Edit Framework Shadow") { $0.layers = layers }
     }
 
     @discardableResult
-    func addThemeShadowLayer(shadowID: String) -> UUID {
-        let layer = ThemeShadowLayer(x: 0, y: 4, blur: 8, opacity: 0.15)
-        mutateThemeShadow(id: shadowID, actionName: "Add Shadow Layer") { $0.layers.append(layer) }
+    func addFrameworkShadowLayer(shadowID: String) -> UUID {
+        let layer = FrameworkShadowLayer(x: 0, y: 4, blur: 8, opacity: 0.15)
+        mutateFrameworkShadow(id: shadowID, actionName: "Add Shadow Layer") { $0.layers.append(layer) }
         return layer.id
     }
 
-    func removeThemeShadowLayer(shadowID: String, layerID: UUID) {
-        mutateThemeShadow(id: shadowID, actionName: "Delete Shadow Layer") {
+    func removeFrameworkShadowLayer(shadowID: String, layerID: UUID) {
+        mutateFrameworkShadow(id: shadowID, actionName: "Delete Shadow Layer") {
             $0.layers.removeAll { $0.id == layerID }
         }
     }
 
-    func resetThemeShadowScale() {
-        mutate(actionName: "Reset Theme Shadow Scale", impact: .theme) { site in
-            let defaults = ThemeLibrary.shared.themes
-                .first(where: { $0.id == site.themeSourceID })?
-                .theme.shadows.predefined ?? ShadowTokens.standard.predefined
-            site.theme.shadows.predefined = defaults
+    func resetFrameworkShadowScale() {
+        mutate(actionName: "Reset Framework Shadow Scale", impact: .framework) { site in
+            let defaults = FrameworkLibrary.shared.frameworks
+                .first(where: { $0.id == site.frameworkSourceID })?
+                .framework.shadows.predefined ?? ShadowTokens.standard.predefined
+            site.framework.shadows.predefined = defaults
         }
     }
 
-    private func mutateThemeShadow(
+    private func mutateFrameworkShadow(
         id: String,
         actionName: String,
-        update: (inout ThemeShadow) -> Void
+        update: (inout FrameworkShadow) -> Void
     ) {
-        mutate(actionName: actionName, impact: .theme) { site in
-            if let index = site.theme.shadows.custom.firstIndex(where: { $0.id == id }) {
-                update(&site.theme.shadows.custom[index])
-            } else if let index = site.theme.shadows.predefined.firstIndex(where: { $0.id == id }) {
-                update(&site.theme.shadows.predefined[index])
+        mutate(actionName: actionName, impact: .framework) { site in
+            if let index = site.framework.shadows.custom.firstIndex(where: { $0.id == id }) {
+                update(&site.framework.shadows.custom[index])
+            } else if let index = site.framework.shadows.predefined.firstIndex(where: { $0.id == id }) {
+                update(&site.framework.shadows.predefined[index])
             }
         }
     }
 
-    func setThemeBodyFont(_ value: String) {
-        setThemeFont(value, for: .body)
+    func setFrameworkBodyFont(_ value: String) {
+        setFrameworkFont(value, for: .body)
     }
 
-    func setThemeFont(_ value: String, for role: ThemeFontRole) {
-        mutate(actionName: "Edit Theme Font Family", impact: .theme) { site in
+    func setFrameworkFont(_ value: String, for role: FrameworkFontRole) {
+        mutate(actionName: "Edit Framework Font Family", impact: .framework) { site in
             switch role {
-            case .body: site.theme.typography.bodyFont.family = value
-            case .heading: site.theme.typography.headingFont.family = value
-            case .monospaced: site.theme.typography.monospacedFont.family = value
+            case .body: site.framework.typography.bodyFont.family = value
+            case .heading: site.framework.typography.headingFont.family = value
+            case .monospaced: site.framework.typography.monospacedFont.family = value
             }
         }
     }
 
     @discardableResult
-    func addThemeCustomFont() -> UUID {
-        let font = ThemeCustomFont(
+    func addFrameworkCustomFont() -> UUID {
+        let font = FrameworkCustomFont(
             name: "Custom Font",
             font: .system(family: "system-ui", weights: [400, 700])
         )
-        mutate(actionName: "Add Theme Font", impact: .theme) { $0.theme.typography.customFonts.append(font) }
+        mutate(actionName: "Add Framework Font", impact: .framework) { $0.framework.typography.customFonts.append(font) }
         return font.id
     }
 
-    func setThemeCustomFontName(id: UUID, value: String) {
-        mutate(actionName: "Rename Theme Font", impact: .theme) { site in
-            guard let index = site.theme.typography.customFonts.firstIndex(where: { $0.id == id }) else { return }
-            site.theme.typography.customFonts[index].name = value
+    func setFrameworkCustomFontName(id: UUID, value: String) {
+        mutate(actionName: "Rename Framework Font", impact: .framework) { site in
+            guard let index = site.framework.typography.customFonts.firstIndex(where: { $0.id == id }) else { return }
+            site.framework.typography.customFonts[index].name = value
         }
     }
 
-    func setThemeCustomFontFamily(id: UUID, value: String) {
-        mutate(actionName: "Edit Theme Font", impact: .theme) { site in
-            guard let index = site.theme.typography.customFonts.firstIndex(where: { $0.id == id }) else { return }
-            site.theme.typography.customFonts[index].font.family = value
+    func setFrameworkCustomFontFamily(id: UUID, value: String) {
+        mutate(actionName: "Edit Framework Font", impact: .framework) { site in
+            guard let index = site.framework.typography.customFonts.firstIndex(where: { $0.id == id }) else { return }
+            site.framework.typography.customFonts[index].font.family = value
         }
     }
 
-    func setThemeFontFallbacks(_ value: String, reference: ThemeFontReference) {
-        updateThemeFont(reference: reference, actionName: "Edit Theme Font Fallbacks") {
+    func setFrameworkFontFallbacks(_ value: String, reference: FrameworkFontReference) {
+        updateFrameworkFont(reference: reference, actionName: "Edit Framework Font Fallbacks") {
             $0.fallbacks = value.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }
         }
     }
 
-    func setThemeFontSource(_ source: ThemeFontSource, reference: ThemeFontReference) {
-        updateThemeFont(reference: reference, actionName: "Edit Theme Font Source") {
+    func setFrameworkFontSource(_ source: FrameworkFontSource, reference: FrameworkFontReference) {
+        updateFrameworkFont(reference: reference, actionName: "Edit Framework Font Source") {
             if case .system = $0.source {
                 $0.systemFontNames = [$0.family] + $0.fallbacks
             }
@@ -726,8 +726,8 @@ struct ProjectEditor {
         }
     }
 
-    func restoreThemeFontNames(reference: ThemeFontReference) {
-        updateThemeFont(reference: reference, actionName: "Use Font Names") { definition in
+    func restoreFrameworkFontNames(reference: FrameworkFontReference) {
+        updateFrameworkFont(reference: reference, actionName: "Use Font Names") { definition in
             let names = definition.systemFontNames ?? defaultSystemFontNames(for: reference)
             definition.family = names.first ?? "system-ui"
             definition.fallbacks = Array(names.dropFirst())
@@ -736,18 +736,18 @@ struct ProjectEditor {
         }
     }
 
-    func setThemeFontFamily(_ value: String, reference: ThemeFontReference) {
-        updateThemeFont(reference: reference, actionName: "Edit Theme Font Family") {
+    func setFrameworkFontFamily(_ value: String, reference: FrameworkFontReference) {
+        updateFrameworkFont(reference: reference, actionName: "Edit Framework Font Family") {
             $0.family = value
         }
     }
 
-    func setThemeFontNames(_ value: String, reference: ThemeFontReference) {
+    func setFrameworkFontNames(_ value: String, reference: FrameworkFontReference) {
         let names = value.split(separator: ",", omittingEmptySubsequences: true)
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
         guard let family = names.first else { return }
-        updateThemeFont(reference: reference, actionName: "Edit Theme Font Names") {
+        updateFrameworkFont(reference: reference, actionName: "Edit Framework Font Names") {
             $0.family = family
             $0.fallbacks = Array(names.dropFirst())
             $0.source = .system
@@ -755,11 +755,11 @@ struct ProjectEditor {
         }
     }
 
-    func setThemeGoogleFont(_ family: String, reference: ThemeFontReference, configuration: GoogleFontConfiguration? = nil) {
+    func setFrameworkGoogleFont(_ family: String, reference: FrameworkFontReference, configuration: GoogleFontConfiguration? = nil) {
         let normalizedFamily = family.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !normalizedFamily.isEmpty,
-              let url = ThemeFontDefinition.googleStylesheetURL(for: normalizedFamily) else { return }
-        updateThemeFont(reference: reference, actionName: "Choose Google Font") {
+              let url = FrameworkFontDefinition.googleStylesheetURL(for: normalizedFamily) else { return }
+        updateFrameworkFont(reference: reference, actionName: "Choose Google Font") {
             if case .system = $0.source {
                 $0.systemFontNames = [$0.family] + $0.fallbacks
             }
@@ -771,17 +771,17 @@ struct ProjectEditor {
         }
     }
 
-    func setThemeFontDefinition(
-        _ definition: ThemeFontDefinition,
-        reference: ThemeFontReference,
+    func setFrameworkFontDefinition(
+        _ definition: FrameworkFontDefinition,
+        reference: FrameworkFontReference,
         actionName: String
     ) {
-        updateThemeFont(reference: reference, actionName: actionName) {
+        updateFrameworkFont(reference: reference, actionName: actionName) {
             $0 = definition
         }
     }
 
-    func setThemeFontResources(_ files: [String], reference: ThemeFontReference) {
+    func setFrameworkFontResources(_ files: [String], reference: FrameworkFontReference) {
         let uniqueFiles = files.reduce(into: [String]()) { result, file in
             if !result.contains(file) { result.append(file) }
         }
@@ -790,7 +790,7 @@ struct ProjectEditor {
             guard let id = file.foundryAssetID, let content = contents[id] else { return nil }
             return FontFileMetadata.read(content)
         }
-        updateThemeFont(reference: reference, actionName: "Edit Font Resources") {
+        updateFrameworkFont(reference: reference, actionName: "Edit Font Resources") {
             let previous: [String]
             if case .bundled(let files) = $0.source { previous = files } else { previous = [] }
             // Removing a broken attachment must remain possible; adding files must
@@ -812,99 +812,99 @@ struct ProjectEditor {
         }
     }
 
-    func setThemeFontWeights(_ weights: [Int], reference: ThemeFontReference) {
-        updateThemeFont(reference: reference, actionName: "Edit Theme Font Weights") {
+    func setFrameworkFontWeights(_ weights: [Int], reference: FrameworkFontReference) {
+        updateFrameworkFont(reference: reference, actionName: "Edit Framework Font Weights") {
             let normalized = Array(Set(weights)).sorted()
             $0.weights = normalized.isEmpty ? [400] : normalized
         }
     }
 
-    func setThemeFontStyles(_ styles: [ThemeFontStyle], reference: ThemeFontReference) {
-        updateThemeFont(reference: reference, actionName: "Edit Theme Font Styles") {
+    func setFrameworkFontStyles(_ styles: [FrameworkFontStyle], reference: FrameworkFontReference) {
+        updateFrameworkFont(reference: reference, actionName: "Edit Framework Font Styles") {
             $0.styles = styles.isEmpty ? [.normal] : styles
         }
     }
 
-    func removeThemeCustomFont(id: UUID, replacingWith replacement: String) {
+    func removeFrameworkCustomFont(id: UUID, replacingWith replacement: String) {
         let reference = "custom:\(id.uuidString.lowercased())"
-        mutate(actionName: "Replace and Delete Theme Font", impact: .theme) { site in
-            site.replacePartThemeReference(reference, with: replacement)
-            site.theme.typography.customFonts.removeAll(where: { $0.id == id })
-            site.projectThemeValues.fonts.removeAll(where: { $0.id == id })
-            for index in site.themeStates.indices {
-                site.themeStates[index].theme.typography.customFonts.removeAll(where: { $0.id == id })
+        mutate(actionName: "Replace and Delete Framework Font", impact: .framework) { site in
+            site.replacePartFrameworkReference(reference, with: replacement)
+            site.framework.typography.customFonts.removeAll(where: { $0.id == id })
+            site.projectFrameworkValues.fonts.removeAll(where: { $0.id == id })
+            for index in site.frameworkStates.indices {
+                site.frameworkStates[index].framework.typography.customFonts.removeAll(where: { $0.id == id })
             }
         }
     }
 
-    private func updateThemeFont(
-        reference: ThemeFontReference,
+    private func updateFrameworkFont(
+        reference: FrameworkFontReference,
         actionName: String,
-        update: (inout ThemeFontDefinition) -> Void
+        update: (inout FrameworkFontDefinition) -> Void
     ) {
-        mutate(actionName: actionName, impact: .theme) { site in
+        mutate(actionName: actionName, impact: .framework) { site in
             switch reference {
-            case .role(.body): update(&site.theme.typography.bodyFont)
-            case .role(.heading): update(&site.theme.typography.headingFont)
-            case .role(.monospaced): update(&site.theme.typography.monospacedFont)
+            case .role(.body): update(&site.framework.typography.bodyFont)
+            case .role(.heading): update(&site.framework.typography.headingFont)
+            case .role(.monospaced): update(&site.framework.typography.monospacedFont)
             case .custom(let id):
-                guard let index = site.theme.typography.customFonts.firstIndex(where: { $0.id == id }) else { return }
-                update(&site.theme.typography.customFonts[index].font)
+                guard let index = site.framework.typography.customFonts.firstIndex(where: { $0.id == id }) else { return }
+                update(&site.framework.typography.customFonts[index].font)
             }
         }
     }
 
-    private func defaultSystemFontNames(for reference: ThemeFontReference) -> [String] {
+    private func defaultSystemFontNames(for reference: FrameworkFontReference) -> [String] {
         let definition = switch reference {
-        case .role(.body): ThemeBundleStore.systemTheme.typography.bodyFont
-        case .role(.heading): ThemeBundleStore.systemTheme.typography.headingFont
-        case .role(.monospaced): ThemeBundleStore.systemTheme.typography.monospacedFont
-        case .custom: ThemeFontDefinition.system(family: "system-ui", weights: [400, 700])
+        case .role(.body): FrameworkBundleStore.systemFramework.typography.bodyFont
+        case .role(.heading): FrameworkBundleStore.systemFramework.typography.headingFont
+        case .role(.monospaced): FrameworkBundleStore.systemFramework.typography.monospacedFont
+        case .custom: FrameworkFontDefinition.system(family: "system-ui", weights: [400, 700])
         }
         return [definition.family] + definition.fallbacks
     }
 
-    func setThemeFontSize(id: String, value: Double) {
+    func setFrameworkFontSize(id: String, value: Double) {
         guard value.isFinite, value > 0 else { return }
-        mutate(actionName: "Edit Theme Font Size", impact: .theme) { site in
-            if let index = site.theme.typography.predefinedFontSizes.firstIndex(where: { $0.id == id }) {
-                site.theme.typography.predefinedFontSizes[index].size = value
-            } else if let index = site.theme.typography.customFontSizes.firstIndex(where: { $0.id == id }) {
-                site.theme.typography.customFontSizes[index].size = value
+        mutate(actionName: "Edit Framework Font Size", impact: .framework) { site in
+            if let index = site.framework.typography.predefinedFontSizes.firstIndex(where: { $0.id == id }) {
+                site.framework.typography.predefinedFontSizes[index].size = value
+            } else if let index = site.framework.typography.customFontSizes.firstIndex(where: { $0.id == id }) {
+                site.framework.typography.customFontSizes[index].size = value
             }
         }
     }
 
-    func setThemeFontSizeLineHeight(id: String, value: Double) {
+    func setFrameworkFontSizeLineHeight(id: String, value: Double) {
         guard value.isFinite, value > 0 else { return }
-        mutate(actionName: "Edit Theme Line Height", impact: .theme) { site in
-            if let index = site.theme.typography.predefinedFontSizes.firstIndex(where: { $0.id == id }) {
-                site.theme.typography.predefinedFontSizes[index].lineHeight = value
-            } else if let index = site.theme.typography.customFontSizes.firstIndex(where: { $0.id == id }) {
-                site.theme.typography.customFontSizes[index].lineHeight = value
+        mutate(actionName: "Edit Framework Line Height", impact: .framework) { site in
+            if let index = site.framework.typography.predefinedFontSizes.firstIndex(where: { $0.id == id }) {
+                site.framework.typography.predefinedFontSizes[index].lineHeight = value
+            } else if let index = site.framework.typography.customFontSizes.firstIndex(where: { $0.id == id }) {
+                site.framework.typography.customFontSizes[index].lineHeight = value
             }
         }
     }
 
-    func setThemeFontSizeTitle(id: String, value: String) {
-        mutate(actionName: "Rename Theme Font Size", impact: .theme) { site in
-            guard let index = site.theme.typography.customFontSizes.firstIndex(where: { $0.id == id }) else { return }
-            site.theme.typography.customFontSizes[index].title = value
+    func setFrameworkFontSizeTitle(id: String, value: String) {
+        mutate(actionName: "Rename Framework Font Size", impact: .framework) { site in
+            guard let index = site.framework.typography.customFontSizes.firstIndex(where: { $0.id == id }) else { return }
+            site.framework.typography.customFontSizes[index].title = value
         }
     }
 
-    func resetThemeFontSizeScale() {
-        mutate(actionName: "Reset Theme Font Size Scale", impact: .theme) { site in
-            guard let source = ThemeLibrary.shared.themes.first(where: { $0.id == site.themeSourceID }) else { return }
-            site.theme.typography.predefinedFontSizes = source.theme.typography.predefinedFontSizes
+    func resetFrameworkFontSizeScale() {
+        mutate(actionName: "Reset Framework Font Size Scale", impact: .framework) { site in
+            guard let source = FrameworkLibrary.shared.frameworks.first(where: { $0.id == site.frameworkSourceID }) else { return }
+            site.framework.typography.predefinedFontSizes = source.framework.typography.predefinedFontSizes
         }
     }
 
     @discardableResult
-    func addThemeFontSize() -> String {
+    func addFrameworkFontSize() -> String {
         let newID = "user-\(UUID().uuidString.lowercased())"
-        mutate(actionName: "Add Theme Font Size", impact: .theme) { site in
-            site.theme.typography.customFontSizes.insert(
+        mutate(actionName: "Add Framework Font Size", impact: .framework) { site in
+            site.framework.typography.customFontSizes.insert(
                 .init(id: newID, title: "Custom", size: 1, lineHeight: 1.5),
                 at: 0
             )
@@ -912,33 +912,33 @@ struct ProjectEditor {
         return newID
     }
 
-    func removeThemeFontSize(id: String, replacingWith replacement: String) {
-        mutate(actionName: "Replace and Delete Theme Type Size", impact: .theme) { site in
-            site.replacePartThemeReference(id, with: replacement)
-            site.theme.typography.customFontSizes.removeAll { $0.id == id }
-            site.projectThemeValues.fontSizes.removeAll { $0.id == id }
-            for index in site.themeStates.indices {
-                site.themeStates[index].theme.typography.customFontSizes.removeAll { $0.id == id }
+    func removeFrameworkFontSize(id: String, replacingWith replacement: String) {
+        mutate(actionName: "Replace and Delete Framework Type Size", impact: .framework) { site in
+            site.replacePartFrameworkReference(id, with: replacement)
+            site.framework.typography.customFontSizes.removeAll { $0.id == id }
+            site.projectFrameworkValues.fontSizes.removeAll { $0.id == id }
+            for index in site.frameworkStates.indices {
+                site.frameworkStates[index].framework.typography.customFontSizes.removeAll { $0.id == id }
             }
         }
     }
 
-    func moveThemeFontSize(id: String, before targetID: String) {
+    func moveFrameworkFontSize(id: String, before targetID: String) {
         guard id != targetID else { return }
-        mutate(actionName: "Reorder Theme Font Sizes", impact: .theme) { site in
-            guard let source = site.theme.typography.customFontSizes.firstIndex(where: { $0.id == id }) else { return }
-            let item = site.theme.typography.customFontSizes.remove(at: source)
-            guard let destination = site.theme.typography.customFontSizes.firstIndex(where: { $0.id == targetID }) else {
-                site.theme.typography.customFontSizes.insert(item, at: source)
+        mutate(actionName: "Reorder Framework Font Sizes", impact: .framework) { site in
+            guard let source = site.framework.typography.customFontSizes.firstIndex(where: { $0.id == id }) else { return }
+            let item = site.framework.typography.customFontSizes.remove(at: source)
+            guard let destination = site.framework.typography.customFontSizes.firstIndex(where: { $0.id == targetID }) else {
+                site.framework.typography.customFontSizes.insert(item, at: source)
                 return
             }
-            site.theme.typography.customFontSizes.insert(item, at: destination)
+            site.framework.typography.customFontSizes.insert(item, at: destination)
         }
     }
 
-    func moveThemeFontSizes(fromOffsets offsets: IndexSet, toOffset destination: Int) {
-        mutate(actionName: "Reorder Theme Font Sizes", impact: .theme) { site in
-            var sizes = site.theme.typography.customFontSizes
+    func moveFrameworkFontSizes(fromOffsets offsets: IndexSet, toOffset destination: Int) {
+        mutate(actionName: "Reorder Framework Font Sizes", impact: .framework) { site in
+            var sizes = site.framework.typography.customFontSizes
             let moving = offsets.sorted().map { sizes[$0] }
             for index in offsets.sorted(by: >) {
                 sizes.remove(at: index)
@@ -946,66 +946,66 @@ struct ProjectEditor {
             let removedBeforeDestination = offsets.filter { $0 < destination }.count
             let insertionIndex = max(0, min(destination - removedBeforeDestination, sizes.count))
             sizes.insert(contentsOf: moving, at: insertionIndex)
-            site.theme.typography.customFontSizes = sizes
+            site.framework.typography.customFontSizes = sizes
         }
     }
 
-    func selectTheme(_ theme: Theme, sourceID: UUID) {
-        let builtIn = ThemeLibrary.shared.themes.first { $0.id == sourceID && $0.isBuiltIn }
-        mutate(actionName: "Select Theme", impact: .theme) { site in
-            let projectScreens = site.theme.screens
-            defer { site.theme.screens = projectScreens }
-            guard site.themeSourceID != sourceID || builtIn != nil else { return }
-            site.projectThemeValues.absorb(site.theme)
-            if site.themeSourceID != sourceID { site.saveActiveThemeState() }
-            let selected: Theme
+    func selectFramework(_ framework: Framework, sourceID: UUID) {
+        let builtIn = FrameworkLibrary.shared.frameworks.first { $0.id == sourceID && $0.isBuiltIn }
+        mutate(actionName: "Select Framework", impact: .framework) { site in
+            let projectScreens = site.framework.screens
+            defer { site.framework.screens = projectScreens }
+            guard site.frameworkSourceID != sourceID || builtIn != nil else { return }
+            site.projectFrameworkValues.absorb(site.framework)
+            if site.frameworkSourceID != sourceID { site.saveActiveFrameworkState() }
+            let selected: Framework
             if let builtIn {
                 // Built-ins have no editable project snapshot to restore.
-                site.themeStates.removeAll { $0.sourceID == sourceID }
-                selected = builtIn.theme
+                site.frameworkStates.removeAll { $0.sourceID == sourceID }
+                selected = builtIn.framework
             } else {
-                site.projectThemeValues.include(theme)
-                selected = site.themeStates.first(where: { $0.sourceID == sourceID })?.theme ?? theme
+                site.projectFrameworkValues.include(framework)
+                selected = site.frameworkStates.first(where: { $0.sourceID == sourceID })?.framework ?? framework
             }
-            site.theme = site.projectThemeValues.applied(to: selected)
-            site.themeSourceID = sourceID
+            site.framework = site.projectFrameworkValues.applied(to: selected)
+            site.frameworkSourceID = sourceID
         }
     }
 
-    func resetTheme(_ theme: Theme, sourceID: UUID) {
-        mutate(actionName: "Reset Theme", impact: .theme) { site in
-            let projectScreens = site.theme.screens
-            defer { site.theme.screens = projectScreens }
-            site.projectThemeValues.absorb(site.theme)
-            site.themeStates.removeAll { $0.sourceID == sourceID }
-            site.theme = site.projectThemeValues.applied(to: theme)
-            site.themeSourceID = sourceID
+    func resetFramework(_ framework: Framework, sourceID: UUID) {
+        mutate(actionName: "Reset Framework", impact: .framework) { site in
+            let projectScreens = site.framework.screens
+            defer { site.framework.screens = projectScreens }
+            site.projectFrameworkValues.absorb(site.framework)
+            site.frameworkStates.removeAll { $0.sourceID == sourceID }
+            site.framework = site.projectFrameworkValues.applied(to: framework)
+            site.frameworkSourceID = sourceID
         }
     }
 
-    func didDeleteTheme(sourceID: UUID) {
-        mutate(actionName: "Delete Theme", impact: .theme) { site in
-            let projectScreens = site.theme.screens
-            defer { site.theme.screens = projectScreens }
-            site.themeStates.removeAll { $0.sourceID == sourceID }
-            guard site.themeSourceID == sourceID else { return }
-            site.projectThemeValues.absorb(site.theme)
-            site.themeStates.removeAll { $0.sourceID == ThemeBundleStore.systemThemeID }
-            site.theme = site.projectThemeValues.applied(to: ThemeBundleStore.systemTheme)
-            site.themeSourceID = ThemeBundleStore.systemThemeID
+    func didDeleteFramework(sourceID: UUID) {
+        mutate(actionName: "Delete Framework", impact: .framework) { site in
+            let projectScreens = site.framework.screens
+            defer { site.framework.screens = projectScreens }
+            site.frameworkStates.removeAll { $0.sourceID == sourceID }
+            guard site.frameworkSourceID == sourceID else { return }
+            site.projectFrameworkValues.absorb(site.framework)
+            site.frameworkStates.removeAll { $0.sourceID == FrameworkBundleStore.systemFrameworkID }
+            site.framework = site.projectFrameworkValues.applied(to: FrameworkBundleStore.systemFramework)
+            site.frameworkSourceID = FrameworkBundleStore.systemFrameworkID
         }
     }
 
-    func commitTheme(_ theme: Theme, sourceID: UUID) {
-        mutate(actionName: "Update Theme Defaults", impact: .theme) { site in
-            let projectScreens = site.theme.screens
-            defer { site.theme.screens = projectScreens }
-            let projectColours = site.theme.colourPalettes.filter { $0.origin == .custom }
-            site.themeStates.removeAll { $0.sourceID == sourceID }
-            site.projectThemeValues.absorb(theme)
-            site.projectThemeValues.colours = projectColours
-            site.theme = site.projectThemeValues.applied(to: theme)
-            site.themeSourceID = sourceID
+    func commitFramework(_ framework: Framework, sourceID: UUID) {
+        mutate(actionName: "Update Framework Defaults", impact: .framework) { site in
+            let projectScreens = site.framework.screens
+            defer { site.framework.screens = projectScreens }
+            let projectColours = site.framework.colourPalettes.filter { $0.origin == .custom }
+            site.frameworkStates.removeAll { $0.sourceID == sourceID }
+            site.projectFrameworkValues.absorb(framework)
+            site.projectFrameworkValues.colours = projectColours
+            site.framework = site.projectFrameworkValues.applied(to: framework)
+            site.frameworkSourceID = sourceID
         }
     }
 
@@ -1015,7 +1015,7 @@ struct ProjectEditor {
         to pageID: UUID,
         parentID: UUID?
     ) -> UUID {
-        let node = PartNode.make(type, theme: document.site.theme)
+        let node = PartNode.make(type, framework: document.site.framework)
         let page = document.site.pages.first(where: { $0.id == pageID })
         let sharedInsertion = page.map {
             document.site.sharedGlobalInsertion(on: $0, at: parentID.map(PartPlacement.inside) ?? .end)

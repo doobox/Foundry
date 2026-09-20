@@ -33,7 +33,7 @@ struct StaticSiteRendererTests {
         )
         let canvasHTML = HTMLPageRenderer(site: site).render(
             page: try #require(site.pages.first),
-            theme: site.theme
+            framework: site.framework
         )
 
         #expect(exportedCSS.contains("html,body{min-height:100%}"))
@@ -46,7 +46,7 @@ struct StaticSiteRendererTests {
         #expect(exportedCSS.contains("--foundry-spacing-base:"))
         #expect(exportedCSS.contains(".foundry-container{"))
         #expect(!exportedCSS.contains("--background:"))
-        #expect(!exportedCSS.contains("--theme-container-width:"))
+        #expect(!exportedCSS.contains("--framework-container-width:"))
         #expect(!exportedCSS.contains("padding:48px"))
         #expect(canvasHTML.contains("html, body { min-height: 100%; }"))
         #expect(canvasHTML.contains("display: flex; flex-direction: column; align-items: stretch;"))

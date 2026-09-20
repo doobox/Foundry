@@ -42,7 +42,7 @@ struct CanvasView: View {
     let site: Site
     let page: Page?
     let language: String
-    let theme: Theme
+    let framework: Framework
     let assets: ProjectAssetContents
     let assetRevision: UInt64
     let mutationEvent: ProjectMutationEvent
@@ -126,7 +126,7 @@ struct CanvasView: View {
                                         )
                                         .id(enablesCanvasWebInspector)
                                         .frame(width: viewportWidth, height: logicalHeight)
-                                        .background(Color(hex: page.backgroundColour(theme: theme, appearance: appearance)) ?? .white)
+                                        .background(Color(hex: page.backgroundColour(framework: framework, appearance: appearance)) ?? .white)
                                         .shadow(color: .black.opacity(0.12), radius: 12, y: 4)
                                         .scaleEffect(scale, anchor: .top)
                                     } else {
@@ -205,7 +205,7 @@ struct CanvasView: View {
 
     private var renderRequestID: CanvasRenderRequestID? {
         guard let page else { return nil }
-        let breakpoint = ResponsiveBreakpoint.forViewportWidth(viewportWidth, screens: theme.screens)
+        let breakpoint = ResponsiveBreakpoint.forViewportWidth(viewportWidth, screens: framework.screens)
         return CanvasRenderRequestID(
             pageID: page.id,
             mutationRevision: mutationEvent.revision,
@@ -230,7 +230,7 @@ struct CanvasView: View {
             renderer: renderer,
             page: page,
             language: language,
-            theme: theme,
+            framework: framework,
             assets: assets,
             breakpoint: requestID.breakpoint,
             impact: mutationEvent.impact,
@@ -378,7 +378,7 @@ nonisolated struct CanvasRenderSnapshot: Sendable {
     let renderer: any PageRendering
     let page: Page
     let language: String
-    let theme: Theme
+    let framework: Framework
     let assets: ProjectAssetContents
     let breakpoint: ResponsiveBreakpoint
     let impact: ProjectMutationImpact
@@ -394,7 +394,7 @@ nonisolated struct CanvasRenderSnapshot: Sendable {
            let subtree = renderer.renderSubtree(
                partID: partID,
                page: page,
-               theme: theme,
+               framework: framework,
                assets: assets,
                breakpoint: breakpoint
            ) {
@@ -403,7 +403,7 @@ nonisolated struct CanvasRenderSnapshot: Sendable {
         let html = renderer.render(
             page: page,
             language: language,
-            theme: theme,
+            framework: framework,
             assets: assets,
             breakpoint: breakpoint
         )

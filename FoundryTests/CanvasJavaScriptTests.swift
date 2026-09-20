@@ -86,7 +86,7 @@ struct CanvasJavaScriptTests {
         let webView = WKWebView(frame: CGRect(x: 0, y: 0, width: 900, height: 600))
         defer { webView.stopLoading() }
         for breakpoint in [ResponsiveBreakpoint.mobile, .medium] {
-            let html = HTMLPageRenderer().render(page: page, language: "en", theme: .standard, assets: [:], breakpoint: breakpoint)
+            let html = HTMLPageRenderer().render(page: page, language: "en", framework: .standard, assets: [:], breakpoint: breakpoint)
             webView.loadHTMLString(html.replacingOccurrences(of: "<html ", with: "<html data-layout-test=\"\(breakpoint.rawValue)\" "), baseURL: nil)
             var ready = false
             for _ in 0..<200 {
@@ -330,9 +330,9 @@ struct CanvasJavaScriptTests {
         let webView = WKWebView(frame: CGRect(x: 0, y: 0, width: 600, height: 400), configuration: configuration)
         defer { handler.finish(); webView.stopLoading() }
         let page = Page(title: "Font test", slug: "index", parts: (0..<30).map { _ in PartNode.make(.paragraph) })
-        var theme = Theme.standard
+        var framework = Framework.standard
         let renderer = HTMLPageRenderer()
-        webView.loadHTMLString(renderer.render(page: page, theme: theme), baseURL: nil)
+        webView.loadHTMLString(renderer.render(page: page, framework: framework), baseURL: nil)
         var ready = false
         for _ in 0..<200 {
             ready = (try? await webView.callAsyncJavaScript(
@@ -352,10 +352,10 @@ struct CanvasJavaScriptTests {
             };
             window.scrollTo(0, 300);
             """, arguments: [:], in: nil, contentWorld: .defaultClient)
-        theme.typography.bodyFont.source = .remote(stylesheetURL: URL(string: "canvas-font-test://font/styles.css")!)
+        framework.typography.bodyFont.source = .remote(stylesheetURL: URL(string: "canvas-font-test://font/styles.css")!)
         _ = try await webView.callAsyncJavaScript(
             "return window.foundryReplaceDocument(html)",
-            arguments: ["html": renderer.render(page: page, theme: theme)], in: nil, contentWorld: .defaultClient)
+            arguments: ["html": renderer.render(page: page, framework: framework)], in: nil, contentWorld: .defaultClient)
         for _ in 0..<200 {
             if handler.hasPendingRequest { break }
             try await Task.sleep(for: .milliseconds(25))
@@ -456,7 +456,7 @@ struct CanvasJavaScriptTests {
     }
 
     @Test(.timeLimit(.minutes(1)))
-    func liveThemeUpdatesCompleteWithoutReloadingDocument() async throws {
+    func liveFrameworkUpdatesCompleteWithoutReloadingDocument() async throws {
         let configuration = WKWebViewConfiguration()
         configuration.defaultWebpagePreferences.allowsContentJavaScript = false
         configuration.userContentController.addUserScript(.init(
@@ -481,7 +481,7 @@ struct CanvasJavaScriptTests {
         try #require(ready, "The real canvas interaction script must be installed")
 
         // A reload would discard this client-world state. Reconcile several successive
-        // theme shades, as happens while changing a colour or dragging Soften.
+        // framework shades, as happens while changing a colour or dragging Soften.
         _ = try await webView.callAsyncJavaScript(
             "window.canvasTestSentinel = {}; window.originalCanvasTestSentinel = window.canvasTestSentinel",
             arguments: [:], in: nil, contentWorld: .defaultClient
@@ -491,7 +491,7 @@ struct CanvasJavaScriptTests {
                 """
                 const updated = window.foundryReplaceDocument(html);
                 return updated === true
-                  && document.querySelector('#theme').textContent.includes(colour)
+                  && document.querySelector('#framework').textContent.includes(colour)
                   && document.querySelector('[data-foundry-id="test-part"]').textContent === 'Example'
                   && window.canvasTestSentinel !== undefined
                   && window.canvasTestSentinel === window.originalCanvasTestSentinel;
@@ -505,7 +505,7 @@ struct CanvasJavaScriptTests {
 
     private func page(colour: String) -> String {
         """
-        <!doctype html><html><head><style id="theme">:root { --foundry-color-accent: \(colour); }</style></head>
+        <!doctype html><html><head><style id="framework">:root { --foundry-color-accent: \(colour); }</style></head>
         <body><div data-foundry-id="test-part">Example</div></body></html>
         """
     }

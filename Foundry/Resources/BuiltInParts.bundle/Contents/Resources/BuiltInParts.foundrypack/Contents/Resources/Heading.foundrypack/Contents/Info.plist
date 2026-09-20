@@ -29,7 +29,7 @@
             <key>responsive</key><false/>
         </dict>
         <dict><key>id</key><string>textAlignment</string><key>label</key><string>Alignment</string><key>group</key><string>Typography</string><key>type</key><string>textAlignment</string><key>defaults</key><dict><key>base</key><string>start</string></dict><key>responsive</key><true/></dict>
-        <dict><key>id</key><string>textColor</string><key>label</key><string>Colour</string><key>group</key><string>Colour</string><key>type</key><string>themeColor</string><key>allowsCustom</key><true/><key>opacity</key><true/><key>customColor</key><string>#171719</string><key>defaults</key><dict><key>base</key><dict><key>palette</key><string>custom</string></dict></dict><key>responsive</key><true/></dict>
+        <dict><key>id</key><string>textColor</string><key>label</key><string>Colour</string><key>group</key><string>Colour</string><key>type</key><string>frameworkColor</string><key>allowsCustom</key><true/><key>opacity</key><true/><key>customColor</key><string>#171719</string><key>defaults</key><dict><key>base</key><dict><key>palette</key><string>custom</string></dict></dict><key>responsive</key><true/></dict>
     </array>
     <key>templates</key><dict><key>html</key><string>part.html</string><key>files</key><array><dict><key>path</key><string>part.css</string><key>scope</key><string>instance</string></dict></array></dict>
     <key>assets</key><array/>

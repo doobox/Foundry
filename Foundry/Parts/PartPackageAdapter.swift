@@ -214,16 +214,16 @@ nonisolated enum PartPackageAdapter {
                 }),
                 isResponsive: property.responsive,
                 visibleWhen: property.visibleWhen,
-                themeValueSource: property.control.themeValueSource,
-                allowsCustomThemeValue: property.control.allowsCustom == true,
+                frameworkValueSource: property.control.frameworkValueSource,
+                allowsCustomFrameworkValue: property.control.allowsCustom == true,
                 dateMinimum: property.control.minimumDate.flatMap(PartDateValue.init).map(\.date),
                 dateMaximum: property.control.maximumDate.flatMap(PartDateValue.init).map(\.date),
                 selectPresentation: property.control.presentation
             )]
         }
-        if property.control.type == .themeColor { return themeColorProperties(for: property) }
-        if property.control.type == .themeBorder { return PartPackageThemeBorderControl.properties(property) }
-        if property.control.type == .themeFont { return PartPackageFontControl.properties(property) }
+        if property.control.type == .frameworkColor { return frameworkColorProperties(for: property) }
+        if property.control.type == .frameworkBorder { return PartPackageFrameworkBorderControl.properties(property) }
+        if property.control.type == .frameworkFont { return PartPackageFontControl.properties(property) }
         if property.control.type == .shadow { return shadowProperties(for: property) }
         if property.control.type == .edges || property.control.type == .corners { return boxLengthProperties(for: property) }
         return [PartPropertyDefinition(
@@ -246,9 +246,9 @@ nonisolated enum PartPackageAdapter {
             isInspectorVisible: property.control.type != .math &&
                 (property.control.type != .note || !property.noteBody.isEmpty),
             visibleWhen: property.visibleWhen,
-            themeValueSource: property.control.themeValueSource,
-            allowsCustomThemeValue: property.control.allowsCustom == true
-                && property.control.themeValueSource != .fontFamilies,
+            frameworkValueSource: property.control.frameworkValueSource,
+            allowsCustomFrameworkValue: property.control.allowsCustom == true
+                && property.control.frameworkValueSource != .fontFamilies,
             dateMinimum: property.control.minimumDate.flatMap(PartDateValue.init).map(\.date),
             dateMaximum: property.control.maximumDate.flatMap(PartDateValue.init).map(\.date),
             selectPresentation: property.control.presentation
@@ -271,7 +271,7 @@ nonisolated enum PartPackageAdapter {
         .init(rawValue: "__foundry_image_focal_point_\(propertyID)")
     }
 
-    private static func themeColorProperties(for property: PartPackageProperty) -> [PartPropertyDefinition] {
+    private static func frameworkColorProperties(for property: PartPackageProperty) -> [PartPropertyDefinition] {
         let key = PartProperty.Key(rawValue: property.id)
         let section = PartPropertySection(rawValue: property.group)
         guard case .object(let initial) = property.defaultValue else { return [] }
@@ -281,13 +281,13 @@ nonisolated enum PartPackageAdapter {
             PartPropertyDefinition(
                 key: key, label: property.label, section: section,
                 control: .packageColor(
-                    themeValues: true,
+                    frameworkValues: true,
                     opacity: property.control.opacity ?? false,
                     initialLightShade: lightShade,
                     initialDarkShade: darkShade
                 ),
                 defaultValue: .packageColor(.init(
-                    source: PartThemeValueSelection.storedSource(
+                    source: PartFrameworkValueSelection.storedSource(
                         forManifestValue: initial["palette"]?.stringValue ?? ""
                     ),
                     customColor: property.control.customColor ?? "#000000",
@@ -297,29 +297,29 @@ nonisolated enum PartPackageAdapter {
                 )),
                 isResponsive: property.responsive,
                 visibleWhen: property.visibleWhen,
-                themeValueSource: property.control.themeValueSource,
-                allowsCustomThemeValue: property.control.allowsCustom == true
+                frameworkValueSource: property.control.frameworkValueSource,
+                allowsCustomFrameworkValue: property.control.allowsCustom == true
             )
         ]
     }
 
     /// The generic edges/corners controls: raw four-length inputs with the box-model
-    /// editor but no theme tokens. They reuse the margin/radius storage (linking,
+    /// editor but no framework tokens. They reuse the margin/radius storage (linking,
     /// persistence, resolution) with custom-only values.
     private static func boxLengthProperties(for property: PartPackageProperty) -> [PartPropertyDefinition] {
         let isCorners = property.control.type == .corners
         let units = normalizedBoxUnits(property.units, isCorners: isCorners)
         let defaultValue: PartProperty.Value
         if isCorners {
-            var value = PartPackageThemeRadiusControl.customDefaultValue(property.defaultValue, units: units)
-                ?? PartPackageThemeRadiusControl.customZero(units: units)
+            var value = PartPackageFrameworkRadiusControl.customDefaultValue(property.defaultValue, units: units)
+                ?? PartPackageFrameworkRadiusControl.customZero(units: units)
             if property.control.linked == false { value.unlinkAll() }
-            defaultValue = .themeRadius(value)
+            defaultValue = .frameworkRadius(value)
         } else {
-            var value = PartPackageThemeMarginControl.customDefaultValue(property.defaultValue, units: units)
-                ?? PartPackageThemeMarginControl.customZero(units: units)
+            var value = PartPackageFrameworkMarginControl.customDefaultValue(property.defaultValue, units: units)
+                ?? PartPackageFrameworkMarginControl.customZero(units: units)
             if property.control.linked == false { value.unlinkAll() }
-            defaultValue = .themeMargin(value)
+            defaultValue = .frameworkMargin(value)
         }
         return [PartPropertyDefinition(
             key: .init(rawValue: property.id),
@@ -340,7 +340,7 @@ nonisolated enum PartPackageAdapter {
     }
 
     private static func shadowProperties(for property: PartPackageProperty) -> [PartPropertyDefinition] {
-        let source = PartThemeValueSelection.storedSource(
+        let source = PartFrameworkValueSelection.storedSource(
             forManifestValue: property.defaultValue.stringValue
         )
         return [PartPropertyDefinition(
@@ -354,8 +354,8 @@ nonisolated enum PartPackageAdapter {
             )),
             isResponsive: property.responsive,
             visibleWhen: property.visibleWhen,
-            themeValueSource: .shadows,
-            allowsCustomThemeValue: property.control.allowsCustom == true
+            frameworkValueSource: .shadows,
+            allowsCustomFrameworkValue: property.control.allowsCustom == true
         )]
     }
 
@@ -369,13 +369,13 @@ nonisolated enum PartPackageAdapter {
                 step: control.step ?? 1, unit: unit
             )
         case .color: .literalColor(allowsOpacity: control.opacity == true)
-        case .themeColor: .derived
-        case .themeFont: .themeFont
-        case .themePadding: .themePadding
-        case .themeMargin: .themeMargin
-        case .themeSpacing: .themeSpacing
-        case .themeBorder: .derived
-        case .themeRadius: .themeRadius
+        case .frameworkColor: .derived
+        case .frameworkFont: .frameworkFont
+        case .frameworkPadding: .frameworkPadding
+        case .frameworkMargin: .frameworkMargin
+        case .frameworkSpacing: .frameworkSpacing
+        case .frameworkBorder: .derived
+        case .frameworkRadius: .frameworkRadius
         case .edges, .corners: .derived // Unreachable: boxLengthProperties handles these first.
         case .fontWeight: .fontWeight(font: control.font)
         case .fontStyle: .fontStyle(font: control.font)
@@ -409,17 +409,17 @@ nonisolated enum PartPackageAdapter {
         _ value: PartPackageValue,
         control: PartPackageControl.Kind
     ) -> PartProperty.Value {
-        if control == .themeSpacing, let value = PartPackageSingleSpacingControl.defaultValue(value) {
-            return .themeSpacing(value)
+        if control == .frameworkSpacing, let value = PartPackageSingleSpacingControl.defaultValue(value) {
+            return .frameworkSpacing(value)
         }
-        if control == .themeRadius, let value = PartPackageThemeRadiusControl.defaultValue(value) {
-            return .themeRadius(value)
+        if control == .frameworkRadius, let value = PartPackageFrameworkRadiusControl.defaultValue(value) {
+            return .frameworkRadius(value)
         }
-        if control == .themeMargin, let margin = PartPackageThemeMarginControl.defaultValue(value) {
-            return .themeMargin(margin)
+        if control == .frameworkMargin, let margin = PartPackageFrameworkMarginControl.defaultValue(value) {
+            return .frameworkMargin(margin)
         }
-        if control == .themePadding, let padding = PartPackageThemePaddingControl.defaultValue(value) {
-            return .themePadding(padding)
+        if control == .frameworkPadding, let padding = PartPackageFrameworkPaddingControl.defaultValue(value) {
+            return .frameworkPadding(padding)
         }
         return convertedValue(value, control: control)
     }
@@ -432,8 +432,8 @@ nonisolated enum PartPackageAdapter {
             switch control {
             case .link: .link(.init(destination: value.isEmpty ? .none : .url(value)))
             case .color: .color(value)
-            case .themeColor: .choice(value)
-            case .icon, .select, .themeFont, .fontStyle, .textAlignment, .shadow: .choice(value)
+            case .frameworkColor: .choice(value)
+            case .icon, .select, .frameworkFont, .fontStyle, .textAlignment, .shadow: .choice(value)
             case .date: .string(value)
             case .image, .video: .url(value)
             default: .string(value)

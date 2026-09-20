@@ -8,15 +8,15 @@ nonisolated struct FontFaceOptions {
     let selectedWeight: Int?
     let selectedStyle: String?
 
-    init(reference: String?, theme: Theme, assets: ProjectAssetContents, selectedWeight: Int? = nil, selectedStyle: String? = nil) {
+    init(reference: String?, framework: Framework, assets: ProjectAssetContents, selectedWeight: Int? = nil, selectedStyle: String? = nil) {
         self.selectedWeight = selectedWeight
         self.selectedStyle = selectedStyle
-        let font: ThemeFontDefinition?
+        let font: FrameworkFontDefinition?
         switch reference {
-        case "body": font = theme.typography.bodyFont
-        case "heading": font = theme.typography.headingFont
-        case "monospaced": font = theme.typography.monospacedFont
-        default: font = theme.typography.customFonts.first { "custom:\($0.id.uuidString.lowercased())" == reference }?.font
+        case "body": font = framework.typography.bodyFont
+        case "heading": font = framework.typography.headingFont
+        case "monospaced": font = framework.typography.monospacedFont
+        default: font = framework.typography.customFonts.first { "custom:\($0.id.uuidString.lowercased())" == reference }?.font
         }
         if let font, case .bundled(let files) = font.source {
             faces = files.compactMap { $0.foundryAssetID.flatMap { assets[$0] }.flatMap(FontFileMetadata.read) }

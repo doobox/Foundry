@@ -305,9 +305,9 @@
 		</dict>
 		<dict>
 			<key>type</key>
-			<string>themeSpacing</string>
+			<string>frameworkSpacing</string>
 			<key>id</key>
-			<string>themeGap</string>
+			<string>frameworkGap</string>
 			<key>label</key>
 			<string>Gap</string>
 			<key>group</key>

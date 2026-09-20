@@ -47,7 +47,7 @@ struct ContentView: View {
     @State private var editsSharedReusableDefinition = false
     @State private var workspaceLayout = WorkspacePresetStore.initialLayoutForNewDocument()
     @State private var detachedPanelWindows = DetachedPanelWindowCoordinator()
-    @State private var themeWindowID = UUID()
+    @State private var frameworkWindowID = UUID()
     @State private var siteSettingsWindowID = UUID()
     @State private var exportErrorMessage: String?
     @State private var publishingCommandDispatcher = PublishingCommandDispatcher()
@@ -94,19 +94,19 @@ struct ContentView: View {
             layout: $workspaceLayout,
             canvasEditorOptions: $canvasEditorOptions,
             canvasViewportWidth: $canvasViewportWidth,
-            canvasScreens: document.site.theme.screens,
+            canvasScreens: document.site.framework.screens,
             canvasAppearance: $selectedAppearance,
             appearanceMode: document.site.appearanceMode,
             openProjectSettings: {
                 openSiteSettings(section: .general)
             },
-            openThemeEditor: {
-                ThemeWindowRegistry.shared.register(
-                    id: themeWindowID,
+            openFrameworkEditor: {
+                FrameworkWindowRegistry.shared.register(
+                    id: frameworkWindowID,
                     document: document,
                     undoManager: undoManager
                 )
-                openWindow(id: "theme-editor", value: themeWindowID)
+                openWindow(id: "framework-editor", value: frameworkWindowID)
             },
             previewSite: previewSite,
             publishSite: { publishSite() },
@@ -152,8 +152,8 @@ struct ContentView: View {
             schedulePublishingChangeRefresh(immediately: true)
         }
         .onDisappear {
-            dismissWindow(id: "theme-editor", value: themeWindowID)
-            ThemeWindowRegistry.shared.remove(id: themeWindowID)
+            dismissWindow(id: "framework-editor", value: frameworkWindowID)
+            FrameworkWindowRegistry.shared.remove(id: frameworkWindowID)
             dismissWindow(id: "site-settings", value: siteSettingsWindowID)
             ProjectSettingsWindowRegistry.shared.remove(id: siteSettingsWindowID)
         }
@@ -402,7 +402,7 @@ struct ContentView: View {
                 site: document.site,
                 page: selectedPage,
                 language: document.site.language,
-                theme: document.site.theme,
+                framework: document.site.framework,
                 assets: document.assetContents,
                 assetRevision: document.assetRevision,
                 mutationEvent: document.mutationEvent,
@@ -440,7 +440,7 @@ struct ContentView: View {
                     selectedParts: selectedParts,
                     allowsMultiPartEditing: allowsMultiPartEditing,
                     libraryPartType: selectedLibraryPartType,
-                    theme: document.site.theme,
+                    framework: document.site.framework,
                     assets: document.site.assets,
                     editor: editor,
                     reusableDefinition: selectedReusableDefinition,
@@ -535,7 +535,7 @@ struct ContentView: View {
         case .assets:
             markAllPages()
             document.site.assets.forEach { markModified($0.id) }
-        case .page, .theme, .package:
+        case .page, .framework, .package:
             markAllPages()
         case .publishingOnly:
             break
@@ -701,7 +701,7 @@ struct ContentView: View {
     }
 
     private var activeCanvasBreakpoint: ResponsiveBreakpoint {
-        ResponsiveBreakpoint.forViewportWidth(canvasViewportWidth, screens: document.site.theme.screens)
+        ResponsiveBreakpoint.forViewportWidth(canvasViewportWidth, screens: document.site.framework.screens)
     }
 
     private var selectedPart: PartNode? {
