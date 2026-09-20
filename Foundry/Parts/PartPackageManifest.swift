@@ -625,7 +625,12 @@ nonisolated struct PartPackageProperty: Codable, Equatable, Identifiable, Sendab
             buttonIcons = try container.decodeIfPresent(String.self, forKey: .buttonIcon).map { [$0] } ?? []
             activeButtonTexts = try container.decodeIfPresent(String.self, forKey: .activeButtonText).map { [$0] } ?? []
             activeButtonIcons = try container.decodeIfPresent(String.self, forKey: .activeButtonIcon).map { [$0] } ?? []
-            units = [try container.decodeIfPresent(String.self, forKey: .units) ?? ""]
+            if control.type == .edges || control.type == .corners {
+                // The unit menu is a list even without count.
+                units = try container.decodeIfPresent([String].self, forKey: .units) ?? []
+            } else {
+                units = [try container.decodeIfPresent(String.self, forKey: .units) ?? ""]
+            }
         }
         label = try container.decodeIfPresent(String.self, forKey: .label) ?? ""
         noteTitle = control.type == .note
@@ -663,7 +668,7 @@ nonisolated struct PartPackageProperty: Codable, Equatable, Identifiable, Sendab
         try control.encode(to: encoder)
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encode(id, forKey: .id)
-        if control.count != nil {
+        if control.count != nil || control.type == .edges || control.type == .corners {
             if !units.isEmpty {
                 try container.encode(units, forKey: .units)
             }
@@ -1129,6 +1134,8 @@ nonisolated struct PartPackageControl: Codable, Equatable, Sendable {
     case themeMargin
     case themeSpacing
     case themePadding
+        case edges
+        case corners
         case fontWeight
         case fontStyle
         case icon
@@ -1176,12 +1183,15 @@ nonisolated struct PartPackageControl: Codable, Equatable, Sendable {
     let round: Bool?
     let absoluteURL: Bool?
     let presentation: SelectPresentation?
+    /// Explicit starting link state for edges/corners controls; nil infers it from
+    /// whether the declared edge defaults are all equal.
+    let linked: Bool?
 
     enum CodingKeys: String, CodingKey {
         case type, font, minimum, maximum, step, options, themeValues, allowsCustom
         case showsFamily, showsWeight, showsStyle
         case opacity, outputFormat, customColor, count, ticks, showsValueField
-        case trueValue, falseValue, selectionMode, argument1, argument2, operation, round, absoluteURL, presentation
+        case trueValue, falseValue, selectionMode, argument1, argument2, operation, round, absoluteURL, presentation, linked
     }
 
     init(
@@ -1225,6 +1235,7 @@ nonisolated struct PartPackageControl: Codable, Equatable, Sendable {
         round = nil
         self.absoluteURL = absoluteURL
         self.presentation = presentation
+        linked = nil
     }
 
     static func select(_ options: [(String, String)], presentation: SelectPresentation? = nil) -> Self {
@@ -1268,6 +1279,7 @@ nonisolated struct PartPackageControl: Codable, Equatable, Sendable {
         round = try container.decodeIfPresent(Bool.self, forKey: .round)
         absoluteURL = try container.decodeIfPresent(Bool.self, forKey: .absoluteURL)
         presentation = try container.decodeIfPresent(SelectPresentation.self, forKey: .presentation)
+        linked = try container.decodeIfPresent(Bool.self, forKey: .linked)
     }
 
     func encode(to encoder: Encoder) throws {
@@ -1303,6 +1315,7 @@ nonisolated struct PartPackageControl: Codable, Equatable, Sendable {
         try container.encodeIfPresent(round, forKey: .round)
         try container.encodeIfPresent(absoluteURL, forKey: .absoluteURL)
         try container.encodeIfPresent(presentation, forKey: .presentation)
+        try container.encodeIfPresent(linked, forKey: .linked)
     }
 }
 

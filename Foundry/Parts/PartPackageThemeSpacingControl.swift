@@ -29,6 +29,36 @@ nonisolated enum PartPackageThemeSpacingControl<Policy: ThemeSpacingPolicy> {
     }
 
     static func defaultValue(_ raw: PartPackageValue) -> ThemeSpacingValue<Policy>? {
+        convertedDefault(raw, edgeDefault: edgeDefault)
+    }
+
+    /// Defaults for the generic edges/corners controls: raw lengths only — no theme
+    /// tokens, since those controls never consult the theme. The declared `units`
+    /// list additionally restricts which units the manifest may use.
+    static func customDefaultValue(_ raw: PartPackageValue, units allowedUnits: [String]) -> ThemeSpacingValue<Policy>? {
+        convertedDefault(raw) { value in
+            guard let custom = edgeDefault(value), custom.isCustom, allowedUnits.contains(custom.unit) else { return nil }
+            return custom
+        }
+    }
+
+    /// A zero length in the first permitted unit, for value bindings that need a
+    /// custom-only fallback.
+    static func customZero(units allowedUnits: [String]) -> ThemeSpacingValue<Policy> {
+        var zero = ThemeSpacingValue<Policy>.EdgeValue()
+        zero.token = "none"
+        zero.isCustom = true
+        zero.amount = 0
+        zero.unit = allowedUnits.first ?? Policy.units[0]
+        var result = ThemeSpacingValue<Policy>()
+        result.set(zero, for: .top)
+        return result
+    }
+
+    private static func convertedDefault(
+        _ raw: PartPackageValue,
+        edgeDefault: (PartPackageValue) -> ThemeSpacingValue<Policy>.EdgeValue?
+    ) -> ThemeSpacingValue<Policy>? {
         var result = ThemeSpacingValue<Policy>()
         if let shared = edgeDefault(raw) {
             result.set(shared, for: .top)

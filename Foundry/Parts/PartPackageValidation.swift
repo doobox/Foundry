@@ -786,6 +786,13 @@ nonisolated enum PartPackageValidator {
         validate(property.defaultValue, for: property, location: "\(location).default", allowsLiteralColor: false, into: &diagnostics)
     }
 
+    /// The unit list the generic edges/corners controls actually offer: the declared
+    /// manifest units filtered to the supported set, or the full set when omitted.
+    private static func boxUnits(for property: PartPackageProperty, fallback: [String]) -> [String] {
+        let filtered = property.units.filter(fallback.contains)
+        return filtered.isEmpty ? fallback : filtered
+    }
+
     private static func validateThemeValues(
         _ property: PartPackageProperty,
         location: String,
@@ -805,6 +812,14 @@ nonisolated enum PartPackageValidator {
             ))
         }
 
+        if property.control.type == .edges || property.control.type == .corners,
+           property.control.count != nil {
+            diagnostics.append(.init(
+                severity: .error,
+                location: "\(location).count",
+                message: "An \(property.control.type.rawValue) control cannot be a multi control; remove count."
+            ))
+        }
         if let outputFormat = property.control.outputFormat {
             let fragmentFormats: Set<PartPackageControl.ColorOutputFormat> = [
                 .hexValue, .rgbValues, .rgbaValues, .hslValues, .hslaValues
@@ -992,6 +1007,26 @@ nonisolated enum PartPackageValidator {
             if PartPackageThemePaddingControl.defaultValue(defaultValue) == nil {
                 diagnostics.append(.init(severity: .error, location: location,
                     message: "A themePadding default must be a spacing token, a nonnegative {value, unit} length (px/rem/em/%), or a dictionary with top/right/bottom/left defaults."))
+            }
+        case .edges:
+            if let converted = PartPackageThemeMarginControl.customDefaultValue(defaultValue, units: boxUnits(for: property, fallback: MarginPolicy.units)) {
+                if property.control.linked == true, !converted.allEqual {
+                    diagnostics.append(.init(severity: .error, location: location,
+                        message: "linked: true requires all four edge defaults to be equal."))
+                }
+            } else {
+                diagnostics.append(.init(severity: .error, location: location,
+                    message: "An edges default must be a {value, unit} length in a declared unit, or a dictionary with top/right/bottom/left lengths. Theme tokens are not accepted."))
+            }
+        case .corners:
+            if let converted = PartPackageThemeRadiusControl.customDefaultValue(defaultValue, units: boxUnits(for: property, fallback: RadiusPolicy.units)) {
+                if property.control.linked == true, !converted.allEqual {
+                    diagnostics.append(.init(severity: .error, location: location,
+                        message: "linked: true requires all four corner defaults to be equal."))
+                }
+            } else {
+                diagnostics.append(.init(severity: .error, location: location,
+                    message: "A corners default must be a nonnegative {value, unit} length in a declared unit, or a dictionary with topLeft/topRight/bottomLeft/bottomRight lengths. Theme tokens are not accepted."))
             }
         case .themeFont:
             let fields = PartPackageFontControl.defaults(defaultValue)

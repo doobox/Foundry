@@ -51,7 +51,7 @@ nonisolated enum PartPackageManifestSchema {
     ]
     private static let updateKeys: Set<String> = ["appcastURL", "publicKey"]
     private static let propertyKeys: Set<String> = [
-        "id", "label", "title", "body", "systemImage", "group", "defaults", "responsive", "subtitle", "buttonText", "units", "tooltip",
+        "id", "label", "title", "body", "systemImage", "group", "defaults", "responsive", "subtitle", "buttonText", "units", "tooltip", "linked",
         "type", "font", "showsFamily", "showsWeight", "showsStyle", "minimum", "maximum", "step", "options", "themeValues", "allowsCustom", "opacity", "outputFormat",
         "customColor", "count", "ticks", "showsValueField", "trueValue", "falseValue",
         "buttonIcon", "activeButtonText", "activeButtonIcon", "selectionMode", "fontSize", "argument1", "argument2", "operation", "round", "absoluteURL", "presentation", "visibleWhen", "alt", "focalPoint", "renditions", "accepts", "pickerItems", "initial", "containment"
@@ -475,6 +475,23 @@ nonisolated enum PartPackageManifestSchema {
             let allowed: Set<String> = ["type", "id", "label", "subtitle", "group", "default", "responsive", "tooltip", "visibleWhen"]
             unknownKeys(in: property, allowed: allowed, location: location, into: &diagnostics)
         }
+        if type == .edges || type == .corners {
+            let allowed: Set<String> = ["type", "id", "label", "subtitle", "group", "default", "responsive", "tooltip", "visibleWhen", "units", "linked"]
+            unknownKeys(in: property, allowed: allowed, location: location, into: &diagnostics)
+            optionalBoolean("linked", in: property, location: location, into: &diagnostics)
+            if let units = property["units"] {
+                let names = (units as? [Any])?.compactMap { $0 as? String }
+                let permitted: Set<String> = ["px", "rem", "em", "%"]
+                let isValid = names.map { !$0.isEmpty && $0.allSatisfy(permitted.contains) && Set($0).count == $0.count } ?? false
+                if !isValid || (units as? [Any])?.count != names?.count {
+                    diagnostics.append(.init(
+                        severity: .error,
+                        location: "\(location).units",
+                        message: "units must be a non-empty array of distinct values from px, rem, em, and %."
+                    ))
+                }
+            }
+        }
         if type == .themeFont {
             for key in ["showsFamily", "showsWeight", "showsStyle"] {
                 optionalBoolean(key, in: property, location: location, into: &diagnostics)
@@ -511,6 +528,9 @@ nonisolated enum PartPackageManifestSchema {
                 if type == .themeBorder && key == "showsStyle" { continue }
                 diagnostics.append(.init(severity: .error, location: "\(location).\(key)", message: "\(key) requires a themeFont control."))
             }
+        }
+        if type != .edges, type != .corners, property["linked"] != nil {
+            diagnostics.append(.init(severity: .error, location: "\(location).linked", message: "linked requires an edges or corners control."))
         }
         if type == .childPicker {
             let supportedKeys: Set<String> = [
@@ -707,7 +727,13 @@ nonisolated enum PartPackageManifestSchema {
             optionalString("buttonIcon", in: property, location: location, into: &diagnostics)
             optionalString("activeButtonText", in: property, location: location, into: &diagnostics)
             optionalString("activeButtonIcon", in: property, location: location, into: &diagnostics)
-            optionalString("units", in: property, location: location, into: &diagnostics)
+            if type == .edges || type == .corners {
+                // The unit menu is a list even without count; membership is
+                // validated with the control's own rules above.
+                optionalStringArray("units", in: property, location: location, into: &diagnostics)
+            } else {
+                optionalString("units", in: property, location: location, into: &diagnostics)
+            }
         }
         optionalString("label", in: property, location: location, into: &diagnostics)
 
@@ -747,7 +773,7 @@ nonisolated enum PartPackageManifestSchema {
         )
         for key in ["default", "trueValue", "falseValue", "argument1", "argument2"] {
             if key == "default" && type == .themeColor { continue }
-            if key == "default" && (type == .themeSpacing || type == .themePadding || type == .themeMargin || type == .themeBorder || type == .themeRadius) { continue }
+            if key == "default" && (type == .themeSpacing || type == .themePadding || type == .themeMargin || type == .themeBorder || type == .themeRadius || type == .edges || type == .corners) { continue }
             if key == "default" && type == .themeFont && property[key] is [String: Any] { continue }
             optionalPartValue(key, in: property, location: location, into: &diagnostics)
         }

@@ -15,7 +15,9 @@ struct EdgesControl<Top: View, Right: View, Bottom: View, Left: View>: View {
     let focusNamespace: Namespace.ID
     let toggleVerticalLink: () -> Void
     let toggleHorizontalLink: () -> Void
-    let toggleUsesThemeTokens: () -> Void
+    /// Nil hides the theme/custom toggle entirely — the generic edges control has
+    /// no theme mode to switch to.
+    let toggleUsesThemeTokens: (() -> Void)?
     @ViewBuilder let top: () -> Top
     @ViewBuilder let right: () -> Right
     @ViewBuilder let bottom: () -> Bottom
@@ -65,7 +67,9 @@ struct EdgesControl<Top: View, Right: View, Bottom: View, Left: View>: View {
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 5)
-        .overlay(alignment: .topTrailing) { modeToggle.padding(.top, 5) }
+        .overlay(alignment: .topTrailing) {
+            if toggleUsesThemeTokens != nil { modeToggle.padding(.top, 5) }
+        }
         .focusScope(focusNamespace)
         .onExitCommand { resetFocus(in: focusNamespace) }
         .onDisappear { hoverTarget = nil }
@@ -75,7 +79,7 @@ struct EdgesControl<Top: View, Right: View, Bottom: View, Left: View>: View {
         Button {
             resetFocus(in: focusNamespace)
             hoverTarget = nil
-            toggleUsesThemeTokens()
+            toggleUsesThemeTokens?()
         } label: {
             Image(systemName: usesThemeTokens ? "shippingbox.fill" : "shippingbox")
                 .imageScale(.large)

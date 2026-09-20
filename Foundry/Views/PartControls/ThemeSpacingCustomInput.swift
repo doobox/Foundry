@@ -4,6 +4,7 @@ struct ThemeSpacingCustomInput<Policy: ThemeSpacingPolicy>: View {
     let binding: Binding<ThemeSpacingValue<Policy>.EdgeValue>
     let title: String
     let focusNamespace: Namespace.ID
+    var unitChoices: [String]? = nil
     @Environment(\.resetFocus) private var resetFocus
 
     var body: some View {
@@ -19,7 +20,7 @@ struct ThemeSpacingCustomInput<Policy: ThemeSpacingPolicy>: View {
             .accessibilityLabel("\(title) custom \(Policy.label.lowercased())")
 
             Menu {
-                ForEach(Policy.units, id: \.self) { unit in
+                ForEach(unitChoices ?? Policy.units, id: \.self) { unit in
                     Button {
                         binding.wrappedValue.unit = unit
                     } label: {

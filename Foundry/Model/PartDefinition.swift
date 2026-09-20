@@ -195,6 +195,8 @@ nonisolated enum PartPropertyControl: Sendable {
     case themeMargin
     case themeSpacing
     case themePadding
+    case edges(units: [String])
+    case corners(units: [String])
     case fontWeight(font: String?)
     case fontStyle(font: String?)
     case packageShadow
@@ -233,7 +235,7 @@ nonisolated struct PartPropertyChoice: Identifiable, Sendable {
 extension PartPropertyControl {
     nonisolated var isThemeSpacing: Bool {
         switch self {
-        case .themeSpacing, .themePadding, .themeMargin, .themeBorderWidth, .themeRadius: true
+        case .themeSpacing, .themePadding, .themeMargin, .themeBorderWidth, .themeRadius, .edges, .corners: true
         default: false
         }
     }

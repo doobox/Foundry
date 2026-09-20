@@ -290,6 +290,26 @@ struct PartPropertyEditor: View {
                 }, set: { setProperty(.themePadding($0)) }))
                 .help(part.type.definition.package?.manifest.resolvedProperties.first { $0.id == definition.key.rawValue }?.tooltip ?? "Padding")
                 .contextMenu { resetButton }
+        case .edges(let units):
+            ThemeMarginPartControl(label: definition.label, theme: theme, indicator: responsiveIndicator,
+                allowsThemeTokens: false, unitChoices: units, fallbackLabel: "Edges",
+                value: Binding(get: {
+                    if case .themeMargin(let value) = displayPart.propertyValue(definition.key) { return value }
+                    if case .themeMargin(let value) = definition.defaultValue { return value }
+                    return PartPackageThemeMarginControl.customZero(units: units)
+                }, set: { setProperty(.themeMargin($0)) }))
+                .help(part.type.definition.package?.manifest.resolvedProperties.first { $0.id == definition.key.rawValue }?.tooltip ?? "Edges")
+                .contextMenu { resetButton }
+        case .corners(let units):
+            ThemeRadiusPartControl(label: definition.label, theme: theme, indicator: responsiveIndicator,
+                allowsThemeTokens: false, unitChoices: units, fallbackLabel: "Corners",
+                value: Binding(get: {
+                    if case .themeRadius(let value) = displayPart.propertyValue(definition.key) { return value }
+                    if case .themeRadius(let value) = definition.defaultValue { return value }
+                    return PartPackageThemeRadiusControl.customZero(units: units)
+                }, set: { setProperty(.themeRadius($0)) }))
+                .help(part.type.definition.package?.manifest.resolvedProperties.first { $0.id == definition.key.rawValue }?.tooltip ?? "Corners")
+                .contextMenu { resetButton }
         case .fontWeight(let font):
             FontFacePartControl(label: definition.label,
                 options: fontFaceOptions(font: font, editsWeight: true),

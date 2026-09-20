@@ -5,6 +5,7 @@ struct ThemeSpacingInput<Policy: ThemeSpacingPolicy>: View {
     let title: String
     let theme: Theme
     let focusNamespace: Namespace.ID
+    var unitChoices: [String]? = nil
 
     @ViewBuilder
     var body: some View {
@@ -12,7 +13,8 @@ struct ThemeSpacingInput<Policy: ThemeSpacingPolicy>: View {
             ThemeSpacingCustomInput<Policy>(
                 binding: binding,
                 title: title,
-                focusNamespace: focusNamespace
+                focusNamespace: focusNamespace,
+                unitChoices: unitChoices
             )
         } else {
             ThemeSpacingTokenPicker<Policy>(

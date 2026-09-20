@@ -45,7 +45,7 @@ struct PartPackageTests {
             }
             checked += 1
         }
-        #expect(checked == 26, "Expected every documented control's Quick example; update this count when adding a control.")
+        #expect(checked == 28, "Expected every documented control's Quick example; update this count when adding a control.")
     }
 
     @Test(.enabled(if: FileManager.default.fileExists(atPath: developerDocsURL.appending(path: "AGENTS.md").path)))
@@ -98,7 +98,7 @@ struct PartPackageTests {
             }
             checked += 1
         }
-        #expect(checked == 24, "Expected all 24 control reference examples.")
+        #expect(checked == 26, "Expected all 26 control reference examples.")
     }
 
     @Test(.enabled(if: FileManager.default.fileExists(atPath: developerDocsURL.appending(path: "quick-start.md").path)))
@@ -215,6 +215,131 @@ struct PartPackageTests {
             let item = "<dict><key>type</key><string>number</string><key>id</key><string>n</string>\(fields)</dict>"
             #expect(try PartPackageManifestSchema.diagnostics(for: Data(manifest(withControls: item).utf8)).contains { $0.severity == .error })
         }
+    }
+
+    @Test @MainActor func edgesAndCornersControlsLoadPersistAndRender() throws {
+        let controls = """
+        <dict><key>type</key><string>edges</string><key>id</key><string>inset</string>
+        <key>units</key><array><string>px</string><string>%</string></array>
+        <key>defaults</key><dict><key>base</key><dict><key>value</key><real>10</real><key>unit</key><string>px</string></dict></dict></dict>
+        <dict><key>type</key><string>corners</string><key>id</key><string>round</string>
+        <key>defaults</key><dict><key>base</key><dict>
+            <key>topLeft</key><dict><key>value</key><real>2</real><key>unit</key><string>px</string></dict>
+            <key>topRight</key><dict><key>value</key><real>4</real><key>unit</key><string>px</string></dict>
+            <key>bottomLeft</key><dict><key>value</key><real>6</real><key>unit</key><string>px</string></dict>
+            <key>bottomRight</key><dict><key>value</key><real>8</real><key>unit</key><string>px</string></dict>
+        </dict></dict></dict>
+        <dict><key>type</key><string>edges</string><key>id</key><string>free</string><key>linked</key><false/>
+        <key>defaults</key><dict><key>base</key><dict><key>value</key><real>10</real><key>unit</key><string>px</string></dict></dict></dict>
+        """
+        let url = try makePackage(
+            manifest: manifest(withControls: controls),
+            template: "<section {{ part.attributes }}>{{ childArea(\"content\") }}</section>",
+            additionalFiles: ["part.css": ":instance { inset: {{ control.inset }}; --top: {{ control.inset.top }}; --n: {{ control.inset.values.top }}; border-radius: {{ control.round }}; --tl: {{ control.round.topLeft }}; }"]
+        )
+        defer { try? FileManager.default.removeItem(at: url) }
+        let package = try PartPackageLoader.load(from: url)
+        PartRegistry.register(package)
+        defer { PartRegistry.unregisterPackage(identifier: package.manifest.identifier) }
+
+        let definitions = PartPackageAdapter.definition(from: package).properties
+        guard case .edges(let units)? = definitions.first(where: { $0.key.rawValue == "inset" })?.control else {
+            Issue.record("Expected an edges control"); return
+        }
+        #expect(units == ["px", "%"])
+        guard case .corners? = definitions.first(where: { $0.key.rawValue == "round" })?.control else {
+            Issue.record("Expected a corners control"); return
+        }
+
+        let node = PartNode(type: .init(rawValue: package.manifest.identifier))
+        guard case .themeMargin(let inset) = node.propertyValue(.init(rawValue: "inset")) else {
+            Issue.record("Expected margin-backed storage"); return
+        }
+        #expect(inset.verticalLinked && inset.horizontalLinked)
+        #expect(inset.values.allSatisfy { $0.isCustom && $0.amount == 10 && $0.unit == "px" })
+        guard case .themeRadius(let round) = node.propertyValue(.init(rawValue: "round")) else {
+            Issue.record("Expected radius-backed storage"); return
+        }
+        #expect(!round.verticalLinked && !round.horizontalLinked)
+        #expect(round.value(for: .top).amount == 2)
+        #expect(round.value(for: .right).amount == 8)
+        // linked: false starts equal defaults unlinked.
+        guard case .themeMargin(let free) = node.propertyValue(.init(rawValue: "free")) else {
+            Issue.record("Expected margin-backed storage"); return
+        }
+        #expect(!free.verticalLinked && !free.horizontalLinked)
+        #expect(free.values.allSatisfy { $0.amount == 10 })
+
+        let site = Site(name: "Box", pages: [Page(title: "Home", slug: "index", parts: [node])])
+        let exported = StaticSiteRenderer().render(site: site)
+        let css = try #require(exported.files.first { $0.contents.contains("inset:") }?.contents)
+        #expect(css.contains("inset: 10.0px 10.0px 10.0px 10.0px"))
+        #expect(css.contains("--top: 10.0px"))
+        #expect(css.contains("--n: 10"))
+        #expect(css.contains("border-radius: 2.0px 4.0px 8.0px 6.0px"))
+        #expect(css.contains("--tl: 2.0px"))
+
+        let restored = try JSONDecoder().decode(PartNode.self, from: JSONEncoder().encode(node))
+        #expect(restored.propertyValue(.init(rawValue: "round")) == node.propertyValue(.init(rawValue: "round")))
+    }
+
+    @Test func edgesAndCornersRejectTokensBadUnitsAndCount() throws {
+        func load(_ controls: String) throws {
+            let url = try makePackage(
+                manifest: manifest(withControls: controls),
+                template: "<section {{ part.attributes }}>{{ childArea(\"content\") }}</section>",
+                additionalFiles: ["part.css": ":instance { }"]
+            )
+            defer { try? FileManager.default.removeItem(at: url) }
+            _ = try PartPackageLoader.load(from: url)
+        }
+        // Theme tokens are not part of the generic contract.
+        #expect(throws: (any Error).self) { try load("""
+        <dict><key>type</key><string>edges</string><key>id</key><string>inset</string>
+        <key>defaults</key><dict><key>base</key><string>sm</string></dict></dict>
+        """) }
+        // A default must use a declared unit.
+        #expect(throws: (any Error).self) { try load("""
+        <dict><key>type</key><string>edges</string><key>id</key><string>inset</string>
+        <key>units</key><array><string>px</string></array>
+        <key>defaults</key><dict><key>base</key><dict><key>value</key><real>1</real><key>unit</key><string>rem</string></dict></dict></dict>
+        """) }
+        // Corners are nonnegative.
+        #expect(throws: (any Error).self) { try load("""
+        <dict><key>type</key><string>corners</string><key>id</key><string>round</string>
+        <key>defaults</key><dict><key>base</key><dict><key>value</key><real>-2</real><key>unit</key><string>px</string></dict></dict></dict>
+        """) }
+        // Unknown units are rejected.
+        #expect(throws: (any Error).self) { try load("""
+        <dict><key>type</key><string>edges</string><key>id</key><string>inset</string>
+        <key>units</key><array><string>pt</string></array>
+        <key>defaults</key><dict><key>base</key><dict><key>value</key><real>1</real><key>unit</key><string>px</string></dict></dict></dict>
+        """) }
+        // No multi variant.
+        #expect(throws: (any Error).self) { try load("""
+        <dict><key>type</key><string>edges</string><key>id</key><string>inset</string><key>count</key><integer>2</integer>
+        <key>defaults</key><dict><key>base</key><dict><key>value</key><real>1</real><key>unit</key><string>px</string></dict></dict></dict>
+        """) }
+        // Negative edges are permitted, matching margin semantics.
+        #expect(throws: Never.self) { try load("""
+        <dict><key>type</key><string>edges</string><key>id</key><string>inset</string>
+        <key>defaults</key><dict><key>base</key><dict><key>value</key><real>-4</real><key>unit</key><string>px</string></dict></dict></dict>
+        """) }
+        // linked: true contradicts differing defaults.
+        #expect(throws: (any Error).self) { try load("""
+        <dict><key>type</key><string>corners</string><key>id</key><string>round</string><key>linked</key><true/>
+        <key>defaults</key><dict><key>base</key><dict>
+            <key>topLeft</key><dict><key>value</key><real>2</real><key>unit</key><string>px</string></dict>
+            <key>topRight</key><dict><key>value</key><real>4</real><key>unit</key><string>px</string></dict>
+            <key>bottomLeft</key><dict><key>value</key><real>2</real><key>unit</key><string>px</string></dict>
+            <key>bottomRight</key><dict><key>value</key><real>2</real><key>unit</key><string>px</string></dict>
+        </dict></dict></dict>
+        """) }
+        // linked belongs to edges/corners only.
+        #expect(throws: (any Error).self) { try load("""
+        <dict><key>type</key><string>number</string><key>id</key><string>n</string><key>linked</key><true/>
+        <key>defaults</key><dict><key>base</key><integer>1</integer></dict></dict>
+        """) }
     }
 
     @Test @MainActor func themeColorChannelsFiltersAndFormatsResolveForBothAppearances() throws {

@@ -225,6 +225,7 @@ nonisolated enum PartPackageAdapter {
         if property.control.type == .themeBorder { return PartPackageThemeBorderControl.properties(property) }
         if property.control.type == .themeFont { return PartPackageFontControl.properties(property) }
         if property.control.type == .shadow { return shadowProperties(for: property) }
+        if property.control.type == .edges || property.control.type == .corners { return boxLengthProperties(for: property) }
         return [PartPropertyDefinition(
             key: .init(rawValue: property.id),
             label: property.control.type == .note ? property.noteTitle ?? "" : property.label,
@@ -302,6 +303,42 @@ nonisolated enum PartPackageAdapter {
         ]
     }
 
+    /// The generic edges/corners controls: raw four-length inputs with the box-model
+    /// editor but no theme tokens. They reuse the margin/radius storage (linking,
+    /// persistence, resolution) with custom-only values.
+    private static func boxLengthProperties(for property: PartPackageProperty) -> [PartPropertyDefinition] {
+        let isCorners = property.control.type == .corners
+        let units = normalizedBoxUnits(property.units, isCorners: isCorners)
+        let defaultValue: PartProperty.Value
+        if isCorners {
+            var value = PartPackageThemeRadiusControl.customDefaultValue(property.defaultValue, units: units)
+                ?? PartPackageThemeRadiusControl.customZero(units: units)
+            if property.control.linked == false { value.unlinkAll() }
+            defaultValue = .themeRadius(value)
+        } else {
+            var value = PartPackageThemeMarginControl.customDefaultValue(property.defaultValue, units: units)
+                ?? PartPackageThemeMarginControl.customZero(units: units)
+            if property.control.linked == false { value.unlinkAll() }
+            defaultValue = .themeMargin(value)
+        }
+        return [PartPropertyDefinition(
+            key: .init(rawValue: property.id),
+            label: property.label,
+            subtitle: property.subtitles.first,
+            section: .init(rawValue: property.group),
+            control: isCorners ? .corners(units: units) : .edges(units: units),
+            defaultValue: defaultValue,
+            isResponsive: property.responsive,
+            visibleWhen: property.visibleWhen
+        )]
+    }
+
+    private static func normalizedBoxUnits(_ declared: [String], isCorners: Bool) -> [String] {
+        let allowed = isCorners ? RadiusPolicy.units : MarginPolicy.units
+        let filtered = declared.filter(allowed.contains)
+        return filtered.isEmpty ? allowed : filtered
+    }
+
     private static func shadowProperties(for property: PartPackageProperty) -> [PartPropertyDefinition] {
         let source = PartThemeValueSelection.storedSource(
             forManifestValue: property.defaultValue.stringValue
@@ -339,6 +376,7 @@ nonisolated enum PartPackageAdapter {
         case .themeSpacing: .themeSpacing
         case .themeBorder: .derived
         case .themeRadius: .themeRadius
+        case .edges, .corners: .derived // Unreachable: boxLengthProperties handles these first.
         case .fontWeight: .fontWeight(font: control.font)
         case .fontStyle: .fontStyle(font: control.font)
         case .icon: .icon
