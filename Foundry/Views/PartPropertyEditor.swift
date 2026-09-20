@@ -339,7 +339,7 @@ struct PartPropertyEditor: View {
                 selection: stringBinding(as: .choice)
             )
         case .packageShadow:
-            ShadowPartControl(
+            FrameworkShadowPartControl(
                 label: definition.label,
                 choices: framework.shadowChoices,
                 source: packageShadowSourceBinding,

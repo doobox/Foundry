@@ -802,7 +802,7 @@ nonisolated enum PartPackageValidator {
             diagnostics.append(.init(severity: .error, location: "\(location).frameworkValues",
                 message: "Select supports only declared options; remove frameworkValues."))
         }
-        let supportsCustomFrameworkValue = property.control.type == .shadow
+        let supportsCustomFrameworkValue = property.control.type == .frameworkShadow
             || property.control.type == .frameworkColor
         if property.control.allowsCustom != nil, !supportsCustomFrameworkValue {
             diagnostics.append(.init(
@@ -872,11 +872,11 @@ nonisolated enum PartPackageValidator {
                 message: "The \(property.control.type.rawValue) control does not accept a framework role as frameworkValues."
             ))
         }
-        if property.control.type == .shadow, property.control.frameworkValues != nil {
+        if property.control.type == .frameworkShadow, property.control.frameworkValues != nil {
             diagnostics.append(.init(
                 severity: .error,
                 location: "\(location).frameworkValues",
-                message: "A shadow control automatically uses framework shadows; remove frameworkValues."
+                message: "A frameworkShadow control automatically uses framework shadows; remove frameworkValues."
             ))
             return
         }
@@ -884,7 +884,7 @@ nonisolated enum PartPackageValidator {
         guard let source = property.control.frameworkValueSource else { return }
         let supported: Bool
         switch (property.control.type, source) {
-        case (.shadow, .shadows):
+        case (.frameworkShadow, .shadows):
             supported = true
         default:
             supported = false
@@ -1143,9 +1143,9 @@ nonisolated enum PartPackageValidator {
                !customColor.matches(#"^#[0-9A-Fa-f]{6}$"#) {
                 diagnostics.append(.init(severity: .error, location: location, message: "customColor must be a six-digit hexadecimal colour."))
             }
-        case .shadow:
+        case .frameworkShadow:
             guard case .string(let value) = defaultValue else {
-                diagnostics.append(.init(severity: .error, location: location, message: "A shadow control requires a string default value."))
+                diagnostics.append(.init(severity: .error, location: location, message: "A frameworkShadow control requires a string default value."))
                 return
             }
             let isFrameworkShadow = Framework.standard.shadowChoices.contains { $0.value == value }
@@ -1155,7 +1155,7 @@ nonisolated enum PartPackageValidator {
                 diagnostics.append(.init(
                     severity: .error,
                     location: location,
-                    message: "A shadow default must be a standard framework shadow ID, or custom when allowsCustom is enabled."
+                    message: "A frameworkShadow default must be a standard framework shadow ID, or custom when allowsCustom is enabled."
                 ))
             }
         case .textAlignment:

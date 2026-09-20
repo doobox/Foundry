@@ -526,15 +526,11 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
             destination: .export,
             exportedSource: { "../" + site.publishedPath(for: $0) }
         ))
-        :root{font-size:16px;color-scheme:\(site.appearanceMode.cssColorScheme);--foundry-color-background:\(colour(.background));--foundry-color-surface:\(colour(.surface));--foundry-color-text:\(colour(.text));--foundry-color-accent:\(colour(.accent));--foundry-color-links:\(colour(.links));--foundry-font-body:\(framework.typography.bodyFont.cssFamily);--foundry-font-heading:\(framework.typography.headingFont.cssFamily);--foundry-font-monospace:\(framework.typography.monospacedFont.cssFamily);\(framework.customFontCSSVariables)\(framework.fontSizeCSSVariables)\(framework.spacingCSSVariables)\(framework.shadowCSSVariables)\(framework.borderCSSVariables)\(framework.zIndexCSSVariables)}
-        :root{--foundry-color-page:\(colour(.page));--foundry-color-muted-text:\(colour(.mutedText))}
-        \(framework.screens.containerCSS)
-        *,*::before,*::after{box-sizing:border-box}
-        html,body{min-height:100%}
-        body{margin:0;background:var(--foundry-color-page);color:var(--foundry-color-text);font-family:var(--foundry-font-body);font-size:var(--foundry-font-size-base);line-height:var(--foundry-font-size-base-line-height);display:flex;flex-direction:column;align-items:stretch}
-        a{color:var(--foundry-color-links)}
-        h1,h2,h3,h4,h5,h6,.foundry-heading{font-family:var(--foundry-font-heading)}code,pre,kbd,samp{font-family:var(--foundry-font-monospace)}
-        .foundry-container{width:100%;max-width:var(--foundry-container-width)!important}.foundry-button{display:block;width:fit-content;text-decoration:none;font-weight:600}.foundry-grid{display:grid}.foundry-image{display:block;width:100%;height:auto}
+        \(FoundryCSS.build(
+            framework: framework,
+            colour: colour,
+            colorScheme: site.appearanceMode.cssColorScheme
+        ))
         \(FoundryWebLibraryRegistry.exportCSS(for: sitePackages))
         \(sitePackageStyles(for: site))
         """

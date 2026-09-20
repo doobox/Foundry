@@ -297,12 +297,12 @@ nonisolated enum PartPackageManifestSchema {
                 message: "A frameworkColor control cannot be a multi control; remove count."
             ))
         }
-        if property["type"] as? String == PartPackageControl.Kind.shadow.rawValue,
+        if property["type"] as? String == PartPackageControl.Kind.frameworkShadow.rawValue,
            property["frameworkValues"] != nil {
             diagnostics.append(.init(
                 severity: .error,
                 location: "\(location).frameworkValues",
-                message: "A shadow control automatically uses framework shadows; remove frameworkValues."
+                message: "A frameworkShadow control automatically uses framework shadows; remove frameworkValues."
             ))
         }
 
@@ -700,11 +700,11 @@ nonisolated enum PartPackageManifestSchema {
                 message: "An image control represents one named image; remove count and declare each image property explicitly."
             ))
         }
-        if type == .shadow, property["count"] != nil {
+        if type == .frameworkShadow, property["count"] != nil {
             diagnostics.append(.init(
                 severity: .error,
                 location: "\(location).count",
-                message: "A shadow control cannot be a multi control; use its visual layer editor instead."
+                message: "A frameworkShadow control cannot be a multi control; use its visual layer editor instead."
             ))
         }
         if type == .video, property["count"] != nil {

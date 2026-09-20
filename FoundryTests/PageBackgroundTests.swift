@@ -47,8 +47,8 @@ struct PageBackgroundTests {
         let restored = try JSONDecoder().decode(Site.self, from: JSONEncoder().encode(site))
         #expect(restored.pages[0].backgroundOverride == selection)
         #expect(page.duplicated(title: "Copy", slug: "copy").backgroundOverride == selection)
-        #expect(HTMLPageRenderer(appearance: .light).render(page: page, framework: site.framework).contains("margin: 0; background: #123456"))
-        #expect(HTMLPageRenderer(appearance: .dark).render(page: page, framework: site.framework).contains("margin: 0; background: #ABCDEF"))
+        #expect(HTMLPageRenderer(appearance: .light).render(page: page, framework: site.framework).contains("body { background: #123456; }"))
+        #expect(HTMLPageRenderer(appearance: .dark).render(page: page, framework: site.framework).contains("body { background: #ABCDEF; }"))
         let html = try #require(StaticSiteRenderer().render(site: site).file(at: "index.html")?.contents)
         #expect(html.contains("background-color: light-dark(#123456, #ABCDEF)"))
         site.appearanceMode = .dark

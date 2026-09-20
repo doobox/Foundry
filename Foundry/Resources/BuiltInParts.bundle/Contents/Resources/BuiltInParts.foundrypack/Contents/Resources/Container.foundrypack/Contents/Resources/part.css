@@ -4,7 +4,7 @@
     width: 100%;
     {{ if control.widthMode == "auto" }}width: auto;{{ endif }}
     {{ if control.widthMode == "custom" }}width: min(100%, {{ control.customWidth }}px);{{ endif }}
-    max-width: {{ if control.maxWidth > 0 }}min(100%, {{ control.maxWidth }}px){{ else }}100%{{ endif }};
+    max-width: {{ if control.maxWidth > 0 }}min(100%, {{ control.maxWidth }}px){{ else }}var(--foundry-container-width){{ endif }};
     min-height: {{ control.minimumHeight }}px;
     height: auto;
     {{ if control.heightMode == "custom" }}height: {{ control.customHeight }}px;{{ endif }}

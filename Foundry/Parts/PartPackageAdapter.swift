@@ -224,7 +224,7 @@ nonisolated enum PartPackageAdapter {
         if property.control.type == .frameworkColor { return frameworkColorProperties(for: property) }
         if property.control.type == .frameworkBorder { return PartPackageFrameworkBorderControl.properties(property) }
         if property.control.type == .frameworkFont { return PartPackageFontControl.properties(property) }
-        if property.control.type == .shadow { return shadowProperties(for: property) }
+        if property.control.type == .frameworkShadow { return shadowProperties(for: property) }
         if property.control.type == .edges || property.control.type == .corners { return boxLengthProperties(for: property) }
         return [PartPropertyDefinition(
             key: .init(rawValue: property.id),
@@ -400,7 +400,7 @@ nonisolated enum PartPackageAdapter {
         case .image: .image
         case .video: .video
         case .math: .derived
-        case .shadow: .packageShadow
+        case .frameworkShadow: .packageShadow
         case .childPicker: .derived
         }
     }
@@ -433,7 +433,7 @@ nonisolated enum PartPackageAdapter {
             case .link: .link(.init(destination: value.isEmpty ? .none : .url(value)))
             case .color: .color(value)
             case .frameworkColor: .choice(value)
-            case .icon, .select, .frameworkFont, .fontStyle, .textAlignment, .shadow: .choice(value)
+            case .icon, .select, .frameworkFont, .fontStyle, .textAlignment, .frameworkShadow: .choice(value)
             case .date: .string(value)
             case .image, .video: .url(value)
             default: .string(value)

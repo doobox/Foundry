@@ -7,7 +7,7 @@
     max-width: {{ control.maxWidth }}px;
 }
 
-:instance .foundry-image {
+:instance .fd-image {
     display: block;
     width: 100%;
     max-width: 100%;

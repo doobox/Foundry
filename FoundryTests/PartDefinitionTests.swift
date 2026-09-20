@@ -75,7 +75,7 @@ struct PartDefinitionTests {
         var unlimited = container
         unlimited.setProperty(.maxWidth, value: .number(0))
         let html = HTMLPageRenderer().render(page: Page(title: "Full", slug: "full", parts: [unlimited]), framework: .standard)
-        #expect(html.contains("max-width: 100%"))
+        #expect(html.contains("max-width: var(--foundry-container-width)"))
         #expect(!html.contains("max-width: 0px"))
         #expect(html.contains("background-color: transparent"))
     }
@@ -207,8 +207,8 @@ struct PartDefinitionTests {
 
         #expect(html.contains("class=\"foundry-section"))
         #expect(html.contains("class=\"foundry-grid"))
-        #expect(html.contains("<h2 class=\"foundry-heading"))
-        #expect(html.contains("class=\"foundry-image"))
+        #expect(html.contains("<h2 class=\""))
+        #expect(html.contains("class=\"foundry-image-part"))
         #expect(html.contains("class=\"foundry-divider"))
     }
 

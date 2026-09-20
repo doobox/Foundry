@@ -965,7 +965,10 @@ struct WebCanvasView: NSViewRepresentable {
 
             if (!event.metaKey && !event.altKey && !event.ctrlKey && !event.shiftKey
                 && (event.key === 'Backspace' || event.key === 'Delete')) {
-              if (!selectedPrimitiveSelection) postSelectionAction('deleteParts');
+              // A primitive selection still selects its owning part, and inline
+              // editing is already excluded by the contenteditable check above, so
+              // Delete removes the part exactly like the context menu does.
+              postSelectionAction('deleteParts');
               return;
             }
 

@@ -1859,7 +1859,7 @@ struct PartPackageTests {
             <key>id</key><string>cardShadow</string>
             <key>label</key><string>Shadow</string>
             <key>group</key><string>Appearance</string>
-            <key>type</key><string>shadow</string>
+            <key>type</key><string>frameworkShadow</string>
             <key>allowsCustom</key><true/>
             <key>defaults</key><dict><key>base</key><string>md</string></dict>
             <key>responsive</key><false/>
@@ -1870,7 +1870,7 @@ struct PartPackageTests {
             from: Data(manifest(withControls: item).utf8)
         )
         let property = try #require(decodedManifest.resolvedProperties.first)
-        #expect(property.control.type == .shadow)
+        #expect(property.control.type == .frameworkShadow)
         #expect(property.control.frameworkValues == nil)
         #expect(property.control.frameworkValueSource == .shadows)
         #expect(property.control.allowsCustom == true)
@@ -1884,7 +1884,7 @@ struct PartPackageTests {
 
         let legacyItem = item
             .replacingOccurrences(
-                of: "<key>type</key><string>shadow</string>",
+                of: "<key>type</key><string>frameworkShadow</string>",
                 with: "<key>type</key><string>select</string><key>frameworkValues</key><string>shadows</string>"
             )
         let legacyDiagnostics = try PartPackageManifestSchema.diagnostics(
@@ -1894,6 +1894,16 @@ struct PartPackageTests {
             $0.location.hasSuffix(".frameworkValues")
                 && $0.message == "Select supports only declared options; remove frameworkValues."
         })
+
+        // The pre-rename spelling is gone for good: bare `shadow` is an unknown type.
+        let renamedItem = item.replacingOccurrences(
+            of: "<key>type</key><string>frameworkShadow</string>",
+            with: "<key>type</key><string>shadow</string>"
+        )
+        let renamedDiagnostics = try PartPackageManifestSchema.diagnostics(
+            for: Data(manifest(withControls: renamedItem).utf8)
+        )
+        #expect(renamedDiagnostics.contains { $0.message == "Unknown control type 'shadow'." })
     }
 
     @Test
@@ -2654,8 +2664,8 @@ struct PartPackageTests {
         let rendered = PartTemplateRenderer.render(template, context: context)
 
         #expect(rendered.components(separatedBy: "<article>").count - 1 == 2)
-        #expect(rendered.contains("One<img class=\"foundry-image\" src=\"one.jpg\""))
-        #expect(rendered.contains("Two<img class=\"foundry-image\" src=\"two.jpg\""))
+        #expect(rendered.contains("One<img class=\"fd-image\" src=\"one.jpg\""))
+        #expect(rendered.contains("Two<img class=\"fd-image\" src=\"two.jpg\""))
         #expect(rendered.contains("<footer>Footer value</footer>"))
         #expect(!rendered.contains("content3"))
 
@@ -2936,7 +2946,7 @@ struct PartPackageTests {
         #expect(PartTemplateRenderer.hasImagePrimitive(in: template))
         #expect(PartTemplateRenderer.render(template, context: editorContext).contains("data-foundry-image-drop-zone"))
         let exported = PartTemplateRenderer.render(template, context: exportContext)
-        #expect(exported.contains("class=\"foundry-image\""))
+        #expect(exported.contains("class=\"fd-image\""))
         #expect(exported.contains("src=\"assets/hero &amp; wide.jpg\""))
     }
 

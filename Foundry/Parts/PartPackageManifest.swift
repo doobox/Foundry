@@ -1045,7 +1045,7 @@ nonisolated extension PartPackageProperty {
 
     static let effectsControlGroup: [Self] = [
         Self(id: "effectsEnabled", label: "Enable", group: "Effects", control: .init(type: .toggle), defaultValue: .boolean(false), responsive: true),
-        Self(id: "frameworkShadow", label: "Shadow", group: "Effects", control: .init(type: .shadow), defaultValue: .string("none"), responsive: true, visibleWhen: visibleWhenEnabled("effectsEnabled")),
+        Self(id: "frameworkShadow", label: "Shadow", group: "Effects", control: .init(type: .frameworkShadow), defaultValue: .string("none"), responsive: true, visibleWhen: visibleWhenEnabled("effectsEnabled")),
         Self(id: "opacity", label: "Opacity", group: "Effects", control: .init(type: .slider, minimum: 0, maximum: 100, step: 1, showsValueField: true), defaultValue: .number(100), responsive: true, visibleWhen: visibleWhenEnabled("effectsEnabled"), units: ["%"])
     ]
 }
@@ -1151,7 +1151,7 @@ nonisolated struct PartPackageControl: Codable, Equatable, Sendable {
         case image
         case video
         case math
-        case shadow
+        case frameworkShadow
         case childPicker
     }
 
@@ -1348,7 +1348,7 @@ nonisolated enum PartPackageFrameworkValues: Codable, Equatable, Sendable {
 
 nonisolated extension PartPackageControl {
     var frameworkValueSource: PartPackageFrameworkValueSource? {
-        if type == .shadow { return .shadows }
+        if type == .frameworkShadow { return .shadows }
         if type == .frameworkColor { return .colors }
         return nil
     }

@@ -403,7 +403,7 @@ nonisolated enum PartTemplateRenderer {
             return "<span class=\"foundry-image-drop-zone\" data-foundry-image-drop-zone\(propertyAttribute)\(primitiveAttribute)\(pathAttribute)>Drop image here</span>"
         }
         let editorAttribute = context.enablesEditorMarkup ? " data-foundry-image-drop-zone\(propertyAttribute)" : ""
-        return "<img class=\"foundry-image\"\(editorAttribute)\(primitiveAttribute)\(pathAttribute) src=\"\(escapeAttribute(resolvedSource))\" alt=\"\">"
+        return "<img class=\"fd-image\"\(editorAttribute)\(primitiveAttribute)\(pathAttribute) src=\"\(escapeAttribute(resolvedSource))\" alt=\"\">"
     }
 
     private static func addInlineEditingAttribute(

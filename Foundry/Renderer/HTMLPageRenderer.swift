@@ -41,33 +41,18 @@ nonisolated struct HTMLPageRenderer: PageRendering {
             \(framework.fontSourceCSS(assets: assets, destination: .canvas))
           </style>
           <style>
+            \(FoundryCSS.build(
+                framework: framework,
+                colour: { framework.color(for: $0, appearance: appearance) },
+                colorScheme: appearance.rawValue
+            ))
+          </style>
+          <style>
             :root {
-              font-size: 16px;
-              color-scheme: \(appearance.rawValue);
-              --foundry-color-page: \(framework.color(for: .page, appearance: appearance));
-              --foundry-color-background: \(framework.color(for: .background, appearance: appearance));
-              --foundry-color-surface: \(framework.color(for: .surface, appearance: appearance));
-              --foundry-color-text: \(framework.color(for: .text, appearance: appearance));
-              --foundry-color-accent: \(framework.color(for: .accent, appearance: appearance));
-              --foundry-color-links: \(framework.color(for: .links, appearance: appearance));
-              --foundry-color-muted-text: \(framework.color(for: .mutedText, appearance: appearance));
-              --foundry-font-body: \(framework.typography.bodyFont.cssFamily);
-              --foundry-font-heading: \(framework.typography.headingFont.cssFamily);
-              --foundry-font-monospace: \(framework.typography.monospacedFont.cssFamily);
-              \(framework.customFontCSSVariables)
-              \(framework.fontSizeCSSVariables)
               --foundry-editor-part: #007BFF;
               --foundry-editor-global: #30D158;
               --foundry-editor-primitive: #007BFF;
-              \(framework.spacingCSSVariables)
-              \(framework.shadowCSSVariables)
-              \(framework.borderCSSVariables)
-              \(framework.zIndexCSSVariables)
             }
-            *, *::before, *::after { box-sizing: border-box; }
-            a { color: var(--foundry-color-links); }
-            \(framework.screens.containerCSS)
-            .foundry-container { width: 100%; max-width: var(--foundry-container-width) !important; }
             [data-foundry-id] {
               --foundry-editor-chrome: var(--foundry-editor-part);
               cursor: default;
@@ -107,20 +92,7 @@ nonisolated struct HTMLPageRenderer: PageRendering {
               border-color: color-mix(in srgb, var(--foundry-editor-chrome) 42%, transparent) !important;
             }
             [data-foundry-global].foundry-editing { outline-color: var(--foundry-editor-chrome) !important; }
-            html, body { min-height: 100%; }
-            body {
-              margin: 0; background: \(page.backgroundColour(framework: framework, appearance: appearance));
-              color: var(--foundry-color-text); font-family: var(--foundry-font-body);
-              font-size: var(--foundry-font-size-base); line-height: var(--foundry-font-size-base-line-height);
-              display: flex; flex-direction: column; align-items: stretch;
-            }
-            h1, h2, h3, h4, h5, h6, .foundry-heading { font-family: var(--foundry-font-heading); }
-            code, pre, kbd, samp { font-family: var(--foundry-font-monospace); }
-            .foundry-button {
-              display: block; width: fit-content; text-decoration: none; font-weight: 600;
-            }
-            .foundry-grid { display: grid; }
-            .foundry-image { display: block; width: 100%; height: auto; }
+            body { background: \(page.backgroundColour(framework: framework, appearance: appearance)); }
             .foundry-image-drop-zone {
               display: grid; width: 100%; min-height: 64px; padding: 16px; place-items: center;
               border: 2px dashed color-mix(in srgb, var(--foundry-editor-chrome) 42%, transparent) !important;
