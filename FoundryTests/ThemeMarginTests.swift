@@ -20,8 +20,8 @@ struct ThemeMarginTests {
         #expect(amounts["right"] == nil)
         #expect(units["right"] == .string(""))
         #expect(PartPackageThemePaddingControl.defaultValue(.string("auto")) == nil)
-        #expect(PartPackageThemeMarginControl.defaultValue(.string("auto"))?.linked == true)
-        #expect(PartPackageThemeMarginControl.defaultValue(.string("none"))?.linked == true)
+        #expect(PartPackageThemeMarginControl.defaultValue(.string("auto")).map { $0.verticalLinked && $0.horizontalLinked } == true)
+        #expect(PartPackageThemeMarginControl.defaultValue(.string("none")).map { $0.verticalLinked && $0.horizontalLinked } == true)
         #expect(PartPackageThemeMarginControl.defaultValue(.object(["value": .number(1), "unit": .string("vh")])) == nil)
     }
     @Test func linkingAutoUsesFirstEdge() throws {
@@ -30,7 +30,7 @@ struct ThemeMarginTests {
         value.togglePair(using: .bottom)
         #expect(value.value(for: .bottom).token == "auto")
         value.togglePair(using: .right)
-        #expect(value.linked)
+        #expect(value.verticalLinked && value.horizontalLinked)
         #expect(value.values.allSatisfy { $0.token == "auto" })
     }
 }

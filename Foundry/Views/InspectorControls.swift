@@ -2,12 +2,12 @@ import AppKit
 import SwiftUI
 
 enum InspectorMetrics {
-    static let labelWidth: CGFloat = 90
-    static let columnSpacing: CGFloat = 12
-    static let rowSpacing: CGFloat = 10
-    static let controlSpacing: CGFloat = 20
-    static let horizontalSectionPadding: CGFloat = 16
-    static let verticalSectionPadding: CGFloat = 12
+    static let labelWidth: CGFloat = 84
+    static let columnSpacing: CGFloat = 10
+    static let rowSpacing: CGFloat = 7
+    static let controlSpacing: CGFloat = 12
+    static let horizontalSectionPadding: CGFloat = 14
+    static let verticalSectionPadding: CGFloat = 8
 }
 
 private extension ControlSize {

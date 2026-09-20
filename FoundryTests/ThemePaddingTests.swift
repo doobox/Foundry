@@ -16,7 +16,7 @@ struct ThemePaddingTests {
             "top": .string("sm"), "right": .string("none"), "bottom": .string("lg"),
             "left": .object(["value": .number(2), "unit": .string("rem")])
         ])))
-        #expect(!initial.linked)
+        #expect(!initial.verticalLinked && !initial.horizontalLinked)
         #expect(try JSONDecoder().decode(ThemePaddingValue.self, from: JSONEncoder().encode(initial)) == initial)
         guard case .object(let output) = PartPackageThemePaddingControl.resolved(initial, theme: .standard) else { return }
         #expect(output["css"] == .string("var(--foundry-space-sm) 0 var(--foundry-space-lg) 2.0rem"))
@@ -78,41 +78,37 @@ struct ThemePaddingTests {
         #expect(state.value(for: .bottom) == padding)
     }
 
-    @Test func secondPairPromotesToAllUsingTop() {
+    @Test func togglingTheSecondPairCascadesToAllFourEdges() {
         var state = ThemePaddingValue()
         state.unlinkAll()
         state.togglePair(using: .top)
-        var custom = state.value(for: .right)
-        custom.isCustom = true
-        custom.amount = 12
-        custom.unit = "px"
-        state.set(custom, for: .right)
-        #expect(!state.value(for: .top).isCustom)
+        var customTop = state.value(for: .top)
+        customTop.token = "xl"
+        state.set(customTop, for: .top)
         state.togglePair(using: .right)
-        #expect(state.linked)
-        #expect(state.values.allSatisfy { $0 == ThemePaddingValue.EdgeValue() })
-        #expect(!state.verticalLinked && !state.horizontalLinked)
-        state.unlinkAll()
-        #expect(!state.isPairLinked(.left))
-        #expect(!state.isPairLinked(.top))
+        #expect(state.verticalLinked && state.horizontalLinked)
+        // Completing the second link while the first is already on means every
+        // edge is now tied together — the toggle cascades its axis's leading
+        // edge (left, for horizontal) across all four, not just its own pair,
+        // discarding the vertical pair's custom value in the process.
+        #expect(state.values.allSatisfy { $0.token == "sm" })
     }
 
-    @Test func promotionAlsoWorksHorizontalFirst() {
+    @Test func togglingTheSecondPairCascadesToAllFourEdgesHorizontalFirst() {
         var state = ThemePaddingValue()
         state.unlinkAll()
         state.togglePair(using: .left)
-        var padding = state.value(for: .bottom)
-        padding.token = "lg"
-        state.set(padding, for: .bottom)
+        var customLeft = state.value(for: .left)
+        customLeft.token = "xl"
+        state.set(customLeft, for: .left)
         state.togglePair(using: .bottom)
-        #expect(state.linked)
+        #expect(state.verticalLinked && state.horizontalLinked)
         #expect(state.values.allSatisfy { $0.token == "sm" })
     }
 
     @Test func unlinkingOnePairFromAllRetainsOtherPair() {
         var state = ThemePaddingValue()
         state.togglePair(using: .bottom)
-        #expect(!state.linked)
         #expect(!state.isPairLinked(.top))
         #expect(state.isPairLinked(.left))
         #expect(state.allEqual)
@@ -124,13 +120,13 @@ struct ThemePaddingTests {
         padding.token = "lg"
         state.set(padding, for: .top)
         #expect(state.values.allSatisfy { $0.token == "lg" })
-        state.linked = false
+        state.unlinkAll()
         #expect(state.values.allSatisfy { $0.token == "lg" })
     }
 
     @Test func linkAllUsesTop() {
         var state = ThemePaddingValue()
-        state.linked = false
+        state.unlinkAll()
         var custom = state.value(for: .right)
         custom.isCustom = true
         custom.amount = 23
@@ -140,7 +136,7 @@ struct ThemePaddingTests {
         #expect(!state.value(for: .top).isCustom)
         #expect(state.value(for: .right).token == "sm")
         state.linkAll()
-        #expect(state.linked)
+        #expect(state.verticalLinked && state.horizontalLinked)
         #expect(state.values.allSatisfy { $0 == ThemePaddingValue.EdgeValue() })
     }
 

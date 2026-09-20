@@ -723,7 +723,7 @@ private struct PartInspector: View {
 
     var body: some View {
         ScrollView {
-            LazyVStack(spacing: 14) {
+            LazyVStack(spacing: 0) {
                 InspectorCard {
                     partIdentityHeader
 
@@ -745,6 +745,7 @@ private struct PartInspector: View {
                 }
 
                 ForEach(inspectorGroups, id: \.rawValue) { group in
+                    Divider()
                     PartInspectorGroup(
                         group: group,
                         properties: properties(in: group),
@@ -776,7 +777,6 @@ private struct PartInspector: View {
                     )
                 }
             }
-            .padding(16)
         }
         .controlSize(.small)
         .font(.callout)
@@ -1274,6 +1274,28 @@ private struct PartAttributePopover: View {
     }
 }
 
+private enum PartInspectorSectionIcon {
+    private static let icons: [String: String] = [
+        "Content": "doc.text",
+        "Typography": "textformat",
+        "Appearance": "paintpalette",
+        "Layout": "rectangle.3.group",
+        "Sizing": "arrow.up.left.and.arrow.down.right",
+        "Layout item": "square.on.square",
+        "Spacing": "arrow.up.and.down.and.arrow.left.and.right",
+        "Borders": "square.dashed",
+        "Background": "paintbrush.fill",
+        "Effects": "sparkles",
+        "Link": "link",
+        "Accessibility": "accessibility",
+        "Advanced": "gearshape"
+    ]
+
+    static func systemImage(for section: PartPropertySection) -> String? {
+        icons[section.rawValue]
+    }
+}
+
 private struct PartInspectorGroup: View {
     let group: PartPropertySection
     let properties: [PartPropertyDefinition]
@@ -1335,8 +1357,8 @@ private struct PartInspectorGroup: View {
             }
             .padding(.vertical, InspectorMetrics.verticalSectionPadding)
         } label: {
-            if group.rawValue == "Background" {
-                Label(group.rawValue, systemImage: "paintbrush.fill")
+            if let systemImage = PartInspectorSectionIcon.systemImage(for: group) {
+                Label(group.rawValue, systemImage: systemImage)
             } else {
                 Text(group.rawValue)
             }
@@ -1396,6 +1418,7 @@ private struct PartInspectorDisclosureStyle: DisclosureGroupStyle {
     @Binding var usesAccordion: Bool
     let openAll: () -> Void
     let closeAll: () -> Void
+    @State private var isHovering = false
 
     func makeBody(configuration: Configuration) -> some View {
         VStack(spacing: 0) {
@@ -1404,25 +1427,26 @@ private struct PartInspectorDisclosureStyle: DisclosureGroupStyle {
                     configuration.isExpanded.toggle()
                 }
             } label: {
-                HStack(spacing: 8) {
+                HStack(spacing: 6) {
                     configuration.label
-                        .font(.headline)
+                        .font(.callout.weight(.medium))
                         .foregroundStyle(.primary)
 
                     Spacer(minLength: 8)
 
-                    Image(systemName: "chevron.down")
-                        .font(.caption.weight(.semibold))
+                    Image(systemName: "chevron.right")
+                        .font(.caption2.weight(.semibold))
                         .foregroundStyle(.secondary)
-                        .rotationEffect(.degrees(configuration.isExpanded ? 0 : -90))
+                        .rotationEffect(.degrees(configuration.isExpanded ? 90 : 0))
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, 14)
-                .padding(.vertical, 10)
-                .background(Color.primary.opacity(0.075))
+                .padding(.horizontal, InspectorMetrics.horizontalSectionPadding)
+                .padding(.vertical, 7)
+                .background(Color.primary.opacity(isHovering ? 0.09 : 0.06))
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+            .onHover { isHovering = $0 }
             .contextMenu {
                 Toggle("Accordion Mode", isOn: $usesAccordion)
                 if !usesAccordion {
@@ -1439,7 +1463,59 @@ private struct PartInspectorDisclosureStyle: DisclosureGroupStyle {
                     .transition(.opacity)
             }
         }
-        .background(Color.primary.opacity(0.045))
-        .clipShape(RoundedRectangle(cornerRadius: 12))
+    }
+}
+
+#Preview("Part Inspector") {
+    PartInspectorPreviewHarness()
+}
+
+private struct PartInspectorPreviewHarness: View {
+    @State private var isReady = false
+
+    var body: some View {
+        Group {
+            if isReady {
+                let type = PartType(rawValue: "foundry.layout.grid")
+                let part = PartNode.make(type)
+                let page = Page(title: "Grid", slug: "index", parts: [part])
+                let document = FoundryDocument(site: Site(name: "Preview", pages: [page]))
+                InspectorView(
+                    page: nil,
+                    currentPage: document.site.pages.first,
+                    folder: nil,
+                    asset: nil,
+                    assetLibraryNode: nil,
+                    assetLibrary: document.site.assetLibrary,
+                    assetContents: document.assetContents,
+                    folders: document.site.pageFolders,
+                    pages: document.site.pages,
+                    publicURL: document.site.publicURL,
+                    part: part,
+                    selectedParts: [part],
+                    allowsMultiPartEditing: false,
+                    libraryPartType: nil,
+                    theme: document.site.theme,
+                    assets: document.site.assets,
+                    editor: ProjectEditor(document: document, undoManager: nil),
+                    reusableDefinition: nil,
+                    isGlobalOverride: false,
+                    setGlobalOverride: { _ in },
+                    breakpoint: .large,
+                    assetUsageCount: { _ in 0 },
+                    renameAsset: { _, _ in },
+                    renameAssetFolder: { _, _ in },
+                    importMedia: { _, _ in nil },
+                    editsSharedDefinition: .constant(false)
+                )
+            } else {
+                ProgressView()
+            }
+        }
+        .frame(width: 340, height: 900)
+        .task {
+            await PartPackageCatalog.shared.waitUntilLoaded()
+            isReady = true
+        }
     }
 }

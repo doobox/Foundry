@@ -34,8 +34,11 @@ struct ThemeBorderDimensionTests {
         #expect(value.value(for: .bottom).token == "xs")
         #expect(value.value(for: .left).token == "md")
         value.togglePair(using: .right)
-        #expect(value.linked)
-        #expect(value.values.allSatisfy { $0.token == "xs" })
+        #expect(value.verticalLinked && value.horizontalLinked)
+        // Completing the second link while the first is already on means every
+        // corner is now tied together — the toggle cascades left's value across
+        // all four, not just left/right.
+        #expect(value.values.allSatisfy { $0.token == "md" })
         #expect(try JSONDecoder().decode(ThemeRadiusValue.self, from: JSONEncoder().encode(value)) == value)
     }
     @Test func policiesValidateUnitsAndTokens() throws {

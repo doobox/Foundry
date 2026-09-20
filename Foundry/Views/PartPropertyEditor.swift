@@ -8,6 +8,7 @@ struct PartPropertyEditor: View {
     @State private var generatedVideoPoster: NSImage?
     @State private var isAnalysingVideo = false
     @State private var videoAnalysisError: String?
+    @Namespace private var themeSpacingFocusNamespace
     let definition: PartPropertyDefinition
     let part: PartNode
     let selectedParts: [PartNode]
@@ -248,8 +249,9 @@ struct PartPropertyEditor: View {
                     if case .themeSpacing(let value) = displayPart.propertyValue(definition.key) { return value.selection }
                     if case .themeSpacing(let value) = definition.defaultValue { return value.selection }
                     return ThemePaddingValue.EdgeValue()
-                }, set: { setProperty(.themeSpacing(.init(selection: $0))) }), title: definition.label.isEmpty ? "Spacing" : definition.label, theme: theme)
+                }, set: { setProperty(.themeSpacing(.init(selection: $0))) }), title: definition.label.isEmpty ? "Spacing" : definition.label, theme: theme, focusNamespace: themeSpacingFocusNamespace)
             }
+            .focusScope(themeSpacingFocusNamespace)
             .help(part.type.definition.package?.manifest.resolvedProperties.first { $0.id == definition.key.rawValue }?.tooltip ?? "Spacing")
             .contextMenu { resetButton }
         case .themeBorderWidth:

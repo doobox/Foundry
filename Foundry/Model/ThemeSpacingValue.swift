@@ -9,7 +9,7 @@ nonisolated protocol ThemeSpacingPolicy: Sendable {
     static var tokens: [String] { get }
     static func choices(in theme: Theme) -> [ThemeEdgeChoice]
 }
-nonisolated struct ThemeEdgeChoice {
+nonisolated struct ThemeEdgeChoice: Identifiable {
     let id: String
     let label: String
     let amount: Double
@@ -95,25 +95,25 @@ nonisolated struct ThemeSpacingValue<Policy: ThemeSpacingPolicy>: Codable, Equat
         }
     }
 
-    var linked = true
-    private(set) var verticalLinked = false
-    private(set) var horizontalLinked = false
+    /// Top and bottom share a value. Independent of `horizontalLinked` — both can be
+    /// true at once (all four edges then move together, since each pair is tied and
+    /// setting any edge propagates through both pairs), or either can be toggled off
+    /// on its own without disturbing the other axis.
+    private(set) var verticalLinked = true
+    private(set) var horizontalLinked = true
     private(set) var values = Array(repeating: EdgeValue(), count: 4)
 
     init() {}
 
-    private enum CodingKeys: String, CodingKey { case linked, verticalLinked, horizontalLinked, values }
+    private enum CodingKeys: String, CodingKey { case verticalLinked, horizontalLinked, values }
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        linked = try container.decode(Bool.self, forKey: .linked)
         verticalLinked = try container.decode(Bool.self, forKey: .verticalLinked)
         horizontalLinked = try container.decode(Bool.self, forKey: .horizontalLinked)
         values = try container.decode([EdgeValue].self, forKey: .values)
         guard values.count == 4,
               values.allSatisfy({ $0.amount.isFinite && (Policy.allowsAutoAndNegative || $0.amount >= 0) && (Policy.allowsAutoAndNegative || $0.token != "auto") && Policy.units.contains($0.unit) }),
-              !(verticalLinked && horizontalLinked),
-              (!linked || (!verticalLinked && !horizontalLinked && allEqual)),
               (!verticalLinked || values[0] == values[1]),
               (!horizontalLinked || values[2] == values[3]) else {
             throw DecodingError.dataCorruptedError(forKey: .values, in: container, debugDescription: "Invalid four-value selections or link state.")
@@ -130,45 +130,101 @@ nonisolated struct ThemeSpacingValue<Policy: ThemeSpacingPolicy>: Codable, Equat
     var allEqual: Bool { values.dropFirst().allSatisfy { $0 == values[0] } }
 
     mutating func set(_ value: EdgeValue, for edge: Edge) {
-        if linked { values = Array(repeating: value, count: 4) }
-        else {
-            values[Edge.allCases.firstIndex(of: edge)!] = value
-            if isPairLinked(edge) { values[Edge.allCases.firstIndex(of: edge.partner)!] = value }
+        if verticalLinked && horizontalLinked {
+            values = Array(repeating: value, count: 4)
+            return
         }
+        values[Edge.allCases.firstIndex(of: edge)!] = value
+        if isPairLinked(edge) { values[Edge.allCases.firstIndex(of: edge.partner)!] = value }
     }
 
     func isPairLinked(_ edge: Edge) -> Bool {
-        linked || (edge.isVertical ? verticalLinked : horizontalLinked)
+        edge.isVertical ? verticalLinked : horizontalLinked
     }
 
     mutating func unlinkAll() {
-        linked = false
         verticalLinked = false
         horizontalLinked = false
-    }
-
-    mutating func togglePair(using edge: Edge) {
-        let wasLinked = isPairLinked(edge)
-        if linked {
-            linked = false
-            verticalLinked = true
-            horizontalLinked = true
-        }
-        if edge.isVertical { verticalLinked = !wasLinked }
-        else { horizontalLinked = !wasLinked }
-        if !wasLinked {
-            let first: Edge = edge.isVertical ? .top : .left
-            set(value(for: first), for: first)
-        }
-        if verticalLinked && horizontalLinked { linkAll() }
     }
 
     mutating func linkAll() {
-        let shared = value(for: .top)
-        linked = true
-        verticalLinked = false
-        horizontalLinked = false
-        values = Array(repeating: shared, count: 4)
+        verticalLinked = true
+        horizontalLinked = true
+        values = Array(repeating: value(for: .top), count: 4)
     }
 
+    /// Toggles the vertical (top/bottom) or horizontal (left/right) pair. Turning a
+    /// pair on syncs its group to that axis's first edge's value — and if *both*
+    /// pairs end up linked, the group is all four edges, so completing the second
+    /// link cascades that edge's value across everything, not just its own pair.
+    mutating func togglePair(using edge: Edge) {
+        if edge.isVertical {
+            verticalLinked.toggle()
+            if verticalLinked { unify(from: .top) }
+        } else {
+            horizontalLinked.toggle()
+            if horizontalLinked { unify(from: .left) }
+        }
+    }
+
+    private mutating func unify(from edge: Edge) {
+        let shared = value(for: edge)
+        for target in group(containing: edge) {
+            values[target.index] = shared
+        }
+    }
+
+    private func group(containing edge: Edge) -> [Edge] {
+        if verticalLinked && horizontalLinked { return Edge.allCases }
+        return edge.isVertical
+            ? (verticalLinked ? [.top, .bottom] : [edge])
+            : (horizontalLinked ? [.left, .right] : [edge])
+    }
+
+    /// Switches every edge between a theme token and a raw custom amount at once —
+    /// mode is a single control-wide toggle now, not a per-edge escape hatch, so all
+    /// four edges always move together. Going custom→theme snaps each edge to the
+    /// nearest token; going theme→custom carries the selected token's own amount.
+    mutating func setUsesThemeTokens(_ usesThemeTokens: Bool, theme: Theme) {
+        let choices = Policy.choices(in: theme)
+        for edge in Edge.allCases {
+            var edgeValue = value(for: edge)
+            if usesThemeTokens {
+                edgeValue.token = Self.nearestToken(toAmount: edgeValue.amount, unit: edgeValue.unit, choices: choices)
+                edgeValue.isCustom = false
+            } else {
+                if let choice = choices.first(where: { $0.id == edgeValue.token }) {
+                    edgeValue.amount = choice.amount
+                    edgeValue.unit = Policy.themeUnit
+                } else if edgeValue.token == "none" {
+                    edgeValue.amount = 0
+                    edgeValue.unit = Policy.themeUnit
+                }
+                edgeValue.isCustom = true
+            }
+            values[edge.index] = edgeValue
+        }
+    }
+
+    /// A rough px⇄rem/em conversion (assuming a 16px root) purely so "nearest token"
+    /// lands somewhere sensible when switching into theme mode — not exact CSS math.
+    private static func themeEquivalentAmount(_ amount: Double, unit: String) -> Double {
+        switch (unit, Policy.themeUnit) {
+        case (Policy.themeUnit, _): amount
+        case ("px", "rem"), ("px", "em"): amount / 16
+        case ("rem", "px"), ("em", "px"): amount * 16
+        default: amount
+        }
+    }
+
+    private static func nearestToken(toAmount amount: Double, unit: String, choices: [ThemeEdgeChoice]) -> String {
+        let target = themeEquivalentAmount(amount, unit: unit)
+        var bestID = "none"
+        var bestDelta = abs(target)
+        for choice in choices where abs(choice.amount - target) < bestDelta {
+            bestDelta = abs(choice.amount - target)
+            bestID = choice.id
+        }
+        return bestID
+    }
 }
