@@ -18,6 +18,16 @@ nonisolated struct ThemeSingleSpacingValue: Codable, Equatable, Sendable {
         var container = encoder.singleValueContainer()
         try container.encode(selection)
     }
+
+    /// Switches between a theme token and a raw custom amount, matching the
+    /// four-edge controls: going custom carries the selected token's own amount,
+    /// going back to theme snaps to the nearest token.
+    mutating func setUsesThemeTokens(_ usesThemeTokens: Bool, theme: Theme) {
+        var spacing = ThemePaddingValue()
+        spacing.set(selection, for: .top)
+        spacing.setUsesThemeTokens(usesThemeTokens, theme: theme)
+        selection = spacing.value(for: .top)
+    }
 }
 
 nonisolated enum PartPackageSingleSpacingControl {

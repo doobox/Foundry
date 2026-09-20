@@ -244,12 +244,25 @@ struct PartPropertyEditor: View {
         case .themeFont:
             ThemeFontPartControl(label: definition.label, theme: theme, indicator: responsiveIndicator, selection: stringBinding(as: .choice))
         case .themeSpacing:
+            let singleSpacingSelection: ThemePaddingValue.EdgeValue = {
+                if case .themeSpacing(let value) = displayPart.propertyValue(definition.key) { return value.selection }
+                if case .themeSpacing(let value) = definition.defaultValue { return value.selection }
+                return ThemePaddingValue.EdgeValue()
+            }()
             InspectorRow(title: definition.label.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "Spacing" : definition.label, indicator: responsiveIndicator) {
-                ThemeSpacingInput<PaddingPolicy>(binding: Binding(get: {
-                    if case .themeSpacing(let value) = displayPart.propertyValue(definition.key) { return value.selection }
-                    if case .themeSpacing(let value) = definition.defaultValue { return value.selection }
-                    return ThemePaddingValue.EdgeValue()
-                }, set: { setProperty(.themeSpacing(.init(selection: $0))) }), title: definition.label.isEmpty ? "Spacing" : definition.label, theme: theme, focusNamespace: themeSpacingFocusNamespace)
+                HStack(spacing: 8) {
+                    ThemeSpacingInput<PaddingPolicy>(binding: Binding(get: {
+                        if case .themeSpacing(let value) = displayPart.propertyValue(definition.key) { return value.selection }
+                        if case .themeSpacing(let value) = definition.defaultValue { return value.selection }
+                        return ThemePaddingValue.EdgeValue()
+                    }, set: { setProperty(.themeSpacing(.init(selection: $0))) }), title: definition.label.isEmpty ? "Spacing" : definition.label, theme: theme, focusNamespace: themeSpacingFocusNamespace)
+
+                    ThemeModeToggle(usesThemeTokens: !singleSpacingSelection.isCustom) {
+                        var value = ThemeSingleSpacingValue(selection: singleSpacingSelection)
+                        value.setUsesThemeTokens(singleSpacingSelection.isCustom, theme: theme)
+                        setProperty(.themeSpacing(value))
+                    }
+                }
             }
             .focusScope(themeSpacingFocusNamespace)
             .help(part.type.definition.package?.manifest.resolvedProperties.first { $0.id == definition.key.rawValue }?.tooltip ?? "Spacing")

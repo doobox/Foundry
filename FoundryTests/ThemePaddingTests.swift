@@ -5,6 +5,22 @@ import Testing
 @Suite("Theme padding")
 @MainActor
 struct ThemePaddingTests {
+    @Test func singleSpacingSwitchesBetweenThemeAndCustomModes() {
+        var value = ThemeSingleSpacingValue()
+        #expect(value.selection.token == "sm")
+        #expect(!value.selection.isCustom)
+        value.setUsesThemeTokens(false, theme: .standard)
+        #expect(value.selection.isCustom)
+        // Custom starts with the selected token's own amount: SM is 4 × 0.25rem.
+        #expect(value.selection.amount == 1)
+        #expect(value.selection.unit == "rem")
+        value.selection.amount = 1.6
+        value.setUsesThemeTokens(true, theme: .standard)
+        #expect(!value.selection.isCustom)
+        // 1.6rem snaps to the nearest theme value: MD at 1.5rem.
+        #expect(value.selection.token == "md")
+    }
+
     @Test func defaultsAndResolution() throws {
         for invalid: PartPackageValue in [.string("auto"), .string("10px"), .number(-1),
             .object(["value": .number(-1), "unit": .string("px")]),

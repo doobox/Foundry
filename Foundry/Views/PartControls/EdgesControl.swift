@@ -76,21 +76,11 @@ struct EdgesControl<Top: View, Right: View, Bottom: View, Left: View>: View {
     }
 
     private var modeToggle: some View {
-        Button {
+        ThemeModeToggle(usesThemeTokens: usesThemeTokens) {
             resetFocus(in: focusNamespace)
             hoverTarget = nil
             toggleUsesThemeTokens?()
-        } label: {
-            Image(systemName: usesThemeTokens ? "shippingbox.fill" : "shippingbox")
-                .imageScale(.large)
-                .foregroundStyle(usesThemeTokens ? Color.accentColor : Color.secondary)
-                .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
-        .accessibilityLabel("Use theme values")
-        .accessibilityAddTraits(usesThemeTokens ? .isSelected : [])
-        .animation(.easeInOut(duration: 0.15), value: usesThemeTokens)
-        .help(usesThemeTokens ? "Switch to custom values" : "Switch to theme values")
     }
 
     @ViewBuilder
