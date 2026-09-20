@@ -6,6 +6,13 @@
     <array/>
     <key>author</key>
     <string>Foundry</string>
+    <key>groups</key>
+    <array>
+        <dict><key>name</key><string>Slides</string><key>systemImage</key><string>photo.stack</string></dict>
+        <dict><key>name</key><string>Navigation</string><key>systemImage</key><string>arrow.left.arrow.right</string></dict>
+        <dict><key>name</key><string>Autoplay</string><key>systemImage</key><string>play.circle</string></dict>
+        <dict><key>name</key><string>Appearance</string><key>systemImage</key><string>paintpalette</string></dict>
+    </array>
     <key>controls</key>
     <array>
         <dict>

@@ -178,10 +178,20 @@ struct ContentView: View {
             selectedPartID = nil
         }
         .onChange(of: selectedPartID) { _, partID in
+            if partID != nil {
+                selectedTemplateNodeID = nil
+                selectedGlobalNodeID = nil
+            }
             Task { @MainActor in
                 await Task.yield()
                 guard selectedPartID == partID else { return }
                 synchronizePrimaryPartSelection(partID)
+            }
+        }
+        .onChange(of: inspectedPageID) { _, pageID in
+            if pageID != nil {
+                selectedTemplateNodeID = nil
+                selectedGlobalNodeID = nil
             }
         }
         .onChange(of: selectedPartIDs) { previousPartIDs, partIDs in
@@ -334,15 +344,31 @@ struct ContentView: View {
             )
         case .reusableParts:
             ReusablePartLibraryPanel(
-                definitions: document.site.reusableParts,
-                renameDefinition: renameReusablePart,
-                deleteDefinition: deleteReusablePart
+                library: ReusablePartLibrary.shared.organizedNodes,
+                selectedNodeID: inspectableTemplateSelection,
+                renameDefinition: { ReusablePartLibrary.shared.rename(id: $0, to: $1) },
+                deleteDefinition: { ReusablePartLibrary.shared.delete(id: $0) },
+                duplicateDefinition: { ReusablePartLibrary.shared.duplicate(id: $0) },
+                revealDefinition: {
+                    NSWorkspace.shared.activateFileViewerSelecting([ReusablePartLibrary.shared.bundleURL(forID: $0)])
+                },
+                createFolder: { _ = ReusablePartLibrary.shared.createFolder(name: $0) },
+                renameFolder: { ReusablePartLibrary.shared.renameFolder(id: $0, to: $1) },
+                deleteFolder: { ReusablePartLibrary.shared.deleteFolder(id: $0) },
+                moveNode: { ReusablePartLibrary.shared.moveNode(id: $0, to: $1) },
+                saveDraggedParts: saveDraggedPartsAsReusable
             )
         case .globalParts:
             GlobalPartLibraryPanel(
-                definitions: document.site.globalParts,
+                library: document.site.globalPartLibrary,
+                selectedNodeID: inspectableGlobalSelection,
                 renameDefinition: renameGlobalPart,
                 deleteDefinition: deleteGlobalPart,
+                duplicateDefinition: { _ = editor.duplicateGlobalPart(definitionID: $0) },
+                createFolder: { _ = editor.createGlobalPartFolder(named: $0) },
+                renameFolder: { editor.renameGlobalPartFolder(id: $0, to: $1) },
+                deleteFolder: { editor.deleteGlobalPartFolder(id: $0) },
+                moveNode: { editor.moveGlobalPartNode(id: $0, to: $1) },
                 saveDraggedParts: saveDraggedPartsAsGlobals
             )
         case .structure:
@@ -383,17 +409,22 @@ struct ContentView: View {
                 selectedNodeID: inspectableAssetLibrarySelection,
                 importFiles: importAssets,
                 importURLs: importAssetURLs,
-                createFolder: { name, placement in
-                    _ = document.createAssetFolder(named: name, at: placement, undoManager: undoManager)
+                createFolder: { name in
+                    let folderID = document.createAssetFolder(named: name, at: assetInsertionPlacement, undoManager: undoManager)
+                    selectedAssetLibraryNodeID = folderID
                 },
                 moveNode: { document.moveAssetNodeToResources(id: $0, to: $1, undoManager: undoManager) },
-                deleteNode: deleteAssetLibraryNode
+                deleteNodes: deleteAssetLibraryNodes,
+                renameAsset: { document.renameAsset(id: $0, filename: $1, undoManager: undoManager) },
+                renameFolder: { document.renameAssetFolder(id: $0, name: $1, undoManager: undoManager) }
             )
             .onChange(of: selectedAssetLibraryNodeID) { _, selectedID in
                 guard selectedID != nil else { return }
                 selectedPageFolderID = nil
                 selectedPageAssetID = nil
                 selectedPartID = nil
+                selectedTemplateNodeID = nil
+                selectedGlobalNodeID = nil
             }
         case .developer:
             DeveloperPanel()
@@ -440,6 +471,10 @@ struct ContentView: View {
                     selectedParts: selectedParts,
                     allowsMultiPartEditing: allowsMultiPartEditing,
                     libraryPartType: selectedLibraryPartType,
+                    templateEntry: selectedTemplateEntry,
+                    insertTemplate: { _ = insertReusablePartFromLibrary($0, .end) },
+                    globalDefinition: selectedGlobalDefinition,
+                    insertGlobalPart: { _ = insertGlobalPartFromLibrary($0, .end) },
                     framework: document.site.framework,
                     assets: document.site.assets,
                     editor: editor,
@@ -563,6 +598,8 @@ struct ContentView: View {
                 selectedAssetLibraryNodeID = nil
                 selectedPartID = nil
                 selectedLibraryPartType = nil
+            selectedTemplateNodeID = nil
+            selectedGlobalNodeID = nil
             }
         )
     }
@@ -578,6 +615,8 @@ struct ContentView: View {
                 selectedAssetLibraryNodeID = nil
                 selectedPartID = nil
                 selectedLibraryPartType = nil
+            selectedTemplateNodeID = nil
+            selectedGlobalNodeID = nil
             }
         )
     }
@@ -593,6 +632,8 @@ struct ContentView: View {
                 selectedAssetLibraryNodeID = nil
                 selectedPartID = nil
                 selectedLibraryPartType = nil
+            selectedTemplateNodeID = nil
+            selectedGlobalNodeID = nil
             }
         )
     }
@@ -608,6 +649,8 @@ struct ContentView: View {
                 selectedPageAssetID = nil
                 selectedPartID = nil
                 selectedLibraryPartType = nil
+            selectedTemplateNodeID = nil
+            selectedGlobalNodeID = nil
             }
         )
     }
@@ -624,6 +667,8 @@ struct ContentView: View {
                 selectedPageAssetID = nil
                 selectedAssetLibraryNodeID = nil
                 selectedLibraryPartType = nil
+            selectedTemplateNodeID = nil
+            selectedGlobalNodeID = nil
             }
         )
     }
@@ -645,6 +690,8 @@ struct ContentView: View {
                     selectedPageAssetID = nil
                     selectedAssetLibraryNodeID = nil
                     selectedLibraryPartType = nil
+            selectedTemplateNodeID = nil
+            selectedGlobalNodeID = nil
                 } else if inspectedPageID == selectedPage.id {
                     inspectedPageID = nil
                 }
@@ -749,6 +796,8 @@ struct ContentView: View {
             selectedPartIDs = [partID]
         }
         selectedLibraryPartType = nil
+        selectedTemplateNodeID = nil
+        selectedGlobalNodeID = nil
         inspectedPageID = nil
         selectedPageFolderID = nil
         selectedPageAssetID = nil
@@ -780,6 +829,8 @@ struct ContentView: View {
         }
         guard !partIDs.isEmpty else { return }
         selectedLibraryPartType = nil
+        selectedTemplateNodeID = nil
+        selectedGlobalNodeID = nil
         inspectedPageID = nil
         selectedPageFolderID = nil
         selectedPageAssetID = nil
@@ -842,6 +893,8 @@ struct ContentView: View {
             guard let partID = message.partID,
                   page.parts.node(withID: partID) != nil else { return }
             selectedLibraryPartType = nil
+            selectedTemplateNodeID = nil
+            selectedGlobalNodeID = nil
             if message.extendsSelection == true {
                 if selectedPartIDs.contains(partID) {
                     selectedPartIDs.remove(partID)
@@ -884,11 +937,8 @@ struct ContentView: View {
         case .insertReusablePart:
             guard let definitionID = message.reusableDefinitionID,
                   let placement = validatedPlacement(message.placement, on: page),
-                  let id = editor.insertReusablePart(
-                    definitionID: definitionID,
-                    on: page.id,
-                    placement: placement
-                  ) else { return }
+                  let definition = resolvedTemplateDefinition(definitionID),
+                  let id = editor.insertTemplate(definition, on: page.id, placement: placement) else { return }
             selectedPartID = id
         case .insertGlobalPart:
             guard let definitionID = message.globalDefinitionID,
@@ -1100,6 +1150,8 @@ struct ContentView: View {
         guard let part = selectedPage?.parts.node(withID: partID) else { return }
         selectedPrimitive = nil
         selectedLibraryPartType = nil
+        selectedTemplateNodeID = nil
+        selectedGlobalNodeID = nil
         if !selectedPartIDs.contains(partID) {
             selectedPartIDs = [partID]
         }
@@ -1405,18 +1457,89 @@ struct ContentView: View {
         return true
     }
 
+    @State private var selectedTemplateNodeID: UUID?
+    @State private var selectedGlobalNodeID: UUID?
+
+    /// The template the Inspector shows when one is selected in the panel —
+    /// folder selections resolve to nothing.
+    private var selectedTemplateEntry: ReusablePartLibraryEntry? {
+        guard let selectedTemplateNodeID else { return nil }
+        return ReusablePartLibrary.shared.entry(withID: selectedTemplateNodeID)
+    }
+
+    /// The global part the Inspector shows when one is selected in the panel —
+    /// folder selections resolve to nothing.
+    private var selectedGlobalDefinition: ReusablePartDefinition? {
+        guard let selectedGlobalNodeID,
+              case .part(let definition)? = document.site.globalPartLibrary.node(withID: selectedGlobalNodeID) else {
+            return nil
+        }
+        return definition
+    }
+
+    /// Selecting a template takes over the Inspector, clearing every other
+    /// inspectable selection — matching how parts, pages and assets behave.
+    private var inspectableTemplateSelection: Binding<UUID?> {
+        Binding(
+            get: { selectedTemplateNodeID },
+            set: { nodeID in
+                selectedTemplateNodeID = nodeID
+                guard let nodeID, ReusablePartLibrary.shared.entry(withID: nodeID) != nil else { return }
+                selectedPrimitive = nil
+                selectedPartIDs = []
+                selectedPartID = nil
+                inspectedPageID = nil
+                selectedPageFolderID = nil
+                selectedPageAssetID = nil
+                selectedAssetLibraryNodeID = nil
+                selectedLibraryPartType = nil
+                selectedGlobalNodeID = nil
+            }
+        )
+    }
+
+    /// Selecting a global part takes over the Inspector the same way.
+    private var inspectableGlobalSelection: Binding<UUID?> {
+        Binding(
+            get: { selectedGlobalNodeID },
+            set: { nodeID in
+                selectedGlobalNodeID = nodeID
+                guard let nodeID,
+                      case .part? = document.site.globalPartLibrary.node(withID: nodeID) else { return }
+                selectedPrimitive = nil
+                selectedPartIDs = []
+                selectedPartID = nil
+                inspectedPageID = nil
+                selectedPageFolderID = nil
+                selectedPageAssetID = nil
+                selectedAssetLibraryNodeID = nil
+                selectedLibraryPartType = nil
+                selectedTemplateNodeID = nil
+            }
+        )
+    }
+
     private func insertReusablePartFromLibrary(
         _ definitionID: UUID,
         _ placement: PartPlacement
     ) -> Bool {
         guard let pageID = selectedPage?.id,
-              let id = editor.insertReusablePart(
-                definitionID: definitionID,
-                on: pageID,
-                placement: placement
-              ) else { return false }
+              let definition = resolvedTemplateDefinition(definitionID),
+              let id = editor.insertTemplate(definition, on: pageID, placement: placement) else { return false }
         selectedPartID = id
         return true
+    }
+
+    /// Resolves a template from the shared library for insertion: its embedded
+    /// assets import into this project (deduplicated by content) and the
+    /// returned definition references the imported copies.
+    private func resolvedTemplateDefinition(_ definitionID: UUID) -> ReusablePartDefinition? {
+        guard let entry = ReusablePartLibrary.shared.entry(withID: definitionID) else { return nil }
+        return ReusablePartLibrary.shared.importedDefinition(
+            for: entry,
+            into: document,
+            undoManager: undoManager
+        )
     }
 
     private func insertGlobalPartFromLibrary(
@@ -1434,12 +1557,29 @@ struct ContentView: View {
     }
 
     private func saveReusablePart(_ name: String) {
-        guard let partID = selectedPartID else { return }
-        _ = editor.saveReusablePart(
-            partID: partID,
-            name: name.trimmingCharacters(in: .whitespacesAndNewlines)
-        )
+        guard let partID = selectedPartID,
+              let definition = editor.templateDefinition(
+                fromPartID: partID,
+                name: name.trimmingCharacters(in: .whitespacesAndNewlines)
+              ) else { return }
+        saveTemplateToLibrary(definition)
         workspaceLayout.activate(.reusableParts)
+    }
+
+    /// Saves the bundle immediately and attaches the offscreen-rendered
+    /// preview when it finishes painting.
+    private func saveTemplateToLibrary(_ definition: ReusablePartDefinition) {
+        ReusablePartLibrary.shared.save(definition: definition, assetContents: document.assetContents)
+        TemplatePreviewRenderer.shared.capturePreview(
+            definition: definition,
+            site: document.site,
+            assetContents: document.assetContents,
+            pageBackground: selectedPage?.backgroundOverride
+        ) { data in
+            if let data {
+                ReusablePartLibrary.shared.savePreview(data, forID: definition.id)
+            }
+        }
     }
 
     private func saveGlobalPart(_ name: String) {
@@ -1490,15 +1630,28 @@ struct ContentView: View {
         }
     }
 
-    private func renameReusablePart(_ definitionID: UUID, _ name: String) {
-        editor.renameReusablePart(definitionID: definitionID, name: name)
-    }
-
-    private func deleteReusablePart(_ definitionID: UUID) {
-        editor.removeReusablePart(definitionID: definitionID)
-        if selectedPart?.reusableDefinitionID == nil {
-            editsSharedReusableDefinition = false
+    private func saveDraggedPartsAsReusable(_ partIDs: [UUID]) -> Bool {
+        guard let selectedPage else { return false }
+        let requestedIDs = Set(partIDs)
+        func flattenedIDs(_ nodes: [PartNode]) -> [UUID] {
+            nodes.flatMap { [$0.id] + flattenedIDs($0.children) }
         }
+        let orderedTopLevelIDs = flattenedIDs(selectedPage.parts).filter { id in
+            guard requestedIDs.contains(id) else { return false }
+            return Set(selectedPage.parts.ancestorIDs(of: id)).isDisjoint(with: requestedIDs)
+        }
+        guard !orderedTopLevelIDs.isEmpty else { return false }
+        var savedCount = 0
+        for partID in orderedTopLevelIDs {
+            guard let part = document.site.part(withID: partID) else { continue }
+            let trimmedName = part.name.trimmingCharacters(in: .whitespacesAndNewlines)
+            let name = trimmedName.isEmpty ? part.type.displayName : trimmedName
+            if let definition = editor.templateDefinition(fromPartID: partID, name: name) {
+                saveTemplateToLibrary(definition)
+                savedCount += 1
+            }
+        }
+        return savedCount == orderedTopLevelIDs.count
     }
 
     private func updateReusablePart() {
@@ -1945,6 +2098,25 @@ struct ContentView: View {
         }
     }
 
+    /// Where the Assets panel's header actions place new nodes: below the
+    /// selected asset, at the top of a selected folder, or at the top of the
+    /// library when nothing is selected.
+    private var assetInsertionPlacement: AssetPlacement {
+        let visible = document.site.assetLibrary.resourcesOnly
+        guard let selectedID = selectedAssetLibraryNodeID,
+              let node = visible.node(withID: selectedID) else {
+            if let first = visible.first { return .before(nodeID: first.id) }
+            return .end
+        }
+        switch node {
+        case .asset:
+            return .after(nodeID: selectedID)
+        case .folder(let folder):
+            if let first = folder.children.first { return .before(nodeID: first.id) }
+            return .inside(folderID: folder.id)
+        }
+    }
+
     private func importAssets() {
         let panel = NSOpenPanel()
         panel.title = "Import Files or Folders"
@@ -1952,17 +2124,25 @@ struct ContentView: View {
         panel.canChooseDirectories = true
         panel.allowsMultipleSelection = true
         guard panel.runModal() == .OK else { return }
-        importAssetURLs(panel.urls, placement: .end)
+        importAssetURLs(panel.urls, placement: assetInsertionPlacement)
     }
 
     private func importAssetURLs(_ urls: [URL], placement: AssetPlacement) {
         guard !urls.isEmpty else { return }
+        var sorted = urls.sorted { $0.lastPathComponent.localizedStandardCompare($1.lastPathComponent) == .orderedAscending }
+        let topURL = sorted.first
+        // Repeated inserts after one anchor land in reverse; feed URLs backwards.
+        if case .after = placement { sorted.reverse() }
         undoManager?.beginUndoGrouping()
-        for url in urls.sorted(by: { $0.lastPathComponent.localizedStandardCompare($1.lastPathComponent) == .orderedAscending }) {
-            importAssetURL(url, placement: placement)
+        var topNodeID: UUID?
+        for url in sorted {
+            let nodeID = importAssetURL(url, placement: placement)
+            if url == topURL { topNodeID = nodeID }
         }
         undoManager?.endUndoGrouping()
         undoManager?.setActionName("Import Assets")
+        // Selecting the topmost import reveals it, expanding a collapsed folder.
+        if let topNodeID { selectedAssetLibraryNodeID = topNodeID }
     }
 
     private func importPageTreeURLs(_ urls: [URL], placement: PageTreePlacement) {
@@ -2005,9 +2185,10 @@ struct ContentView: View {
         selectedPageAssetID = assetID
     }
 
-    private func importAssetURL(_ url: URL, placement: AssetPlacement) {
+    @discardableResult
+    private func importAssetURL(_ url: URL, placement: AssetPlacement) -> UUID? {
         guard let values = try? url.resourceValues(forKeys: [.isDirectoryKey, .isRegularFileKey, .contentTypeKey]) else {
-            return
+            return nil
         }
         if values.isDirectory == true {
             let folderID = document.createAssetFolder(
@@ -2023,10 +2204,10 @@ struct ContentView: View {
             for child in children.sorted(by: { $0.lastPathComponent.localizedStandardCompare($1.lastPathComponent) == .orderedAscending }) {
                 importAssetURL(child, placement: .inside(folderID: folderID))
             }
-            return
+            return folderID
         }
-        guard values.isRegularFile == true, let data = try? Data(contentsOf: url) else { return }
-        importAsset(
+        guard values.isRegularFile == true, let data = try? Data(contentsOf: url) else { return nil }
+        return importAsset(
             data: data,
             filename: url.lastPathComponent,
             type: values.contentType ?? UTType(filenameExtension: url.pathExtension),
@@ -2034,12 +2215,14 @@ struct ContentView: View {
         )
     }
 
-    private func importAsset(data: Data, filename: String, type: UTType?, placement: AssetPlacement) {
-        _ = document.importAsset(
+    @discardableResult
+    private func importAsset(data: Data, filename: String, type: UTType?, placement: AssetPlacement) -> UUID {
+        document.importAsset(
             data: data,
             filename: filename,
             mediaType: type?.preferredMIMEType ?? "application/octet-stream",
             placement: placement,
+            reuseIdenticalContent: true,
             undoManager: undoManager
         )
     }
@@ -2074,13 +2257,16 @@ struct ContentView: View {
         return document.site.assets.first(where: { $0.id == id })
     }
 
-    private func deleteAssetLibraryNode(_ id: UUID) {
-        guard let node = document.site.assetLibrary.node(withID: id) else { return }
-        switch node {
-        case .asset:
-            document.removeAsset(id: id, undoManager: undoManager)
-        case .folder:
-            document.removeAssetFolder(id: id, undoManager: undoManager)
+    private func deleteAssetLibraryNodes(_ ids: [UUID]) {
+        for id in ids {
+            // A node vanishes when a selected ancestor folder was deleted first.
+            guard let node = document.site.assetLibrary.node(withID: id) else { continue }
+            switch node {
+            case .asset:
+                document.removeAsset(id: id, undoManager: undoManager)
+            case .folder:
+                document.removeAssetFolder(id: id, undoManager: undoManager)
+            }
         }
         selectedAssetLibraryNodeID = nil
     }

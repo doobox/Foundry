@@ -5343,6 +5343,90 @@ struct PartPackageTests {
         """
     }
 
+    @Test
+    func manifestDecodeFailureNamesTheFailingSpot() throws {
+        let item = """
+        <dict>
+            <key>id</key><string>cardShadow</string>
+            <key>label</key><string>Shadow</string>
+            <key>type</key><string>shadow</string>
+            <key>defaults</key><dict><key>base</key><string>md</string></dict>
+            <key>responsive</key><false/>
+        </dict>
+        """
+        let data = Data(manifest(withControls: item).utf8)
+        let error = #expect(throws: (any Error).self) {
+            try PropertyListDecoder().decode(PartPackageManifest.self, from: data)
+        }
+        let message = PartPackageLoadingError
+            .unreadableManifest(try #require(error))
+            .errorDescription ?? ""
+        // A renamed control type must be identifiable from the error alone:
+        // the invalid value and the plist location, not "isn't in the correct format".
+        #expect(message.contains("shadow"), Comment(rawValue: message))
+        #expect(message.contains("controls[0]"), Comment(rawValue: message))
+    }
+
+    @Test
+    func inspectorGroupIconsResolveFromGroupsAndGroupedControls() throws {
+        let controls = """
+        <dict>
+            <key>id</key><string>galleryStyle</string>
+            <key>label</key><string>Style</string>
+            <key>group</key><string>Gallery</string>
+            <key>type</key><string>toggle</string>
+            <key>defaults</key><dict><key>base</key><true/></dict>
+            <key>responsive</key><false/>
+        </dict>
+        <dict><key>type</key><string>spacing</string></dict>
+        """
+        func source(groups: String) -> Data {
+            Data(manifest(withControls: controls).replacingOccurrences(
+                of: "<key>controls</key>",
+                with: "<key>groups</key>\n<array>\n\(groups)\n</array>\n<key>controls</key>"
+            ).utf8)
+        }
+
+        let valid = source(groups: """
+        <dict><key>name</key><string>Gallery</string><key>systemImage</key><string>photo.stack</string></dict>
+        <dict><key>name</key><string>Content</string><key>systemImage</key><string>doc.text</string></dict>
+        """)
+        #expect(try PartPackageManifestSchema.diagnostics(for: valid).allSatisfy { !$0.location.contains("groups") })
+        let decoded = try PropertyListDecoder().decode(PartPackageManifest.self, from: valid)
+        #expect(decoded.groups == [
+            .init(name: "Gallery", systemImage: "photo.stack"),
+            .init(name: "Content", systemImage: "doc.text")
+        ])
+        #expect(decoded.resolvedGroupIcons["Gallery"] == "photo.stack")
+        // Grouped controls carry their standard section icon with no declaration.
+        #expect(decoded.resolvedGroupIcons["Spacing"] == "arrow.up.and.down.and.arrow.left.and.right")
+        // Undeclared groups fall back at presentation time, not in the manifest.
+        #expect(decoded.resolvedGroupIcons["Settings"] == nil)
+        let reencoded = try PropertyListDecoder().decode(
+            PartPackageManifest.self,
+            from: PropertyListEncoder().encode(decoded)
+        )
+        #expect(reencoded.groups == decoded.groups)
+        #expect(reencoded.resolvedGroupIcons == decoded.resolvedGroupIcons)
+
+        let failures: [(entries: String, message: String)] = [
+            ("<dict><key>name</key><string>Gallery</string></dict><dict><key>name</key><string>Gallery</string></dict>",
+             "Duplicate group entry 'Gallery'."),
+            ("<dict><key>name</key><string>Sidebar</string></dict>",
+             "groups declares 'Sidebar' but no control uses that group."),
+            ("<dict><key>name</key><string>Gallery</string><key>icon</key><string>star</string></dict>",
+             "Unknown key 'icon'. Check the spelling or remove it."),
+            ("<dict><key>name</key><string> </string></dict>",
+             "A group entry requires a non-empty name."),
+            ("<dict><key>systemImage</key><string>star</string></dict>",
+             "A name string is required.")
+        ]
+        for failure in failures {
+            let diagnostics = try PartPackageManifestSchema.diagnostics(for: source(groups: failure.entries))
+            #expect(diagnostics.contains { $0.message.contains(failure.message) }, Comment(rawValue: failure.message))
+        }
+    }
+
     private func manifest(withControls items: String) -> String {
         let replacement = """
         <key>controls</key>

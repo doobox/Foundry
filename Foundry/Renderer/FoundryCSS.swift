@@ -69,11 +69,21 @@ nonisolated enum FoundryCSS {
     /// layer contains no literals so the Framework editor governs the whole page.
     private static var base: String {
         """
-        *,*::before,*::after{box-sizing:border-box}
+        *,*::before,*::after{box-sizing:border-box;border-width:0;border-style:solid;border-color:currentColor}
+        html{-webkit-text-size-adjust:100%}
         html,body{min-height:100%}
         body{margin:0;background:var(--foundry-color-page);color:var(--foundry-color-text);font-family:var(--foundry-font-body);font-size:var(--foundry-font-size-base);line-height:var(--foundry-font-size-base-line-height);accent-color:var(--foundry-color-accent);overflow-wrap:break-word;display:flex;flex-direction:column;align-items:stretch}
+        h1,h2,h3,h4,h5,h6,p,figure,dl,dd{margin:0}
+        ul,ol,menu{margin:0;padding-inline-start:var(--foundry-space-lg)}
+        fieldset{margin:0;padding:0}
+        legend{padding:0}
         img,picture,video,canvas,svg{display:block;max-width:100%}
-        input,button,textarea,select{font:inherit}
+        input,button,textarea,select{font:inherit;color:inherit;margin:0}
+        ::placeholder{color:var(--foundry-color-muted-text);opacity:1}
+        b,strong{font-weight:bolder}
+        sub,sup{font-size:75%;line-height:0;position:relative;vertical-align:baseline}
+        sub{bottom:-0.25em}
+        sup{top:-0.5em}
         a{color:var(--foundry-color-links)}
         :focus-visible{outline:var(--foundry-focus-ring);outline-offset:2px}
         ::selection{background:color-mix(in srgb, var(--foundry-color-accent) 30%, transparent)}
@@ -84,7 +94,7 @@ nonisolated enum FoundryCSS {
         h4{font-size:var(--foundry-font-size-xl);line-height:var(--foundry-font-size-xl-line-height)}
         h5{font-size:var(--foundry-font-size-lg);line-height:var(--foundry-font-size-lg-line-height)}
         h6{font-size:var(--foundry-font-size-base);line-height:var(--foundry-font-size-base-line-height)}
-        code,pre,kbd,samp{font-family:var(--foundry-font-monospace)}
+        code,pre,kbd,samp{font-family:var(--foundry-font-monospace);font-size:1em}
         hr{border:none;border-top:1px solid color-mix(in srgb, var(--foundry-color-text) 20%, transparent);margin-block:var(--foundry-space-lg)}
         blockquote{margin:var(--foundry-space-lg) 0;padding-inline-start:var(--foundry-space-md);border-inline-start:2px solid color-mix(in srgb, var(--foundry-color-text) 20%, transparent);color:var(--foundry-color-muted-text)}
         table{border-collapse:collapse}

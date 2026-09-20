@@ -49,17 +49,7 @@ nonisolated enum FoundryPackLoader {
     }
 
     static func installedPacksURL(fileManager: FileManager = .default) throws -> URL {
-        let applicationSupport = try fileManager.url(
-            for: .applicationSupportDirectory,
-            in: .userDomainMask,
-            appropriateFor: nil,
-            create: true
-        )
-        let url = applicationSupport
-            .appending(path: "Foundry", directoryHint: .isDirectory)
-            .appending(path: "Packs", directoryHint: .isDirectory)
-        try fileManager.createDirectory(at: url, withIntermediateDirectories: true)
-        return url
+        try FoundryLibraryLocation.directoryURL(named: "Packs", fileManager: fileManager)
     }
 
     static func packURLs(in rootURL: URL, includingRoot: Bool = false) -> [URL] {

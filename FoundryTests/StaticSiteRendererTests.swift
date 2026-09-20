@@ -39,7 +39,7 @@ struct StaticSiteRendererTests {
         #expect(exportedCSS.contains("html,body{min-height:100%}"))
         #expect(exportedCSS.contains("body{margin:0;background:"))
         #expect(exportedCSS.contains("display:flex;flex-direction:column;align-items:stretch"))
-        #expect(exportedCSS.contains("*,*::before,*::after{box-sizing:border-box}"))
+        #expect(exportedCSS.contains("*,*::before,*::after{box-sizing:border-box;border-width:0;border-style:solid;border-color:currentColor}"))
         #expect(exportedCSS.contains("--foundry-color-background:"))
         #expect(exportedCSS.contains("--foundry-color-links:"))
         #expect(exportedCSS.contains("a{color:var(--foundry-color-links)}"))

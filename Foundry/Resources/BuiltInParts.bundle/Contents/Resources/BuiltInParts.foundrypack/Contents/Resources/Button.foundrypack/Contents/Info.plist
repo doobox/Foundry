@@ -10,6 +10,14 @@
     <key>version</key><string>1.0.0</string>
     <key>group</key><string>Content</string>
     <key>tags</key><array><string>Foundry</string><string>built-in</string><string>link</string></array>
+    <key>groups</key>
+    <array>
+        <dict><key>name</key><string>Content</string><key>systemImage</key><string>doc.text</string></dict>
+        <dict><key>name</key><string>Link</string><key>systemImage</key><string>link</string></dict>
+        <dict><key>name</key><string>Typography</string><key>systemImage</key><string>textformat</string></dict>
+        <dict><key>name</key><string>Appearance</string><key>systemImage</key><string>paintpalette</string></dict>
+        <dict><key>name</key><string>Accessibility</string><key>systemImage</key><string>accessibility</string></dict>
+    </array>
     <key>controls</key>
     <array>
         <dict><key>id</key><string>destination</string><key>label</key><string>Destination</string><key>group</key><string>Link</string><key>type</key><string>link</string><key>absoluteURL</key><false/><key>defaults</key><dict><key>base</key><string>#</string></dict><key>responsive</key><false/></dict>

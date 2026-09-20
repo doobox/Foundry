@@ -189,10 +189,13 @@ nonisolated struct Site: Codable, Equatable, Identifiable, Sendable {
     var appearanceMode: SiteAppearanceMode = .light
     var projectFrameworkValues: ProjectFrameworkValues
     var frameworkStates: [ProjectFrameworkState]
-    var reusableParts: [ReusablePartDefinition]
-    var globalParts: [ReusablePartDefinition]
+    /// The Global Parts panel's ordered tree: folders and live-linked
+    /// definitions, organized exactly like the templates library.
+    var globalPartLibrary: [ReusablePartNode]
     var assetLibrary: [ProjectAssetNode]
     var partPackages: [PartPackageLock]
+
+    var globalParts: [ReusablePartDefinition] { globalPartLibrary.allDefinitions }
 
     var assets: [ProjectAsset] { assetLibrary.flatMap(\.allAssets) }
 
@@ -233,11 +236,8 @@ nonisolated struct Site: Codable, Equatable, Identifiable, Sendable {
                 pages[pageIndex].parts[partIndex].replaceFrameworkReference(reference, with: replacement)
             }
         }
-        for index in reusableParts.indices {
-            reusableParts[index].root.replaceFrameworkReference(reference, with: replacement)
-        }
-        for index in globalParts.indices {
-            globalParts[index].root.replaceFrameworkReference(reference, with: replacement)
+        globalPartLibrary.updateAllDefinitions {
+            $0.root.replaceFrameworkReference(reference, with: replacement)
         }
     }
 
@@ -339,8 +339,7 @@ nonisolated struct Site: Codable, Equatable, Identifiable, Sendable {
         self.frameworkSourceID = frameworkSourceID
         self.projectFrameworkValues = projectFrameworkValues
         self.frameworkStates = frameworkStates
-        self.reusableParts = reusableParts
-        self.globalParts = globalParts
+        self.globalPartLibrary = globalParts.map(ReusablePartNode.part)
         self.assetLibrary = assetLibrary
         self.partPackages = partPackages
     }
@@ -379,7 +378,7 @@ nonisolated struct Site: Codable, Equatable, Identifiable, Sendable {
 
     private enum CodingKeys: String, CodingKey {
         case appearanceMode
-        case id, schemaVersion, name, language, publicURL, titleSuffix, defaultDescription, favicon, webIconAssets, defaultSocialImage, logo, siteLogoAssets, logoAlt, generatesCanonicalURLs, generatesSitemap, generatesRobotsTXT, allowsSearchIndexing, customCodeEnabled, headCode, bodyStartCode, bodyEndCode, analyticsCode, cleansObsoleteExportFiles, publishingDestination, publishingHost, publishingPort, publishingUsername, publishingRemotePath, publishingS3Bucket, publishingS3Region, publishingDestinations, defaultPublishingDestinationID, pages, pageFolders, framework, frameworkSourceID, projectFrameworkValues, frameworkStates, reusableParts, globalParts, assetLibrary, partPackages
+        case id, schemaVersion, name, language, publicURL, titleSuffix, defaultDescription, favicon, webIconAssets, defaultSocialImage, logo, siteLogoAssets, logoAlt, generatesCanonicalURLs, generatesSitemap, generatesRobotsTXT, allowsSearchIndexing, customCodeEnabled, headCode, bodyStartCode, bodyEndCode, analyticsCode, cleansObsoleteExportFiles, publishingDestination, publishingHost, publishingPort, publishingUsername, publishingRemotePath, publishingS3Bucket, publishingS3Region, publishingDestinations, defaultPublishingDestinationID, pages, pageFolders, framework, frameworkSourceID, projectFrameworkValues, frameworkStates, globalPartLibrary, assetLibrary, partPackages
     }
 
     init(from decoder: Decoder) throws {
@@ -443,8 +442,7 @@ nonisolated struct Site: Codable, Equatable, Identifiable, Sendable {
         frameworkSourceID = try container.decode(UUID.self, forKey: .frameworkSourceID)
         projectFrameworkValues = try container.decode(ProjectFrameworkValues.self, forKey: .projectFrameworkValues)
         frameworkStates = try container.decode([ProjectFrameworkState].self, forKey: .frameworkStates)
-        reusableParts = try container.decode([ReusablePartDefinition].self, forKey: .reusableParts)
-        globalParts = try container.decode([ReusablePartDefinition].self, forKey: .globalParts)
+        globalPartLibrary = try container.decodeIfPresent([ReusablePartNode].self, forKey: .globalPartLibrary) ?? []
         assetLibrary = try container.decode([ProjectAssetNode].self, forKey: .assetLibrary)
         partPackages = try container.decode([PartPackageLock].self, forKey: .partPackages)
     }

@@ -299,8 +299,7 @@ nonisolated extension Site {
         }
 
         for (definitionID, template) in templates {
-            guard let index = globalParts.firstIndex(where: { $0.id == definitionID }) else { continue }
-            globalParts[index].root = template
+            globalPartLibrary.mutateDefinition(id: definitionID) { $0.root = template }
         }
 
         for (definitionID, template) in templates {

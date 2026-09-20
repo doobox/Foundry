@@ -5,43 +5,21 @@ import Testing
 @MainActor
 struct ReusablePartTests {
     @Test
-    func reusableDefinitionsRoundTripWithStableIdentifiers() throws {
-        let definitionID = UUID()
-        var site = Site.starter()
-        site.reusableParts = [
-            ReusablePartDefinition(
-                id: definitionID,
-                name: "Hero",
-                root: PartNode(type: .container, children: [PartNode.make(.paragraph)])
-            )
-        ]
-
-        let data = try FoundryDocument.encoder.encode(site)
-        let decoded = try FoundryDocument.decoder.decode(Site.self, from: data)
-
-        #expect(decoded.reusableParts.first?.id == definitionID)
-        #expect(decoded == site)
-    }
-
-    @Test
-    func savingAndInsertingReusablePartCreatesFreshTreeIdentifiers() throws {
+    func insertingATemplateStampsAFreshIndependentTree() throws {
         let site = TestSiteFixtures.populatedSite()
         let source = try #require(site.pages.first?.parts.first)
         let document = FoundryDocument(site: site)
         let editor = ProjectEditor(document: document, undoManager: UndoManager())
 
-        let definitionID = try #require(
-            editor.saveReusablePart(partID: source.id, name: "Hero")
+        let definition = try #require(
+            editor.templateDefinition(fromPartID: source.id, name: "Hero")
         )
+        #expect(definition.root.id != source.id)
+
         let insertedID = try #require(
-            editor.insertReusablePart(
-                definitionID: definitionID,
-                on: site.pages[0].id,
-                placement: .end
-            )
+            editor.insertTemplate(definition, on: site.pages[0].id, placement: .end)
         )
         let inserted = try #require(document.site.part(withID: insertedID))
-        let definition = try #require(document.site.reusableParts.first)
 
         #expect(inserted.reusableDefinitionID == nil)
         #expect(inserted.id != source.id)
@@ -55,7 +33,6 @@ struct ReusablePartTests {
         let source = try #require(site.pages.first?.parts.first)
         let document = FoundryDocument(site: site)
         let editor = ProjectEditor(document: document, undoManager: nil)
-        _ = editor.saveReusablePart(partID: source.id, name: "Hero")
         let before = try #require(document.site.part(withID: source.id))
 
         editor.detachReusablePart(partID: source.id)
@@ -67,43 +44,22 @@ struct ReusablePartTests {
     }
 
     @Test
-    func reusableInstancesRemainIndependentAfterInsertion() throws {
+    func stampedTemplateInstancesRemainIndependentOfTheSource() throws {
         let site = TestSiteFixtures.populatedSite()
         let source = try #require(site.pages.first?.parts.first)
         let document = FoundryDocument(site: site)
         let editor = ProjectEditor(document: document, undoManager: nil)
-        let definitionID = try #require(
-            editor.saveReusablePart(partID: source.id, name: "Hero")
+        let definition = try #require(
+            editor.templateDefinition(fromPartID: source.id, name: "Hero")
         )
         let secondID = try #require(
-            editor.insertReusablePart(
-                definitionID: definitionID,
-                on: site.pages[0].id,
-                placement: .end
-            )
+            editor.insertTemplate(definition, on: site.pages[0].id, placement: .end)
         )
         editor.renamePart(id: source.id, name: "Updated Hero")
 
         #expect(document.site.part(withID: source.id)?.name == "Updated Hero")
         #expect(document.site.part(withID: secondID)?.name == "Hero")
-        #expect(document.site.reusableParts.first?.root.name == "Hero")
-    }
-
-    @Test
-    func deletingDefinitionDetachesInstancesWithoutDeletingContent() throws {
-        let site = TestSiteFixtures.populatedSite()
-        let source = try #require(site.pages.first?.parts.first)
-        let document = FoundryDocument(site: site)
-        let editor = ProjectEditor(document: document, undoManager: nil)
-        let definitionID = try #require(
-            editor.saveReusablePart(partID: source.id, name: "Hero")
-        )
-
-        editor.removeReusablePart(definitionID: definitionID)
-
-        #expect(document.site.reusableParts.isEmpty)
-        #expect(document.site.part(withID: source.id)?.reusableDefinitionID == nil)
-        #expect(document.site.part(withID: source.id)?.children.count == source.children.count)
+        #expect(definition.root.name == "Hero")
     }
 
     @Test
@@ -127,16 +83,61 @@ struct ReusablePartTests {
     }
 
     @Test
-    func globalsRoundTripSeparatelyFromReusableParts() throws {
+    func globalsRoundTripThroughProjectJSON() throws {
         var site = Site.starter()
         let global = ReusablePartDefinition(name: "Header", root: PartNode.make(.container))
-        site.globalParts = [global]
+        site.globalPartLibrary = [.part(global)]
 
         let data = try FoundryDocument.encoder.encode(site)
         let decoded = try FoundryDocument.decoder.decode(Site.self, from: data)
 
         #expect(decoded.globalParts == [global])
-        #expect(decoded.reusableParts.isEmpty)
+    }
+
+    @Test
+    func globalPartFoldersOrganizeAndDeletingAFolderDetachesInstances() throws {
+        let site = TestSiteFixtures.populatedSite()
+        let source = try #require(site.pages.first?.parts.first)
+        let document = FoundryDocument(site: site)
+        let editor = ProjectEditor(document: document, undoManager: nil)
+        let definitionID = try #require(editor.saveGlobalPart(partID: source.id, name: "Hero"))
+        let folderID = try #require(editor.createGlobalPartFolder(named: "Sections"))
+
+        #expect(editor.moveGlobalPartNode(id: definitionID, to: .inside(folderID: folderID)))
+        guard case .folder(let folder)? = document.site.globalPartLibrary.node(withID: folderID) else {
+            Issue.record("Folder missing from the global part library")
+            return
+        }
+        #expect(folder.children.map(\.id) == [definitionID])
+        #expect(document.site.globalParts.map(\.id) == [definitionID])
+
+        // A folder can never move inside itself or its own subtree.
+        #expect(!editor.moveGlobalPartNode(id: folderID, to: .inside(folderID: folderID)))
+
+        editor.deleteGlobalPartFolder(id: folderID)
+        #expect(document.site.globalParts.isEmpty)
+        #expect(document.site.part(withID: source.id)?.reusableDefinitionID == nil)
+    }
+
+    @Test
+    func duplicatingAGlobalPartCreatesAnIndependentCopyBesideTheOriginal() throws {
+        let site = TestSiteFixtures.populatedSite()
+        let source = try #require(site.pages.first?.parts.first)
+        let document = FoundryDocument(site: site)
+        let editor = ProjectEditor(document: document, undoManager: nil)
+        let definitionID = try #require(editor.saveGlobalPart(partID: source.id, name: "Hero"))
+        let copyID = try #require(editor.duplicateGlobalPart(definitionID: definitionID))
+
+        #expect(copyID != definitionID)
+        #expect(document.site.globalPartLibrary.map(\.id) == [definitionID, copyID])
+        let copy = try #require(document.site.globalParts.first { $0.id == copyID })
+        #expect(copy.name == "Hero Copy")
+        #expect(copy.root.id != document.site.globalParts.first { $0.id == definitionID }?.root.id)
+
+        // Renaming the copy leaves the original untouched.
+        editor.renameGlobalPart(definitionID: copyID, name: "Banner")
+        #expect(document.site.globalParts.first { $0.id == definitionID }?.name == "Hero")
+        #expect(document.site.globalParts.first { $0.id == copyID }?.name == "Banner")
     }
 
     @Test
@@ -356,4 +357,32 @@ struct ReusablePartTests {
         #expect(document.site.part(withID: source.id)?.children.count == 2)
         #expect(document.site.part(withID: secondRootID)?.children.count == 2)
     }
+
+    @Test
+    func folderCannotMoveInsideItsDescendantAndReorderingWorks() throws {
+        let inner = ReusablePartFolder(name: "Inner")
+        let outer = ReusablePartFolder(name: "Outer", children: [.folder(inner)])
+        let hero = ReusablePartDefinition(name: "Hero", root: PartNode.make(.container))
+        var nodes: [ReusablePartNode] = [.folder(outer), .part(hero)]
+
+        let movedIntoDescendant = nodes.move(id: outer.id, to: .inside(folderID: inner.id))
+        let movedIntoItself = nodes.move(id: outer.id, to: .inside(folderID: outer.id))
+        #expect(!movedIntoDescendant)
+        #expect(!movedIntoItself)
+
+        let movedIntoInner = nodes.move(id: hero.id, to: .inside(folderID: inner.id))
+        #expect(movedIntoInner)
+        #expect(nodes.allDefinitions.map(\.name) == ["Hero"])
+        guard case .folder(let movedOuter) = nodes.node(withID: outer.id),
+              case .folder(let movedInner)? = movedOuter.children.first else {
+            Issue.record("expected nested folders")
+            return
+        }
+        #expect(movedInner.children.map(\.id) == [hero.id])
+
+        let movedBeforeOuter = nodes.move(id: hero.id, to: .before(nodeID: outer.id))
+        #expect(movedBeforeOuter)
+        #expect(nodes.first?.id == hero.id)
+    }
+
 }

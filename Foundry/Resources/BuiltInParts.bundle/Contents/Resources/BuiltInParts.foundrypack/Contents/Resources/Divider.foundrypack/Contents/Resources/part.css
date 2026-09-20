@@ -1,1 +1,7 @@
-:instance { width: 100%; margin-block: 1.5rem; border: 0; border-top: {{ control.borderWidth }}px solid {{ control.borderColor }}; }
+:instance {
+    width: 100%;
+    padding: {{ if control.spacingEnabled }}{{ control.frameworkPadding }}{{ else }}0{{ endif }};
+    margin: {{ if control.spacingEnabled }}{{ control.frameworkMargin }}{{ else }}0{{ endif }};
+    border: 0;
+    border-top: {{ control.borderWidth }}px solid {{ control.borderColor }};
+}

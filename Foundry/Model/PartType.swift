@@ -6,7 +6,8 @@ nonisolated struct PartType: RawRepresentable, Codable, Hashable, Identifiable, 
     var id: String { rawValue }
     var definition: PartDefinition { PartRegistry.definition(for: self) }
     var displayName: String { definition.displayName }
-    var systemImage: String { definition.systemImage }
+    // Parts wear one shared symbol; packs differentiate with icon.svg images.
+    var systemImage: String { "puzzlepiece" }
     var libraryDescription: String {
         if let description = definition.package?.manifest.description {
             return description

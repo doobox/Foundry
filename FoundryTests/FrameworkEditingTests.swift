@@ -281,8 +281,7 @@ struct FrameworkEditingTests {
         var parent = PartNode.make(.container)
         parent.children = [child]
         document.site.pages[0].parts = [parent]
-        document.site.reusableParts = [.init(name: "Reusable", root: child)]
-        document.site.globalParts = [.init(name: "Global", root: child)]
+        document.site.globalPartLibrary = [.part(.init(name: "Global", root: child))]
         let before = document.site
         #expect(session.colourIsInUse(custom.id))
         session.deleteColour(custom.id, replacement: nil)
@@ -297,7 +296,7 @@ struct FrameworkEditingTests {
         var expectedFollowing = following
         expectedFollowing.source = original.id
         for node in [document.site.pages[0].parts[0].children[0],
-                     document.site.reusableParts[0].root, document.site.globalParts[0].root] {
+                     document.site.globalParts[0].root] {
             #expect(node.propertyValue(.backgroundColor) == .packageColor(expected))
             #expect(node.propertyValue(.backgroundColor, at: .medium) == .packageColor(expectedFollowing))
         }

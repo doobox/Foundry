@@ -7,12 +7,21 @@ struct AssetsOutlineView: NSViewRepresentable {
     @Binding var selectedNodeID: UUID?
     let moveNode: (UUID, AssetPlacement) -> Bool
     let importURLs: ([URL], AssetPlacement) -> Void
+    let deleteNodes: ([UUID]) -> Void
+    let renameAsset: (UUID, String) -> Void
+    let renameFolder: (UUID, String) -> Void
 
     func makeCoordinator() -> Coordinator { Coordinator(parent: self) }
 
     func makeNSView(context: Context) -> NSScrollView {
         let column = NSTableColumn(identifier: .assetColumn)
-        let outlineView = NSOutlineView()
+        let outlineView = AssetsListOutlineView()
+        outlineView.onDeleteKey = { [weak coordinator = context.coordinator] in
+            coordinator?.deleteSelectedNodes()
+        }
+        outlineView.onRenameKey = { [weak coordinator = context.coordinator] in
+            coordinator?.renameSelectedNode()
+        }
         outlineView.addTableColumn(column)
         outlineView.outlineTableColumn = column
         outlineView.headerView = nil
@@ -20,12 +29,15 @@ struct AssetsOutlineView: NSViewRepresentable {
         outlineView.indentationPerLevel = 14
         outlineView.selectionHighlightStyle = .regular
         outlineView.backgroundColor = .clear
-        outlineView.allowsMultipleSelection = false
+        outlineView.allowsMultipleSelection = true
         outlineView.dataSource = context.coordinator
         outlineView.delegate = context.coordinator
         outlineView.registerForDraggedTypes([.assetNode, .fileURL])
         outlineView.setDraggingSourceOperationMask([.copy, .move], forLocal: true)
         outlineView.setDraggingSourceOperationMask(.copy, forLocal: false)
+        let contextMenu = NSMenu()
+        contextMenu.delegate = context.coordinator
+        outlineView.menu = contextMenu
 
         let scrollView = NSScrollView()
         scrollView.documentView = outlineView
@@ -45,7 +57,7 @@ struct AssetsOutlineView: NSViewRepresentable {
     }
 
     @MainActor
-    final class Coordinator: NSObject, NSOutlineViewDataSource, NSOutlineViewDelegate {
+    final class Coordinator: NSObject, NSOutlineViewDataSource, NSOutlineViewDelegate, NSMenuDelegate, NSTextFieldDelegate {
         var parent: AssetsOutlineView
         weak var outlineView: NSOutlineView?
         private var roots: [AssetOutlineItem] = []
@@ -80,7 +92,8 @@ struct AssetsOutlineView: NSViewRepresentable {
         }
 
         func outlineView(_ outlineView: NSOutlineView, isItemExpandable item: Any) -> Bool {
-            (item as? AssetOutlineItem)?.isFolder == true
+            guard let item = item as? AssetOutlineItem else { return false }
+            return item.isFolder && !item.children.isEmpty
         }
 
         func outlineView(_ outlineView: NSOutlineView, viewFor tableColumn: NSTableColumn?, item: Any) -> NSView? {
@@ -89,11 +102,46 @@ struct AssetsOutlineView: NSViewRepresentable {
             let cell = outlineView.makeView(withIdentifier: identifier, owner: nil) as? NSTableCellView
                 ?? makeCell(identifier: identifier)
             cell.textField?.stringValue = item.title
-            cell.imageView?.image = NSImage(
-                systemSymbolName: item.systemImage,
-                accessibilityDescription: item.title
-            )
+            cell.textField?.identifier = NSUserInterfaceItemIdentifier(item.id.uuidString)
+            cell.textField?.delegate = self
+            cell.imageView?.image = Self.symbolImage(named: item.systemImage)
             return cell
+        }
+
+        // Symbol lookups hop to a lower-QoS catalogue queue inside AppKit;
+        // resolving each of the three symbols once keeps row reloads from
+        // waiting on it.
+        private static var symbolCache: [String: NSImage] = [:]
+
+        private static func symbolImage(named name: String) -> NSImage? {
+            if let cached = symbolCache[name] { return cached }
+            let image = NSImage(systemSymbolName: name, accessibilityDescription: nil)
+            symbolCache[name] = image
+            return image
+        }
+
+        func controlTextDidEndEditing(_ notification: Notification) {
+            guard let textField = notification.object as? NSTextField,
+                  let identifier = textField.identifier?.rawValue,
+                  let itemID = UUID(uuidString: identifier),
+                  let item = itemsByID[itemID] else { return }
+            let title = textField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !title.isEmpty else {
+                textField.stringValue = item.title
+                return
+            }
+            guard title != item.title else { return }
+            if item.isFolder {
+                parent.renameFolder(item.id, title)
+            } else {
+                parent.renameAsset(item.id, title)
+            }
+        }
+
+        func renameSelectedNode() {
+            guard let outlineView, outlineView.selectedRow >= 0,
+                  outlineView.item(atRow: outlineView.selectedRow) is AssetOutlineItem else { return }
+            outlineView.editColumn(0, row: outlineView.selectedRow, with: nil, select: true)
         }
 
         func outlineViewSelectionDidChange(_ notification: Notification) {
@@ -102,6 +150,74 @@ struct AssetsOutlineView: NSViewRepresentable {
             parent.selectedNodeID = row >= 0
                 ? (outlineView.item(atRow: row) as? AssetOutlineItem)?.id
                 : nil
+        }
+
+        func menuNeedsUpdate(_ menu: NSMenu) {
+            menu.removeAllItems()
+            let targetIDs = contextMenuTargetIDs()
+            guard !targetIDs.isEmpty else { return }
+            if targetIDs.count == 1, let id = targetIDs.first {
+                let renameItem = NSMenuItem(title: "Rename", action: #selector(renameFromContextMenu(_:)), keyEquivalent: "\r")
+                renameItem.keyEquivalentModifierMask = []
+                renameItem.target = self
+                renameItem.representedObject = id
+                menu.addItem(renameItem)
+                menu.addItem(.separator())
+            }
+            let title: String
+            if targetIDs.count > 1 {
+                title = "Delete \(targetIDs.count) Items"
+            } else if let item = targetIDs.first.flatMap({ itemsByID[$0] }) {
+                title = item.isFolder ? "Delete Folder" : "Delete Asset"
+            } else {
+                title = "Delete"
+            }
+            let deleteItem = NSMenuItem(title: title, action: #selector(deleteFromContextMenu(_:)), keyEquivalent: "")
+            deleteItem.target = self
+            deleteItem.representedObject = targetIDs
+            menu.addItem(deleteItem)
+        }
+
+        // A right-click inside the selection acts on the whole selection; a
+        // right-click outside it acts only on the clicked row.
+        private func contextMenuTargetIDs() -> [UUID] {
+            guard let outlineView,
+                  outlineView.clickedRow >= 0,
+                  let clicked = outlineView.item(atRow: outlineView.clickedRow) as? AssetOutlineItem else {
+                return []
+            }
+            if outlineView.selectedRowIndexes.contains(outlineView.clickedRow) {
+                return selectedItemIDs()
+            }
+            return [clicked.id]
+        }
+
+        private func selectedItemIDs() -> [UUID] {
+            guard let outlineView else { return [] }
+            return outlineView.selectedRowIndexes.compactMap {
+                (outlineView.item(atRow: $0) as? AssetOutlineItem)?.id
+            }
+        }
+
+        @objc private func deleteFromContextMenu(_ sender: NSMenuItem) {
+            guard let ids = sender.representedObject as? [UUID], !ids.isEmpty else { return }
+            parent.deleteNodes(ids)
+        }
+
+        @objc private func renameFromContextMenu(_ sender: NSMenuItem) {
+            guard let id = sender.representedObject as? UUID,
+                  let item = itemsByID[id],
+                  let outlineView else { return }
+            let row = outlineView.row(forItem: item)
+            guard row >= 0 else { return }
+            outlineView.selectRowIndexes(IndexSet(integer: row), byExtendingSelection: false)
+            outlineView.editColumn(0, row: row, with: nil, select: true)
+        }
+
+        func deleteSelectedNodes() {
+            let ids = selectedItemIDs()
+            guard !ids.isEmpty else { return }
+            parent.deleteNodes(ids)
         }
 
         func outlineView(_ outlineView: NSOutlineView, pasteboardWriterForItem item: Any) -> (any NSPasteboardWriting)? {
@@ -159,12 +275,20 @@ struct AssetsOutlineView: NSViewRepresentable {
             proposedItem item: Any?,
             proposedChildIndex index: Int
         ) -> NSDragOperation {
-            guard internalNodeID(from: info) != nil || !fileURLs(from: info).isEmpty else { return [] }
+            let isInternalMove = !internalNodeIDs(from: info).isEmpty
+            guard isInternalMove || !fileURLs(from: info).isEmpty else { return [] }
+            // Blank space below the last row targets the root, not the level
+            // AppKit proposes from the nearest row.
+            let point = outlineView.convert(info.draggingLocation, from: nil)
+            if outlineView.row(at: point) < 0 {
+                outlineView.setDropItem(nil, dropChildIndex: roots.count)
+                return isInternalMove ? .move : .copy
+            }
             if index == NSOutlineViewDropOnItemIndex,
                (item as? AssetOutlineItem)?.isFolder != true {
                 return []
             }
-            return internalNodeID(from: info) == nil ? .copy : .move
+            return isInternalMove ? .move : .copy
         }
 
         func outlineView(
@@ -176,8 +300,13 @@ struct AssetsOutlineView: NSViewRepresentable {
             guard let placement = placement(parent: item as? AssetOutlineItem, childIndex: index) else {
                 return false
             }
-            if let nodeID = internalNodeID(from: info) {
-                return parent.moveNode(nodeID, placement)
+            let nodeIDs = internalNodeIDs(from: info)
+            if !nodeIDs.isEmpty {
+                var moved = false
+                for nodeID in nodeIDs {
+                    moved = parent.moveNode(nodeID, placement) || moved
+                }
+                return moved
             }
             let urls = fileURLs(from: info)
             guard !urls.isEmpty else { return false }
@@ -196,10 +325,12 @@ struct AssetsOutlineView: NSViewRepresentable {
             return .end
         }
 
-        private func internalNodeID(from info: any NSDraggingInfo) -> UUID? {
-            guard let value = info.draggingPasteboard.string(forType: .assetNode),
-                  value.hasPrefix("foundry-asset-node:") else { return nil }
-            return UUID(uuidString: String(value.dropFirst("foundry-asset-node:".count)))
+        private func internalNodeIDs(from info: any NSDraggingInfo) -> [UUID] {
+            (info.draggingPasteboard.pasteboardItems ?? []).compactMap { item in
+                guard let value = item.string(forType: .assetNode),
+                      value.hasPrefix("foundry-asset-node:") else { return nil }
+                return UUID(uuidString: String(value.dropFirst("foundry-asset-node:".count)))
+            }
         }
 
         private func fileURLs(from info: any NSDraggingInfo) -> [URL] {
@@ -224,6 +355,8 @@ struct AssetsOutlineView: NSViewRepresentable {
             let imageView = NSImageView()
             imageView.symbolConfiguration = .init(pointSize: 14, weight: .regular)
             let textField = NSTextField(labelWithString: "")
+            textField.isEditable = true
+            textField.isSelectable = true
             textField.lineBreakMode = .byTruncatingTail
             imageView.translatesAutoresizingMaskIntoConstraints = false
             textField.translatesAutoresizingMaskIntoConstraints = false
@@ -252,10 +385,10 @@ struct AssetsOutlineView: NSViewRepresentable {
 
         private func restoreSelection(_ selectedNodeID: UUID?) {
             guard let outlineView else { return }
-            let displayedID = outlineView.selectedRow >= 0
-                ? (outlineView.item(atRow: outlineView.selectedRow) as? AssetOutlineItem)?.id
-                : nil
-            guard displayedID != selectedNodeID else { return }
+            let displayedIDs = selectedItemIDs()
+            // A live multi-selection stays intact as long as it contains the bound row.
+            if let selectedNodeID, displayedIDs.contains(selectedNodeID) { return }
+            if selectedNodeID == nil, displayedIDs.isEmpty { return }
             isRestoringSelection = true
             defer { isRestoringSelection = false }
             guard let selectedNodeID, let item = itemsByID[selectedNodeID] else {
@@ -289,6 +422,32 @@ struct AssetsOutlineView: NSViewRepresentable {
                 }
             }
         }
+    }
+}
+
+/// Outline view that forwards Delete / forward-delete and Return key presses
+/// so the panel can remove or rename the selected assets and folders.
+private final class AssetsListOutlineView: NSOutlineView {
+    var onDeleteKey: (() -> Void)?
+    var onRenameKey: (() -> Void)?
+
+    override func keyDown(with event: NSEvent) {
+        let hasPlainModifiers = event.modifierFlags
+            .intersection([.command, .option, .control, .shift])
+            .isEmpty
+        if hasPlainModifiers, selectedRow >= 0, currentEditor() == nil {
+            if let scalar = event.charactersIgnoringModifiers?.unicodeScalars.first,
+               scalar == "\u{7F}" || scalar.value == UInt32(NSDeleteFunctionKey) {
+                onDeleteKey?()
+                return
+            }
+            // Return and keypad Enter begin renaming, matching the Pages panel.
+            if [36, 76].contains(event.keyCode) {
+                onRenameKey?()
+                return
+            }
+        }
+        super.keyDown(with: event)
     }
 }
 

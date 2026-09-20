@@ -45,6 +45,11 @@ struct FoundryCSSTests {
         // The default focus style consumes the contract token rather than restating it.
         #expect(css.contains(":focus-visible{outline:var(--foundry-focus-ring);outline-offset:2px}"))
         #expect(css.contains("h1,h2,h3,h4,h5,h6{font-family:var(--foundry-font-heading);text-wrap:balance}"))
+        // Preflight: user-agent margins never fight part spacing controls.
+        #expect(css.contains("h1,h2,h3,h4,h5,h6,p,figure,dl,dd{margin:0}"))
+        #expect(css.contains("ul,ol,menu{margin:0;padding-inline-start:var(--foundry-space-lg)}"))
+        #expect(css.contains("border-width:0;border-style:solid;border-color:currentColor"))
+        #expect(css.contains("::placeholder{color:var(--foundry-color-muted-text);opacity:1}"))
         // Plain HTML content with no part CSS still styles from tokens.
         #expect(css.contains("hr{border:none;border-top:1px solid color-mix(in srgb, var(--foundry-color-text) 20%, transparent);margin-block:var(--foundry-space-lg)}"))
         #expect(css.contains("blockquote{margin:var(--foundry-space-lg) 0;"))

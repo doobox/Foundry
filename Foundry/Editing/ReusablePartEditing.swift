@@ -2,21 +2,27 @@ import Foundation
 
 @MainActor
 extension ProjectEditor {
-    func renameReusablePart(definitionID: UUID, name: String) {
-        mutate(actionName: "Rename Reusable Part") { site in
-            guard let index = site.reusableParts.firstIndex(where: { $0.id == definitionID }) else { return }
-            site.reusableParts[index].name = name
-        }
-    }
-
-    func removeReusablePart(definitionID: UUID) {
-        mutate(actionName: "Delete Reusable Part") { site in
-            guard site.reusableParts.contains(where: { $0.id == definitionID }) else { return }
-            site.reusableParts.removeAll(where: { $0.id == definitionID })
-            for pageIndex in site.pages.indices {
-                site.pages[pageIndex].parts.detachReusableInstances(definitionID: definitionID)
+    /// Stamps a template onto the page: an independent copy with fresh tree
+    /// identity, exactly like inserting parts by hand. The definition arrives
+    /// already resolved (library entry with assets imported into this project).
+    @discardableResult
+    func insertTemplate(
+        _ definition: ReusablePartDefinition,
+        on pageID: UUID,
+        placement: PartPlacement
+    ) -> UUID? {
+        guard let page = document.site.pages.first(where: { $0.id == pageID }) else { return nil }
+        let instance = definition.root.duplicatedForReusableDefinition()
+        let sharedInsertion = document.site.sharedGlobalInsertion(on: page, at: placement)
+        var inserted = false
+        mutate(actionName: "Add \(definition.name)") { site in
+            guard let pageIndex = site.pages.firstIndex(where: { $0.id == pageID }) else { return }
+            inserted = site.pages[pageIndex].parts.insert(instance, at: placement)
+            if inserted {
+                site.synchronizeGlobalsAfterStructureMove(sharedInsertion)
             }
         }
+        return inserted ? instance.id : nil
     }
 
     func renameSharedReusablePartInstance(partID: UUID, name: String) {
@@ -62,8 +68,8 @@ extension ProjectEditor {
         mutate(actionName: isLinked ? "Relink Global Part" : "Override Global Part") { site in
             site.updatePart(id: targetID) { $0.overridesGlobalDefinition = !isLinked }
             guard isLinked,
-                  let index = site.globalParts.firstIndex(where: { $0.id == context.definitionID }) else { return }
-            let template = site.globalParts[index].root
+                  case .part(let definition)? = site.globalPartLibrary.node(withID: context.definitionID) else { return }
+            let template = definition.root
             for pageIndex in site.pages.indices {
                 site.pages[pageIndex].parts.replaceReusableInstances(
                     definitionID: context.definitionID,
@@ -73,40 +79,14 @@ extension ProjectEditor {
         }
     }
 
-    @discardableResult
-    func saveReusablePart(partID: UUID, name: String) -> UUID? {
+    /// Builds a template definition from a part on the page, ready to save to
+    /// the shared library. Pure read — the project itself stores nothing.
+    func templateDefinition(fromPartID partID: UUID, name: String) -> ReusablePartDefinition? {
         guard let source = document.site.part(withID: partID) else { return nil }
-        let definition = ReusablePartDefinition(
+        return ReusablePartDefinition(
             name: name,
             root: source.duplicatedForReusableDefinition()
         )
-        mutate(actionName: "Create Reusable Part") { site in
-            site.reusableParts.append(definition)
-        }
-        return definition.id
-    }
-
-    @discardableResult
-    func insertReusablePart(
-        definitionID: UUID,
-        on pageID: UUID,
-        placement: PartPlacement
-    ) -> UUID? {
-        guard let definition = document.site.reusableParts.first(where: { $0.id == definitionID }) else {
-            return nil
-        }
-        guard let page = document.site.pages.first(where: { $0.id == pageID }) else { return nil }
-        let instance = definition.root.duplicatedForReusableDefinition()
-        let sharedInsertion = document.site.sharedGlobalInsertion(on: page, at: placement)
-        var inserted = false
-        mutate(actionName: "Add \(definition.name)") { site in
-            guard let pageIndex = site.pages.firstIndex(where: { $0.id == pageID }) else { return }
-            inserted = site.pages[pageIndex].parts.insert(instance, at: placement)
-            if inserted {
-                site.synchronizeGlobalsAfterStructureMove(sharedInsertion)
-            }
-        }
-        return inserted ? instance.id : nil
     }
 
     @discardableResult
@@ -117,9 +97,8 @@ extension ProjectEditor {
             return false
         }
         let template = source.duplicatedForReusableDefinition()
-        mutate(actionName: "Update Reusable Part") { site in
-            guard let index = site.globalParts.firstIndex(where: { $0.id == definitionID }) else { return }
-            site.globalParts[index].root = template
+        mutate(actionName: "Update Global Part") { site in
+            guard site.globalPartLibrary.mutateDefinition(id: definitionID, mutation: { $0.root = template }) else { return }
             for pageIndex in site.pages.indices {
                 site.pages[pageIndex].parts.replaceReusableInstances(
                     definitionID: definitionID,
@@ -131,7 +110,7 @@ extension ProjectEditor {
     }
 
     func detachReusablePart(partID: UUID) {
-        mutate(actionName: "Detach Reusable Part") { site in
+        mutate(actionName: "Detach Template") { site in
             site.updatePart(id: partID) { $0.reusableDefinitionID = nil }
         }
     }
@@ -143,9 +122,12 @@ extension ProjectEditor {
     ) {
         guard let context = document.site.globalPartContext(containing: partID) else { return }
         mutate(actionName: actionName) { site in
-            guard let index = site.globalParts.firstIndex(where: { $0.id == context.definitionID }) else { return }
-            site.globalParts[index].root.mutateNode(at: context.path, mutation: mutation)
-            let template = site.globalParts[index].root
+            var updatedRoot: PartNode?
+            site.globalPartLibrary.mutateDefinition(id: context.definitionID) {
+                $0.root.mutateNode(at: context.path, mutation: mutation)
+                updatedRoot = $0.root
+            }
+            guard let template = updatedRoot else { return }
             for pageIndex in site.pages.indices {
                 site.pages[pageIndex].parts.replaceReusableInstances(
                     definitionID: context.definitionID,

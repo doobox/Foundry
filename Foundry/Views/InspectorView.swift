@@ -18,6 +18,10 @@ struct InspectorView: View {
     let selectedParts: [PartNode]
     let allowsMultiPartEditing: Bool
     let libraryPartType: PartType?
+    let templateEntry: ReusablePartLibraryEntry?
+    let insertTemplate: (UUID) -> Void
+    let globalDefinition: ReusablePartDefinition?
+    let insertGlobalPart: (UUID) -> Void
     let framework: Framework
     let assets: [ProjectAsset]
     let editor: ProjectEditor
@@ -31,7 +35,42 @@ struct InspectorView: View {
     let importMedia: (URL, UTType) -> ProjectAsset?
     @Binding var editsSharedDefinition: Bool
 
+    /// The header names what the Inspector is currently showing, mirroring the
+    /// branch order of the content below.
+    private var headerTitle: String {
+        if part != nil, selectedParts.count == 1 || allowsMultiPartEditing {
+            return "Part Inspector"
+        }
+        if selectedParts.count > 1 { return "Multiple Parts Selected" }
+        if let assetLibraryNode {
+            if case .folder = assetLibraryNode { return "Asset Folder Info" }
+            return "Asset Info"
+        }
+        if templateEntry != nil { return "Template Info" }
+        if globalDefinition != nil { return "Global Info" }
+        if folder != nil { return "Page Folder Info" }
+        if asset != nil { return "Asset Info" }
+        if page != nil { return "Page Info" }
+        if libraryPartType != nil { return "Part Info" }
+        return "Inspector"
+    }
+
     var body: some View {
+        VStack(spacing: 0) {
+            HStack {
+                Text(headerTitle)
+                    .font(.headline)
+                Spacer()
+            }
+            .padding(.horizontal, 12)
+            .frame(height: 38)
+            Divider()
+            content
+        }
+        .navigationTitle("Inspector")
+    }
+
+    private var content: some View {
         Group {
             if let part,
                selectedParts.count == 1 || allowsMultiPartEditing {
@@ -59,6 +98,8 @@ struct InspectorView: View {
                       folder == nil,
                       asset == nil,
                       assetLibraryNode == nil,
+                      templateEntry == nil,
+                      globalDefinition == nil,
                       let libraryPartType {
                 PartLibraryInspector(type: libraryPartType)
             } else {
@@ -68,7 +109,6 @@ struct InspectorView: View {
                 .formStyle(.grouped)
             }
         }
-        .navigationTitle("Inspector")
     }
 
     @ViewBuilder
@@ -89,6 +129,17 @@ struct InspectorView: View {
                 renameAsset: renameAsset,
                 renameFolder: renameAssetFolder
             )
+        } else if let templateEntry {
+            TemplateInspector(entry: templateEntry, insertTemplate: insertTemplate)
+        } else if let globalDefinition {
+            GlobalPartInspector(
+                definition: globalDefinition,
+                pages: pages,
+                currentPage: currentPage,
+                editor: editor,
+                assetContents: assetContents,
+                insertGlobalPart: insertGlobalPart
+            )
         } else if let folder {
             PageFolderInspector(folder: folder, folders: folders, editor: editor)
         } else if let asset {
@@ -98,7 +149,7 @@ struct InspectorView: View {
         } else {
             ContentUnavailableView(
                 "No Selection",
-                systemImage: "slider.horizontal.3",
+                systemImage: "info.circle",
                 description: Text("Select a page, folder, or part to edit it.")
             )
         }
@@ -1274,28 +1325,6 @@ private struct PartAttributePopover: View {
     }
 }
 
-private enum PartInspectorSectionIcon {
-    private static let icons: [String: String] = [
-        "Content": "doc.text",
-        "Typography": "textformat",
-        "Appearance": "paintpalette",
-        "Layout": "rectangle.3.group",
-        "Sizing": "arrow.up.left.and.arrow.down.right",
-        "Layout item": "square.on.square",
-        "Spacing": "arrow.up.and.down.and.arrow.left.and.right",
-        "Borders": "square.dashed",
-        "Background": "paintbrush.fill",
-        "Effects": "sparkles",
-        "Link": "link",
-        "Accessibility": "accessibility",
-        "Advanced": "gearshape"
-    ]
-
-    static func systemImage(for section: PartPropertySection) -> String? {
-        icons[section.rawValue]
-    }
-}
-
 private struct PartInspectorGroup: View {
     let group: PartPropertySection
     let properties: [PartPropertyDefinition]
@@ -1357,11 +1386,7 @@ private struct PartInspectorGroup: View {
             }
             .padding(.vertical, InspectorMetrics.verticalSectionPadding)
         } label: {
-            if let systemImage = PartInspectorSectionIcon.systemImage(for: group) {
-                Label(group.rawValue, systemImage: systemImage)
-            } else {
-                Text(group.rawValue)
-            }
+            Label(group.rawValue, systemImage: part.type.definition.systemImage(for: group))
         }
         .disclosureGroupStyle(PartInspectorDisclosureStyle(
             usesAccordion: $usesAccordion,
@@ -1495,6 +1520,10 @@ private struct PartInspectorPreviewHarness: View {
                     selectedParts: [part],
                     allowsMultiPartEditing: false,
                     libraryPartType: nil,
+                    templateEntry: nil,
+                    insertTemplate: { _ in },
+                    globalDefinition: nil,
+                    insertGlobalPart: { _ in },
                     framework: document.site.framework,
                     assets: document.site.assets,
                     editor: ProjectEditor(document: document, undoManager: nil),

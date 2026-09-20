@@ -39,6 +39,11 @@
 		<string>layout</string>
 		<string>flex</string>
 	</array>
+	<key>groups</key>
+	<array>
+		<dict><key>name</key><string>Layout</string><key>systemImage</key><string>rectangle.3.group</string></dict>
+		<dict><key>name</key><string>Advanced</string><key>systemImage</key><string>gearshape</string></dict>
+	</array>
 	<key>controls</key>
 	<array>
 		<dict>

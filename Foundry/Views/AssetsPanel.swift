@@ -6,20 +6,32 @@ struct AssetsPanel: View {
     @Binding var selectedNodeID: UUID?
     let importFiles: () -> Void
     let importURLs: ([URL], AssetPlacement) -> Void
-    let createFolder: (String, AssetPlacement) -> Void
+    let createFolder: (String) -> Void
     let moveNode: (UUID, AssetPlacement) -> Bool
-    let deleteNode: (UUID) -> Void
+    let deleteNodes: ([UUID]) -> Void
+    let renameAsset: (UUID, String) -> Void
+    let renameFolder: (UUID, String) -> Void
     @State private var isNamingFolder = false
     @State private var folderName = ""
 
     var body: some View {
         VStack(spacing: 0) {
+            AssetsPanelHeader(
+                importFiles: importFiles,
+                addFolder: {
+                    folderName = ""
+                    isNamingFolder = true
+                }
+            )
             AssetsOutlineView(
                 nodes: library,
                 assetContents: assetContents,
                 selectedNodeID: $selectedNodeID,
                 moveNode: moveNode,
-                importURLs: importURLs
+                importURLs: importURLs,
+                deleteNodes: deleteNodes,
+                renameAsset: renameAsset,
+                renameFolder: renameFolder
             )
             .overlay {
                 if library.isEmpty {
@@ -31,34 +43,41 @@ struct AssetsPanel: View {
                     .allowsHitTesting(false)
                 }
             }
-
-            Divider()
-            HStack {
-                Menu("Add", systemImage: "plus") {
-                    Button("Import Files or Folders…", systemImage: "square.and.arrow.down", action: importFiles)
-                    Button("New Folder…", systemImage: "folder.badge.plus") {
-                        folderName = ""
-                        isNamingFolder = true
-                    }
-                }
-                Menu("Asset Actions", systemImage: "ellipsis.circle") {
-                    Button("Delete", role: .destructive) {
-                        if let selectedNodeID { deleteNode(selectedNodeID) }
-                    }
-                    .disabled(selectedNodeID == nil)
-                }
-                Spacer()
-            }
-            .labelStyle(.iconOnly)
-            .padding(8)
         }
         .alert("New Asset Folder", isPresented: $isNamingFolder) {
             TextField("Folder Name", text: $folderName)
             Button("Cancel", role: .cancel) {}
             Button("Create") {
-                createFolder(folderName.trimmingCharacters(in: .whitespacesAndNewlines), .end)
+                createFolder(folderName.trimmingCharacters(in: .whitespacesAndNewlines))
             }
             .disabled(folderName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
         }
+    }
+}
+
+private struct AssetsPanelHeader: View {
+    let importFiles: () -> Void
+    let addFolder: () -> Void
+
+    var body: some View {
+        HStack {
+            Text("Assets")
+                .font(.headline)
+            Spacer()
+            Menu {
+                Button("Import Files or Folders…", systemImage: "square.and.arrow.down", action: importFiles)
+                Button("New Folder…", systemImage: "folder.badge.plus", action: addFolder)
+            } label: {
+                Image(systemName: "plus")
+                    .frame(width: 22, height: 22)
+                    .contentShape(Rectangle())
+            }
+            .menuIndicator(.hidden)
+            .menuStyle(.borderlessButton)
+            .accessibilityLabel("Import Assets or Add Folder")
+            .help("Import files or add a folder")
+        }
+        .padding(.horizontal, 12)
+        .frame(height: 38)
     }
 }

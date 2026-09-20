@@ -41,6 +41,7 @@ nonisolated struct PartPackageManifest: Codable, Equatable, Sendable {
     let showsInPartLibrary: Bool
     let allowedParents: [String]
     let controlsEntries: [PartPackageControlsEntry]
+    let groups: [PartPackageInspectorGroup]
     let render: PartPackageRender
     let assets: [PartPackageAsset]
     let helpURL: URL?
@@ -61,6 +62,7 @@ nonisolated struct PartPackageManifest: Codable, Equatable, Sendable {
         case showsInPartLibrary
         case allowedParents
         case controlsEntries = "controls"
+        case groups
         case render = "templates"
         case assets
         case helpURL
@@ -83,6 +85,7 @@ nonisolated struct PartPackageManifest: Codable, Equatable, Sendable {
         showsInPartLibrary = try container.decodeIfPresent(Bool.self, forKey: .showsInPartLibrary) ?? true
         allowedParents = try container.decodeIfPresent([String].self, forKey: .allowedParents) ?? []
         controlsEntries = try container.decodeIfPresent([PartPackageControlsEntry].self, forKey: .controlsEntries) ?? []
+        groups = try container.decodeIfPresent([PartPackageInspectorGroup].self, forKey: .groups) ?? []
         render = try container.decode(PartPackageRender.self, forKey: .render)
         assets = try container.decodeIfPresent([PartPackageAsset].self, forKey: .assets) ?? []
         helpURL = try container.decodeIfPresent(URL.self, forKey: .helpURL)
@@ -108,6 +111,7 @@ nonisolated struct PartPackageManifest: Codable, Equatable, Sendable {
         try container.encode(showsInPartLibrary, forKey: .showsInPartLibrary)
         try container.encode(allowedParents, forKey: .allowedParents)
         try container.encode(controlsEntries, forKey: .controlsEntries)
+        try container.encode(groups, forKey: .groups)
         try container.encode(render, forKey: .render)
         try container.encode(assets, forKey: .assets)
         try container.encodeIfPresent(helpURL, forKey: .helpURL)
@@ -154,6 +158,14 @@ nonisolated struct PartPackageAsset: Codable, Equatable, Hashable, Sendable {
     }
 }
 
+/// Optional metadata for an Inspector section named by controls' `group` values.
+/// `systemImage` sets the SF Symbol on the section's disclosure header; groups
+/// without one use the generic fallback icon.
+nonisolated struct PartPackageInspectorGroup: Codable, Hashable, Sendable {
+    let name: String
+    let systemImage: String?
+}
+
 extension PartPackageManifest {
     /// Standard/Framework properties in the exact order the manifest declared
     /// them, with each Grouped-control reference expanded in place.
@@ -173,6 +185,23 @@ extension PartPackageManifest {
         controlsEntries.compactMap {
             if case .group(let group) = $0 { group } else { nil }
         }
+    }
+
+    /// Inspector section icons by group name: each declared Grouped control
+    /// supplies its section's standard icon, and the manifest's `groups` array
+    /// overrides or extends that for the part's own groups. Groups with no
+    /// entry here render with the generic fallback icon.
+    nonisolated var resolvedGroupIcons: [String: String] {
+        var icons: [String: String] = [:]
+        for group in controlGroups {
+            icons[group.type.groupName] = group.type.groupSystemImage
+        }
+        for group in groups {
+            if let systemImage = group.systemImage {
+                icons[group.name] = systemImage
+            }
+        }
+        return icons
     }
 
     nonisolated var controlGroupCSS: String {
@@ -206,6 +235,31 @@ nonisolated struct PartPackageControlGroup: Codable, Equatable, Sendable {
         case borders
         case effects
         case layoutItem
+
+        /// The Inspector section this Grouped control's properties live in, and
+        /// the icon that section carries — the same metadata a part declares for
+        /// its own groups through the manifest's `groups` array.
+        var groupName: String {
+            switch self {
+            case .background: "Background"
+            case .spacing: "Spacing"
+            case .sizing: "Sizing"
+            case .borders: "Borders"
+            case .effects: "Effects"
+            case .layoutItem: "Layout item"
+            }
+        }
+
+        var groupSystemImage: String {
+            switch self {
+            case .background: "paintbrush.fill"
+            case .spacing: "arrow.up.and.down.and.arrow.left.and.right"
+            case .sizing: "arrow.up.left.and.arrow.down.right"
+            case .borders: "square.dashed"
+            case .effects: "sparkles"
+            case .layoutItem: "square.on.square"
+            }
+        }
     }
 
     enum BackgroundStyle: String, Codable, CaseIterable, Hashable, Sendable {

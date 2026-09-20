@@ -77,9 +77,58 @@ private struct GeneralSettingsView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
+
+            Section("Library") {
+                LabeledContent("Library Folder") {
+                    HStack(spacing: 10) {
+                        Text(libraryFolderDisplayPath)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                            .foregroundStyle(.secondary)
+                        Button("Choose…") { chooseLibraryFolder() }
+                        Button("Use Default") { setLibraryFolder(nil) }
+                            .disabled(libraryFolderPath == nil)
+                    }
+                }
+                Text("Installed packs, templates and saved frameworks live here. Point it at a synced folder (iCloud Drive, Dropbox) to share one library across your Macs — existing content is copied to the new location.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
         }
         .formStyle(.grouped)
-        .frame(width: 560, height: 390)
+        .frame(width: 560, height: 470)
+    }
+
+    @State private var libraryFolderPath = FoundryLibraryLocation.customPath
+
+    private var libraryFolderDisplayPath: String {
+        if let libraryFolderPath {
+            return (libraryFolderPath as NSString).abbreviatingWithTildeInPath
+        }
+        return "Application Support (Default)"
+    }
+
+    private func chooseLibraryFolder() {
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = false
+        panel.canChooseDirectories = true
+        panel.canCreateDirectories = true
+        panel.allowsMultipleSelection = false
+        panel.prompt = "Use Folder"
+        panel.message = "Choose the folder that holds Foundry's packs, templates and frameworks."
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        setLibraryFolder(FoundryLibraryLocation.resolvedRoot(forChosen: url).path)
+    }
+
+    private func setLibraryFolder(_ path: String?) {
+        let previousRoot = try? FoundryLibraryLocation.rootURL()
+        FoundryLibraryLocation.customPath = path
+        libraryFolderPath = path
+        if let previousRoot, let newRoot = try? FoundryLibraryLocation.rootURL() {
+            FoundryLibraryLocation.migrateContent(from: previousRoot, to: newRoot)
+        }
+        ReusablePartLibrary.shared.reloadFromPreferredLocation()
+        PartPackageCatalog.shared.reloadAllPacks()
     }
 
     private var canvasBackgroundColor: Binding<Color> {

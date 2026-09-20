@@ -50,6 +50,14 @@ nonisolated struct PartDefinition: Sendable {
         self.properties = properties
         self.package = package
     }
+
+    /// The SF Symbol for an Inspector section's disclosure header: Grouped
+    /// controls and the manifest's `groups` array supply icons; everything else
+    /// wears the generic fallback.
+    func systemImage(for section: PartPropertySection) -> String {
+        package?.manifest.resolvedGroupIcons[section.rawValue]
+            ?? PartPropertySection.genericSystemImage
+    }
 }
 
 nonisolated struct PartCategory: RawRepresentable, Hashable, Sendable {
@@ -152,6 +160,9 @@ nonisolated struct PartPropertyDefinition: Identifiable, Sendable {
 }
 
 nonisolated struct PartPropertySection: RawRepresentable, Hashable, Sendable {
+    /// The Inspector header icon for groups that declare none of their own.
+    static let genericSystemImage = "slider.horizontal.3"
+
     let rawValue: String
 
     init(rawValue: String) {

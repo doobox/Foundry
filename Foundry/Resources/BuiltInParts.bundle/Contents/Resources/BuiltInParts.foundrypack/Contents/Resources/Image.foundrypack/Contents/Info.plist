@@ -10,6 +10,11 @@
 	<array/>
 	<key>author</key>
 	<string>Foundry</string>
+	<key>groups</key>
+	<array>
+		<dict><key>name</key><string>Content</string><key>systemImage</key><string>doc.text</string></dict>
+		<dict><key>name</key><string>Sizing</string><key>systemImage</key><string>arrow.up.left.and.arrow.down.right</string></dict>
+	</array>
 	<key>controls</key>
 	<array>
 		<dict>

@@ -314,11 +314,36 @@ nonisolated enum PartPackageLoadingError: Error, LocalizedError {
         case .missingManifest:
             "The part bundle does not contain Contents/Info.plist."
         case .unreadableManifest(let error):
-            "Info.plist could not be decoded: \(error.localizedDescription)"
+            "Info.plist could not be decoded: \(Self.decodingDetail(error))"
         case .invalid(let diagnostics):
             diagnostics.map { "\($0.location): \($0.message)" }.joined(separator: "\n")
         case .unreadableResource(let path, let error):
             "\(path) could not be read: \(error.localizedDescription)"
+        }
+    }
+
+    /// DecodingError's localizedDescription is a generic "isn't in the correct
+    /// format" — useless when a manifest breaks after an API rename. Surface the
+    /// decoder's own explanation and where in the plist it happened instead.
+    private static func decodingDetail(_ error: Error) -> String {
+        guard let decodingError = error as? DecodingError else { return error.localizedDescription }
+        func location(_ context: DecodingError.Context) -> String {
+            let path = context.codingPath.reduce(into: "") { partial, key in
+                if let index = key.intValue {
+                    partial += "[\(index)]"
+                } else {
+                    partial += partial.isEmpty ? key.stringValue : ".\(key.stringValue)"
+                }
+            }
+            return path.isEmpty ? "the manifest root" : path
+        }
+        switch decodingError {
+        case .dataCorrupted(let context), .typeMismatch(_, let context), .valueNotFound(_, let context):
+            return "\(context.debugDescription) (at \(location(context)))"
+        case .keyNotFound(let key, let context):
+            return "Missing key '\(key.stringValue)' (at \(location(context)))"
+        @unknown default:
+            return decodingError.localizedDescription
         }
     }
 }

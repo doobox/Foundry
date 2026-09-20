@@ -1218,75 +1218,215 @@ private struct PartLibrarySection: Identifiable {
 }
 
 struct ReusablePartLibraryPanel: View {
-    let definitions: [ReusablePartDefinition]
+    let library: [ReusablePartNode]
+    @Binding var selectedNodeID: UUID?
     let renameDefinition: (UUID, String) -> Void
     let deleteDefinition: (UUID) -> Void
-    @State private var definitionToRename: ReusablePartDefinition?
-    @State private var definitionToDelete: ReusablePartDefinition?
+    let duplicateDefinition: (UUID) -> Void
+    let revealDefinition: (UUID) -> Void
+    let createFolder: (String) -> Void
+    let renameFolder: (UUID, String) -> Void
+    let deleteFolder: (UUID) -> Void
+    let moveNode: (UUID, ReusablePartPlacement) -> Bool
+    let saveDraggedParts: ([UUID]) -> Bool
+
+    @State private var searchText = ""
+    @State private var isNamingFolder = false
+    @State private var folderName = ""
+    @State private var nodeToRename: ReusablePartNode?
+    @State private var nodeToDelete: ReusablePartNode?
     @State private var renameText = ""
 
+    private var definitions: [ReusablePartDefinition] { library.allDefinitions }
+
+    private var searchResults: [ReusablePartDefinition] {
+        let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !query.isEmpty else { return [] }
+        return definitions.filter { $0.name.localizedCaseInsensitiveContains(query) }
+    }
+
+    private var isSearching: Bool {
+        !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
     var body: some View {
+        VStack(spacing: 0) {
+            searchField
+            Divider()
+            if isSearching {
+                searchList
+            } else {
+                ReusablePartsOutlineView(
+                    kind: .templates,
+                    nodes: library,
+                    selectedNodeID: $selectedNodeID,
+                    moveNode: moveNode,
+                    saveDroppedParts: saveDraggedParts
+                )
+                .overlay {
+                    if library.isEmpty {
+                        ContentUnavailableView(
+                            "No Templates",
+                            systemImage: WorkspacePanel.reusableParts.systemImage,
+                            description: Text("Save a part as a template from Structure, or drop one here.")
+                        )
+                        .allowsHitTesting(false)
+                    }
+                }
+            }
+            Divider()
+            actionBar
+        }
+        .alert("New Folder", isPresented: $isNamingFolder) {
+            TextField("Folder Name", text: $folderName)
+            Button("Cancel", role: .cancel) {}
+            Button("Create") {
+                createFolder(folderName.trimmingCharacters(in: .whitespacesAndNewlines))
+            }
+            .disabled(folderName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+        }
+        .alert(renameTitle, isPresented: renameAlertBinding) {
+            TextField("Name", text: $renameText)
+            Button("Cancel", role: .cancel) { nodeToRename = nil }
+            Button("Rename") {
+                let name = renameText.trimmingCharacters(in: .whitespacesAndNewlines)
+                switch nodeToRename {
+                case .part(let definition): renameDefinition(definition.id, name)
+                case .folder(let folder): renameFolder(folder.id, name)
+                case nil: break
+                }
+                nodeToRename = nil
+            }
+            .disabled(renameText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+        }
+        .confirmationDialog(deleteTitle, isPresented: deleteAlertBinding) {
+            Button(deleteButtonTitle, role: .destructive) {
+                switch nodeToDelete {
+                case .part(let definition): deleteDefinition(definition.id)
+                case .folder(let folder): deleteFolder(folder.id)
+                case nil: break
+                }
+                nodeToDelete = nil
+            }
+            Button("Cancel", role: .cancel) { nodeToDelete = nil }
+        } message: {
+            Text(deleteMessage)
+        }
+    }
+
+    private var searchField: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "magnifyingglass")
+                .foregroundStyle(.secondary)
+            TextField("Search Templates", text: $searchText)
+                .textFieldStyle(.plain)
+            if isSearching {
+                Button {
+                    searchText = ""
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Clear search")
+            }
+        }
+        .padding(8)
+    }
+
+    private var searchList: some View {
         List {
-            ForEach(definitions) { definition in
+            ForEach(searchResults) { definition in
                 ReusablePartLibraryRow(definition: definition)
                     .draggable(PartDragPayload.reusable(definition.id).stringValue) {
                         PartDragPreview(
                             name: definition.name,
-                            systemImage: definition.root.type.systemImage
+                            systemImage: WorkspacePanel.reusableParts.systemImage
                         )
                     }
                     .contextMenu {
-                        Button("Rename…") {
-                            renameText = definition.name
-                            definitionToRename = definition
-                        }
-                        Button("Delete…", role: .destructive) {
-                            definitionToDelete = definition
-                        }
+                        definitionMenu(.part(definition))
                     }
             }
         }
         .overlay {
-            if definitions.isEmpty {
-                ContentUnavailableView(
-                    "No Templates",
-                    systemImage: WorkspacePanel.reusableParts.systemImage,
-                    description: Text("Save a part as a template from Structure to add it here.")
-                )
+            if searchResults.isEmpty {
+                ContentUnavailableView.search(text: searchText)
             }
         }
-        .alert("Rename Template", isPresented: renameAlertBinding) {
-            TextField("Name", text: $renameText)
-            Button("Cancel", role: .cancel) { definitionToRename = nil }
-            Button("Rename") {
-                guard let id = definitionToRename?.id else { return }
-                renameDefinition(id, renameText.trimmingCharacters(in: .whitespacesAndNewlines))
-                definitionToRename = nil
+    }
+
+    private var actionBar: some View {
+        HStack {
+            Button("New Folder", systemImage: "folder.badge.plus") {
+                folderName = ""
+                isNamingFolder = true
             }
-            .disabled(renameText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            Menu("Actions", systemImage: "ellipsis.circle") {
+                if let node = selectedNode {
+                    definitionMenu(node)
+                }
+            }
+            .disabled(selectedNode == nil)
+            Spacer()
         }
-        .confirmationDialog(
-            "Delete \(definitionToDelete?.name ?? "Template")?",
-            isPresented: deleteAlertBinding
-        ) {
-            Button("Delete Template", role: .destructive) {
-                guard let id = definitionToDelete?.id else { return }
-                deleteDefinition(id)
-                definitionToDelete = nil
-            }
-            Button("Cancel", role: .cancel) { definitionToDelete = nil }
-        } message: {
-            Text("Parts already added from this template are independent and will be unchanged.")
+        .labelStyle(.iconOnly)
+        .padding(8)
+    }
+
+    @ViewBuilder
+    private func definitionMenu(_ node: ReusablePartNode) -> some View {
+        Button("Rename…") {
+            renameText = nodeName(node)
+            nodeToRename = node
+        }
+        if case .part(let definition) = node {
+            Button("Duplicate") { duplicateDefinition(definition.id) }
+            Button("Show in Finder") { revealDefinition(definition.id) }
+        }
+        Button("Delete…", role: .destructive) { nodeToDelete = node }
+    }
+
+    private var selectedNode: ReusablePartNode? {
+        guard let selectedNodeID else { return nil }
+        return library.node(withID: selectedNodeID)
+    }
+
+    private func nodeName(_ node: ReusablePartNode) -> String {
+        switch node {
+        case .part(let definition): definition.name
+        case .folder(let folder): folder.name
+        }
+    }
+
+    private var renameTitle: String {
+        if case .folder = nodeToRename { "Rename Folder" } else { "Rename Template" }
+    }
+
+    private var deleteTitle: String {
+        "Delete \(nodeToDelete.map(nodeName) ?? "Template")?"
+    }
+
+    private var deleteButtonTitle: String {
+        if case .folder = nodeToDelete { "Delete Folder" } else { "Delete Template" }
+    }
+
+    private var deleteMessage: String {
+        if case .folder = nodeToDelete {
+            "Also deletes the templates inside, for every project. Parts already added to pages are unchanged."
+        } else {
+            "Removes it from the library for every project. Parts already added to pages are unchanged."
         }
     }
 
     private var renameAlertBinding: Binding<Bool> {
-        Binding(get: { definitionToRename != nil }, set: { if !$0 { definitionToRename = nil } })
+        Binding(get: { nodeToRename != nil }, set: { if !$0 { nodeToRename = nil } })
     }
 
     private var deleteAlertBinding: Binding<Bool> {
-        Binding(get: { definitionToDelete != nil }, set: { if !$0 { definitionToDelete = nil } })
+        Binding(get: { nodeToDelete != nil }, set: { if !$0 { nodeToDelete = nil } })
     }
+
 }
 
 private struct PartLibraryTile: View {
@@ -1405,12 +1545,13 @@ private struct PartDragPreview: View {
     }
 }
 
+
 private struct ReusablePartLibraryRow: View {
     let definition: ReusablePartDefinition
 
     var body: some View {
         HStack(spacing: 10) {
-            Image(systemName: definition.root.type.systemImage)
+            Image(systemName: WorkspacePanel.reusableParts.systemImage)
                 .frame(width: 24, height: 24)
                 .background(Color.accentColor.opacity(0.12), in: RoundedRectangle(cornerRadius: 6))
             VStack(alignment: .leading, spacing: 2) {
@@ -1428,102 +1569,235 @@ private struct ReusablePartLibraryRow: View {
     }
 }
 
-struct GlobalPartLibraryPanel: View {
-    let definitions: [ReusablePartDefinition]
-    let renameDefinition: (UUID, String) -> Void
-    let deleteDefinition: (UUID) -> Void
-    let saveDraggedParts: ([UUID]) -> Bool
-    @State private var definitionToRename: ReusablePartDefinition?
-    @State private var definitionToDelete: ReusablePartDefinition?
-    @State private var renameText = ""
-    @State private var isDropTargeted = false
+private struct GlobalPartLibraryRow: View {
+    let definition: ReusablePartDefinition
 
     var body: some View {
-        List {
-            ForEach(definitions) { definition in
-                HStack(spacing: 10) {
-                    Image(systemName: definition.root.type.systemImage)
-                        .frame(width: 24, height: 24)
-                        .background(Color.accentColor.opacity(0.12), in: RoundedRectangle(cornerRadius: 6))
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(definition.name)
-                        Text("Updates everywhere")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                    Spacer()
-                    Image(systemName: "link")
-                        .foregroundStyle(.tertiary)
-                }
-                .draggable(PartDragPayload.global(definition.id).stringValue) {
-                    PartDragPreview(name: definition.name, systemImage: definition.root.type.systemImage)
-                }
-                .contextMenu {
-                    Button("Rename…") {
-                        renameText = definition.name
-                        definitionToRename = definition
-                    }
-                    Button("Delete…", role: .destructive) { definitionToDelete = definition }
-                }
+        HStack(spacing: 10) {
+            Image(systemName: WorkspacePanel.globalParts.systemImage)
+                .frame(width: 24, height: 24)
+                .background(Color.accentColor.opacity(0.12), in: RoundedRectangle(cornerRadius: 6))
+            VStack(alignment: .leading, spacing: 2) {
+                Text(definition.name)
+                Text("Updates everywhere")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
+            Spacer()
+            Image(systemName: "link")
+                .foregroundStyle(.tertiary)
         }
-        .dropDestination(for: String.self) { values, _ in
-            guard let value = values.first,
-                  let payload = PartDragPayload(value) else { return false }
-            switch payload {
-            case .node(let id):
-                return saveDraggedParts([id])
-            case .nodes(let ids):
-                return saveDraggedParts(ids)
-            case .library, .reusable, .global:
-                return false
-            }
-        } isTargeted: {
-            isDropTargeted = $0
-        }
-        .overlay {
-            if definitions.isEmpty {
-                ContentUnavailableView(
-                    "No Global Parts",
-                    systemImage: WorkspacePanel.globalParts.systemImage,
-                    description: Text("Save a part as global from Structure to add it here.")
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(definition.name), global part, drag to add")
+    }
+}
+
+struct GlobalPartLibraryPanel: View {
+    let library: [ReusablePartNode]
+    @Binding var selectedNodeID: UUID?
+    let renameDefinition: (UUID, String) -> Void
+    let deleteDefinition: (UUID) -> Void
+    let duplicateDefinition: (UUID) -> Void
+    let createFolder: (String) -> Void
+    let renameFolder: (UUID, String) -> Void
+    let deleteFolder: (UUID) -> Void
+    let moveNode: (UUID, ReusablePartPlacement) -> Bool
+    let saveDraggedParts: ([UUID]) -> Bool
+
+    @State private var searchText = ""
+    @State private var isNamingFolder = false
+    @State private var folderName = ""
+    @State private var nodeToRename: ReusablePartNode?
+    @State private var nodeToDelete: ReusablePartNode?
+    @State private var renameText = ""
+
+    private var definitions: [ReusablePartDefinition] { library.allDefinitions }
+
+    private var searchResults: [ReusablePartDefinition] {
+        let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !query.isEmpty else { return [] }
+        return definitions.filter { $0.name.localizedCaseInsensitiveContains(query) }
+    }
+
+    private var isSearching: Bool {
+        !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            searchField
+            Divider()
+            if isSearching {
+                searchList
+            } else {
+                ReusablePartsOutlineView(
+                    kind: .globals,
+                    nodes: library,
+                    selectedNodeID: $selectedNodeID,
+                    moveNode: moveNode,
+                    saveDroppedParts: saveDraggedParts
                 )
+                .overlay {
+                    if library.isEmpty {
+                        ContentUnavailableView(
+                            "No Globals",
+                            systemImage: WorkspacePanel.globalParts.systemImage,
+                            description: Text("Save a part as global from Structure, or drop one here.")
+                        )
+                        .allowsHitTesting(false)
+                    }
+                }
             }
+            Divider()
+            actionBar
         }
-        .overlay {
-            RoundedRectangle(cornerRadius: 8)
-                .strokeBorder(Color.accentColor, lineWidth: isDropTargeted ? 2 : 0)
-                .padding(4)
-                .allowsHitTesting(false)
+        .alert("New Folder", isPresented: $isNamingFolder) {
+            TextField("Folder Name", text: $folderName)
+            Button("Cancel", role: .cancel) {}
+            Button("Create") {
+                createFolder(folderName.trimmingCharacters(in: .whitespacesAndNewlines))
+            }
+            .disabled(folderName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
         }
-        .alert("Rename Global Part", isPresented: renameAlertBinding) {
+        .alert(renameTitle, isPresented: renameAlertBinding) {
             TextField("Name", text: $renameText)
-            Button("Cancel", role: .cancel) { definitionToRename = nil }
+            Button("Cancel", role: .cancel) { nodeToRename = nil }
             Button("Rename") {
-                guard let id = definitionToRename?.id else { return }
-                renameDefinition(id, renameText.trimmingCharacters(in: .whitespacesAndNewlines))
-                definitionToRename = nil
+                let name = renameText.trimmingCharacters(in: .whitespacesAndNewlines)
+                switch nodeToRename {
+                case .part(let definition): renameDefinition(definition.id, name)
+                case .folder(let folder): renameFolder(folder.id, name)
+                case nil: break
+                }
+                nodeToRename = nil
             }
             .disabled(renameText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
         }
-        .confirmationDialog("Delete \(definitionToDelete?.name ?? "Global Part")?", isPresented: deleteAlertBinding) {
-            Button("Delete Global Part", role: .destructive) {
-                guard let id = definitionToDelete?.id else { return }
-                deleteDefinition(id)
-                definitionToDelete = nil
+        .confirmationDialog(deleteTitle, isPresented: deleteAlertBinding) {
+            Button(deleteButtonTitle, role: .destructive) {
+                switch nodeToDelete {
+                case .part(let definition): deleteDefinition(definition.id)
+                case .folder(let folder): deleteFolder(folder.id)
+                case nil: break
+                }
+                nodeToDelete = nil
             }
-            Button("Cancel", role: .cancel) { definitionToDelete = nil }
+            Button("Cancel", role: .cancel) { nodeToDelete = nil }
         } message: {
-            Text("Existing instances will be detached and keep their current content.")
+            Text(deleteMessage)
+        }
+    }
+
+    private var searchField: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "magnifyingglass")
+                .foregroundStyle(.secondary)
+            TextField("Search Globals", text: $searchText)
+                .textFieldStyle(.plain)
+            if isSearching {
+                Button {
+                    searchText = ""
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Clear search")
+            }
+        }
+        .padding(8)
+    }
+
+    private var searchList: some View {
+        List {
+            ForEach(searchResults) { definition in
+                GlobalPartLibraryRow(definition: definition)
+                    .draggable(PartDragPayload.global(definition.id).stringValue) {
+                        PartDragPreview(
+                            name: definition.name,
+                            systemImage: WorkspacePanel.globalParts.systemImage
+                        )
+                    }
+                    .contextMenu {
+                        definitionMenu(.part(definition))
+                    }
+            }
+        }
+        .overlay {
+            if searchResults.isEmpty {
+                ContentUnavailableView.search(text: searchText)
+            }
+        }
+    }
+
+    private var actionBar: some View {
+        HStack {
+            Button("New Folder", systemImage: "folder.badge.plus") {
+                folderName = ""
+                isNamingFolder = true
+            }
+            Menu("Actions", systemImage: "ellipsis.circle") {
+                if let node = selectedNode {
+                    definitionMenu(node)
+                }
+            }
+            .disabled(selectedNode == nil)
+            Spacer()
+        }
+        .labelStyle(.iconOnly)
+        .padding(8)
+    }
+
+    @ViewBuilder
+    private func definitionMenu(_ node: ReusablePartNode) -> some View {
+        Button("Rename…") {
+            renameText = nodeName(node)
+            nodeToRename = node
+        }
+        if case .part(let definition) = node {
+            Button("Duplicate") { duplicateDefinition(definition.id) }
+        }
+        Button("Delete…", role: .destructive) { nodeToDelete = node }
+    }
+
+    private var selectedNode: ReusablePartNode? {
+        guard let selectedNodeID else { return nil }
+        return library.node(withID: selectedNodeID)
+    }
+
+    private func nodeName(_ node: ReusablePartNode) -> String {
+        switch node {
+        case .part(let definition): definition.name
+        case .folder(let folder): folder.name
+        }
+    }
+
+    private var renameTitle: String {
+        if case .folder = nodeToRename { "Rename Folder" } else { "Rename Global Part" }
+    }
+
+    private var deleteTitle: String {
+        "Delete \(nodeToDelete.map(nodeName) ?? "Global Part")?"
+    }
+
+    private var deleteButtonTitle: String {
+        if case .folder = nodeToDelete { "Delete Folder" } else { "Delete Global Part" }
+    }
+
+    private var deleteMessage: String {
+        if case .folder = nodeToDelete {
+            "Also deletes the global parts inside. Existing instances will be detached and keep their current content."
+        } else {
+            "Existing instances will be detached and keep their current content."
         }
     }
 
     private var renameAlertBinding: Binding<Bool> {
-        Binding(get: { definitionToRename != nil }, set: { if !$0 { definitionToRename = nil } })
+        Binding(get: { nodeToRename != nil }, set: { if !$0 { nodeToRename = nil } })
     }
 
     private var deleteAlertBinding: Binding<Bool> {
-        Binding(get: { definitionToDelete != nil }, set: { if !$0 { definitionToDelete = nil } })
+        Binding(get: { nodeToDelete != nil }, set: { if !$0 { nodeToDelete = nil } })
     }
 }
 
@@ -1594,13 +1868,13 @@ struct StructurePanel: View {
                 ContentUnavailableView("No Page", systemImage: "doc")
             }
         }
-        .alert("Save Template", isPresented: $isNamingReusablePart) {
+        .alert("Save as Template", isPresented: $isNamingReusablePart) {
             TextField("Name", text: $reusablePartName)
             Button("Cancel", role: .cancel) {}
             Button("Save") { saveReusablePart(reusablePartName) }
                 .disabled(reusablePartName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
         } message: {
-            Text("The selected part and its children will be available in the Project library.")
+            Text("The selected part and its children will be available from the Templates panel.")
         }
         .alert("Save Global Part", isPresented: $isNamingGlobalPart) {
             TextField("Name", text: $globalPartName)

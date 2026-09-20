@@ -195,17 +195,7 @@ nonisolated enum FrameworkBundleStore {
     }
 
     static func libraryURL(fileManager: FileManager = .default) throws -> URL {
-        let applicationSupport = try fileManager.url(
-            for: .applicationSupportDirectory,
-            in: .userDomainMask,
-            appropriateFor: nil,
-            create: true
-        )
-        let url = applicationSupport
-            .appending(path: "Foundry", directoryHint: .isDirectory)
-            .appending(path: "Frameworks", directoryHint: .isDirectory)
-        try fileManager.createDirectory(at: url, withIntermediateDirectories: true)
-        return url
+        try FoundryLibraryLocation.directoryURL(named: "Frameworks", fileManager: fileManager)
     }
 
     static func editArtwork(_ saved: SavedFramework, name: String, preview: FrameworkPreviewImage) throws -> SavedFramework {

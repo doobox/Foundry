@@ -1,5 +1,6 @@
 :instance {
     color: {{ control.textColor }};
     text-align: {{ control.textAlignment }};
-    margin-block: 0 1.5rem;
+    padding: {{ if control.spacingEnabled }}{{ control.frameworkPadding }}{{ else }}0{{ endif }};
+    margin: {{ if control.spacingEnabled }}{{ control.frameworkMargin }}{{ else }}0{{ endif }};
 }

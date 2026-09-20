@@ -2229,7 +2229,9 @@ private struct WorkspaceColumnView<PanelContent: View>: View {
             if column.panels.isEmpty {
                 emptyDockContent
             } else {
-                if column.selectedPanel != .pages && column.selectedPanel != .parts {
+                // Pages, Parts, Assets and Inspector draw their own headers.
+                if column.selectedPanel != .pages && column.selectedPanel != .parts && column.selectedPanel != .assets
+                    && column.selectedPanel != .inspector {
                     HStack {
                         Text(column.selectedPanel.title)
                             .font(.headline)

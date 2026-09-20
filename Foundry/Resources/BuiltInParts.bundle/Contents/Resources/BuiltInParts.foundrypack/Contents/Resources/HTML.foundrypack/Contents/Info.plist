@@ -18,6 +18,10 @@
     <string>Content</string>
     <key>tags</key>
     <array><string>Foundry</string><string>built-in</string></array>
+    <key>groups</key>
+    <array>
+        <dict><key>name</key><string>Content</string><key>systemImage</key><string>doc.text</string></dict>
+    </array>
     <key>controls</key>
     <array/>
     <key>assets</key>

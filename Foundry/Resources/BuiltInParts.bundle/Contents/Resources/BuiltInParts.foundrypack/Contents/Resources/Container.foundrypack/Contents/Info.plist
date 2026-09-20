@@ -39,6 +39,10 @@
 		<string>layout</string>
 		<string>width</string>
 	</array>
+	<key>groups</key>
+	<array>
+		<dict><key>name</key><string>Advanced</string><key>systemImage</key><string>gearshape</string></dict>
+	</array>
 	<key>controls</key>
 	<array>
 		<dict>

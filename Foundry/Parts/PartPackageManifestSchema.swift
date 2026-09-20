@@ -43,7 +43,7 @@ nonisolated enum PartPackageManifestSchema {
 
     private static let partKeys: Set<String> = [
         "minimumAPIVersion", "id", "title", "description", "author", "version", "group",
-        "tags", "showsInPartLibrary", "allowedParents", "controls", "templates", "assets", "helpURL", "missingPart",
+        "tags", "showsInPartLibrary", "allowedParents", "controls", "groups", "templates", "assets", "helpURL", "missingPart",
         "requiresPHP", "libraries", "collection", "updates"
     ]
     private static let collectionKeys: Set<String> = [
@@ -66,6 +66,7 @@ nonisolated enum PartPackageManifestSchema {
     private static let assetKeys: Set<String> = ["path", "scope"]
     private static let renditionKeys: Set<String> = ["id", "maximumDimension"]
     private static let controlGroupKeys: Set<String> = ["type", "styles", "states", "defaultOverrides"]
+    private static let groupKeys: Set<String> = ["name", "systemImage"]
 
     static func inspect(_ data: Data) throws -> Inspection {
         let dictionary = try rootDictionary(from: data)
@@ -134,6 +135,7 @@ nonisolated enum PartPackageManifestSchema {
                 into: &diagnostics
             )
         }
+        validateGroups(in: dictionary, into: &diagnostics)
         if let templates = dictionary["templates"], !(templates is [String: Any]) {
             appendTypeError(key: "templates", expected: "a dictionary", location: "Info.plist", into: &diagnostics)
         }
@@ -938,6 +940,45 @@ nonisolated enum PartPackageManifestSchema {
             throw SchemaError.rootIsNotDictionary
         }
         return dictionary
+    }
+
+    private static func validateGroups(
+        in dictionary: [String: Any],
+        into diagnostics: inout [PartPackageDiagnostic]
+    ) {
+        guard dictionary["groups"] != nil else { return }
+        validateDictionaryArray(dictionary["groups"], key: "groups", parent: "Info.plist", into: &diagnostics)
+
+        // Editable template primitives inject their properties into Content,
+        // so that group can carry an icon even with no declared control in it.
+        var usedGroups: Set<String> = ["Content"]
+        for entry in dictionaries(in: dictionary["controls"]) {
+            if let type = entry["type"] as? String,
+               let kind = PartPackageControlGroup.Kind(rawValue: type) {
+                usedGroups.insert(kind.groupName)
+            } else {
+                usedGroups.insert(entry["group"] as? String ?? "Settings")
+            }
+        }
+
+        var seenNames: Set<String> = []
+        dictionaries(in: dictionary["groups"]).enumerated().forEach { index, entry in
+            let location = "Info.plist:groups[\(index)]"
+            unknownKeys(in: entry, allowed: groupKeys, location: location, into: &diagnostics)
+            requireString("name", in: entry, location: location, into: &diagnostics)
+            optionalString("systemImage", in: entry, location: location, into: &diagnostics)
+            guard let name = entry["name"] as? String else { return }
+            if name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                diagnostics.append(.init(severity: .error, location: "\(location).name", message: "A group entry requires a non-empty name."))
+                return
+            }
+            if !seenNames.insert(name).inserted {
+                diagnostics.append(.init(severity: .error, location: "\(location).name", message: "Duplicate group entry '\(name)'."))
+            }
+            if !usedGroups.contains(name) {
+                diagnostics.append(.init(severity: .error, location: "\(location).name", message: "groups declares '\(name)' but no control uses that group."))
+            }
+        }
     }
 
     private static func validateDictionaryArray(
