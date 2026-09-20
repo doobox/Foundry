@@ -669,8 +669,29 @@ nonisolated enum PartTemplateRenderer {
         guard case .string(let source)? = context.allProperties["\(reference).__colorSource"],
               case .string(let formatName)? = context.allProperties["\(reference).__colorFormat"],
               let format = PartPackageControl.ColorOutputFormat(rawValue: formatName),
-              var color = PartColorChannels(hex: source) else { return nil }
+              let color = PartColorChannels(hex: source) else { return nil }
         let declaredOpacity = context.allProperties["\(reference).__colorOpacity"] == .boolean(true)
+
+        guard let light = applyColorFilters(filters, to: color, declaredOpacity: declaredOpacity, format: format, context: context) else { return nil }
+        // A theme colour on a dual-appearance site carries a second source; the
+        // filtered result stays appearance-aware the same way the base colour does.
+        if case .string(let darkSource)? = context.allProperties["\(reference).__colorSourceDark"],
+           let darkColor = PartColorChannels(hex: darkSource),
+           let dark = applyColorFilters(filters, to: darkColor, declaredOpacity: declaredOpacity, format: format, context: context, prefersDarkArguments: true) {
+            return light == dark ? light : "light-dark(\(light), \(dark))"
+        }
+        return light
+    }
+
+    private static func applyColorFilters(
+        _ filters: [String],
+        to source: PartColorChannels,
+        declaredOpacity: Bool,
+        format: PartPackageControl.ColorOutputFormat,
+        context: PartTemplateContext,
+        prefersDarkArguments: Bool = false
+    ) -> String? {
+        var color = source
         var includesOpacity = declaredOpacity
 
         for filter in filters {
@@ -690,7 +711,7 @@ nonisolated enum PartTemplateRenderer {
                 continue
             }
             if call.name == "mix", call.arguments.count == 2,
-               let targetValue = colorFilterArgument(call.arguments[0], context: context),
+               let targetValue = colorFilterArgument(call.arguments[0], context: context, prefersDark: prefersDarkArguments),
                let target = PartColorChannels(hex: targetValue),
                let amount = numericFilterArgument(call.arguments[1], context: context) {
                 color = color.mixed(with: target, amount: amount / 100)
@@ -790,11 +811,20 @@ nonisolated enum PartTemplateRenderer {
         return nil
     }
 
-    private static func colorFilterArgument(_ argument: String, context: PartTemplateContext) -> String? {
+    private static func colorFilterArgument(
+        _ argument: String,
+        context: PartTemplateContext,
+        prefersDark: Bool = false
+    ) -> String? {
         let trimmed = argument.trimmingCharacters(in: .whitespacesAndNewlines)
-        if trimmed.hasPrefix("control."),
-           case .string(let source)? = context.allProperties["\(trimmed.dropFirst("control.".count)).__colorSource"] {
-            return source
+        if trimmed.hasPrefix("control.") {
+            let reference = trimmed.dropFirst("control.".count)
+            if prefersDark, case .string(let darkSource)? = context.allProperties["\(reference).__colorSourceDark"] {
+                return darkSource
+            }
+            if case .string(let source)? = context.allProperties["\(reference).__colorSource"] {
+                return source
+            }
         }
         return stringFilterArgument(argument, context: context)
     }

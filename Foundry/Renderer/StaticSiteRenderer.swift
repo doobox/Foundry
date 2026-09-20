@@ -899,6 +899,28 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
                case .object(let fields) = values[definition.key.rawValue] {
                 for (field, value) in fields { values[definition.key.rawValue + "." + field] = value }
             }
+            if case .packageColor(_, let opacity, _, _) = definition.control,
+               case .packageColor(let colorValue) = node.propertyValue(definition.key) {
+                let light = PartPackageColorResolver.channels(colorValue, theme: theme, opacity: opacity, appearance: .light)
+                let dark = PartPackageColorResolver.channels(colorValue, theme: theme, opacity: opacity, appearance: .dark)
+                PartPackageDerivedValueResolver.addThemeColorValues(
+                    for: definition.key.rawValue,
+                    light: light,
+                    dark: dark,
+                    primary: site.appearanceMode == .dark ? .dark : .light,
+                    combinesAppearances: site.appearanceMode == .both,
+                    includesOpacity: opacity,
+                    to: &values
+                )
+                if let format = node.type.definition.package?.manifest.resolvedProperties
+                    .first(where: { $0.id == definition.key.rawValue })?.control.outputFormat,
+                   let light, let dark {
+                    values[definition.key.rawValue] = .string(site.appearanceMode.colour(
+                        light: light.formatted(as: format, includesOpacity: opacity),
+                        dark: dark.formatted(as: format, includesOpacity: opacity)
+                    ))
+                }
+            }
         }
         if let package = node.type.definition.package {
             for property in package.manifest.resolvedProperties where property.control.type == .image {

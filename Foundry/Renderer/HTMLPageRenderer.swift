@@ -610,6 +610,27 @@ nonisolated struct HTMLPageRenderer: PageRendering {
                case .object(let fields) = values[definition.key.rawValue] {
                 for (field, value) in fields { values[definition.key.rawValue + "." + field] = value }
             }
+            if case .packageColor(_, let opacity, _, _) = definition.control,
+               case .packageColor(let colorValue) = node.propertyValue(definition.key) {
+                // The canvas renders one appearance at a time, so unqualified
+                // colour outputs resolve concretely for whichever is on screen.
+                let light = PartPackageColorResolver.channels(colorValue, theme: theme, opacity: opacity, appearance: .light)
+                let dark = PartPackageColorResolver.channels(colorValue, theme: theme, opacity: opacity, appearance: .dark)
+                PartPackageDerivedValueResolver.addThemeColorValues(
+                    for: definition.key.rawValue,
+                    light: light,
+                    dark: dark,
+                    primary: appearance,
+                    combinesAppearances: false,
+                    includesOpacity: opacity,
+                    to: &values
+                )
+                if let format = node.type.definition.package?.manifest.resolvedProperties
+                    .first(where: { $0.id == definition.key.rawValue })?.control.outputFormat,
+                   let current = appearance == .light ? light : dark {
+                    values[definition.key.rawValue] = .string(current.formatted(as: format, includesOpacity: opacity))
+                }
+            }
         }
         if let package = node.type.definition.package {
             for property in package.manifest.resolvedProperties where property.control.type == .image {

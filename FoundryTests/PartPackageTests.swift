@@ -217,6 +217,91 @@ struct PartPackageTests {
         }
     }
 
+    @Test @MainActor func themeColorChannelsFiltersAndFormatsResolveForBothAppearances() throws {
+        let controls = """
+        <dict><key>type</key><string>themeColor</string><key>id</key><string>primary</string>
+        <key>allowsCustom</key><true/><key>customColor</key><string>#FF0000</string>
+        <key>defaults</key><dict><key>base</key><dict><key>palette</key><string>custom</string></dict></dict></dict>
+        <dict><key>type</key><string>themeColor</string><key>id</key><string>formatted</string>
+        <key>allowsCustom</key><true/><key>customColor</key><string>#FF0000</string><key>outputFormat</key><string>rgb</string>
+        <key>defaults</key><dict><key>base</key><dict><key>palette</key><string>custom</string></dict></dict></dict>
+        """
+        let url = try makePackage(
+            manifest: manifest(withControls: controls),
+            template: "<section {{ part.attributes }}>{{ childArea(\"content\") }}</section>",
+            additionalFiles: ["part.css": """
+            :instance {
+                --main: {{ control.primary }};
+                --light-red: {{ control.primary.light.red }};
+                --dark-blue: {{ control.primary.dark.blue }};
+                --light-rgb: {{ control.primary.light.rgbValues }};
+                --contrast: {{ control.primary.contrastColor }};
+                --tint: {{ control.primary | lighten(50) }};
+                --formatted: {{ control.formatted }};
+            }
+            """]
+        )
+        defer { try? FileManager.default.removeItem(at: url) }
+        let package = try PartPackageLoader.load(from: url)
+        PartRegistry.register(package)
+        defer { PartRegistry.unregisterPackage(identifier: package.manifest.identifier) }
+
+        var value = PartPackageColorValue(source: PartThemeValueSelection.manualCustom, customColor: "#FF0000", opacity: 1)
+        value.darkCustomColor = "#0000FF"
+        var node = PartNode(type: .init(rawValue: package.manifest.identifier))
+        node.setProperty(.init(rawValue: "primary"), value: .packageColor(value))
+        var site = Site(name: "Channels", pages: [Page(title: "Home", slug: "index", parts: [node])])
+        site.appearanceMode = .both
+
+        let exported = StaticSiteRenderer().render(site: site)
+        let css = try #require(exported.files.first { $0.contents.contains("--main:") }?.contents)
+        #expect(css.contains("--main: light-dark(#FF0000, #0000FF)"))
+        #expect(css.contains("--light-red: 255"))
+        #expect(css.contains("--dark-blue: 255"))
+        #expect(css.contains("--light-rgb: 255, 0, 0"))
+        #expect(css.contains("--contrast: light-dark(#000000, #FFFFFF)"))
+        #expect(css.contains("--tint: light-dark(#FF8080, #8080FF)"))
+        #expect(css.contains("--formatted: rgb(255 0 0)"))
+
+        // Single-appearance exports and the canvas resolve concretely for one
+        // appearance; the qualified fields stay available and truthful in both.
+        site.appearanceMode = .light
+        let lightOnly = StaticSiteRenderer().render(site: site)
+        let lightCSS = try #require(lightOnly.files.first { $0.contents.contains("--main:") }?.contents)
+        #expect(lightCSS.contains("--main: #FF0000"))
+        #expect(lightCSS.contains("--contrast: #000000"))
+        #expect(lightCSS.contains("--tint: #FF8080"))
+        #expect(lightCSS.contains("--dark-blue: 255"))
+
+        let darkCanvas = HTMLPageRenderer(appearance: .dark).render(page: site.pages[0], theme: site.theme)
+        #expect(darkCanvas.contains("--main: #0000FF"))
+        #expect(darkCanvas.contains("--contrast: #FFFFFF"))
+        #expect(darkCanvas.contains("--tint: #8080FF"))
+        #expect(darkCanvas.contains("--light-red: 255"))
+    }
+
+    @Test func themeColorOutputFormatAcceptsColoursAndRejectsFragments() throws {
+        func packageURL(forFormat format: String) throws -> URL {
+            let controls = """
+            <dict><key>type</key><string>themeColor</string><key>id</key><string>primary</string>
+            <key>outputFormat</key><string>\(format)</string>
+            <key>defaults</key><dict><key>base</key><dict><key>palette</key><string>accent</string></dict></dict></dict>
+            """
+            return try makePackage(
+                manifest: manifest(withControls: controls),
+                template: "<section {{ part.attributes }}>{{ childArea(\"content\") }}</section>",
+                additionalFiles: ["part.css": ":instance { color: {{ control.primary }}; }"]
+            )
+        }
+        let colourFormatURL = try packageURL(forFormat: "rgba")
+        defer { try? FileManager.default.removeItem(at: colourFormatURL) }
+        #expect(throws: Never.self) { try PartPackageLoader.load(from: colourFormatURL) }
+
+        let fragmentFormatURL = try packageURL(forFormat: "rgbValues")
+        defer { try? FileManager.default.removeItem(at: fragmentFormatURL) }
+        #expect(throws: (any Error).self) { try PartPackageLoader.load(from: fragmentFormatURL) }
+    }
+
     @Test @MainActor func themeSpacingLoadsPersistsAndRenders() throws {
         let control = """
         <dict><key>type</key><string>themeSpacing</string><key>id</key><string>themeSpacing</string>

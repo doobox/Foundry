@@ -805,12 +805,23 @@ nonisolated enum PartPackageValidator {
             ))
         }
 
-        if property.control.outputFormat != nil, property.control.type != .color {
-            diagnostics.append(.init(
-                severity: .error,
-                location: "\(location).outputFormat",
-                message: "outputFormat is supported only by color controls."
-            ))
+        if let outputFormat = property.control.outputFormat {
+            let fragmentFormats: Set<PartPackageControl.ColorOutputFormat> = [
+                .hexValue, .rgbValues, .rgbaValues, .hslValues, .hslaValues
+            ]
+            if property.control.type == .themeColor, fragmentFormats.contains(outputFormat) {
+                diagnostics.append(.init(
+                    severity: .error,
+                    location: "\(location).outputFormat",
+                    message: "A themeColor outputs a complete CSS colour so it can adapt between light and dark; use the light/dark qualified fields for \(outputFormat.rawValue)."
+                ))
+            } else if property.control.type != .color, property.control.type != .themeColor {
+                diagnostics.append(.init(
+                    severity: .error,
+                    location: "\(location).outputFormat",
+                    message: "outputFormat is supported only by color and themeColor controls."
+                ))
+            }
         }
         if property.control.type == .color {
             if property.control.themeValues != nil {

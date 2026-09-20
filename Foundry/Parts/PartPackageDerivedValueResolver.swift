@@ -120,6 +120,65 @@ nonisolated enum PartPackageDerivedValueResolver {
         values["\(reference).__colorOpacity"] = .boolean(control.opacity == true)
     }
 
+    /// Derived values for a theme colour, which is a light/dark pair rather than one
+    /// fixed colour. Everything numeric lives behind `.light`/`.dark` qualification —
+    /// a bare number baked into a static file cannot follow an appearance switch.
+    /// Colour-valued outputs (`contrastColor`, filter sources) stay unqualified: on a
+    /// dual-appearance site they combine via `light-dark()`, which the browser
+    /// resolves live, exactly like the control's main output.
+    static func addThemeColorValues(
+        for propertyID: String,
+        light: PartColorChannels?,
+        dark: PartColorChannels?,
+        primary: SiteAppearance,
+        combinesAppearances: Bool,
+        includesOpacity: Bool,
+        to values: inout [String: PartPackageValue]
+    ) {
+        let fragmentFormats: [PartPackageControl.ColorOutputFormat] = [
+            .hexValue, .rgbValues, .rgbaValues, .hslValues, .hslaValues
+        ]
+        for (appearance, color) in [(SiteAppearance.light, light), (.dark, dark)] {
+            guard let color else { continue }
+            let reference = "\(propertyID).\(appearance.rawValue)"
+            values[reference] = .string(color.formatted(as: .hex, includesOpacity: includesOpacity))
+            for (name, value) in color.derivedValues {
+                values["\(reference).\(name)"] = value
+            }
+            for format in fragmentFormats {
+                values["\(reference).\(format.rawValue)"] = .string(
+                    color.formatted(as: format, includesOpacity: includesOpacity)
+                )
+            }
+            values["\(reference).__colorSource"] = .string(color.hex(includesOpacity: true, includesHash: true))
+            values["\(reference).__colorFormat"] = .string(PartPackageControl.ColorOutputFormat.hex.rawValue)
+            values["\(reference).__colorOpacity"] = .boolean(includesOpacity)
+        }
+
+        let primaryColor = primary == .light ? light : dark
+        guard let primaryColor else { return }
+
+        if combinesAppearances, let light, let dark,
+           case .string(let lightContrast)? = light.derivedValues["contrastColor"],
+           case .string(let darkContrast)? = dark.derivedValues["contrastColor"] {
+            values["\(propertyID).contrastColor"] = .string(
+                lightContrast == darkContrast
+                    ? lightContrast
+                    : "light-dark(\(lightContrast), \(darkContrast))"
+            )
+        } else if case .string(let contrast)? = primaryColor.derivedValues["contrastColor"] {
+            values["\(propertyID).contrastColor"] = .string(contrast)
+        }
+
+        values["\(propertyID).__colorSource"] = .string(primaryColor.hex(includesOpacity: true, includesHash: true))
+        values["\(propertyID).__colorFormat"] = .string(PartPackageControl.ColorOutputFormat.hex.rawValue)
+        values["\(propertyID).__colorOpacity"] = .boolean(includesOpacity)
+        if combinesAppearances, primary == .light, let dark,
+           dark.hex(includesOpacity: true, includesHash: true) != primaryColor.hex(includesOpacity: true, includesHash: true) {
+            values["\(propertyID).__colorSourceDark"] = .string(dark.hex(includesOpacity: true, includesHash: true))
+        }
+    }
+
     private static func addDateValues(
         for propertyID: String,
         stored: PartPackageValue,
