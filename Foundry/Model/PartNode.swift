@@ -218,6 +218,29 @@ nonisolated struct PartNode: Codable, Equatable, Identifiable, Sendable {
         responsiveOverrides?.contains(where: { $0.breakpoint == breakpoint && $0.key == key }) == true
     }
 
+    /// The breakpoint whose stored value governs `key` when viewed at `breakpoint`,
+    /// and therefore the write target for edits: overrides are created only by
+    /// pinning, so an ordinary edit fills whichever pin (or developer breakpoint
+    /// default, or the base) the viewed breakpoint currently inherits from — the
+    /// change shows at every breakpoint that inherits the same value.
+    func governingBreakpoint(
+        for key: PartProperty.Key,
+        at breakpoint: ResponsiveBreakpoint,
+        screens: ScreenTokens = .standard
+    ) -> ResponsiveBreakpoint {
+        let definition = type.definition.properties.first { $0.key == key }
+        for candidate in breakpoint.inheritedBreakpoints where candidate.minimumWidth(in: screens) != nil {
+            if responsiveOverrides?.contains(where: { $0.breakpoint == candidate && $0.key == key }) == true {
+                return candidate
+            }
+            if responsiveDefaults?.contains(where: { $0.breakpoint == candidate && $0.key == key }) == true {
+                return candidate
+            }
+            if definition?.breakpointDefaults[candidate] != nil { return candidate }
+        }
+        return .mobile
+    }
+
     func resolved(at breakpoint: ResponsiveBreakpoint, screens: ScreenTokens = .standard) -> PartNode {
         guard breakpoint != .mobile else { return self }
         var copy = self

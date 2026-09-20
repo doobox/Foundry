@@ -205,6 +205,40 @@ struct PartPackageTests {
         #expect(disabledExport.files.contains { $0.contents.contains("gap: 24px") })
     }
 
+    @Test @MainActor func editsTargetTheGoverningBreakpointNotTheViewedOne() throws {
+        let controls = """
+        <dict><key>type</key><string>number</string><key>id</key><string>gap</string><key>responsive</key><true/>
+        <key>defaults</key><dict><key>base</key><integer>4</integer><key>medium</key><integer>12</integer></dict></dict>
+        """
+        let url = try makePackage(manifest: manifest(withControls: controls), template: "<section {{ part.attributes }}>{{ childArea(\"content\") }}</section>")
+        defer { try? FileManager.default.removeItem(at: url) }
+        let package = try PartPackageLoader.load(from: url)
+        PartRegistry.register(package)
+        defer { PartRegistry.unregisterPackage(identifier: package.manifest.identifier) }
+
+        var node = PartNode(type: .init(rawValue: package.manifest.identifier))
+        let key = PartProperty.Key(rawValue: "gap")
+
+        // With no pins, everything below the developer's medium default inherits
+        // the base; medium and above are governed by that declared default.
+        #expect(node.governingBreakpoint(for: key, at: .small) == .mobile)
+        #expect(node.governingBreakpoint(for: key, at: .medium) == .medium)
+        #expect(node.governingBreakpoint(for: key, at: .extraLarge) == .medium)
+
+        // A pin at large captures the flow from that width up.
+        node.setResponsiveProperty(key, value: .number(20), at: .large)
+        #expect(node.governingBreakpoint(for: key, at: .extraLarge) == .large)
+        #expect(node.governingBreakpoint(for: key, at: .medium) == .medium)
+        #expect(node.governingBreakpoint(for: key, at: .small) == .mobile)
+
+        // Disabled screens drop out of the walk entirely.
+        node.removeResponsiveOverride(key, at: .large)
+        var screens = ScreenTokens.standard
+        screens.update(.medium) { $0.isEnabled = false }
+        #expect(node.governingBreakpoint(for: key, at: .extraLarge, screens: screens) == .mobile)
+        #expect(node.governingBreakpoint(for: key, at: .extraLarge) == .medium)
+    }
+
     @Test func defaultsSchemaRejectsInvalidContracts() throws {
         for fields in [
             "<key>default</key><integer>1</integer>",

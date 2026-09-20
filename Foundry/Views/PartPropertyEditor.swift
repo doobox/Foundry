@@ -1001,22 +1001,41 @@ struct PartPropertyEditor: View {
         key: PartProperty.Key? = nil
     ) {
         let key = key ?? definition.key
-        let effectiveBreakpoint = effectiveBreakpoint(for: key)
-        if selectedParts.count > 1 {
-            let ids = selectedParts.map(\.id)
-            if effectiveBreakpoint == .mobile {
-                editor.setProperties(ids: ids, key: key, value: value)
-            } else {
-                editor.setResponsiveProperties(
-                    ids: ids,
-                    key: key,
-                    value: value,
-                    breakpoint: effectiveBreakpoint
-                )
+        // Overrides are created only by pinning the blue dot; an ordinary edit
+        // writes to whichever pin (or the base) governs the viewed breakpoint,
+        // so the change flows to every breakpoint inheriting that value.
+        if selectedParts.count > 1, effectiveBreakpoint(for: key) != .mobile {
+            let groups = Dictionary(grouping: selectedParts) {
+                $0.governingBreakpoint(for: key, at: breakpoint, screens: framework.screens)
+            }
+            for target in ResponsiveBreakpoint.allCases where groups[target] != nil {
+                write(value, key: key, at: target, ids: groups[target]!.map(\.id))
             }
             return
         }
-        if effectiveBreakpoint == .mobile {
+        let target = effectiveBreakpoint(for: key) == .mobile
+            ? .mobile
+            : part.governingBreakpoint(for: key, at: breakpoint, screens: framework.screens)
+        write(value, key: key, at: target)
+    }
+
+    /// Routes a write to the given breakpoint's store, preserving the existing
+    /// multi-selection and shared-definition paths. `.mobile` means the base value.
+    private func write(
+        _ value: PartProperty.Value,
+        key: PartProperty.Key,
+        at target: ResponsiveBreakpoint,
+        ids: [UUID]? = nil
+    ) {
+        if let ids = ids ?? (selectedParts.count > 1 ? selectedParts.map(\.id) : nil) {
+            if target == .mobile {
+                editor.setProperties(ids: ids, key: key, value: value)
+            } else {
+                editor.setResponsiveProperties(ids: ids, key: key, value: value, breakpoint: target)
+            }
+            return
+        }
+        if target == .mobile {
             if editsSharedDefinition {
                 editor.setSharedReusableProperty(partID: part.id, key: key, value: value)
             } else {
@@ -1027,10 +1046,10 @@ struct PartPropertyEditor: View {
                 partID: part.id,
                 key: key,
                 value: value,
-                breakpoint: effectiveBreakpoint
+                breakpoint: target
             )
         } else {
-            editor.setResponsiveProperty(id: part.id, key: key, value: value, breakpoint: effectiveBreakpoint)
+            editor.setResponsiveProperty(id: part.id, key: key, value: value, breakpoint: target)
         }
     }
 
@@ -1062,7 +1081,9 @@ struct PartPropertyEditor: View {
         if part.hasResponsiveOverride(key, at: breakpoint) {
             removeOverride(for: key)
         } else {
-            setProperty(part.propertyValue(key, at: breakpoint, screens: framework.screens), key: key)
+            // Pinning stores exactly at the viewed breakpoint, capturing the value
+            // currently showing there — the one write that may create an override.
+            write(part.propertyValue(key, at: breakpoint, screens: framework.screens), key: key, at: breakpoint)
         }
     }
 

@@ -714,10 +714,13 @@ struct InspectorResponsiveIndicator: View {
 
     var body: some View {
         Button(action: toggle) {
+            // The visible dot is 8pt; the padded rectangle is the real click
+            // target, kept honest rather than a negative-inset content shape.
             Circle()
                 .fill(isOverridden ? Color.accentColor : Color.secondary.opacity(0.35))
                 .frame(width: 8, height: 8)
-                .contentShape(Circle().inset(by: -5))
+                .padding(7)
+                .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .opacity(isVisible ? 1 : 0)
@@ -729,8 +732,8 @@ struct InspectorResponsiveIndicator: View {
 
     private var helpText: String {
         isOverridden
-            ? "Using a custom value at \(breakpointName). Click to inherit."
-            : "Inherited at \(breakpointName). Click to create an override."
+            ? "Value set at \(breakpointName); it applies upward until the next set breakpoint. Click to remove and inherit."
+            : "Inheriting. Edits change the inherited value; click to set a value at \(breakpointName)."
     }
 
     private var accessibilityValue: String {
