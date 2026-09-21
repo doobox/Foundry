@@ -3,9 +3,9 @@ import Foundation
 nonisolated enum ColourPaletteDefaults {
     static func make(colors: ColorTokens) -> [ColourPalette] {
         let roles: [(String, String, String, Int)] = [
-            ("page", "Page", colors.background, 0),
-            ("background", "Background", colors.background, 0), ("surface", "Surface", colors.surface, 0),
-            ("text", "Text", colors.text, 9), ("muted-text", "Muted Text", "#64748B", 5),
+            ("page", "Page", colors.background, 0), ("surface", "Surface", colors.surface, 0),
+            ("text", "Text", colors.text, 9), ("muted", "Muted", "#64748B", 5),
+            ("brand", "Brand", colors.accent, 5),
             ("accent", "Accent", colors.accent, 5), ("links", "Links", colors.links, 6)]
         return roles.map { make(id: "framework." + $0.0, name: $0.1, hex: $0.2, origin: .framework, anchor: $0.3) } + standard
     }

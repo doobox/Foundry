@@ -321,15 +321,15 @@ nonisolated struct ColorTokens: Codable, Equatable, Sendable {
 
 nonisolated enum FrameworkColorRole: String, Codable, CaseIterable, Identifiable, Sendable {
     case page
-    case background
     case surface
     case text
-    case mutedText = "muted-text"
+    case muted
+    case brand
     case accent
     case links
 
     var id: String { rawValue }
-    var title: String { self == .mutedText ? "Muted Text" : rawValue.capitalized }
+    var title: String { rawValue.capitalized }
 }
 
 nonisolated struct SpacingTokens: Codable, Equatable, Sendable {
@@ -750,10 +750,10 @@ nonisolated extension Framework {
         }
         return switch role {
         case .page: colourPalettes.resolvedPalette(id: "framework.page")?.colour(at: .default) ?? "#000000"
-        case .background: colors.background
         case .surface: colors.surface
         case .text: colors.text
-        case .mutedText: colourPalettes.resolvedPalette(id: "framework.muted-text")?.colour(at: .default) ?? colors.text
+        case .muted: colourPalettes.resolvedPalette(id: "framework.muted")?.colour(at: .default) ?? colors.text
+        case .brand: colourPalettes.resolvedPalette(id: "framework.brand")?.colour(at: .default) ?? colors.accent
         case .accent: colors.accent
         case .links: colors.links
         }

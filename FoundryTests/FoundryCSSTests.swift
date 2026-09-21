@@ -26,7 +26,7 @@ struct FoundryCSSTests {
 
     @Test func tokensIncludeEveryFrameworkScaleAndTheReservedAdditions() {
         let css = build(.standard)
-        for token in ["--foundry-color-page:", "--foundry-color-muted-text:", "--foundry-font-body:",
+        for token in ["--foundry-color-page:", "--foundry-color-muted:", "--foundry-color-brand:", "--foundry-font-body:",
                       "--foundry-font-size-base:", "--foundry-space-sm:", "--foundry-border-radius-md:",
                       "--foundry-border-width-sm:", "--foundry-z-index-", "--foundry-motion-fast:150ms",
                       "--foundry-motion-ease:cubic-bezier", "--foundry-focus-ring:2px solid var(--foundry-color-accent)",
@@ -49,7 +49,7 @@ struct FoundryCSSTests {
         #expect(css.contains("h1,h2,h3,h4,h5,h6,p,figure,dl,dd{margin:0}"))
         #expect(css.contains("ul,ol,menu{margin:0;padding-inline-start:var(--foundry-space-lg)}"))
         #expect(css.contains("border-width:0;border-style:solid;border-color:currentColor"))
-        #expect(css.contains("::placeholder{color:var(--foundry-color-muted-text);opacity:1}"))
+        #expect(css.contains("::placeholder{color:var(--foundry-color-muted);opacity:1}"))
         // Plain HTML content with no part CSS still styles from tokens.
         #expect(css.contains("hr{border:none;border-top:1px solid color-mix(in srgb, var(--foundry-color-text) 20%, transparent);margin-block:var(--foundry-space-lg)}"))
         #expect(css.contains("blockquote{margin:var(--foundry-space-lg) 0;"))
@@ -67,7 +67,7 @@ struct FoundryCSSTests {
         #expect(css.contains(".fd-p-hero-gap{padding:var("))
         #expect(css.contains(".fd-text-2xl{font-size:var(--foundry-font-size-2xl);line-height:var(--foundry-font-size-2xl-line-height)}"))
         #expect(css.contains(".fd-bg-surface{background-color:var(--foundry-color-surface)}"))
-        #expect(css.contains(".fd-text-muted-text{color:var(--foundry-color-muted-text)}"))
+        #expect(css.contains(".fd-text-muted{color:var(--foundry-color-muted)}"))
         #expect(css.contains(".fd-radius-full{border-radius:var(--foundry-border-radius-full)}"))
         #expect(css.contains(".fd-border-sm{border:var(--foundry-border-width-sm) solid}"))
         #expect(css.contains(".fd-container{width:100%;max-width:var(--foundry-container-width);margin-inline:auto}"))

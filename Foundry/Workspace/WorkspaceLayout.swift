@@ -44,7 +44,7 @@ nonisolated enum WorkspacePanel: String, Codable, CaseIterable, Identifiable, Se
     var systemImage: String {
         switch self {
         case .pages: "doc.on.doc"
-        case .parts: "puzzlepiece"
+        case .parts: "diamond"
         case .reusableParts: "rectangle.3.group"
         case .globalParts: "globe"
         case .structure: "list.bullet.indent"

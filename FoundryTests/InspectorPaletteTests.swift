@@ -36,12 +36,12 @@ struct InspectorPaletteTests {
         await PartPackageCatalog.shared.waitUntilLoaded()
         var site = Site.starter()
         site.appearanceMode = .both
-        let index = try #require(site.framework.colourPalettes.firstIndex { $0.id == "framework.background" })
+        let index = try #require(site.framework.colourPalettes.firstIndex { $0.id == "framework.surface" })
         var shades = site.framework.colourPalettes[index].shades
         shades[1] = "#123456"
         shades[8] = "#ABCDEF"
         try site.framework.colourPalettes[index].replaceShades(shades)
-        let value = PartPackageColorValue(source: "background", customColor: "#000000", opacity: 1,
+        let value = PartPackageColorValue(source: "surface", customColor: "#000000", opacity: 1,
                                               shade: .two, darkShade: .nine)
         site.framework.colourPalettes[index].setLightDefault(.four)
         site.framework.colourPalettes[index].setDarkDefault(.seven)
@@ -65,13 +65,13 @@ struct InspectorPaletteTests {
     @Test func newPartsCaptureActiveFrameworkDefaultOnce() async throws {
         await PartPackageCatalog.shared.waitUntilLoaded()
         var framework = Framework.standard
-        let index = try #require(framework.colourPalettes.firstIndex { $0.id == "framework.background" })
+        let index = try #require(framework.colourPalettes.firstIndex { $0.id == "framework.surface" })
         framework.colourPalettes[index].setLightDefault(.three)
         var node = PartNode.make(.container)
         // The built-in container starts with a literal colour. Supply a framework-role
         // declaration and exercise the same initialisation used by make(_:framework:).
         node.setProperty(.backgroundColor, value: .packageColor(.init(
-            source: "background", customColor: "#000000", opacity: 1)))
+            source: "surface", customColor: "#000000", opacity: 1)))
         node.selectInitialColourShades(from: framework)
         guard case .packageColor(let value) = node.propertyValue(.backgroundColor) else {
             Issue.record("Expected a palette colour"); return
@@ -92,13 +92,13 @@ struct InspectorPaletteTests {
     @Test func canvasAndExportIgnoreMatchingCustomNamesForStableReferences() async throws {
         await PartPackageCatalog.shared.waitUntilLoaded()
         var site = Site.starter()
-        let original = try #require(site.framework.colourPalettes.first { $0.id == "framework.background" })
+        let original = try #require(site.framework.colourPalettes.first { $0.id == "framework.surface" })
         var custom = try original.duplicated()
         custom.name = original.name
         try custom.replaceShades(Array(repeating: "#193A5C", count: 11))
         site.framework.colourPalettes.insert(custom, at: 0)
         var node = PartNode.make(.container)
-        node.setProperty(.backgroundColor, value: .packageColor(.init(source: "background",
+        node.setProperty(.backgroundColor, value: .packageColor(.init(source: "surface",
             customColor: "#000000", opacity: 1)))
         let page = Page(title: "Override", slug: "index", parts: [node])
         site.pages = [page]

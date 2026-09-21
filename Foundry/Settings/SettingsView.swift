@@ -30,6 +30,30 @@ struct SettingsView: View {
     }
 }
 
+/// Sizes a settings tab to its content, and only allows scrolling once the
+/// content outgrows the cap — so tabs fit exactly today and the window never
+/// turns comically tall as preferences accumulate.
+private struct SettingsPane<Content: View>: View {
+    private static var width: CGFloat { 560 }
+    private static var maximumHeight: CGFloat { 640 }
+
+    @State private var contentHeight: CGFloat = 200
+    @ViewBuilder let content: () -> Content
+
+    var body: some View {
+        Form(content: content)
+            .formStyle(.grouped)
+            .scrollDisabled(contentHeight <= Self.maximumHeight)
+            .onScrollGeometryChange(for: CGFloat.self) { geometry in
+                geometry.contentSize.height
+            } action: { _, height in
+                contentHeight = height
+            }
+            .frame(width: Self.width)
+            .frame(height: min(contentHeight, Self.maximumHeight))
+    }
+}
+
 private struct GeneralSettingsView: View {
     @AppStorage(AppPreferenceKey.appearance)
     private var appearance: AppAppearance = .system
@@ -40,7 +64,7 @@ private struct GeneralSettingsView: View {
     @AppStorage(AppPreferenceKey.automaticallyChecksPartUpdates)
     private var automaticallyChecksPartUpdates = false
     var body: some View {
-        Form {
+        SettingsPane {
             Section("Appearance") {
                 Picker("Appearance", selection: $appearance) {
                     ForEach(AppAppearance.allCases) { option in
@@ -95,8 +119,6 @@ private struct GeneralSettingsView: View {
                     .foregroundStyle(.secondary)
             }
         }
-        .formStyle(.grouped)
-        .frame(width: 560, height: 470)
     }
 
     @State private var libraryFolderPath = FoundryLibraryLocation.customPath
@@ -158,7 +180,7 @@ private struct DeveloperSettingsView: View {
     private var showsHiddenParts = false
 
     var body: some View {
-        Form {
+        SettingsPane {
             Section("Parts") {
                 Toggle("Enable Developer Tools", isOn: $enablesDeveloperTools)
                 Text("Adds part development tools, including the developer panel and pack conversion controls.")
@@ -189,8 +211,6 @@ private struct DeveloperSettingsView: View {
                     .foregroundStyle(.secondary)
             }
         }
-        .formStyle(.grouped)
-        .frame(width: 560, height: 340)
         .onChange(of: partValidationMode) {
             PartPackageCatalog.shared.reloadAllPacks()
         }
@@ -206,7 +226,7 @@ private struct PreviewSettingsView: View {
     @State private var defaultApplication: PreviewApplication?
 
     var body: some View {
-        Form {
+        SettingsPane {
             Section("Live Preview") {
                 Toggle(
                     "Live Browser Preview",
@@ -221,6 +241,12 @@ private struct PreviewSettingsView: View {
                 Picker("Open previews with", selection: $selectedApplicationIdentifier) {
                     DefaultPreviewApplicationLabel(application: defaultApplication)
                         .tag(PreviewApplicationSelection.systemDefault)
+                    // Keeps the stored choice valid while the application list
+                    // is still loading, or after that browser was uninstalled.
+                    if hasMissingSelection {
+                        Text(selectedApplicationIdentifier)
+                            .tag(selectedApplicationIdentifier)
+                    }
                     Divider()
                     ForEach(applications) { application in
                         Label {
@@ -237,11 +263,14 @@ private struct PreviewSettingsView: View {
                     .foregroundStyle(.secondary)
             }
         }
-        .formStyle(.grouped)
-        .frame(width: 560, height: 260)
         .task {
             refreshApplications()
         }
+    }
+
+    private var hasMissingSelection: Bool {
+        selectedApplicationIdentifier != PreviewApplicationSelection.systemDefault
+            && !applications.contains { $0.bundleIdentifier == selectedApplicationIdentifier }
     }
 
     private func refreshApplications() {

@@ -79,7 +79,7 @@ nonisolated enum FoundryCSS {
         legend{padding:0}
         img,picture,video,canvas,svg{display:block;max-width:100%}
         input,button,textarea,select{font:inherit;color:inherit;margin:0}
-        ::placeholder{color:var(--foundry-color-muted-text);opacity:1}
+        ::placeholder{color:var(--foundry-color-muted);opacity:1}
         b,strong{font-weight:bolder}
         sub,sup{font-size:75%;line-height:0;position:relative;vertical-align:baseline}
         sub{bottom:-0.25em}
@@ -96,7 +96,7 @@ nonisolated enum FoundryCSS {
         h6{font-size:var(--foundry-font-size-base);line-height:var(--foundry-font-size-base-line-height)}
         code,pre,kbd,samp{font-family:var(--foundry-font-monospace);font-size:1em}
         hr{border:none;border-top:1px solid color-mix(in srgb, var(--foundry-color-text) 20%, transparent);margin-block:var(--foundry-space-lg)}
-        blockquote{margin:var(--foundry-space-lg) 0;padding-inline-start:var(--foundry-space-md);border-inline-start:2px solid color-mix(in srgb, var(--foundry-color-text) 20%, transparent);color:var(--foundry-color-muted-text)}
+        blockquote{margin:var(--foundry-space-lg) 0;padding-inline-start:var(--foundry-space-md);border-inline-start:2px solid color-mix(in srgb, var(--foundry-color-text) 20%, transparent);color:var(--foundry-color-muted)}
         table{border-collapse:collapse}
         th,td{border:1px solid color-mix(in srgb, var(--foundry-color-text) 20%, transparent);padding:var(--foundry-space-2xs) var(--foundry-space-xs);text-align:start}
         .fd-image{display:block;width:100%;height:auto}

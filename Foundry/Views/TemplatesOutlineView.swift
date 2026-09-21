@@ -3,7 +3,7 @@ import SwiftUI
 
 /// Which library the outline presents — decides how part rows serialize onto
 /// the pasteboard when dragged to the canvas or Structure.
-enum ReusablePartsOutlineKind {
+enum TemplatesOutlineKind {
     case templates
     case globals
 
@@ -29,22 +29,42 @@ enum ReusablePartsOutlineKind {
         case .globals: WorkspacePanel.globalParts.systemImage
         }
     }
+
+    fileprivate var partNoun: String {
+        switch self {
+        case .templates: "Template"
+        case .globals: "Global"
+        }
+    }
 }
 
-struct ReusablePartsOutlineView: NSViewRepresentable {
-    let kind: ReusablePartsOutlineKind
+struct TemplatesOutlineView: NSViewRepresentable {
+    let kind: TemplatesOutlineKind
     let nodes: [ReusablePartNode]
     @Binding var selectedNodeID: UUID?
     let moveNode: (UUID, ReusablePartPlacement) -> Bool
     /// Canvas or Structure part payloads dropped on the panel; returns whether
     /// they were saved as reusable parts.
     let saveDroppedParts: ([UUID]) -> Bool
+    let renameDefinition: (UUID, String) -> Void
+    let renameFolder: (UUID, String) -> Void
+    let duplicateDefinition: (UUID) -> Void
+    /// Templates live on disk and can reveal their bundle; globals pass nil.
+    let revealDefinition: ((UUID) -> Void)?
+    /// Deletion is confirmed by the panel, not performed here.
+    let requestDelete: (UUID) -> Void
 
     func makeCoordinator() -> Coordinator { Coordinator(parent: self) }
 
     func makeNSView(context: Context) -> NSScrollView {
         let column = NSTableColumn(identifier: .reusablePartColumn)
-        let outlineView = NSOutlineView()
+        let outlineView = LibraryListOutlineView()
+        outlineView.onDeleteKey = { [weak coordinator = context.coordinator] in
+            coordinator?.deleteSelectedNode()
+        }
+        outlineView.onRenameKey = { [weak coordinator = context.coordinator] in
+            coordinator?.renameSelectedNode()
+        }
         outlineView.addTableColumn(column)
         outlineView.outlineTableColumn = column
         outlineView.headerView = nil
@@ -58,6 +78,9 @@ struct ReusablePartsOutlineView: NSViewRepresentable {
         outlineView.registerForDraggedTypes([.reusablePartNode, .string])
         outlineView.setDraggingSourceOperationMask([.copy, .move], forLocal: true)
         outlineView.setDraggingSourceOperationMask(.copy, forLocal: false)
+        let contextMenu = NSMenu()
+        contextMenu.delegate = context.coordinator
+        outlineView.menu = contextMenu
 
         let scrollView = NSScrollView()
         scrollView.documentView = outlineView
@@ -77,15 +100,15 @@ struct ReusablePartsOutlineView: NSViewRepresentable {
     }
 
     @MainActor
-    final class Coordinator: NSObject, NSOutlineViewDataSource, NSOutlineViewDelegate {
-        var parent: ReusablePartsOutlineView
+    final class Coordinator: NSObject, NSOutlineViewDataSource, NSOutlineViewDelegate, NSMenuDelegate, NSTextFieldDelegate {
+        var parent: TemplatesOutlineView
         weak var outlineView: NSOutlineView?
         private var roots: [ReusablePartOutlineItem] = []
         private var itemsByID: [UUID: ReusablePartOutlineItem] = [:]
         private var displayedSignature: [String] = []
         private var isRestoringSelection = false
 
-        init(parent: ReusablePartsOutlineView) { self.parent = parent }
+        init(parent: TemplatesOutlineView) { self.parent = parent }
 
         func reload(nodes: [ReusablePartNode], selectedNodeID: UUID?) {
             let signature = flattenedSignature(nodes)
@@ -120,11 +143,111 @@ struct ReusablePartsOutlineView: NSViewRepresentable {
             let cell = outlineView.makeView(withIdentifier: identifier, owner: nil) as? NSTableCellView
                 ?? makeCell(identifier: identifier)
             cell.textField?.stringValue = item.title
+            cell.textField?.identifier = NSUserInterfaceItemIdentifier(item.id.uuidString)
+            cell.textField?.delegate = self
             cell.imageView?.image = NSImage(
                 systemSymbolName: item.isFolder ? "folder" : parent.kind.partSystemImage,
                 accessibilityDescription: item.title
             )
             return cell
+        }
+
+        func controlTextDidEndEditing(_ notification: Notification) {
+            guard let textField = notification.object as? NSTextField,
+                  let identifier = textField.identifier?.rawValue,
+                  let itemID = UUID(uuidString: identifier),
+                  let item = itemsByID[itemID] else { return }
+            let title = textField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !title.isEmpty else {
+                textField.stringValue = item.title
+                return
+            }
+            guard title != item.title else { return }
+            if item.isFolder {
+                parent.renameFolder(item.id, title)
+            } else {
+                parent.renameDefinition(item.id, title)
+            }
+        }
+
+        func menuNeedsUpdate(_ menu: NSMenu) {
+            menu.removeAllItems()
+            guard let outlineView,
+                  outlineView.clickedRow >= 0,
+                  let item = outlineView.item(atRow: outlineView.clickedRow) as? ReusablePartOutlineItem else {
+                return
+            }
+            selectRow(of: item)
+            let renameItem = NSMenuItem(title: "Rename", action: #selector(renameFromContextMenu(_:)), keyEquivalent: "\r")
+            renameItem.keyEquivalentModifierMask = []
+            renameItem.target = self
+            renameItem.representedObject = item.id
+            menu.addItem(renameItem)
+            if !item.isFolder {
+                let duplicateItem = NSMenuItem(title: "Duplicate", action: #selector(duplicateFromContextMenu(_:)), keyEquivalent: "")
+                duplicateItem.target = self
+                duplicateItem.representedObject = item.id
+                menu.addItem(duplicateItem)
+                if parent.revealDefinition != nil {
+                    let revealItem = NSMenuItem(title: "Show in Finder", action: #selector(revealFromContextMenu(_:)), keyEquivalent: "")
+                    revealItem.target = self
+                    revealItem.representedObject = item.id
+                    menu.addItem(revealItem)
+                }
+            }
+            menu.addItem(.separator())
+            let deleteTitle = item.isFolder ? "Delete Folder…" : "Delete \(parent.kind.partNoun)…"
+            let deleteItem = NSMenuItem(title: deleteTitle, action: #selector(deleteFromContextMenu(_:)), keyEquivalent: "")
+            deleteItem.target = self
+            deleteItem.representedObject = item.id
+            menu.addItem(deleteItem)
+        }
+
+        @objc private func renameFromContextMenu(_ sender: NSMenuItem) {
+            guard let id = sender.representedObject as? UUID, let item = itemsByID[id] else { return }
+            beginRenaming(item)
+        }
+
+        @objc private func duplicateFromContextMenu(_ sender: NSMenuItem) {
+            guard let id = sender.representedObject as? UUID else { return }
+            parent.duplicateDefinition(id)
+        }
+
+        @objc private func revealFromContextMenu(_ sender: NSMenuItem) {
+            guard let id = sender.representedObject as? UUID else { return }
+            parent.revealDefinition?(id)
+        }
+
+        @objc private func deleteFromContextMenu(_ sender: NSMenuItem) {
+            guard let id = sender.representedObject as? UUID else { return }
+            parent.requestDelete(id)
+        }
+
+        func renameSelectedNode() {
+            guard let outlineView, outlineView.selectedRow >= 0,
+                  let item = outlineView.item(atRow: outlineView.selectedRow) as? ReusablePartOutlineItem else { return }
+            beginRenaming(item)
+        }
+
+        func deleteSelectedNode() {
+            guard let outlineView, outlineView.selectedRow >= 0,
+                  let item = outlineView.item(atRow: outlineView.selectedRow) as? ReusablePartOutlineItem else { return }
+            parent.requestDelete(item.id)
+        }
+
+        private func beginRenaming(_ item: ReusablePartOutlineItem) {
+            guard let outlineView else { return }
+            selectRow(of: item)
+            let row = outlineView.row(forItem: item)
+            guard row >= 0 else { return }
+            outlineView.editColumn(0, row: row, with: nil, select: true)
+        }
+
+        private func selectRow(of item: ReusablePartOutlineItem) {
+            guard let outlineView else { return }
+            let row = outlineView.row(forItem: item)
+            guard row >= 0 else { return }
+            outlineView.selectRowIndexes(IndexSet(integer: row), byExtendingSelection: false)
         }
 
         func outlineViewSelectionDidChange(_ notification: Notification) {
@@ -223,6 +346,8 @@ struct ReusablePartsOutlineView: NSViewRepresentable {
             let imageView = NSImageView()
             imageView.symbolConfiguration = .init(pointSize: 14, weight: .regular)
             let textField = NSTextField(labelWithString: "")
+            textField.isEditable = true
+            textField.isSelectable = true
             textField.lineBreakMode = .byTruncatingTail
             imageView.translatesAutoresizingMaskIntoConstraints = false
             textField.translatesAutoresizingMaskIntoConstraints = false
@@ -288,6 +413,32 @@ struct ReusablePartsOutlineView: NSViewRepresentable {
                 }
             }
         }
+    }
+}
+
+/// Outline view that forwards Delete / forward-delete and Return key presses
+/// so the panel can remove or rename the selected item.
+private final class LibraryListOutlineView: NSOutlineView {
+    var onDeleteKey: (() -> Void)?
+    var onRenameKey: (() -> Void)?
+
+    override func keyDown(with event: NSEvent) {
+        let hasPlainModifiers = event.modifierFlags
+            .intersection([.command, .option, .control, .shift])
+            .isEmpty
+        if hasPlainModifiers, selectedRow >= 0, currentEditor() == nil {
+            if let scalar = event.charactersIgnoringModifiers?.unicodeScalars.first,
+               scalar == "\u{7F}" || scalar.value == UInt32(NSDeleteFunctionKey) {
+                onDeleteKey?()
+                return
+            }
+            // Return and keypad Enter begin renaming, matching the Pages panel.
+            if [36, 76].contains(event.keyCode) {
+                onRenameKey?()
+                return
+            }
+        }
+        super.keyDown(with: event)
     }
 }
 

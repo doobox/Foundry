@@ -26,6 +26,26 @@ struct PagesPanel: View {
     @State private var folderName = ""
     @State private var folderPlacement: PageTreePlacement?
     @State private var folderPendingDeletion: UUID?
+    @State private var searchText = ""
+
+    private var isSearching: Bool {
+        !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    /// Searching filters the same tree down to matching pages as a flat list;
+    /// folders and page-placed assets drop out until the search clears.
+    private var displayedPages: [Page] {
+        let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !query.isEmpty else { return pages }
+        return pages
+            .filter { $0.title.localizedCaseInsensitiveContains(query) }
+            .map { page in
+                var flattened = page
+                flattened.folderID = nil
+                flattened.parentPageID = nil
+                return flattened
+            }
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -42,9 +62,9 @@ struct PagesPanel: View {
             Divider()
 
             PagesOutlineView(
-                pages: pages,
-                folders: folders,
-                assets: assets,
+                pages: displayedPages,
+                folders: isSearching ? [] : folders,
+                assets: isSearching ? [] : assets,
                 publishingChanges: publishingChanges,
                 selectedPageID: $selectedPageID,
                 selectedFolderID: $selectedFolderID,
@@ -69,17 +89,25 @@ struct PagesPanel: View {
                 deletePage: deletePage,
                 movePage: movePage,
                 setHomePage: setHomePage,
-                moveItem: moveTreeItem,
+                // Reordering a filtered list would silently reorganize the
+                // real tree; moves resume when the search clears.
+                moveItem: { item, placement in
+                    isSearching ? false : moveTreeItem(item, placement)
+                },
                 importURLs: importURLs
             )
             .padding(.top, 12)
             .overlay {
-                if pages.isEmpty && folders.isEmpty {
+                if isSearching, displayedPages.isEmpty {
+                    ContentUnavailableView.search(text: searchText)
+                        .allowsHitTesting(false)
+                } else if pages.isEmpty && folders.isEmpty {
                     ContentUnavailableView("No Pages", systemImage: "doc")
                         .allowsHitTesting(false)
                 }
             }
-
+            Divider()
+            PanelSearchField(prompt: "Search Pages", text: $searchText)
         }
         .alert("New Folder", isPresented: $isNamingFolder) {
             TextField("Folder Name", text: $folderName)
@@ -169,6 +197,11 @@ struct PartLibraryPanel: View {
     private var arrangementValue = PartLibraryArrangement.group.rawValue
     @AppStorage(AppPreferenceKey.showsHiddenParts)
     private var showsHiddenParts = false
+    @State private var searchText = ""
+
+    private var isSearching: Bool {
+        !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
 
     var body: some View {
         let _ = catalog.revision
@@ -255,6 +288,14 @@ struct PartLibraryPanel: View {
                     .padding(10)
                 }
                 .frame(maxHeight: .infinity)
+                .overlay {
+                    if isSearching, partSections.isEmpty {
+                        ContentUnavailableView.search(text: searchText)
+                            .allowsHitTesting(false)
+                    }
+                }
+                Divider()
+                PanelSearchField(prompt: "Search Parts", text: $searchText)
             }
 
         }
@@ -279,7 +320,11 @@ struct PartLibraryPanel: View {
     }
 
     private var partSections: [PartLibrarySection] {
-        let types = availableTypes
+        var types = availableTypes
+        let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !query.isEmpty {
+            types = types.filter { $0.displayName.localizedCaseInsensitiveContains(query) }
+        }
         switch arrangement {
         case .group:
             return groupSections(for: types)
@@ -532,27 +577,31 @@ nonisolated private enum PartLibraryIconSize: String, CaseIterable, Identifiable
 
 struct DeveloperPanel: View {
     @State private var catalog = PartPackageCatalog.shared
-    @State private var selection = DeveloperPanelSection.issues
     @Environment(\.openWindow) private var openWindow
 
     var body: some View {
         let _ = catalog.revision
         VStack(spacing: 0) {
-            Picker("Developer tools", selection: $selection) {
-                ForEach(DeveloperPanelSection.allCases) { section in
-                    Text(section.title).tag(section)
+            HStack {
+                Text("Developer")
+                    .font(.headline)
+                Spacer()
+                Menu {
+                    Button("Parts Updater") {
+                        openWindow(id: "part-updates")
+                    }
+                } label: {
+                    Image(systemName: "gearshape")
+                        .frame(width: 22, height: 22)
+                        .contentShape(Rectangle())
                 }
+                .menuStyle(.borderlessButton)
+                .menuIndicator(.hidden)
+                .fixedSize()
+                .help("Developer tools")
             }
-            .buttonSizing(.flexible)
-            .pickerStyle(.palette)
-            .controlSize(.small)
-            .labelsHidden()
-            .padding(12)
-            .onChange(of: selection) { _, newSelection in
-                guard newSelection == .updater else { return }
-                openWindow(id: "part-updates")
-                selection = .issues
-            }
+            .padding(.horizontal, 12)
+            .frame(height: 38)
 
             Divider()
 
@@ -603,14 +652,6 @@ struct DeveloperPanel: View {
         }
         return parts.joined(separator: ", ")
     }
-}
-
-private enum DeveloperPanelSection: String, CaseIterable, Identifiable {
-    case issues
-    case updater
-
-    var id: Self { self }
-    var title: String { rawValue.capitalized }
 }
 
 private struct DeveloperIssuesView: View {
@@ -1217,6 +1258,69 @@ private struct PartLibrarySection: Identifiable {
     let types: [PartType]
 }
 
+/// The shared bottom-of-panel search field: filters the panel's own list in
+/// place. The clear button is always laid out so the row never changes height.
+struct PanelSearchField: View {
+    let prompt: String
+    @Binding var text: String
+
+    private var hasText: Bool {
+        !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "magnifyingglass")
+                .foregroundStyle(.secondary)
+            TextField(prompt, text: $text)
+                .textFieldStyle(.plain)
+            Button {
+                text = ""
+            } label: {
+                Image(systemName: "xmark.circle.fill")
+                    .foregroundStyle(.secondary)
+                    .frame(width: 22, height: 22)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Clear search")
+            .opacity(hasText ? 1 : 0)
+            .allowsHitTesting(hasText)
+            .accessibilityHidden(!hasText)
+        }
+        .padding(.vertical, 4)
+        .padding(.horizontal, 8)
+    }
+}
+
+/// The Pages-panel header pattern for the library panels: title on the left,
+/// a plus menu with the panel's creation actions on the right.
+private struct LibraryPanelHeader<MenuContent: View>: View {
+    let title: String
+    let accessibilityLabel: String
+    @ViewBuilder let menu: () -> MenuContent
+
+    var body: some View {
+        HStack {
+            Text(title)
+                .font(.headline)
+            Spacer()
+            Menu {
+                menu()
+            } label: {
+                Image(systemName: "plus")
+                    .frame(width: 22, height: 22)
+                    .contentShape(Rectangle())
+            }
+            .menuIndicator(.hidden)
+            .menuStyle(.borderlessButton)
+            .accessibilityLabel(accessibilityLabel)
+        }
+        .padding(.horizontal, 12)
+        .frame(height: 38)
+    }
+}
+
 struct ReusablePartLibraryPanel: View {
     let library: [ReusablePartNode]
     @Binding var selectedNodeID: UUID?
@@ -1233,9 +1337,7 @@ struct ReusablePartLibraryPanel: View {
     @State private var searchText = ""
     @State private var isNamingFolder = false
     @State private var folderName = ""
-    @State private var nodeToRename: ReusablePartNode?
     @State private var nodeToDelete: ReusablePartNode?
-    @State private var renameText = ""
 
     private var definitions: [ReusablePartDefinition] { library.allDefinitions }
 
@@ -1249,22 +1351,43 @@ struct ReusablePartLibraryPanel: View {
         !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
+    /// Searching filters the same tree down to matching templates as a flat
+    /// list — one outline, one presentation, whether filtered or not.
+    private var displayedNodes: [ReusablePartNode] {
+        isSearching ? searchResults.map(ReusablePartNode.part) : library
+    }
+
     var body: some View {
         VStack(spacing: 0) {
-            searchField
+            LibraryPanelHeader(title: "Templates", accessibilityLabel: "Add Template Folder") {
+                Button("New Folder…", systemImage: "folder.badge.plus") {
+                    folderName = ""
+                    isNamingFolder = true
+                }
+            }
             Divider()
-            if isSearching {
-                searchList
-            } else {
-                ReusablePartsOutlineView(
-                    kind: .templates,
-                    nodes: library,
-                    selectedNodeID: $selectedNodeID,
-                    moveNode: moveNode,
-                    saveDroppedParts: saveDraggedParts
-                )
-                .overlay {
-                    if library.isEmpty {
+            TemplatesOutlineView(
+                kind: .templates,
+                nodes: displayedNodes,
+                selectedNodeID: $selectedNodeID,
+                // Reordering a filtered list would silently reorganize the
+                // real tree; moves resume when the search clears.
+                moveNode: { id, placement in
+                    isSearching ? false : moveNode(id, placement)
+                },
+                saveDroppedParts: saveDraggedParts,
+                renameDefinition: renameDefinition,
+                renameFolder: renameFolder,
+                duplicateDefinition: duplicateDefinition,
+                revealDefinition: revealDefinition,
+                requestDelete: { nodeToDelete = library.node(withID: $0) }
+            )
+            .overlay {
+                if displayedNodes.isEmpty {
+                    if isSearching {
+                        ContentUnavailableView.search(text: searchText)
+                            .allowsHitTesting(false)
+                    } else {
                         ContentUnavailableView(
                             "No Templates",
                             systemImage: WorkspacePanel.reusableParts.systemImage,
@@ -1275,7 +1398,7 @@ struct ReusablePartLibraryPanel: View {
                 }
             }
             Divider()
-            actionBar
+            PanelSearchField(prompt: "Search Templates", text: $searchText)
         }
         .alert("New Folder", isPresented: $isNamingFolder) {
             TextField("Folder Name", text: $folderName)
@@ -1284,20 +1407,6 @@ struct ReusablePartLibraryPanel: View {
                 createFolder(folderName.trimmingCharacters(in: .whitespacesAndNewlines))
             }
             .disabled(folderName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-        }
-        .alert(renameTitle, isPresented: renameAlertBinding) {
-            TextField("Name", text: $renameText)
-            Button("Cancel", role: .cancel) { nodeToRename = nil }
-            Button("Rename") {
-                let name = renameText.trimmingCharacters(in: .whitespacesAndNewlines)
-                switch nodeToRename {
-                case .part(let definition): renameDefinition(definition.id, name)
-                case .folder(let folder): renameFolder(folder.id, name)
-                case nil: break
-                }
-                nodeToRename = nil
-            }
-            .disabled(renameText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
         }
         .confirmationDialog(deleteTitle, isPresented: deleteAlertBinding) {
             Button(deleteButtonTitle, role: .destructive) {
@@ -1314,93 +1423,11 @@ struct ReusablePartLibraryPanel: View {
         }
     }
 
-    private var searchField: some View {
-        HStack(spacing: 6) {
-            Image(systemName: "magnifyingglass")
-                .foregroundStyle(.secondary)
-            TextField("Search Templates", text: $searchText)
-                .textFieldStyle(.plain)
-            if isSearching {
-                Button {
-                    searchText = ""
-                } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .foregroundStyle(.secondary)
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Clear search")
-            }
-        }
-        .padding(8)
-    }
-
-    private var searchList: some View {
-        List {
-            ForEach(searchResults) { definition in
-                ReusablePartLibraryRow(definition: definition)
-                    .draggable(PartDragPayload.reusable(definition.id).stringValue) {
-                        PartDragPreview(
-                            name: definition.name,
-                            systemImage: WorkspacePanel.reusableParts.systemImage
-                        )
-                    }
-                    .contextMenu {
-                        definitionMenu(.part(definition))
-                    }
-            }
-        }
-        .overlay {
-            if searchResults.isEmpty {
-                ContentUnavailableView.search(text: searchText)
-            }
-        }
-    }
-
-    private var actionBar: some View {
-        HStack {
-            Button("New Folder", systemImage: "folder.badge.plus") {
-                folderName = ""
-                isNamingFolder = true
-            }
-            Menu("Actions", systemImage: "ellipsis.circle") {
-                if let node = selectedNode {
-                    definitionMenu(node)
-                }
-            }
-            .disabled(selectedNode == nil)
-            Spacer()
-        }
-        .labelStyle(.iconOnly)
-        .padding(8)
-    }
-
-    @ViewBuilder
-    private func definitionMenu(_ node: ReusablePartNode) -> some View {
-        Button("Rename…") {
-            renameText = nodeName(node)
-            nodeToRename = node
-        }
-        if case .part(let definition) = node {
-            Button("Duplicate") { duplicateDefinition(definition.id) }
-            Button("Show in Finder") { revealDefinition(definition.id) }
-        }
-        Button("Delete…", role: .destructive) { nodeToDelete = node }
-    }
-
-    private var selectedNode: ReusablePartNode? {
-        guard let selectedNodeID else { return nil }
-        return library.node(withID: selectedNodeID)
-    }
-
     private func nodeName(_ node: ReusablePartNode) -> String {
         switch node {
         case .part(let definition): definition.name
         case .folder(let folder): folder.name
         }
-    }
-
-    private var renameTitle: String {
-        if case .folder = nodeToRename { "Rename Folder" } else { "Rename Template" }
     }
 
     private var deleteTitle: String {
@@ -1417,10 +1444,6 @@ struct ReusablePartLibraryPanel: View {
         } else {
             "Removes it from the library for every project. Parts already added to pages are unchanged."
         }
-    }
-
-    private var renameAlertBinding: Binding<Bool> {
-        Binding(get: { nodeToRename != nil }, set: { if !$0 { nodeToRename = nil } })
     }
 
     private var deleteAlertBinding: Binding<Bool> {
@@ -1546,52 +1569,6 @@ private struct PartDragPreview: View {
 }
 
 
-private struct ReusablePartLibraryRow: View {
-    let definition: ReusablePartDefinition
-
-    var body: some View {
-        HStack(spacing: 10) {
-            Image(systemName: WorkspacePanel.reusableParts.systemImage)
-                .frame(width: 24, height: 24)
-                .background(Color.accentColor.opacity(0.12), in: RoundedRectangle(cornerRadius: 6))
-            VStack(alignment: .leading, spacing: 2) {
-                Text(definition.name)
-                Text("Template")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-            Spacer()
-            Image(systemName: "doc.on.doc")
-                .foregroundStyle(.tertiary)
-        }
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(definition.name), template, drag to add")
-    }
-}
-
-private struct GlobalPartLibraryRow: View {
-    let definition: ReusablePartDefinition
-
-    var body: some View {
-        HStack(spacing: 10) {
-            Image(systemName: WorkspacePanel.globalParts.systemImage)
-                .frame(width: 24, height: 24)
-                .background(Color.accentColor.opacity(0.12), in: RoundedRectangle(cornerRadius: 6))
-            VStack(alignment: .leading, spacing: 2) {
-                Text(definition.name)
-                Text("Updates everywhere")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-            Spacer()
-            Image(systemName: "link")
-                .foregroundStyle(.tertiary)
-        }
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(definition.name), global part, drag to add")
-    }
-}
-
 struct GlobalPartLibraryPanel: View {
     let library: [ReusablePartNode]
     @Binding var selectedNodeID: UUID?
@@ -1607,9 +1584,7 @@ struct GlobalPartLibraryPanel: View {
     @State private var searchText = ""
     @State private var isNamingFolder = false
     @State private var folderName = ""
-    @State private var nodeToRename: ReusablePartNode?
     @State private var nodeToDelete: ReusablePartNode?
-    @State private var renameText = ""
 
     private var definitions: [ReusablePartDefinition] { library.allDefinitions }
 
@@ -1623,22 +1598,43 @@ struct GlobalPartLibraryPanel: View {
         !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
+    /// Searching filters the same tree down to matching globals as a flat
+    /// list — one outline, one presentation, whether filtered or not.
+    private var displayedNodes: [ReusablePartNode] {
+        isSearching ? searchResults.map(ReusablePartNode.part) : library
+    }
+
     var body: some View {
         VStack(spacing: 0) {
-            searchField
+            LibraryPanelHeader(title: "Globals", accessibilityLabel: "Add Global Folder") {
+                Button("New Folder…", systemImage: "folder.badge.plus") {
+                    folderName = ""
+                    isNamingFolder = true
+                }
+            }
             Divider()
-            if isSearching {
-                searchList
-            } else {
-                ReusablePartsOutlineView(
-                    kind: .globals,
-                    nodes: library,
-                    selectedNodeID: $selectedNodeID,
-                    moveNode: moveNode,
-                    saveDroppedParts: saveDraggedParts
-                )
-                .overlay {
-                    if library.isEmpty {
+            TemplatesOutlineView(
+                kind: .globals,
+                nodes: displayedNodes,
+                selectedNodeID: $selectedNodeID,
+                // Reordering a filtered list would silently reorganize the
+                // real tree; moves resume when the search clears.
+                moveNode: { id, placement in
+                    isSearching ? false : moveNode(id, placement)
+                },
+                saveDroppedParts: saveDraggedParts,
+                renameDefinition: renameDefinition,
+                renameFolder: renameFolder,
+                duplicateDefinition: duplicateDefinition,
+                revealDefinition: nil,
+                requestDelete: { nodeToDelete = library.node(withID: $0) }
+            )
+            .overlay {
+                if displayedNodes.isEmpty {
+                    if isSearching {
+                        ContentUnavailableView.search(text: searchText)
+                            .allowsHitTesting(false)
+                    } else {
                         ContentUnavailableView(
                             "No Globals",
                             systemImage: WorkspacePanel.globalParts.systemImage,
@@ -1649,7 +1645,7 @@ struct GlobalPartLibraryPanel: View {
                 }
             }
             Divider()
-            actionBar
+            PanelSearchField(prompt: "Search Globals", text: $searchText)
         }
         .alert("New Folder", isPresented: $isNamingFolder) {
             TextField("Folder Name", text: $folderName)
@@ -1658,20 +1654,6 @@ struct GlobalPartLibraryPanel: View {
                 createFolder(folderName.trimmingCharacters(in: .whitespacesAndNewlines))
             }
             .disabled(folderName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-        }
-        .alert(renameTitle, isPresented: renameAlertBinding) {
-            TextField("Name", text: $renameText)
-            Button("Cancel", role: .cancel) { nodeToRename = nil }
-            Button("Rename") {
-                let name = renameText.trimmingCharacters(in: .whitespacesAndNewlines)
-                switch nodeToRename {
-                case .part(let definition): renameDefinition(definition.id, name)
-                case .folder(let folder): renameFolder(folder.id, name)
-                case nil: break
-                }
-                nodeToRename = nil
-            }
-            .disabled(renameText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
         }
         .confirmationDialog(deleteTitle, isPresented: deleteAlertBinding) {
             Button(deleteButtonTitle, role: .destructive) {
@@ -1688,92 +1670,11 @@ struct GlobalPartLibraryPanel: View {
         }
     }
 
-    private var searchField: some View {
-        HStack(spacing: 6) {
-            Image(systemName: "magnifyingglass")
-                .foregroundStyle(.secondary)
-            TextField("Search Globals", text: $searchText)
-                .textFieldStyle(.plain)
-            if isSearching {
-                Button {
-                    searchText = ""
-                } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .foregroundStyle(.secondary)
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Clear search")
-            }
-        }
-        .padding(8)
-    }
-
-    private var searchList: some View {
-        List {
-            ForEach(searchResults) { definition in
-                GlobalPartLibraryRow(definition: definition)
-                    .draggable(PartDragPayload.global(definition.id).stringValue) {
-                        PartDragPreview(
-                            name: definition.name,
-                            systemImage: WorkspacePanel.globalParts.systemImage
-                        )
-                    }
-                    .contextMenu {
-                        definitionMenu(.part(definition))
-                    }
-            }
-        }
-        .overlay {
-            if searchResults.isEmpty {
-                ContentUnavailableView.search(text: searchText)
-            }
-        }
-    }
-
-    private var actionBar: some View {
-        HStack {
-            Button("New Folder", systemImage: "folder.badge.plus") {
-                folderName = ""
-                isNamingFolder = true
-            }
-            Menu("Actions", systemImage: "ellipsis.circle") {
-                if let node = selectedNode {
-                    definitionMenu(node)
-                }
-            }
-            .disabled(selectedNode == nil)
-            Spacer()
-        }
-        .labelStyle(.iconOnly)
-        .padding(8)
-    }
-
-    @ViewBuilder
-    private func definitionMenu(_ node: ReusablePartNode) -> some View {
-        Button("Rename…") {
-            renameText = nodeName(node)
-            nodeToRename = node
-        }
-        if case .part(let definition) = node {
-            Button("Duplicate") { duplicateDefinition(definition.id) }
-        }
-        Button("Delete…", role: .destructive) { nodeToDelete = node }
-    }
-
-    private var selectedNode: ReusablePartNode? {
-        guard let selectedNodeID else { return nil }
-        return library.node(withID: selectedNodeID)
-    }
-
     private func nodeName(_ node: ReusablePartNode) -> String {
         switch node {
         case .part(let definition): definition.name
         case .folder(let folder): folder.name
         }
-    }
-
-    private var renameTitle: String {
-        if case .folder = nodeToRename { "Rename Folder" } else { "Rename Global Part" }
     }
 
     private var deleteTitle: String {
@@ -1790,10 +1691,6 @@ struct GlobalPartLibraryPanel: View {
         } else {
             "Existing instances will be detached and keep their current content."
         }
-    }
-
-    private var renameAlertBinding: Binding<Bool> {
-        Binding(get: { nodeToRename != nil }, set: { if !$0 { nodeToRename = nil } })
     }
 
     private var deleteAlertBinding: Binding<Bool> {

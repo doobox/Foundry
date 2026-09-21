@@ -1093,7 +1093,7 @@ nonisolated extension PartPackageProperty {
     static let bordersControlGroup: [Self] = [
         Self(id: "borderEnabled", label: "Enable", group: "Borders", control: .init(type: .toggle), defaultValue: .boolean(false), responsive: true),
         Self(id: "frameworkBorder", label: "Border", group: "Borders", control: .init(type: .frameworkBorder, showsStyle: true), defaultValue: .object(["width": .string("none"), "style": .string("solid")]), responsive: true, visibleWhen: visibleWhenEnabled("borderEnabled")),
-        Self(id: "frameworkBorderColour", label: "Colour", group: "Borders", control: .init(type: .frameworkColor, allowsCustom: true, opacity: true), defaultValue: .object(["palette": .string("muted-text")]), responsive: true, visibleWhen: visibleWhenEnabled("borderEnabled")),
+        Self(id: "frameworkBorderColour", label: "Colour", group: "Borders", control: .init(type: .frameworkColor, allowsCustom: true, opacity: true), defaultValue: .object(["palette": .string("muted")]), responsive: true, visibleWhen: visibleWhenEnabled("borderEnabled")),
         Self(id: "frameworkRadius", label: "Radius", group: "Borders", control: .init(type: .frameworkRadius), defaultValue: .string("none"), responsive: true, visibleWhen: visibleWhenEnabled("borderEnabled"))
     ]
 
