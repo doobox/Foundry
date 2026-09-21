@@ -94,6 +94,20 @@ nonisolated struct PartPackageFontSizeValue: Codable, Equatable, Sendable {
     }
 }
 
+nonisolated struct PartPackageStackingOrderValue: Codable, Equatable, Sendable {
+    var source: String
+    var customValue: Double
+
+    init(source: String, customValue: Double = 100) {
+        self.source = source
+        self.customValue = customValue
+    }
+
+    var isCustom: Bool {
+        PartFrameworkValueSelection.isManualCustom(source)
+    }
+}
+
 nonisolated struct PartPackageShadowValue: Codable, Equatable, Sendable {
     var source: String
     var customLayers: [FrameworkShadowLayer]
@@ -177,6 +191,7 @@ nonisolated struct PartProperty: Codable, Equatable, Identifiable, Sendable {
         // Retained only to decode saved values from the removed Select extension.
         case packageFontSize(PartPackageFontSizeValue)
         case packageShadow(PartPackageShadowValue)
+        case packageStackingOrder(PartPackageStackingOrderValue)
         case frameworkSpacing(FrameworkSingleSpacingValue)
         case frameworkPadding(FrameworkPaddingValue)
         case frameworkMargin(FrameworkMarginValue)
@@ -202,6 +217,8 @@ nonisolated struct PartProperty: Codable, Equatable, Identifiable, Sendable {
             case .packageFontSize(let value):
                 value.source
             case .packageShadow(let value):
+                value.source
+            case .packageStackingOrder(let value):
                 value.source
             case .frameworkSpacing, .frameworkPadding, .frameworkMargin, .frameworkBorderWidth, .frameworkRadius:
                 ""
@@ -255,10 +272,73 @@ nonisolated struct PartProperty: Codable, Equatable, Identifiable, Sendable {
             case .packageShadow(var value):
                 if value.source == reference { value.source = replacement }
                 return .packageShadow(value)
+            case .packageStackingOrder(var value):
+                if value.source == reference { value.source = replacement }
+                return .packageStackingOrder(value)
             case .packageColor(var value):
                 if value.paletteID == reference { value.source = replacement }
                 return .packageColor(value)
             case .url, .number, .color, .boolean, .token, .link:
+                return self
+            }
+        }
+
+        /// Deleting a shared spacing bakes its current size into any part
+        /// still using it: length-capable controls keep the exact amount as
+        /// a custom value; token-only selections snap to `fallbackToken`.
+        func bakingFrameworkSpacingReference(
+            _ reference: String,
+            amountRem: Double,
+            fallbackToken: String
+        ) -> Value {
+            switch self {
+            case .frameworkSpacing(var value):
+                if value.selection.token == reference {
+                    value.selection.token = fallbackToken
+                    value.selection.isCustom = true
+                    value.selection.amount = amountRem
+                    value.selection.unit = "rem"
+                }
+                return .frameworkSpacing(value)
+            case .frameworkMargin(var value):
+                value.bakeReference(reference, amount: amountRem, unit: "rem", fallbackToken: fallbackToken)
+                return .frameworkMargin(value)
+            case .frameworkPadding(var value):
+                value.bakeReference(reference, amount: amountRem, unit: "rem", fallbackToken: fallbackToken)
+                return .frameworkPadding(value)
+            case .string(let value): return .string(value == reference ? fallbackToken : value)
+            case .choice(let value): return .choice(value == reference ? fallbackToken : value)
+            case .array(let values):
+                return .array(values.map {
+                    $0.bakingFrameworkSpacingReference(reference, amountRem: amountRem, fallbackToken: fallbackToken)
+                })
+            case .frameworkBorderWidth, .frameworkRadius, .packageFontSize, .packageShadow,
+                 .packageStackingOrder, .packageColor, .url, .number, .color, .boolean, .token, .link:
+                return self
+            }
+        }
+
+        /// Deleting a custom border width or corner radius bakes its pixel
+        /// size into any part still using it; `isRadius` picks which value
+        /// kind the reference can appear in.
+        func bakingFrameworkDimensionReference(
+            _ reference: String,
+            amountPx: Double,
+            fallbackToken: String,
+            isRadius: Bool
+        ) -> Value {
+            switch self {
+            case .frameworkBorderWidth(var value) where !isRadius:
+                value.bakeReference(reference, amount: amountPx, unit: "px", fallbackToken: fallbackToken)
+                return .frameworkBorderWidth(value)
+            case .frameworkRadius(var value) where isRadius:
+                value.bakeReference(reference, amount: amountPx, unit: "px", fallbackToken: fallbackToken)
+                return .frameworkRadius(value)
+            case .array(let values):
+                return .array(values.map {
+                    $0.bakingFrameworkDimensionReference(reference, amountPx: amountPx, fallbackToken: fallbackToken, isRadius: isRadius)
+                })
+            default:
                 return self
             }
         }

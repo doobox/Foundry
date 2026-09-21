@@ -185,8 +185,10 @@ struct PartDefinitionTests {
         #expect(PartType.paragraph.definition.package!.css.contains("font-family: {{ control.font.family }}"))
         #expect(PartType.paragraph.definition.package!.css.contains("font-weight: {{ control.font.weight }}"))
         #expect(PartType.paragraph.definition.package!.css.contains("font-style: {{ control.font.style }}"))
-        // The removed font-size control still emits no styling.
-        #expect(!PartType.paragraph.definition.package!.css.contains("font-size:"))
+        // Font size is opt-in: the framework size only emits when Custom Size is enabled.
+        #expect(PartType.paragraph.definition.package!.css.contains("{{ if control.sizeEnabled }}"))
+        #expect(PartType.paragraph.definition.package!.css.contains("font-size: {{ control.fontSize }}"))
+        #expect(PartType.paragraph.definition.package!.css.contains("line-height: {{ control.fontSize.lineHeight }}"))
         #expect(html.contains("aria-label=\"Open &quot;details&quot;\""))
         #expect(html.contains("--foundry-editor-part: #007BFF"))
         #expect(html.contains("--foundry-editor-global: #30D158"))

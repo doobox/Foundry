@@ -338,6 +338,70 @@ struct PartPropertyEditor: View {
                 indicator: responsiveIndicator,
                 selection: stringBinding(as: .choice)
             )
+        case .frameworkStackingOrder:
+            let stackingValue: PartPackageStackingOrderValue = {
+                if case .packageStackingOrder(let value) = displayPart.propertyValue(definition.key) { return value }
+                return .init(source: displayPart.propertyValue(definition.key).stringValue)
+            }()
+            InspectorRow(title: definition.label, indicator: responsiveIndicator) {
+                HStack(spacing: 8) {
+                    if stackingValue.isCustom {
+                        TextField(definition.label, value: Binding(
+                            get: { stackingValue.customValue },
+                            set: { setProperty(.packageStackingOrder(.init(source: stackingValue.source, customValue: $0.rounded()))) }
+                        ), format: .number.grouping(.never).precision(.fractionLength(0)))
+                        .multilineTextAlignment(.trailing)
+                        .labelsHidden()
+                        .frame(maxWidth: .infinity)
+                    } else {
+                        Picker(definition.label, selection: Binding(
+                            get: { stackingValue.source },
+                            set: { setProperty(.packageStackingOrder(.init(source: $0, customValue: stackingValue.customValue))) }
+                        )) {
+                            if !framework.zIndexes.predefined.contains(where: { $0.id == stackingValue.source }),
+                               !framework.zIndexes.custom.contains(where: { $0.reference == stackingValue.source }) {
+                                Text("Missing value").tag(stackingValue.source)
+                            }
+                            if !framework.zIndexes.custom.isEmpty {
+                                Section("Custom") {
+                                    ForEach(framework.zIndexes.custom) { token in
+                                        Text("\(token.name) - \(Int(token.value))").tag(token.reference)
+                                    }
+                                }
+                            }
+                            Section("Framework values") {
+                                ForEach(framework.zIndexes.predefined) { token in
+                                    Text("\(token.title) - \(Int(token.value))").tag(token.id)
+                                }
+                            }
+                        }
+                        .pickerStyle(.menu)
+                        .labelsHidden()
+                        .frame(maxWidth: .infinity)
+                        .accessibilityLabel(definition.label)
+                    }
+                    FrameworkModeToggle(usesFrameworkTokens: !stackingValue.isCustom) {
+                        if stackingValue.isCustom {
+                            // Back to framework: select the token closest to the entered value.
+                            let tokens = framework.zIndexes.predefined.map { ($0.id, $0.value) }
+                                + framework.zIndexes.custom.map { ($0.reference, $0.value) }
+                            let nearest = tokens.min {
+                                abs($0.1 - stackingValue.customValue) < abs($1.1 - stackingValue.customValue)
+                            }?.0 ?? "base"
+                            setProperty(.packageStackingOrder(.init(source: nearest, customValue: stackingValue.customValue)))
+                        } else {
+                            // To custom: carry the selected token's own value.
+                            let amount = framework.zIndexes.predefined.first { $0.id == stackingValue.source }?.value
+                                ?? framework.zIndexes.custom.first { $0.reference == stackingValue.source }?.value
+                                ?? 0
+                            setProperty(.packageStackingOrder(.init(
+                                source: PartFrameworkValueSelection.manualCustom,
+                                customValue: amount
+                            )))
+                        }
+                    }
+                }
+            }
         case .packageShadow:
             FrameworkShadowPartControl(
                 label: definition.label,

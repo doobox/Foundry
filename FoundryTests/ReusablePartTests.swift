@@ -385,4 +385,32 @@ struct ReusablePartTests {
         #expect(nodes.first?.id == hero.id)
     }
 
+    @Test
+    func detachingOneGlobalInstanceClearsItsLinkButNotNestedGlobals() throws {
+        let nestedDefinitionID = UUID()
+        var nestedGlobal = PartNode.make(.container)
+        nestedGlobal.reusableDefinitionID = nestedDefinitionID
+        var overriddenChild = PartNode.make(.heading)
+        overriddenChild.overridesGlobalDefinition = true
+        var instance = PartNode.make(.section)
+        instance.reusableDefinitionID = UUID()
+        instance.overridesGlobalDefinition = true
+        instance.children = [overriddenChild, nestedGlobal]
+        var untouched = PartNode.make(.section)
+        untouched.reusableDefinitionID = instance.reusableDefinitionID
+
+        var parts = [instance, untouched]
+        let didDetach = parts.detachGlobalInstance(id: instance.id)
+        #expect(didDetach)
+
+        let detached = try #require(parts.first)
+        #expect(detached.reusableDefinitionID == nil)
+        #expect(detached.overridesGlobalDefinition == nil)
+        #expect(detached.children.first?.overridesGlobalDefinition == nil)
+        // A nested global inside keeps its own link and any override state.
+        #expect(detached.children.last?.reusableDefinitionID == nestedDefinitionID)
+        // Other instances of the same definition stay linked.
+        #expect(parts.last?.reusableDefinitionID == instance.reusableDefinitionID)
+    }
+
 }

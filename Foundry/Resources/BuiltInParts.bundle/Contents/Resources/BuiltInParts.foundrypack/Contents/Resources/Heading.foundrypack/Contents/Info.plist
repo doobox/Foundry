@@ -82,6 +82,47 @@
 			<string>textAlignment</string>
 		</dict>
 		<dict>
+			<key>defaults</key>
+			<dict>
+				<key>base</key>
+				<false/>
+			</dict>
+			<key>group</key>
+			<string>Typography</string>
+			<key>id</key>
+			<string>sizeEnabled</string>
+			<key>label</key>
+			<string>Custom Size</string>
+			<key>responsive</key>
+			<true/>
+			<key>type</key>
+			<string>toggle</string>
+		</dict>
+		<dict>
+			<key>defaults</key>
+			<dict>
+				<key>base</key>
+				<string>2xl</string>
+			</dict>
+			<key>group</key>
+			<string>Typography</string>
+			<key>id</key>
+			<string>fontSize</string>
+			<key>label</key>
+			<string>Size</string>
+			<key>responsive</key>
+			<true/>
+			<key>type</key>
+			<string>frameworkFontSize</string>
+			<key>visibleWhen</key>
+			<dict>
+				<key>id</key>
+				<string>sizeEnabled</string>
+				<key>value</key>
+				<true/>
+			</dict>
+		</dict>
+		<dict>
 			<key>allowsCustom</key>
 			<true/>
 			<key>customColor</key>

@@ -69,6 +69,18 @@ extension ProjectEditor {
         }
     }
 
+    /// Permanently disconnects one instance from its global definition — its
+    /// parts stay on the page as ordinary parts. The definition and every
+    /// other instance are untouched.
+    func explodeGlobalPart(partID: UUID) {
+        guard document.site.part(withID: partID)?.reusableDefinitionID != nil else { return }
+        mutate(actionName: "Explode Global") { site in
+            for pageIndex in site.pages.indices where site.pages[pageIndex].parts.detachGlobalInstance(id: partID) {
+                return
+            }
+        }
+    }
+
     func removeGlobalPart(definitionID: UUID) {
         mutate(actionName: "Delete Global Part") { site in
             site.globalPartLibrary.removeNode(id: definitionID)
@@ -156,6 +168,31 @@ nonisolated extension Array where Element == PartNode {
                 self[index].reusableDefinitionID = nil
             }
             self[index].children.detachGlobalInstances(definitionID: definitionID)
+        }
+    }
+
+    /// Clears the link and any override flags throughout one instance's
+    /// subtree, so the exploded parts carry no trace of their definition.
+    @discardableResult
+    mutating func detachGlobalInstance(id: UUID) -> Bool {
+        for index in indices {
+            if self[index].id == id {
+                self[index].reusableDefinitionID = nil
+                self[index].clearGlobalOverrideFlags()
+                return true
+            }
+            if self[index].children.detachGlobalInstance(id: id) { return true }
+        }
+        return false
+    }
+}
+
+nonisolated private extension PartNode {
+    /// Recursion stops at nested global instances — their state is their own.
+    mutating func clearGlobalOverrideFlags() {
+        overridesGlobalDefinition = nil
+        for index in children.indices where children[index].reusableDefinitionID == nil {
+            children[index].clearGlobalOverrideFlags()
         }
     }
 }

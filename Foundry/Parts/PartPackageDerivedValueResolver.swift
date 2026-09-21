@@ -390,7 +390,10 @@ nonisolated struct PartColorChannels {
             "saturation": .number(hsl.saturation),
             "lightness": .number(hsl.lightness),
             "relativeLuminance": .number(relativeLuminance),
-            "contrastColor": .string(contrastRatio(withLuminance: 0) >= contrastRatio(withLuminance: 1) ? "#000000" : "#FFFFFF"),
+            // The raw ratio comparison picks black on saturated mid colours
+            // such as #007AFF, where every designer reaches for white. White
+            // wins whenever it clears WCAG's 3:1 large-text bar instead.
+            "contrastColor": .string(contrastRatio(withLuminance: 1) >= 3 ? "#FFFFFF" : "#000000"),
             "contrastRatioWithBlack": .number(contrastRatio(withLuminance: 0)),
             "contrastRatioWithWhite": .number(contrastRatio(withLuminance: 1))
         ]

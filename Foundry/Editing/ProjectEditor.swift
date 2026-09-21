@@ -437,7 +437,7 @@ struct ProjectEditor {
             case .linksColor: site.framework.colors.links = value
             case .threeExtraSmallSpacing, .doubleExtraSmallSpacing, .extraSmallSpacing,
                  .smallSpacing, .mediumSpacing, .largeSpacing, .extraLargeSpacing,
-                 .doubleExtraLargeSpacing, .threeExtraLargeSpacing: break
+                 .doubleExtraLargeSpacing, .threeExtraLargeSpacing, .fourExtraLargeSpacing: break
             }
         }
     }
@@ -486,6 +486,7 @@ struct ProjectEditor {
             case .extraLargeSpacing: site.framework.spacing.extraLarge = value
             case .doubleExtraLargeSpacing: site.framework.spacing.doubleExtraLarge = value
             case .threeExtraLargeSpacing: site.framework.spacing.threeExtraLarge = value
+            case .fourExtraLargeSpacing: site.framework.spacing.fourExtraLarge = value
             case .backgroundColor, .surfaceColor, .textColor, .accentColor, .linksColor: break
             }
         }
@@ -504,14 +505,24 @@ struct ProjectEditor {
             site.framework.spacing.extraLarge = defaults.extraLarge
             site.framework.spacing.doubleExtraLarge = defaults.doubleExtraLarge
             site.framework.spacing.threeExtraLarge = defaults.threeExtraLarge
+            site.framework.spacing.fourExtraLarge = defaults.fourExtraLarge
         }
     }
 
     @discardableResult
     func addFrameworkSpacing() -> UUID {
-        let spacing = FrameworkSpacing(name: "Custom Spacing", value: 5)
-        mutate(actionName: "Add Framework Spacing", impact: .framework) { $0.framework.spacing.custom.append(spacing) }
-        return spacing.id
+        let id = UUID()
+        mutate(actionName: "Add Framework Spacing", impact: .framework) { site in
+            let existing = Set(site.framework.spacing.custom.map(\.name))
+            var name = "new"
+            var counter = 1
+            while existing.contains(name) {
+                name = "new\(counter)"
+                counter += 1
+            }
+            site.framework.spacing.custom.append(FrameworkSpacing(id: id, name: name, value: 5))
+        }
+        return id
     }
 
     func setFrameworkSpacingName(id: UUID, value: String) {
@@ -529,10 +540,22 @@ struct ProjectEditor {
         }
     }
 
-    func removeFrameworkSpacing(id: UUID, replacingWith replacement: String) {
+    func removeFrameworkSpacing(id: UUID) {
         let reference = "custom:\(id.uuidString.lowercased())"
-        mutate(actionName: "Replace and Delete Framework Spacing", impact: .framework) { site in
-            site.replacePartFrameworkReference(reference, with: replacement)
+        mutate(actionName: "Delete Framework Spacing", impact: .framework) { site in
+            guard let removed = site.framework.spacing.custom.first(where: { $0.id == id }) else { return }
+            // Parts keep the deleted value's exact size as a custom length;
+            // token-only selections snap to the closest predefined token.
+            let fallbackIDs = ["3xs", "2xs", "xs", "sm", "md", "lg", "xl", "2xl", "3xl", "4xl"]
+            let fallbackToken = zip(fallbackIDs, DesignToken.spacingTokens).min { lhs, rhs in
+                abs((site.framework.number(for: lhs.1) ?? 0) - removed.value)
+                    < abs((site.framework.number(for: rhs.1) ?? 0) - removed.value)
+            }?.0 ?? "md"
+            site.bakePartFrameworkSpacingReference(
+                reference,
+                amountRem: removed.value * SpacingTokens.baseRem,
+                fallbackToken: fallbackToken
+            )
             site.framework.spacing.custom.removeAll(where: { $0.id == id })
             site.projectFrameworkValues.spacing.removeAll(where: { $0.id == id })
             for index in site.frameworkStates.indices {
@@ -560,15 +583,11 @@ struct ProjectEditor {
     }
 
     func resetFrameworkBorderWidths() {
-        mutate(actionName: "Reset Framework Border Widths", impact: .framework) {
-            $0.framework.borderWidths = .standardBorderWidths
-        }
+        resetFrameworkDimensionScale(\.borderWidths, actionName: "Reset Framework Border Widths")
     }
 
     func resetFrameworkBorderRadii() {
-        mutate(actionName: "Reset Framework Border Radii", impact: .framework) {
-            $0.framework.borderRadii = .standardBorderRadii
-        }
+        resetFrameworkDimensionScale(\.borderRadii, actionName: "Reset Framework Border Radii")
     }
 
     func setFrameworkZIndex(id: String, value: Double) {
@@ -581,8 +600,158 @@ struct ProjectEditor {
     }
 
     func resetFrameworkZIndexes() {
-        mutate(actionName: "Reset Framework Z-Indexes", impact: .framework) {
-            $0.framework.zIndexes = .standardZIndexes
+        resetFrameworkDimensionScale(\.zIndexes, actionName: "Reset Framework Z-Indexes")
+    }
+
+    /// Reset restores the source framework's saved predefined scale; custom
+    /// values are the user's own and survive untouched.
+    private func resetFrameworkDimensionScale(
+        _ scale: WritableKeyPath<Framework, FrameworkDimensionTokens>,
+        actionName: String
+    ) {
+        mutate(actionName: actionName, impact: .framework) { site in
+            guard let source = FrameworkLibrary.shared.frameworks.first(where: { $0.id == site.frameworkSourceID }) else { return }
+            site.framework[keyPath: scale].predefined = source.framework[keyPath: scale].predefined
+        }
+    }
+
+    @discardableResult
+    func addFrameworkBorderWidth() -> UUID {
+        addFrameworkCustomDimension(\.borderWidths, value: 3, actionName: "Add Framework Border Width")
+    }
+
+    func setFrameworkBorderWidthName(id: UUID, value: String) {
+        setFrameworkCustomDimensionName(\.borderWidths, id: id, value: value, actionName: "Rename Framework Border Width")
+    }
+
+    func setFrameworkBorderWidthValue(id: UUID, value: Double) {
+        setFrameworkCustomDimensionValue(\.borderWidths, id: id, value: value, actionName: "Edit Framework Border Width")
+    }
+
+    func removeFrameworkBorderWidth(id: UUID) {
+        removeFrameworkCustomDimension(
+            \.borderWidths, projectValues: \.borderWidths, id: id,
+            actionName: "Delete Framework Border Width", bakesAsRadius: false
+        )
+    }
+
+    @discardableResult
+    func addFrameworkBorderRadius() -> UUID {
+        addFrameworkCustomDimension(\.borderRadii, value: 10, actionName: "Add Framework Border Radius")
+    }
+
+    func setFrameworkBorderRadiusName(id: UUID, value: String) {
+        setFrameworkCustomDimensionName(\.borderRadii, id: id, value: value, actionName: "Rename Framework Border Radius")
+    }
+
+    func setFrameworkBorderRadiusValue(id: UUID, value: Double) {
+        setFrameworkCustomDimensionValue(\.borderRadii, id: id, value: value, actionName: "Edit Framework Border Radius")
+    }
+
+    func removeFrameworkBorderRadius(id: UUID) {
+        removeFrameworkCustomDimension(
+            \.borderRadii, projectValues: \.borderRadii, id: id,
+            actionName: "Delete Framework Border Radius", bakesAsRadius: true
+        )
+    }
+
+    @discardableResult
+    func addFrameworkZIndexValue() -> UUID {
+        addFrameworkCustomDimension(\.zIndexes, value: 500, actionName: "Add Framework Stacking Order")
+    }
+
+    func setFrameworkZIndexName(id: UUID, value: String) {
+        setFrameworkCustomDimensionName(\.zIndexes, id: id, value: value, actionName: "Rename Framework Stacking Order")
+    }
+
+    func setFrameworkZIndexValue(id: UUID, value: Double) {
+        setFrameworkCustomDimensionValue(\.zIndexes, id: id, value: value, actionName: "Edit Framework Stacking Order")
+    }
+
+    func removeFrameworkZIndex(id: UUID) {
+        // Stacking references live in token-only selections, which cannot
+        // hold a raw number — deleting snaps them to the closest predefined
+        // token instead of baking a length in.
+        removeFrameworkCustomDimension(
+            \.zIndexes, projectValues: \.zIndexes, id: id,
+            actionName: "Delete Framework Stacking Order", bakesAsRadius: nil
+        )
+    }
+
+    @discardableResult
+    private func addFrameworkCustomDimension(
+        _ scale: WritableKeyPath<Framework, FrameworkDimensionTokens>,
+        value: Double,
+        actionName: String
+    ) -> UUID {
+        let id = UUID()
+        mutate(actionName: actionName, impact: .framework) { site in
+            let existing = Set(site.framework[keyPath: scale].custom.map(\.name))
+            var name = "new"
+            var counter = 1
+            while existing.contains(name) {
+                name = "new\(counter)"
+                counter += 1
+            }
+            site.framework[keyPath: scale].custom.append(.init(id: id, name: name, value: value))
+        }
+        return id
+    }
+
+    private func setFrameworkCustomDimensionName(
+        _ scale: WritableKeyPath<Framework, FrameworkDimensionTokens>,
+        id: UUID,
+        value: String,
+        actionName: String
+    ) {
+        mutate(actionName: actionName, impact: .framework) { site in
+            guard let index = site.framework[keyPath: scale].custom.firstIndex(where: { $0.id == id }) else { return }
+            site.framework[keyPath: scale].custom[index].name = value
+        }
+    }
+
+    private func setFrameworkCustomDimensionValue(
+        _ scale: WritableKeyPath<Framework, FrameworkDimensionTokens>,
+        id: UUID,
+        value: Double,
+        actionName: String
+    ) {
+        guard value.isFinite, value >= 0 else { return }
+        mutate(actionName: actionName, impact: .framework) { site in
+            guard let index = site.framework[keyPath: scale].custom.firstIndex(where: { $0.id == id }) else { return }
+            site.framework[keyPath: scale].custom[index].value = value
+        }
+    }
+
+    /// Deleting a custom dimension bakes its pixel size into referencing
+    /// parts (`bakesAsRadius` picks the value kind; nil skips baking) and
+    /// snaps token-only selections to the closest predefined token.
+    private func removeFrameworkCustomDimension(
+        _ scale: WritableKeyPath<Framework, FrameworkDimensionTokens>,
+        projectValues: WritableKeyPath<ProjectFrameworkValues, [FrameworkCustomDimension]>,
+        id: UUID,
+        actionName: String,
+        bakesAsRadius: Bool?
+    ) {
+        mutate(actionName: actionName, impact: .framework) { site in
+            guard let removed = site.framework[keyPath: scale].custom.first(where: { $0.id == id }) else { return }
+            let fallbackToken = site.framework[keyPath: scale].predefined
+                .min { abs($0.value - removed.value) < abs($1.value - removed.value) }?.id ?? "none"
+            if let bakesAsRadius {
+                site.bakePartFrameworkDimensionReference(
+                    removed.reference,
+                    amountPx: removed.value,
+                    fallbackToken: fallbackToken,
+                    isRadius: bakesAsRadius
+                )
+            } else {
+                site.replacePartFrameworkReference(removed.reference, with: fallbackToken)
+            }
+            site.framework[keyPath: scale].custom.removeAll(where: { $0.id == id })
+            site.projectFrameworkValues[keyPath: projectValues].removeAll(where: { $0.id == id })
+            for index in site.frameworkStates.indices {
+                site.frameworkStates[index].framework[keyPath: scale].custom.removeAll(where: { $0.id == id })
+            }
         }
     }
 

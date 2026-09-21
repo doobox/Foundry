@@ -19,12 +19,13 @@ nonisolated extension FrameworkSpacingPolicy {
     static var isRadius: Bool { false }
     static var units: [String] { ["px", "rem", "em", "%"] }
     static var frameworkUnit: String { "rem" }
-    static var tokens: [String] { ["none", "3xs", "2xs", "xs", "sm", "md", "lg", "xl", "2xl", "3xl"] + (allowsAutoAndNegative ? ["auto"] : []) }
+    static var tokens: [String] { ["none", "3xs", "2xs", "xs", "sm", "md", "lg", "xl", "2xl", "3xl", "4xl"] + (allowsAutoAndNegative ? ["auto"] : []) }
     static func choices(in framework: Framework) -> [FrameworkEdgeChoice] {
         let spacing = framework.spacing
         let multipliers = [spacing.threeExtraSmall, spacing.doubleExtraSmall, spacing.extraSmall,
                            spacing.small, spacing.medium, spacing.large, spacing.extraLarge,
-                           spacing.doubleExtraLarge, spacing.threeExtraLarge] + spacing.custom.map(\.value)
+                           spacing.doubleExtraLarge, spacing.threeExtraLarge,
+                           spacing.fourExtraLarge] + spacing.custom.map(\.value)
         return zip(framework.spacingChoices, multipliers).map {
             FrameworkEdgeChoice(id: $0.0.value, label: $0.0.label,
                             amount: $0.1 * SpacingTokens.baseRem,
@@ -41,6 +42,8 @@ nonisolated enum BorderWidthPolicy: FrameworkSpacingPolicy {
     static func choices(in framework: Framework) -> [FrameworkEdgeChoice] {
         framework.borderWidths.predefined.filter { $0.id != "none" }.map {
             FrameworkEdgeChoice(id: $0.id, label: $0.title, amount: $0.value, css: "var(--foundry-border-width-\($0.id))")
+        } + framework.borderWidths.custom.map {
+            FrameworkEdgeChoice(id: $0.reference, label: $0.name, amount: $0.value, css: "var(\($0.cssVariable(prefix: "border-width")))")
         }
     }
 }
@@ -53,6 +56,8 @@ nonisolated enum RadiusPolicy: FrameworkSpacingPolicy {
     static func choices(in framework: Framework) -> [FrameworkEdgeChoice] {
         framework.borderRadii.predefined.filter { $0.id != "none" }.map {
             FrameworkEdgeChoice(id: $0.id, label: $0.title, amount: $0.value, css: "var(--foundry-border-radius-\($0.id))")
+        } + framework.borderRadii.custom.map {
+            FrameworkEdgeChoice(id: $0.reference, label: $0.name, amount: $0.value, css: "var(\($0.cssVariable(prefix: "border-radius")))")
         }
     }
 }
@@ -123,6 +128,17 @@ nonisolated struct FrameworkSpacingValue<Policy: FrameworkSpacingPolicy>: Codabl
     mutating func replaceReference(_ reference: String, with replacement: String) {
         for index in values.indices where values[index].token == reference {
             values[index].token = replacement
+        }
+    }
+
+    /// Converts every edge using `reference` into a raw custom length, so a
+    /// deleted framework value keeps its exact size without a stand-in token.
+    mutating func bakeReference(_ reference: String, amount: Double, unit: String, fallbackToken: String) {
+        for index in values.indices where values[index].token == reference {
+            values[index].token = fallbackToken
+            values[index].isCustom = true
+            values[index].amount = amount
+            values[index].unit = unit
         }
     }
 

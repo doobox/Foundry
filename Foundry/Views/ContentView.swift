@@ -401,6 +401,11 @@ struct ContentView: View {
                     editor.setGlobalPartLinked(partID: partID, isLinked: isLinked)
                     selectedPartIDs = [partID]
                     selectedPartID = partID
+                },
+                explodeGlobalPart: { partID in
+                    editor.explodeGlobalPart(partID: partID)
+                    selectedPartIDs = [partID]
+                    selectedPartID = partID
                 }
             )
         case .assets:
@@ -1193,6 +1198,8 @@ struct ContentView: View {
             editor.setGlobalPartLinked(partID: partID, isLinked: false)
         case .relinkGlobal:
             editor.setGlobalPartLinked(partID: partID, isLinked: true)
+        case .explodeGlobal:
+            editor.explodeGlobalPart(partID: partID)
         case .moveUp:
             movePart(-1)
         case .moveDown:

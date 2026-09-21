@@ -15,6 +15,7 @@ nonisolated enum DesignToken: String, Codable, CaseIterable, Identifiable, Senda
     case extraLargeSpacing
     case doubleExtraLargeSpacing
     case threeExtraLargeSpacing
+    case fourExtraLargeSpacing
 
     var id: String { rawValue }
 
@@ -34,6 +35,7 @@ nonisolated enum DesignToken: String, Codable, CaseIterable, Identifiable, Senda
         case .extraLargeSpacing: "XL"
         case .doubleExtraLargeSpacing: "2XL"
         case .threeExtraLargeSpacing: "3XL"
+        case .fourExtraLargeSpacing: "4XL"
         }
     }
 
@@ -43,6 +45,6 @@ nonisolated enum DesignToken: String, Codable, CaseIterable, Identifiable, Senda
     static let spacingTokens: [DesignToken] = [
         .threeExtraSmallSpacing, .doubleExtraSmallSpacing, .extraSmallSpacing,
         .smallSpacing, .mediumSpacing, .largeSpacing, .extraLargeSpacing,
-        .doubleExtraLargeSpacing, .threeExtraLargeSpacing
+        .doubleExtraLargeSpacing, .threeExtraLargeSpacing, .fourExtraLargeSpacing
     ]
 }

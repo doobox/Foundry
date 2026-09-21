@@ -832,6 +832,7 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
         case .packageColor(let value): .string(value.source)
         case .packageFontSize(let value): .string(value.source)
         case .packageShadow(let value): .string(value.source)
+        case .packageStackingOrder(let value): .string(value.source)
         case .frameworkSpacing, .frameworkPadding, .frameworkMargin, .frameworkBorderWidth, .frameworkRadius: .string("")
         }
     }
@@ -885,6 +886,12 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
             if case .frameworkFontSize = definition.control {
                 return (definition.key.rawValue, .string(framework.fontSizeCSSVariable(for: node.property(definition.key))))
             }
+            if case .frameworkStackingOrder = definition.control {
+                if case .packageStackingOrder(let selected) = value, selected.isCustom {
+                    return (definition.key.rawValue, .string(String(Int(selected.customValue))))
+                }
+                return (definition.key.rawValue, .string(framework.zIndexCSSVariable(for: node.property(definition.key))))
+            }
             if case .packageShadow = definition.control,
                case .packageShadow(let shadowValue) = value {
                 return (
@@ -913,6 +920,12 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
             if case .frameworkFont = definition.control,
                case .object(let fields) = values[definition.key.rawValue] {
                 for (field, value) in fields { values[definition.key.rawValue + "." + field] = value }
+            }
+            if case .frameworkFontSize = definition.control {
+                // The size's paired leading travels with it in the framework.
+                values[definition.key.rawValue + ".lineHeight"] = .string(
+                    framework.lineHeightCSSVariable(for: node.property(definition.key))
+                )
             }
             if case .packageColor(_, let opacity, _, _) = definition.control,
                case .packageColor(let colorValue) = node.propertyValue(definition.key) {
@@ -1115,6 +1128,8 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
             raw = value.source
         case .packageShadow(let value):
             raw = value.source
+        case .packageStackingOrder(let value):
+            raw = value.isCustom ? String(Int(value.customValue)) : value.source
         case .frameworkSpacing, .frameworkPadding, .frameworkMargin, .frameworkBorderWidth, .frameworkRadius:
             raw = ""
         }

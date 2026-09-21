@@ -1158,6 +1158,32 @@ nonisolated enum PartPackageValidator {
                     message: "A frameworkShadow default must be a standard framework shadow ID, or custom when allowsCustom is enabled."
                 ))
             }
+        case .frameworkFontSize:
+            guard case .string(let value) = defaultValue else {
+                diagnostics.append(.init(severity: .error, location: location, message: "A frameworkFontSize control requires a string default value."))
+                return
+            }
+            // Only the predefined scale is portable; project custom sizes are not.
+            if !TypographyTokens.standardFontSizes.contains(where: { $0.id == value }) {
+                diagnostics.append(.init(
+                    severity: .error,
+                    location: location,
+                    message: "A frameworkFontSize default must be a predefined size ID: xs, sm, base, lg, xl, or 2xl through 9xl."
+                ))
+            }
+        case .frameworkStackingOrder:
+            guard case .string(let value) = defaultValue else {
+                diagnostics.append(.init(severity: .error, location: location, message: "A frameworkStackingOrder control requires a string default value."))
+                return
+            }
+            // Only the predefined scale is portable; project custom values are not.
+            if !FrameworkDimensionTokens.standardZIndexes.predefined.contains(where: { $0.id == value }) {
+                diagnostics.append(.init(
+                    severity: .error,
+                    location: location,
+                    message: "A frameworkStackingOrder default must be a predefined stacking ID: base, dropdown, sticky, overlay, modal, tooltip, or toast."
+                ))
+            }
         case .textAlignment:
             if case .string(let value) = defaultValue,
                ["start", "center", "end", "justify"].contains(value) {

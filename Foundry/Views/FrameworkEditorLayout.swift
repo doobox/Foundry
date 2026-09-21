@@ -34,24 +34,30 @@ struct FrameworkEditorPage<Actions: View, Content: View>: View {
 }
 
 struct FrameworkEditorCard<Content: View>: View {
-    let title: String
+    var title: String? = nil
     var subtitle: String? = nil
     @ViewBuilder var content: Content
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text(title).font(.headline).accessibilityAddTraits(.isHeader)
-                if let subtitle {
-                    Text(subtitle).font(.callout).foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
+            if title != nil || subtitle != nil {
+                VStack(alignment: .leading, spacing: 4) {
+                    if let title {
+                        Text(title).font(.headline).accessibilityAddTraits(.isHeader)
+                    }
+                    if let subtitle {
+                        Text(subtitle).font(.callout).foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
                 }
             }
             content
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(20)
-        .background(.background, in: .rect(cornerRadius: 12))
+        // A subtle wash approximating grouped-form section cards; quaternary
+        // reads noticeably heavier than the native card fill.
+        .background(.quinary, in: .rect(cornerRadius: 12))
         .overlay {
             RoundedRectangle(cornerRadius: 12)
                 .strokeBorder(Color(nsColor: .separatorColor).opacity(0.5), lineWidth: 0.5)

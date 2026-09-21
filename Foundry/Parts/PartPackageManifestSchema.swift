@@ -508,6 +508,16 @@ nonisolated enum PartPackageManifestSchema {
                 diagnostics.append(.init(severity: .error, location: "\(location).\(key)", message: "A frameworkFont control does not accept \(key)."))
             }
         }
+        if type == .frameworkFontSize {
+            for key in ["count", "frameworkValues", "options", "allowsCustom"] where property[key] != nil {
+                diagnostics.append(.init(severity: .error, location: "\(location).\(key)", message: "A frameworkFontSize control does not accept \(key)."))
+            }
+        }
+        if type == .frameworkStackingOrder {
+            for key in ["count", "frameworkValues", "options", "allowsCustom"] where property[key] != nil {
+                diagnostics.append(.init(severity: .error, location: "\(location).\(key)", message: "A frameworkStackingOrder control does not accept \(key)."))
+            }
+        }
         if type == .frameworkBorder {
             unknownKeys(in: property, allowed: ["type", "id", "label", "subtitle", "group", "default", "responsive", "tooltip", "visibleWhen", "showsStyle"], location: location, into: &diagnostics)
             for key in ["showsStyle"] {

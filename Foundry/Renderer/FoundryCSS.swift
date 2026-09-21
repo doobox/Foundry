@@ -142,6 +142,9 @@ nonisolated enum FoundryCSS {
         for zIndex in framework.zIndexes.predefined {
             rules.append(".fd-z-\(zIndex.id){z-index:var(--foundry-z-index-\(zIndex.id))}")
         }
+        for zIndex in framework.zIndexes.custom {
+            rules.append(".fd-z-\(slug(zIndex.name)){z-index:var(\(zIndex.cssVariable(prefix: "z-index")))}")
+        }
 
         // Responsive variants for enabled screens above mobile, mobile-first.
         for screen in framework.screens.screens where screen.isEnabled && screen.id != .mobile {
@@ -161,7 +164,7 @@ nonisolated enum FoundryCSS {
             ("xs", "var(--foundry-space-xs)"), ("sm", "var(--foundry-space-sm)"),
             ("md", "var(--foundry-space-md)"), ("lg", "var(--foundry-space-lg)"),
             ("xl", "var(--foundry-space-xl)"), ("2xl", "var(--foundry-space-2xl)"),
-            ("3xl", "var(--foundry-space-3xl)")
+            ("3xl", "var(--foundry-space-3xl)"), ("4xl", "var(--foundry-space-4xl)")
         ]
         tokens.append(contentsOf: framework.spacing.custom.map { (slug($0.name), "var(\($0.cssVariable))") })
 

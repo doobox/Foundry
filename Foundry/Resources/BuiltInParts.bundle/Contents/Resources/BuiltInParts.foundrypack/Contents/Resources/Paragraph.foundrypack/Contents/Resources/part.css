@@ -2,6 +2,10 @@
     font-family: {{ control.font.family }};
     font-weight: {{ control.font.weight }};
     font-style: {{ control.font.style }};
+    {{ if control.sizeEnabled }}
+    font-size: {{ control.fontSize }};
+    line-height: {{ control.fontSize.lineHeight }};
+    {{ endif }}
     color: {{ control.textColor }};
     text-align: {{ control.textAlignment }};
     text-decoration-line: {{ control.textDecoration }};

@@ -137,6 +137,7 @@ nonisolated enum CanvasContextMenuAction: String, Sendable {
     case saveGlobal
     case makeLocalOverride
     case relinkGlobal
+    case explodeGlobal
     case moveUp
     case moveDown
     case outdent
@@ -452,11 +453,20 @@ struct WebCanvasView: NSViewRepresentable {
           const editorChromeColor = '#007BFF';
           const hoverChromeColor = '#409CFF';
           const globalChromeColor = '#30D158';
+          // The hover tint lightens each family the same way: blue #007BFF
+          // hovers as #409CFF, green #30D158 hovers as #64DC82.
+          const globalHoverChromeColor = '#64DC82';
           const partChromeColor = element => {
             if (!element || element.closest('[data-foundry-global-override="true"]')) {
               return editorChromeColor;
             }
             return element.closest('[data-foundry-global]') ? globalChromeColor : editorChromeColor;
+          };
+          const partHoverChromeColor = element => {
+            if (!element || element.closest('[data-foundry-global-override="true"]')) {
+              return hoverChromeColor;
+            }
+            return element.closest('[data-foundry-global]') ? globalHoverChromeColor : hoverChromeColor;
           };
           const partChromeTitle = part => {
             const name = part?.dataset.foundryName || '';
@@ -683,7 +693,7 @@ struct WebCanvasView: NSViewRepresentable {
             positionOutline(
               hoverChrome,
               target,
-              hoverChromeColor,
+              partHoverChromeColor(target),
               isPrimitive
             );
           };
@@ -725,7 +735,7 @@ struct WebCanvasView: NSViewRepresentable {
               chromeTitle,
               hoveredPart,
               partChromeTitle(hoveredPart),
-              hoverChromeColor,
+              partHoverChromeColor(hoveredPart),
               false,
               1,
               occupiedTitles
@@ -1443,6 +1453,7 @@ struct WebCanvasView: NSViewRepresentable {
               canSaveAsPart: selectionCount === 1 && !part.dataset.foundryGlobal,
               globalTargetID: selectionCount === 1 ? globalTarget?.dataset.foundryId : undefined,
               isGlobalLinked: Boolean(globalTarget && !overrideOwner && selectionCount === 1),
+              isGlobalRoot: Boolean(selectionCount === 1 && part.dataset.foundryGlobalRoot === 'true'),
               hasImage: selectionCount === 1 && imageZone?.tagName === 'IMG',
               imageProperty: selectionCount === 1 ? imageZone?.dataset.foundryImageProperty : undefined,
               imagePropertyPath: selectionCount === 1 ? propertyPath(imageZone) : [],
@@ -1669,7 +1680,16 @@ struct WebCanvasView: NSViewRepresentable {
                 menu.addItem(menuItem("Edit", action: #selector(editPart), key: "\r", modifiers: []))
                 menu.addItem(.separator())
             }
-            if contextMenuGlobalTargetID != nil {
+            // The global root explodes back into plain parts; overriding is a
+            // child-level affair and never offered on the root itself.
+            if request["isGlobalRoot"] as? Bool == true {
+                menu.addItem(menuItem(
+                    "Explode Global",
+                    action: #selector(performContextAction(_:)),
+                    representedAction: .explodeGlobal
+                ))
+                menu.addItem(.separator())
+            } else if contextMenuGlobalTargetID != nil {
                 let isLinked = request["isGlobalLinked"] as? Bool == true
                 menu.addItem(menuItem(
                     isLinked ? "Make Local Override" : "Relink to Global",

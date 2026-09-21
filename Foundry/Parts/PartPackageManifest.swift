@@ -1188,6 +1188,8 @@ nonisolated struct PartPackageControl: Codable, Equatable, Sendable {
         case color
         case frameworkColor
         case frameworkFont
+        case frameworkFontSize
+        case frameworkStackingOrder
         case frameworkBorder
     case frameworkRadius
     case frameworkMargin

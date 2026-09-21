@@ -489,10 +489,99 @@ struct FrameworkEditingTests {
         #expect(decoded.framework.spacing.custom == [spacing])
 
         undoManager.removeAllActions()
-        editor.removeFrameworkSpacing(id: id, replacingWith: "md")
+        editor.removeFrameworkSpacing(id: id)
         #expect(document.site.framework.spacing.custom.isEmpty)
         undoManager.undo()
         #expect(document.site.framework.spacing.custom == [spacing])
+    }
+
+    @Test
+    func deletingCustomSpacingBakesItsSizeIntoReferencingParts() throws {
+        let document = FoundryDocument()
+        let editor = ProjectEditor(document: document, undoManager: UndoManager())
+        let id = editor.addFrameworkSpacing()
+        editor.setFrameworkSpacingValue(id: id, value: 18)
+        let reference = "custom:\(id.uuidString.lowercased())"
+
+        var padding = FrameworkPaddingValue()
+        padding.set(.init(token: reference), for: .top)
+        var part = PartNode.make(.container)
+        part.setProperty(.init(rawValue: "framePadding"), value: .frameworkPadding(padding))
+        part.setProperty(.init(rawValue: "gap"), value: .frameworkSpacing(.init(selection: .init(token: reference))))
+        part.setProperty(.init(rawValue: "spacingChoice"), value: .choice(reference))
+        document.site.pages[0].parts = [part]
+
+        editor.removeFrameworkSpacing(id: id)
+
+        let updated = try #require(document.site.pages.first?.parts.first)
+        guard case .frameworkPadding(let bakedPadding) = updated.propertyValue(.init(rawValue: "framePadding")) else {
+            Issue.record("Expected a padding value")
+            return
+        }
+        // 18 quarter-rem units bake to 4.5 rem on every linked edge.
+        for edge in FrameworkPaddingValue.Edge.allCases {
+            let value = bakedPadding.value(for: edge)
+            #expect(value.isCustom)
+            #expect(value.amount == 4.5)
+            #expect(value.unit == "rem")
+        }
+        guard case .frameworkSpacing(let bakedGap) = updated.propertyValue(.init(rawValue: "gap")) else {
+            Issue.record("Expected a single spacing value")
+            return
+        }
+        #expect(bakedGap.selection.isCustom)
+        #expect(bakedGap.selection.amount == 4.5)
+        #expect(bakedGap.selection.unit == "rem")
+        // Token-only selections can't hold lengths; 18 snaps to 2XL (16).
+        #expect(updated.propertyValue(.init(rawValue: "spacingChoice")) == .choice("2xl"))
+        #expect(document.site.framework.spacing.custom.isEmpty)
+    }
+
+    @Test
+    func customDimensionValuesEmitCSSAndBakeOnDelete() throws {
+        let document = FoundryDocument()
+        let editor = ProjectEditor(document: document, undoManager: UndoManager())
+
+        let widthID = editor.addFrameworkBorderWidth()
+        editor.setFrameworkBorderWidthName(id: widthID, value: "Hairline Plus")
+        editor.setFrameworkBorderWidthValue(id: widthID, value: 3)
+        let width = try #require(document.site.framework.borderWidths.custom.first(where: { $0.id == widthID }))
+        #expect(width.name == "Hairline Plus")
+        #expect(document.site.framework.borderCSSVariables.contains("\(width.cssVariable(prefix: "border-width")):3"))
+        #expect(BorderWidthPolicy.choices(in: document.site.framework).contains { $0.id == width.reference })
+
+        let zID = editor.addFrameworkZIndexValue()
+        editor.setFrameworkZIndexName(id: zID, value: "Mega Modal")
+        editor.setFrameworkZIndexValue(id: zID, value: 1_700)
+        let zIndex = try #require(document.site.framework.zIndexes.custom.first(where: { $0.id == zID }))
+        #expect(document.site.framework.zIndexCSSVariables.contains("\(zIndex.cssVariable(prefix: "z-index")):1700"))
+        let css = FoundryCSS.build(
+            framework: document.site.framework,
+            colour: { document.site.framework.color(for: $0) },
+            colorScheme: "light"
+        )
+        #expect(css.contains(".fd-z-mega-modal{z-index:var(\(zIndex.cssVariable(prefix: "z-index")))}"))
+
+        var border = FrameworkBorderWidthValue()
+        border.set(.init(token: width.reference), for: .top)
+        var part = PartNode.make(.container)
+        part.setProperty(.init(rawValue: "edge"), value: .frameworkBorderWidth(border))
+        document.site.pages[0].parts = [part]
+
+        editor.removeFrameworkBorderWidth(id: widthID)
+
+        let updated = try #require(document.site.pages.first?.parts.first)
+        guard case .frameworkBorderWidth(let baked) = updated.propertyValue(.init(rawValue: "edge")) else {
+            Issue.record("Expected a border width value")
+            return
+        }
+        for edge in FrameworkBorderWidthValue.Edge.allCases {
+            let value = baked.value(for: edge)
+            #expect(value.isCustom)
+            #expect(value.amount == 3)
+            #expect(value.unit == "px")
+        }
+        #expect(document.site.framework.borderWidths.custom.isEmpty)
     }
 
     @Test

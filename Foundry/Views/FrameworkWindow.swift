@@ -88,6 +88,16 @@ struct FrameworkWindowContent: View {
                 FrameworkLibraryBrowser(document: document, undoManager: session.editor.undoManager)
             case .fontFamily:
                 FrameworkFontSettings(framework: document.site.framework, assets: document.site.assets, session: session)
+            case .fontSize:
+                FrameworkFontSizeSettings(framework: document.site.framework, session: session)
+            case .spacing:
+                FrameworkSpacingSettings(framework: document.site.framework, session: session)
+            case .borderWidth:
+                FrameworkDimensionSettings(framework: document.site.framework, kind: .borderWidth, session: session)
+            case .borderRadius:
+                FrameworkDimensionSettings(framework: document.site.framework, kind: .borderRadius, session: session)
+            case .zIndex:
+                FrameworkDimensionSettings(framework: document.site.framework, kind: .zIndex, session: session)
             default:
                 FrameworkSettingsDetail(
                     section: selectedSection,
@@ -150,7 +160,7 @@ enum FrameworkWindowSection: String, CaseIterable, Identifiable, Hashable {
         case .screens: "Breakpoints"
         case .colors: "Colours"
         case .fontFamily: "Fonts"
-        case .fontSize: "Type Scale"
+        case .fontSize: "Font Size"
         case .spacing: "Spacing"
         case .shadows: "Shadows"
         case .borderWidth: "Border Width"
@@ -185,7 +195,7 @@ enum FrameworkWindowSection: String, CaseIterable, Identifiable, Hashable {
         case .fontFamily:
             "Choose the typefaces used for body text, headings and monospaced content."
         case .fontSize:
-            "Adjust the framework type scale and its corresponding line heights."
+            "Adjust each framework font size and its line height."
         case .spacing:
             "Adjust the spacing scale used by framework-aware part controls."
         case .shadows:
@@ -222,6 +232,16 @@ struct FrameworkSettingsDetail: View {
         Group {
             if section == .fontFamily {
                 FrameworkFontSettings(framework: framework, assets: assets, session: session)
+            } else if section == .fontSize {
+                FrameworkFontSizeSettings(framework: framework, session: session)
+            } else if section == .spacing {
+                FrameworkSpacingSettings(framework: framework, session: session)
+            } else if section == .borderWidth {
+                FrameworkDimensionSettings(framework: framework, kind: .borderWidth, session: session)
+            } else if section == .borderRadius {
+                FrameworkDimensionSettings(framework: framework, kind: .borderRadius, session: session)
+            } else if section == .zIndex {
+                FrameworkDimensionSettings(framework: framework, kind: .zIndex, session: session)
             } else if section == .screens {
                 FrameworkBreakpointSettings(screens: framework.screens, editor: editor)
             } else {
@@ -257,17 +277,17 @@ struct FrameworkSettingsDetail: View {
         case .fontFamily:
             FrameworkFontSettings(framework: framework, assets: assets, session: session)
         case .fontSize:
-            FrameworkTypeScaleSettings(framework: framework, editor: editor)
+            FrameworkFontSizeSettings(framework: framework, session: session)
         case .spacing:
-            FrameworkSpacingSettings(framework: framework, editor: editor)
+            FrameworkSpacingSettings(framework: framework, session: session)
         case .shadows:
             FrameworkShadowSettings(shadows: framework.shadows, editor: editor)
         case .borderWidth:
-            FrameworkDimensionSettings(tokens: framework.borderWidths, kind: .borderWidth, setValue: editor.setFrameworkBorderWidth)
+            FrameworkDimensionSettings(framework: framework, kind: .borderWidth, session: session)
         case .borderRadius:
-            FrameworkDimensionSettings(tokens: framework.borderRadii, kind: .borderRadius, setValue: editor.setFrameworkBorderRadius)
+            FrameworkDimensionSettings(framework: framework, kind: .borderRadius, session: session)
         case .zIndex:
-            FrameworkDimensionSettings(tokens: framework.zIndexes, kind: .zIndex, setValue: editor.setFrameworkZIndex)
+            FrameworkDimensionSettings(framework: framework, kind: .zIndex, session: session)
         case .colors:
             ProjectColourSettings(session: session)
         case .frameworks:
@@ -277,13 +297,9 @@ struct FrameworkSettingsDetail: View {
 
     private var resetAction: (() -> Void)? {
         switch section {
-        case .fontSize: editor.resetFrameworkFontSizeScale
-        case .spacing: editor.resetFrameworkSpacingScale
         case .shadows: editor.resetFrameworkShadowScale
-        case .borderWidth: editor.resetFrameworkBorderWidths
-        case .borderRadius: editor.resetFrameworkBorderRadii
-        case .zIndex: editor.resetFrameworkZIndexes
-        case .frameworks, .screens, .colors, .fontFamily: nil
+        case .frameworks, .screens, .colors, .fontFamily, .fontSize, .spacing,
+             .borderWidth, .borderRadius, .zIndex: nil
         }
     }
 }

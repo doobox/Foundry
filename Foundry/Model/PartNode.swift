@@ -313,18 +313,33 @@ nonisolated struct PartNode: Codable, Equatable, Identifiable, Sendable {
     }
 
     mutating func replaceFrameworkReference(_ reference: String, with replacement: String) {
+        transformPropertyValues { $0.replacingFrameworkReference(reference, with: replacement) }
+    }
+
+    mutating func bakeFrameworkSpacingReference(_ reference: String, amountRem: Double, fallbackToken: String) {
+        transformPropertyValues {
+            $0.bakingFrameworkSpacingReference(reference, amountRem: amountRem, fallbackToken: fallbackToken)
+        }
+    }
+
+    mutating func bakeFrameworkDimensionReference(_ reference: String, amountPx: Double, fallbackToken: String, isRadius: Bool) {
+        transformPropertyValues {
+            $0.bakingFrameworkDimensionReference(reference, amountPx: amountPx, fallbackToken: fallbackToken, isRadius: isRadius)
+        }
+    }
+
+    private mutating func transformPropertyValues(_ transform: (PartProperty.Value) -> PartProperty.Value) {
         for index in properties.indices {
-            properties[index].value = properties[index].value.replacingFrameworkReference(reference, with: replacement)
+            properties[index].value = transform(properties[index].value)
         }
         if var overrides = responsiveOverrides {
             for index in overrides.indices {
-                overrides[index].value = overrides[index].value
-                    .replacingFrameworkReference(reference, with: replacement)
+                overrides[index].value = transform(overrides[index].value)
             }
             responsiveOverrides = overrides
         }
         for index in children.indices {
-            children[index].replaceFrameworkReference(reference, with: replacement)
+            children[index].transformPropertyValues(transform)
         }
     }
 }

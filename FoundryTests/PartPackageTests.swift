@@ -45,7 +45,7 @@ struct PartPackageTests {
             }
             checked += 1
         }
-        #expect(checked == 28, "Expected every documented control's Quick example; update this count when adding a control.")
+        #expect(checked == 30, "Expected every documented control's Quick example; update this count when adding a control.")
     }
 
     @Test(.enabled(if: FileManager.default.fileExists(atPath: developerDocsURL.appending(path: "AGENTS.md").path)))
@@ -418,7 +418,9 @@ struct PartPackageTests {
         #expect(css.contains("--light-red: 255"))
         #expect(css.contains("--dark-blue: 255"))
         #expect(css.contains("--light-rgb: 255, 0, 0"))
-        #expect(css.contains("--contrast: light-dark(#000000, #FFFFFF)"))
+        // White clears 3:1 on both pure red and pure blue, so the appearance
+        // pair collapses to a single colour.
+        #expect(css.contains("--contrast: #FFFFFF"))
         #expect(css.contains("--tint: light-dark(#FF8080, #8080FF)"))
         #expect(css.contains("--formatted: rgb(255 0 0)"))
 
@@ -428,7 +430,7 @@ struct PartPackageTests {
         let lightOnly = StaticSiteRenderer().render(site: site)
         let lightCSS = try #require(lightOnly.files.first { $0.contents.contains("--main:") }?.contents)
         #expect(lightCSS.contains("--main: #FF0000"))
-        #expect(lightCSS.contains("--contrast: #000000"))
+        #expect(lightCSS.contains("--contrast: #FFFFFF"))
         #expect(lightCSS.contains("--tint: #FF8080"))
         #expect(lightCSS.contains("--dark-blue: 255"))
 
@@ -774,6 +776,80 @@ struct PartPackageTests {
             #expect(try PartPackageManifestSchema.diagnostics(for: Data(manifest(withControls: invalid).utf8))
                 .contains { $0.message.contains("Select supports only declared options") })
         }
+    }
+
+    @Test @MainActor func frameworkFontSizeControlResolvesSizeAndLineHeightVariables() throws {
+        let item = """
+        <dict><key>type</key><string>frameworkFontSize</string><key>id</key><string>size</string>
+        <key>label</key><string>Size</string><key>responsive</key><true/>
+        <key>defaults</key><dict><key>base</key><string>xl</string></dict></dict>
+        """
+        let url = try makePackage(manifest: manifest(withControls: item),
+            template: "<p {{ part.attributes }} style=\"font-size: {{ control.size }}; line-height: {{ control.size.lineHeight }}\">{{ childArea(\"content\") }}</p>")
+        defer { try? FileManager.default.removeItem(at: url) }
+        let package = try PartPackageLoader.load(from: url)
+        PartRegistry.register(package)
+        defer { PartRegistry.unregisterPackage(identifier: package.manifest.identifier) }
+        let node = PartNode(type: PartType(rawValue: package.manifest.identifier))
+        let site = Site(name: "Sizes", pages: [Page(title: "Home", slug: "index", parts: [node])])
+        let canvas = HTMLPageRenderer(site: site).render(page: site.pages[0], framework: site.framework)
+        #expect(canvas.contains("font-size: var(--foundry-font-size-xl)"))
+        #expect(canvas.contains("line-height: var(--foundry-font-size-xl-line-height)"))
+        let exported = try #require(StaticSiteRenderer().render(site: site).file(at: "index.html")?.contents)
+        #expect(exported.contains("font-size: var(--foundry-font-size-xl)"))
+        #expect(exported.contains("line-height: var(--foundry-font-size-xl-line-height)"))
+
+        // Options-style keys are rejected, and portable defaults accept only
+        // the predefined scale — project custom sizes are not portable.
+        let withValues = item.replacingOccurrences(of: "<key>type</key>", with: "<key>frameworkValues</key><string>fontSizes</string><key>type</key>")
+        #expect(try PartPackageManifestSchema.diagnostics(for: Data(manifest(withControls: withValues).utf8))
+            .contains { $0.message.contains("does not accept frameworkValues") })
+        let badDefault = item.replacingOccurrences(of: "<string>xl</string>", with: "<string>huge</string>")
+        let decoded = try PropertyListDecoder().decode(PartPackageManifest.self, from: Data(manifest(withControls: badDefault).utf8))
+        #expect(PartPackageValidator.validate(decoded, rootURL: FileManager.default.temporaryDirectory)
+            .contains { $0.message.contains("frameworkFontSize default must be a predefined size ID") })
+    }
+
+    @Test @MainActor func frameworkStackingOrderControlResolvesVariable() throws {
+        let item = """
+        <dict><key>type</key><string>frameworkStackingOrder</string><key>id</key><string>layer</string>
+        <key>label</key><string>Layer</string><key>responsive</key><true/>
+        <key>defaults</key><dict><key>base</key><string>modal</string></dict></dict>
+        """
+        let url = try makePackage(manifest: manifest(withControls: item),
+            template: "<div {{ part.attributes }} style=\"z-index: {{ control.layer }}\">{{ childArea(\"content\") }}</div>")
+        defer { try? FileManager.default.removeItem(at: url) }
+        let package = try PartPackageLoader.load(from: url)
+        PartRegistry.register(package)
+        defer { PartRegistry.unregisterPackage(identifier: package.manifest.identifier) }
+        let node = PartNode(type: PartType(rawValue: package.manifest.identifier))
+        var site = Site(name: "Layers", pages: [Page(title: "Home", slug: "index", parts: [node])])
+        let canvas = HTMLPageRenderer(site: site).render(page: site.pages[0], framework: site.framework)
+        #expect(canvas.contains("z-index: var(--foundry-z-index-modal)"))
+        let exported = try #require(StaticSiteRenderer().render(site: site).file(at: "index.html")?.contents)
+        #expect(exported.contains("z-index: var(--foundry-z-index-modal)"))
+
+        // Custom mode carries a raw integer instead of a token variable.
+        var customNode = node
+        customNode.setProperty(.init(rawValue: "layer"), value: .packageStackingOrder(.init(
+            source: PartFrameworkValueSelection.manualCustom,
+            customValue: 750
+        )))
+        site.pages[0].parts = [customNode]
+        let customCanvas = HTMLPageRenderer(site: site).render(page: site.pages[0], framework: site.framework)
+        #expect(customCanvas.contains("z-index: 750"))
+        let customExported = try #require(StaticSiteRenderer().render(site: site).file(at: "index.html")?.contents)
+        #expect(customExported.contains("z-index: 750"))
+
+        // Options-style keys are rejected, and portable defaults accept only
+        // the predefined scale — project custom values are not portable.
+        let withValues = item.replacingOccurrences(of: "<key>type</key>", with: "<key>frameworkValues</key><string>zIndexes</string><key>type</key>")
+        #expect(try PartPackageManifestSchema.diagnostics(for: Data(manifest(withControls: withValues).utf8))
+            .contains { $0.message.contains("does not accept frameworkValues") })
+        let badDefault = item.replacingOccurrences(of: "<string>modal</string>", with: "<string>everest</string>")
+        let decoded = try PropertyListDecoder().decode(PartPackageManifest.self, from: Data(manifest(withControls: badDefault).utf8))
+        #expect(PartPackageValidator.validate(decoded, rootURL: FileManager.default.temporaryDirectory)
+            .contains { $0.message.contains("frameworkStackingOrder default must be a predefined stacking ID") })
     }
 
     @Test @MainActor func unifiedFontControlHasStructuredOutputAndIndependentOverrides() throws {
@@ -2170,7 +2246,9 @@ struct PartPackageTests {
         #expect(resolved["hex.hue"] == .number(345))
         #expect(resolved["hex.saturation"] == .number(100))
         #expect(resolved["hex.lightness"] == .number(60))
-        #expect(resolved["hex.contrastColor"] == .string("#000000"))
+        // White clears the 3:1 bar against #FF3366 (3.55:1), so it wins even
+        // though black's raw ratio is higher — matching designer expectation.
+        #expect(resolved["hex.contrastColor"] == .string("#FFFFFF"))
         #expect(resolved["hex.relativeLuminance"] == .number(0.24586962186768263))
         #expect(resolved["hex.contrastRatioWithBlack"] == .number(5.917392437353652))
         #expect(resolved["hex.contrastRatioWithWhite"] == .number(3.5488604520188827))
@@ -4933,10 +5011,15 @@ struct PartPackageTests {
                 "text-align: {{ control.textAlignment }}"
             ) == true
         )
+        let sizeEnabled = try #require(properties.first(where: { $0.key.rawValue == "sizeEnabled" }))
+        #expect(sizeEnabled.defaultValue == .boolean(false))
+        let fontSize = try #require(properties.first(where: { $0.key.rawValue == "fontSize" }))
+        #expect(fontSize.defaultValue == .choice("base"))
+        #expect(fontSize.isResponsive)
         #expect(
             PartType.paragraph.definition.package?.css.contains(
-                "line-height:"
-            ) == false
+                "line-height: {{ control.fontSize.lineHeight }}"
+            ) == true
         )
         #expect(
             PartType.paragraph.definition.package?.css.contains(

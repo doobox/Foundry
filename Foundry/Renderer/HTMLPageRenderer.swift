@@ -557,6 +557,12 @@ nonisolated struct HTMLPageRenderer: PageRendering {
             if case .frameworkFontSize = definition.control {
                 return (definition.key.rawValue, .string(framework.fontSizeCSSVariable(for: node.property(definition.key))))
             }
+            if case .frameworkStackingOrder = definition.control {
+                if case .packageStackingOrder(let selected) = value, selected.isCustom {
+                    return (definition.key.rawValue, .string(String(Int(selected.customValue))))
+                }
+                return (definition.key.rawValue, .string(framework.zIndexCSSVariable(for: node.property(definition.key))))
+            }
             if case .packageShadow = definition.control,
                case .packageShadow(let shadowValue) = value {
                 return (
@@ -585,6 +591,12 @@ nonisolated struct HTMLPageRenderer: PageRendering {
             if case .frameworkFont = definition.control,
                case .object(let fields) = values[definition.key.rawValue] {
                 for (field, value) in fields { values[definition.key.rawValue + "." + field] = value }
+            }
+            if case .frameworkFontSize = definition.control {
+                // The size's paired leading travels with it in the framework.
+                values[definition.key.rawValue + ".lineHeight"] = .string(
+                    framework.lineHeightCSSVariable(for: node.property(definition.key))
+                )
             }
             if case .packageColor(_, let opacity, _, _) = definition.control,
                case .packageColor(let colorValue) = node.propertyValue(definition.key) {
@@ -687,6 +699,7 @@ nonisolated struct HTMLPageRenderer: PageRendering {
         case .packageColor(let value): .string(value.source)
         case .packageFontSize(let value): .string(value.source)
         case .packageShadow(let value): .string(value.source)
+        case .packageStackingOrder(let value): .string(value.source)
         case .frameworkSpacing, .frameworkPadding, .frameworkMargin, .frameworkBorderWidth, .frameworkRadius: .string("")
         }
     }
@@ -720,6 +733,7 @@ nonisolated struct HTMLPageRenderer: PageRendering {
         let version = manifest?.version ?? ""
         let globalAttributes = globalDefinitionID.map {
             " data-foundry-global=\"\($0.uuidString)\" data-foundry-global-override=\"\(node.overridesGlobalDefinition == true)\""
+                + (node.reusableDefinitionID != nil ? " data-foundry-global-root=\"true\"" : "")
         } ?? ""
         let parentAttribute = parentPartID.map { " data-foundry-parent=\"\($0.uuidString)\"" } ?? ""
         let slotAttributes = parentSlot.map {

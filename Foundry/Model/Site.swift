@@ -6,9 +6,12 @@ nonisolated struct ProjectFrameworkValues: Codable, Equatable, Sendable {
     var fontSizes: [FrameworkFontSize] = []
     var shadows: [FrameworkShadow] = []
     var colours: [ColourPalette] = []
+    var borderWidths: [FrameworkCustomDimension] = []
+    var borderRadii: [FrameworkCustomDimension] = []
+    var zIndexes: [FrameworkCustomDimension] = []
 
     private enum CodingKeys: String, CodingKey {
-        case spacing, fonts, fontSizes, shadows, colours
+        case spacing, fonts, fontSizes, shadows, colours, borderWidths, borderRadii, zIndexes
     }
 
     init() {}
@@ -20,6 +23,9 @@ nonisolated struct ProjectFrameworkValues: Codable, Equatable, Sendable {
         fontSizes = try container.decodeIfPresent([FrameworkFontSize].self, forKey: .fontSizes) ?? []
         shadows = try container.decodeIfPresent([FrameworkShadow].self, forKey: .shadows) ?? []
         colours = try container.decodeIfPresent([ColourPalette].self, forKey: .colours) ?? []
+        borderWidths = try container.decodeIfPresent([FrameworkCustomDimension].self, forKey: .borderWidths) ?? []
+        borderRadii = try container.decodeIfPresent([FrameworkCustomDimension].self, forKey: .borderRadii) ?? []
+        zIndexes = try container.decodeIfPresent([FrameworkCustomDimension].self, forKey: .zIndexes) ?? []
     }
 
     mutating func absorb(_ framework: Framework) {
@@ -28,6 +34,9 @@ nonisolated struct ProjectFrameworkValues: Codable, Equatable, Sendable {
         fontSizes = framework.typography.customFontSizes
         shadows = framework.shadows.custom
         colours = framework.colourPalettes.filter { $0.origin == .custom }
+        borderWidths = framework.borderWidths.custom
+        borderRadii = framework.borderRadii.custom
+        zIndexes = framework.zIndexes.custom
     }
 
     mutating func include(_ framework: Framework) {
@@ -35,6 +44,9 @@ nonisolated struct ProjectFrameworkValues: Codable, Equatable, Sendable {
         Self.mergeKeepingExisting(framework.typography.customFonts, into: &fonts, id: \.id)
         Self.mergeKeepingExisting(framework.typography.customFontSizes, into: &fontSizes, id: \.id)
         Self.mergeKeepingExisting(framework.shadows.custom, into: &shadows, id: \.id)
+        Self.mergeKeepingExisting(framework.borderWidths.custom, into: &borderWidths, id: \.id)
+        Self.mergeKeepingExisting(framework.borderRadii.custom, into: &borderRadii, id: \.id)
+        Self.mergeKeepingExisting(framework.zIndexes.custom, into: &zIndexes, id: \.id)
     }
 
     func applied(to framework: Framework) -> Framework {
@@ -43,6 +55,9 @@ nonisolated struct ProjectFrameworkValues: Codable, Equatable, Sendable {
         Self.mergeReplacingExisting(fonts, into: &result.typography.customFonts, id: \.id)
         Self.mergeReplacingExisting(fontSizes, into: &result.typography.customFontSizes, id: \.id)
         Self.mergeReplacingExisting(shadows, into: &result.shadows.custom, id: \.id)
+        Self.mergeReplacingExisting(borderWidths, into: &result.borderWidths.custom, id: \.id)
+        Self.mergeReplacingExisting(borderRadii, into: &result.borderRadii.custom, id: \.id)
+        Self.mergeReplacingExisting(zIndexes, into: &result.zIndexes.custom, id: \.id)
         result.colourPalettes.removeAll { $0.origin == .custom }
         result.colourPalettes.append(contentsOf: colours)
         return result
@@ -238,6 +253,30 @@ nonisolated struct Site: Codable, Equatable, Identifiable, Sendable {
         }
         globalPartLibrary.updateAllDefinitions {
             $0.root.replaceFrameworkReference(reference, with: replacement)
+        }
+    }
+
+    mutating func bakePartFrameworkSpacingReference(_ reference: String, amountRem: Double, fallbackToken: String) {
+        for pageIndex in pages.indices {
+            for partIndex in pages[pageIndex].parts.indices {
+                pages[pageIndex].parts[partIndex]
+                    .bakeFrameworkSpacingReference(reference, amountRem: amountRem, fallbackToken: fallbackToken)
+            }
+        }
+        globalPartLibrary.updateAllDefinitions {
+            $0.root.bakeFrameworkSpacingReference(reference, amountRem: amountRem, fallbackToken: fallbackToken)
+        }
+    }
+
+    mutating func bakePartFrameworkDimensionReference(_ reference: String, amountPx: Double, fallbackToken: String, isRadius: Bool) {
+        for pageIndex in pages.indices {
+            for partIndex in pages[pageIndex].parts.indices {
+                pages[pageIndex].parts[partIndex]
+                    .bakeFrameworkDimensionReference(reference, amountPx: amountPx, fallbackToken: fallbackToken, isRadius: isRadius)
+            }
+        }
+        globalPartLibrary.updateAllDefinitions {
+            $0.root.bakeFrameworkDimensionReference(reference, amountPx: amountPx, fallbackToken: fallbackToken, isRadius: isRadius)
         }
     }
 

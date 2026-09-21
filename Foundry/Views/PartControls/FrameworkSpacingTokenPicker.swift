@@ -17,10 +17,17 @@ struct FrameworkSpacingTokenPicker<Policy: FrameworkSpacingPolicy>: View {
                 Text("Missing value").tag(binding.wrappedValue.token)
             }
 
+            if !customOptions.isEmpty {
+                Section("Custom") {
+                    ForEach(customOptions) { option in
+                        optionText(option)
+                    }
+                }
+            }
+
             Section("Framework values") {
-                ForEach(options) { option in
-                    Text("\(option.label) - \(formatted(option.amount))\(Policy.frameworkUnit)")
-                        .tag(option.id)
+                ForEach(predefinedOptions) { option in
+                    optionText(option)
                 }
             }
         }
@@ -29,6 +36,19 @@ struct FrameworkSpacingTokenPicker<Policy: FrameworkSpacingPolicy>: View {
         .labelsHidden()
         .frame(maxWidth: .infinity)
         .accessibilityLabel("\(title) \(Policy.label.lowercased())")
+    }
+
+    private var customOptions: [FrameworkEdgeChoice] {
+        options.filter { $0.id.hasPrefix("custom:") }
+    }
+
+    private var predefinedOptions: [FrameworkEdgeChoice] {
+        options.filter { !$0.id.hasPrefix("custom:") }
+    }
+
+    private func optionText(_ option: FrameworkEdgeChoice) -> some View {
+        Text("\(option.label) - \(formatted(option.amount))\(Policy.frameworkUnit)")
+            .tag(option.id)
     }
 
     private var selectionBinding: Binding<String> {

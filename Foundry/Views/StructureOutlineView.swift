@@ -24,6 +24,7 @@ struct StructureOutlineView: NSViewRepresentable {
     let saveAsReusablePart: (String) -> Void
     let saveAsGlobalPart: (String) -> Void
     let setGlobalPartLinked: (UUID, Bool) -> Void
+    let explodeGlobalPart: (UUID) -> Void
     let movePart: (Int) -> Void
     let outdentPart: () -> Void
     let deletePart: () -> Void
@@ -243,13 +244,22 @@ struct StructureOutlineView: NSViewRepresentable {
             }
             menu.addItem(.separator())
 
-            if let globalContext = selectedGlobalContext {
+            // The global root explodes back into plain parts; overriding is a
+            // child-level affair and never offered on the root itself.
+            if isSingleSelection, item.part.reusableDefinitionID != nil {
+                menu.addItem(menuItem(
+                    "Explode Global",
+                    action: #selector(explodeGlobalFromContextMenu(_:)),
+                    item: item
+                ))
+                menu.addItem(.separator())
+            } else if let globalContext = selectedGlobalContext {
                 menu.addItem(menuItem(
                     globalContext.isLinked ? "Make Local Override" : "Relink to Global",
                     action: globalContext.isLinked
                         ? #selector(makeLocalOverrideFromContextMenu(_:))
                         : #selector(relinkGlobalFromContextMenu(_:)),
-                    item: globalContext.target
+                    item: globalContext.isLinked ? item : globalContext.target
                 ))
                 menu.addItem(.separator())
             }
@@ -505,6 +515,11 @@ struct StructureOutlineView: NSViewRepresentable {
         @objc private func relinkGlobalFromContextMenu(_ sender: NSMenuItem) {
             guard let item = contextItem(from: sender) else { return }
             parent.setGlobalPartLinked(item.id, true)
+        }
+
+        @objc private func explodeGlobalFromContextMenu(_ sender: NSMenuItem) {
+            guard let item = contextItem(from: sender) else { return }
+            parent.explodeGlobalPart(item.id)
         }
 
         @objc private func moveUpFromContextMenu(_ sender: NSMenuItem) {

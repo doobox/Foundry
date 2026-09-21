@@ -18,7 +18,7 @@ private struct FrameworkFontCard<Content: View>: View {
         .padding(showsCard ? 12 : 0)
         .background {
             if showsCard {
-                RoundedRectangle(cornerRadius: 12).fill(.background)
+                RoundedRectangle(cornerRadius: 12).fill(.quinary)
             }
         }
         .overlay {

@@ -127,8 +127,32 @@ nonisolated struct FrameworkDimensionToken: Codable, Equatable, Identifiable, Se
     var value: Double
 }
 
+/// A user-created value extending one of the dimension scales. The CSS
+/// variable prefix comes from the owning scale (border-width, border-radius
+/// or z-index), so the same shape serves all three.
+nonisolated struct FrameworkCustomDimension: Codable, Equatable, Identifiable, Sendable {
+    let id: UUID
+    var name: String
+    var value: Double
+
+    init(id: UUID = UUID(), name: String, value: Double) {
+        self.id = id
+        self.name = name
+        self.value = value
+    }
+
+    func cssVariable(prefix: String) -> String {
+        "--foundry-\(prefix)-custom-\(id.uuidString.lowercased())"
+    }
+
+    var reference: String {
+        "custom:\(id.uuidString.lowercased())"
+    }
+}
+
 nonisolated struct FrameworkDimensionTokens: Codable, Equatable, Sendable {
     var predefined: [FrameworkDimensionToken]
+    var custom: [FrameworkCustomDimension] = []
 
     static let standardBorderWidths = FrameworkDimensionTokens(predefined: [
         .init(id: "none", title: "None", value: 0),
@@ -343,7 +367,8 @@ nonisolated struct SpacingTokens: Codable, Equatable, Sendable {
         large: 8,
         extraLarge: 12,
         doubleExtraLarge: 16,
-        threeExtraLarge: 24
+        threeExtraLarge: 24,
+        fourExtraLarge: 32
     )
 
     var threeExtraSmall: Double
@@ -355,6 +380,7 @@ nonisolated struct SpacingTokens: Codable, Equatable, Sendable {
     var extraLarge: Double
     var doubleExtraLarge: Double
     var threeExtraLarge: Double
+    var fourExtraLarge: Double
     var custom: [FrameworkSpacing]
 
     init(
@@ -367,6 +393,7 @@ nonisolated struct SpacingTokens: Codable, Equatable, Sendable {
         extraLarge: Double = 12,
         doubleExtraLarge: Double = 16,
         threeExtraLarge: Double = 24,
+        fourExtraLarge: Double = 32,
         custom: [FrameworkSpacing] = []
     ) {
         self.threeExtraSmall = threeExtraSmall
@@ -378,6 +405,7 @@ nonisolated struct SpacingTokens: Codable, Equatable, Sendable {
         self.extraLarge = extraLarge
         self.doubleExtraLarge = doubleExtraLarge
         self.threeExtraLarge = threeExtraLarge
+        self.fourExtraLarge = fourExtraLarge
         self.custom = custom
     }
 
@@ -391,6 +419,7 @@ nonisolated struct SpacingTokens: Codable, Equatable, Sendable {
         case extraLarge
         case doubleExtraLarge
         case threeExtraLarge
+        case fourExtraLarge
         case custom
     }
 
@@ -405,20 +434,24 @@ nonisolated struct SpacingTokens: Codable, Equatable, Sendable {
         extraLarge = try container.decode(Double.self, forKey: .extraLarge)
         doubleExtraLarge = try container.decode(Double.self, forKey: .doubleExtraLarge)
         threeExtraLarge = try container.decode(Double.self, forKey: .threeExtraLarge)
+        fourExtraLarge = try container.decode(Double.self, forKey: .fourExtraLarge)
         custom = try container.decode([FrameworkSpacing].self, forKey: .custom)
     }
 
-    var usesStandardPredefinedScale: Bool {
-        threeExtraSmall == Self.standard.threeExtraSmall &&
-            doubleExtraSmall == Self.standard.doubleExtraSmall &&
-            extraSmall == Self.standard.extraSmall &&
-            small == Self.standard.small &&
-            medium == Self.standard.medium &&
-            large == Self.standard.large &&
-            extraLarge == Self.standard.extraLarge &&
-            doubleExtraLarge == Self.standard.doubleExtraLarge &&
-            threeExtraLarge == Self.standard.threeExtraLarge
+    func matchesPredefinedScale(of other: SpacingTokens) -> Bool {
+        threeExtraSmall == other.threeExtraSmall &&
+            doubleExtraSmall == other.doubleExtraSmall &&
+            extraSmall == other.extraSmall &&
+            small == other.small &&
+            medium == other.medium &&
+            large == other.large &&
+            extraLarge == other.extraLarge &&
+            doubleExtraLarge == other.doubleExtraLarge &&
+            threeExtraLarge == other.threeExtraLarge &&
+            fourExtraLarge == other.fourExtraLarge
     }
+
+    var usesStandardPredefinedScale: Bool { matchesPredefinedScale(of: .standard) }
 }
 
 nonisolated struct FrameworkSpacing: Codable, Equatable, Identifiable, Sendable {
@@ -793,7 +826,8 @@ nonisolated extension Framework {
             ("lg", "LG", spacing.large),
             ("xl", "XL", spacing.extraLarge),
             ("2xl", "2XL", spacing.doubleExtraLarge),
-            ("3xl", "3XL", spacing.threeExtraLarge)
+            ("3xl", "3XL", spacing.threeExtraLarge),
+            ("4xl", "4XL", spacing.fourExtraLarge)
         ]
         return predefined.map { id, title, _ in
             return .init(
@@ -832,21 +866,46 @@ nonisolated extension Framework {
     var borderCSSVariables: String {
         let widths = borderWidths.predefined.map {
             "--foundry-border-width-\($0.id):\($0.value.cssNumber)px;"
+        }.joined() + borderWidths.custom.map {
+            "\($0.cssVariable(prefix: "border-width")):\($0.value.cssNumber)px;"
         }.joined()
         let radii = borderRadii.predefined.map {
             "--foundry-border-radius-\($0.id):\($0.value.cssNumber)px;"
+        }.joined() + borderRadii.custom.map {
+            "\($0.cssVariable(prefix: "border-radius")):\($0.value.cssNumber)px;"
         }.joined()
         return widths + radii
+    }
+
+    /// Custom values lead: they are the user's own, so pickers surface them
+    /// above the predefined scale.
+    var zIndexChoices: [PartPropertyChoice] {
+        zIndexes.custom.map { .init(value: $0.reference, label: $0.name) }
+        + zIndexes.predefined.enumerated().map { index, token in
+            .init(value: token.id, label: token.title, separatorBefore: index == 0 && !zIndexes.custom.isEmpty)
+        }
+    }
+
+    func zIndexCSSVariable(for reference: String) -> String {
+        if zIndexes.predefined.contains(where: { $0.id == reference }) {
+            return "var(--foundry-z-index-\(reference))"
+        }
+        if let custom = zIndexes.custom.first(where: { $0.reference == reference }) {
+            return "var(\(custom.cssVariable(prefix: "z-index")))"
+        }
+        return "var(--foundry-z-index-base)"
     }
 
     var zIndexCSSVariables: String {
         zIndexes.predefined.map {
             "--foundry-z-index-\($0.id):\($0.value.cssNumber);"
+        }.joined() + zIndexes.custom.map {
+            "\($0.cssVariable(prefix: "z-index")):\($0.value.cssNumber);"
         }.joined()
     }
 
     func spacingCSSVariable(for reference: String) -> String? {
-        let predefined = Set(["3xs", "2xs", "xs", "sm", "md", "lg", "xl", "2xl", "3xl"])
+        let predefined = Set(["3xs", "2xs", "xs", "sm", "md", "lg", "xl", "2xl", "3xl", "4xl"])
         if predefined.contains(reference) {
             return "var(--foundry-space-\(reference))"
         }
@@ -875,7 +934,7 @@ nonisolated extension Framework {
     }
 
     var spacingCSSVariables: String {
-        let predefined = "--foundry-spacing-base:\(SpacingTokens.baseRem)rem;--foundry-space-3xs:calc(var(--foundry-spacing-base) * \(spacing.threeExtraSmall));--foundry-space-2xs:calc(var(--foundry-spacing-base) * \(spacing.doubleExtraSmall));--foundry-space-xs:calc(var(--foundry-spacing-base) * \(spacing.extraSmall));--foundry-space-sm:calc(var(--foundry-spacing-base) * \(spacing.small));--foundry-space-md:calc(var(--foundry-spacing-base) * \(spacing.medium));--foundry-space-lg:calc(var(--foundry-spacing-base) * \(spacing.large));--foundry-space-xl:calc(var(--foundry-spacing-base) * \(spacing.extraLarge));--foundry-space-2xl:calc(var(--foundry-spacing-base) * \(spacing.doubleExtraLarge));--foundry-space-3xl:calc(var(--foundry-spacing-base) * \(spacing.threeExtraLarge));"
+        let predefined = "--foundry-spacing-base:\(SpacingTokens.baseRem)rem;--foundry-space-3xs:calc(var(--foundry-spacing-base) * \(spacing.threeExtraSmall));--foundry-space-2xs:calc(var(--foundry-spacing-base) * \(spacing.doubleExtraSmall));--foundry-space-xs:calc(var(--foundry-spacing-base) * \(spacing.extraSmall));--foundry-space-sm:calc(var(--foundry-spacing-base) * \(spacing.small));--foundry-space-md:calc(var(--foundry-spacing-base) * \(spacing.medium));--foundry-space-lg:calc(var(--foundry-spacing-base) * \(spacing.large));--foundry-space-xl:calc(var(--foundry-spacing-base) * \(spacing.extraLarge));--foundry-space-2xl:calc(var(--foundry-spacing-base) * \(spacing.doubleExtraLarge));--foundry-space-3xl:calc(var(--foundry-spacing-base) * \(spacing.threeExtraLarge));--foundry-space-4xl:calc(var(--foundry-spacing-base) * \(spacing.fourExtraLarge));"
         return predefined + spacing.custom.map {
             "\($0.cssVariable):calc(var(--foundry-spacing-base) * \($0.value));"
         }.joined()
@@ -949,7 +1008,7 @@ nonisolated extension Framework {
         case .linksColor: colors.links
         case .threeExtraSmallSpacing, .doubleExtraSmallSpacing, .extraSmallSpacing,
              .smallSpacing, .mediumSpacing, .largeSpacing, .extraLargeSpacing,
-             .doubleExtraLargeSpacing, .threeExtraLargeSpacing: nil
+             .doubleExtraLargeSpacing, .threeExtraLargeSpacing, .fourExtraLargeSpacing: nil
         }
     }
 
@@ -964,6 +1023,7 @@ nonisolated extension Framework {
         case .extraLargeSpacing: spacing.extraLarge
         case .doubleExtraLargeSpacing: spacing.doubleExtraLarge
         case .threeExtraLargeSpacing: spacing.threeExtraLarge
+        case .fourExtraLargeSpacing: spacing.fourExtraLarge
         case .backgroundColor, .surfaceColor, .textColor, .accentColor, .linksColor: nil
         }
     }

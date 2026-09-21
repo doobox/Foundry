@@ -785,11 +785,16 @@ private struct PartInspector: View {
                             classes: partClassesBinding,
                             attributes: partAttributesBinding,
                             isDuplicateAnchor: partAnchorIsDuplicate,
-                            localOverride: reusableDefinition == nil ? nil : Binding(
+                            // Overriding is a child-level affair; the root
+                            // offers Explode Global instead of the switch.
+                            localOverride: reusableDefinition == nil || isGlobalRoot ? nil : Binding(
                                 get: { isGlobalOverride },
                                 set: setGlobalOverride
                             ),
-                            globalLabel: isGlobalOverride ? nil : globalIndicatorLabel,
+                            explodeGlobal: isGlobalRoot ? {
+                                editor.explodeGlobalPart(partID: part.id)
+                            } : nil,
+                            globalLabel: reusableDefinition == nil ? nil : globalIndicatorLabel,
                             globalColor: globalIndicatorColor
                         )
                     }
@@ -953,16 +958,27 @@ private struct PartInspector: View {
     }
 
     private var partHeaderTitle: String {
-        let name = reusableDefinition?.name ?? part.type.displayName
+        // Children inside a global keep their own identity; only the global's
+        // root instance wears the definition's name, matching the type icon.
+        let name = part.reusableDefinitionID == reusableDefinition?.id
+            ? (reusableDefinition?.name ?? part.type.displayName)
+            : part.type.displayName
         return selectedParts.count > 1 ? "\(name) · \(selectedParts.count) selected" : name
     }
 
+    private var isGlobalRoot: Bool {
+        reusableDefinition != nil && part.reusableDefinitionID != nil
+    }
+
     private var globalIndicatorColor: Color {
-        Color(red: 48.0 / 255.0, green: 209.0 / 255.0, blue: 88.0 / 255.0)
+        isGlobalOverride && !isGlobalRoot
+            ? .blue
+            : Color(red: 48.0 / 255.0, green: 209.0 / 255.0, blue: 88.0 / 255.0)
     }
 
     private var globalIndicatorLabel: String {
-        part.reusableDefinitionID == reusableDefinition?.id ? "Global" : "Global — Child"
+        if isGlobalRoot { return "Global" }
+        return isGlobalOverride ? "Global — Child — Overridden" : "Global — Child"
     }
 
     private var displayedPartIcon: NSImage? {
@@ -1070,6 +1086,7 @@ private struct PartIdentityFields: View {
     @Binding var attributes: [PartHTMLAttribute]
     let isDuplicateAnchor: Bool
     let localOverride: Binding<Bool>?
+    let explodeGlobal: (() -> Void)?
     let globalLabel: String?
     let globalColor: Color
 
@@ -1107,7 +1124,23 @@ private struct PartIdentityFields: View {
                 }
             }
 
-            if let localOverride {
+            if let explodeGlobal {
+                GridRow {
+                    Divider()
+                        .gridCellColumns(2)
+                }
+
+                InspectorRow(title: "Global", alignment: .center) {
+                    HStack(spacing: 8) {
+                        Button("Explode Global", action: explodeGlobal)
+                            .help("Disconnect this instance from its global; the parts stay on the page.")
+
+                        Spacer(minLength: 8)
+
+                        globalBadge
+                    }
+                }
+            } else if let localOverride {
                 GridRow {
                     Divider()
                         .gridCellColumns(2)
@@ -1122,17 +1155,22 @@ private struct PartIdentityFields: View {
 
                         Spacer(minLength: 8)
 
-                        if let globalLabel {
-                            Text(globalLabel)
-                                .font(.caption2.weight(.semibold))
-                                .foregroundStyle(globalColor)
-                                .padding(.horizontal, 6)
-                                .padding(.vertical, 2)
-                                .background(globalColor.opacity(0.14), in: Capsule())
-                        }
+                        globalBadge
                     }
                 }
             }
+        }
+    }
+
+    @ViewBuilder
+    private var globalBadge: some View {
+        if let globalLabel {
+            Text(globalLabel)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(globalColor)
+                .padding(.horizontal, 6)
+                .padding(.vertical, 2)
+                .background(globalColor.opacity(0.14), in: Capsule())
         }
     }
 }
