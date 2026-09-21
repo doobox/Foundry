@@ -405,10 +405,15 @@ nonisolated struct PartPackageControlGroup: Codable, Equatable, Sendable {
             output += "\n" + target + ":hover {\n    " + hover.joined(separator: "\n    ") + "\n}"
         }
         if styles.contains(.video) {
-            output += "\n" + target + " > .foundry-background-video { position: absolute; inset: 0; z-index: -1; width: 100%; height: 100%; object-fit: cover; pointer-events: none; }"
+            // Video helper rules only exist on instances that actually use a
+            // video background — plain colour sections carry none of this.
+            let usesVideo = includesHover
+                ? #"{{ if control.backgroundStyle == "video" || control.backgroundHoverStyle == "video" }}"#
+                : #"{{ if control.backgroundStyle == "video" }}"#
+            output += "\n" + usesVideo + target + " > .foundry-background-video { position: absolute; inset: 0; z-index: -1; width: 100%; height: 100%; object-fit: cover; pointer-events: none; }{{ endif }}"
             if includesHover {
-                output += "\n" + target + " > .foundry-background-video--hover { opacity: 0; }"
-                output += "\n" + target + ":hover > .foundry-background-video--hover { opacity: 1; }"
+                output += "\n" + #"{{ if control.backgroundHoverStyle == "video" }}"# + target + " > .foundry-background-video--hover { opacity: 0; }"
+                output += "\n" + target + ":hover > .foundry-background-video--hover { opacity: 1; }{{ endif }}"
             }
         }
         return output

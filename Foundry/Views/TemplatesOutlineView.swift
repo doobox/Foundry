@@ -52,7 +52,7 @@ struct TemplatesOutlineView: NSViewRepresentable {
     /// Templates live on disk and can reveal their bundle; globals pass nil.
     let revealDefinition: ((UUID) -> Void)?
     /// Deletion is confirmed by the panel, not performed here.
-    let requestDelete: (UUID) -> Void
+    let requestDelete: ([UUID]) -> Void
 
     func makeCoordinator() -> Coordinator { Coordinator(parent: self) }
 
@@ -60,7 +60,7 @@ struct TemplatesOutlineView: NSViewRepresentable {
         let column = NSTableColumn(identifier: .reusablePartColumn)
         let outlineView = LibraryListOutlineView()
         outlineView.onDeleteKey = { [weak coordinator = context.coordinator] in
-            coordinator?.deleteSelectedNode()
+            coordinator?.deleteSelectedNodes()
         }
         outlineView.onRenameKey = { [weak coordinator = context.coordinator] in
             coordinator?.renameSelectedNode()
@@ -72,7 +72,7 @@ struct TemplatesOutlineView: NSViewRepresentable {
         outlineView.indentationPerLevel = 14
         outlineView.selectionHighlightStyle = .regular
         outlineView.backgroundColor = .clear
-        outlineView.allowsMultipleSelection = false
+        outlineView.allowsMultipleSelection = true
         outlineView.dataSource = context.coordinator
         outlineView.delegate = context.coordinator
         outlineView.registerForDraggedTypes([.reusablePartNode, .string])
@@ -172,35 +172,61 @@ struct TemplatesOutlineView: NSViewRepresentable {
 
         func menuNeedsUpdate(_ menu: NSMenu) {
             menu.removeAllItems()
-            guard let outlineView,
-                  outlineView.clickedRow >= 0,
-                  let item = outlineView.item(atRow: outlineView.clickedRow) as? ReusablePartOutlineItem else {
-                return
-            }
-            selectRow(of: item)
-            let renameItem = NSMenuItem(title: "Rename", action: #selector(renameFromContextMenu(_:)), keyEquivalent: "\r")
-            renameItem.keyEquivalentModifierMask = []
-            renameItem.target = self
-            renameItem.representedObject = item.id
-            menu.addItem(renameItem)
-            if !item.isFolder {
-                let duplicateItem = NSMenuItem(title: "Duplicate", action: #selector(duplicateFromContextMenu(_:)), keyEquivalent: "")
-                duplicateItem.target = self
-                duplicateItem.representedObject = item.id
-                menu.addItem(duplicateItem)
-                if parent.revealDefinition != nil {
-                    let revealItem = NSMenuItem(title: "Show in Finder", action: #selector(revealFromContextMenu(_:)), keyEquivalent: "")
-                    revealItem.target = self
-                    revealItem.representedObject = item.id
-                    menu.addItem(revealItem)
+            let targetIDs = contextMenuTargetIDs()
+            guard !targetIDs.isEmpty else { return }
+            if targetIDs.count == 1, let id = targetIDs.first, let item = itemsByID[id] {
+                let renameItem = NSMenuItem(title: "Rename", action: #selector(renameFromContextMenu(_:)), keyEquivalent: "\r")
+                renameItem.keyEquivalentModifierMask = []
+                renameItem.target = self
+                renameItem.representedObject = item.id
+                menu.addItem(renameItem)
+                if !item.isFolder {
+                    let duplicateItem = NSMenuItem(title: "Duplicate", action: #selector(duplicateFromContextMenu(_:)), keyEquivalent: "")
+                    duplicateItem.target = self
+                    duplicateItem.representedObject = item.id
+                    menu.addItem(duplicateItem)
+                    if parent.revealDefinition != nil {
+                        let revealItem = NSMenuItem(title: "Show in Finder", action: #selector(revealFromContextMenu(_:)), keyEquivalent: "")
+                        revealItem.target = self
+                        revealItem.representedObject = item.id
+                        menu.addItem(revealItem)
+                    }
                 }
+                menu.addItem(.separator())
             }
-            menu.addItem(.separator())
-            let deleteTitle = item.isFolder ? "Delete Folder…" : "Delete \(parent.kind.partNoun)…"
+            let deleteTitle: String
+            if targetIDs.count > 1 {
+                deleteTitle = "Delete \(targetIDs.count) Items…"
+            } else if let item = targetIDs.first.flatMap({ itemsByID[$0] }) {
+                deleteTitle = item.isFolder ? "Delete Folder…" : "Delete \(parent.kind.partNoun)…"
+            } else {
+                deleteTitle = "Delete…"
+            }
             let deleteItem = NSMenuItem(title: deleteTitle, action: #selector(deleteFromContextMenu(_:)), keyEquivalent: "")
             deleteItem.target = self
-            deleteItem.representedObject = item.id
+            deleteItem.representedObject = targetIDs
             menu.addItem(deleteItem)
+        }
+
+        // A right-click inside the selection acts on the whole selection; a
+        // right-click outside it acts only on the clicked row.
+        private func contextMenuTargetIDs() -> [UUID] {
+            guard let outlineView,
+                  outlineView.clickedRow >= 0,
+                  let clicked = outlineView.item(atRow: outlineView.clickedRow) as? ReusablePartOutlineItem else {
+                return []
+            }
+            if outlineView.selectedRowIndexes.contains(outlineView.clickedRow) {
+                return selectedItemIDs()
+            }
+            return [clicked.id]
+        }
+
+        private func selectedItemIDs() -> [UUID] {
+            guard let outlineView else { return [] }
+            return outlineView.selectedRowIndexes.compactMap {
+                (outlineView.item(atRow: $0) as? ReusablePartOutlineItem)?.id
+            }
         }
 
         @objc private func renameFromContextMenu(_ sender: NSMenuItem) {
@@ -219,8 +245,8 @@ struct TemplatesOutlineView: NSViewRepresentable {
         }
 
         @objc private func deleteFromContextMenu(_ sender: NSMenuItem) {
-            guard let id = sender.representedObject as? UUID else { return }
-            parent.requestDelete(id)
+            guard let ids = sender.representedObject as? [UUID], !ids.isEmpty else { return }
+            parent.requestDelete(ids)
         }
 
         func renameSelectedNode() {
@@ -229,10 +255,10 @@ struct TemplatesOutlineView: NSViewRepresentable {
             beginRenaming(item)
         }
 
-        func deleteSelectedNode() {
-            guard let outlineView, outlineView.selectedRow >= 0,
-                  let item = outlineView.item(atRow: outlineView.selectedRow) as? ReusablePartOutlineItem else { return }
-            parent.requestDelete(item.id)
+        func deleteSelectedNodes() {
+            let ids = selectedItemIDs()
+            guard !ids.isEmpty else { return }
+            parent.requestDelete(ids)
         }
 
         private func beginRenaming(_ item: ReusablePartOutlineItem) {
@@ -275,8 +301,15 @@ struct TemplatesOutlineView: NSViewRepresentable {
             proposedItem item: Any?,
             proposedChildIndex index: Int
         ) -> NSDragOperation {
-            let isInternal = internalNodeID(from: info) != nil
+            let isInternal = !internalNodeIDs(from: info).isEmpty
             guard isInternal || !droppedPartIDs(from: info).isEmpty else { return [] }
+            // Blank space below the last row targets the root, not the level
+            // AppKit proposes from the nearest row.
+            let point = outlineView.convert(info.draggingLocation, from: nil)
+            if outlineView.row(at: point) < 0 {
+                outlineView.setDropItem(nil, dropChildIndex: roots.count)
+                return isInternal ? .move : .copy
+            }
             if index == NSOutlineViewDropOnItemIndex,
                (item as? ReusablePartOutlineItem)?.isFolder != true {
                 return []
@@ -293,8 +326,13 @@ struct TemplatesOutlineView: NSViewRepresentable {
             guard let placement = placement(parent: item as? ReusablePartOutlineItem, childIndex: index) else {
                 return false
             }
-            if let nodeID = internalNodeID(from: info) {
-                return parent.moveNode(nodeID, placement)
+            let nodeIDs = internalNodeIDs(from: info)
+            if !nodeIDs.isEmpty {
+                var moved = false
+                for nodeID in nodeIDs {
+                    moved = parent.moveNode(nodeID, placement) || moved
+                }
+                return moved
             }
             let partIDs = droppedPartIDs(from: info)
             guard !partIDs.isEmpty else { return false }
@@ -312,11 +350,13 @@ struct TemplatesOutlineView: NSViewRepresentable {
             return .end
         }
 
-        private func internalNodeID(from info: any NSDraggingInfo) -> UUID? {
+        private func internalNodeIDs(from info: any NSDraggingInfo) -> [UUID] {
             let prefix = parent.kind.internalDragPrefix
-            guard let value = info.draggingPasteboard.string(forType: .reusablePartNode),
-                  value.hasPrefix(prefix) else { return nil }
-            return UUID(uuidString: String(value.dropFirst(prefix.count)))
+            return (info.draggingPasteboard.pasteboardItems ?? []).compactMap { item in
+                guard let value = item.string(forType: .reusablePartNode),
+                      value.hasPrefix(prefix) else { return nil }
+                return UUID(uuidString: String(value.dropFirst(prefix.count)))
+            }
         }
 
         private func droppedPartIDs(from info: any NSDraggingInfo) -> [UUID] {

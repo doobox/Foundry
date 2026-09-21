@@ -24,6 +24,7 @@ nonisolated struct PartTemplateContext: Sendable {
     let enablesEditorMarkup: Bool
     let environment: PartTemplateEnvironment
     let richTextLinkContext: FoundryRichTextCodec.LinkContext?
+    let richTextColourContext: FoundryRichTextCodec.ColourContext?
     let loopMaximums: [String: Int]
 
     var allProperties: [String: PartPackageValue] {
@@ -48,6 +49,7 @@ nonisolated struct PartTemplateContext: Sendable {
         enablesEditorMarkup: Bool = false,
         environment: PartTemplateEnvironment = .published,
         richTextLinkContext: FoundryRichTextCodec.LinkContext? = nil,
+        richTextColourContext: FoundryRichTextCodec.ColourContext? = nil,
         loopMaximums: [String: Int]
     ) {
         self.instanceID = instanceID
@@ -67,6 +69,7 @@ nonisolated struct PartTemplateContext: Sendable {
         self.enablesEditorMarkup = enablesEditorMarkup
         self.environment = environment
         self.richTextLinkContext = richTextLinkContext
+        self.richTextColourContext = richTextColourContext
         self.loopMaximums = loopMaximums
     }
 
@@ -87,7 +90,8 @@ nonisolated struct PartTemplateContext: Sendable {
         siteAssetsPath: String = "",
         enablesEditorMarkup: Bool = false,
         environment: PartTemplateEnvironment = .published,
-        richTextLinkContext: FoundryRichTextCodec.LinkContext? = nil
+        richTextLinkContext: FoundryRichTextCodec.LinkContext? = nil,
+        richTextColourContext: FoundryRichTextCodec.ColourContext? = nil
     ) {
         self.init(
             instanceID: instanceID,
@@ -107,6 +111,7 @@ nonisolated struct PartTemplateContext: Sendable {
             enablesEditorMarkup: enablesEditorMarkup,
             environment: environment,
             richTextLinkContext: richTextLinkContext,
+            richTextColourContext: richTextColourContext,
             loopMaximums: [:]
         )
     }
@@ -378,7 +383,10 @@ nonisolated enum PartTemplateRenderer {
     }
 
     private static func renderedText(_ value: String, context: PartTemplateContext) -> String {
-        if let fragment = FoundryRichTextCodec.htmlFragment(from: value) {
+        if var fragment = FoundryRichTextCodec.htmlFragment(from: value) {
+            if let colours = context.richTextColourContext {
+                fragment = FoundryRichTextCodec.resolvingColours(in: fragment, context: colours)
+            }
             return context.richTextLinkContext.map { FoundryRichTextCodec.resolvingLinks(in: fragment, context: $0) } ?? fragment
         }
         return escapeText(value)

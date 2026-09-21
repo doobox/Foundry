@@ -2902,6 +2902,43 @@ struct PartPackageTests {
     }
 
     @Test
+    func richTextColoursResolveFromPalettesAtRenderTime() throws {
+        let palettes = Framework.standard.colourPalettes
+        let reference = RichTextColourReference(source: "accent", lightShade: .three, darkShade: .nine)
+        #expect(RichTextColourReference(marker: reference.marker) == reference)
+
+        let fragment = #"<span data-foundry-color="\#(reference.marker)">Highlight</span>"#
+        let richValue = FoundryRichTextCodec.storageValue(forHTMLFragment: fragment)
+        let light = try #require(reference.resolve(in: palettes, appearance: .light))
+        let dark = try #require(reference.resolve(in: palettes, appearance: .dark))
+
+        func rendered(mode: SiteAppearanceMode) -> String {
+            let context = PartTemplateContext(
+                instanceID: UUID(),
+                packageIdentifier: "com.example.rich-colour",
+                properties: ["body": .string(richValue)],
+                slots: [:],
+                richTextColourContext: .init(palettes: palettes, mode: mode)
+            )
+            return PartTemplateRenderer.render(#"<p>{{ text("body") }}</p>"#, context: context)
+        }
+
+        #expect(rendered(mode: .light).contains("<span style=\"color:\(light)\">"))
+        #expect(rendered(mode: .dark).contains("<span style=\"color:\(dark)\">"))
+        let both = rendered(mode: .both)
+        #expect(both.contains("<span style=\"color:light-dark(\(light), \(dark))\">"))
+        #expect(!both.contains("data-foundry-color"))
+
+        // A deleted palette inherits the surrounding colour but keeps rendering,
+        // and the reference survives in storage untouched for re-editing.
+        let missing = FoundryRichTextCodec.resolvingColours(
+            in: #"<span data-foundry-color="custom.gone:3:9">Text</span>"#,
+            context: .init(palettes: palettes, mode: .both)
+        )
+        #expect(missing == "<span>Text</span>")
+    }
+
+    @Test
     func htmlPrimitivePreservesMarkupAndSupportsCanvasEditing() throws {
         let template = #"<div {{ part.attributes }}>{{ html("content", default: "<strong>Start here</strong>") }}</div>"#
         let editorContext = PartTemplateContext(

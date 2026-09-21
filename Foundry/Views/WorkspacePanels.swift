@@ -1337,7 +1337,7 @@ struct ReusablePartLibraryPanel: View {
     @State private var searchText = ""
     @State private var isNamingFolder = false
     @State private var folderName = ""
-    @State private var nodeToDelete: ReusablePartNode?
+    @State private var nodesToDelete: [ReusablePartNode] = []
 
     private var definitions: [ReusablePartDefinition] { library.allDefinitions }
 
@@ -1380,7 +1380,9 @@ struct ReusablePartLibraryPanel: View {
                 renameFolder: renameFolder,
                 duplicateDefinition: duplicateDefinition,
                 revealDefinition: revealDefinition,
-                requestDelete: { nodeToDelete = library.node(withID: $0) }
+                requestDelete: { ids in
+                    nodesToDelete = ids.compactMap { library.node(withID: $0) }
+                }
             )
             .overlay {
                 if displayedNodes.isEmpty {
@@ -1410,14 +1412,15 @@ struct ReusablePartLibraryPanel: View {
         }
         .confirmationDialog(deleteTitle, isPresented: deleteAlertBinding) {
             Button(deleteButtonTitle, role: .destructive) {
-                switch nodeToDelete {
-                case .part(let definition): deleteDefinition(definition.id)
-                case .folder(let folder): deleteFolder(folder.id)
-                case nil: break
+                for node in nodesToDelete {
+                    switch node {
+                    case .part(let definition): deleteDefinition(definition.id)
+                    case .folder(let folder): deleteFolder(folder.id)
+                    }
                 }
-                nodeToDelete = nil
+                nodesToDelete = []
             }
-            Button("Cancel", role: .cancel) { nodeToDelete = nil }
+            Button("Cancel", role: .cancel) { nodesToDelete = [] }
         } message: {
             Text(deleteMessage)
         }
@@ -1430,24 +1433,33 @@ struct ReusablePartLibraryPanel: View {
         }
     }
 
+    private var deletesFolder: Bool {
+        nodesToDelete.contains { if case .folder = $0 { true } else { false } }
+    }
+
     private var deleteTitle: String {
-        "Delete \(nodeToDelete.map(nodeName) ?? "Template")?"
+        nodesToDelete.count > 1
+            ? "Delete \(nodesToDelete.count) Items?"
+            : "Delete \(nodesToDelete.first.map(nodeName) ?? "Template")?"
     }
 
     private var deleteButtonTitle: String {
-        if case .folder = nodeToDelete { "Delete Folder" } else { "Delete Template" }
+        if nodesToDelete.count > 1 { return "Delete \(nodesToDelete.count) Items" }
+        return deletesFolder ? "Delete Folder" : "Delete Template"
     }
 
     private var deleteMessage: String {
-        if case .folder = nodeToDelete {
+        if deletesFolder {
             "Also deletes the templates inside, for every project. Parts already added to pages are unchanged."
+        } else if nodesToDelete.count > 1 {
+            "Removes them from the library for every project. Parts already added to pages are unchanged."
         } else {
             "Removes it from the library for every project. Parts already added to pages are unchanged."
         }
     }
 
     private var deleteAlertBinding: Binding<Bool> {
-        Binding(get: { nodeToDelete != nil }, set: { if !$0 { nodeToDelete = nil } })
+        Binding(get: { !nodesToDelete.isEmpty }, set: { if !$0 { nodesToDelete = [] } })
     }
 
 }
@@ -1584,7 +1596,7 @@ struct GlobalPartLibraryPanel: View {
     @State private var searchText = ""
     @State private var isNamingFolder = false
     @State private var folderName = ""
-    @State private var nodeToDelete: ReusablePartNode?
+    @State private var nodesToDelete: [ReusablePartNode] = []
 
     private var definitions: [ReusablePartDefinition] { library.allDefinitions }
 
@@ -1627,7 +1639,9 @@ struct GlobalPartLibraryPanel: View {
                 renameFolder: renameFolder,
                 duplicateDefinition: duplicateDefinition,
                 revealDefinition: nil,
-                requestDelete: { nodeToDelete = library.node(withID: $0) }
+                requestDelete: { ids in
+                    nodesToDelete = ids.compactMap { library.node(withID: $0) }
+                }
             )
             .overlay {
                 if displayedNodes.isEmpty {
@@ -1657,14 +1671,15 @@ struct GlobalPartLibraryPanel: View {
         }
         .confirmationDialog(deleteTitle, isPresented: deleteAlertBinding) {
             Button(deleteButtonTitle, role: .destructive) {
-                switch nodeToDelete {
-                case .part(let definition): deleteDefinition(definition.id)
-                case .folder(let folder): deleteFolder(folder.id)
-                case nil: break
+                for node in nodesToDelete {
+                    switch node {
+                    case .part(let definition): deleteDefinition(definition.id)
+                    case .folder(let folder): deleteFolder(folder.id)
+                    }
                 }
-                nodeToDelete = nil
+                nodesToDelete = []
             }
-            Button("Cancel", role: .cancel) { nodeToDelete = nil }
+            Button("Cancel", role: .cancel) { nodesToDelete = [] }
         } message: {
             Text(deleteMessage)
         }
@@ -1677,16 +1692,23 @@ struct GlobalPartLibraryPanel: View {
         }
     }
 
+    private var deletesFolder: Bool {
+        nodesToDelete.contains { if case .folder = $0 { true } else { false } }
+    }
+
     private var deleteTitle: String {
-        "Delete \(nodeToDelete.map(nodeName) ?? "Global Part")?"
+        nodesToDelete.count > 1
+            ? "Delete \(nodesToDelete.count) Items?"
+            : "Delete \(nodesToDelete.first.map(nodeName) ?? "Global Part")?"
     }
 
     private var deleteButtonTitle: String {
-        if case .folder = nodeToDelete { "Delete Folder" } else { "Delete Global Part" }
+        if nodesToDelete.count > 1 { return "Delete \(nodesToDelete.count) Items" }
+        return deletesFolder ? "Delete Folder" : "Delete Global Part"
     }
 
     private var deleteMessage: String {
-        if case .folder = nodeToDelete {
+        if deletesFolder {
             "Also deletes the global parts inside. Existing instances will be detached and keep their current content."
         } else {
             "Existing instances will be detached and keep their current content."
@@ -1694,7 +1716,7 @@ struct GlobalPartLibraryPanel: View {
     }
 
     private var deleteAlertBinding: Binding<Bool> {
-        Binding(get: { nodeToDelete != nil }, set: { if !$0 { nodeToDelete = nil } })
+        Binding(get: { !nodesToDelete.isEmpty }, set: { if !$0 { nodesToDelete = [] } })
     }
 }
 

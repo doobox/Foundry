@@ -335,6 +335,10 @@ nonisolated struct HTMLPageRenderer: PageRendering {
                     enablesEditorMarkup: true,
                     environment: .canvas,
                     richTextLinkContext: richTextLinkContext,
+                    richTextColourContext: .init(
+                        palettes: framework.colourPalettes,
+                        mode: appearance == .light ? .light : .dark
+                    ),
                     loopMaximums: package.loopMaximums
                 )
             let rendered = PartTemplateRenderer.render(package.htmlTemplate, context: templateContext)

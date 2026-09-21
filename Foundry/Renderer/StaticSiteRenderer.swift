@@ -187,24 +187,37 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
         let customBodyEndCode = site.customCodeEnabled ? site.bodyEndCode : ""
         let analyticsCode = site.customCodeEnabled ? site.analyticsCode : ""
         let documentLanguage = language.trimmingCharacters(in: .whitespacesAndNewlines)
+        // Conditional pieces that render nothing must not leave blank lines
+        // in the document, so assemble from non-empty lines instead of
+        // interpolating everything.
+        let headLines = [
+            headStart,
+            customHeadCode,
+            "  <meta charset=\"utf-8\">",
+            "  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">",
+            "  <meta name=\"color-scheme\" content=\"\(site.appearanceMode.cssColorScheme)\">",
+            "  <title>\(escape(browserTitle))</title>",
+            metadata,
+            site.appearanceMode.bootstrap(siteID: site.id),
+            stylesheetPaths.map { "  <link rel=\"stylesheet\" href=\"\($0)\">" }.joined(separator: "\n"),
+            analyticsCode,
+            headEnd
+        ]
+        let bodyLines = [customBodyStartCode, bodyStart, body, bodyEnd, scripts, customBodyEndCode]
+        func joined(_ lines: [String]) -> String {
+            lines
+                .map { $0.trimmingCharacters(in: .newlines) }
+                .filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+                .joined(separator: "\n")
+        }
         let document = """
         <!doctype html>
         <html lang="\(escapeAttribute(documentLanguage.isEmpty ? "en" : documentLanguage))">
         <head>
-        \(headStart)
-        \(customHeadCode)
-          <meta charset="utf-8">
-          <meta name="viewport" content="width=device-width, initial-scale=1">
-          <meta name="color-scheme" content="\(site.appearanceMode.cssColorScheme)">
-          <title>\(escape(browserTitle))</title>
-        \(metadata)
-        \(site.appearanceMode.bootstrap(siteID: site.id))
-        \(stylesheetPaths.map { "  <link rel=\"stylesheet\" href=\"\($0)\">" }.joined(separator: "\n"))
-        \(analyticsCode)
-        \(headEnd)
+        \(joined(headLines))
         </head>
         <body\(page.backgroundOverride == nil ? "" : " style=\"background-color: " + escapeAttribute(site.appearanceMode.colour(light: page.backgroundColour(framework: framework, appearance: .light), dark: page.backgroundColour(framework: framework, appearance: .dark))) + "\"")>
-        \(customBodyStartCode)\(bodyStart)\(body)\(bodyEnd)\(scripts)\(customBodyEndCode)
+        \(joined(bodyLines))
         </body>
         </html>
         """
@@ -471,6 +484,10 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
                         assetLibrary: site.assetLibrary,
                         publicURL: site.publicURL,
                         absoluteURL: false
+                    ),
+                    richTextColourContext: .init(
+                        palettes: framework.colourPalettes,
+                        mode: site.appearanceMode
                     )
                 )
             let rendered = PartTemplateRenderer.render(package.htmlTemplate, context: templateContext)
@@ -776,9 +793,11 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
             packageAssetPrefix: packageAssetPrefix,
             assets: assets
         )
-        return [instanceStyles, pagePackageStyles, responsiveStyles]
-            .filter { !$0.isEmpty }
-            .joined(separator: "\n")
+        return CSSTidy.tidy(
+            [instanceStyles, pagePackageStyles, responsiveStyles]
+                .filter { !$0.isEmpty }
+                .joined(separator: "\n")
+        )
     }
 
     private func sitePackageStyles(for site: Site) -> String {

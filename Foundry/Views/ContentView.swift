@@ -245,6 +245,7 @@ struct ContentView: View {
         .sheet(item: $pageTextEditRequest) { request in
             PageTextEditorView(
                 value: request.value,
+                framework: document.site.framework,
                 pages: document.site.pages,
                 folders: document.site.pageFolders,
                 assets: document.site.assets,

@@ -162,6 +162,8 @@ private struct HTMLSourceCodeEditor: View {
 
     private func editor(text: Binding<AttributedString>, language: SourceCodeLanguage) -> some View {
         TextEditor(text: text)
+            .autocorrectionDisabled()
+            .background(CodeEditingSubstitutionDisabler())
             .padding(12)
             .task(id: String(text.wrappedValue.characters)) {
                 await Task.yield()
@@ -183,6 +185,41 @@ private enum SourceCodeLanguage {
     case html
     case css
     case javaScript
+}
+
+/// TextEditor exposes no control over NSTextView's automatic substitutions,
+/// which turn typed straight quotes into curly ones — silently invalid in
+/// code. This finds the sheet's text views and switches substitutions off.
+private struct CodeEditingSubstitutionDisabler: NSViewRepresentable {
+    func makeNSView(context: Context) -> NSView {
+        let view = NSView()
+        DispatchQueue.main.async { disableSubstitutions(around: view) }
+        return view
+    }
+
+    func updateNSView(_ nsView: NSView, context: Context) {
+        DispatchQueue.main.async { disableSubstitutions(around: nsView) }
+    }
+
+    private func disableSubstitutions(around view: NSView) {
+        var root = view as NSView
+        while let parent = root.superview { root = parent }
+        for textView in textViews(in: root) {
+            textView.isAutomaticQuoteSubstitutionEnabled = false
+            textView.isAutomaticDashSubstitutionEnabled = false
+            textView.isAutomaticTextReplacementEnabled = false
+            textView.isAutomaticSpellingCorrectionEnabled = false
+            textView.isContinuousSpellCheckingEnabled = false
+        }
+    }
+
+    private func textViews(in view: NSView) -> [NSTextView] {
+        var result = view.subviews.flatMap(textViews(in:))
+        if let textView = view as? NSTextView {
+            result.append(textView)
+        }
+        return result
+    }
 }
 
 private enum SourceSyntaxHighlighter {

@@ -15,6 +15,10 @@ struct FrameworkColorPartControl: View {
     var canResetToFramework = false
     @State private var showsPalettes = false
 
+    private var isCustom: Bool {
+        PartFrameworkValueSelection.isManualCustom(source)
+    }
+
     private var paletteID: String {
         FrameworkColorRole(rawValue: source) != nil ? "framework." + source : source
     }
@@ -29,7 +33,10 @@ struct FrameworkColorPartControl: View {
         Group {
             InspectorRow(title: label, indicator: indicator) {
                 HStack(spacing: 6) {
-                    if let palette {
+                    if isCustom {
+                        InspectorColorWell(color: $customColor, supportsAlpha: allowsOpacity)
+                        Spacer(minLength: 0)
+                    } else if let palette {
                         HStack(spacing: 0) {
                             ForEach(palette.single ? [palette.lightDefaultShade] : ColourShade.allCases, id: \.self) { step in
                                 Button {
@@ -70,7 +77,7 @@ struct FrameworkColorPartControl: View {
                         .accessibilityLabel("Select default shade")
                         .accessibilityValue(palette.single || shade == palette.defaultShade(for: appearance) ? "Selected" : "Not selected")
                     } else {
-                        Button(PartFrameworkValueSelection.isManualCustom(source) ? "Custom Colour" : "Missing Colour") {
+                        Button("Missing Colour") {
                             showsPalettes = true
                         }
                         .buttonStyle(.borderless)
@@ -87,45 +94,54 @@ struct FrameworkColorPartControl: View {
                         .help("Reset to framework Page defaults")
                         .accessibilityLabel("Reset to framework Page defaults")
                     }
-                    Button { showsPalettes.toggle() } label: {
-                        Image(systemName: "chevron.down")
-                            .frame(width: 22, height: 24)
-                            .contentShape(Rectangle())
+                    if !isCustom {
+                        Button { showsPalettes.toggle() } label: {
+                            Image(systemName: "chevron.down")
+                                .frame(width: 22, height: 24)
+                                .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.borderless)
+                        .help(palette.map { "Choose colour · \($0.name)" } ?? "Choose colour")
+                        .accessibilityLabel("Choose \(label)")
+                        .popover(isPresented: $showsPalettes) {
+                            InspectorPaletteMenu(palettes: choices.isEmpty ? [] : framework.colourPalettes,
+                                                 selectedID: paletteID) { value in
+                                // The source binding updates source and default shade atomically.
+                                let role = value.hasPrefix("framework.") ? FrameworkColorRole(rawValue: String(value.dropFirst(6))) : nil
+                                source = role?.rawValue ?? value
+                                showsPalettes = false
+                            }
+                            .padding(10)
+                            .frame(width: 260)
+                            .controlSize(.small)
+                        }
                     }
-                    .buttonStyle(.borderless)
-                    .help(palette.map { "Choose colour · \($0.name)" } ?? "Choose colour")
-                    .accessibilityLabel("Choose \(label)")
-                    .popover(isPresented: $showsPalettes) {
-                        InspectorPaletteMenu(palettes: choices.isEmpty ? [] : framework.colourPalettes,
-                                             selectedID: paletteID, allowsCustom: allowsCustom) { value in
-                            // The source binding updates source and default shade atomically.
-                            let role = value.hasPrefix("framework.") ? FrameworkColorRole(rawValue: String(value.dropFirst(6))) : nil
-                            source = role?.rawValue ?? value
-                            showsPalettes = false
+                    if allowsCustom {
+                        FrameworkModeToggle(usesFrameworkTokens: !isCustom) {
+                            source = isCustom
+                                ? (choices.first?.value ?? source)
+                                : PartFrameworkValueSelection.manualCustom
                         }
                     }
                 }
                 .controlSize(.small)
-            }
-            if allowsCustom && PartFrameworkValueSelection.isManualCustom(source) {
-                InspectorRow(title: "", alignment: .center) {
-                    InspectorColorWell(color: $customColor, supportsAlpha: allowsOpacity)
-                }
             }
         }
     }
 
 }
 
-private struct InspectorPaletteSwatchStyle: ButtonStyle {
+struct InspectorPaletteSwatchStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View { configuration.label }
 }
 
-private struct InspectorPaletteMenu: View {
+/// The searchable palette list shared by the Inspector colour control and the
+/// rich-text editor's colour popover. Callers own the surrounding padding,
+/// width and control size so it can embed under other rows.
+struct InspectorPaletteMenu: View {
     @Environment(\.canvasAppearance) private var appearance
     let palettes: [ColourPalette]
     let selectedID: String
-    let allowsCustom: Bool
     let select: (String) -> Void
     @State private var search = ""
 
@@ -177,15 +193,7 @@ private struct InspectorPaletteMenu: View {
                 }
             }
             .frame(maxHeight: 320)
-            if allowsCustom {
-                Divider()
-                Button("Custom Colour…") { select(PartFrameworkValueSelection.manualCustom) }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            }
         }
-        .padding(10)
-        .frame(width: 260)
-        .controlSize(.small)
     }
 }
 

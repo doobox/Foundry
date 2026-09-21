@@ -473,8 +473,17 @@ final class FoundryDocument: ReferenceFileDocument {
 
     @MainActor
     func renameAsset(id: UUID, filename: String, undoManager: UndoManager?) {
-        let safeFilename = (filename as NSString).lastPathComponent
+        var safeFilename = (filename as NSString).lastPathComponent
         guard !safeFilename.isEmpty else { return }
+        // A rename that omits the extension keeps the original one, so the
+        // exported file stays openable — matching how Finder renames behave.
+        if (safeFilename as NSString).pathExtension.isEmpty,
+           case .asset(let existing)? = site.assetLibrary.node(withID: id) {
+            let existingExtension = (existing.filename as NSString).pathExtension
+            if !existingExtension.isEmpty {
+                safeFilename += "." + existingExtension
+            }
+        }
         var nextSite = site
         guard nextSite.assetLibrary.renameAsset(id: id, to: safeFilename) else { return }
         replaceSite(with: nextSite, undoManager: undoManager, actionName: "Rename Asset", impact: .assets)

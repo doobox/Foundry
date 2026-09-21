@@ -443,7 +443,13 @@ nonisolated struct ProjectAsset: Codable, Equatable, Identifiable, Sendable {
         let value = (filename as NSString).pathExtension.lowercased()
             .components(separatedBy: CharacterSet.alphanumerics.inverted)
             .joined()
-        return value.isEmpty ? "bin" : value
+        if !value.isEmpty { return value }
+        // Extensionless filenames export with the extension their media type
+        // implies; "bin" is the last resort for genuinely unknown bytes.
+        if let inferred = UTType(mimeType: mediaType)?.preferredFilenameExtension {
+            return inferred
+        }
+        return "bin"
     }
 
     private enum CodingKeys: String, CodingKey {
