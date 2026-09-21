@@ -338,6 +338,29 @@ struct PartPropertyEditor: View {
                 indicator: responsiveIndicator,
                 selection: stringBinding(as: .choice)
             )
+        case .pageFolder:
+            InspectorRow(title: definition.label, indicator: responsiveIndicator) {
+                if folders.isEmpty {
+                    Text("No folders in this project")
+                        .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                } else {
+                    let selection = displayPart.propertyValue(definition.key).stringValue
+                    Picker(definition.label, selection: stringBinding(as: .choice)) {
+                        Text("None").tag("")
+                        if !selection.isEmpty, !folders.contains(where: { $0.id.uuidString == selection }) {
+                            Text("Missing folder").tag(selection)
+                        }
+                        ForEach(folders.sorted(by: { folderPathName($0) < folderPathName($1) })) { folder in
+                            Text(folderPathName(folder)).tag(folder.id.uuidString)
+                        }
+                    }
+                    .pickerStyle(.menu)
+                    .labelsHidden()
+                    .frame(maxWidth: .infinity)
+                    .accessibilityLabel(definition.label)
+                }
+            }
         case .frameworkStackingOrder:
             let stackingValue: PartPackageStackingOrderValue = {
                 if case .packageStackingOrder(let value) = displayPart.propertyValue(definition.key) { return value }
@@ -739,6 +762,18 @@ struct PartPropertyEditor: View {
             get: { displayPart.property(definition.key) },
             set: { setProperty(kind.value($0)) }
         )
+    }
+
+    private func folderPathName(_ folder: PageFolder) -> String {
+        var names = [folder.name]
+        var current = folder
+        var visited: Set<UUID> = [folder.id]
+        while let parentID = current.parentID, visited.insert(parentID).inserted,
+              let parent = folders.first(where: { $0.id == parentID }) {
+            names.insert(parent.name, at: 0)
+            current = parent
+        }
+        return names.joined(separator: " / ")
     }
 
     private func fontFaceOptions(font: String?, editsWeight: Bool) -> FontFaceOptions {

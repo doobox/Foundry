@@ -46,6 +46,13 @@ extension ProjectEditor {
         }
     }
 
+    func setPageFolderIncludeInNavigation(id: UUID, value: Bool) {
+        mutate(actionName: "Edit Folder Navigation") { site in
+            guard let index = site.pageFolders.firstIndex(where: { $0.id == id }) else { return }
+            site.pageFolders[index].includeInNavigation = value
+        }
+    }
+
     func removePageFolder(id: UUID, includingContents: Bool = false) {
         let item = PageTreeItem.folder(id)
         guard document.site.pageFolders.contains(where: { $0.id == id }) else { return }

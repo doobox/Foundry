@@ -1184,6 +1184,16 @@ nonisolated enum PartPackageValidator {
                     message: "A frameworkStackingOrder default must be a predefined stacking ID: base, dropdown, sticky, overlay, modal, tooltip, or toast."
                 ))
             }
+        case .pageFolder:
+            // Folders belong to individual projects, so no selection is portable.
+            guard case .string(let value) = defaultValue, value.isEmpty else {
+                diagnostics.append(.init(
+                    severity: .error,
+                    location: location,
+                    message: "A pageFolder default must be an empty string; users choose a project folder in the Inspector."
+                ))
+                return
+            }
         case .textAlignment:
             if case .string(let value) = defaultValue,
                ["start", "center", "end", "justify"].contains(value) {

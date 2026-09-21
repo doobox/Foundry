@@ -373,6 +373,7 @@ nonisolated enum PartPackageAdapter {
         case .frameworkFont: .frameworkFont
         case .frameworkFontSize: .frameworkFontSize
         case .frameworkStackingOrder: .frameworkStackingOrder
+        case .pageFolder: .pageFolder
         case .frameworkPadding: .frameworkPadding
         case .frameworkMargin: .frameworkMargin
         case .frameworkSpacing: .frameworkSpacing
@@ -435,7 +436,7 @@ nonisolated enum PartPackageAdapter {
             case .link: .link(.init(destination: value.isEmpty ? .none : .url(value)))
             case .color: .color(value)
             case .frameworkColor: .choice(value)
-            case .icon, .select, .frameworkFont, .frameworkFontSize, .frameworkStackingOrder, .fontStyle, .textAlignment, .frameworkShadow: .choice(value)
+            case .icon, .select, .frameworkFont, .frameworkFontSize, .frameworkStackingOrder, .pageFolder, .fontStyle, .textAlignment, .frameworkShadow: .choice(value)
             case .date: .string(value)
             case .image, .video: .url(value)
             default: .string(value)

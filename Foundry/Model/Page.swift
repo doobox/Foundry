@@ -6,13 +6,18 @@ nonisolated struct PageFolder: Codable, Equatable, Identifiable, Sendable {
     var slug: String
     var parentID: UUID?
     var order: Int
+    /// Menus mirror the Pages panel: a folder appears as a non-link group
+    /// containing its pages. Opting out keeps the folder organizational —
+    /// its pages surface in place, like pages excluded from navigation.
+    var includeInNavigation: Bool
 
-    init(id: UUID = UUID(), name: String, slug: String, parentID: UUID? = nil, order: Int = 0) {
+    init(id: UUID = UUID(), name: String, slug: String, parentID: UUID? = nil, order: Int = 0, includeInNavigation: Bool = true) {
         self.id = id
         self.name = name
         self.slug = Page.slugify(slug)
         self.parentID = parentID
         self.order = order
+        self.includeInNavigation = includeInNavigation
     }
 }
 

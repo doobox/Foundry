@@ -50,8 +50,134 @@ nonisolated enum PartNavigationTemplateValues {
             }
         }
 
-        let roots = visibleItems(of: nil, depth: 0, visited: [])
-        let visiblePages = visiblePageOrder(from: nil, visited: [])
+        // The top of the menu mirrors the Pages panel: pages and folders share
+        // one ordering space per container. A navigation folder becomes a
+        // non-link group holding its contents; other folders promote their
+        // contents in place, exactly like pages excluded from navigation.
+        func pages(inFolder folderID: UUID?) -> [Page] {
+            site.pages.filter { $0.parentPageID == nil && $0.folderID == folderID }
+        }
+
+        func folders(inFolder folderID: UUID?) -> [PageFolder] {
+            site.pageFolders.filter { $0.parentID == folderID }
+        }
+
+        func currentPageIsInside(_ folder: PageFolder) -> Bool {
+            var page = currentPage
+            var visitedPages: Set<UUID> = [page.id]
+            while let parentID = page.parentPageID, visitedPages.insert(parentID).inserted,
+                  let parent = site.pages.first(where: { $0.id == parentID }) {
+                page = parent
+            }
+            var folderID = page.folderID
+            var visitedFolders = Set<UUID>()
+            while let id = folderID, visitedFolders.insert(id).inserted {
+                if id == folder.id { return true }
+                folderID = site.pageFolders.first(where: { $0.id == id })?.parentID
+            }
+            return false
+        }
+
+        func folderItem(_ folder: PageFolder, depth: Int, visitedFolders: Set<UUID>) -> PartPackageValue? {
+            let children = containerItems(inFolder: folder.id, depth: depth + 1, visitedFolders: visitedFolders)
+            guard !children.isEmpty else { return nil }
+            return .object([
+                "id": .string(folder.id.uuidString),
+                "title": .string(folder.name),
+                "href": .string(""),
+                "slug": .string(folder.slug),
+                "depth": .number(Double(depth)),
+                "current": .boolean(false),
+                "ancestor": .boolean(currentPageIsInside(folder)),
+                "home": .boolean(false),
+                "folder": .boolean(true),
+                "hasChildren": .boolean(true),
+                "children": .array(children)
+            ])
+        }
+
+        func containerItems(inFolder folderID: UUID?, depth: Int, visitedFolders: Set<UUID>) -> [PartPackageValue] {
+            struct Entry {
+                let order: Int
+                let isHome: Bool
+                let id: UUID
+                let values: [PartPackageValue]
+            }
+            let isRoot = folderID == nil
+            let pageEntries = pages(inFolder: folderID).map { page in
+                Entry(
+                    order: page.order,
+                    isHome: isRoot && page.slug == "index",
+                    id: page.id,
+                    values: page.includeInNavigation
+                        ? [item(page, depth: depth, visited: [])]
+                        : visibleItems(of: page.id, depth: depth, visited: [page.id])
+                )
+            }
+            let folderEntries = folders(inFolder: folderID).compactMap { folder -> Entry? in
+                guard !visitedFolders.contains(folder.id) else { return nil }
+                let nextVisited = visitedFolders.union([folder.id])
+                let values = folder.includeInNavigation
+                    ? [folderItem(folder, depth: depth, visitedFolders: nextVisited)].compactMap { $0 }
+                    : containerItems(inFolder: folder.id, depth: depth, visitedFolders: nextVisited)
+                return Entry(order: folder.order, isHome: false, id: folder.id, values: values)
+            }
+            return (pageEntries + folderEntries)
+                .sorted { lhs, rhs in
+                    if isRoot, lhs.isHome != rhs.isHome { return lhs.isHome }
+                    return lhs.order == rhs.order
+                        ? lhs.id.uuidString < rhs.id.uuidString
+                        : lhs.order < rhs.order
+                }
+                .flatMap(\.values)
+        }
+
+        func containerPageOrder(inFolder folderID: UUID?, visitedFolders: Set<UUID>) -> [Page] {
+            struct Entry {
+                let order: Int
+                let isHome: Bool
+                let id: UUID
+                let pages: [Page]
+            }
+            let isRoot = folderID == nil
+            let pageEntries = pages(inFolder: folderID).map { page in
+                Entry(
+                    order: page.order,
+                    isHome: isRoot && page.slug == "index",
+                    id: page.id,
+                    pages: page.includeInNavigation
+                        ? [page] + visiblePageOrder(from: page.id, visited: [page.id])
+                        : visiblePageOrder(from: page.id, visited: [page.id])
+                )
+            }
+            // Pages remain reachable whether their folder is a menu group or
+            // promotes them in place, so both traverse identically.
+            let folderEntries = folders(inFolder: folderID).compactMap { folder -> Entry? in
+                guard !visitedFolders.contains(folder.id) else { return nil }
+                return Entry(
+                    order: folder.order,
+                    isHome: false,
+                    id: folder.id,
+                    pages: containerPageOrder(inFolder: folder.id, visitedFolders: visitedFolders.union([folder.id]))
+                )
+            }
+            return (pageEntries + folderEntries)
+                .sorted { lhs, rhs in
+                    if isRoot, lhs.isHome != rhs.isHome { return lhs.isHome }
+                    return lhs.order == rhs.order
+                        ? lhs.id.uuidString < rhs.id.uuidString
+                        : lhs.order < rhs.order
+                }
+                .flatMap(\.pages)
+        }
+
+        let roots = containerItems(inFolder: nil, depth: 0, visitedFolders: [])
+        let visiblePages = containerPageOrder(inFolder: nil, visitedFolders: [])
+        // Every non-empty folder is addressable as a menu source, whether or
+        // not it joins the site navigation itself.
+        let folderGroups = site.pageFolders
+            .sorted { $0.order == $1.order ? $0.id.uuidString < $1.id.uuidString : $0.order < $1.order }
+            .compactMap { folderItem($0, depth: 0, visitedFolders: [$0.id]) }
         let currentIndex = visiblePages.firstIndex(where: { $0.id == currentPage.id })
         let previous = currentIndex.flatMap { $0 > 0 ? visiblePages[$0 - 1] : nil }
         let next = currentIndex.flatMap { $0 + 1 < visiblePages.count ? visiblePages[$0 + 1] : nil }
@@ -70,6 +196,7 @@ nonisolated enum PartNavigationTemplateValues {
 
         var result: [String: PartPackageValue] = [
             "navigation.items": .array(roots),
+            "navigation.folders": .array(folderGroups),
             "navigation.breadcrumbs": .array(breadcrumbs),
             "navigation.ancestors": .array(Array(breadcrumbs.dropLast())),
             "navigation.current": current,

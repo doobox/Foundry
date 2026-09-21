@@ -1,0 +1,93 @@
+<nav class="fd-navigation {{ part.class }}" {{ part.attributes }} {{ controlGroup.background }} aria-label="Site">
+    <div class="fd-navigation__bar">
+        {{ if control.showBrand }}
+        <a class="fd-navigation__brand" href="{{ pages.home.href }}">
+            <img class="fd-navigation__logo" src="{{ control.brandLogo }}" alt="{{ control.brandLogo.alt }}">
+            <span class="fd-navigation__name">{{ text("brand", default: "Site Name") }}</span>
+        </a>
+        {{ endif }}
+        <button class="fd-navigation__toggle" type="button" aria-expanded="false" aria-label="Menu" data-navigation-toggle>
+            <span></span><span></span><span></span>
+        </button>
+        <ul class="fd-navigation__menu" data-navigation-menu>
+            {{ if control.source == "site" }}
+            {{ loop navigation.items as item }}
+            {{ if item.folder }}
+            <li class="fd-navigation__item fd-navigation__item--parent">
+                <span class="fd-navigation__link fd-navigation__link--label{{ if item.ancestor }} is-ancestor{{ endif }}">{{ item.title }}</span>
+                <button class="fd-navigation__disclosure" type="button" aria-expanded="false" aria-label="Show pages in {{ item.title }}" data-navigation-disclosure>
+                    <svg viewBox="0 0 10 6" width="10" height="6" aria-hidden="true"><path d="M1 1l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+                </button>
+                <ul class="fd-navigation__dropdown">
+                    {{ loop item.children as child }}
+                    {{ if child.folder }}
+                    <li class="fd-navigation__dropdown-heading">{{ child.title }}</li>
+                    {{ loop child.children as sub }}
+                    {{ if !sub.folder }}<li><a class="fd-navigation__dropdown-link{{ if sub.current }} is-current{{ endif }}" href="{{ sub.href }}"{{ if sub.current }} aria-current="page"{{ endif }}>{{ sub.title }}</a></li>{{ endif }}
+                    {{ endloop }}
+                    {{ else }}
+                    <li><a class="fd-navigation__dropdown-link{{ if child.current }} is-current{{ endif }}" href="{{ child.href }}"{{ if child.current }} aria-current="page"{{ endif }}>{{ child.title }}</a></li>
+                    {{ endif }}
+                    {{ endloop }}
+                </ul>
+            </li>
+            {{ else }}
+            <li class="fd-navigation__item{{ if control.showDropdowns }}{{ if item.hasChildren }} fd-navigation__item--parent{{ endif }}{{ endif }}">
+                <a class="fd-navigation__link{{ if item.current }} is-current{{ endif }}{{ if item.ancestor }} is-ancestor{{ endif }}" href="{{ item.href }}"{{ if item.current }} aria-current="page"{{ endif }}>{{ item.title }}</a>
+                {{ if control.showDropdowns }}{{ if item.hasChildren }}
+                <button class="fd-navigation__disclosure" type="button" aria-expanded="false" aria-label="Show pages in {{ item.title }}" data-navigation-disclosure>
+                    <svg viewBox="0 0 10 6" width="10" height="6" aria-hidden="true"><path d="M1 1l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+                </button>
+                <ul class="fd-navigation__dropdown">
+                    {{ loop item.children as child }}
+                    <li><a class="fd-navigation__dropdown-link{{ if child.current }} is-current{{ endif }}" href="{{ child.href }}"{{ if child.current }} aria-current="page"{{ endif }}>{{ child.title }}</a></li>
+                    {{ endloop }}
+                </ul>
+                {{ endif }}{{ endif }}
+            </li>
+            {{ endif }}
+            {{ endloop }}
+            {{ endif }}
+            {{ if control.source == "topLevel" }}
+            {{ loop navigation.items as item where !item.folder }}
+            <li class="fd-navigation__item">
+                <a class="fd-navigation__link{{ if item.current }} is-current{{ endif }}{{ if item.ancestor }} is-ancestor{{ endif }}" href="{{ item.href }}"{{ if item.current }} aria-current="page"{{ endif }}>{{ item.title }}</a>
+            </li>
+            {{ endloop }}
+            {{ endif }}
+            {{ if control.source == "folder" }}
+            {{ loop navigation.folders as group where group.id == control.sourceFolder }}
+            {{ loop group.children as item }}
+            {{ if item.folder }}
+            <li class="fd-navigation__item fd-navigation__item--parent">
+                <span class="fd-navigation__link fd-navigation__link--label{{ if item.ancestor }} is-ancestor{{ endif }}">{{ item.title }}</span>
+                <button class="fd-navigation__disclosure" type="button" aria-expanded="false" aria-label="Show pages in {{ item.title }}" data-navigation-disclosure>
+                    <svg viewBox="0 0 10 6" width="10" height="6" aria-hidden="true"><path d="M1 1l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+                </button>
+                <ul class="fd-navigation__dropdown">
+                    {{ loop item.children as child }}
+                    {{ if !child.folder }}<li><a class="fd-navigation__dropdown-link{{ if child.current }} is-current{{ endif }}" href="{{ child.href }}"{{ if child.current }} aria-current="page"{{ endif }}>{{ child.title }}</a></li>{{ endif }}
+                    {{ endloop }}
+                </ul>
+            </li>
+            {{ else }}
+            <li class="fd-navigation__item{{ if control.showDropdowns }}{{ if item.hasChildren }} fd-navigation__item--parent{{ endif }}{{ endif }}">
+                <a class="fd-navigation__link{{ if item.current }} is-current{{ endif }}{{ if item.ancestor }} is-ancestor{{ endif }}" href="{{ item.href }}"{{ if item.current }} aria-current="page"{{ endif }}>{{ item.title }}</a>
+                {{ if control.showDropdowns }}{{ if item.hasChildren }}
+                <button class="fd-navigation__disclosure" type="button" aria-expanded="false" aria-label="Show pages in {{ item.title }}" data-navigation-disclosure>
+                    <svg viewBox="0 0 10 6" width="10" height="6" aria-hidden="true"><path d="M1 1l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+                </button>
+                <ul class="fd-navigation__dropdown">
+                    {{ loop item.children as child }}
+                    <li><a class="fd-navigation__dropdown-link{{ if child.current }} is-current{{ endif }}" href="{{ child.href }}"{{ if child.current }} aria-current="page"{{ endif }}>{{ child.title }}</a></li>
+                    {{ endloop }}
+                </ul>
+                {{ endif }}{{ endif }}
+            </li>
+            {{ endif }}
+            {{ endloop }}
+            {{ endloop }}
+            {{ endif }}
+        </ul>
+    </div>
+</nav>

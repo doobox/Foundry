@@ -584,6 +584,13 @@ private struct PageFolderInspector: View {
             Text("This folder becomes a directory when the site is exported.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
+            Toggle("Include in Navigation", isOn: Binding(
+                get: { folder.includeInNavigation },
+                set: { editor.setPageFolderIncludeInNavigation(id: folder.id, value: $0) }
+            ))
+            Text("Shows this folder in site menus as a group containing its pages.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
         }
     }
 

@@ -1190,6 +1190,7 @@ nonisolated struct PartPackageControl: Codable, Equatable, Sendable {
         case frameworkFont
         case frameworkFontSize
         case frameworkStackingOrder
+        case pageFolder
         case frameworkBorder
     case frameworkRadius
     case frameworkMargin

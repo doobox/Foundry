@@ -33,6 +33,72 @@ struct BuiltInLayoutPartsTests {
         }
     }
 
+    @Test func navigationPartRendersMenuDropdownsAndCurrentState() throws {
+        // Loading throws if the pack fails validation; the shared catalog
+        // has already registered the bundled definition.
+        let loaded = try package("Navigation")
+        _ = PartPackageCatalog.shared
+
+        let navigation = PartNode(type: PartType(rawValue: loaded.manifest.identifier))
+        let about = Page(title: "About", slug: "about", order: 1)
+        // Folders join menus by default as non-link groups; opting Archive
+        // out keeps it organizational, its pages surfacing in place.
+        let legal = PageFolder(name: "Legal", slug: "legal", order: 3)
+        let archive = PageFolder(name: "Archive", slug: "archive", order: 4, includeInNavigation: false)
+        var site = Site(
+            name: "Nav",
+            pages: [
+                Page(title: "Home", slug: "index", parts: [navigation]),
+                about,
+                Page(title: "Team", slug: "team", parentPageID: about.id),
+                Page(title: "Secret", slug: "secret", order: 2, includeInNavigation: false),
+                Page(title: "Privacy", slug: "privacy", folderID: legal.id),
+                Page(title: "Old News", slug: "old-news", folderID: archive.id)
+            ]
+        )
+        site.pageFolders = [legal, archive]
+
+        let html = HTMLPageRenderer(site: site).render(page: site.pages[0], framework: site.framework)
+        #expect(html.contains("fd-navigation"))
+        // The current page is marked, siblings link out, children nest in a
+        // dropdown, and pages excluded from navigation never appear.
+        #expect(html.contains("aria-current=\"page\""))
+        #expect(html.contains(">About</a>"))
+        #expect(html.contains("fd-navigation__dropdown"))
+        #expect(html.contains(">Team</a>"))
+        #expect(!html.contains(">Secret</a>"))
+        #expect(html.contains("Site Name"))
+        #expect(html.contains("data-navigation-toggle"))
+        #expect(html.contains("@media (max-width: 767px)"))
+        // A navigation folder renders as a non-link group label with its
+        // pages in the dropdown; a plain folder's pages surface in place.
+        #expect(html.contains(">Legal</span>"))
+        #expect(!html.contains("href=\"\">Legal"))
+        #expect(html.contains(">Privacy</a>"))
+        #expect(html.contains(">Old News</a>"))
+        #expect(!html.contains(">Archive<"))
+
+        // Source: one folder's contents only — any folder is addressable by
+        // slug, whether or not it joins the site navigation itself.
+        var folderNavigation = navigation
+        folderNavigation.setProperty(.init(rawValue: "source"), value: .choice("folder"))
+        folderNavigation.setProperty(.init(rawValue: "sourceFolder"), value: .choice(archive.id.uuidString))
+        site.pages[0].parts = [folderNavigation]
+        let folderHTML = HTMLPageRenderer(site: site).render(page: site.pages[0], framework: site.framework)
+        #expect(folderHTML.contains(">Old News</a>"))
+        #expect(!folderHTML.contains(">About</a>"))
+        #expect(!folderHTML.contains(">Privacy</a>"))
+
+        // Source: top level only — no dropdowns, no group labels.
+        var topLevelNavigation = navigation
+        topLevelNavigation.setProperty(.init(rawValue: "source"), value: .choice("topLevel"))
+        site.pages[0].parts = [topLevelNavigation]
+        let topLevelHTML = HTMLPageRenderer(site: site).render(page: site.pages[0], framework: site.framework)
+        #expect(topLevelHTML.contains(">About</a>"))
+        #expect(!topLevelHTML.contains(">Team</a>"))
+        #expect(!topLevelHTML.contains(">Legal<"))
+    }
+
     private func css(_ name: String, values overrides: [String: PartPackageValue] = [:]) throws -> String {
         let loaded = try package(name)
         var values: [String: PartPackageValue] = [

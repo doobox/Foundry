@@ -201,6 +201,7 @@ nonisolated enum PartPropertyControl: Sendable {
     case choice([PartPropertyChoice])
     case frameworkFontSize
     case frameworkStackingOrder
+    case pageFolder
     case frameworkFont
     case frameworkBorderWidth
     case frameworkRadius
