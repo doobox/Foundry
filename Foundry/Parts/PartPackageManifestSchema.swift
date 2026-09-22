@@ -54,7 +54,7 @@ nonisolated enum PartPackageManifestSchema {
         "id", "label", "title", "body", "systemImage", "group", "defaults", "responsive", "subtitle", "buttonText", "units", "tooltip", "linked",
         "type", "font", "showsFamily", "showsWeight", "showsStyle", "minimum", "maximum", "step", "options", "frameworkValues", "allowsCustom", "opacity", "outputFormat",
         "customColor", "count", "ticks", "showsValueField", "trueValue", "falseValue",
-        "buttonIcon", "activeButtonText", "activeButtonIcon", "selectionMode", "fontSize", "argument1", "argument2", "operation", "round", "absoluteURL", "presentation", "visibleWhen", "alt", "focalPoint", "renditions", "accepts", "pickerItems", "initial", "containment"
+        "buttonIcon", "activeButtonText", "activeButtonIcon", "selectionMode", "fontSize", "argument1", "argument2", "operation", "round", "absoluteURL", "presentation", "visibleWhen", "valueAvailability", "alt", "focalPoint", "renditions", "accepts", "pickerItems", "initial", "containment"
     ]
     private static let visibleWhenKeys: Set<String> = ["id", "operation", "value", "all", "any"]
     private static let optionKeys: Set<String> = ["value", "title", "systemImage"]
@@ -315,6 +315,21 @@ nonisolated enum PartPackageManifestSchema {
         if let visibleWhen = property["visibleWhen"], !(visibleWhen is [String: Any]) {
             appendTypeError(key: "visibleWhen", expected: "a dictionary", location: location, into: &diagnostics)
         }
+        optionalEnumString(
+            "valueAvailability",
+            values: Set(PartPackageProperty.ValueAvailability.allCases.map(\.rawValue)),
+            in: property,
+            location: location,
+            into: &diagnostics
+        )
+        if property["valueAvailability"] as? String == PartPackageProperty.ValueAvailability.whenVisible.rawValue,
+           property["visibleWhen"] == nil {
+            diagnostics.append(.init(
+                severity: .error,
+                location: "\(location).valueAvailability",
+                message: "valueAvailability 'whenVisible' requires visibleWhen."
+            ))
+        }
         validateDictionaryArray(property["options"], key: "options", parent: location, into: &diagnostics)
         dictionaries(in: property["options"]).enumerated().forEach { optionIndex, option in
             let optionLocation = "\(location):options[\(optionIndex)]"
@@ -474,11 +489,11 @@ nonisolated enum PartPackageManifestSchema {
             return
         }
         if (type == .frameworkSpacing || type == .frameworkPadding || type == .frameworkMargin || type == .frameworkRadius) {
-            let allowed: Set<String> = ["type", "id", "label", "subtitle", "group", "default", "responsive", "tooltip", "visibleWhen"]
+            let allowed: Set<String> = ["type", "id", "label", "subtitle", "group", "default", "responsive", "tooltip", "visibleWhen", "valueAvailability"]
             unknownKeys(in: property, allowed: allowed, location: location, into: &diagnostics)
         }
         if type == .edges || type == .corners {
-            let allowed: Set<String> = ["type", "id", "label", "subtitle", "group", "default", "responsive", "tooltip", "visibleWhen", "units", "linked"]
+            let allowed: Set<String> = ["type", "id", "label", "subtitle", "group", "default", "responsive", "tooltip", "visibleWhen", "valueAvailability", "units", "linked"]
             unknownKeys(in: property, allowed: allowed, location: location, into: &diagnostics)
             optionalBoolean("linked", in: property, location: location, into: &diagnostics)
             if let units = property["units"] {
@@ -524,7 +539,7 @@ nonisolated enum PartPackageManifestSchema {
             }
         }
         if type == .frameworkBorder {
-            unknownKeys(in: property, allowed: ["type", "id", "label", "subtitle", "group", "default", "responsive", "tooltip", "visibleWhen", "showsStyle"], location: location, into: &diagnostics)
+            unknownKeys(in: property, allowed: ["type", "id", "label", "subtitle", "group", "default", "responsive", "tooltip", "visibleWhen", "valueAvailability", "showsStyle"], location: location, into: &diagnostics)
             for key in ["showsStyle"] {
                 optionalBoolean(key, in: property, location: location, into: &diagnostics)
             }

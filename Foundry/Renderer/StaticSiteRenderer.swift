@@ -29,6 +29,8 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
             storedAssets: site.webIconAssets,
             contents: assets
         )
+        var sitePackages: [LoadedPartPackage] = []
+        var sitePackageIdentifiers = Set<String>()
         for page in site.pages {
             try Task.checkCancellation()
             let isHome = page.slug == "index"
@@ -43,6 +45,21 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
                 ? ""
                 : String(repeating: "../", count: directory.split(separator: "/").count)
             let includesPageJavaScript = pageRequiresJavaScript(page)
+            let pagePackages = PartArtifactPlan(page: page).packages
+            for package in pagePackages where sitePackageIdentifiers.insert(package.manifest.identifier).inserted {
+                sitePackages.append(package)
+            }
+            let libraryPrefix = rootPrefix + "files/libraries"
+            let scriptsBefore = FoundryWebLibraryRegistry.exportScriptPaths(
+                for: pagePackages,
+                prefix: libraryPrefix,
+                placement: .beforePage
+            )
+            let scriptsAfter = FoundryWebLibraryRegistry.exportScriptPaths(
+                for: pagePackages,
+                prefix: libraryPrefix,
+                placement: .afterPage
+            )
             let pageFilesDirectory = Self.joinedPath(directory, "files")
             let pageStylesAssetPrefix = String(
                 repeating: "../",
@@ -57,7 +74,7 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
                     language: site.language,
                     framework: site.framework,
                     stylesheetPaths: [rootPrefix + "files/site.css", "files/page.css"],
-                    scriptPaths: includesPageJavaScript ? ["files/page.js"] : [],
+                    scriptPaths: scriptsBefore + (includesPageJavaScript ? ["files/page.js"] : []) + scriptsAfter,
                     assetPrefix: rootPrefix + "assets",
                     packageAssetPrefix: documentPackageAssetPrefix,
                     assets: assets,
@@ -87,7 +104,6 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
                     )
                 ))
             }
-            let pagePackages = PartArtifactPlan(page: page).packages
             pageFiles.append(contentsOf: partAssetFiles(
                 for: pagePackages,
                 scope: .page,
@@ -96,7 +112,6 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
             for file in pageFiles { try emit(file) }
         }
         try emit(.init(path: "files/site.css", contents: stylesheet(for: site, assets: assets)))
-        let sitePackages = PartArtifactPlan.sitePackages(in: site)
         for file in FoundryWebLibraryRegistry.exportFiles(for: sitePackages) { try emit(file) }
         for file in partAssetFiles(
             for: sitePackages,
@@ -139,6 +154,7 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
                 return true
             }
             return node.type.definition.package?.declaresJavaScript(in: .instance, .page) == true
+                || !(node.type.definition.package?.manifest.controlGroupJavaScript.isEmpty ?? true)
         }
     }
 
@@ -279,7 +295,11 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
         let nodes = page.parts.flatMap(\.flattened)
         let instanceScripts = nodes.compactMap { node -> String? in
             guard let package = node.type.definition.package else { return nil }
-            let source = [package.instanceJavaScript, PartArtifactPlan.htmlArtifact(for: node, suffix: "JavaScript")]
+            let source = [
+                package.instanceJavaScript,
+                PartArtifactPlan.htmlArtifact(for: node, suffix: "JavaScript"),
+                package.manifest.controlGroupJavaScript
+            ]
                 .filter { !$0.isEmpty }.joined(separator: "\n")
             guard !source.isEmpty else { return nil }
             return PartTemplateRenderer.render(
@@ -1019,9 +1039,18 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
             values[definition.key.rawValue + ".target"] = .string(resolved.target)
             values[definition.key.rawValue + ".attributes"] = .string(resolved.attributes)
         }
-        return PartPackageDerivedValueResolver.resolve(
+        let resolved = PartPackageDerivedValueResolver.resolve(
             values,
             properties: node.type.definition.package?.manifest.resolvedProperties ?? []
+        )
+        guard let properties = node.type.definition.package?.manifest.resolvedProperties else {
+            return resolved
+        }
+        return PartPackageVisibilityEvaluator.availableTemplateValues(
+            resolved,
+            properties: properties,
+            for: node,
+            screens: framework.screens
         )
     }
 

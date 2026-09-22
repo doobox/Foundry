@@ -1,0 +1,10 @@
+GSAP 3.15.0
+
+Copyright 2026, GreenSock. All rights reserved.
+
+GSAP is distributed under GreenSock's standard "no charge" license.
+The current license terms are available at:
+
+https://gsap.com/standard-license/
+
+The bundled distribution files retain their original copyright and license headers.

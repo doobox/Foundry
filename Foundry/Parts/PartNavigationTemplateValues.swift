@@ -1,5 +1,18 @@
 import Foundation
 
+nonisolated enum PartBreakpointTemplateValues {
+    static func values(screens: ScreenTokens) -> [String: PartPackageValue] {
+        let breakpoints = Dictionary(uniqueKeysWithValues: ResponsiveBreakpoint.allCases.map { breakpoint in
+            let screen = screens.screen(breakpoint.screenID)
+            return (breakpoint.rawValue, PartPackageValue.object([
+                "enabled": .boolean(screen.isEnabled),
+                "minimumWidth": .number(screen.minimumWidth)
+            ]))
+        })
+        return ["breakpoints": .object(breakpoints)]
+    }
+}
+
 nonisolated enum PartNavigationTemplateValues {
     static func values(site: Site, currentPage: Page) -> [String: PartPackageValue] {
         let childrenByParent = Dictionary(grouping: site.pages, by: \.parentPageID)
@@ -212,7 +225,7 @@ nonisolated enum PartNavigationTemplateValues {
         }
         if let previous { result["navigation.previous"] = item(previous, depth: 0, visited: []) }
         if let next { result["navigation.next"] = item(next, depth: 0, visited: []) }
-        return result
+        return result.merging(PartBreakpointTemplateValues.values(screens: site.framework.screens)) { current, _ in current }
     }
 
     private static func assetValue(_ asset: ProjectAsset, site: Site) -> PartPackageValue {

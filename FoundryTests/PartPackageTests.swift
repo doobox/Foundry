@@ -2089,7 +2089,7 @@ struct PartPackageTests {
         <key>controls</key><array>
         <dict><key>id</key><string>mode</string><key>label</key><string>Mode</string><key>type</key><string>select</string><key>options</key><array><dict><key>value</key><string>featured</string><key>title</key><string>Featured</string></dict></array><key>defaults</key><dict><key>base</key><string>featured</string></dict><key>responsive</key><false/></dict>
         <dict><key>id</key><string>titles</string><key>label</key><string>Titles</string><key>type</key><string>text</string><key>count</key><integer>3</integer><key>defaults</key><dict><key>base</key><array><string>One</string><string>Two</string><string>Featured story</string></array></dict><key>responsive</key><false/></dict>
-        <dict><key>id</key><string>detail</string><key>label</key><string>Detail</string><key>type</key><string>text</string><key>defaults</key><dict><key>base</key><string>Visible</string></dict><key>responsive</key><false/><key>visibleWhen</key><dict><key>id</key><string>titles[2]</string><key>operation</key><string>containsInsensitive</string><key>value</key><string>featured</string></dict></dict>
+        <dict><key>id</key><string>detail</string><key>label</key><string>Detail</string><key>type</key><string>text</string><key>defaults</key><dict><key>base</key><string>Visible</string></dict><key>responsive</key><false/><key>visibleWhen</key><dict><key>id</key><string>titles[2]</string><key>operation</key><string>containsInsensitive</string><key>value</key><string>featured</string></dict><key>valueAvailability</key><string>whenVisible</string></dict>
         <dict><key>id</key><string>compoundDetail</string><key>label</key><string>Compound detail</string><key>type</key><string>text</string><key>defaults</key><dict><key>base</key><string>Visible</string></dict><key>responsive</key><false/><key>visibleWhen</key><dict><key>all</key><array><dict><key>id</key><string>mode</string><key>value</key><string>featured</string></dict><dict><key>any</key><array><dict><key>id</key><string>titles[0]</string><key>value</key><string>One</string></dict><dict><key>id</key><string>titles[1]</string><key>value</key><string>Other</string></dict></array></dict></array></dict></dict>
         </array><key>templates</key><dict><key>html</key><string>part.html</string></dict>
         </dict></plist>
@@ -2098,6 +2098,8 @@ struct PartPackageTests {
         let enabledProperty = try #require(manifest.resolvedProperties.first { $0.id == "detail" })
         #expect(enabledProperty.visibleWhen?.id == "titles[2]")
         #expect(enabledProperty.visibleWhen?.operation == "containsInsensitive")
+        #expect(enabledProperty.valueAvailability == .whenVisible)
+        #expect(manifest.resolvedProperties.first { $0.id == "compoundDetail" }?.valueAvailability == .always)
 
         #expect(PartPackageVisibilityEvaluator.evaluate(
             .string("Featured story"),
@@ -2115,6 +2117,83 @@ struct PartPackageTests {
         #expect(compound.all?.count == 2)
         #expect(compound.all?.last?.any?.count == 2)
         #expect(try PartPackageManifestSchema.diagnostics(for: Data(plist.utf8)).isEmpty)
+    }
+
+    @Test @MainActor
+    func templateValuesCanBeAvailableOnlyWhileTheirControlsAreVisible() throws {
+        let plist = """
+        <?xml version="1.0" encoding="UTF-8"?>
+        <plist version="1.0"><dict>
+        <key>minimumAPIVersion</key><integer>1</integer>
+        <key>id</key><string>com.example.value-availability</string>
+        <key>title</key><string>Value availability</string>
+        <key>version</key><string>1.0.0</string>
+        <key>controls</key><array>
+        <dict><key>id</key><string>mode</string><key>label</key><string>Mode</string><key>type</key><string>select</string><key>options</key><array><dict><key>value</key><string>preset</string><key>title</key><string>Preset</string></dict><dict><key>value</key><string>custom</string><key>title</key><string>Custom</string></dict></array><key>defaults</key><dict><key>base</key><string>preset</string></dict><key>responsive</key><false/></dict>
+        <dict><key>id</key><string>presetSize</string><key>label</key><string>Preset size</string><key>type</key><string>text</string><key>defaults</key><dict><key>base</key><string>1rem</string></dict><key>responsive</key><false/><key>visibleWhen</key><dict><key>id</key><string>mode</string><key>value</key><string>preset</string></dict><key>valueAvailability</key><string>whenVisible</string></dict>
+        <dict><key>id</key><string>customSize</string><key>label</key><string>Custom size</string><key>type</key><string>text</string><key>defaults</key><dict><key>base</key><string>24px</string></dict><key>responsive</key><false/><key>visibleWhen</key><dict><key>id</key><string>mode</string><key>value</key><string>custom</string></dict><key>valueAvailability</key><string>whenVisible</string></dict>
+        </array>
+        <key>templates</key><dict><key>html</key><string>part.html</string></dict>
+        </dict></plist>
+        """
+        let data = Data(plist.utf8)
+        #expect(try PartPackageManifestSchema.diagnostics(for: data).isEmpty)
+        let manifest = try PropertyListDecoder().decode(PartPackageManifest.self, from: data)
+        let package = LoadedPartPackage(
+            manifest: manifest,
+            rootURL: FileManager.default.temporaryDirectory,
+            htmlTemplate: #"<p {{ part.attributes }} style="font-size: {{ control.presetSize }}{{ control.customSize }}">Size</p>"#,
+            css: "", pageCSS: "", siteCSS: "", placedHTML: [], instanceJavaScript: "",
+            pageJavaScript: "", instancePHP: "", pagePHP: "", editorCSS: "",
+            updateSourceURL: nil, imageMetadata: [:]
+        )
+        PartRegistry.register(package)
+        defer { PartRegistry.unregisterPackage(identifier: manifest.identifier) }
+
+        var node = PartNode.make(.init(rawValue: manifest.identifier))
+        let presetPage = Page(title: "Preset", slug: "preset", parts: [node])
+        let presetCanvas = HTMLPageRenderer().render(page: presetPage, framework: .standard)
+        #expect(presetCanvas.contains(#"style="font-size: 1rem""#))
+        #expect(!presetCanvas.contains("1rem24px"))
+
+        node.setProperty(.init(rawValue: "mode"), value: .choice("custom"))
+        let filtered = PartPackageVisibilityEvaluator.availableTemplateValues(
+            [
+                "presetSize": .string("1rem"),
+                "presetSize.lineHeight": .string("1.5"),
+                "presetSize2": .string("unrelated"),
+                "customSize": .string("24px")
+            ],
+            properties: manifest.resolvedProperties,
+            for: node
+        )
+        #expect(filtered["presetSize"] == nil)
+        #expect(filtered["presetSize.lineHeight"] == nil)
+        #expect(filtered["presetSize2"] == .string("unrelated"))
+        #expect(filtered["customSize"] == .string("24px"))
+        let customPage = Page(title: "Custom", slug: "custom", parts: [node])
+        let customCanvas = HTMLPageRenderer().render(page: customPage, framework: .standard)
+        #expect(customCanvas.contains(#"style="font-size: 24px""#))
+        #expect(node.propertyValue(.init(rawValue: "presetSize")) == .string("1rem"))
+
+        var site = Site.starter()
+        site.pages = [customPage]
+        let exported = StaticSiteRenderer().render(site: site)
+        #expect(exported.files.contains { $0.contents.contains(#"style="font-size: 24px""#) })
+    }
+
+    @Test
+    func whenVisibleValueAvailabilityRequiresAVisibilityCondition() throws {
+        let control = """
+        <dict><key>id</key><string>detail</string><key>label</key><string>Detail</string><key>type</key><string>text</string><key>defaults</key><dict><key>base</key><string>Value</string></dict><key>responsive</key><false/><key>valueAvailability</key><string>whenVisible</string></dict>
+        """
+        let diagnostics = try PartPackageManifestSchema.diagnostics(
+            for: Data(manifest(withControls: control).utf8)
+        )
+        #expect(diagnostics.contains {
+            $0.location.hasSuffix(".valueAvailability") &&
+                $0.message == "valueAvailability 'whenVisible' requires visibleWhen."
+        })
     }
 
     @Test
@@ -2726,6 +2805,32 @@ struct PartPackageTests {
 
         let decodedHidden = try JSONDecoder().decode(Page.self, from: JSONEncoder().encode(hidden))
         #expect(decodedHidden.includeInNavigation == false)
+    }
+
+    @Test
+    func breakpointTemplateValuesExposeEnabledStateAndMinimumWidth() {
+        var site = Site(name: "Breakpoints", pages: [Page(title: "Home", slug: "index")])
+        site.framework.screens.update(.medium) { $0.minimumWidth = 850 }
+        site.framework.screens.update(.large) { $0.isEnabled = false }
+        let page = site.pages[0]
+        let template = """
+        {{ if breakpoints.medium.enabled }}@media (min-width: {{ breakpoints.medium.minimumWidth }}px) { .card { display: grid; } }{{ endif }}
+        {{ if breakpoints.large.enabled }}disabled breakpoint rendered{{ endif }}
+        """
+
+        let rendered = PartTemplateRenderer.render(
+            template,
+            context: .init(
+                instanceID: UUID(),
+                packageIdentifier: "com.example.breakpoints",
+                properties: [:],
+                templateValues: PartNavigationTemplateValues.values(site: site, currentPage: page),
+                slots: [:]
+            )
+        )
+
+        #expect(rendered.contains("@media (min-width: 850px)"))
+        #expect(!rendered.contains("disabled breakpoint rendered"))
     }
 
     @Test
@@ -5331,6 +5436,71 @@ struct PartPackageTests {
         #expect(FoundryWebLibraryRegistry.uniqueRequirements(in: [package, package]) == [
             FoundryWebLibraryRegistry.iconRequirement
         ])
+    }
+
+    @Test
+    func revealControlGroupIncludesGSAPAndScrollTrigger() throws {
+        let identifier = "com.example.reveal-library.\(UUID().uuidString.lowercased())"
+        let manifest = """
+        <?xml version="1.0" encoding="UTF-8"?>
+        <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+        <plist version="1.0"><dict>
+        <key>minimumAPIVersion</key><integer>1</integer>
+        <key>id</key><string>\(identifier)</string>
+        <key>title</key><string>Reveal Library</string>
+        <key>version</key><string>1.0.0</string>
+        <key>libraries</key><array><dict>
+            <key>id</key><string>alpine</string>
+            <key>majorVersion</key><integer>3</integer>
+        </dict></array>
+        <key>controls</key><array><dict><key>type</key><string>reveal</string></dict></array>
+        <key>templates</key><dict><key>html</key><string>part.html</string></dict>
+        </dict></plist>
+        """
+        let packageURL = try makePackage(
+            manifest: manifest,
+            template: "<section {{ part.attributes }}>Reveal</section>"
+        )
+        defer { try? FileManager.default.removeItem(at: packageURL) }
+        let package = try PartPackageLoader.load(from: packageURL)
+        PartRegistry.register(package)
+
+        #expect(FoundryWebLibraryRegistry.uniqueRequirements(in: [package]) == [
+            FoundryWebLibraryRegistry.alpineRequirement,
+            FoundryWebLibraryRegistry.gsapRequirement,
+            FoundryWebLibraryRegistry.gsapScrollTriggerRequirement
+        ])
+        let directLibraryPaths = FoundryWebLibraryRegistry.exportFiles(for: [package]).map(\.path)
+        #expect(directLibraryPaths.contains("files/libraries/alpine/alpine.min.js"))
+        #expect(directLibraryPaths.contains("files/libraries/gsap/gsap.min.js"))
+        #expect(directLibraryPaths.contains("files/libraries/gsapScrollTrigger/ScrollTrigger.min.js"))
+
+        let site = Site(
+            name: "Reveal",
+            pages: [Page(title: "Home", slug: "index", parts: [
+                PartNode(type: PartType(rawValue: identifier))
+            ])]
+        )
+        let bundle = StaticSiteRenderer().render(site: site)
+        #expect(bundle.errors.isEmpty)
+        let document = try #require(bundle.file(at: "index.html")?.contents)
+        let pageJavaScript = try #require(bundle.file(at: "files/page.js")?.contents)
+
+        #expect(document.contains("files/libraries/gsap/gsap.min.js"))
+        #expect(document.contains("files/libraries/gsapScrollTrigger/ScrollTrigger.min.js"))
+        #expect(document.contains("files/libraries/alpine/alpine.min.js"))
+        #expect(bundle.file(at: "files/libraries/gsap/gsap.min.js") != nil)
+        #expect(bundle.file(at: "files/libraries/gsapScrollTrigger/ScrollTrigger.min.js") != nil)
+        #expect(bundle.file(at: "files/libraries/alpine/alpine.min.js") != nil)
+        #expect(pageJavaScript.contains("prefers-reduced-motion: reduce"))
+        #expect(pageJavaScript.contains("gsap.registerPlugin(ScrollTrigger)"))
+    }
+
+    @Test
+    func webLibrariesSupportAlpineAndResolveScrollTriggerDependency() {
+        #expect(FoundryWebLibraryRegistry.supports(FoundryWebLibraryRegistry.alpineRequirement))
+        #expect(FoundryWebLibraryRegistry.supports(FoundryWebLibraryRegistry.gsapRequirement))
+        #expect(FoundryWebLibraryRegistry.supports(FoundryWebLibraryRegistry.gsapScrollTriggerRequirement))
     }
 
     @Test

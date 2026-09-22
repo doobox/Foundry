@@ -1,6 +1,27 @@
 import Foundation
 
 nonisolated enum PartPackageVisibilityEvaluator {
+    static func availableTemplateValues(
+        _ values: [String: PartPackageValue],
+        properties: [PartPackageProperty],
+        for part: PartNode,
+        screens: ScreenTokens = .standard
+    ) -> [String: PartPackageValue] {
+        let unavailableIDs = properties.compactMap { property -> String? in
+            guard property.valueAvailability == .whenVisible,
+                  !isVisible(property.visibleWhen, for: part, at: .mobile, screens: screens) else {
+                return nil
+            }
+            return property.id
+        }
+        guard !unavailableIDs.isEmpty else { return values }
+        return values.filter { key, _ in
+            !unavailableIDs.contains { id in
+                key == id || key.hasPrefix(id + ".") || key.hasPrefix(id + "[")
+            }
+        }
+    }
+
     static func isVisible(
         _ condition: PartPackageVisibilityCondition?,
         for part: PartNode,

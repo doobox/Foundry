@@ -208,6 +208,10 @@ extension PartPackageManifest {
         controlGroups.map(\.css).joined(separator: "\n")
     }
 
+    nonisolated var controlGroupJavaScript: String {
+        controlGroups.map(\.javaScript).joined(separator: "\n")
+    }
+
     nonisolated var htmlContributions: [PartPackageHTMLContribution] {
         render.htmlContributions + controlGroups.flatMap(\.htmlContributions)
     }
@@ -235,6 +239,7 @@ nonisolated struct PartPackageControlGroup: Codable, Equatable, Sendable {
         case borders
         case effects
         case layoutItem
+        case reveal
 
         /// The Inspector section this Grouped control's properties live in, and
         /// the icon that section carries — the same metadata a part declares for
@@ -367,7 +372,7 @@ nonisolated struct PartPackageControlGroup: Codable, Equatable, Sendable {
         switch type {
         case .background:
             backgroundCSS
-        case .spacing, .sizing, .borders, .effects, .layoutItem:
+        case .spacing, .sizing, .borders, .effects, .layoutItem, .reveal:
             ""
         }
     }
@@ -389,9 +394,50 @@ nonisolated struct PartPackageControlGroup: Codable, Equatable, Sendable {
                 template: fragments.joined(separator: "\n"),
                 target: .controlGroupBackground
             )]
-        case .spacing, .sizing, .borders, .effects, .layoutItem:
+        case .spacing, .sizing, .borders, .effects, .layoutItem, .reveal:
             return []
         }
+    }
+
+    var javaScript: String {
+        guard type == .reveal else { return "" }
+        return #"""
+        (() => {
+            const root = document.querySelector('[data-foundry-id="{{ instance.id }}"]');
+            if (!root || typeof gsap === "undefined" || typeof ScrollTrigger === "undefined") return;
+            root._foundryRevealContext?.revert();
+            const targets = {{ if control.revealStagger > 0 }}Array.from(root.children){{ else }}[root]{{ endif }};
+            if (!{{ control.revealEnabled }} || window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+                return;
+            }
+            gsap.registerPlugin(ScrollTrigger);
+            const from = { autoAlpha: 0 };
+            const distance = {{ control.revealDistance }};
+            switch ("{{ control.revealEffect }}") {
+            case "fade-up": from.y = distance; break;
+            case "fade-down": from.y = -distance; break;
+            case "fade-left": from.x = distance; break;
+            case "fade-right": from.x = -distance; break;
+            case "scale": from.scale = 0.85; break;
+            case "blur": from.filter = "blur(" + distance + "px)"; break;
+            }
+            root._foundryRevealContext = gsap.context(() => {
+                gsap.from(targets, {
+                    ...from,
+                    duration: {{ control.revealDuration }} / 1000,
+                    delay: {{ control.revealDelay }} / 1000,
+                    stagger: {{ control.revealStagger }} / 1000,
+                    ease: "{{ control.revealEase }}",
+                    scrollTrigger: {
+                        trigger: root,
+                        start: "top {{ control.revealTrigger }}%",
+                        once: {{ control.revealOnce }},
+                        toggleActions: {{ if control.revealOnce }}"play none none none"{{ else }}"play none none reverse"{{ endif }}
+                    }
+                });
+            }, root);
+        })();
+        """#
     }
 
     private var backgroundCSS: String {
@@ -590,6 +636,11 @@ nonisolated struct PartPackageImageRendition: Codable, Equatable, Identifiable, 
 }
 
 nonisolated struct PartPackageProperty: Codable, Equatable, Identifiable, Sendable {
+    enum ValueAvailability: String, Codable, CaseIterable, Sendable {
+        case always
+        case whenVisible
+    }
+
     let id: String
     let label: String
     let noteTitle: String?
@@ -608,6 +659,7 @@ nonisolated struct PartPackageProperty: Codable, Equatable, Identifiable, Sendab
     let units: [String]
     let tooltip: String?
     let visibleWhen: PartPackageVisibilityCondition?
+    let valueAvailability: ValueAvailability
     let alt: String
     let focalPoint: Bool
     let renditions: [PartPackageImageRendition]
@@ -633,6 +685,7 @@ nonisolated struct PartPackageProperty: Codable, Equatable, Identifiable, Sendab
         case units
         case tooltip
         case visibleWhen
+        case valueAvailability
         case alt
         case focalPoint
         case renditions
@@ -650,6 +703,7 @@ nonisolated struct PartPackageProperty: Codable, Equatable, Identifiable, Sendab
         defaultValue: PartPackageValue,
         responsive: Bool,
         visibleWhen: PartPackageVisibilityCondition? = nil,
+        valueAvailability: ValueAvailability = .always,
         tooltip: String? = nil,
         units: [String] = [""]
     ) {
@@ -671,6 +725,7 @@ nonisolated struct PartPackageProperty: Codable, Equatable, Identifiable, Sendab
         self.units = units
         self.tooltip = tooltip
         self.visibleWhen = visibleWhen
+        self.valueAvailability = valueAvailability
         alt = ""
         focalPoint = false
         renditions = []
@@ -687,6 +742,7 @@ nonisolated struct PartPackageProperty: Codable, Equatable, Identifiable, Sendab
         control = try PartPackageControl(from: decoder)
         tooltip = try container.decodeIfPresent(String.self, forKey: .tooltip)
         visibleWhen = try container.decodeIfPresent(PartPackageVisibilityCondition.self, forKey: .visibleWhen)
+        valueAvailability = try container.decodeIfPresent(ValueAvailability.self, forKey: .valueAvailability) ?? .always
         alt = try container.decodeIfPresent(String.self, forKey: .alt) ?? ""
         focalPoint = try container.decodeIfPresent(Bool.self, forKey: .focalPoint) ?? false
         renditions = try container.decodeIfPresent([PartPackageImageRendition].self, forKey: .renditions) ?? []
@@ -798,6 +854,9 @@ nonisolated struct PartPackageProperty: Codable, Equatable, Identifiable, Sendab
         }
         try container.encodeIfPresent(tooltip, forKey: .tooltip)
         try container.encodeIfPresent(visibleWhen, forKey: .visibleWhen)
+        if valueAvailability != .always {
+            try container.encode(valueAvailability, forKey: .valueAvailability)
+        }
         if control.type == .image, !alt.isEmpty {
             try container.encode(alt, forKey: .alt)
         }

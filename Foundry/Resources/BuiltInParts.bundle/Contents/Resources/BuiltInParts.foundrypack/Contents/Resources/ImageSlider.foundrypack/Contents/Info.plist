@@ -201,6 +201,7 @@
             <key>units</key><string>px</string>
             <key>responsive</key><true/>
         </dict>
+        <dict><key>type</key><string>reveal</string></dict>
     </array>
     <key>description</key>
     <string>Displays an accessible, responsive carousel of editable images and captions.</string>

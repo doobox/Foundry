@@ -138,6 +138,7 @@
 			<key>type</key>
 			<string>background</string>
 		</dict>
+		<dict><key>type</key><string>reveal</string></dict>
 	</array>
 </dict>
 </plist>

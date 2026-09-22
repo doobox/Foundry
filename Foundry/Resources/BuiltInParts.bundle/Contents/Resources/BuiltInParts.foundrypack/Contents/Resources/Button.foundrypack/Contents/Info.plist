@@ -25,6 +25,7 @@
         <dict><key>id</key><string>backgroundColor</string><key>label</key><string>Background</string><key>group</key><string>Appearance</string><key>type</key><string>frameworkColor</string><key>allowsCustom</key><true/><key>opacity</key><true/><key>customColor</key><string>#5B5BD6</string><key>defaults</key><dict><key>base</key><dict><key>palette</key><string>custom</string></dict></dict><key>responsive</key><true/></dict>
         <dict><key>id</key><string>cornerRadius</string><key>label</key><string>Corner radius</string><key>group</key><string>Appearance</string><key>type</key><string>number</string><key>minimum</key><integer>0</integer><key>maximum</key><integer>120</integer><key>step</key><integer>1</integer><key>units</key><string>px</string><key>defaults</key><dict><key>base</key><integer>10</integer></dict><key>responsive</key><true/></dict>
         <dict><key>id</key><string>accessibilityLabel</string><key>label</key><string>Accessibility label</string><key>group</key><string>Accessibility</string><key>type</key><string>text</string><key>defaults</key><dict><key>base</key><string></string></dict><key>responsive</key><false/></dict>
+        <dict><key>type</key><string>reveal</string></dict>
     </array>
     <key>templates</key><dict><key>html</key><string>part.html</string><key>files</key><array><dict><key>path</key><string>part.css</string><key>scope</key><string>instance</string></dict></array></dict>
     <key>assets</key><array/>

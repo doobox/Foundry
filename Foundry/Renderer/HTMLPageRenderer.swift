@@ -16,11 +16,20 @@ nonisolated struct HTMLPageRenderer: PageRendering {
         let pageTitle = page.metadata.browserTitle.isEmpty ? page.title : page.metadata.browserTitle
         let browserTitle = pageTitle + (site?.titleSuffix ?? "")
         let metadata = metadataHTML(for: page, browserTitle: browserTitle, site: site, assets: assets)
-        let headStart = placedHTML(for: page, placement: .headStart)
-        let headEnd = placedHTML(for: page, placement: .headEnd)
-        let bodyStart = placedHTML(for: page, placement: .bodyStart)
-        let bodyEnd = placedHTML(for: page, placement: .bodyEnd)
+        let headStart = placedHTML(for: page, framework: framework, placement: .headStart)
+        let headEnd = placedHTML(for: page, framework: framework, placement: .headEnd)
+        let bodyStart = placedHTML(for: page, framework: framework, placement: .bodyStart)
+        let bodyEnd = placedHTML(for: page, framework: framework, placement: .bodyEnd)
+        let pagePackages = PartArtifactPlan(page: page).packages
+        let libraryScriptsBefore = FoundryWebLibraryRegistry.canvasScriptTags(
+            for: pagePackages,
+            placement: .beforePage
+        )
         let scripts = packageScripts(for: page, framework: framework, assets: assets, breakpoint: breakpoint)
+        let libraryScriptsAfter = FoundryWebLibraryRegistry.canvasScriptTags(
+            for: pagePackages,
+            placement: .afterPage
+        )
         let customHeadCode = site?.customCodeEnabled == true ? site?.headCode ?? "" : ""
         let customBodyStartCode = site?.customCodeEnabled == true ? site?.bodyStartCode ?? "" : ""
         let customBodyEndCode = site?.customCodeEnabled == true ? site?.bodyEndCode ?? "" : ""
@@ -107,7 +116,7 @@ nonisolated struct HTMLPageRenderer: PageRendering {
         \(analyticsCode)
         \(headEnd)
         </head>
-        <body>\(customBodyStartCode)\(bodyStart)\(body)\(bodyEnd)\(scripts)\(customBodyEndCode)</body>
+        <body>\(customBodyStartCode)\(bodyStart)\(body)\(bodyEnd)\(libraryScriptsBefore)\(scripts)\(libraryScriptsAfter)\(customBodyEndCode)</body>
         </html>
         """
     }
@@ -152,14 +161,18 @@ nonisolated struct HTMLPageRenderer: PageRendering {
         let nodes = page.parts.flatMap(flattened)
         let instanceScripts = nodes.compactMap { sourceNode -> String? in
             let node = sourceNode.resolved(at: breakpoint, screens: framework.screens)
-            guard let package = node.type.definition.package, !package.instanceJavaScript.isEmpty else { return nil }
+            guard let package = node.type.definition.package else { return nil }
+            let source = [package.instanceJavaScript, package.manifest.controlGroupJavaScript]
+                .filter { !$0.isEmpty }
+                .joined(separator: "\n")
+            guard !source.isEmpty else { return nil }
             return PartTemplateRenderer.render(
-                package.instanceJavaScript,
+                source,
                 context: .init(
                     instanceID: node.id,
                     packageIdentifier: package.manifest.identifier,
                     properties: packageProperties(node, framework: framework, assets: assets),
-                    templateValues: site.map { PartNavigationTemplateValues.values(site: $0, currentPage: page) } ?? [:],
+                    templateValues: templateValues(for: page, framework: framework),
                     slots: [:],
                     assetBasePath: canvasAssetBasePath(for: package),
                     assetPaths: canvasAssetPaths(for: package),
@@ -176,7 +189,7 @@ nonisolated struct HTMLPageRenderer: PageRendering {
             guard !source.isEmpty else { return nil }
             return PartTemplateRenderer.render(
                 source,
-                context: .init(instanceID: UUID(uuid: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)), packageIdentifier: package.manifest.identifier, properties: [:], templateValues: site.map { PartNavigationTemplateValues.values(site: $0, currentPage: page) } ?? [:], slots: [:], assetBasePath: canvasAssetBasePath(for: package), assetPaths: canvasAssetPaths(for: package), environment: .canvas, loopMaximums: package.loopMaximums)
+                context: .init(instanceID: UUID(uuid: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)), packageIdentifier: package.manifest.identifier, properties: [:], templateValues: templateValues(for: page, framework: framework), slots: [:], assetBasePath: canvasAssetBasePath(for: package), assetPaths: canvasAssetPaths(for: package), environment: .canvas, loopMaximums: package.loopMaximums)
             )
         }
         let htmlScripts = nodes.map {
@@ -187,7 +200,7 @@ nonisolated struct HTMLPageRenderer: PageRendering {
         return source.isEmpty ? "" : "<script>\n\(source)\n</script>"
     }
 
-    private func placedHTML(for page: Page, placement: PartPackageTemplateFile.Placement) -> String {
+    private func placedHTML(for page: Page, framework: Framework, placement: PartPackageTemplateFile.Placement) -> String {
         var seenPackages: Set<String> = []
         return page.parts.flatMap(flattened).compactMap { node -> String? in
             guard let package = node.type.definition.package,
@@ -198,7 +211,7 @@ nonisolated struct HTMLPageRenderer: PageRendering {
                 instanceID: UUID(uuid: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)),
                 packageIdentifier: package.manifest.identifier,
                 properties: [:],
-                templateValues: site.map { PartNavigationTemplateValues.values(site: $0, currentPage: page) } ?? [:],
+                templateValues: templateValues(for: page, framework: framework),
                 slots: [:],
                 assetBasePath: canvasAssetBasePath(for: package),
                 assetPaths: canvasAssetPaths(for: package),
@@ -207,6 +220,13 @@ nonisolated struct HTMLPageRenderer: PageRendering {
             )
             return templates.map { PartTemplateRenderer.render($0.contents, context: context) }.joined(separator: "\n")
         }.joined(separator: "\n")
+    }
+
+    private func templateValues(for page: Page, framework: Framework) -> [String: PartPackageValue] {
+        let breakpointValues = PartBreakpointTemplateValues.values(screens: framework.screens)
+        guard let site else { return breakpointValues }
+        return PartNavigationTemplateValues.values(site: site, currentPage: page)
+            .merging(breakpointValues) { current, _ in current }
     }
 
     private func metadataHTML(
@@ -324,7 +344,7 @@ nonisolated struct HTMLPageRenderer: PageRendering {
                     instanceID: node.id,
                     packageIdentifier: package.manifest.identifier,
                     properties: renderedProperties,
-                    templateValues: site.map { PartNavigationTemplateValues.values(site: $0, currentPage: page) } ?? [:],
+                    templateValues: templateValues(for: page, framework: framework),
                     slots: slots,
                     dropZones: dropZones,
                     partClass: partClass(node) + " " +
@@ -393,7 +413,7 @@ nonisolated struct HTMLPageRenderer: PageRendering {
                     instanceID: UUID(uuid: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)),
                     packageIdentifier: package.manifest.identifier,
                     properties: [:],
-                    templateValues: site.map { PartNavigationTemplateValues.values(site: $0, currentPage: page) } ?? [:],
+                    templateValues: templateValues(for: page, framework: framework),
                     slots: [:],
                     assetBasePath: canvasAssetBasePath(for: package),
                     assetPaths: canvasAssetPaths(for: package),
@@ -423,7 +443,7 @@ nonisolated struct HTMLPageRenderer: PageRendering {
                     instanceID: node.id,
                     packageIdentifier: package.manifest.identifier,
                     properties: packageProperties(node, framework: framework, assets: assets),
-                    templateValues: site.map { PartNavigationTemplateValues.values(site: $0, currentPage: page) } ?? [:],
+                    templateValues: templateValues(for: page, framework: framework),
                     slots: [:],
                     assetBasePath: canvasAssetBasePath(for: package),
                     assetPaths: canvasAssetPaths(for: package),
@@ -678,9 +698,18 @@ nonisolated struct HTMLPageRenderer: PageRendering {
                 values[definition.key.rawValue + ".attributes"] = .string(resolved.attributes)
             }
         }
-        return PartPackageDerivedValueResolver.resolve(
+        let resolved = PartPackageDerivedValueResolver.resolve(
             values,
             properties: node.type.definition.package?.manifest.resolvedProperties ?? []
+        )
+        guard let properties = node.type.definition.package?.manifest.resolvedProperties else {
+            return resolved
+        }
+        return PartPackageVisibilityEvaluator.availableTemplateValues(
+            resolved,
+            properties: properties,
+            for: node,
+            screens: framework.screens
         )
     }
 

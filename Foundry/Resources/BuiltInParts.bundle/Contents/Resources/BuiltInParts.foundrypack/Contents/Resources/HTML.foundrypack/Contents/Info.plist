@@ -23,7 +23,9 @@
         <dict><key>name</key><string>Content</string><key>systemImage</key><string>doc.text</string></dict>
     </array>
     <key>controls</key>
-    <array/>
+    <array>
+        <dict><key>type</key><string>reveal</string></dict>
+    </array>
     <key>assets</key>
     <array/>
     <key>templates</key>

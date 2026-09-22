@@ -82,6 +82,7 @@
 			<key>type</key>
 			<string>select</string>
 		</dict>
+		<dict><key>type</key><string>reveal</string></dict>
 	</array>
 	<key>description</key>
 	<string>Displays a responsive project image.</string>

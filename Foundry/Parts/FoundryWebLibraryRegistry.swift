@@ -16,9 +16,21 @@ nonisolated struct FoundryWebIcon: Identifiable, Hashable, Sendable {
 }
 
 nonisolated enum FoundryWebLibraryRegistry {
+    enum ScriptPlacement {
+        case beforePage
+        case afterPage
+    }
+
     static let iconsIdentifier = "bootstrapIcons"
     static let iconsMajorVersion = 1
     static let nativeIconFontName = "bootstrap-icons"
+
+    static let alpineRequirement = PartPackageLibraryRequirement(identifier: "alpine", majorVersion: 3)
+    static let gsapRequirement = PartPackageLibraryRequirement(identifier: "gsap", majorVersion: 3)
+    static let gsapScrollTriggerRequirement = PartPackageLibraryRequirement(
+        identifier: "gsapScrollTrigger",
+        majorVersion: 3
+    )
 
     static let iconRequirement = PartPackageLibraryRequirement(
         identifier: iconsIdentifier,
@@ -63,21 +75,35 @@ nonisolated enum FoundryWebLibraryRegistry {
     }()
 
     static func supports(_ requirement: PartPackageLibraryRequirement) -> Bool {
-        requirement == iconRequirement
+        [iconRequirement, alpineRequirement, gsapRequirement, gsapScrollTriggerRequirement]
+            .contains(requirement)
     }
 
     static func uniqueRequirements(
         in packages: [LoadedPartPackage]
     ) -> [PartPackageLibraryRequirement] {
         var seen = Set<PartPackageLibraryRequirement>()
-        return packages.flatMap { package in
+        let requested = packages.flatMap { package in
             var requirements = package.manifest.libraries
             if package.manifest.resolvedProperties.contains(where: { $0.control.type == .icon }) {
                 requirements.append(iconRequirement)
             }
+            if package.manifest.controlGroups.contains(where: { $0.type == .reveal }) {
+                requirements.append(gsapScrollTriggerRequirement)
+            }
             return requirements
         }
-        .filter { seen.insert($0).inserted }
+        var resolved: [PartPackageLibraryRequirement] = []
+        for requirement in requested {
+            if requirement == gsapScrollTriggerRequirement,
+               seen.insert(gsapRequirement).inserted {
+                resolved.append(gsapRequirement)
+            }
+            if seen.insert(requirement).inserted {
+                resolved.append(requirement)
+            }
+        }
+        return resolved
     }
 
     static func canvasCSS(for packages: [LoadedPartPackage]) -> String {
@@ -98,12 +124,61 @@ nonisolated enum FoundryWebLibraryRegistry {
     }
 
     static func exportFiles(for packages: [LoadedPartPackage]) -> [SiteExportFile] {
-        guard uniqueRequirements(in: packages).contains(iconRequirement),
-              let font = resourceData(at: "bootstrap-icons.woff2") else { return [] }
-        return [SiteExportFile(
-            path: "files/libraries/bootstrapIcons/bootstrap-icons.woff2",
-            data: font
-        )]
+        let requirements = uniqueRequirements(in: packages)
+        var files: [SiteExportFile] = []
+        if requirements.contains(iconRequirement),
+           let font = resourceData(at: "bootstrap-icons.woff2") {
+            files.append(SiteExportFile(
+                path: "files/libraries/bootstrapIcons/bootstrap-icons.woff2",
+                data: font
+            ))
+        }
+        for requirement in requirements {
+            guard let resource = scriptResource(for: requirement),
+                  let data = resourceData(at: resource) else { continue }
+            files.append(SiteExportFile(
+                path: "files/libraries/\(requirement.identifier)/\(resource)",
+                data: data
+            ))
+        }
+        return files
+    }
+
+    static func canvasScriptTags(
+        for packages: [LoadedPartPackage],
+        placement: ScriptPlacement
+    ) -> String {
+        uniqueRequirements(in: packages).compactMap { requirement in
+            guard scriptPlacement(for: requirement) == placement,
+                  let resource = scriptResource(for: requirement),
+                  let source = resourceString(at: resource) else { return nil }
+            return "<script data-foundry-library=\"\(requirement.identifier)\">\n\(source)\n</script>"
+        }.joined(separator: "\n")
+    }
+
+    static func exportScriptPaths(
+        for packages: [LoadedPartPackage],
+        prefix: String,
+        placement: ScriptPlacement
+    ) -> [String] {
+        uniqueRequirements(in: packages).compactMap { requirement in
+            guard scriptPlacement(for: requirement) == placement,
+                  let resource = scriptResource(for: requirement) else { return nil }
+            return "\(prefix)/\(requirement.identifier)/\(resource)"
+        }
+    }
+
+    private static func scriptResource(for requirement: PartPackageLibraryRequirement) -> String? {
+        switch requirement {
+        case alpineRequirement: "alpine.min.js"
+        case gsapRequirement: "gsap.min.js"
+        case gsapScrollTriggerRequirement: "ScrollTrigger.min.js"
+        default: nil
+        }
+    }
+
+    private static func scriptPlacement(for requirement: PartPackageLibraryRequirement) -> ScriptPlacement? {
+        requirement == alpineRequirement ? .afterPage : scriptResource(for: requirement).map { _ in .beforePage }
     }
 
     private static func resourceString(at path: String) -> String? {

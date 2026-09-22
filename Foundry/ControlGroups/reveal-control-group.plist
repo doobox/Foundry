@@ -1,0 +1,126 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>type</key>
+    <string>reveal</string>
+    <key>name</key>
+    <string>Reveal</string>
+    <key>systemImage</key>
+    <string>sparkles.rectangle.stack</string>
+    <key>controls</key>
+    <array>
+        <dict>
+            <key>type</key><string>toggle</string>
+            <key>id</key><string>revealEnabled</string>
+            <key>label</key><string>Enable</string>
+            <key>group</key><string>Reveal</string>
+            <key>defaults</key><dict><key>base</key><false/></dict>
+            <key>responsive</key><false/>
+        </dict>
+        <dict>
+            <key>type</key><string>select</string>
+            <key>id</key><string>revealEffect</string>
+            <key>label</key><string>Effect</string>
+            <key>group</key><string>Reveal</string>
+            <key>options</key>
+            <array>
+                <dict><key>value</key><string>fade</string><key>title</key><string>Fade</string></dict>
+                <dict><key>value</key><string>fade-up</string><key>title</key><string>Fade up</string></dict>
+                <dict><key>value</key><string>fade-down</string><key>title</key><string>Fade down</string></dict>
+                <dict><key>value</key><string>fade-left</string><key>title</key><string>Fade left</string></dict>
+                <dict><key>value</key><string>fade-right</string><key>title</key><string>Fade right</string></dict>
+                <dict><key>value</key><string>scale</string><key>title</key><string>Scale</string></dict>
+                <dict><key>value</key><string>blur</string><key>title</key><string>Blur</string></dict>
+            </array>
+            <key>defaults</key><dict><key>base</key><string>fade-up</string></dict>
+            <key>responsive</key><false/>
+            <key>visibleWhen</key><dict><key>id</key><string>revealEnabled</string><key>value</key><true/></dict>
+        </dict>
+        <dict>
+            <key>type</key><string>slider</string>
+            <key>id</key><string>revealDistance</string>
+            <key>label</key><string>Distance</string>
+            <key>group</key><string>Reveal</string>
+            <key>minimum</key><integer>0</integer><key>maximum</key><integer>200</integer><key>step</key><integer>1</integer>
+            <key>showsValueField</key><true/><key>units</key><string>px</string>
+            <key>defaults</key><dict><key>base</key><integer>32</integer></dict>
+            <key>responsive</key><false/>
+            <key>visibleWhen</key><dict><key>id</key><string>revealEnabled</string><key>value</key><true/></dict>
+        </dict>
+        <dict>
+            <key>type</key><string>slider</string>
+            <key>id</key><string>revealDuration</string>
+            <key>label</key><string>Duration</string>
+            <key>group</key><string>Reveal</string>
+            <key>minimum</key><integer>100</integer><key>maximum</key><integer>3000</integer><key>step</key><integer>50</integer>
+            <key>showsValueField</key><true/><key>units</key><string>ms</string>
+            <key>defaults</key><dict><key>base</key><integer>600</integer></dict>
+            <key>responsive</key><false/>
+            <key>visibleWhen</key><dict><key>id</key><string>revealEnabled</string><key>value</key><true/></dict>
+        </dict>
+        <dict>
+            <key>type</key><string>slider</string>
+            <key>id</key><string>revealDelay</string>
+            <key>label</key><string>Delay</string>
+            <key>group</key><string>Reveal</string>
+            <key>minimum</key><integer>0</integer><key>maximum</key><integer>3000</integer><key>step</key><integer>50</integer>
+            <key>showsValueField</key><true/><key>units</key><string>ms</string>
+            <key>defaults</key><dict><key>base</key><integer>0</integer></dict>
+            <key>responsive</key><false/>
+            <key>visibleWhen</key><dict><key>id</key><string>revealEnabled</string><key>value</key><true/></dict>
+        </dict>
+        <dict>
+            <key>type</key><string>select</string>
+            <key>id</key><string>revealEase</string>
+            <key>label</key><string>Easing</string>
+            <key>group</key><string>Reveal</string>
+            <key>options</key>
+            <array>
+                <dict><key>value</key><string>power1.out</string><key>title</key><string>Gentle</string></dict>
+                <dict><key>value</key><string>power2.out</string><key>title</key><string>Smooth</string></dict>
+                <dict><key>value</key><string>power3.out</string><key>title</key><string>Strong</string></dict>
+                <dict><key>value</key><string>back.out(1.7)</string><key>title</key><string>Back</string></dict>
+                <dict><key>value</key><string>elastic.out(1,0.3)</string><key>title</key><string>Elastic</string></dict>
+                <dict><key>value</key><string>bounce.out</string><key>title</key><string>Bounce</string></dict>
+                <dict><key>value</key><string>none</string><key>title</key><string>Linear</string></dict>
+            </array>
+            <key>defaults</key><dict><key>base</key><string>power2.out</string></dict>
+            <key>responsive</key><false/>
+            <key>visibleWhen</key><dict><key>id</key><string>revealEnabled</string><key>value</key><true/></dict>
+        </dict>
+        <dict>
+            <key>type</key><string>slider</string>
+            <key>id</key><string>revealStagger</string>
+            <key>label</key><string>Child stagger</string>
+            <key>group</key><string>Reveal</string>
+            <key>tooltip</key><string>Values above zero reveal the part's direct children in sequence.</string>
+            <key>minimum</key><integer>0</integer><key>maximum</key><integer>1000</integer><key>step</key><integer>25</integer>
+            <key>showsValueField</key><true/><key>units</key><string>ms</string>
+            <key>defaults</key><dict><key>base</key><integer>0</integer></dict>
+            <key>responsive</key><false/>
+            <key>visibleWhen</key><dict><key>id</key><string>revealEnabled</string><key>value</key><true/></dict>
+        </dict>
+        <dict>
+            <key>type</key><string>slider</string>
+            <key>id</key><string>revealTrigger</string>
+            <key>label</key><string>Trigger position</string>
+            <key>group</key><string>Reveal</string>
+            <key>minimum</key><integer>0</integer><key>maximum</key><integer>100</integer><key>step</key><integer>1</integer>
+            <key>showsValueField</key><true/><key>units</key><string>%</string>
+            <key>defaults</key><dict><key>base</key><integer>85</integer></dict>
+            <key>responsive</key><false/>
+            <key>visibleWhen</key><dict><key>id</key><string>revealEnabled</string><key>value</key><true/></dict>
+        </dict>
+        <dict>
+            <key>type</key><string>toggle</string>
+            <key>id</key><string>revealOnce</string>
+            <key>label</key><string>Play once</string>
+            <key>group</key><string>Reveal</string>
+            <key>defaults</key><dict><key>base</key><true/></dict>
+            <key>responsive</key><false/>
+            <key>visibleWhen</key><dict><key>id</key><string>revealEnabled</string><key>value</key><true/></dict>
+        </dict>
+    </array>
+</dict>
+</plist>

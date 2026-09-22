@@ -164,6 +164,7 @@
 			<key>type</key>
 			<string>frameworkColor</string>
 		</dict>
+		<dict><key>type</key><string>reveal</string></dict>
 	</array>
 	<key>description</key>
 	<string>Adds a paragraph of body text to the page.</string>
