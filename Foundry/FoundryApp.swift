@@ -32,6 +32,7 @@ struct FoundryApp: App {
         .commands {
             AboutMenuCommands()
             PublishingMenuCommands()
+            HelpMenuCommands()
         }
         .defaultSize(width: EditorWindowSize.idealWidth, height: EditorWindowSize.idealHeight)
         .windowResizability(.contentMinSize)
@@ -101,6 +102,22 @@ private struct AboutMenuCommands: Commands {
             Button("About Foundry") {
                 FoundryAboutPanel.show()
             }
+        }
+    }
+}
+
+/// Replaces the default Foundry Help item, which would otherwise dead-end
+/// in Help Viewer's "no help available" alert. The user guide takes the
+/// top slot — and the standard ⌘? shortcut — when it exists.
+private struct HelpMenuCommands: Commands {
+    var body: some Commands {
+        CommandGroup(replacing: .help) {
+            // macOS menu items render title-only by default; titleAndIcon
+            // opts the symbol back in.
+            Button("Foundry Developer Documentation", systemImage: "book.pages") {
+                NSWorkspace.shared.open(URL(string: "https://doobox.github.io/foundry-developer-api/")!)
+            }
+            .labelStyle(.titleAndIcon)
         }
     }
 }
