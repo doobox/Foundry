@@ -33,7 +33,7 @@ struct PartPackageTests {
             }
             let packageURL = try makePackage(
                 manifest: manifest(withControls: controls),
-                template: "<section {{ part.attributes }}>\(try output("html")){{ childArea(\"content\") }}</section>",
+                template: "<section class=\"{{ part.class }}\" {{ part.attributes }}>\(try output("html")){{ childArea(\"content\") }}</section>",
                 additionalFiles: ["part.css": try output("css")]
             )
             defer { try? FileManager.default.removeItem(at: packageURL) }
@@ -45,7 +45,7 @@ struct PartPackageTests {
             }
             checked += 1
         }
-        #expect(checked == 31, "Expected every documented control's Quick example; update this count when adding a control.")
+        #expect(checked == 37, "Expected every documented control and control group's Quick example; update this count when adding a reference page.")
     }
 
     @Test(.enabled(if: FileManager.default.fileExists(atPath: developerDocsURL.appending(path: "AGENTS.md").path)))
@@ -1476,6 +1476,19 @@ struct PartPackageTests {
             #expect(manifest.controlGroupCSS.isEmpty)
             #expect(manifest.htmlContributions.isEmpty)
             #expect(try PartPackageManifestSchema.diagnostics(for: data).isEmpty)
+        }
+    }
+
+    @Test
+    func builtInControlGroupResourcesDecodeToRealControls() {
+        for kind in PartPackageControlGroup.Kind.allCases {
+            let definition = BuiltInControlGroupRegistry.definition(for: kind)
+            #expect(definition.type == kind)
+            #expect(!definition.name.isEmpty)
+            #expect(!definition.systemImage.isEmpty)
+            #expect(!definition.controls.isEmpty)
+            #expect(Set(definition.controls.map(\.id)).count == definition.controls.count)
+            #expect(definition.controls.allSatisfy { $0.group == definition.name })
         }
     }
 

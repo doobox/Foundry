@@ -68,6 +68,14 @@
 }
 :instance .fd-navigation__link--label { cursor: default; }
 :instance .fd-navigation__link:hover { color: {{ control.activeColor }}; }
+:instance .fd-navigation__brand:focus-visible,
+:instance .fd-navigation__link:focus-visible,
+:instance .fd-navigation__dropdown-link:focus-visible,
+:instance .fd-navigation__disclosure:focus-visible,
+:instance .fd-navigation__toggle:focus-visible {
+    outline: 2px solid {{ control.activeColor }};
+    outline-offset: 2px;
+}
 :instance .fd-navigation__link.is-current,
 :instance .fd-navigation__link.is-ancestor {
     color: {{ control.activeColor }};
@@ -77,8 +85,8 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 1.5em;
-    height: 1.5em;
+    width: 2rem;
+    height: 2rem;
     margin-inline-start: -0.35em;
     padding: 0;
     background: none;
@@ -91,8 +99,9 @@
 :instance .fd-navigation__dropdown {
     position: absolute;
     top: 100%;
-    left: 0;
+    inset-inline-start: 0;
     min-width: 12rem;
+    max-width: min(20rem, calc(100vw - 2rem));
     display: none;
     flex-direction: column;
     gap: 2px;
@@ -105,9 +114,11 @@
     box-shadow: var(--foundry-shadow-md, 0 10px 30px rgba(0, 0, 0, 0.12));
     z-index: var(--foundry-z-index-dropdown);
 }
-:instance .fd-navigation__item--parent:hover > .fd-navigation__dropdown,
-:instance .fd-navigation__item--parent:focus-within > .fd-navigation__dropdown,
 :instance .fd-navigation__item.is-open > .fd-navigation__dropdown { display: flex; }
+:instance .fd-navigation__dropdown.align-end {
+    inset-inline-start: auto;
+    inset-inline-end: 0;
+}
 :instance .fd-navigation__dropdown-heading {
     padding: var(--foundry-space-2xs) var(--foundry-space-xs) var(--foundry-space-3xs);
     font-size: 0.8em;
@@ -137,8 +148,8 @@
     justify-content: center;
     gap: 4px;
     margin-inline-start: auto;
-    width: 2.25rem;
-    height: 2.25rem;
+    width: 2.75rem;
+    height: 2.75rem;
     padding: 7px;
     background: none;
     border: 0;
@@ -186,7 +197,13 @@
         padding-block: 0;
         padding-inline-start: var(--foundry-space-md);
     }
-    :instance .fd-navigation__item--parent:hover > .fd-navigation__dropdown,
-    :instance .fd-navigation__item--parent:focus-within > .fd-navigation__dropdown { display: none; }
     :instance .fd-navigation__item.is-open > .fd-navigation__dropdown { display: flex; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    :instance .fd-navigation__link,
+    :instance .fd-navigation__toggle span,
+    :instance .fd-navigation__disclosure svg {
+        transition: none;
+    }
 }

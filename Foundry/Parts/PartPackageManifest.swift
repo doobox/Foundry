@@ -240,25 +240,11 @@ nonisolated struct PartPackageControlGroup: Codable, Equatable, Sendable {
         /// the icon that section carries — the same metadata a part declares for
         /// its own groups through the manifest's `groups` array.
         var groupName: String {
-            switch self {
-            case .background: "Background"
-            case .spacing: "Spacing"
-            case .sizing: "Sizing"
-            case .borders: "Borders"
-            case .effects: "Effects"
-            case .layoutItem: "Layout item"
-            }
+            BuiltInControlGroupRegistry.definition(for: self).name
         }
 
         var groupSystemImage: String {
-            switch self {
-            case .background: "paintbrush.fill"
-            case .spacing: "arrow.up.and.down.and.arrow.left.and.right"
-            case .sizing: "arrow.up.left.and.arrow.down.right"
-            case .borders: "square.dashed"
-            case .effects: "sparkles"
-            case .layoutItem: "square.on.square"
-            }
+            BuiltInControlGroupRegistry.definition(for: self).systemImage
         }
     }
 
@@ -316,18 +302,10 @@ nonisolated struct PartPackageControlGroup: Codable, Equatable, Sendable {
     }
 
     var properties: [PartPackageProperty] {
-        let base: [PartPackageProperty] = switch type {
-        case .background:
-            PartPackageProperty.backgroundControlGroup(
-                styles: styles,
-                includesHover: states.contains(.hover)
-            )
-        case .spacing: PartPackageProperty.spacingControlGroup
-        case .sizing: PartPackageProperty.sizingControlGroup
-        case .borders: PartPackageProperty.bordersControlGroup
-        case .effects: PartPackageProperty.effectsControlGroup
-        case .layoutItem: PartPackageProperty.layoutItemControlGroup
-        }
+        let definition = BuiltInControlGroupRegistry.definition(for: type)
+        let base = type == .background
+            ? configuredBackgroundProperties(definition.controls)
+            : definition.controls
         guard !defaultOverrides.isEmpty else { return base }
         return base.map { property in
             guard let override = defaultOverrides[property.id] else { return property }
@@ -335,6 +313,54 @@ nonisolated struct PartPackageControlGroup: Codable, Equatable, Sendable {
             property.defaultValue = override
             return property
         }
+    }
+
+    private func configuredBackgroundProperties(
+        _ properties: [PartPackageProperty]
+    ) -> [PartPackageProperty] {
+        let includesHover = states.contains(.hover)
+        let styleValues = Set(styles.map(\.templateValue))
+
+        return properties.compactMap { original in
+            if !includesHover, original.id.hasPrefix("backgroundHover") {
+                return nil
+            }
+            if let requiredStyle = Self.backgroundStyle(for: original.id),
+               !styleValues.contains(requiredStyle) {
+                return nil
+            }
+
+            var property = original
+            switch property.id {
+            case "backgroundMode":
+                property.control.options = property.control.options?.filter {
+                    includesHover || $0.value != "hover"
+                }
+            case "backgroundStyle":
+                property.control.options = property.control.options?.filter {
+                    styleValues.contains($0.value)
+                }
+                property.defaultValue = .string(styles.first?.templateValue ?? "color")
+            case "backgroundHoverStyle":
+                property.control.options = property.control.options?.filter {
+                    $0.value == "none" || styleValues.contains($0.value)
+                }
+            default:
+                break
+            }
+            return property
+        }
+    }
+
+    private static func backgroundStyle(for propertyID: String) -> String? {
+        if propertyID.contains("Gradient") { return "gradient" }
+        if propertyID.contains("Video") { return "video" }
+        if propertyID == "backgroundColor" || propertyID == "backgroundHoverColor" { return "color" }
+        if [
+            "backgroundImage", "backgroundPosition", "backgroundSize", "backgroundRepeat",
+            "backgroundHoverImage", "backgroundHoverPosition", "backgroundHoverSize", "backgroundHoverRepeat"
+        ].contains(propertyID) { return "image" }
+        return nil
     }
 
     var css: String {
@@ -570,7 +596,7 @@ nonisolated struct PartPackageProperty: Codable, Equatable, Identifiable, Sendab
     let noteBody: String
     let noteSystemImage: String?
     let group: String
-    let control: PartPackageControl
+    var control: PartPackageControl
     var defaultValue: PartPackageValue
     var breakpointDefaults: [String: PartPackageValue] = [:]
     let responsive: Bool
@@ -807,307 +833,6 @@ nonisolated struct PartPackageProperty: Codable, Equatable, Identifiable, Sendab
     }
 }
 
-nonisolated extension PartPackageProperty {
-    private static func backgroundVisibility(
-        mode: String,
-        style: String? = nil,
-        extra: PartPackageVisibilityCondition? = nil
-    ) -> PartPackageVisibilityCondition {
-        var conditions = [PartPackageVisibilityCondition(id: "backgroundMode", value: .string(mode))]
-        if let style {
-            let styleKey = mode == "hover" ? "backgroundHoverStyle" : "backgroundStyle"
-            conditions.append(.init(id: styleKey, value: .string(style)))
-        }
-        if let extra { conditions.append(extra) }
-        return .init(all: conditions)
-    }
-
-    private static func backgroundStyleControl(
-        styles: [PartPackageControlGroup.BackgroundStyle] = PartPackageControlGroup.BackgroundStyle.allCases,
-        includesNone: Bool = false
-    ) -> PartPackageControl {
-        var options: [PartPackageOption] = []
-        if includesNone { options.append(.init(value: "none", title: "None")) }
-        let available: [PartPackageControlGroup.BackgroundStyle: PartPackageOption] = [
-            .colour: .init(value: "color", title: "Colour", systemImage: "paintbrush.fill"),
-            .image: .init(value: "image", title: "Image", systemImage: "photo"),
-            .gradient: .init(value: "gradient", title: "Gradient", systemImage: "circle.lefthalf.filled"),
-            .video: .init(value: "video", title: "Video", systemImage: "video.fill")
-        ]
-        options += styles.compactMap { available[$0] }
-        return .init(type: .select, options: options, presentation: .segmented)
-    }
-
-    static func backgroundControlGroup(
-        styles: [PartPackageControlGroup.BackgroundStyle],
-        includesHover: Bool
-    ) -> [Self] {
-        let defaultStyle = styles.first?.templateValue ?? "color"
-        var modeOptions = [("none", "None"), ("static", "Static")]
-        if includesHover { modeOptions.append(("hover", "Hover")) }
-        let mode = Self(
-            id: "backgroundMode",
-            label: "Type",
-            group: "Background",
-            control: .select(modeOptions, presentation: .segmented),
-            defaultValue: .string("none"),
-            responsive: false
-        )
-        let style = Self(
-            id: "backgroundStyle",
-            label: "Style",
-            group: "Background",
-            control: backgroundStyleControl(styles: styles),
-            defaultValue: .string(defaultStyle),
-            responsive: false,
-            visibleWhen: backgroundVisibility(mode: "static")
-        )
-        let staticProperties = backgroundStaticControlGroup.dropFirst(2).filter {
-            backgroundStyle(for: $0.id).map(styles.contains) ?? true
-        }
-        guard includesHover else { return [mode, style] + staticProperties }
-        let hoverStyle = Self(
-            id: "backgroundHoverStyle",
-            label: "Style",
-            group: "Background",
-            control: backgroundStyleControl(styles: styles, includesNone: true),
-            defaultValue: .string("none"),
-            responsive: true,
-            visibleWhen: backgroundVisibility(mode: "hover")
-        )
-        let hoverProperties = backgroundHoverControlGroup.dropFirst().filter {
-            backgroundStyle(for: $0.id).map(styles.contains) ?? true
-        }
-        return [mode, style] + staticProperties + [hoverStyle] + hoverProperties
-    }
-
-    private static func backgroundStyle(
-        for propertyID: String
-    ) -> PartPackageControlGroup.BackgroundStyle? {
-        if propertyID.contains("Gradient") { return .gradient }
-        if propertyID.contains("Video") { return .video }
-        if propertyID == "backgroundColor" || propertyID == "backgroundHoverColor" { return .colour }
-        if [
-            "backgroundImage", "backgroundPosition", "backgroundSize", "backgroundRepeat",
-            "backgroundHoverImage", "backgroundHoverPosition", "backgroundHoverSize", "backgroundHoverRepeat"
-        ].contains(propertyID) { return .image }
-        return nil
-    }
-
-    private static let backgroundStaticControlGroup: [Self] = [
-        Self(
-            id: "backgroundMode",
-            label: "Type",
-            group: "Background",
-            control: .select([
-                ("none", "None"),
-                ("static", "Static"),
-                ("hover", "Hover")
-            ], presentation: .segmented),
-            defaultValue: .string("none"),
-            responsive: false
-        ),
-        Self(
-            id: "backgroundStyle",
-            label: "Style",
-            group: "Background",
-            control: backgroundStyleControl(),
-            defaultValue: .string("color"),
-            responsive: true,
-            visibleWhen: backgroundVisibility(mode: "static")
-        ),
-        Self(
-            id: "backgroundColor",
-            label: "Colour",
-            group: "Background",
-            control: .init(type: .frameworkColor, allowsCustom: true, opacity: true),
-            defaultValue: .object(["palette": .string("surface")]),
-            responsive: true,
-            visibleWhen: backgroundVisibility(mode: "static", style: "color")
-        ),
-        Self(
-            id: "backgroundImage",
-            label: "Image",
-            group: "Background",
-            control: .init(type: .image),
-            defaultValue: .string(""),
-            responsive: true,
-            visibleWhen: backgroundVisibility(mode: "static", style: "image")
-        ),
-        Self(
-            id: "backgroundPosition",
-            label: "Position",
-            group: "Background",
-            control: .select([
-                ("center", "Centre"), ("top", "Top"), ("right", "Right"),
-                ("bottom", "Bottom"), ("left", "Left"),
-                ("left top", "Top left"), ("right top", "Top right"),
-                ("left bottom", "Bottom left"), ("right bottom", "Bottom right")
-            ]),
-            defaultValue: .string("center"),
-            responsive: true,
-            visibleWhen: backgroundVisibility(mode: "static", style: "image")
-        ),
-        Self(
-            id: "backgroundSize",
-            label: "Size",
-            group: "Background",
-            control: .select([("cover", "Cover"), ("contain", "Contain"), ("auto", "Auto")]),
-            defaultValue: .string("cover"),
-            responsive: true,
-            visibleWhen: backgroundVisibility(mode: "static", style: "image")
-        ),
-        Self(
-            id: "backgroundRepeat",
-            label: "Repeat",
-            group: "Background",
-            control: .select([
-                ("no-repeat", "No repeat"), ("repeat", "Repeat"),
-                ("repeat-x", "Repeat horizontally"), ("repeat-y", "Repeat vertically"),
-                ("space", "Space"), ("round", "Round")
-            ]),
-            defaultValue: .string("no-repeat"),
-            responsive: true,
-            visibleWhen: backgroundVisibility(mode: "static", style: "image")
-        ),
-        Self(
-            id: "backgroundGradientType",
-            label: "Type",
-            group: "Background",
-            control: .select([("linear", "Linear"), ("radial", "Radial"), ("conic", "Conic")], presentation: .segmented),
-            defaultValue: .string("linear"),
-            responsive: true,
-            visibleWhen: backgroundVisibility(mode: "static", style: "gradient")
-        ),
-        Self(
-            id: "backgroundGradientDirection",
-            label: "Direction",
-            group: "Background",
-            control: .select([
-                ("to bottom", "To bottom"), ("to top", "To top"),
-                ("to right", "To right"), ("to left", "To left"),
-                ("to bottom right", "To bottom right"), ("to bottom left", "To bottom left"),
-                ("to top right", "To top right"), ("to top left", "To top left")
-            ]),
-            defaultValue: .string("to bottom"),
-            responsive: true,
-            visibleWhen: backgroundVisibility(mode: "static", style: "gradient", extra: .init(id: "backgroundGradientType", value: .string("linear")))
-        ),
-        Self(
-            id: "backgroundGradientFrom",
-            label: "From colour",
-            group: "Background",
-            control: .init(type: .frameworkColor, allowsCustom: true, opacity: true),
-            defaultValue: .object(["palette": .string("surface")]),
-            responsive: true,
-            visibleWhen: backgroundVisibility(mode: "static", style: "gradient")
-        ),
-        Self(
-            id: "backgroundGradientFromPosition",
-            label: "From position",
-            group: "Background",
-            control: .init(type: .slider, minimum: 0, maximum: 100, step: 1, showsValueField: true),
-            defaultValue: .number(0),
-            responsive: true,
-            visibleWhen: backgroundVisibility(mode: "static", style: "gradient")
-        ),
-        Self(
-            id: "backgroundGradientTo",
-            label: "To colour",
-            group: "Background",
-            control: .init(type: .frameworkColor, allowsCustom: true, opacity: true),
-            defaultValue: .object(["palette": .string("accent")]),
-            responsive: true,
-            visibleWhen: backgroundVisibility(mode: "static", style: "gradient")
-        ),
-        Self(
-            id: "backgroundGradientToPosition",
-            label: "To position",
-            group: "Background",
-            control: .init(type: .slider, minimum: 0, maximum: 100, step: 1, showsValueField: true),
-            defaultValue: .number(100),
-            responsive: true,
-            visibleWhen: backgroundVisibility(mode: "static", style: "gradient")
-        ),
-        Self(
-            id: "backgroundVideo",
-            label: "Video",
-            group: "Background",
-            control: .init(type: .video),
-            defaultValue: .string(""),
-            responsive: false,
-            visibleWhen: backgroundVisibility(mode: "static", style: "video"),
-            tooltip: "Choose a video from project resources. Background video is muted, loops, and does not capture pointer events."
-        ),
-        Self(
-            id: "backgroundVideoAspectRatio",
-            label: "Force 16:9 aspect ratio",
-            group: "Background",
-            control: .init(type: .toggle),
-            defaultValue: .boolean(false),
-            responsive: true,
-            visibleWhen: backgroundVisibility(mode: "static", style: "video")
-        )
-    ]
-
-    private static let backgroundHoverControlGroup: [Self] = [
-        Self(id: "backgroundHoverStyle", label: "Style", group: "Background", control: backgroundStyleControl(includesNone: true), defaultValue: .string("none"), responsive: true, visibleWhen: backgroundVisibility(mode: "hover")),
-        Self(id: "backgroundHoverColor", label: "Colour", group: "Background", control: .init(type: .frameworkColor, allowsCustom: true, opacity: true), defaultValue: .object(["palette": .string("surface")]), responsive: true, visibleWhen: backgroundVisibility(mode: "hover", style: "color")),
-        Self(id: "backgroundHoverImage", label: "Image", group: "Background", control: .init(type: .image), defaultValue: .string(""), responsive: true, visibleWhen: backgroundVisibility(mode: "hover", style: "image")),
-        Self(id: "backgroundHoverPosition", label: "Position", group: "Background", control: .select([("center", "Centre"), ("top", "Top"), ("right", "Right"), ("bottom", "Bottom"), ("left", "Left"), ("left top", "Top left"), ("right top", "Top right"), ("left bottom", "Bottom left"), ("right bottom", "Bottom right")]), defaultValue: .string("center"), responsive: true, visibleWhen: backgroundVisibility(mode: "hover", style: "image")),
-        Self(id: "backgroundHoverSize", label: "Size", group: "Background", control: .select([("cover", "Cover"), ("contain", "Contain"), ("auto", "Auto")]), defaultValue: .string("cover"), responsive: true, visibleWhen: backgroundVisibility(mode: "hover", style: "image")),
-        Self(id: "backgroundHoverRepeat", label: "Repeat", group: "Background", control: .select([("no-repeat", "No repeat"), ("repeat", "Repeat"), ("repeat-x", "Repeat horizontally"), ("repeat-y", "Repeat vertically"), ("space", "Space"), ("round", "Round")]), defaultValue: .string("no-repeat"), responsive: true, visibleWhen: backgroundVisibility(mode: "hover", style: "image")),
-        Self(id: "backgroundHoverGradientType", label: "Type", group: "Background", control: .select([("linear", "Linear"), ("radial", "Radial"), ("conic", "Conic")], presentation: .segmented), defaultValue: .string("linear"), responsive: true, visibleWhen: backgroundVisibility(mode: "hover", style: "gradient")),
-        Self(id: "backgroundHoverGradientDirection", label: "Direction", group: "Background", control: .select([("to bottom", "To bottom"), ("to top", "To top"), ("to right", "To right"), ("to left", "To left"), ("to bottom right", "To bottom right"), ("to bottom left", "To bottom left"), ("to top right", "To top right"), ("to top left", "To top left")]), defaultValue: .string("to bottom"), responsive: true, visibleWhen: backgroundVisibility(mode: "hover", style: "gradient", extra: .init(id: "backgroundHoverGradientType", value: .string("linear")))),
-        Self(id: "backgroundHoverGradientFrom", label: "From colour", group: "Background", control: .init(type: .frameworkColor, allowsCustom: true, opacity: true), defaultValue: .object(["palette": .string("surface")]), responsive: true, visibleWhen: backgroundVisibility(mode: "hover", style: "gradient")),
-        Self(id: "backgroundHoverGradientFromPosition", label: "From position", group: "Background", control: .init(type: .slider, minimum: 0, maximum: 100, step: 1, showsValueField: true), defaultValue: .number(0), responsive: true, visibleWhen: backgroundVisibility(mode: "hover", style: "gradient")),
-        Self(id: "backgroundHoverGradientTo", label: "To colour", group: "Background", control: .init(type: .frameworkColor, allowsCustom: true, opacity: true), defaultValue: .object(["palette": .string("accent")]), responsive: true, visibleWhen: backgroundVisibility(mode: "hover", style: "gradient")),
-        Self(id: "backgroundHoverGradientToPosition", label: "To position", group: "Background", control: .init(type: .slider, minimum: 0, maximum: 100, step: 1, showsValueField: true), defaultValue: .number(100), responsive: true, visibleWhen: backgroundVisibility(mode: "hover", style: "gradient")),
-        Self(id: "backgroundHoverVideo", label: "Video", group: "Background", control: .init(type: .video), defaultValue: .string(""), responsive: false, visibleWhen: backgroundVisibility(mode: "hover", style: "video"), tooltip: "Choose a video from project resources."),
-        Self(id: "backgroundHoverVideoAspectRatio", label: "Force 16:9 aspect ratio", group: "Background", control: .init(type: .toggle), defaultValue: .boolean(false), responsive: true, visibleWhen: backgroundVisibility(mode: "hover", style: "video"))
-    ]
-
-    private static func visibleWhenEnabled(_ id: String) -> PartPackageVisibilityCondition {
-        .init(id: id, value: .boolean(true))
-    }
-
-    static let sizingControlGroup: [Self] = [
-        Self(id: "widthMode", label: "Width", group: "Sizing", control: .select([("full", "Fill parent"), ("auto", "Fit content"), ("custom", "Custom")]), defaultValue: .string("full"), responsive: true),
-        Self(id: "customWidth", label: "Custom width", group: "Sizing", control: .init(type: .number, minimum: 0, maximum: 10_000, step: 1), defaultValue: .number(320), responsive: true, visibleWhen: .init(id: "widthMode", value: .string("custom")), units: ["px"]),
-        Self(id: "maxWidth", label: "Maximum width", group: "Sizing", control: .init(type: .number, minimum: 0, maximum: 10_000, step: 1), defaultValue: .number(0), responsive: true, tooltip: "Zero removes the width limit. Never exceeds the available parent width.", units: ["px"]),
-        Self(id: "minimumHeight", label: "Minimum height", group: "Sizing", control: .init(type: .number, minimum: 0, maximum: 10_000, step: 1), defaultValue: .number(0), responsive: true, units: ["px"]),
-        Self(id: "heightMode", label: "Height", group: "Sizing", control: .select([("auto", "Fit content"), ("viewport", "Fill viewport"), ("custom", "Custom")]), defaultValue: .string("auto"), responsive: true),
-        Self(id: "customHeight", label: "Custom height", group: "Sizing", control: .init(type: .number, minimum: 0, maximum: 10_000, step: 1), defaultValue: .number(400), responsive: true, visibleWhen: .init(id: "heightMode", value: .string("custom")), units: ["px"])
-    ]
-
-    static let layoutItemControlGroup: [Self] = [
-        Self(id: "itemEnabled", label: "Enable", group: "Layout item", control: .init(type: .toggle), defaultValue: .boolean(false), responsive: true),
-        Self(id: "flexGrow", label: "Grow", group: "Layout item", control: .init(type: .number, minimum: 0, maximum: 10, step: 1), defaultValue: .number(0), responsive: true, visibleWhen: visibleWhenEnabled("itemEnabled"), tooltip: "Flex parent: share remaining space. Zero keeps the natural size."),
-        Self(id: "flexShrink", label: "Shrink", group: "Layout item", control: .init(type: .number, minimum: 0, maximum: 10, step: 1), defaultValue: .number(1), responsive: true, visibleWhen: visibleWhenEnabled("itemEnabled"), tooltip: "Flex parent: allow this item to shrink. Zero prevents shrinking."),
-        Self(id: "alignSelf", label: "Alignment", group: "Layout item", control: .select([("auto", "Follow parent"), ("stretch", "Stretch"), ("flex-start", "Start"), ("center", "Centre"), ("flex-end", "End"), ("baseline", "Baseline")]), defaultValue: .string("auto"), responsive: true, visibleWhen: visibleWhenEnabled("itemEnabled")),
-        Self(id: "columnSpan", label: "Column span", group: "Layout item", control: .init(type: .number, minimum: 1, maximum: 12, step: 1), defaultValue: .number(1), responsive: true, visibleWhen: visibleWhenEnabled("itemEnabled"), tooltip: "Grid parent only. Keep within the parent's column count at this breakpoint."),
-        Self(id: "rowSpan", label: "Row span", group: "Layout item", control: .init(type: .number, minimum: 1, maximum: 12, step: 1), defaultValue: .number(1), responsive: true, visibleWhen: visibleWhenEnabled("itemEnabled"), tooltip: "Grid parent only.")
-    ]
-
-    static let spacingControlGroup: [Self] = [
-        Self(id: "spacingEnabled", label: "Enable", group: "Spacing", control: .init(type: .toggle), defaultValue: .boolean(true), responsive: true),
-        Self(id: "frameworkPadding", label: "Padding", group: "Spacing", control: .init(type: .frameworkPadding), defaultValue: .string("none"), responsive: true, visibleWhen: visibleWhenEnabled("spacingEnabled")),
-        Self(id: "frameworkMargin", label: "Margin", group: "Spacing", control: .init(type: .frameworkMargin), defaultValue: .string("none"), responsive: true, visibleWhen: visibleWhenEnabled("spacingEnabled"))
-    ]
-
-    static let bordersControlGroup: [Self] = [
-        Self(id: "borderEnabled", label: "Enable", group: "Borders", control: .init(type: .toggle), defaultValue: .boolean(false), responsive: true),
-        Self(id: "frameworkBorder", label: "Border", group: "Borders", control: .init(type: .frameworkBorder, showsStyle: true), defaultValue: .object(["width": .string("none"), "style": .string("solid")]), responsive: true, visibleWhen: visibleWhenEnabled("borderEnabled")),
-        Self(id: "frameworkBorderColour", label: "Colour", group: "Borders", control: .init(type: .frameworkColor, allowsCustom: true, opacity: true), defaultValue: .object(["palette": .string("muted")]), responsive: true, visibleWhen: visibleWhenEnabled("borderEnabled")),
-        Self(id: "frameworkRadius", label: "Radius", group: "Borders", control: .init(type: .frameworkRadius), defaultValue: .string("none"), responsive: true, visibleWhen: visibleWhenEnabled("borderEnabled"))
-    ]
-
-    static let effectsControlGroup: [Self] = [
-        Self(id: "effectsEnabled", label: "Enable", group: "Effects", control: .init(type: .toggle), defaultValue: .boolean(false), responsive: true),
-        Self(id: "frameworkShadow", label: "Shadow", group: "Effects", control: .init(type: .frameworkShadow), defaultValue: .string("none"), responsive: true, visibleWhen: visibleWhenEnabled("effectsEnabled")),
-        Self(id: "opacity", label: "Opacity", group: "Effects", control: .init(type: .slider, minimum: 0, maximum: 100, step: 1, showsValueField: true), defaultValue: .number(100), responsive: true, visibleWhen: visibleWhenEnabled("effectsEnabled"), units: ["%"])
-    ]
-}
 
 nonisolated struct PartPackageVisibilityCondition: Codable, Equatable, Sendable {
     let id: String?
@@ -1227,7 +952,7 @@ nonisolated struct PartPackageControl: Codable, Equatable, Sendable {
     let minimumDate: String?
     let maximumDate: String?
     let step: Double?
-    let options: [PartPackageOption]?
+    var options: [PartPackageOption]?
     let frameworkValues: PartPackageFrameworkValues?
     let allowsCustom: Bool?
     let opacity: Bool?

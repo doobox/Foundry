@@ -6,7 +6,7 @@
             <span class="fd-navigation__name">{{ text("brand", default: "Site Name") }}</span>
         </a>
         {{ endif }}
-        <button class="fd-navigation__toggle" type="button" aria-expanded="false" aria-label="Menu" data-navigation-toggle>
+        <button class="fd-navigation__toggle" type="button" aria-expanded="false" aria-label="Open menu" data-navigation-toggle>
             <span></span><span></span><span></span>
         </button>
         <ul class="fd-navigation__menu" data-navigation-menu>
@@ -18,7 +18,7 @@
                 <button class="fd-navigation__disclosure" type="button" aria-expanded="false" aria-label="Show pages in {{ item.title }}" data-navigation-disclosure>
                     <svg viewBox="0 0 10 6" width="10" height="6" aria-hidden="true"><path d="M1 1l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
                 </button>
-                <ul class="fd-navigation__dropdown">
+                <ul class="fd-navigation__dropdown" data-navigation-dropdown>
                     {{ loop item.children as child }}
                     {{ if child.folder }}
                     <li class="fd-navigation__dropdown-heading">{{ child.title }}</li>
@@ -38,7 +38,7 @@
                 <button class="fd-navigation__disclosure" type="button" aria-expanded="false" aria-label="Show pages in {{ item.title }}" data-navigation-disclosure>
                     <svg viewBox="0 0 10 6" width="10" height="6" aria-hidden="true"><path d="M1 1l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
                 </button>
-                <ul class="fd-navigation__dropdown">
+                <ul class="fd-navigation__dropdown" data-navigation-dropdown>
                     {{ loop item.children as child }}
                     <li><a class="fd-navigation__dropdown-link{{ if child.current }} is-current{{ endif }}" href="{{ child.href }}"{{ if child.current }} aria-current="page"{{ endif }}>{{ child.title }}</a></li>
                     {{ endloop }}
@@ -64,7 +64,7 @@
                 <button class="fd-navigation__disclosure" type="button" aria-expanded="false" aria-label="Show pages in {{ item.title }}" data-navigation-disclosure>
                     <svg viewBox="0 0 10 6" width="10" height="6" aria-hidden="true"><path d="M1 1l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
                 </button>
-                <ul class="fd-navigation__dropdown">
+                <ul class="fd-navigation__dropdown" data-navigation-dropdown>
                     {{ loop item.children as child }}
                     {{ if !child.folder }}<li><a class="fd-navigation__dropdown-link{{ if child.current }} is-current{{ endif }}" href="{{ child.href }}"{{ if child.current }} aria-current="page"{{ endif }}>{{ child.title }}</a></li>{{ endif }}
                     {{ endloop }}
@@ -77,7 +77,7 @@
                 <button class="fd-navigation__disclosure" type="button" aria-expanded="false" aria-label="Show pages in {{ item.title }}" data-navigation-disclosure>
                     <svg viewBox="0 0 10 6" width="10" height="6" aria-hidden="true"><path d="M1 1l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
                 </button>
-                <ul class="fd-navigation__dropdown">
+                <ul class="fd-navigation__dropdown" data-navigation-dropdown>
                     {{ loop item.children as child }}
                     <li><a class="fd-navigation__dropdown-link{{ if child.current }} is-current{{ endif }}" href="{{ child.href }}"{{ if child.current }} aria-current="page"{{ endif }}>{{ child.title }}</a></li>
                     {{ endloop }}

@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+<key>type</key><string>spacing</string>
+<key>name</key><string>Spacing</string>
+<key>systemImage</key><string>arrow.up.and.down.and.arrow.left.and.right</string>
+<key>controls</key><array>
+    <dict><key>type</key><string>toggle</string><key>id</key><string>spacingEnabled</string><key>label</key><string>Enable</string><key>group</key><string>Spacing</string><key>defaults</key><dict><key>base</key><true/></dict><key>responsive</key><true/></dict>
+    <dict><key>type</key><string>frameworkPadding</string><key>id</key><string>frameworkPadding</string><key>label</key><string>Padding</string><key>group</key><string>Spacing</string><key>defaults</key><dict><key>base</key><string>none</string></dict><key>responsive</key><true/><key>visibleWhen</key><dict><key>id</key><string>spacingEnabled</string><key>value</key><true/></dict></dict>
+    <dict><key>type</key><string>frameworkMargin</string><key>id</key><string>frameworkMargin</string><key>label</key><string>Margin</string><key>group</key><string>Spacing</string><key>defaults</key><dict><key>base</key><string>none</string></dict><key>responsive</key><true/><key>visibleWhen</key><dict><key>id</key><string>spacingEnabled</string><key>value</key><true/></dict></dict>
+</array>
+</dict></plist>
