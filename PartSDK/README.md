@@ -39,9 +39,15 @@ Example.foundrydevpack/
 ```
 
 The root `Info.plist` identifies the pack itself. A pack may carry any number
-of parts under `Parts/`, template bundles under `Templates/`, and framework
-bundles under `Frameworks/`; other top-level items are rejected (hidden files
-such as `.git` are ignored, so a development pack can live in a checkout).
+of parts under `Parts/`, template bundles under `Templates/`, framework
+bundles under `Frameworks/`, and importable asset collections under `Assets/`;
+other top-level items are rejected (hidden files such as `.git` are ignored,
+so a development pack can live in a checkout).
+
+An asset collection is a folder with an `Info.plist` (requires `id`; may
+declare `title`, `license`, `licenseURL`, `attribution` — shown before
+import) and a `Resources/` directory of files, nested folders included.
+Importing copies files into the project's own asset library.
 
 Root `Info.plist`:
 
@@ -51,7 +57,6 @@ Root `Info.plist`:
   "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-    <key>formatVersion</key><integer>2</integer>
     <key>id</key><string>com.example.pack</string>
     <key>title</key><string>Example Pack</string>
     <key>version</key><string>1.0.0</string>

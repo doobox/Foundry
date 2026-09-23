@@ -120,33 +120,41 @@ struct ReusablePartLibraryTests {
     }
 
     @Test
-    func organizationSupportsFoldersOrderingAndSurvivesReload() throws {
+    func foldersAreRealDirectoriesAndSurviveReload() throws {
         let library = temporaryLibrary()
         let (document, _) = documentWithAsset()
         let hero = ReusablePartDefinition(name: "Hero", root: PartNode.make(.container))
         let footer = ReusablePartDefinition(name: "Footer", root: PartNode.make(.section))
         library.save(definition: hero, assetContents: document.assetContents)
         library.save(definition: footer, assetContents: document.assetContents)
+        let rootURL = library.bundleURL(forID: footer.id).deletingLastPathComponent()
 
         let folderID = try #require(library.createFolder(name: "Sections"))
         #expect(library.moveNode(id: hero.id, to: .inside(folderID: folderID)))
         #expect(!library.moveNode(id: folderID, to: .inside(folderID: folderID)))
-        library.renameFolder(id: folderID, to: "Hero Sections")
+        // The bundle physically lives inside the folder's directory.
+        #expect(
+            library.bundleURL(forID: hero.id).deletingLastPathComponent().lastPathComponent == "Sections"
+        )
 
-        // The panel tree resolves folders and templates in stored order.
-        guard case .folder(let folder)? = library.organizedNodes.last(where: { $0.id == folderID }) else {
-            Issue.record("expected folder in organized nodes")
+        // Renaming renames the directory; the path-derived id changes too.
+        library.renameFolder(id: folderID, to: "Hero Sections")
+        guard case .folder(let folder)? = library.organizedNodes.first else {
+            Issue.record("expected folder first in organized nodes")
             return
         }
         #expect(folder.name == "Hero Sections")
+        #expect(folder.id != folderID)
         #expect(folder.children.map(\.id) == [hero.id])
 
-        // A fresh instance over the same directory sees the same organization.
-        let reloaded = ReusablePartLibrary(directoryURL: library.bundleURL(forID: hero.id).deletingLastPathComponent())
+        // A fresh instance over the same directory sees the same tree — the
+        // structure is the directory tree, no sidecar involved.
+        let reloaded = ReusablePartLibrary(directoryURL: rootURL)
         #expect(reloaded.organizedNodes == library.organizedNodes)
+        #expect(!FileManager.default.fileExists(atPath: rootURL.appending(path: "library.json").path))
 
         // Deleting the folder removes the bundles it contained.
-        library.deleteFolder(id: folderID)
+        library.deleteFolder(id: folder.id)
         #expect(library.entry(withID: hero.id) == nil)
         #expect(library.entries.map(\.id) == [footer.id])
     }

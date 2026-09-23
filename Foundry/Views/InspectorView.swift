@@ -18,6 +18,8 @@ struct InspectorView: View {
     let selectedParts: [PartNode]
     let allowsMultiPartEditing: Bool
     let libraryPartType: PartType?
+    let assetCollectionSelection: AssetCollectionInspectorSelection?
+    let importCollectionFiles: ([AssetCollectionFile]) -> Void
     let templateContext: TemplateInspectorContext?
     let insertTemplate: (UUID) -> Void
     let globalDefinition: ReusablePartDefinition?
@@ -45,6 +47,13 @@ struct InspectorView: View {
         if let assetLibraryNode {
             if case .folder = assetLibraryNode { return "Asset Folder Info" }
             return "Asset Info"
+        }
+        if let assetCollectionSelection {
+            switch assetCollectionSelection {
+            case .collection: return "Collection Info"
+            case .folder: return "Folder Info"
+            case .file: return "Asset Info"
+            }
         }
         if templateContext != nil { return "Template Info" }
         if globalDefinition != nil { return "Global Info" }
@@ -98,6 +107,7 @@ struct InspectorView: View {
                       folder == nil,
                       asset == nil,
                       assetLibraryNode == nil,
+                      assetCollectionSelection == nil,
                       templateContext == nil,
                       globalDefinition == nil,
                       let libraryPartType {
@@ -129,8 +139,19 @@ struct InspectorView: View {
                 renameAsset: renameAsset,
                 renameFolder: renameAssetFolder
             )
+        } else if let assetCollectionSelection {
+            AssetCollectionInspector(
+                selection: assetCollectionSelection,
+                importFiles: importCollectionFiles
+            )
         } else if let templateContext {
-            TemplateInspector(context: templateContext, insertTemplate: insertTemplate)
+            TemplateInspector(
+                context: templateContext,
+                editor: editor,
+                assetContents: assetContents,
+                currentPage: currentPage,
+                insertTemplate: insertTemplate
+            )
         } else if let globalDefinition {
             GlobalPartInspector(
                 definition: globalDefinition,
@@ -1565,6 +1586,8 @@ private struct PartInspectorPreviewHarness: View {
                     selectedParts: [part],
                     allowsMultiPartEditing: false,
                     libraryPartType: nil,
+                    assetCollectionSelection: nil,
+                    importCollectionFiles: { _ in },
                     templateContext: nil,
                     insertTemplate: { _ in },
                     globalDefinition: nil,

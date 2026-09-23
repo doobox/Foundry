@@ -241,12 +241,14 @@ final class PartPackageCatalog {
         reloadCompleteCatalog()
         ReusablePartLibrary.shared.refresh()
         FrameworkLibrary.shared.reload()
+        AssetCollectionLibrary.shared.refresh()
     }
 
     func reloadAllPacks() {
         reloadCompleteCatalog()
         ReusablePartLibrary.shared.refresh()
         FrameworkLibrary.shared.reload()
+        AssetCollectionLibrary.shared.refresh()
     }
 
     func waitUntilLoaded() async {
@@ -316,6 +318,7 @@ final class PartPackageCatalog {
         let rootURL = rootURL.standardizedFileURL
         ReusablePartLibrary.shared.openDevelopmentPack(at: rootURL)
         FrameworkLibrary.shared.openDevelopmentPack(at: rootURL)
+        AssetCollectionLibrary.shared.openDevelopmentPack(at: rootURL)
         reloadDevelopmentPack(at: rootURL)
         watchDevelopmentPack(at: rootURL)
     }
@@ -351,6 +354,7 @@ final class PartPackageCatalog {
         reloadPartPacks(under: rootURL, allowsReplacement: true)
         ReusablePartLibrary.shared.refresh()
         FrameworkLibrary.shared.reload()
+        AssetCollectionLibrary.shared.refresh()
     }
 }
 

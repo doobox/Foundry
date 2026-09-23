@@ -5224,6 +5224,74 @@ struct PartPackageTests {
     }
 
     @Test
+    func packLoaderDiscoversAssetCollectionsAsPlainFolders() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appending(path: "\(UUID().uuidString).foundrypack", directoryHint: .isDirectory)
+        defer { try? FileManager.default.removeItem(at: root) }
+        try writePackHeader(identifier: "com.example.assets", at: root)
+
+        // A collection with a licence manifest: files live at the folder
+        // root, the manifest never lists as a file, hidden files never ship.
+        let item = root.appending(path: "Assets/stock-photos", directoryHint: .isDirectory)
+        try FileManager.default.createDirectory(
+            at: item.appending(path: "badges", directoryHint: .isDirectory),
+            withIntermediateDirectories: true
+        )
+        try Data("jpeg".utf8).write(to: item.appending(path: "hero.jpg"))
+        try Data("svg".utf8).write(to: item.appending(path: "badges/badge.svg"))
+        try Data("hidden".utf8).write(to: item.appending(path: ".DS_Store"))
+        let manifest: [String: Any] = [
+            "id": "com.example.assets.stock-photos",
+            "title": "Stock Photos",
+            "license": "CC0 1.0",
+            "licenseURL": "https://example.com/license",
+            "attribution": "Photos by Example"
+        ]
+        try PropertyListSerialization.data(fromPropertyList: manifest, format: .xml, options: 0)
+            .write(to: item.appending(path: "Info.plist"))
+
+        let pack = try FoundryPackLoader.load(from: root)
+        #expect(pack.assetCollectionURLs.count == 1)
+        let collection = try AssetCollectionStore.load(from: pack.assetCollectionURLs[0])
+        #expect(collection.identifier == "com.example.assets.stock-photos")
+        #expect(collection.title == "Stock Photos")
+        #expect(collection.license == "CC0 1.0")
+        #expect(collection.licenseURL == URL(string: "https://example.com/license"))
+        #expect(collection.attribution == "Photos by Example")
+        #expect(collection.files.map(\.filename) == ["badge.svg", "hero.jpg"])
+        #expect(collection.files.map(\.mediaType) == ["image/svg+xml", "image/jpeg"])
+
+        // A hand-authored folder with no manifest is a complete collection:
+        // titled by its name, identified by its path.
+        let plain = root.appending(path: "Assets/textures", directoryHint: .isDirectory)
+        try FileManager.default.createDirectory(at: plain, withIntermediateDirectories: true)
+        try Data("png".utf8).write(to: plain.appending(path: "wood.png"))
+        let reloaded = try FoundryPackLoader.load(from: root)
+        #expect(reloaded.assetCollectionURLs.count == 2)
+        #expect(reloaded.invalidItemPaths.isEmpty)
+        let handAuthored = try AssetCollectionStore.load(from: plain)
+        #expect(handAuthored.title == "textures")
+        #expect(handAuthored.manifestID == nil)
+        #expect(handAuthored.identifier == plain.standardizedFileURL.path)
+        #expect(handAuthored.files.map(\.filename) == ["wood.png"])
+
+        // A manifest without an id is fine — it exists just for the licence
+        // or title; a malformed manifest still fails the collection.
+        try PropertyListSerialization.data(fromPropertyList: ["license": "CC0"], format: .xml, options: 0)
+            .write(to: plain.appending(path: "Info.plist"))
+        #expect(AssetCollectionStore.entry(at: plain)?.license == "CC0")
+        let broken = root.appending(path: "Assets/broken", directoryHint: .isDirectory)
+        try FileManager.default.createDirectory(at: broken, withIntermediateDirectories: true)
+        try Data("not a plist".utf8).write(to: broken.appending(path: "Info.plist"))
+        #expect(AssetCollectionStore.entry(at: broken) == nil)
+        #expect(throws: Error.self) { try AssetCollectionStore.load(from: broken) }
+
+        // Loose files directly under Assets are flagged, not silently hidden.
+        try Data("png".utf8).write(to: root.appending(path: "Assets/loose.png"))
+        #expect(try FoundryPackLoader.load(from: root).invalidItemPaths == ["Assets/loose.png"])
+    }
+
+    @Test
     func developmentPacksUseTheSameOuterPackLoader() throws {
         let root = FileManager.default.temporaryDirectory
             .appending(path: "\(UUID().uuidString).foundrydevpack", directoryHint: .isDirectory)
@@ -5323,7 +5391,6 @@ struct PartPackageTests {
         #expect(try FoundryPackLoader.load(from: root).identifier == "com.example.collection")
 
         let updateEnabled: [String: Any] = [
-            "formatVersion": 2,
             "minimumAPIVersion": 1,
             "id": "com.example.collection",
             "title": "Collection",
@@ -5341,7 +5408,7 @@ struct PartPackageTests {
         #expect(updatePack.metadata.version == "1.2.3")
         #expect(updatePack.metadata.updates?.appcastURL.absoluteString == "https://example.com/appcast.json")
 
-        let invalid: [String: Any] = ["formatVersion": 2, "unexpected": "value"]
+        let invalid: [String: Any] = ["unexpected": "value"]
         let data = try PropertyListSerialization.data(fromPropertyList: invalid, format: .xml, options: 0)
         try data.write(to: root.appending(path: "Info.plist"))
         #expect(throws: FoundryPackLoadingError.self) {
@@ -5891,7 +5958,6 @@ struct PartPackageTests {
     ) throws {
         try FileManager.default.createDirectory(at: rootURL, withIntermediateDirectories: true)
         let plist: [String: Any] = [
-            "formatVersion": 2,
             "id": identifier,
             "minimumAPIVersion": 1
         ]

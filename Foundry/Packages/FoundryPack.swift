@@ -7,6 +7,7 @@ nonisolated struct FoundryPack: Sendable {
     let partURLs: [URL]
     let templateURLs: [URL]
     let frameworkURLs: [URL]
+    let assetCollectionURLs: [URL]
     /// Typed items that are not a directory containing Info.plist and
     /// Resources — typically a part folder mid-creation in a development
     /// pack. Loading skips them so the rest of the pack stays usable;
@@ -18,13 +19,13 @@ nonisolated enum FoundryPackItemKind: String, CaseIterable, Sendable {
     case part = "Parts"
     case template = "Templates"
     case framework = "Frameworks"
+    case assetCollection = "Assets"
 }
 
 nonisolated enum FoundryPackLoadingError: Error, LocalizedError {
     case wrongExtension
     case missingManifest
     case invalidManifest(Error)
-    case unsupportedFormatVersion(Int)
     case missingIdentifier
     case unknownTopLevelItem(String)
     case invalidItem(String)
@@ -37,8 +38,6 @@ nonisolated enum FoundryPackLoadingError: Error, LocalizedError {
             "The pack does not contain Info.plist."
         case .invalidManifest(let error):
             "The pack's Info.plist is invalid: \(error.localizedDescription)"
-        case .unsupportedFormatVersion(let version):
-            "The pack uses unsupported format version \(version)."
         case .missingIdentifier:
             "The pack's Info.plist must contain a non-empty id."
         case .unknownTopLevelItem(let name):
@@ -50,7 +49,6 @@ nonisolated enum FoundryPackLoadingError: Error, LocalizedError {
 }
 
 nonisolated enum FoundryPackLoader {
-    static let currentFormatVersion = 2
     private static let allowedTopLevelNames = Set(
         ["Info.plist", "Resources"] + FoundryPackItemKind.allCases.map(\.rawValue)
     )
@@ -71,9 +69,6 @@ nonisolated enum FoundryPackLoader {
         } catch {
             throw FoundryPackLoadingError.invalidManifest(error)
         }
-        guard metadata.formatVersion == currentFormatVersion else {
-            throw FoundryPackLoadingError.unsupportedFormatVersion(metadata.formatVersion)
-        }
         let identifier = metadata.identifier.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !identifier.isEmpty else { throw FoundryPackLoadingError.missingIdentifier }
 
@@ -92,6 +87,7 @@ nonisolated enum FoundryPackLoader {
         let partURLs = try itemURLs(in: rootURL, kind: .part, invalidPaths: &invalidItemPaths)
         let templateURLs = try itemURLs(in: rootURL, kind: .template, invalidPaths: &invalidItemPaths)
         let frameworkURLs = try itemURLs(in: rootURL, kind: .framework, invalidPaths: &invalidItemPaths)
+        let assetCollectionURLs = try itemURLs(in: rootURL, kind: .assetCollection, invalidPaths: &invalidItemPaths)
         return FoundryPack(
             identifier: identifier,
             rootURL: rootURL,
@@ -99,8 +95,18 @@ nonisolated enum FoundryPackLoader {
             partURLs: partURLs,
             templateURLs: templateURLs,
             frameworkURLs: frameworkURLs,
+            assetCollectionURLs: assetCollectionURLs,
             invalidItemPaths: invalidItemPaths.sorted()
         )
+    }
+
+    /// The pack of built-in content shipped inside the app bundle.
+    static func builtInPackURL() -> URL? {
+        guard let bundleURL = Bundle.main.url(forResource: "BuiltInParts", withExtension: "bundle"),
+              let partBundle = Bundle(url: bundleURL) else { return nil }
+        let containerURL = partBundle.url(forResource: "BuiltInParts", withExtension: "foundrypack")
+            ?? partBundle.resourceURL?.appending(path: "BuiltInParts.foundrypack", directoryHint: .isDirectory)
+        return containerURL?.standardizedFileURL
     }
 
     static func installedPacksURL(fileManager: FileManager = .default) throws -> URL {
@@ -113,7 +119,6 @@ nonisolated enum FoundryPackLoader {
         if !fileManager.fileExists(atPath: url.path) {
             try fileManager.createDirectory(at: url, withIntermediateDirectories: true)
             let manifest: [String: Any] = [
-                "formatVersion": currentFormatVersion,
                 "id": "local.foundry.my-library",
                 "title": "My Library",
                 "version": "1.0.0",
@@ -157,7 +162,6 @@ nonisolated enum FoundryPackLoader {
         try fileManager.createDirectory(at: destinationURL, withIntermediateDirectories: true)
         do {
             let manifest: [String: Any] = [
-                "formatVersion": currentFormatVersion,
                 "id": "framework.\(framework.id.uuidString.lowercased())",
                 "title": framework.metadata.name,
                 "version": "1.0.0",
@@ -191,6 +195,18 @@ nonisolated enum FoundryPackLoader {
     ) throws -> [URL] {
         let directoryURL = rootURL.appending(path: kind.rawValue, directoryHint: .isDirectory)
         guard FileManager.default.fileExists(atPath: directoryURL.path) else { return [] }
+        // Templates organize into plain directories — a child without an
+        // Info.plist is a folder, recursed for the bundles inside.
+        if kind == .template {
+            var valid: [URL] = []
+            try collectTemplateItems(
+                in: directoryURL,
+                relativePath: kind.rawValue,
+                valid: &valid,
+                invalidPaths: &invalidPaths
+            )
+            return valid.sorted { $0.path < $1.path }
+        }
         let children = try FileManager.default.contentsOfDirectory(
             at: directoryURL,
             includingPropertiesForKeys: [.isDirectoryKey, .isSymbolicLinkKey],
@@ -199,14 +215,59 @@ nonisolated enum FoundryPackLoader {
         var valid: [URL] = []
         for url in children {
             let values = try url.resourceValues(forKeys: [.isDirectoryKey, .isSymbolicLinkKey])
-            let hasManifest = FileManager.default.fileExists(atPath: url.appending(path: "Info.plist").path)
-            let hasResources = FileManager.default.fileExists(atPath: url.appending(path: "Resources").path)
-            if values.isDirectory == true, values.isSymbolicLink != true, hasManifest, hasResources {
+            let isPlainDirectory = values.isDirectory == true && values.isSymbolicLink != true
+            // Asset collections are hand-authorable: any folder of files is a
+            // collection, and its Info.plist is optional licence metadata.
+            // The other kinds are structured items Foundry generates.
+            let isValidItem: Bool
+            if kind == .assetCollection {
+                isValidItem = isPlainDirectory
+            } else {
+                let hasManifest = FileManager.default.fileExists(atPath: url.appending(path: "Info.plist").path)
+                let hasResources = FileManager.default.fileExists(atPath: url.appending(path: "Resources").path)
+                isValidItem = isPlainDirectory && hasManifest && hasResources
+            }
+            if isValidItem {
                 valid.append(url.standardizedFileURL)
             } else {
                 invalidPaths.append("\(kind.rawValue)/\(url.lastPathComponent)")
             }
         }
         return valid.sorted { $0.path < $1.path }
+    }
+
+    private static func collectTemplateItems(
+        in directoryURL: URL,
+        relativePath: String,
+        valid: inout [URL],
+        invalidPaths: inout [String]
+    ) throws {
+        let children = try FileManager.default.contentsOfDirectory(
+            at: directoryURL,
+            includingPropertiesForKeys: [.isDirectoryKey, .isSymbolicLinkKey],
+            options: [.skipsHiddenFiles]
+        )
+        for url in children {
+            let values = try url.resourceValues(forKeys: [.isDirectoryKey, .isSymbolicLinkKey])
+            let path = "\(relativePath)/\(url.lastPathComponent)"
+            guard values.isDirectory == true, values.isSymbolicLink != true else {
+                invalidPaths.append(path)
+                continue
+            }
+            if FileManager.default.fileExists(atPath: url.appending(path: "Info.plist").path) {
+                if FileManager.default.fileExists(atPath: url.appending(path: "Resources").path) {
+                    valid.append(url.standardizedFileURL)
+                } else {
+                    invalidPaths.append(path)
+                }
+            } else {
+                try collectTemplateItems(
+                    in: url,
+                    relativePath: path,
+                    valid: &valid,
+                    invalidPaths: &invalidPaths
+                )
+            }
+        }
     }
 }

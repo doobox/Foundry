@@ -11,15 +11,31 @@ struct TemplateInspectorContext {
 }
 
 /// The Inspector's view of a template selected in the Templates panel: what it
-/// contains, what it needs, and what it carries. Pack templates are read from
-/// their bundle on disk; project templates live inside the document itself.
+/// contains, what it needs, and what it carries. Pack templates read the
+/// preview baked into their bundle; project templates live inside the
+/// document, so their preview renders live, like a global part's.
 struct TemplateInspector: View {
     let context: TemplateInspectorContext
+    let editor: ProjectEditor
+    let assetContents: ProjectAssetContents
+    let currentPage: Page?
     let insertTemplate: (UUID) -> Void
 
     @State private var renameText = ""
+    @State private var renderedPreview: NSImage?
 
     private var entry: ReusablePartLibraryEntry { context.entry }
+
+    /// Re-renders the live preview whenever anything it depends on changes:
+    /// the definition, or the current page's background.
+    private struct PreviewKey: Equatable {
+        let definition: ReusablePartDefinition
+        let background: PartPackageColorValue?
+    }
+
+    private var previewKey: PreviewKey {
+        PreviewKey(definition: entry.definition, background: currentPage?.backgroundOverride)
+    }
 
     private struct PartTypeUsage: Identifiable {
         let type: PartType
@@ -64,11 +80,10 @@ struct TemplateInspector: View {
         entry.assets.reduce(0) { $0 + $1.byteCount }
     }
 
-    private var previewImage: NSImage? {
+    private var bundlePreviewImage: NSImage? {
         // Reading the revision re-runs this body when a fresh preview lands.
         _ = ReusablePartLibrary.shared.previewRevision
-        guard !context.isProjectTemplate,
-              let url = ReusablePartLibrary.shared.previewURL(forID: entry.id) else { return nil }
+        guard let url = ReusablePartLibrary.shared.previewURL(forID: entry.id) else { return nil }
         return NSImage(contentsOf: url)
     }
 
@@ -83,9 +98,26 @@ struct TemplateInspector: View {
     }
 
     var body: some View {
-        if let previewImage {
+        if context.isProjectTemplate {
             Section {
-                Image(nsImage: previewImage)
+                ZStack {
+                    if let renderedPreview {
+                        Image(nsImage: renderedPreview)
+                            .resizable()
+                            .aspectRatio(contentMode: .fit)
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                            .clipShape(RoundedRectangle(cornerRadius: 6))
+                    } else {
+                        ProgressView()
+                            .controlSize(.small)
+                    }
+                }
+                .frame(maxWidth: .infinity)
+                .frame(height: 220)
+            }
+        } else if let bundlePreviewImage {
+            Section {
+                Image(nsImage: bundlePreviewImage)
                     .resizable()
                     .aspectRatio(contentMode: .fit)
                     .frame(maxWidth: .infinity)
@@ -117,6 +149,10 @@ struct TemplateInspector: View {
         }
         .onAppear { renameText = entry.name }
         .onChange(of: entry.id) { renameText = entry.name }
+        .task(id: previewKey) {
+            guard context.isProjectTemplate else { return }
+            await renderPreview()
+        }
 
         Section("Contents") {
             ForEach(typeUsage) { usage in
@@ -177,5 +213,23 @@ struct TemplateInspector: View {
                 }
             }
         }
+    }
+
+    private func renderPreview() async {
+        renderedPreview = nil
+        let site = editor.document.site
+        let contents = assetContents
+        let captured = await withCheckedContinuation { continuation in
+            TemplatePreviewRenderer.shared.capturePreview(
+                definition: entry.definition,
+                site: site,
+                assetContents: contents,
+                pageBackground: currentPage?.backgroundOverride
+            ) { data in
+                continuation.resume(returning: data)
+            }
+        }
+        guard let captured else { return }
+        renderedPreview = NSImage(data: captured)
     }
 }

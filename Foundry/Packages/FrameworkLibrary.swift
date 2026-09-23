@@ -4,12 +4,9 @@ import UniformTypeIdentifiers
 import Observation
 
 nonisolated struct FrameworkBundleMetadata: Codable, Equatable, Sendable {
-    static let currentFormatVersion = 5
-
     let id: UUID
     var name: String
     let previewFilename: String
-    let formatVersion: Int
     let createdAt: Date
     var modifiedAt: Date
     var resources: [FrameworkBundleResource]
@@ -47,7 +44,6 @@ nonisolated struct FrameworkPreviewImage: Equatable, Sendable {
 
 nonisolated enum FrameworkBundleError: Error, LocalizedError {
     case missingContents
-    case unsupportedVersion(Int)
     case invalidName
     case missingPreview
     case unsupportedPreviewType
@@ -58,8 +54,6 @@ nonisolated enum FrameworkBundleError: Error, LocalizedError {
         switch self {
         case .missingContents:
             "The framework directory is missing its metadata or framework data."
-        case .unsupportedVersion(let version):
-            "This framework uses unsupported format version \(version)."
         case .invalidName:
             "Enter a name for the framework."
         case .missingPreview:
@@ -93,9 +87,6 @@ nonisolated enum FrameworkBundleStore {
             FrameworkBundleMetadata.self,
             from: Data(contentsOf: metadataURL)
         )
-        guard metadata.formatVersion == FrameworkBundleMetadata.currentFormatVersion else {
-            throw FrameworkBundleError.unsupportedVersion(metadata.formatVersion)
-        }
         let previewURL = bundleURL.appending(path: "Resources/\(metadata.previewFilename)")
         guard FileManager.default.fileExists(atPath: previewURL.path) else { throw FrameworkBundleError.missingPreview }
         _ = try preview(from: previewURL)
@@ -159,7 +150,6 @@ nonisolated enum FrameworkBundleStore {
             id: id,
             name: trimmedName,
             previewFilename: preview.filename,
-            formatVersion: FrameworkBundleMetadata.currentFormatVersion,
             createdAt: createdAt,
             modifiedAt: Date(),
             resources: resources
@@ -213,7 +203,7 @@ nonisolated enum FrameworkBundleStore {
         guard !name.isEmpty else { throw FrameworkBundleError.invalidName }
         let metadata = FrameworkBundleMetadata(
             id: saved.id, name: name, previewFilename: preview.filename,
-            formatVersion: saved.metadata.formatVersion, createdAt: saved.metadata.createdAt,
+            createdAt: saved.metadata.createdAt,
             modifiedAt: Date(), resources: saved.metadata.resources
         )
         let encoder = PropertyListEncoder()

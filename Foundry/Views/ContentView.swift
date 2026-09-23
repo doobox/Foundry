@@ -37,6 +37,9 @@ struct ContentView: View {
     @State private var selectedPageAssetID: UUID?
     @State private var expandedPageTreeItemIDs: Set<UUID> = []
     @State private var selectedAssetLibraryNodeID: UUID?
+    /// Selection in the Assets panel's Library/Dev tabs — a collection
+    /// identifier or a file path.
+    @State private var selectedAssetCollectionItemID: String?
     @State private var selectedPartIDs: Set<UUID> = []
     @State private var selectedPartSelectionOrder: [UUID] = []
     @State private var selectedPartID: UUID?
@@ -345,7 +348,9 @@ struct ContentView: View {
             )
         case .reusableParts:
             ReusablePartLibraryPanel(
-                sections: templatePanelSections,
+                projectNodes: document.site.projectTemplateLibrary,
+                librarySections: libraryTemplateSections,
+                devSections: devTemplateSections,
                 selectedNodeID: inspectableTemplateSelection,
                 renameDefinition: renameTemplateNode(_:to:),
                 deleteDefinition: deleteTemplateDefinition(_:),
@@ -358,7 +363,9 @@ struct ContentView: View {
                 renameFolder: renameTemplateFolder(_:to:),
                 deleteFolder: deleteTemplateFolder(_:),
                 moveNode: moveTemplateNode(_:toSection:placement:),
-                saveDraggedParts: saveDraggedPartsAsTemplates(_:inSection:)
+                saveDraggedParts: saveDraggedPartsAsTemplates(_:inSection:),
+                addToLibrary: addProjectTemplateToLibrary(_:),
+                addToProject: addLibraryTemplateToProject(_:)
             )
         case .globalParts:
             GlobalPartLibraryPanel(
@@ -414,8 +421,19 @@ struct ContentView: View {
                 library: document.site.assetLibrary.resourcesOnly,
                 assetContents: document.assetContents,
                 selectedNodeID: inspectableAssetLibrarySelection,
+                selectedCollectionItemID: inspectableAssetCollectionSelection,
                 importFiles: importAssets,
                 importURLs: importAssetURLs,
+                importCollectionFiles: { files in
+                    let importedIDs = AssetCollectionLibrary.shared.importFiles(
+                        files,
+                        into: document,
+                        undoManager: undoManager
+                    )
+                    if let lastID = importedIDs.last {
+                        selectedAssetLibraryNodeID = lastID
+                    }
+                },
                 createFolder: { name in
                     let folderID = document.createAssetFolder(named: name, at: assetInsertionPlacement, undoManager: undoManager)
                     selectedAssetLibraryNodeID = folderID
@@ -432,6 +450,7 @@ struct ContentView: View {
                 selectedPartID = nil
                 selectedTemplateNodeID = nil
                 selectedGlobalNodeID = nil
+                selectedAssetCollectionItemID = nil
             }
         case .developer:
             DeveloperPanel()
@@ -478,6 +497,14 @@ struct ContentView: View {
                     selectedParts: selectedParts,
                     allowsMultiPartEditing: allowsMultiPartEditing,
                     libraryPartType: selectedLibraryPartType,
+                    assetCollectionSelection: selectedAssetCollectionContext,
+                    importCollectionFiles: { files in
+                        _ = AssetCollectionLibrary.shared.importFiles(
+                            files,
+                            into: document,
+                            undoManager: undoManager
+                        )
+                    },
                     templateContext: selectedTemplateContext,
                     insertTemplate: { _ = insertReusablePartFromLibrary($0, .end) },
                     globalDefinition: selectedGlobalDefinition,
@@ -617,6 +644,7 @@ struct ContentView: View {
                 selectedLibraryPartType = nil
             selectedTemplateNodeID = nil
             selectedGlobalNodeID = nil
+                selectedAssetCollectionItemID = nil
             }
         )
     }
@@ -634,6 +662,7 @@ struct ContentView: View {
                 selectedLibraryPartType = nil
             selectedTemplateNodeID = nil
             selectedGlobalNodeID = nil
+                selectedAssetCollectionItemID = nil
             }
         )
     }
@@ -651,6 +680,7 @@ struct ContentView: View {
                 selectedLibraryPartType = nil
             selectedTemplateNodeID = nil
             selectedGlobalNodeID = nil
+                selectedAssetCollectionItemID = nil
             }
         )
     }
@@ -668,8 +698,51 @@ struct ContentView: View {
                 selectedLibraryPartType = nil
             selectedTemplateNodeID = nil
             selectedGlobalNodeID = nil
+                selectedAssetCollectionItemID = nil
             }
         )
+    }
+
+    /// Selecting a collection or file in the Library/Dev tabs takes over the
+    /// Inspector, clearing every other inspectable selection.
+    private var inspectableAssetCollectionSelection: Binding<String?> {
+        Binding(
+            get: { selectedAssetCollectionItemID },
+            set: { itemID in
+                selectedAssetCollectionItemID = itemID
+                guard itemID != nil else { return }
+                inspectedPageID = nil
+                selectedPageFolderID = nil
+                selectedPageAssetID = nil
+                selectedAssetLibraryNodeID = nil
+                selectedPartID = nil
+                selectedPrimitive = nil
+                selectedLibraryPartType = nil
+                selectedTemplateNodeID = nil
+                selectedGlobalNodeID = nil
+            }
+        )
+    }
+
+    /// Resolves the Library/Dev tab selection against the loaded packs; a
+    /// stale identifier resolves to nothing and the Inspector falls through.
+    private var selectedAssetCollectionContext: AssetCollectionInspectorSelection? {
+        guard let selectedAssetCollectionItemID else { return nil }
+        for source in AssetCollectionLibrary.shared.sources {
+            for collection in source.collections {
+                if collection.identifier == selectedAssetCollectionItemID {
+                    return .collection(collection, source: source)
+                }
+                if let file = collection.files.first(where: { $0.id == selectedAssetCollectionItemID }) {
+                    return .file(file, collection: collection, source: source)
+                }
+            }
+        }
+        if let context = AssetCollectionLibrary.shared.folderContext(withID: selectedAssetCollectionItemID),
+           let source = AssetCollectionLibrary.shared.source(containing: context.collection.identifier) {
+            return .folder(context.folder, collection: context.collection, source: source)
+        }
+        return nil
     }
 
     private var inspectablePartSelection: Binding<UUID?> {
@@ -686,6 +759,7 @@ struct ContentView: View {
                 selectedLibraryPartType = nil
             selectedTemplateNodeID = nil
             selectedGlobalNodeID = nil
+                selectedAssetCollectionItemID = nil
             }
         )
     }
@@ -709,6 +783,7 @@ struct ContentView: View {
                     selectedLibraryPartType = nil
             selectedTemplateNodeID = nil
             selectedGlobalNodeID = nil
+                    selectedAssetCollectionItemID = nil
                 } else if inspectedPageID == selectedPage.id {
                     inspectedPageID = nil
                 }
@@ -728,6 +803,7 @@ struct ContentView: View {
                 selectedAssetLibraryNodeID = nil
                 selectedPartID = nil
                 selectedPrimitive = nil
+                selectedAssetCollectionItemID = nil
             }
         )
     }
@@ -1479,28 +1555,66 @@ struct ContentView: View {
     @State private var selectedTemplateNodeID: UUID?
     @State private var selectedGlobalNodeID: UUID?
 
-    /// The Templates panel's sections: this project's own templates first,
-    /// then every pack the library resolves — editable ones accept drops,
-    /// installed `.foundrypack`s are read-only sources. Only standing drop
-    /// targets (My Library, explicitly opened dev packs) appear while empty;
-    /// every other pack earns its section with content, so a parts
-    /// developer's installed dev packs don't flood the panel with headers.
+    /// The Templates panel's Library tab: My Library (always) plus installed
+    /// read-only packs that actually carry templates.
+    private var libraryTemplateSections: [TemplatePanelSection] {
+        ReusablePartLibrary.shared.packs
+            .filter { $0.isPersonal || (!$0.isEditable && !$0.nodes.isEmpty) }
+            .map(templateSection(for:))
+    }
+
+    /// The Templates panel's Dev tab: every development pack other than My
+    /// Library, always listed as authoring targets — the tab itself only
+    /// appears when there are any.
+    private var devTemplateSections: [TemplatePanelSection] {
+        ReusablePartLibrary.shared.packs
+            .filter { $0.isEditable && !$0.isPersonal }
+            .map(templateSection(for:))
+    }
+
+    private func templateSection(for pack: ReusablePartLibraryPack) -> TemplatePanelSection {
+        TemplatePanelSection(
+            id: pack.id,
+            title: pack.title,
+            isEditable: pack.isEditable,
+            nodes: pack.nodes
+        )
+    }
+
+    /// The routing view over every tab: the project's templates plus every
+    /// pack section, used to locate a node's home by id.
     private var templatePanelSections: [TemplatePanelSection] {
         [TemplatePanelSection(
             id: TemplatePanelSection.projectSectionID,
             title: "Project",
             isEditable: true,
             nodes: document.site.projectTemplateLibrary
-        )] + ReusablePartLibrary.shared.packs
-            .filter { $0.showsWhenEmpty || !$0.nodes.isEmpty }
-            .map { pack in
-                TemplatePanelSection(
-                    id: pack.id,
-                    title: pack.title,
-                    isEditable: pack.isEditable,
-                    nodes: pack.nodes
-                )
-            }
+        )] + libraryTemplateSections + devTemplateSections
+    }
+
+    /// Copies a project template into My Library under a fresh identity,
+    /// embedding the document assets it references.
+    private func addProjectTemplateToLibrary(_ id: UUID) {
+        guard case .part(let definition)? = document.site.projectTemplateLibrary.node(withID: id) else {
+            return
+        }
+        let copy = ReusablePartDefinition(
+            name: definition.name,
+            root: definition.root.duplicatedForReusableDefinition()
+        )
+        saveTemplateToPack(copy, packRootURL: nil)
+    }
+
+    /// Copies a library template into the project under a fresh identity,
+    /// importing its embedded assets into the document.
+    private func addLibraryTemplateToProject(_ id: UUID) {
+        let library = ReusablePartLibrary.shared
+        guard let entry = library.entry(withID: id),
+              let imported = library.importedDefinition(for: entry, into: document, undoManager: undoManager) else {
+            return
+        }
+        let copy = ReusablePartDefinition(name: imported.name, root: imported.root)
+        _ = editor.addProjectTemplate(copy)
     }
 
     private func isProjectTemplateNode(_ id: UUID) -> Bool {
@@ -1549,8 +1663,11 @@ struct ContentView: View {
     private func renameTemplateFolder(_ id: UUID, to name: String) {
         if isProjectTemplateNode(id) {
             editor.renameProjectTemplateFolder(id: id, to: name)
-        } else {
-            ReusablePartLibrary.shared.renameFolder(id: id, to: name)
+        } else if let newID = ReusablePartLibrary.shared.renameFolder(id: id, to: name) {
+            // Pack folders identify by path, so selection follows the rename.
+            if selectedTemplateNodeID == id {
+                selectedTemplateNodeID = newID
+            }
         }
     }
 
@@ -1757,6 +1874,7 @@ struct ContentView: View {
                 selectedAssetLibraryNodeID = nil
                 selectedLibraryPartType = nil
                 selectedGlobalNodeID = nil
+                selectedAssetCollectionItemID = nil
             }
         )
     }
@@ -1778,6 +1896,7 @@ struct ContentView: View {
                 selectedAssetLibraryNodeID = nil
                 selectedLibraryPartType = nil
                 selectedTemplateNodeID = nil
+                selectedAssetCollectionItemID = nil
             }
         )
     }

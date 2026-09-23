@@ -33,7 +33,6 @@ nonisolated struct FoundryPackUpdateConfiguration: Codable, Equatable, Sendable 
 }
 
 nonisolated struct FoundryPackMetadata: Codable, Equatable, Sendable {
-    let formatVersion: Int
     let identifier: String
     let title: String?
     let author: String?
@@ -42,7 +41,6 @@ nonisolated struct FoundryPackMetadata: Codable, Equatable, Sendable {
     let updates: FoundryPackUpdateConfiguration?
 
     enum CodingKeys: String, CodingKey {
-        case formatVersion
         case identifier = "id"
         case title
         case author
@@ -53,7 +51,6 @@ nonisolated struct FoundryPackMetadata: Codable, Equatable, Sendable {
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        formatVersion = try container.decode(Int.self, forKey: .formatVersion)
         identifier = try container.decode(String.self, forKey: .identifier)
         title = try container.decodeIfPresent(String.self, forKey: .title)
         author = try container.decodeIfPresent(String.self, forKey: .author)

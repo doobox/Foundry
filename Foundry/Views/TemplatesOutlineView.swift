@@ -69,8 +69,18 @@ struct TemplatesOutlineView: NSViewRepresentable {
     /// Whether a given template has a bundle to reveal — project templates
     /// live inside the document and offer no Finder item. Nil means all do.
     let canRevealDefinition: ((UUID) -> Bool)?
+    /// The cross-tab copy command on template rows — "Add to My Library" on
+    /// the Project tab, "Add to Project" on the Library tab. Nil hides it.
+    let transferActionTitle: String?
+    let transferDefinition: ((UUID) -> Void)?
     /// Deletion is confirmed by the panel, not performed here.
     let requestDelete: ([UUID]) -> Void
+    /// Every section the Move/Copy to submenu can send a row to, across all
+    /// tabs; the row's own section is filtered per item. Empty hides it.
+    let moveDestinations: [LibraryMoveDestination]
+    /// Shown as a quiet row inside an empty editable section — a per-section
+    /// hint and drop target. Nil shows empty sections with bare headers.
+    let emptySectionPlaceholder: String?
 
     func makeCoordinator() -> Coordinator { Coordinator(parent: self) }
 
@@ -176,7 +186,7 @@ struct TemplatesOutlineView: NSViewRepresentable {
         }
 
         func outlineView(_ outlineView: NSOutlineView, shouldSelectItem item: Any) -> Bool {
-            !(item is TemplateSectionOutlineItem)
+            !(item is TemplateSectionOutlineItem) && !(item is TemplatePlaceholderOutlineItem)
         }
 
         func outlineView(_ outlineView: NSOutlineView, shouldCollapseItem item: Any) -> Bool {
@@ -197,6 +207,13 @@ struct TemplatesOutlineView: NSViewRepresentable {
                     systemSymbolName: "lock.fill",
                     accessibilityDescription: "Read-only"
                 )
+                return cell
+            }
+            if item is TemplatePlaceholderOutlineItem {
+                let identifier = NSUserInterfaceItemIdentifier.templatePlaceholderCell
+                let cell = outlineView.makeView(withIdentifier: identifier, owner: nil) as? NSTableCellView
+                    ?? makePlaceholderCell(identifier: identifier)
+                cell.textField?.stringValue = parent.emptySectionPlaceholder ?? ""
                 return cell
             }
             guard let item = item as? ReusablePartOutlineItem else { return nil }
@@ -256,12 +273,25 @@ struct TemplatesOutlineView: NSViewRepresentable {
                     duplicateItem.target = self
                     duplicateItem.representedObject = item.id
                     menu.addItem(duplicateItem)
+                    if let transferTitle = parent.transferActionTitle, parent.transferDefinition != nil {
+                        let transferItem = NSMenuItem(
+                            title: transferTitle,
+                            action: #selector(transferFromContextMenu(_:)),
+                            keyEquivalent: ""
+                        )
+                        transferItem.target = self
+                        transferItem.representedObject = item.id
+                        menu.addItem(transferItem)
+                    }
                     if parent.revealDefinition != nil, parent.canRevealDefinition?(item.id) != false {
                         let revealItem = NSMenuItem(title: "Show in Finder", action: #selector(revealFromContextMenu(_:)), keyEquivalent: "")
                         revealItem.target = self
                         revealItem.representedObject = item.id
                         menu.addItem(revealItem)
                     }
+                }
+                if let transferMenu = transferSubmenu(for: item, isEditable: targetsAreEditable) {
+                    menu.addItem(transferMenu)
                 }
                 if menu.items.isEmpty == false, targetsAreEditable {
                     menu.addItem(.separator())
@@ -318,9 +348,57 @@ struct TemplatesOutlineView: NSViewRepresentable {
             parent.revealDefinition?(id)
         }
 
+        @objc private func transferFromContextMenu(_ sender: NSMenuItem) {
+            guard let id = sender.representedObject as? UUID else { return }
+            parent.transferDefinition?(id)
+        }
+
         @objc private func deleteFromContextMenu(_ sender: NSMenuItem) {
             guard let ids = sender.representedObject as? [UUID], !ids.isEmpty else { return }
             parent.requestDelete(ids)
+        }
+
+        private final class TransferTarget: NSObject {
+            let nodeID: UUID
+            let sectionID: String
+
+            init(nodeID: UUID, sectionID: String) {
+                self.nodeID = nodeID
+                self.sectionID = sectionID
+            }
+        }
+
+        /// "Move to" for editable rows, "Copy to" out of read-only packs —
+        /// the menu reaches sections on other tabs, which drags cannot.
+        /// Applies to templates and folders alike.
+        private func transferSubmenu(for item: ReusablePartOutlineItem, isEditable: Bool) -> NSMenuItem? {
+            let destinations = parent.moveDestinations.filter {
+                $0.sectionID != item.section?.sectionID
+            }
+            guard !destinations.isEmpty else { return nil }
+            let submenu = NSMenu()
+            for destination in destinations {
+                let menuItem = NSMenuItem(
+                    title: destination.title,
+                    action: #selector(transferToSectionAction(_:)),
+                    keyEquivalent: ""
+                )
+                menuItem.target = self
+                menuItem.representedObject = TransferTarget(nodeID: item.id, sectionID: destination.sectionID)
+                submenu.addItem(menuItem)
+            }
+            let parentItem = NSMenuItem(
+                title: isEditable ? "Move to" : "Copy to",
+                action: nil,
+                keyEquivalent: ""
+            )
+            parentItem.submenu = submenu
+            return parentItem
+        }
+
+        @objc private func transferToSectionAction(_ sender: NSMenuItem) {
+            guard let target = sender.representedObject as? TransferTarget else { return }
+            _ = parent.moveNode(target.nodeID, target.sectionID, .end)
         }
 
         func renameSelectedNode() {
@@ -429,6 +507,11 @@ struct TemplatesOutlineView: NSViewRepresentable {
             proposedItem item: Any?,
             proposedChildIndex index: Int
         ) -> DropTarget? {
+            if let placeholder = item as? TemplatePlaceholderOutlineItem {
+                guard let section = placeholder.section else { return nil }
+                outlineView.setDropItem(section, dropChildIndex: NSOutlineViewDropOnItemIndex)
+                return DropTarget(section: section, parentFolder: nil, childIndex: section.children.count)
+            }
             if let section = item as? TemplateSectionOutlineItem {
                 let childIndex = index == NSOutlineViewDropOnItemIndex ? section.children.count : index
                 return DropTarget(section: section, parentFolder: nil, childIndex: childIndex)
@@ -490,7 +573,13 @@ struct TemplatesOutlineView: NSViewRepresentable {
         }
 
         private func children(of item: Any?) -> [NSObject] {
-            if let section = item as? TemplateSectionOutlineItem { return section.children }
+            if let section = item as? TemplateSectionOutlineItem {
+                if section.children.isEmpty, section.isEditable, !isFlat,
+                   parent.emptySectionPlaceholder != nil {
+                    return [section.placeholderItem]
+                }
+                return section.children
+            }
             if let nodeItem = item as? ReusablePartOutlineItem { return nodeItem.children }
             return isFlat ? sectionItems[0].children : sectionItems
         }
@@ -526,6 +615,24 @@ struct TemplatesOutlineView: NSViewRepresentable {
                 imageView.heightAnchor.constraint(equalToConstant: 18),
                 textField.leadingAnchor.constraint(equalTo: imageView.trailingAnchor, constant: 5),
                 textField.trailingAnchor.constraint(equalTo: cell.trailingAnchor, constant: -4),
+                textField.centerYAnchor.constraint(equalTo: cell.centerYAnchor)
+            ])
+            return cell
+        }
+
+        private func makePlaceholderCell(identifier: NSUserInterfaceItemIdentifier) -> NSTableCellView {
+            let cell = NSTableCellView()
+            cell.identifier = identifier
+            let textField = NSTextField(labelWithString: "")
+            textField.font = .systemFont(ofSize: 11)
+            textField.textColor = .tertiaryLabelColor
+            textField.lineBreakMode = .byTruncatingTail
+            textField.translatesAutoresizingMaskIntoConstraints = false
+            cell.addSubview(textField)
+            cell.textField = textField
+            NSLayoutConstraint.activate([
+                textField.leadingAnchor.constraint(equalTo: cell.leadingAnchor, constant: 2),
+                textField.trailingAnchor.constraint(lessThanOrEqualTo: cell.trailingAnchor, constant: -4),
                 textField.centerYAnchor.constraint(equalTo: cell.centerYAnchor)
             ])
             return cell
@@ -648,11 +755,24 @@ private final class TemplateSectionOutlineItem: NSObject {
     let title: String?
     let isEditable: Bool
     var children: [ReusablePartOutlineItem] = []
+    /// The section's empty-state row, created once so NSOutlineView sees a
+    /// stable item identity across data-source calls.
+    lazy var placeholderItem = TemplatePlaceholderOutlineItem(section: self)
 
     init(section: TemplatePanelSection) {
         sectionID = section.id
         title = section.title
         isEditable = section.isEditable
+    }
+}
+
+/// The quiet hint row inside an empty editable section — not selectable, not
+/// draggable; drops on it retarget to its section.
+private final class TemplatePlaceholderOutlineItem: NSObject {
+    weak var section: TemplateSectionOutlineItem?
+
+    init(section: TemplateSectionOutlineItem) {
+        self.section = section
     }
 }
 
@@ -683,4 +803,5 @@ private extension NSUserInterfaceItemIdentifier {
     static let reusablePartColumn = NSUserInterfaceItemIdentifier("ReusablePartsColumn")
     static let reusablePartCell = NSUserInterfaceItemIdentifier("ReusablePartsCell")
     static let templateSectionCell = NSUserInterfaceItemIdentifier("TemplateSectionCell")
+    static let templatePlaceholderCell = NSUserInterfaceItemIdentifier("TemplatePlaceholderCell")
 }

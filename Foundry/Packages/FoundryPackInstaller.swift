@@ -24,6 +24,9 @@ enum FoundryPackInstaller {
         for url in pack.templateURLs where ReusablePartLibrary.entry(at: url) == nil {
             throw FoundryPackLoadingError.invalidItem("Templates/\(url.lastPathComponent)")
         }
+        for url in pack.assetCollectionURLs {
+            _ = try AssetCollectionStore.load(from: url)
+        }
 
         let destination = try FoundryPackLoader.installedPacksURL()
             .appending(path: sourceURL.lastPathComponent, directoryHint: .isDirectory)

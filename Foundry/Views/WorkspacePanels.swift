@@ -1321,8 +1321,33 @@ private struct LibraryPanelHeader<MenuContent: View>: View {
     }
 }
 
+/// Which of a panel's content tabs is showing: the document's own content,
+/// the app-wide library (My Library plus installed packs), or — only when
+/// any exist — development packs, matching the Parts panel's Dev split.
+enum LibraryPanelTab: String, CaseIterable, Identifiable {
+    case project
+    case library
+    case dev
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .project: "Project"
+        case .library: "Library"
+        case .dev: "Dev"
+        }
+    }
+}
+
 struct ReusablePartLibraryPanel: View {
-    let sections: [TemplatePanelSection]
+    /// This document's own templates — the Project tab.
+    let projectNodes: [ReusablePartNode]
+    /// The Library tab: My Library plus installed packs with templates.
+    let librarySections: [TemplatePanelSection]
+    /// The Dev tab: every other development pack; the tab only appears when
+    /// there are any, matching the Parts panel's Dev split.
+    let devSections: [TemplatePanelSection]
     @Binding var selectedNodeID: UUID?
     let renameDefinition: (UUID, String) -> Void
     let deleteDefinition: (UUID) -> Void
@@ -1336,14 +1361,40 @@ struct ReusablePartLibraryPanel: View {
     /// decides between reorder, cross-section move, and copy-out.
     let moveNode: (UUID, String, ReusablePartPlacement) -> Bool
     let saveDraggedParts: ([UUID], String) -> Bool
+    /// Copies a project template into My Library.
+    let addToLibrary: (UUID) -> Void
+    /// Copies a library template into the project.
+    let addToProject: (UUID) -> Void
 
+    @State private var tab: LibraryPanelTab = .project
     @State private var searchText = ""
     @State private var isNamingFolder = false
     @State private var folderName = ""
+    @State private var folderDestinationSectionID: String?
     @State private var nodesToDelete: [ReusablePartNode] = []
 
+    private var availableTabs: [LibraryPanelTab] {
+        devSections.isEmpty ? [.project, .library] : [.project, .library, .dev]
+    }
+
+    private var activeSections: [TemplatePanelSection] {
+        switch tab {
+        case .project:
+            [TemplatePanelSection(
+                id: TemplatePanelSection.projectSectionID,
+                title: nil,
+                isEditable: true,
+                nodes: projectNodes
+            )]
+        case .library:
+            librarySections
+        case .dev:
+            devSections
+        }
+    }
+
     private var definitions: [ReusablePartDefinition] {
-        sections.flatMap(\.nodes).allDefinitions
+        activeSections.flatMap(\.nodes).allDefinitions
     }
 
     private var searchResults: [ReusablePartDefinition] {
@@ -1356,7 +1407,7 @@ struct ReusablePartLibraryPanel: View {
         !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
-    /// Searching flattens every section down to matching templates in one
+    /// Searching flattens the active tab down to matching templates in one
     /// headerless, read-only list; organizing resumes when the search clears.
     private var displayedSections: [TemplatePanelSection] {
         isSearching
@@ -1366,29 +1417,52 @@ struct ReusablePartLibraryPanel: View {
                 isEditable: false,
                 nodes: searchResults.map(ReusablePartNode.part)
             )]
-            : sections
+            : activeSections
     }
 
-    /// New folders land in the section owning the selection, when that
-    /// section can be edited; otherwise in the project.
-    private var folderTargetSectionID: String {
-        guard let selectedNodeID,
-              let section = sections.first(where: { $0.nodes.node(withID: selectedNodeID) != nil }),
-              section.isEditable else {
-            return TemplatePanelSection.projectSectionID
-        }
-        return section.id
+    /// The sections New Folder can create into on the active tab — every
+    /// editable section is an explicit menu target, never a silent default.
+    private var folderCreationTargets: [TemplatePanelSection] {
+        activeSections.filter(\.isEditable)
+    }
+
+    /// Everywhere a row can be sent from the Move/Copy to menu: the project
+    /// plus every editable pack, across all tabs. Search results are
+    /// transient rows, so the menu rests while searching.
+    private var moveDestinations: [LibraryMoveDestination] {
+        guard !isSearching else { return [] }
+        return [LibraryMoveDestination(sectionID: TemplatePanelSection.projectSectionID, title: "Project")]
+            + (librarySections + devSections)
+                .filter(\.isEditable)
+                .map { LibraryMoveDestination(sectionID: $0.id, title: $0.title ?? "My Library") }
+    }
+
+    private func beginNamingFolder(inSection sectionID: String) {
+        folderName = ""
+        folderDestinationSectionID = sectionID
+        isNamingFolder = true
     }
 
     var body: some View {
         VStack(spacing: 0) {
             LibraryPanelHeader(title: "Templates", accessibilityLabel: "Add Template Folder") {
-                Button("New Folder…", systemImage: "folder.badge.plus") {
-                    folderName = ""
-                    isNamingFolder = true
+                if folderCreationTargets.count == 1, let target = folderCreationTargets.first {
+                    Button("New Folder…", systemImage: "folder.badge.plus") {
+                        beginNamingFolder(inSection: target.id)
+                    }
+                } else {
+                    ForEach(folderCreationTargets, id: \.id) { target in
+                        Button(
+                            "New Folder in “\(target.title ?? "Project")”…",
+                            systemImage: "folder.badge.plus"
+                        ) {
+                            beginNamingFolder(inSection: target.id)
+                        }
+                    }
                 }
             }
             Divider()
+            LibraryPanelTabPicker(tab: $tab, tabs: availableTabs)
             TemplatesOutlineView(
                 kind: .templates,
                 sections: displayedSections,
@@ -1402,21 +1476,29 @@ struct ReusablePartLibraryPanel: View {
                 duplicateDefinition: duplicateDefinition,
                 revealDefinition: revealDefinition,
                 canRevealDefinition: { id in
-                    sections.first { $0.nodes.node(withID: id) != nil }?.id
-                        != TemplatePanelSection.projectSectionID
+                    projectNodes.node(withID: id) == nil
                 },
+                transferActionTitle: tab == .project ? "Add to My Library" : "Add to Project",
+                transferDefinition: tab == .project ? addToLibrary : addToProject,
                 requestDelete: { ids in
                     nodesToDelete = ids.compactMap { id in
-                        sections.lazy.compactMap { $0.nodes.node(withID: id) }.first
+                        activeSections.lazy.compactMap { $0.nodes.node(withID: id) }.first
                     }
-                }
+                },
+                moveDestinations: moveDestinations,
+                emptySectionPlaceholder: "Drop a part here to save a template"
             )
             .overlay {
-                // The section headers explain the empty panel themselves;
-                // only a fruitless search needs an unavailable state.
                 if isSearching && searchResults.isEmpty {
                     ContentUnavailableView.search(text: searchText)
                         .allowsHitTesting(false)
+                } else if !isSearching && tab == .project && projectNodes.isEmpty {
+                    ContentUnavailableView(
+                        "No Templates",
+                        systemImage: WorkspacePanel.reusableParts.systemImage,
+                        description: Text("Save a part as a template from Structure, or drop one here.")
+                    )
+                    .allowsHitTesting(false)
                 }
             }
             Divider()
@@ -1426,12 +1508,18 @@ struct ReusablePartLibraryPanel: View {
             TextField("Folder Name", text: $folderName)
             Button("Cancel", role: .cancel) {}
             Button("Create") {
+                guard let sectionID = folderDestinationSectionID else { return }
                 createFolder(
                     folderName.trimmingCharacters(in: .whitespacesAndNewlines),
-                    folderTargetSectionID
+                    sectionID
                 )
             }
             .disabled(folderName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+        } message: {
+            if let sectionID = folderDestinationSectionID,
+               let title = activeSections.first(where: { $0.id == sectionID })?.title {
+                Text("Creates the folder in \(title).")
+            }
         }
         .confirmationDialog(deleteTitle, isPresented: deleteAlertBinding) {
             Button(deleteButtonTitle, role: .destructive) {
@@ -1460,13 +1548,6 @@ struct ReusablePartLibraryPanel: View {
         nodesToDelete.contains { if case .folder = $0 { true } else { false } }
     }
 
-    private var deletesOnlyProjectNodes: Bool {
-        nodesToDelete.allSatisfy { node in
-            sections.first { $0.nodes.node(withID: node.id) != nil }?.id
-                == TemplatePanelSection.projectSectionID
-        }
-    }
-
     private var deleteTitle: String {
         nodesToDelete.count > 1
             ? "Delete \(nodesToDelete.count) Items?"
@@ -1479,7 +1560,7 @@ struct ReusablePartLibraryPanel: View {
     }
 
     private var deleteMessage: String {
-        let scope = deletesOnlyProjectNodes ? "this project" : "every project"
+        let scope = tab == .project ? "this project" : "every project"
         if deletesFolder {
             return "Also deletes the templates inside, for \(scope). Parts already added to pages are unchanged."
         } else if nodesToDelete.count > 1 {
@@ -1493,6 +1574,31 @@ struct ReusablePartLibraryPanel: View {
         Binding(get: { !nodesToDelete.isEmpty }, set: { if !$0 { nodesToDelete = [] } })
     }
 
+}
+
+/// The Project | Library | Dev switch shared by the Templates and Assets
+/// panels, styled like the Parts panel's source picker. The Dev tab appears
+/// only when the caller has development content to show.
+struct LibraryPanelTabPicker: View {
+    @Binding var tab: LibraryPanelTab
+    var tabs: [LibraryPanelTab] = [.project, .library]
+
+    var body: some View {
+        Picker("Content source", selection: $tab) {
+            ForEach(tabs) { tab in
+                Text(tab.title).tag(tab)
+            }
+        }
+        .buttonSizing(.flexible)
+        .pickerStyle(.palette)
+        .controlSize(.small)
+        .labelsHidden()
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .onChange(of: tabs) {
+            if !tabs.contains(tab) { tab = .project }
+        }
+    }
 }
 
 private struct PartLibraryTile: View {
@@ -1677,9 +1783,13 @@ struct GlobalPartLibraryPanel: View {
                 duplicateDefinition: duplicateDefinition,
                 revealDefinition: nil,
                 canRevealDefinition: nil,
+                transferActionTitle: nil,
+                transferDefinition: nil,
                 requestDelete: { ids in
                     nodesToDelete = ids.compactMap { library.node(withID: $0) }
-                }
+                },
+                moveDestinations: [],
+                emptySectionPlaceholder: nil
             )
             .overlay {
                 if displayedNodes.isEmpty {
