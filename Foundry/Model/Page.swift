@@ -10,7 +10,6 @@ nonisolated struct PageFolder: Codable, Equatable, Identifiable, Sendable {
     /// containing its pages. Opting out keeps the folder organizational —
     /// its pages surface in place, like pages excluded from navigation.
     var includeInNavigation: Bool
-
     init(id: UUID = UUID(), name: String, slug: String, parentID: UUID? = nil, order: Int = 0, includeInNavigation: Bool = true) {
         self.id = id
         self.name = name
@@ -53,6 +52,9 @@ nonisolated struct Page: Codable, Equatable, Identifiable, Sendable {
     var parentPageID: UUID?
     var order: Int
     var includeInNavigation: Bool
+    /// The extension chosen when the page was created. PHP requirements from
+    /// parts still promote the rendered page to PHP regardless of this value.
+    var preferredExtension: PageExtensionPreference?
     /// Nil intentionally follows the framework's Page defaults in both appearances.
     var backgroundOverride: PartPackageColorValue?
 
@@ -66,6 +68,7 @@ nonisolated struct Page: Codable, Equatable, Identifiable, Sendable {
         parentPageID: UUID? = nil,
         order: Int = 0,
         includeInNavigation: Bool = true,
+        preferredExtension: PageExtensionPreference? = nil,
         backgroundOverride: PartPackageColorValue? = nil
     ) {
         self.id = id
@@ -77,11 +80,12 @@ nonisolated struct Page: Codable, Equatable, Identifiable, Sendable {
         self.parentPageID = parentPageID
         self.order = order
         self.includeInNavigation = includeInNavigation
+        self.preferredExtension = preferredExtension
         self.backgroundOverride = backgroundOverride
     }
 
     private enum CodingKeys: String, CodingKey {
-        case id, title, slug, metadata, parts, folderID, parentPageID, order, includeInNavigation, backgroundOverride
+        case id, title, slug, metadata, parts, folderID, parentPageID, order, includeInNavigation, preferredExtension, backgroundOverride
     }
 
     init(from decoder: Decoder) throws {
@@ -95,6 +99,7 @@ nonisolated struct Page: Codable, Equatable, Identifiable, Sendable {
         parentPageID = try container.decodeIfPresent(UUID.self, forKey: .parentPageID)
         order = try container.decode(Int.self, forKey: .order)
         includeInNavigation = try container.decodeIfPresent(Bool.self, forKey: .includeInNavigation) ?? true
+        preferredExtension = try container.decodeIfPresent(PageExtensionPreference.self, forKey: .preferredExtension)
         backgroundOverride = try container.decodeIfPresent(PartPackageColorValue.self, forKey: .backgroundOverride)
     }
 

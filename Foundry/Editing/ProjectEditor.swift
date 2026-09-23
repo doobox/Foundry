@@ -157,6 +157,24 @@ struct ProjectEditor {
         mutate(actionName: "Edit Analytics Code") { $0.analyticsCode = code }
     }
 
+    func setGeneratesCacheBustingLinks(_ isEnabled: Bool) {
+        mutate(actionName: "Change Cache Busting") { $0.generatesCacheBustingLinks = isEnabled }
+    }
+
+    func setDefaultPageExtension(_ preference: PageExtensionPreference) {
+        mutate(actionName: "Change Default Page Extension") { $0.defaultPageExtension = preference }
+    }
+
+    func setPreviewServerPort(_ port: Int?) {
+        mutate(actionName: "Change Preview Server Port", impact: .publishingOnly) {
+            $0.previewServerPort = port.map { max(1_024, min($0, 65_535)) }
+        }
+    }
+
+    func setMinifiesGeneratedOutput(_ isEnabled: Bool) {
+        mutate(actionName: "Change Output Minification") { $0.minifiesGeneratedOutput = isEnabled }
+    }
+
     func setPublishingDestination(_ destination: PublishingDestinationKind) {
         mutate(actionName: "Change Publishing Destination", impact: .publishingOnly) {
             let previousDefaultPort = $0.publishingDestination.defaultPort

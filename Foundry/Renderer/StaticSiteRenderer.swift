@@ -21,7 +21,13 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
             return SiteExportBundle(files: [], errors: [error.localizedDescription])
         }
         let normalized = normalizedExportFiles(files)
-        return SiteExportBundle(files: normalized.files, errors: normalized.errors)
+        let outputFiles = environment == .published
+            ? PublishedOutputProcessor.process(normalized.files, for: site)
+            : normalized.files
+        return SiteExportBundle(
+            files: outputFiles,
+            errors: normalized.errors
+        )
     }
 
     func generate(site: Site, assets: ProjectAssetContents, emit: (SiteExportFile) throws -> Void) throws {
@@ -165,7 +171,7 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
     }
 
     static func outputPath(for page: Page, in site: Site) -> String {
-        let pageExtension = requiresPHP(page) ? "php" : "html"
+        let pageExtension = requiresPHP(page) || page.preferredExtension == .php ? "php" : "html"
         guard page.slug != "index" else { return "index.\(pageExtension)" }
         let directory = PageRouteResolver.pathSegments(
             for: page,

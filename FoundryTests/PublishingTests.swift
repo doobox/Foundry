@@ -158,6 +158,36 @@ struct PublishingTests {
     }
 
     @Test
+    func publishingStatusUsesDefaultDestinationIdentity() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appending(path: UUID().uuidString, directoryHint: .isDirectory)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let store = PublishingManifestStore(directory: directory)
+        let destination = PublishingDestination(
+            name: "Production",
+            kind: .sftp,
+            host: "example.com",
+            port: 22,
+            username: "publisher",
+            remotePath: "/public"
+        )
+        var publishedSite = Site.starter()
+        publishedSite.publishingDestinations = [destination]
+        publishedSite.defaultPublishingDestinationID = destination.id
+        publishedSite.synchronizeLegacyPublishingFields()
+        let manifest = PublishingManifest(files: ["index.html": "hash"])
+        try store.save(manifest, for: publishedSite)
+
+        var statusSite = publishedSite
+        statusSite.publishingDestination = .local
+        statusSite.publishingHost = "stale.example.com"
+        #expect(store.load(for: statusSite) == nil)
+
+        statusSite.synchronizeLegacyPublishingFields()
+        #expect(store.load(for: statusSite) == manifest)
+    }
+
+    @Test
     func publishingManifestCanBeRemovedToMarkEverythingChanged() throws {
         let directory = FileManager.default.temporaryDirectory
             .appending(path: UUID().uuidString, directoryHint: .isDirectory)

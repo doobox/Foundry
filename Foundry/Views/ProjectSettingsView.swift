@@ -8,6 +8,7 @@ enum ProjectSettingsSection: Hashable, Identifiable, Sendable {
     case webIcons
     case identity
     case search
+    case advanced
     case publishing
     case publishingDestination(UUID)
     case code
@@ -18,6 +19,7 @@ enum ProjectSettingsSection: Hashable, Identifiable, Sendable {
         case .webIcons: "webIcons"
         case .identity: "identity"
         case .search: "search"
+        case .advanced: "advanced"
         case .publishing: "publishing"
         case .publishingDestination(let id): "publishingDestination.\(id.uuidString)"
         case .code: "code"
@@ -182,6 +184,8 @@ struct ProjectSettingsView: View {
                     .tag(ProjectSettingsSection.identity)
                 Label("SEO & Search", systemImage: "magnifyingglass")
                     .tag(ProjectSettingsSection.search)
+                Label("Advanced", systemImage: "wrench.and.screwdriver")
+                    .tag(ProjectSettingsSection.advanced)
                 Label("Publishing", systemImage: "arrow.up.circle")
                     .tag(ProjectSettingsSection.publishing)
                 ForEach(site.publishingDestinations) { destination in
@@ -242,6 +246,8 @@ struct ProjectSettingsView: View {
                     allowsSearchIndexing: allowsSearchIndexing,
                     editor: editor
                 )
+            case .advanced:
+                AdvancedProjectSettingsView(site: site, editor: editor)
             case .publishing:
                 PublishingDestinationsOverview(selection: $selection, site: site, editor: editor)
             case .publishingDestination(let id):
@@ -268,6 +274,81 @@ struct ProjectSettingsView: View {
             }
         }
         .frame(minWidth: 880, idealWidth: 1_000, minHeight: 560, idealHeight: 680)
+    }
+}
+
+private struct AdvancedProjectSettingsView: View {
+    let site: Site
+    let editor: ProjectEditor
+
+    var body: some View {
+        Form {
+            Section("Published Resources") {
+                Toggle(
+                    "Generate cache-busting links",
+                    isOn: Binding(
+                        get: { site.generatesCacheBustingLinks },
+                        set: editor.setGeneratesCacheBustingLinks
+                    )
+                )
+                Text("Adds a content version to generated stylesheet and script links so browsers fetch changed resources while continuing to cache unchanged ones.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                Toggle(
+                    "Minify generated CSS and JavaScript",
+                    isOn: Binding(
+                        get: { site.minifiesGeneratedOutput },
+                        set: editor.setMinifiesGeneratedOutput
+                    )
+                )
+                Text("Uses conservative, format-aware minification. If a file cannot be transformed and validated safely, Foundry publishes its original contents.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Section("Page URLs") {
+                Picker(
+                    "Default page extension",
+                    selection: Binding(
+                        get: { site.defaultPageExtension },
+                        set: editor.setDefaultPageExtension
+                    )
+                ) {
+                    ForEach([PageExtensionPreference.html, .php], id: \.self) { preference in
+                        Text(preference.title).tag(preference)
+                    }
+                }
+                Text("Sets the initial extension for new pages. A part that requires PHP always promotes its page to .php.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Section("Preview Server") {
+                Picker("Port", selection: customPortEnabled) {
+                    Text("Automatic").tag(false)
+                    Text("Custom").tag(true)
+                }
+                if let port = site.previewServerPort {
+                    TextField("Port number", value: Binding(
+                        get: { port },
+                        set: { editor.setPreviewServerPort($0) }
+                    ), format: .number.grouping(.never))
+                    Text("Use a port from 1024 through 65535. A custom port can conflict with another application or project.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+        .formStyle(.grouped)
+        .navigationTitle("Advanced")
+    }
+
+    private var customPortEnabled: Binding<Bool> {
+        Binding(
+            get: { site.previewServerPort != nil },
+            set: { editor.setPreviewServerPort($0 ? 8_080 : nil) }
+        )
     }
 }
 

@@ -7,6 +7,7 @@ struct VideoPartControl: View {
         let title: String
     }
 
+    @Environment(\.inspectorLabelWidth) private var labelWidth
     @State private var isDropTarget = false
 
     let label: String
@@ -73,7 +74,7 @@ struct VideoPartControl: View {
                             .disabled(isClearDisabled)
                     }
                 }
-                .frame(width: InspectorMetrics.labelWidth)
+                .frame(width: InspectorMetrics.clampedLabelWidth(labelWidth))
                 .gridColumnAlignment(.trailing)
 
                 videoWell.gridColumnAlignment(.leading)
@@ -145,7 +146,10 @@ struct VideoPartControl: View {
 
     private func sectionHeading(_ title: String) -> some View {
         GridRow {
-            Color.clear.frame(width: InspectorMetrics.labelWidth, height: 0)
+            Color.clear.frame(
+                width: InspectorMetrics.clampedLabelWidth(labelWidth),
+                height: 0
+            )
             Text(title)
                 .font(.headline)
                 .foregroundStyle(.secondary)
@@ -269,4 +273,3 @@ struct VideoPartControl: View {
         )
     }
 }
-

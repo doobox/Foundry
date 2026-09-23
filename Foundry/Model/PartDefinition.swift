@@ -20,7 +20,7 @@ nonisolated struct PartInspectorControlGroup: Identifiable {
 }
 
 nonisolated struct PartDefinition: Sendable {
-    static let genericSystemImage = "square.stack.3d.up"
+    static let genericSystemImage = "puzzlepiece.extension"
 
     let type: PartType
     let displayName: String

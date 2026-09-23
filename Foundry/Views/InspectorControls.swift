@@ -2,12 +2,38 @@ import AppKit
 import SwiftUI
 
 enum InspectorMetrics {
-    static let labelWidth: CGFloat = 84
+    static let minimumLabelWidth: CGFloat = 100
+    static let maximumLabelWidth: CGFloat = 125
+    static let standardInspectorWidth: CGFloat = 380
+    static let expandedInspectorWidth: CGFloat = 494
     static let columnSpacing: CGFloat = 10
     static let rowSpacing: CGFloat = 7
     static let controlSpacing: CGFloat = 12
     static let horizontalSectionPadding: CGFloat = 14
     static let verticalSectionPadding: CGFloat = 8
+
+    static func labelWidth(for inspectorWidth: CGFloat) -> CGFloat {
+        let availableExpansion = expandedInspectorWidth - standardInspectorWidth
+        let expansionProgress = (inspectorWidth - standardInspectorWidth) / availableExpansion
+        let clampedProgress = min(max(expansionProgress, 0), 1)
+        let width = minimumLabelWidth + ((maximumLabelWidth - minimumLabelWidth) * clampedProgress)
+        return min(max(width, minimumLabelWidth), maximumLabelWidth)
+    }
+
+    static func clampedLabelWidth(_ width: CGFloat) -> CGFloat {
+        min(max(width, minimumLabelWidth), maximumLabelWidth)
+    }
+}
+
+private struct InspectorLabelWidthKey: EnvironmentKey {
+    static let defaultValue = InspectorMetrics.minimumLabelWidth
+}
+
+extension EnvironmentValues {
+    var inspectorLabelWidth: CGFloat {
+        get { self[InspectorLabelWidthKey.self] }
+        set { self[InspectorLabelWidthKey.self] = newValue }
+    }
 }
 
 private extension ControlSize {
@@ -23,6 +49,8 @@ private extension ControlSize {
 }
 
 struct InspectorGrid<Content: View>: View {
+    @State private var labelWidth = InspectorMetrics.minimumLabelWidth
+
     private let content: Content
     private let contentInsets: EdgeInsets
 
@@ -51,10 +79,18 @@ struct InspectorGrid<Content: View>: View {
         .padding(contentInsets)
         .controlSize(.small)
         .font(.callout)
+        .environment(\.inspectorLabelWidth, labelWidth)
+        .onGeometryChange(for: CGFloat.self) { proxy in
+            proxy.size.width
+        } action: { width in
+            labelWidth = InspectorMetrics.labelWidth(for: width)
+        }
     }
 }
 
 struct InspectorRow<Control: View>: View {
+    @Environment(\.inspectorLabelWidth) private var labelWidth
+
     let title: String
     let alignment: VerticalAlignment
     let indicator: InspectorRowIndicator?
@@ -93,7 +129,7 @@ struct InspectorRow<Control: View>: View {
                     .multilineTextAlignment(.trailing)
                     .help(title)
             }
-            .frame(width: InspectorMetrics.labelWidth)
+            .frame(width: InspectorMetrics.clampedLabelWidth(labelWidth))
             .gridColumnAlignment(.trailing)
 
             control

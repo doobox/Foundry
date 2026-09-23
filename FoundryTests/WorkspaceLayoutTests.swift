@@ -5,8 +5,8 @@ import Testing
 struct WorkspaceLayoutTests {
     @Test
     func panelsHaveDistinctAgreedNamesAndSymbols() {
-        #expect(PartDefinition.genericSystemImage == "square.stack.3d.up")
-        #expect(WorkspacePanel.parts.systemImage == "diamond")
+        #expect(PartDefinition.genericSystemImage == "puzzlepiece.extension")
+        #expect(WorkspacePanel.parts.systemImage == "puzzlepiece.extension")
         #expect(WorkspacePanel.reusableParts.title == "Templates")
         #expect(WorkspacePanel.reusableParts.systemImage == "rectangle.3.group")
         #expect(WorkspacePanel.globalParts.systemImage == "globe")

@@ -45,7 +45,7 @@ struct PartPackageTests {
             }
             checked += 1
         }
-        #expect(checked == 37, "Expected every documented control and control group's Quick example; update this count when adding a reference page.")
+        #expect(checked == 38, "Expected every documented control and control group's Quick example; update this count when adding a reference page.")
     }
 
     @Test(.enabled(if: FileManager.default.fileExists(atPath: developerDocsURL.appending(path: "AGENTS.md").path)))

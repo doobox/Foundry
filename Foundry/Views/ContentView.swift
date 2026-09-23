@@ -505,7 +505,8 @@ struct ContentView: View {
                 try? await Task.sleep(for: .milliseconds(750))
             }
             guard !Task.isCancelled else { return }
-            let site = document.site
+            var site = document.site
+            site.synchronizeLegacyPublishingFields()
             let assets = document.assetContents
             let localDirectory = site.publishingDestination == .local
                 ? site.defaultPublishingDestinationID.flatMap { PublishingDestinationStore.url(for: site.id, destinationID: $0) }
@@ -1785,7 +1786,11 @@ struct ContentView: View {
             do {
                 let snapshot = try await buildBrowserPreview(site: site, assets: assets)
                 guard !Task.isCancelled else { return }
-                let serverURL = try await browserPreviewServer.publish(snapshot, notifyingClients: false)
+                let serverURL = try await browserPreviewServer.publish(
+                    snapshot,
+                    notifyingClients: false,
+                    preferredPort: site.previewServerPort.flatMap(UInt16.init(exactly:))
+                )
                 browserPreviewURL = serverURL
                 browserPreviewRevision = revision
                 browserPreviewPackageRevision = packageRevision
@@ -1823,7 +1828,11 @@ struct ContentView: View {
                     try Task.checkCancellation()
                     // Navigation below also reloads an unchanged target. Avoid a
                     // competing reload event disconnecting the stream first.
-                    browserPreviewURL = try await browserPreviewServer.publish(snapshot, notifyingClients: false)
+                    browserPreviewURL = try await browserPreviewServer.publish(
+                        snapshot,
+                        notifyingClients: false,
+                        preferredPort: site.previewServerPort.flatMap(UInt16.init(exactly:))
+                    )
                     browserPreviewRevision = revision
                     browserPreviewPackageRevision = packageRevision
                 }
@@ -2058,7 +2067,8 @@ struct ContentView: View {
                     }
                 }
                 publishingState = .completed(result)
-                schedulePublishingChangeRefresh(immediately: true)
+                publishingChangeTask?.cancel()
+                publishingChangesByTreeItem.removeAll()
             } catch is CancellationError {
                 publishingState = .cancelled
             } catch {
@@ -2069,7 +2079,8 @@ struct ContentView: View {
     }
 
     private func markAllPublishingFilesChanged() {
-        let site = document.site
+        var site = document.site
+        site.synchronizeLegacyPublishingFields()
         let localDirectory = site.publishingDestination == .local
             ? site.defaultPublishingDestinationID.flatMap { PublishingDestinationStore.url(for: site.id, destinationID: $0) }
             : nil
@@ -2082,7 +2093,8 @@ struct ContentView: View {
     }
 
     private func markAllPublishingFilesUnchanged() {
-        let site = document.site
+        var site = document.site
+        site.synchronizeLegacyPublishingFields()
         let assets = document.assetContents
         let localDirectory = site.publishingDestination == .local
             ? site.defaultPublishingDestinationID.flatMap { PublishingDestinationStore.url(for: site.id, destinationID: $0) }
@@ -2099,7 +2111,8 @@ struct ContentView: View {
                     ).nextManifest
                 }.value
                 try PublishingManifestStore().save(manifest, for: site, localDirectory: localDirectory)
-                schedulePublishingChangeRefresh(immediately: true)
+                guard !Task.isCancelled else { return }
+                publishingChangesByTreeItem.removeAll()
             } catch {
                 exportErrorMessage = error.localizedDescription
             }

@@ -2,6 +2,7 @@ import AppKit
 import SwiftUI
 
 struct ImagePartControl: View {
+    @Environment(\.inspectorLabelWidth) private var labelWidth
     @State private var isDropTarget = false
 
     let label: String
@@ -46,7 +47,7 @@ struct ImagePartControl: View {
                         .disabled(isClearDisabled)
                 }
             }
-            .frame(width: InspectorMetrics.labelWidth)
+            .frame(width: InspectorMetrics.clampedLabelWidth(labelWidth))
             .gridColumnAlignment(.trailing)
 
             imageWell.gridColumnAlignment(.leading)

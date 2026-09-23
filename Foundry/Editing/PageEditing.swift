@@ -123,7 +123,8 @@ extension ProjectEditor {
         let page = Page(
             title: title,
             slug: uniqueSlug(for: title),
-            order: childItems(of: .root).count
+            order: childItems(of: .root).count,
+            preferredExtension: document.site.defaultPageExtension
         )
         mutate(actionName: "Add Page") { $0.pages.append(page) }
         return page.id

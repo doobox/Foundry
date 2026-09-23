@@ -106,10 +106,8 @@ struct StaticSiteRendererTests {
         #expect(bundle.file(at: "files/site.js") == nil)
         #expect(bundle.file(at: "files/page.css") != nil)
         #expect(bundle.file(at: "about/files/page.css") != nil)
-        #expect(bundle.file(at: "files/page.js") == nil)
-        #expect(bundle.file(at: "about/files/page.js") == nil)
-        #expect(try #require(bundle.file(at: "index.html")).contents.contains("href=\"files/site.css\""))
-        #expect(try #require(bundle.file(at: "about/index.html")).contents.contains("href=\"../files/site.css\""))
+        #expect(try #require(bundle.file(at: "index.html")).contents.contains("href=\"files/site.css?v="))
+        #expect(try #require(bundle.file(at: "about/index.html")).contents.contains("href=\"../files/site.css?v="))
     }
 
     @Test
@@ -130,7 +128,7 @@ struct StaticSiteRendererTests {
 
         #expect(bundle.file(at: "index.html") != nil)
         let about = try #require(bundle.file(at: "company/team/about/index.html"))
-        #expect(about.contents.contains("href=\"../../../files/site.css\""))
+        #expect(about.contents.contains("href=\"../../../files/site.css?v="))
     }
 
     @Test
@@ -446,5 +444,97 @@ struct StaticSiteRendererTests {
                 to: directory
             )
         }
+    }
+
+    @Test
+    func cacheBustingVersionsGeneratedStylesAndScripts() throws {
+        var site = Site.starter()
+        site.generatesCacheBustingLinks = true
+
+        let bundle = StaticSiteRenderer().render(site: site)
+        let html = try #require(bundle.file(at: "index.html")?.contents)
+
+        #expect(html.contains("files/site.css?v="))
+        #expect(html.contains("files/page.css?v="))
+    }
+
+    @Test
+    func cacheBustingCanBeDisabled() throws {
+        var site = Site.starter()
+        site.generatesCacheBustingLinks = false
+
+        let html = try #require(StaticSiteRenderer().render(site: site).file(at: "index.html")?.contents)
+
+        #expect(html.contains("href=\"files/site.css\""))
+        #expect(!html.contains("files/site.css?v="))
+    }
+
+    @Test @MainActor
+    func defaultExtensionOnlyAppliesWhenCreatingNewPages() throws {
+        let document = FoundryDocument(site: .starter())
+        let editor = ProjectEditor(document: document, undoManager: nil)
+        let existingPage = try #require(document.site.pages.first)
+        editor.setDefaultPageExtension(.php)
+        let newPageID = editor.addPage()
+        let newPage = try #require(document.site.pages.first(where: { $0.id == newPageID }))
+
+        #expect(StaticSiteRenderer.outputPath(for: existingPage, in: document.site) == "index.html")
+        #expect(newPage.preferredExtension == .php)
+        #expect(StaticSiteRenderer.outputPath(for: newPage, in: document.site).hasSuffix("index.php"))
+    }
+
+    @Test
+    func unsafeMinificationFallsBackToOriginalJavaScript() {
+        var site = Site.starter()
+        site.minifiesGeneratedOutput = true
+        let script = "const pattern = /a b/;\nconsole.log(pattern);"
+
+        let output = PublishedOutputProcessor.process(
+            [.init(path: "files/page.js", contents: script)],
+            for: site
+        )
+
+        #expect(output[0].contents == script)
+    }
+
+    @Test
+    func safeGeneratedCSSAndJavaScriptAreMinified() {
+        var site = Site.starter()
+        site.minifiesGeneratedOutput = true
+        site.generatesCacheBustingLinks = false
+
+        let output = PublishedOutputProcessor.process([
+            .init(path: "files/site.css", contents: "body {\n    color: red;\n}"),
+            .init(path: "files/page.js", contents: "const   answer =   42;\n")
+        ], for: site)
+
+        #expect(output[0].contents == "body { color: red; }")
+        #expect(output[1].contents == "const answer = 42;")
+    }
+
+    @Test
+    func cacheBustingVersionIsStableAndChangesOnlyWithContent() throws {
+        var site = Site.starter()
+        site.generatesCacheBustingLinks = true
+        let html = SiteExportFile(
+            path: "index.html",
+            contents: "<link rel=\"stylesheet\" href=\"files/site.css\">"
+        )
+
+        let first = PublishedOutputProcessor.process([
+            html, .init(path: "files/site.css", contents: "body { color: red; }")
+        ], for: site)
+        let second = PublishedOutputProcessor.process([
+            html, .init(path: "files/site.css", contents: "body { color: red; }")
+        ], for: site)
+        let changed = PublishedOutputProcessor.process([
+            html, .init(path: "files/site.css", contents: "body { color: blue; }")
+        ], for: site)
+        let firstHTML = try #require(first.first?.contents)
+        let secondHTML = try #require(second.first?.contents)
+        let changedHTML = try #require(changed.first?.contents)
+
+        #expect(firstHTML == secondHTML)
+        #expect(firstHTML != changedHTML)
     }
 }

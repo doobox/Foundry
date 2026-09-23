@@ -10,6 +10,7 @@ actor PreviewServer {
     private var bundle = SiteExportBundle(files: [])
     private var listener: NWListener?
     private var port: NWEndpoint.Port?
+    private var configuredPort: UInt16?
     private var startContinuation: CheckedContinuation<URL, any Error>?
     private var revision: UInt64 = 0
     private var documentRoot: URL?
@@ -23,6 +24,7 @@ actor PreviewServer {
         listener?.cancel()
         listener = nil
         port = nil
+        configuredPort = nil
         startContinuation?.resume(throwing: PreviewServerError.cancelled)
         startContinuation = nil
         diskSnapshot = nil
@@ -37,15 +39,15 @@ actor PreviewServer {
     private var eventStreams: [UUID: EventStream] = [:]
     private var navigationAcknowledgements: Set<UUID> = []
 
-    func publish(_ bundle: SiteExportBundle, notifyingClients: Bool = true) async throws -> URL {
+    func publish(_ bundle: SiteExportBundle, notifyingClients: Bool = true, preferredPort: UInt16? = nil) async throws -> URL {
         try bundle.validate()
         let snapshot = try PreviewDiskSnapshot.build(previous: diskSnapshot) { emit in
             for file in bundle.files { try emit(file) }
         }
-        return try await publish(snapshot, notifyingClients: notifyingClients)
+        return try await publish(snapshot, notifyingClients: notifyingClients, preferredPort: preferredPort)
     }
 
-    func publish(_ snapshot: PreviewDiskSnapshot, notifyingClients: Bool = true) async throws -> URL {
+    func publish(_ snapshot: PreviewDiskSnapshot, notifyingClients: Bool = true, preferredPort: UInt16? = nil) async throws -> URL {
         try Task.checkCancellation()
         diskSnapshot = snapshot
         documentRoot = snapshot.root
@@ -54,15 +56,24 @@ actor PreviewServer {
         if notifyingClients {
             publishReloadEvent()
         }
+        if listener != nil, configuredPort != preferredPort {
+            for stream in eventStreams.values { stream.connection.cancel() }
+            eventStreams.removeAll()
+            listener?.cancel()
+            listener = nil
+            port = nil
+        }
         if let port, let url = serverURL(port: port) { return url }
         if startContinuation != nil {
             throw PreviewServerError.alreadyStarting
         }
 
         let parameters = NWParameters.tcp
-        parameters.requiredLocalEndpoint = .hostPort(host: "127.0.0.1", port: .any)
+        let requestedPort = preferredPort.flatMap(NWEndpoint.Port.init(rawValue:)) ?? .any
+        parameters.requiredLocalEndpoint = .hostPort(host: "127.0.0.1", port: requestedPort)
         let listener = try NWListener(using: parameters)
         self.listener = listener
+        configuredPort = preferredPort
         listener.newConnectionHandler = { [weak self] connection in
             Task { await self?.serve(connection) }
         }
@@ -109,6 +120,7 @@ actor PreviewServer {
         listener?.cancel()
         listener = nil
         port = nil
+        configuredPort = nil
     }
 
     private func serve(_ connection: NWConnection) {

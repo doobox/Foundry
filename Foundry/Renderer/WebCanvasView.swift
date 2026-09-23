@@ -663,11 +663,22 @@ struct WebCanvasView: NSViewRepresentable {
             dropChrome.style.setProperty('background', 'transparent', 'important');
             dropChrome.style.setProperty('border', '0', 'important');
             if (candidate.kind === 'before' || candidate.kind === 'after') {
-              const top = candidate.kind === 'before' ? rect.top : rect.bottom - 4;
-              dropChrome.style.setProperty('left', rect.left + 'px', 'important');
-              dropChrome.style.setProperty('top', top + 'px', 'important');
-              dropChrome.style.setProperty('width', rect.width + 'px', 'important');
-              dropChrome.style.setProperty('height', '4px', 'important');
+              if (candidate.axis === 'inline') {
+                const flow = insertionFlow(target);
+                const beforeIsLeft = !flow.reversed;
+                const useLeftEdge = candidate.kind === 'before' ? beforeIsLeft : !beforeIsLeft;
+                const left = useLeftEdge ? rect.left : rect.right - 4;
+                dropChrome.style.setProperty('left', left + 'px', 'important');
+                dropChrome.style.setProperty('top', rect.top + 'px', 'important');
+                dropChrome.style.setProperty('width', '4px', 'important');
+                dropChrome.style.setProperty('height', rect.height + 'px', 'important');
+              } else {
+                const top = candidate.kind === 'before' ? rect.top : rect.bottom - 4;
+                dropChrome.style.setProperty('left', rect.left + 'px', 'important');
+                dropChrome.style.setProperty('top', top + 'px', 'important');
+                dropChrome.style.setProperty('width', rect.width + 'px', 'important');
+                dropChrome.style.setProperty('height', '4px', 'important');
+              }
               dropChrome.style.setProperty('background', color, 'important');
             } else {
               const compactZone = target.matches('[data-foundry-empty-parent], [data-foundry-image-drop-zone], [data-foundry-root-drop-zone]');
@@ -842,6 +853,43 @@ struct WebCanvasView: NSViewRepresentable {
             );
           };
 
+          const insertionFlow = element => {
+            const parent = element?.parentElement;
+            if (!parent) return { axis: 'block', reversed: false };
+            const style = getComputedStyle(parent);
+            if (style.display === 'flex' || style.display === 'inline-flex') {
+              const inline = style.flexDirection === 'row' || style.flexDirection === 'row-reverse';
+              return {
+                axis: inline ? 'inline' : 'block',
+                reversed: inline && style.flexDirection === 'row-reverse'
+              };
+            }
+            if (style.display === 'grid' || style.display === 'inline-grid') {
+              const tracks = style.gridTemplateColumns
+                .split(/\\s+/)
+                .filter(track => track.length > 0 && track !== 'none');
+              return {
+                axis: tracks.length > 1 ? 'inline' : 'block',
+                reversed: tracks.length > 1 && style.direction === 'rtl'
+              };
+            }
+            return { axis: 'block', reversed: false };
+          };
+
+          const adjacentPlacement = (element, event) => {
+            const rect = element.getBoundingClientRect();
+            const flow = insertionFlow(element);
+            if (flow.axis === 'inline') {
+              const firstHalf = event.clientX < rect.left + rect.width / 2;
+              const before = flow.reversed ? !firstHalf : firstHalf;
+              return { kind: before ? 'before' : 'after', axis: 'inline' };
+            }
+            return {
+              kind: event.clientY < rect.top + rect.height / 2 ? 'before' : 'after',
+              axis: 'block'
+            };
+          };
+
           const intendedPlacement = event => {
             const emptyParent = event.target.closest('[data-foundry-empty-parent]');
             if (emptyParent) {
@@ -856,9 +904,10 @@ struct WebCanvasView: NSViewRepresentable {
             if (rootDropZone) return { kind: 'end', element: rootDropZone };
             const adjacentZone = event.target.closest('[data-foundry-adjacent-target]');
             if (adjacentZone) {
-              const rect = adjacentZone.getBoundingClientRect();
+              const adjacent = adjacentPlacement(adjacentZone, event);
               return {
-                kind: event.clientY < rect.top + rect.height / 2 ? 'before' : 'after',
+                kind: adjacent.kind,
+                axis: adjacent.axis,
                 targetID: adjacentZone.dataset.foundryAdjacentTarget,
                 element: adjacentZone
               };
@@ -866,26 +915,52 @@ struct WebCanvasView: NSViewRepresentable {
             const element = event.target.closest(selector);
             if (!element) return { kind: 'end' };
             const rect = element.getBoundingClientRect();
+            const flow = insertionFlow(element);
+            if (flow.axis === 'inline') {
+              const distanceFromStart = flow.reversed
+                ? rect.right - event.clientX
+                : event.clientX - rect.left;
+              const distanceFromEnd = flow.reversed
+                ? event.clientX - rect.left
+                : rect.right - event.clientX;
+              const edgeTargetWidth = Math.min(Math.max(rect.width * 0.25, 18), rect.width / 2);
+              if (distanceFromStart <= edgeTargetWidth) {
+                return { kind: 'before', axis: 'inline', targetID: element.dataset.foundryId, element };
+              }
+              if (distanceFromEnd <= edgeTargetWidth) {
+                return { kind: 'after', axis: 'inline', targetID: element.dataset.foundryId, element };
+              }
+              if (element.dataset.foundryAcceptsChildren === 'true') {
+                return { kind: 'inside', targetID: element.dataset.foundryId, element };
+              }
+              return {
+                kind: distanceFromStart < rect.width / 2 ? 'before' : 'after',
+                axis: 'inline',
+                targetID: element.dataset.foundryId,
+                element
+              };
+            }
             const distanceFromTop = event.clientY - rect.top;
             const distanceFromBottom = rect.bottom - event.clientY;
             if (distanceFromTop <= 18) {
-              return { kind: 'before', targetID: element.dataset.foundryId, element };
+              return { kind: 'before', axis: 'block', targetID: element.dataset.foundryId, element };
             }
             if (distanceFromBottom <= 18) {
-              return { kind: 'after', targetID: element.dataset.foundryId, element };
+              return { kind: 'after', axis: 'block', targetID: element.dataset.foundryId, element };
             }
             const edgeTargetHeight = Math.min(Math.max(rect.height * 0.25, 18), rect.height / 2);
             if (distanceFromTop <= edgeTargetHeight) {
-              return { kind: 'before', targetID: element.dataset.foundryId, element };
+              return { kind: 'before', axis: 'block', targetID: element.dataset.foundryId, element };
             }
             if (distanceFromTop >= rect.height - edgeTargetHeight) {
-              return { kind: 'after', targetID: element.dataset.foundryId, element };
+              return { kind: 'after', axis: 'block', targetID: element.dataset.foundryId, element };
             }
             if (element.dataset.foundryAcceptsChildren === 'true') {
               return { kind: 'inside', targetID: element.dataset.foundryId, element };
             }
             return {
               kind: distanceFromTop < rect.height / 2 ? 'before' : 'after',
+              axis: 'block',
               targetID: element.dataset.foundryId,
               element
             };

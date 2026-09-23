@@ -115,6 +115,11 @@ struct CanvasDragDropTests {
         #expect(script.contains("data-foundry-adjacent-target"))
         #expect(script.contains("foundry-image-asset:"))
         #expect(script.contains("insertImagePart"))
+        #expect(script.contains("const insertionFlow = element =>"))
+        #expect(script.contains("style.flexDirection === 'row-reverse'"))
+        #expect(script.contains("style.gridTemplateColumns"))
+        #expect(script.contains("candidate.axis === 'inline'"))
+        #expect(script.contains("dropChrome.style.setProperty('width', '4px'"))
     }
 }
 

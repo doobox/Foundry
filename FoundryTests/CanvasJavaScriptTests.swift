@@ -72,6 +72,30 @@ struct CanvasJavaScriptTests {
         }
         #expect(recorder.messages.last?.event == .selectPart)
         #expect(recorder.messages.last?.partID == outerID)
+
+        let imageDropMessageCount = recorder.messages.count
+        _ = try await webView.callAsyncJavaScript("""
+            const part = document.querySelector('[data-foundry-id="' + CSS.escape(innerID) + '"]');
+            const zone = document.createElement('img');
+            zone.setAttribute('data-foundry-image-drop-zone', '');
+            zone.dataset.foundryImageProperty = 'source';
+            part.appendChild(zone);
+            const file = new File(['image bytes'], 'photo.png', { type: 'image/png' });
+            const transfer = {
+              types: ['Files'], files: [file], effectAllowed: 'copy', dropEffect: 'none', getData: () => ''
+            };
+            for (const name of ['dragover', 'drop']) {
+              const event = new Event(name, { bubbles: true, cancelable: true });
+              Object.defineProperty(event, 'dataTransfer', { value: transfer });
+              zone.dispatchEvent(event);
+            }
+            """, arguments: ["innerID": innerID.uuidString], in: nil, contentWorld: .defaultClient)
+        for _ in 0..<80 where recorder.messages.count == imageDropMessageCount {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        #expect(recorder.messages.last?.event == .importImageAsset)
+        #expect(recorder.messages.last?.partID == innerID)
+        #expect(recorder.messages.last?.propertyKey?.rawValue == "source")
     }
 
     @Test(.timeLimit(.minutes(1)))

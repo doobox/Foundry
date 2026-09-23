@@ -1,5 +1,19 @@
 import Foundation
 
+nonisolated enum PageExtensionPreference: String, Codable, CaseIterable, Sendable {
+    case automatic
+    case html
+    case php
+
+    var title: String {
+        switch self {
+        case .automatic: "Automatic"
+        case .html: "HTML"
+        case .php: "PHP"
+        }
+    }
+}
+
 nonisolated struct ProjectFrameworkValues: Codable, Equatable, Sendable {
     var spacing: [FrameworkSpacing] = []
     var fonts: [FrameworkCustomFont] = []
@@ -187,6 +201,10 @@ nonisolated struct Site: Codable, Equatable, Identifiable, Sendable {
     var bodyStartCode: String
     var bodyEndCode: String
     var analyticsCode: String
+    var generatesCacheBustingLinks: Bool
+    var defaultPageExtension: PageExtensionPreference
+    var previewServerPort: Int?
+    var minifiesGeneratedOutput: Bool
     var cleansObsoleteExportFiles: Bool
     var publishingDestination: PublishingDestinationKind
     var publishingHost: String
@@ -303,6 +321,10 @@ nonisolated struct Site: Codable, Equatable, Identifiable, Sendable {
         bodyStartCode: String = "",
         bodyEndCode: String = "",
         analyticsCode: String = "",
+        generatesCacheBustingLinks: Bool = true,
+        defaultPageExtension: PageExtensionPreference = .html,
+        previewServerPort: Int? = nil,
+        minifiesGeneratedOutput: Bool = false,
         cleansObsoleteExportFiles: Bool = true,
         publishingDestination: PublishingDestinationKind = .local,
         publishingHost: String = "",
@@ -346,6 +368,10 @@ nonisolated struct Site: Codable, Equatable, Identifiable, Sendable {
         self.bodyStartCode = bodyStartCode
         self.bodyEndCode = bodyEndCode
         self.analyticsCode = analyticsCode
+        self.generatesCacheBustingLinks = generatesCacheBustingLinks
+        self.defaultPageExtension = defaultPageExtension
+        self.previewServerPort = previewServerPort
+        self.minifiesGeneratedOutput = minifiesGeneratedOutput
         self.cleansObsoleteExportFiles = cleansObsoleteExportFiles
         self.publishingDestination = publishingDestination
         self.publishingHost = publishingHost
@@ -417,7 +443,7 @@ nonisolated struct Site: Codable, Equatable, Identifiable, Sendable {
 
     private enum CodingKeys: String, CodingKey {
         case appearanceMode
-        case id, schemaVersion, name, language, publicURL, titleSuffix, defaultDescription, favicon, webIconAssets, defaultSocialImage, logo, siteLogoAssets, logoAlt, generatesCanonicalURLs, generatesSitemap, generatesRobotsTXT, allowsSearchIndexing, customCodeEnabled, headCode, bodyStartCode, bodyEndCode, analyticsCode, cleansObsoleteExportFiles, publishingDestination, publishingHost, publishingPort, publishingUsername, publishingRemotePath, publishingS3Bucket, publishingS3Region, publishingDestinations, defaultPublishingDestinationID, pages, pageFolders, framework, frameworkSourceID, projectFrameworkValues, frameworkStates, globalPartLibrary, assetLibrary, partPackages
+        case id, schemaVersion, name, language, publicURL, titleSuffix, defaultDescription, favicon, webIconAssets, defaultSocialImage, logo, siteLogoAssets, logoAlt, generatesCanonicalURLs, generatesSitemap, generatesRobotsTXT, allowsSearchIndexing, customCodeEnabled, headCode, bodyStartCode, bodyEndCode, analyticsCode, generatesCacheBustingLinks, defaultPageExtension, previewServerPort, minifiesGeneratedOutput, cleansObsoleteExportFiles, publishingDestination, publishingHost, publishingPort, publishingUsername, publishingRemotePath, publishingS3Bucket, publishingS3Region, publishingDestinations, defaultPublishingDestinationID, pages, pageFolders, framework, frameworkSourceID, projectFrameworkValues, frameworkStates, globalPartLibrary, assetLibrary, partPackages
     }
 
     init(from decoder: Decoder) throws {
@@ -445,6 +471,11 @@ nonisolated struct Site: Codable, Equatable, Identifiable, Sendable {
         bodyStartCode = try container.decode(String.self, forKey: .bodyStartCode)
         bodyEndCode = try container.decode(String.self, forKey: .bodyEndCode)
         analyticsCode = try container.decode(String.self, forKey: .analyticsCode)
+        generatesCacheBustingLinks = try container.decodeIfPresent(Bool.self, forKey: .generatesCacheBustingLinks) ?? true
+        defaultPageExtension = try container.decodeIfPresent(PageExtensionPreference.self, forKey: .defaultPageExtension) ?? .html
+        if defaultPageExtension == .automatic { defaultPageExtension = .html }
+        previewServerPort = try container.decodeIfPresent(Int.self, forKey: .previewServerPort)
+        minifiesGeneratedOutput = try container.decodeIfPresent(Bool.self, forKey: .minifiesGeneratedOutput) ?? false
         cleansObsoleteExportFiles = try container.decode(Bool.self, forKey: .cleansObsoleteExportFiles)
         publishingDestination = try container.decode(PublishingDestinationKind.self, forKey: .publishingDestination)
         publishingHost = try container.decode(String.self, forKey: .publishingHost)
