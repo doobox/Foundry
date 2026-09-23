@@ -168,9 +168,12 @@ private struct ProjectCardChrome<Artwork: View>: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            artwork
-                .frame(maxWidth: .infinity)
+            // Sizing the slot with Color.clear keeps a scaledToFill image
+            // out of layout entirely — otherwise a wide image stretches the
+            // card past the footer and leaves a gap at its trailing edge.
+            Color.clear
                 .aspectRatio(16 / 10, contentMode: .fit)
+                .overlay { artwork }
                 .clipped()
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
