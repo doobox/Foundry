@@ -45,13 +45,16 @@ nonisolated enum SiteKitStore {
         }) else {
             throw CocoaError(.fileReadNoSuchFile)
         }
-        let previewURL = itemURL.appending(path: "preview.png")
+        // Card artwork matches framework previews: PNG, JPEG, or WebP.
+        let previewURL = ["png", "jpg", "jpeg", "webp"]
+            .map { itemURL.appending(path: "preview.\($0)") }
+            .first { FileManager.default.fileExists(atPath: $0.path) }
         return SiteKit(
             itemURL: itemURL.standardizedFileURL,
             documentURL: documentURL.standardizedFileURL,
             title: manifest["title"] as? String ?? itemURL.lastPathComponent,
             details: manifest["description"] as? String,
-            previewURL: FileManager.default.fileExists(atPath: previewURL.path) ? previewURL : nil,
+            previewURL: previewURL,
             packTitle: packTitle,
             isDevelopment: isDevelopment
         )

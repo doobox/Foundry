@@ -48,12 +48,12 @@ struct SiteKitLibraryTests {
             format: .xml,
             options: 0
         ).write(to: itemURL.appending(path: "Info.plist"))
-        try Data([1]).write(to: itemURL.appending(path: "preview.png"))
+        try Data([1]).write(to: itemURL.appending(path: "preview.jpg"))
         library.refresh()
         let described = try #require(library.kits.first)
         #expect(described.title == "Restaurant")
         #expect(described.details == "High-impact site for restaurants.")
-        #expect(described.previewURL != nil)
+        #expect(described.previewURL?.lastPathComponent == "preview.jpg")
 
         // A folder without a .foundry document is not a kit; browsing skips it.
         try FileManager.default.createDirectory(
