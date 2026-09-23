@@ -11,13 +11,15 @@ enum FoundryPackInstaller {
     }
 
     nonisolated static func installFiles(from sourceURL: URL) throws {
-        let packURLs = FoundryPackLoader.packURLs(in: sourceURL, includingRoot: true)
-        guard !packURLs.isEmpty else { throw FoundryPackLoadingError.wrongExtension }
-        for url in packURLs {
-            let pack = try FoundryPackLoader.load(from: url)
-            if !pack.isCollection {
-                _ = try PartPackageLoader.load(from: url)
-            }
+        let pack = try FoundryPackLoader.load(from: sourceURL)
+        for url in pack.partURLs {
+            _ = try PartPackageLoader.load(from: url)
+        }
+        for url in pack.frameworkURLs {
+            _ = try FrameworkBundleStore.load(from: url)
+        }
+        for url in pack.templateURLs where ReusablePartLibrary.entry(at: url) == nil {
+            throw FoundryPackLoadingError.invalidItem("Templates/\(url.lastPathComponent)")
         }
 
         let destination = try FoundryPackLoader.installedPacksURL()
@@ -60,14 +62,6 @@ enum FoundryPackInstaller {
 final class FoundryApplicationDelegate: NSObject, NSApplicationDelegate {
     func application(_ application: NSApplication, open urls: [URL]) {
         for url in urls {
-            if FrameworkBundleStore.isFrameworkURL(url) {
-                do {
-                    try FrameworkLibrary.shared.install(from: url)
-                } catch {
-                    presentInstallError(error, title: "Foundry Framework Could Not Be Installed")
-                }
-                continue
-            }
             guard FoundryPackLoader.isPackURL(url) else { continue }
             if url.pathExtension.lowercased() == "foundrydevpack" {
                 PartPackageCatalog.shared.openDevelopmentPack(at: url)

@@ -938,8 +938,8 @@ struct DeveloperReleasesView: View {
     }
 
     private func issueUpdate(sourceURL: URL) {
-        guard let pack = try? FoundryPackLoader.load(from: sourceURL),
-              let packID = pack.identifier else { return }
+        guard let pack = try? FoundryPackLoader.load(from: sourceURL) else { return }
+        let packID = pack.identifier
         let version = releaseVersion.trimmingCharacters(in: .whitespacesAndNewlines)
         let site = PartUpdatePublisherConfiguration.site
         let credential = PublishingCredentialStore.credential(site: site)
@@ -1172,7 +1172,7 @@ private struct DeveloperPackageIssue: Identifiable {
         self.url = url
         self.diagnostics = diagnostics
 
-        let manifestURL = url.appending(path: "Contents/Info.plist")
+        let manifestURL = url.appending(path: "Info.plist")
         let manifest: [String: Any]?
         if let data = try? Data(contentsOf: manifestURL),
            let propertyList = try? PropertyListSerialization.propertyList(from: data, format: nil) {

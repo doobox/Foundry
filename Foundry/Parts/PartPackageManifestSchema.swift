@@ -11,30 +11,14 @@ nonisolated enum PartPackageManifestSchema {
         pattern: #"^[a-z](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)+$"#
     )
 
-    enum Kind: Sendable {
-        case collection
-        case part
-    }
-
-    struct Inspection: Sendable {
-        let kind: Kind
-        let identifier: String?
-    }
-
     enum SchemaError: Error, LocalizedError {
         case rootIsNotDictionary
-        case invalidCollectionFlag
-        case invalidCollectionKeys([String])
         case missingPartIdentifier
 
         var errorDescription: String? {
             switch self {
             case .rootIsNotDictionary:
                 "Info.plist must contain a dictionary at its root."
-            case .invalidCollectionFlag:
-                "Info.plist:collection must be a Boolean."
-            case .invalidCollectionKeys(let keys):
-                "A collection Info.plist may contain only collection = true. Remove: \(keys.joined(separator: ", "))."
             case .missingPartIdentifier:
                 "A part Info.plist requires a non-empty id."
             }
@@ -44,12 +28,8 @@ nonisolated enum PartPackageManifestSchema {
     private static let partKeys: Set<String> = [
         "minimumAPIVersion", "id", "title", "description", "author", "version", "group",
         "tags", "showsInPartLibrary", "allowedParents", "controls", "groups", "templates", "assets", "helpURL", "missingPart",
-        "requiresPHP", "libraries", "collection", "updates"
+        "requiresPHP", "libraries"
     ]
-    private static let collectionKeys: Set<String> = [
-        "collection", "minimumAPIVersion", "id", "title", "author", "version", "updates"
-    ]
-    private static let updateKeys: Set<String> = ["appcastURL", "publicKey"]
     private static let propertyKeys: Set<String> = [
         "id", "label", "title", "body", "systemImage", "group", "defaults", "responsive", "subtitle", "buttonText", "units", "tooltip", "linked",
         "type", "font", "showsFamily", "showsWeight", "showsStyle", "minimum", "maximum", "step", "options", "frameworkValues", "allowsCustom", "opacity", "outputFormat",
@@ -68,37 +48,13 @@ nonisolated enum PartPackageManifestSchema {
     private static let controlGroupKeys: Set<String> = ["type", "styles", "states", "defaultOverrides"]
     private static let groupKeys: Set<String> = ["name", "systemImage"]
 
-    static func inspect(_ data: Data) throws -> Inspection {
+    static func inspect(_ data: Data) throws -> String {
         let dictionary = try rootDictionary(from: data)
-        let collection: Bool
-        if let rawCollection = dictionary["collection"] {
-            guard isBoolean(rawCollection), let value = rawCollection as? Bool else {
-                throw SchemaError.invalidCollectionFlag
-            }
-            collection = value
-        } else {
-            collection = false
-        }
-
-        if collection {
-            let unknownKeys = dictionary.keys.filter { !collectionKeys.contains($0) }.sorted()
-            guard unknownKeys.isEmpty else {
-                throw SchemaError.invalidCollectionKeys(unknownKeys)
-            }
-            let identifier = dictionary["id"] as? String
-            if dictionary["updates"] != nil,
-               (identifier?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty != false
-                || SemanticVersion(dictionary["version"] as? String ?? "") == nil) {
-                throw SchemaError.invalidCollectionKeys(["An update-enabled collection requires id and semantic version"])
-            }
-            return Inspection(kind: .collection, identifier: identifier)
-        }
-
         guard let identifier = dictionary["id"] as? String,
               !identifier.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             throw SchemaError.missingPartIdentifier
         }
-        return Inspection(kind: .part, identifier: identifier)
+        return identifier
     }
 
     static func diagnostics(for data: Data) throws -> [PartPackageDiagnostic] {
@@ -107,16 +63,8 @@ nonisolated enum PartPackageManifestSchema {
         unknownKeys(in: dictionary, allowed: partKeys, location: "Info.plist", into: &diagnostics)
         validatePartFields(in: dictionary, into: &diagnostics)
 
-        if let collection = dictionary["collection"], !isBoolean(collection) {
-            diagnostics.append(.init(
-                severity: .error,
-                location: "Info.plist:collection",
-                message: "collection must be a Boolean."
-            ))
-        }
         validateAPIVersion(in: dictionary, into: &diagnostics)
         validateReleaseVersion(in: dictionary, into: &diagnostics)
-        validateUpdates(in: dictionary, into: &diagnostics)
 
         validateDictionaryArray(dictionary["controls"], key: "controls", parent: "Info.plist", into: &diagnostics)
         let knownControlGroupKinds = Set(PartPackageControlGroup.Kind.allCases.map(\.rawValue))
@@ -939,28 +887,6 @@ nonisolated enum PartPackageManifestSchema {
                 message: "Use a semantic version in MAJOR.MINOR.PATCH form, for example 1.0.0."
             ))
             return
-        }
-    }
-
-    private static func validateUpdates(
-        in dictionary: [String: Any],
-        into diagnostics: inout [PartPackageDiagnostic]
-    ) {
-        guard let value = dictionary["updates"] else { return }
-        guard let updates = value as? [String: Any] else {
-            appendTypeError(key: "updates", expected: "a dictionary", location: "Info.plist", into: &diagnostics)
-            return
-        }
-        unknownKeys(in: updates, allowed: updateKeys, location: "Info.plist:updates", into: &diagnostics)
-        requireString("appcastURL", in: updates, location: "Info.plist:updates", into: &diagnostics)
-        requireString("publicKey", in: updates, location: "Info.plist:updates", into: &diagnostics)
-        if let value = updates["appcastURL"] as? String,
-           URL(string: value)?.scheme?.lowercased() != "https" {
-            diagnostics.append(.init(severity: .error, location: "Info.plist:updates:appcastURL", message: "appcastURL must use HTTPS."))
-        }
-        if let value = updates["publicKey"] as? String,
-           Data(base64Encoded: value)?.count != 32 {
-            diagnostics.append(.init(severity: .error, location: "Info.plist:updates:publicKey", message: "publicKey must be a Base64-encoded Ed25519 public key."))
         }
     }
 

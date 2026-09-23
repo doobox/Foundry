@@ -11,7 +11,7 @@ struct BuiltInLayoutPartsTests {
     private func package(_ name: String) throws -> LoadedPartPackage {
         let root = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent().deletingLastPathComponent()
-            .appending(path: "Foundry/Resources/BuiltInParts.bundle/Contents/Resources/BuiltInParts.foundrypack/Contents/Resources/\(name).foundrypack")
+            .appending(path: "Foundry/Resources/BuiltInParts.bundle/Contents/Resources/BuiltInParts.foundrypack/Parts/\(name)")
         return try PartPackageLoader.load(from: root)
     }
 

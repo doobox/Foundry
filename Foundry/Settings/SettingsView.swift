@@ -114,7 +114,7 @@ private struct GeneralSettingsView: View {
                             .disabled(libraryFolderPath == nil)
                     }
                 }
-                Text("Installed packs, templates and saved frameworks live here. Point it at a synced folder (iCloud Drive, Dropbox) to share one library across your Macs — existing content is copied to the new location.")
+                Text("Installed packs live here. Packs can contain parts, templates and frameworks. Point this at a synced folder (iCloud Drive, Dropbox) to share one library across your Macs — existing content is copied to the new location.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -137,7 +137,7 @@ private struct GeneralSettingsView: View {
         panel.canCreateDirectories = true
         panel.allowsMultipleSelection = false
         panel.prompt = "Use Folder"
-        panel.message = "Choose the folder that holds Foundry's packs, templates and frameworks."
+        panel.message = "Choose the folder that holds Foundry's packs."
         guard panel.runModal() == .OK, let url = panel.url else { return }
         setLibraryFolder(FoundryLibraryLocation.resolvedRoot(forChosen: url).path)
     }

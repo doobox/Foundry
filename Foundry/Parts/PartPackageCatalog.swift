@@ -139,8 +139,7 @@ final class PartPackageCatalog {
         Task { [weak self] in
             _ = await initialLoadTask?.value
             let result = await Task.detached(priority: .utility) {
-                let urls = FoundryPackLoader.packURLs(in: rootURL, includingRoot: true)
-                    .map(\.standardizedFileURL)
+                let urls = (try? FoundryPackLoader.load(from: rootURL).partURLs) ?? []
                 let outcomes = await PartCatalogSnapshot.loadOutcomes(urls)
                 PartPackagePreparedIndex.flush()
                 PartPackageValidationCache.flush()
@@ -160,7 +159,7 @@ final class PartPackageCatalog {
         let url = outcome.url
         Task {
             await PartIconLoader.shared.removeIcon(
-                at: url.appending(path: "Contents/Resources/icon.svg")
+                at: url.appending(path: "Resources/icon.svg")
             )
         }
         if let package = outcome.package {
@@ -240,10 +239,14 @@ final class PartPackageCatalog {
 
     func reloadInstalledPacks() {
         reloadCompleteCatalog()
+        ReusablePartLibrary.shared.refresh()
+        FrameworkLibrary.shared.reload()
     }
 
     func reloadAllPacks() {
         reloadCompleteCatalog()
+        ReusablePartLibrary.shared.refresh()
+        FrameworkLibrary.shared.reload()
     }
 
     func waitUntilLoaded() async {
@@ -311,6 +314,8 @@ final class PartPackageCatalog {
 
     func openDevelopmentPack(at rootURL: URL) {
         let rootURL = rootURL.standardizedFileURL
+        ReusablePartLibrary.shared.openDevelopmentPack(at: rootURL)
+        FrameworkLibrary.shared.openDevelopmentPack(at: rootURL)
         reloadDevelopmentPack(at: rootURL)
         watchDevelopmentPack(at: rootURL)
     }
@@ -344,6 +349,8 @@ final class PartPackageCatalog {
 
     private func reloadDevelopmentPack(at rootURL: URL) {
         reloadPartPacks(under: rootURL, allowsReplacement: true)
+        ReusablePartLibrary.shared.refresh()
+        FrameworkLibrary.shared.reload()
     }
 }
 
@@ -372,13 +379,16 @@ private struct PartCatalogSnapshot: Sendable {
                 path: "BuiltInParts.foundrypack",
                 directoryHint: .isDirectory
             )
-            urls.append(contentsOf: FoundryPackLoader.packURLs(in: containerURL, includingRoot: true))
+            if let pack = try? FoundryPackLoader.load(from: containerURL) {
+                urls.append(contentsOf: pack.partURLs)
+            }
         }
 
         let installedRoot = try? FoundryPackLoader.installedPacksURL()
-        let installedURLs = installedRoot.map { FoundryPackLoader.packURLs(in: $0) } ?? []
-        urls.append(contentsOf: installedURLs)
-        let developmentRoots = Set(installedURLs.compactMap { url in
+        let installedPackURLs = installedRoot.map { FoundryPackLoader.packURLs(in: $0) } ?? []
+        let installedPacks = installedPackURLs.compactMap { try? FoundryPackLoader.load(from: $0) }
+        urls.append(contentsOf: installedPacks.flatMap(\.partURLs))
+        let developmentRoots = Set(installedPackURLs.compactMap { url in
             url.pathExtension.lowercased() == "foundrydevpack" ? url.standardizedFileURL : nil
         })
 
@@ -475,10 +485,6 @@ private struct PartPackageLoadOutcome: Sendable {
 
     nonisolated static func load(from url: URL, validates: Bool) -> PartPackageLoadOutcome {
         do {
-            let pack = try FoundryPackLoader.load(from: url)
-            guard !pack.isCollection else {
-                return .init(url: url, package: nil, diagnostics: [])
-            }
             let result = try PartPackageLoader.loadForCatalog(from: url, validates: validates)
             if result.package.isDevelopmentPack {
                 try result.package.preparePayload()

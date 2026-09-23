@@ -125,7 +125,7 @@ struct FrameworkEditingTests {
         defer { try? FileManager.default.removeItem(at: destination) }
         _ = try FrameworkBundleStore.create(name: "Before", preview: preview, to: destination)
         let saved = try FrameworkBundleStore.load(from: destination)
-        let frameworkURL = destination.appending(path: "Contents/Resources/framework.json")
+        let frameworkURL = destination.appending(path: "Resources/framework.json")
         let originalData = try Data(contentsOf: frameworkURL)
         let edited = try FrameworkBundleStore.editArtwork(saved, name: "After", preview: preview)
         #expect(edited.id == saved.id)
@@ -327,7 +327,7 @@ struct FrameworkEditingTests {
                 framework: document.site.framework, name: name, preview: try FrameworkBundleStore.preview(from: FrameworkBundleStore.builtInFrameworks()[0].previewURL), id: id, to: root
             )
             let payload = try JSONDecoder().decode(Framework.self, from: Data(contentsOf:
-                root.appending(path: "Contents/Resources/framework.json")))
+                root.appending(path: "Resources/framework.json")))
             #expect(payload.colourPalettes == document.site.framework.fixedFrameworkColourPalettes)
             #expect(payload.colourPalettes.count == FrameworkColorRole.allCases.count)
             let loaded = try FrameworkBundleStore.load(from: root)
@@ -836,8 +836,8 @@ struct FrameworkEditingTests {
         expectedFramework.screens = .standard
         #expect(loaded.framework == expectedFramework)
         #expect(loaded.resources == [ProjectAssetContent(asset: fontAsset, data: fontData)])
-        #expect(FileManager.default.fileExists(atPath: root.appending(path: "Contents/Info.plist").path))
-        #expect(FileManager.default.fileExists(atPath: root.appending(path: "Contents/Resources/framework.json").path))
+        #expect(FileManager.default.fileExists(atPath: root.appending(path: "Info.plist").path))
+        #expect(FileManager.default.fileExists(atPath: root.appending(path: "Resources/framework.json").path))
         #expect(FileManager.default.fileExists(atPath: loaded.previewURL.path))
     }
 

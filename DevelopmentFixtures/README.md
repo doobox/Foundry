@@ -1,5 +1,7 @@
 # Development fixtures
 
+Every fixture uses pack format 2: the outer `.foundrydevpack` owns `Info.plist`, and each plain part directory lives under `Parts/` with its own `Info.plist` and `Resources/`. There are no nested pack bundles.
+
 `AppearanceToggle.foundrydevpack` provides Light, Dark and System buttons using `window.foundryAppearance.set(...)`. Enable **Light and Dark** in Site Settings and test in browser Preview or exported output. The canvas and single-appearance sites disable the buttons. Its own card changes colour too, so the effect is visible even on an otherwise empty page. It has no getter or selection indicator and does not access the API's private storage.
 
 `BrokenPart.foundrydevpack` is intentionally invalid. Open it with a development build of Foundry to exercise the Developer panel. It must fail validation because its identifier is not lowercase reverse-DNS and its declared HTML template does not exist.

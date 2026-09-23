@@ -33,7 +33,7 @@ nonisolated struct SavedFramework: Equatable, Identifiable, Sendable {
     }
 
     var previewURL: URL {
-        bundleURL.appending(path: "Contents/Resources/\(metadata.previewFilename)")
+        bundleURL.appending(path: "Resources/\(metadata.previewFilename)")
     }
 }
 
@@ -46,7 +46,6 @@ nonisolated struct FrameworkPreviewImage: Equatable, Sendable {
 }
 
 nonisolated enum FrameworkBundleError: Error, LocalizedError {
-    case wrongExtension
     case missingContents
     case unsupportedVersion(Int)
     case invalidName
@@ -57,10 +56,8 @@ nonisolated enum FrameworkBundleError: Error, LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case .wrongExtension:
-            "Frameworks must use the .foundryframework extension."
         case .missingContents:
-            "The framework bundle is missing its metadata or framework data."
+            "The framework directory is missing its metadata or framework data."
         case .unsupportedVersion(let version):
             "This framework uses unsupported format version \(version)."
         case .invalidName:
@@ -78,17 +75,16 @@ nonisolated enum FrameworkBundleError: Error, LocalizedError {
 }
 
 nonisolated enum FrameworkBundleStore {
-    static let pathExtension = "foundryframework"
     static let systemFrameworkID = UUID(uuid: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1))
 
     static func isFrameworkURL(_ url: URL) -> Bool {
-        url.pathExtension.lowercased() == pathExtension
+        FileManager.default.fileExists(atPath: url.appending(path: "Info.plist").path)
+            && FileManager.default.fileExists(atPath: url.appending(path: "Resources/framework.json").path)
     }
 
     static func load(from bundleURL: URL, isBuiltIn: Bool = false) throws -> SavedFramework {
-        guard isFrameworkURL(bundleURL) else { throw FrameworkBundleError.wrongExtension }
-        let metadataURL = bundleURL.appending(path: "Contents/Info.plist")
-        let frameworkURL = bundleURL.appending(path: "Contents/Resources/framework.json")
+        let metadataURL = bundleURL.appending(path: "Info.plist")
+        let frameworkURL = bundleURL.appending(path: "Resources/framework.json")
         guard FileManager.default.fileExists(atPath: metadataURL.path),
               FileManager.default.fileExists(atPath: frameworkURL.path) else {
             throw FrameworkBundleError.missingContents
@@ -100,12 +96,12 @@ nonisolated enum FrameworkBundleStore {
         guard metadata.formatVersion == FrameworkBundleMetadata.currentFormatVersion else {
             throw FrameworkBundleError.unsupportedVersion(metadata.formatVersion)
         }
-        let previewURL = bundleURL.appending(path: "Contents/Resources/\(metadata.previewFilename)")
+        let previewURL = bundleURL.appending(path: "Resources/\(metadata.previewFilename)")
         guard FileManager.default.fileExists(atPath: previewURL.path) else { throw FrameworkBundleError.missingPreview }
         _ = try preview(from: previewURL)
         var framework = try JSONDecoder().decode(Framework.self, from: Data(contentsOf: frameworkURL))
         framework.colourPalettes = framework.fixedFrameworkColourPalettes + ColourPaletteDefaults.standard
-        let resourcesURL = bundleURL.appending(path: "Contents/Resources/Assets", directoryHint: .isDirectory)
+        let resourcesURL = bundleURL.appending(path: "Resources/Assets", directoryHint: .isDirectory)
         let resources = metadata.resources.compactMap { resource -> ProjectAssetContent? in
             guard let data = try? Data(contentsOf: resourcesURL.appending(path: resource.storageFilename)) else {
                 return nil
@@ -117,8 +113,19 @@ nonisolated enum FrameworkBundleStore {
             framework: framework,
             bundleURL: bundleURL,
             resources: resources,
-            isBuiltIn: isBuiltIn
+            isBuiltIn: isBuiltIn || enclosingReleasePack(of: bundleURL) != nil
         )
+    }
+
+    private static func enclosingReleasePack(of url: URL) -> URL? {
+        var candidate = url.standardizedFileURL
+        while candidate.path != "/" {
+            if candidate.pathExtension.caseInsensitiveCompare("foundrypack") == .orderedSame {
+                return candidate
+            }
+            candidate.deleteLastPathComponent()
+        }
+        return nil
     }
 
     static func write(
@@ -134,8 +141,7 @@ nonisolated enum FrameworkBundleStore {
         let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedName.isEmpty else { throw FrameworkBundleError.invalidName }
         var bundleFramework = framework.savedSettings
-        let contentsURL = bundleURL.appending(path: "Contents", directoryHint: .isDirectory)
-        let resourcesURL = contentsURL.appending(path: "Resources", directoryHint: .isDirectory)
+        let resourcesURL = bundleURL.appending(path: "Resources", directoryHint: .isDirectory)
         let assetsURL = resourcesURL.appending(path: "Assets", directoryHint: .isDirectory)
         if fileManager.fileExists(atPath: bundleURL.path) {
             try fileManager.removeItem(at: bundleURL)
@@ -160,7 +166,7 @@ nonisolated enum FrameworkBundleStore {
         )
         let plistEncoder = PropertyListEncoder()
         plistEncoder.outputFormat = .xml
-        try plistEncoder.encode(metadata).write(to: contentsURL.appending(path: "Info.plist"), options: .atomic)
+        try plistEncoder.encode(metadata).write(to: bundleURL.appending(path: "Info.plist"), options: .atomic)
         let frameworkEncoder = JSONEncoder()
         frameworkEncoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
         try frameworkEncoder.encode(bundleFramework).write(to: resourcesURL.appending(path: "framework.json"), options: .atomic)
@@ -195,7 +201,10 @@ nonisolated enum FrameworkBundleStore {
     }
 
     static func libraryURL(fileManager: FileManager = .default) throws -> URL {
-        try FoundryLibraryLocation.directoryURL(named: "Frameworks", fileManager: fileManager)
+        let url = try FoundryPackLoader.personalDevelopmentPackURL(fileManager: fileManager)
+            .appending(path: FoundryPackItemKind.framework.rawValue, directoryHint: .isDirectory)
+        try fileManager.createDirectory(at: url, withIntermediateDirectories: true)
+        return url
     }
 
     static func editArtwork(_ saved: SavedFramework, name: String, preview: FrameworkPreviewImage) throws -> SavedFramework {
@@ -210,8 +219,8 @@ nonisolated enum FrameworkBundleStore {
         let encoder = PropertyListEncoder()
         encoder.outputFormat = .xml
         let data = try encoder.encode(metadata)
-        try preview.data.write(to: saved.bundleURL.appending(path: "Contents/Resources/\(preview.filename)"), options: .atomic)
-        try data.write(to: saved.bundleURL.appending(path: "Contents/Info.plist"), options: .atomic)
+        try preview.data.write(to: saved.bundleURL.appending(path: "Resources/\(preview.filename)"), options: .atomic)
+        try data.write(to: saved.bundleURL.appending(path: "Info.plist"), options: .atomic)
         return try load(from: saved.bundleURL)
     }
 
@@ -221,7 +230,7 @@ nonisolated enum FrameworkBundleStore {
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .replacingOccurrences(of: " ", with: "-")
         let stem = cleaned.isEmpty ? "Framework" : cleaned
-        return "\(stem)-\(id.uuidString.prefix(8)).\(pathExtension)"
+        return "\(stem)-\(id.uuidString.prefix(8))"
     }
 
     static func preview(from url: URL) throws -> FrameworkPreviewImage {
@@ -253,21 +262,21 @@ nonisolated enum FrameworkBundleStore {
     }
 
     static func frameworkURLs(in rootURL: URL, fileManager: FileManager = .default) -> [URL] {
-        guard let enumerator = fileManager.enumerator(
+        ((try? fileManager.contentsOfDirectory(
             at: rootURL,
-            includingPropertiesForKeys: [.isDirectoryKey],
-            options: [.skipsHiddenFiles, .skipsPackageDescendants]
-        ) else { return [] }
-        return enumerator.compactMap { $0 as? URL }.filter(isFrameworkURL)
+            includingPropertiesForKeys: nil,
+            options: [.skipsHiddenFiles]
+        )) ?? []).filter(isFrameworkURL)
     }
 
     static func builtInFrameworks(bundle: Bundle = .main) -> [SavedFramework] {
-        guard let bundleURL = bundle.url(forResource: "BuiltInFrameworks", withExtension: "bundle"),
-              let frameworkBundle = Bundle(url: bundleURL),
-              let resourcesURL = frameworkBundle.resourceURL else {
+        guard let bundleURL = bundle.url(forResource: "BuiltInParts", withExtension: "bundle"),
+              let contentBundle = Bundle(url: bundleURL),
+              let packURL = contentBundle.url(forResource: "BuiltInParts", withExtension: "foundrypack"),
+              let pack = try? FoundryPackLoader.load(from: packURL) else {
             preconditionFailure("The built-in framework bundle is missing.")
         }
-        return frameworkURLs(in: resourcesURL).map { url in
+        return pack.frameworkURLs.map { url in
             do {
                 return try load(from: url, isBuiltIn: true)
             } catch {
@@ -291,6 +300,7 @@ final class FrameworkLibrary {
 
     private(set) var frameworks: [SavedFramework] = []
     private(set) var errorMessage: String?
+    private var externalDevelopmentPackURLs: Set<URL> = []
 
     private init() {
         reload()
@@ -298,12 +308,11 @@ final class FrameworkLibrary {
 
     func reload() {
         do {
-            let rootURL = try FrameworkBundleStore.libraryURL()
-            let urls = try FileManager.default.contentsOfDirectory(
-                at: rootURL,
-                includingPropertiesForKeys: nil,
-                options: [.skipsHiddenFiles]
-            ).filter(FrameworkBundleStore.isFrameworkURL)
+            _ = try FrameworkBundleStore.libraryURL()
+            let packsRoot = try FoundryPackLoader.installedPacksURL()
+            let urls = (FoundryPackLoader.packURLs(in: packsRoot) + externalDevelopmentPackURLs)
+                .compactMap { try? FoundryPackLoader.load(from: $0) }
+                .flatMap(\.frameworkURLs)
             let builtInFrameworks = FrameworkBundleStore.builtInFrameworks()
             let builtInIDs = Set(builtInFrameworks.map(\.id))
             var failures: [String] = []
@@ -321,6 +330,11 @@ final class FrameworkLibrary {
             frameworks = []
             errorMessage = error.localizedDescription
         }
+    }
+
+    func openDevelopmentPack(at url: URL) {
+        externalDevelopmentPackURLs.insert(url.standardizedFileURL)
+        reload()
     }
 
     @discardableResult
@@ -342,24 +356,6 @@ final class FrameworkLibrary {
         )
         reload()
         return saved
-    }
-
-    @discardableResult
-    func install(from sourceURL: URL) throws -> SavedFramework {
-        let source = try FrameworkBundleStore.load(from: sourceURL)
-        let rootURL = try FrameworkBundleStore.libraryURL()
-        let destination = rootURL.appending(
-            path: FrameworkBundleStore.filename(for: source.metadata.name, id: source.id),
-            directoryHint: .isDirectory
-        )
-        if destination.standardizedFileURL != sourceURL.standardizedFileURL {
-            if FileManager.default.fileExists(atPath: destination.path) {
-                try FileManager.default.removeItem(at: destination)
-            }
-            try FileManager.default.copyItem(at: sourceURL, to: destination)
-        }
-        reload()
-        return try FrameworkBundleStore.load(from: destination)
     }
 
     @discardableResult

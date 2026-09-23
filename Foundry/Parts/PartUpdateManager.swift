@@ -204,7 +204,7 @@ final class PartUpdateManager {
                   pack.metadata.updates != nil else { return nil }
             return UpdateablePack(
                 url: url,
-                packID: pack.identifier ?? url.standardizedFileURL.path
+                packID: pack.identifier
             )
         }
     }

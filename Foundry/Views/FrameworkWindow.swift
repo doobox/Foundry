@@ -468,13 +468,13 @@ private struct FrameworkLibraryBrowser: View {
 
     private func importFramework() {
         let panel = NSOpenPanel()
-        panel.allowedContentTypes = [.foundryFramework]
+        panel.allowedContentTypes = [.foundryPack]
         panel.allowsMultipleSelection = false
         panel.canChooseDirectories = true
         panel.canChooseFiles = true
         guard panel.runModal() == .OK, let url = panel.url else { return }
         do {
-            try library.install(from: url)
+            try FoundryPackInstaller.install(from: url)
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -507,14 +507,14 @@ private struct FrameworkLibraryBrowser: View {
 
     private func exportFramework(_ savedFramework: SavedFramework) {
         let panel = NSSavePanel()
-        panel.allowedContentTypes = [.foundryFramework]
-        panel.nameFieldStringValue = "\(savedFramework.metadata.name).foundryframework"
+        panel.allowedContentTypes = [.foundryPack]
+        panel.nameFieldStringValue = "\(savedFramework.metadata.name).foundrypack"
         guard panel.runModal() == .OK, let destination = panel.url else { return }
         do {
             if FileManager.default.fileExists(atPath: destination.path) {
                 try FileManager.default.removeItem(at: destination)
             }
-            try FileManager.default.copyItem(at: savedFramework.bundleURL, to: destination)
+            try FoundryPackLoader.exportFramework(savedFramework, to: destination)
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -784,5 +784,5 @@ private struct FrameworkCreationSheet: View {
 }
 
 private extension UTType {
-    static let foundryFramework = UTType(exportedAs: "uk.co.garysimpson.foundry.framework", conformingTo: .package)
+    static let foundryPack = UTType(exportedAs: "uk.co.garysimpson.foundry.pack", conformingTo: .package)
 }

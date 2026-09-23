@@ -137,7 +137,7 @@ nonisolated struct LoadedPartPackage: Sendable {
     }
 
     var resourceRootURL: URL {
-        rootURL.appending(path: "Contents/Resources", directoryHint: .isDirectory)
+        rootURL.appending(path: "Resources", directoryHint: .isDirectory)
     }
 
     var loopMaximums: [String: Int] {
@@ -292,9 +292,9 @@ nonisolated private final class PartPackagePayloadStorage: Sendable {
 
     private static func failure(from error: Error) -> PartPackagePayloadFailure {
         if case PartPackageLoadingError.unreadableResource(let path, let underlying) = error {
-            return .init(location: "Contents/Resources/\(path)", message: underlying.localizedDescription)
+            return .init(location: "Resources/\(path)", message: underlying.localizedDescription)
         }
-        return .init(location: "Contents/Resources", message: error.localizedDescription)
+        return .init(location: "Resources", message: error.localizedDescription)
     }
 }
 
@@ -312,7 +312,7 @@ nonisolated enum PartPackageLoadingError: Error, LocalizedError {
     var errorDescription: String? {
         switch self {
         case .missingManifest:
-            "The part bundle does not contain Contents/Info.plist."
+            "The part directory does not contain Info.plist."
         case .unreadableManifest(let error):
             "Info.plist could not be decoded: \(Self.decodingDetail(error))"
         case .invalid(let diagnostics):
@@ -406,7 +406,7 @@ nonisolated enum PartPackageLoader {
 
         let clock = ContinuousClock()
         var timings = PartPackageLoadTimings()
-        let manifestURL = rootURL.appending(path: "Contents/Info.plist")
+        let manifestURL = rootURL.appending(path: "Info.plist")
         guard FileManager.default.fileExists(atPath: manifestURL.path) else {
             throw PartPackageLoadingError.missingManifest
         }
@@ -437,7 +437,7 @@ nonisolated enum PartPackageLoader {
             throw PartPackageLoadingError.unreadableManifest(error)
         }
 
-        let resourceRootURL = rootURL.appending(path: "Contents/Resources", directoryHint: .isDirectory)
+        let resourceRootURL = rootURL.appending(path: "Resources", directoryHint: .isDirectory)
         let validationFingerprint = validates ? PartPackageValidationCache.fingerprint(
             manifestData: data,
             manifest: manifest,
@@ -497,7 +497,7 @@ nonisolated enum PartPackageLoader {
     ) throws -> PartPackageLoadResult {
         let clock = ContinuousClock()
         var timings = PartPackageLoadTimings()
-        let manifestURL = rootURL.appending(path: "Contents/Info.plist")
+        let manifestURL = rootURL.appending(path: "Info.plist")
         guard FileManager.default.fileExists(atPath: manifestURL.path) else {
             throw PartPackageLoadingError.missingManifest
         }
@@ -528,7 +528,7 @@ nonisolated enum PartPackageLoader {
             throw PartPackageLoadingError.unreadableManifest(error)
         }
 
-        let resourceRootURL = rootURL.appending(path: "Contents/Resources", directoryHint: .isDirectory)
+        let resourceRootURL = rootURL.appending(path: "Resources", directoryHint: .isDirectory)
         let validationFingerprint = validates ? PartPackageValidationCache.fingerprint(
             manifestData: data,
             manifest: manifest,
@@ -589,7 +589,7 @@ nonisolated enum PartPackageLoader {
         manifest: PartPackageManifest,
         rootURL: URL
     ) throws -> PartPackagePayload {
-        let resourceRootURL = rootURL.appending(path: "Contents/Resources", directoryHint: .isDirectory)
+        let resourceRootURL = rootURL.appending(path: "Resources", directoryHint: .isDirectory)
         let instanceCSS = try manifest.render.files
             .filter { $0.scope == .instance && $0.path.lowercased().hasSuffix(".css") }
             .map { try read($0.path, from: resourceRootURL) }

@@ -113,8 +113,8 @@ nonisolated enum PartPackagePreparedIndex {
         for rootURL: URL,
         manifest: PartPackageManifest
     ) -> Fingerprint? {
-        let manifestURL = rootURL.appending(path: "Contents/Info.plist")
-        let templateURL = rootURL.appending(path: "Contents/Resources/\(manifest.render.html)")
+        let manifestURL = rootURL.appending(path: "Info.plist")
+        let templateURL = rootURL.appending(path: "Resources/\(manifest.render.html)")
         guard let manifestValues = try? manifestURL.resourceValues(forKeys: [.fileSizeKey, .contentModificationDateKey]),
               let templateValues = try? templateURL.resourceValues(forKeys: [.fileSizeKey, .contentModificationDateKey]),
               let manifestSize = manifestValues.fileSize,

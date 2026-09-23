@@ -722,11 +722,12 @@ struct PartPackageTests {
         #expect(!urls.isEmpty)
         for url in urls {
             let pack = try FoundryPackLoader.load(from: url)
-            guard !pack.isCollection else { continue }
-            do {
-                _ = try PartPackageLoader.load(from: url)
-            } catch {
-                Issue.record("\(url.path): \(error)")
+            for partURL in pack.partURLs {
+                do {
+                    _ = try PartPackageLoader.load(from: partURL)
+                } catch {
+                    Issue.record("\(partURL.path): \(error)")
+                }
             }
         }
     }
@@ -1030,7 +1031,7 @@ struct PartPackageTests {
         #expect(second.timings.semanticValidation == .zero)
 
         let templateURL = packageURL.appending(
-            path: "Contents/Resources/\(first.package.manifest.render.html)"
+            path: "Resources/\(first.package.manifest.render.html)"
         )
         try "<section {{ part.attributes }}>{{ control.missing }}</section>"
             .write(to: templateURL, atomically: true, encoding: .utf8)
@@ -1111,7 +1112,7 @@ struct PartPackageTests {
             .deletingLastPathComponent()
             .deletingLastPathComponent()
         let appearancePackage = try PartPackageLoader.load(
-            from: repositoryURL.appending(path: "DevelopmentFixtures/AppearanceToggle.foundrydevpack"))
+            from: repositoryURL.appending(path: "DevelopmentFixtures/AppearanceToggle.foundrydevpack/Parts/AppearanceToggle"))
         try appearancePackage.preparePayload()
         #expect(appearancePackage.manifest.identifier == "dev.foundry.appearance-toggle")
         #expect(FileManager.default.fileExists(atPath: appearancePackage.iconURL.path))
@@ -1125,10 +1126,10 @@ struct PartPackageTests {
         )
 
         let header = try FoundryPackLoader.load(from: fixtureURL)
-        #expect(!header.isCollection)
+        #expect(header.partURLs.count == 1)
 
         do {
-            _ = try PartPackageLoader.load(from: fixtureURL)
+            _ = try PartPackageLoader.load(from: try #require(header.partURLs.first))
             Issue.record("The intentionally broken part unexpectedly loaded.")
         } catch PartPackageLoadingError.invalid(let diagnostics) {
             #expect(diagnostics.contains { $0.message.contains("reverse-DNS") })
@@ -1138,13 +1139,13 @@ struct PartPackageTests {
         }
 
         let enablePackage = try PartPackageLoader.load(
-            from: repositoryURL.appending(path: "DevelopmentFixtures/EnableConditions.foundrydevpack")
+            from: repositoryURL.appending(path: "DevelopmentFixtures/EnableConditions.foundrydevpack/Parts/EnableConditions")
         )
         #expect(enablePackage.manifest.identifier == "dev.foundry.enable-conditions")
         #expect(enablePackage.manifest.resolvedProperties.contains { $0.visibleWhen?.id == "titles[2]" })
 
         let frameworkPackage = try PartPackageLoader.load(
-            from: repositoryURL.appending(path: "DevelopmentFixtures/FrameworkValues.foundrydevpack")
+            from: repositoryURL.appending(path: "DevelopmentFixtures/FrameworkValues.foundrydevpack/Parts/FrameworkValues")
         )
         #expect(frameworkPackage.manifest.identifier == "dev.foundry.framework-values")
         #expect(!frameworkPackage.manifest.resolvedProperties.contains { $0.control.type == .select && $0.control.frameworkValues != nil })
@@ -1156,7 +1157,7 @@ struct PartPackageTests {
         })
 
         let scopedAssetsPackage = try PartPackageLoader.load(
-            from: repositoryURL.appending(path: "DevelopmentFixtures/ScopedAssets.foundrydevpack")
+            from: repositoryURL.appending(path: "DevelopmentFixtures/ScopedAssets.foundrydevpack/Parts/ScopedAssets")
         )
         #expect(scopedAssetsPackage.manifest.identifier == "dev.foundry.scoped-assets")
         #expect(scopedAssetsPackage.manifest.assets.count == 3)
@@ -1164,7 +1165,7 @@ struct PartPackageTests {
         #expect(scopedAssetsPackage.manifest.assets.filter { $0.scope == .site }.count == 1)
 
         let expressionPackage = try PartPackageLoader.load(
-            from: repositoryURL.appending(path: "DevelopmentFixtures/ExpressionEngine.foundrydevpack")
+            from: repositoryURL.appending(path: "DevelopmentFixtures/ExpressionEngine.foundrydevpack/Parts/ExpressionEngine")
         )
         #expect(expressionPackage.manifest.identifier == "dev.foundry.expression-engine")
         let expressionHTML = PartTemplateRenderer.render(
@@ -1444,7 +1445,7 @@ struct PartPackageTests {
             defer { try? FileManager.default.removeItem(at: packageURL) }
             let diagnostics = PartPackageValidator.validate(
                 manifest,
-                rootURL: packageURL.appending(path: "Contents/Resources", directoryHint: .isDirectory)
+                rootURL: packageURL.appending(path: "Resources", directoryHint: .isDirectory)
             )
             #expect(diagnostics.contains { $0.message.contains("exactly one {{ controlGroup.background }}") })
         }
@@ -3533,7 +3534,7 @@ struct PartPackageTests {
         )
         let diagnostics = PartPackageValidator.validate(
             manifest,
-            rootURL: packageURL.appending(path: "Contents/Resources", directoryHint: .isDirectory)
+            rootURL: packageURL.appending(path: "Resources", directoryHint: .isDirectory)
         )
         let context = PartTemplateContext(
             instanceID: UUID(),
@@ -3572,7 +3573,7 @@ struct PartPackageTests {
 
         let diagnostics = PartPackageValidator.validate(
             manifest,
-            rootURL: packageURL.appending(path: "Contents/Resources", directoryHint: .isDirectory)
+            rootURL: packageURL.appending(path: "Resources", directoryHint: .isDirectory)
         )
         let messages = diagnostics.map(\.message)
 
@@ -3601,7 +3602,7 @@ struct PartPackageTests {
 
         let messages = PartPackageValidator.validate(
             manifest,
-            rootURL: packageURL.appending(path: "Contents/Resources", directoryHint: .isDirectory)
+            rootURL: packageURL.appending(path: "Resources", directoryHint: .isDirectory)
         ).map(\.message)
 
         #expect(messages.contains { $0.contains("Every editable macro must have a permanent quoted name") })
@@ -3622,7 +3623,7 @@ struct PartPackageTests {
 
         let messages = PartPackageValidator.validate(
             manifest,
-            rootURL: packageURL.appending(path: "Contents/Resources", directoryHint: .isDirectory)
+            rootURL: packageURL.appending(path: "Resources", directoryHint: .isDirectory)
         ).map(\.message)
 
         #expect(messages.contains {
@@ -3637,7 +3638,7 @@ struct PartPackageTests {
             template: #"<section id="developer-root" {{ part.attributes }}>{{ childArea("content") }}</section>"#
         )
         defer { try? FileManager.default.removeItem(at: packageURL) }
-        let templateURL = packageURL.appending(path: "Contents/Resources/part.html")
+        let templateURL = packageURL.appending(path: "Resources/part.html")
         try #"<section id="developer-root" {{ part.attributes }}>{{ childArea("content") }}</section>"#
             .write(to: templateURL, atomically: true, encoding: .utf8)
         let manifest = try PropertyListDecoder().decode(
@@ -3647,7 +3648,7 @@ struct PartPackageTests {
 
         let diagnostics = PartPackageValidator.validate(
             manifest,
-            rootURL: packageURL.appending(path: "Contents/Resources", directoryHint: .isDirectory)
+            rootURL: packageURL.appending(path: "Resources", directoryHint: .isDirectory)
         )
         let messages = diagnostics.map(\.message)
 
@@ -3669,7 +3670,7 @@ struct PartPackageTests {
 
         let messages = PartPackageValidator.validate(
             manifest,
-            rootURL: packageURL.appending(path: "Contents/Resources", directoryHint: .isDirectory)
+            rootURL: packageURL.appending(path: "Resources", directoryHint: .isDirectory)
         ).map(\.message)
 
         #expect(messages.contains(
@@ -3695,7 +3696,7 @@ struct PartPackageTests {
             defer { try? FileManager.default.removeItem(at: packageURL) }
             let diagnostics = PartPackageValidator.validate(
                 manifest,
-                rootURL: packageURL.appending(path: "Contents/Resources", directoryHint: .isDirectory)
+                rootURL: packageURL.appending(path: "Resources", directoryHint: .isDirectory)
             )
 
             #expect(diagnostics.contains {
@@ -3727,7 +3728,7 @@ struct PartPackageTests {
 
         let diagnostics = PartPackageValidator.validate(
             manifest,
-            rootURL: packageURL.appending(path: "Contents/Resources", directoryHint: .isDirectory)
+            rootURL: packageURL.appending(path: "Resources", directoryHint: .isDirectory)
         )
 
         #expect(!diagnostics.contains { $0.message.contains("exactly one stable top-level root element") })
@@ -3774,7 +3775,7 @@ struct PartPackageTests {
 
         let diagnostics = PartPackageValidator.validate(
             manifest,
-            rootURL: packageURL.appending(path: "Contents/Resources", directoryHint: .isDirectory)
+            rootURL: packageURL.appending(path: "Resources", directoryHint: .isDirectory)
         )
 
         #expect(diagnostics.contains {
@@ -3840,7 +3841,7 @@ struct PartPackageTests {
 
         let diagnostics = PartPackageValidator.validate(
             manifest,
-            rootURL: packageURL.appending(path: "Contents/Resources", directoryHint: .isDirectory)
+            rootURL: packageURL.appending(path: "Resources", directoryHint: .isDirectory)
         )
 
         #expect(diagnostics.contains(where: { $0.message.contains("support CSS, JavaScript, PHP and placed HTML") }))
@@ -3909,7 +3910,7 @@ struct PartPackageTests {
 
         let diagnostics = PartPackageValidator.validate(
             manifest,
-            rootURL: packageURL.appending(path: "Contents/Resources", directoryHint: .isDirectory)
+            rootURL: packageURL.appending(path: "Resources", directoryHint: .isDirectory)
         )
 
         #expect(diagnostics.filter { $0.message == "Site scope is available only to CSS templates." }.count == 2)
@@ -4061,7 +4062,7 @@ struct PartPackageTests {
 
         let diagnostics = PartPackageValidator.validate(
             manifest,
-            rootURL: packageURL.appending(path: "Contents/Resources", directoryHint: .isDirectory)
+            rootURL: packageURL.appending(path: "Resources", directoryHint: .isDirectory)
         )
 
         #expect(diagnostics.contains { $0.location == "Info.plist:requiresPHP" })
@@ -4368,7 +4369,7 @@ struct PartPackageTests {
         defer { try? FileManager.default.removeItem(at: invalidPackageURL) }
         let diagnostics = PartPackageValidator.validate(
             package.manifest,
-            rootURL: invalidPackageURL.appending(path: "Contents/Resources", directoryHint: .isDirectory)
+            rootURL: invalidPackageURL.appending(path: "Resources", directoryHint: .isDirectory)
         )
         #expect(diagnostics.contains { $0.message.contains("Unknown property 'contentDivider'") })
 
@@ -4925,7 +4926,7 @@ struct PartPackageTests {
 
         #expect(builtIns.allSatisfy { $0.renderKind == .package })
         #expect(builtIns.allSatisfy { definition in
-            definition.package.map { FoundryPackLoader.isPackURL($0.rootURL) } == true
+            definition.package?.rootURL.deletingLastPathComponent().lastPathComponent == "Parts"
         })
         #expect(Set(builtIns.compactMap { $0.package?.manifest.identifier }).count == builtIns.count)
         #expect(PartType.image.definition.package?.manifest.identifier == PartType.image.rawValue)
@@ -5073,7 +5074,7 @@ struct PartPackageTests {
             template: "<div {{ part.attributes }}>Recoverable</div>"
         )
         defer { try? FileManager.default.removeItem(at: packageURL) }
-        let cssURL = packageURL.appending(path: "Contents/Resources/part.css")
+        let cssURL = packageURL.appending(path: "Resources/part.css")
         let originalCSS = try Data(contentsOf: cssURL)
         let package = try PartPackageLoader.loadForCatalog(from: packageURL, validates: false).package
         try FileManager.default.removeItem(at: cssURL)
@@ -5082,7 +5083,7 @@ struct PartPackageTests {
             try package.preparePayload()
         }
         #expect(!package.isPayloadLoaded)
-        #expect(package.payloadFailure?.location == "Contents/Resources/part.css")
+        #expect(package.payloadFailure?.location == "Resources/part.css")
 
         try originalCSS.write(to: cssURL)
         let reloaded = try PartPackageLoader.loadForCatalog(from: packageURL, validates: false).package
@@ -5157,38 +5158,57 @@ struct PartPackageTests {
     }
 
     @Test
-    func packDiscoveryRecursesThroughFunctionalAndCollectionPacksWithoutFlattening() throws {
+    func packDiscoveryTreatsAnOuterPackAsAContentBoundary() throws {
         let root = FileManager.default.temporaryDirectory
             .appending(path: "\(UUID().uuidString).foundrypack", directoryHint: .isDirectory)
-        let nested = root.appending(path: "Nested.foundrypack", directoryHint: .isDirectory)
-        let deeplyNested = nested.appending(path: "Deep.foundrypack", directoryHint: .isDirectory)
         defer { try? FileManager.default.removeItem(at: root) }
 
-        try writePackHeader(isCollection: true, at: root)
-        try writePackHeader(identifier: "com.example.nested", at: nested)
-        try writePackHeader(identifier: "com.example.deep", at: deeplyNested)
+        try writePackHeader(identifier: "com.example.root", at: root)
 
         let urls = FoundryPackLoader.packURLs(in: root, includingRoot: true)
 
-        #expect(urls.map(\.standardizedFileURL) == [root, deeplyNested, nested].map(\.standardizedFileURL).sorted { $0.path < $1.path })
-        #expect(try FoundryPackLoader.load(from: root).isCollection)
-        #expect(!(try FoundryPackLoader.load(from: nested).isCollection))
-        #expect(deeplyNested.path.hasPrefix(nested.path))
+        #expect(urls.map(\.standardizedFileURL) == [root.standardizedFileURL])
+        #expect(try FoundryPackLoader.load(from: root).identifier == "com.example.root")
     }
 
     @Test
-    func developmentPacksUseTheSameLoaderAndParticipateInRecursiveDiscovery() throws {
+    func packLoaderDiscoversTypedPlainDirectoriesAndRejectsUnknownTopLevelContent() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appending(path: "\(UUID().uuidString).foundrypack", directoryHint: .isDirectory)
+        defer { try? FileManager.default.removeItem(at: root) }
+        try writePackHeader(identifier: "com.example.typed", at: root)
+        let part = root.appending(path: "Parts/com.example.card", directoryHint: .isDirectory)
+        try FileManager.default.createDirectory(
+            at: part.appending(path: "Resources", directoryHint: .isDirectory),
+            withIntermediateDirectories: true
+        )
+        try Data(validManifest.utf8).write(to: part.appending(path: "Info.plist"))
+
+        let pack = try FoundryPackLoader.load(from: root)
+        #expect(pack.partURLs == [part.standardizedFileURL])
+        #expect(pack.templateURLs.isEmpty)
+        #expect(pack.frameworkURLs.isEmpty)
+
+        try FileManager.default.createDirectory(
+            at: root.appending(path: "Components", directoryHint: .isDirectory),
+            withIntermediateDirectories: true
+        )
+        #expect(throws: FoundryPackLoadingError.self) {
+            try FoundryPackLoader.load(from: root)
+        }
+    }
+
+    @Test
+    func developmentPacksUseTheSameOuterPackLoader() throws {
         let root = FileManager.default.temporaryDirectory
             .appending(path: "\(UUID().uuidString).foundrydevpack", directoryHint: .isDirectory)
-        let nested = root.appending(path: "Nested.foundrypack", directoryHint: .isDirectory)
         defer { try? FileManager.default.removeItem(at: root) }
-        try writePackHeader(isCollection: true, at: root)
-        try writePackHeader(identifier: "com.example.development.child", at: nested)
+        try writePackHeader(identifier: "com.example.development", at: root)
 
         let urls = FoundryPackLoader.packURLs(in: root, includingRoot: true)
 
-        #expect(urls.map(\.standardizedFileURL) == [root, nested].map(\.standardizedFileURL).sorted { $0.path < $1.path })
-        #expect(try FoundryPackLoader.load(from: root).identifier == nil)
+        #expect(urls.map(\.standardizedFileURL) == [root.standardizedFileURL])
+        #expect(try FoundryPackLoader.load(from: root).identifier == "com.example.development")
     }
 
     @Test
@@ -5270,15 +5290,15 @@ struct PartPackageTests {
     }
 
     @Test
-    func collectionManifestSupportsOptionalUpdateMetadata() throws {
+    func packManifestSupportsOptionalUpdateMetadata() throws {
         let root = FileManager.default.temporaryDirectory
             .appending(path: "\(UUID().uuidString).foundrypack", directoryHint: .isDirectory)
         defer { try? FileManager.default.removeItem(at: root) }
-        try writePackHeader(isCollection: true, at: root)
-        #expect(try FoundryPackLoader.load(from: root).isCollection)
+        try writePackHeader(identifier: "com.example.collection", at: root)
+        #expect(try FoundryPackLoader.load(from: root).identifier == "com.example.collection")
 
         let updateEnabled: [String: Any] = [
-            "collection": true,
+            "formatVersion": 2,
             "minimumAPIVersion": 1,
             "id": "com.example.collection",
             "title": "Collection",
@@ -5290,15 +5310,15 @@ struct PartPackageTests {
             ]
         ]
         let updateData = try PropertyListSerialization.data(fromPropertyList: updateEnabled, format: .xml, options: 0)
-        try updateData.write(to: root.appending(path: "Contents/Info.plist"))
+        try updateData.write(to: root.appending(path: "Info.plist"))
         let updatePack = try FoundryPackLoader.load(from: root)
         #expect(updatePack.identifier == "com.example.collection")
         #expect(updatePack.metadata.version == "1.2.3")
         #expect(updatePack.metadata.updates?.appcastURL.absoluteString == "https://example.com/appcast.json")
 
-        let invalid: [String: Any] = ["collection": true, "unexpected": "value"]
+        let invalid: [String: Any] = ["formatVersion": 2, "unexpected": "value"]
         let data = try PropertyListSerialization.data(fromPropertyList: invalid, format: .xml, options: 0)
-        try data.write(to: root.appending(path: "Contents/Info.plist"))
+        try data.write(to: root.appending(path: "Info.plist"))
         #expect(throws: FoundryPackLoadingError.self) {
             try FoundryPackLoader.load(from: root)
         }
@@ -5564,7 +5584,7 @@ struct PartPackageTests {
     func developmentPackWatcherObservesNestedFileChanges() async throws {
         let root = FileManager.default.temporaryDirectory
             .appending(path: "\(UUID().uuidString).foundrydevpack", directoryHint: .isDirectory)
-        let resources = root.appending(path: "Contents/Resources", directoryHint: .isDirectory)
+        let resources = root.appending(path: "Resources", directoryHint: .isDirectory)
         let file = resources.appending(path: "part.css")
         defer { try? FileManager.default.removeItem(at: root) }
         try FileManager.default.createDirectory(at: resources, withIntermediateDirectories: true)
@@ -5583,10 +5603,10 @@ struct PartPackageTests {
     func developmentPackWatcherTreatsNestedDistributionPacksAsOpaque() throws {
         let root = FileManager.default.temporaryDirectory
             .appending(path: "\(UUID().uuidString).foundrydevpack", directoryHint: .isDirectory)
-        let resources = root.appending(path: "Contents/Resources", directoryHint: .isDirectory)
+        let resources = root.appending(path: "Resources", directoryHint: .isDirectory)
         let sourceFile = resources.appending(path: "part.css")
         let childPack = resources.appending(path: "Child.foundrypack", directoryHint: .isDirectory)
-        let childFile = childPack.appending(path: "Contents/Resources/child.css")
+        let childFile = childPack.appending(path: "Resources/child.css")
         defer { try? FileManager.default.removeItem(at: root) }
         try FileManager.default.createDirectory(at: childFile.deletingLastPathComponent(), withIntermediateDirectories: true)
         try Data().write(to: sourceFile)
@@ -5777,7 +5797,7 @@ struct PartPackageTests {
         )
         let diagnostics = PartPackageValidator.validate(
             manifest,
-            rootURL: packageURL.appending(path: "Contents/Resources", directoryHint: .isDirectory)
+            rootURL: packageURL.appending(path: "Resources", directoryHint: .isDirectory)
         )
 
         #expect(diagnostics.contains { $0.location == "icon.svg" && $0.message.contains("64 KiB") })
@@ -5809,7 +5829,7 @@ struct PartPackageTests {
     ) throws -> URL {
         let rootURL = FileManager.default.temporaryDirectory
             .appending(path: "\(UUID().uuidString).\(pathExtension)", directoryHint: .isDirectory)
-        let resourcesURL = rootURL.appending(path: "Contents/Resources", directoryHint: .isDirectory)
+        let resourcesURL = rootURL.appending(path: "Resources", directoryHint: .isDirectory)
         try FileManager.default.createDirectory(at: resourcesURL, withIntermediateDirectories: true)
         try FileManager.default.createDirectory(
             at: resourcesURL.appending(path: "images", directoryHint: .isDirectory),
@@ -5828,7 +5848,7 @@ struct PartPackageTests {
             "icon.svg": "<svg xmlns=\"http://www.w3.org/2000/svg\"></svg>",
             "images/icon.svg": "<svg xmlns=\"http://www.w3.org/2000/svg\"></svg>"
         ].merging(additionalFiles) { _, additional in additional }
-        try Data(manifest.utf8).write(to: rootURL.appending(path: "Contents/Info.plist"))
+        try Data(manifest.utf8).write(to: rootURL.appending(path: "Info.plist"))
         for (path, contents) in files {
             let fileURL = resourcesURL.appending(path: path)
             try FileManager.default.createDirectory(
@@ -5841,16 +5861,16 @@ struct PartPackageTests {
     }
 
     private func writePackHeader(
-        isCollection: Bool = false,
         identifier: String = "com.example.part",
         at rootURL: URL
     ) throws {
-        let contentsURL = rootURL.appending(path: "Contents", directoryHint: .isDirectory)
-        try FileManager.default.createDirectory(at: contentsURL, withIntermediateDirectories: true)
-        let plist: [String: Any] = isCollection
-            ? ["collection": true]
-            : ["id": identifier]
+        try FileManager.default.createDirectory(at: rootURL, withIntermediateDirectories: true)
+        let plist: [String: Any] = [
+            "formatVersion": 2,
+            "id": identifier,
+            "minimumAPIVersion": 1
+        ]
         let data = try PropertyListSerialization.data(fromPropertyList: plist, format: .xml, options: 0)
-        try data.write(to: contentsURL.appending(path: "Info.plist"))
+        try data.write(to: rootURL.appending(path: "Info.plist"))
     }
 }

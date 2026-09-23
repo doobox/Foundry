@@ -33,8 +33,8 @@ nonisolated struct FoundryPackUpdateConfiguration: Codable, Equatable, Sendable 
 }
 
 nonisolated struct FoundryPackMetadata: Codable, Equatable, Sendable {
-    let collection: Bool
-    let identifier: String?
+    let formatVersion: Int
+    let identifier: String
     let title: String?
     let author: String?
     let version: String?
@@ -42,7 +42,7 @@ nonisolated struct FoundryPackMetadata: Codable, Equatable, Sendable {
     let updates: FoundryPackUpdateConfiguration?
 
     enum CodingKeys: String, CodingKey {
-        case collection
+        case formatVersion
         case identifier = "id"
         case title
         case author
@@ -53,8 +53,8 @@ nonisolated struct FoundryPackMetadata: Codable, Equatable, Sendable {
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        collection = try container.decodeIfPresent(Bool.self, forKey: .collection) ?? false
-        identifier = try container.decodeIfPresent(String.self, forKey: .identifier)
+        formatVersion = try container.decode(Int.self, forKey: .formatVersion)
+        identifier = try container.decode(String.self, forKey: .identifier)
         title = try container.decodeIfPresent(String.self, forKey: .title)
         author = try container.decodeIfPresent(String.self, forKey: .author)
         version = try container.decodeIfPresent(String.self, forKey: .version)
@@ -202,7 +202,7 @@ nonisolated enum FoundryPackReleaseBuilder {
         try writeUpdateConfiguration(
             appcastURL: publishingDirectoryURL.appending(path: "appcast.php"),
             publicKey: key.publicKey.rawRepresentation.base64EncodedString(),
-            manifestURL: sourceURL.appending(path: "Contents/Info.plist")
+            manifestURL: sourceURL.appending(path: "Info.plist")
         )
     }
 
@@ -216,7 +216,8 @@ nonisolated enum FoundryPackReleaseBuilder {
 
         let pack = try FoundryPackLoader.load(from: request.sourceURL)
         let version = request.version.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard let identifier = pack.identifier, !identifier.isEmpty,
+        let identifier = pack.identifier
+        guard !identifier.isEmpty,
               let sourceVersionString = pack.metadata.version,
               let sourceVersion = SemanticVersion(sourceVersionString),
               let releaseVersion = SemanticVersion(version),
@@ -258,7 +259,7 @@ nonisolated enum FoundryPackReleaseBuilder {
             .appending(path: request.sourceURL.deletingPathExtension().lastPathComponent)
             .appendingPathExtension("foundrypack")
         try fileManager.copyItem(at: request.sourceURL, to: releasePackURL)
-        try writePackVersion(version, manifestURL: releasePackURL.appending(path: "Contents/Info.plist"))
+        try writePackVersion(version, manifestURL: releasePackURL.appending(path: "Info.plist"))
 
         let publishingDirectoryURL = configuration.appcastURL.deletingLastPathComponent()
         let releaseDirectoryName = "\(identifier) \(version)"
@@ -611,8 +612,8 @@ enum FoundryPackUpdater {
         let installedPack = try await Task.detached(priority: .utility) {
             try FoundryPackLoader.load(from: sourceURL)
         }.value
-        guard let packID = installedPack.identifier,
-              let currentVersion = installedPack.metadata.version,
+        let packID = installedPack.identifier
+        guard let currentVersion = installedPack.metadata.version,
               let configuration = installedPack.metadata.updates else {
             throw FoundryPackUpdateError.invalidMetadata("This pack does not declare update information.")
         }
@@ -646,8 +647,8 @@ enum FoundryPackUpdater {
         let installedPack = try await Task.detached(priority: .utility) {
             try FoundryPackLoader.load(from: sourceURL)
         }.value
-        guard let packID = installedPack.identifier,
-              let currentVersion = installedPack.metadata.version,
+        let packID = installedPack.identifier
+        guard let currentVersion = installedPack.metadata.version,
               let configuration = installedPack.metadata.updates else {
             throw FoundryPackUpdateError.invalidMetadata("This pack does not declare update information.")
         }
@@ -708,15 +709,12 @@ enum FoundryPackUpdater {
 
         let candidates = FoundryPackLoader.packURLs(in: extractionURL)
             .filter { $0.pathExtension.lowercased() == "foundrypack" }
-            .filter { candidate in
-                !candidatesParentIsPack(candidate, inside: extractionURL)
-            }
         guard candidates.count == 1, let candidate = candidates.first else {
             throw FoundryPackUpdateError.invalidMetadata("The update archive must contain exactly one top-level .foundrypack.")
         }
         let downloadedPack = try FoundryPackLoader.load(from: candidate)
         guard downloadedPack.identifier == packID else {
-            throw FoundryPackUpdateError.wrongPack(downloadedPack.identifier ?? "unknown")
+            throw FoundryPackUpdateError.wrongPack(downloadedPack.identifier)
         }
         guard downloadedPack.metadata.version == release.version else {
             throw FoundryPackUpdateError.invalidMetadata("The downloaded pack version does not match the appcast release.")

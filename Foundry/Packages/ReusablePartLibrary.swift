@@ -55,16 +55,27 @@ final class ReusablePartLibrary {
     private(set) var entries: [ReusablePartLibraryEntry] = []
     private(set) var organization: [TemplateLibraryNode] = []
     private var directoryURL: URL
+    private let usesPackCatalog: Bool
+    private var entryURLs: [UUID: URL] = [:]
+    private var externalDevelopmentPackURLs: Set<URL> = []
 
     init(directoryURL: URL? = nil) {
+        usesPackCatalog = directoryURL == nil
         self.directoryURL = directoryURL ?? Self.defaultDirectoryURL()
         refresh()
     }
 
     private static func defaultDirectoryURL() -> URL {
-        (try? FoundryLibraryLocation.directoryURL(named: "Templates"))
+        (try? personalTemplatesURL())
             ?? FileManager.default.temporaryDirectory
                 .appending(path: "FoundryTemplates", directoryHint: .isDirectory)
+    }
+
+    private static func personalTemplatesURL() throws -> URL {
+        let url = try FoundryPackLoader.personalDevelopmentPackURL()
+            .appending(path: FoundryPackItemKind.template.rawValue, directoryHint: .isDirectory)
+        try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+        return url
     }
 
     /// Re-resolves the directory from the library-location preference, e.g.
@@ -78,14 +89,26 @@ final class ReusablePartLibrary {
 
     func refresh() {
         let fileManager = FileManager.default
-        let bundleURLs = (try? fileManager.contentsOfDirectory(
-            at: directoryURL,
-            includingPropertiesForKeys: nil,
-            options: [.skipsHiddenFiles]
-        )) ?? []
-        entries = bundleURLs
-            .filter { $0.pathExtension == Self.bundleExtension }
-            .compactMap(Self.entry(at:))
+        let bundleURLs: [URL]
+        if usesPackCatalog, let packsRoot = try? FoundryPackLoader.installedPacksURL() {
+            bundleURLs = (FoundryPackLoader.packURLs(in: packsRoot) + externalDevelopmentPackURLs)
+                .compactMap { try? FoundryPackLoader.load(from: $0) }
+                .flatMap(\.templateURLs)
+        } else {
+            bundleURLs = (try? fileManager.contentsOfDirectory(
+                at: directoryURL,
+                includingPropertiesForKeys: nil,
+                options: [.skipsHiddenFiles]
+            )) ?? []
+        }
+        let loaded = bundleURLs.compactMap { url in Self.entry(at: url).map { ($0, url) } }
+        entryURLs.removeAll(keepingCapacity: true)
+        var uniqueEntries: [ReusablePartLibraryEntry] = []
+        for (entry, url) in loaded where entryURLs[entry.id] == nil {
+            entryURLs[entry.id] = url
+            uniqueEntries.append(entry)
+        }
+        entries = uniqueEntries
             .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
         organization = Self.normalized(loadOrganization(), entryIDs: entries.map(\.id))
         saveOrganization()
@@ -95,8 +118,21 @@ final class ReusablePartLibrary {
         entries.first { $0.id == id }
     }
 
+    func openDevelopmentPack(at url: URL) {
+        externalDevelopmentPackURLs.insert(url.standardizedFileURL)
+        refresh()
+    }
+
     func bundleURL(forID id: UUID) -> URL {
-        directoryURL.appending(path: "\(id.uuidString).\(Self.bundleExtension)", directoryHint: .isDirectory)
+        entryURLs[id] ?? directoryURL.appending(path: id.uuidString, directoryHint: .isDirectory)
+    }
+
+    private func writableBundleURL(forID id: UUID) -> URL {
+        if let existing = entryURLs[id],
+           existing.deletingLastPathComponent().standardizedFileURL == directoryURL.standardizedFileURL {
+            return existing
+        }
+        return directoryURL.appending(path: id.uuidString, directoryHint: .isDirectory)
     }
 
     /// The panel's tree: the stored organization resolved against the loaded
@@ -128,8 +164,8 @@ final class ReusablePartLibrary {
     /// unresolvable assets are skipped rather than failing the save.
     func save(definition: ReusablePartDefinition, assetContents: ProjectAssetContents) {
         let fileManager = FileManager.default
-        let bundleURL = bundleURL(forID: definition.id)
-        let resourcesURL = bundleURL.appending(path: "Contents/Resources", directoryHint: .isDirectory)
+        let bundleURL = writableBundleURL(forID: definition.id)
+        let resourcesURL = bundleURL.appending(path: "Resources", directoryHint: .isDirectory)
         let assetsURL = resourcesURL.appending(path: "Assets", directoryHint: .isDirectory)
         do {
             try? fileManager.removeItem(at: bundleURL)
@@ -144,7 +180,7 @@ final class ReusablePartLibrary {
             let manifestData = try PropertyListSerialization.data(
                 fromPropertyList: manifest, format: .xml, options: 0
             )
-            try manifestData.write(to: bundleURL.appending(path: "Contents/Info.plist"), options: .atomic)
+            try manifestData.write(to: bundleURL.appending(path: "Info.plist"), options: .atomic)
 
             try FoundryDocument.encoder.encode(definition)
                 .write(to: resourcesURL.appending(path: "part.json"), options: .atomic)
@@ -172,7 +208,7 @@ final class ReusablePartLibrary {
     private(set) var previewRevision = 0
 
     func previewURL(forID id: UUID) -> URL? {
-        let url = bundleURL(forID: id).appending(path: "Contents/Resources/preview.png")
+        let url = bundleURL(forID: id).appending(path: "Resources/preview.png")
         return FileManager.default.fileExists(atPath: url.path) ? url : nil
     }
 
@@ -180,7 +216,7 @@ final class ReusablePartLibrary {
     /// beat after the save once painting settles.
     func savePreview(_ data: Data, forID id: UUID) {
         guard entry(withID: id) != nil else { return }
-        let url = bundleURL(forID: id).appending(path: "Contents/Resources/preview.png")
+        let url = bundleURL(forID: id).appending(path: "Resources/preview.png")
         try? data.write(to: url, options: .atomic)
         previewRevision += 1
     }
@@ -189,15 +225,19 @@ final class ReusablePartLibrary {
 
     func rename(id: UUID, to name: String) {
         guard let entry = entry(withID: id) else { return }
+        guard bundleURL(forID: id).deletingLastPathComponent().standardizedFileURL
+            == directoryURL.standardizedFileURL else { return }
         var definition = entry.definition
         definition.name = name
-        let resourcesURL = bundleURL(forID: id).appending(path: "Contents/Resources", directoryHint: .isDirectory)
+        let resourcesURL = bundleURL(forID: id).appending(path: "Resources", directoryHint: .isDirectory)
         try? FoundryDocument.encoder.encode(definition)
             .write(to: resourcesURL.appending(path: "part.json"), options: .atomic)
         refresh()
     }
 
     func delete(id: UUID) {
+        guard bundleURL(forID: id).deletingLastPathComponent().standardizedFileURL
+            == directoryURL.standardizedFileURL else { return }
         try? FileManager.default.removeItem(at: bundleURL(forID: id))
         organization.removeNode(id: id)
         saveOrganization()
@@ -219,7 +259,7 @@ final class ReusablePartLibrary {
         let destinationURL = bundleURL(forID: copied.id)
         do {
             try fileManager.copyItem(at: sourceURL, to: destinationURL)
-            let resourcesURL = destinationURL.appending(path: "Contents/Resources", directoryHint: .isDirectory)
+            let resourcesURL = destinationURL.appending(path: "Resources", directoryHint: .isDirectory)
             try FoundryDocument.encoder.encode(copied)
                 .write(to: resourcesURL.appending(path: "part.json"), options: .atomic)
             let manifest: [String: Any] = [
@@ -229,7 +269,7 @@ final class ReusablePartLibrary {
                 "title": copied.name
             ]
             try PropertyListSerialization.data(fromPropertyList: manifest, format: .xml, options: 0)
-                .write(to: destinationURL.appending(path: "Contents/Info.plist"), options: .atomic)
+                .write(to: destinationURL.appending(path: "Info.plist"), options: .atomic)
         } catch {
             try? fileManager.removeItem(at: destinationURL)
             return
@@ -258,7 +298,10 @@ final class ReusablePartLibrary {
     func deleteFolder(id: UUID) {
         guard case .folder(let folder)? = organization.node(withID: id) else { return }
         for templateID in folder.children.flatMap(\.templateIDs) {
-            try? FileManager.default.removeItem(at: bundleURL(forID: templateID))
+            let url = bundleURL(forID: templateID)
+            if url.deletingLastPathComponent().standardizedFileURL == directoryURL.standardizedFileURL {
+                try? FileManager.default.removeItem(at: url)
+            }
         }
         organization.removeNode(id: id)
         saveOrganization()
@@ -284,7 +327,7 @@ final class ReusablePartLibrary {
         undoManager: UndoManager?
     ) -> ReusablePartDefinition? {
         let assetsURL = bundleURL(forID: entry.id)
-            .appending(path: "Contents/Resources/Assets", directoryHint: .isDirectory)
+            .appending(path: "Resources/Assets", directoryHint: .isDirectory)
         var replacements: [UUID: UUID] = [:]
         for asset in entry.assets {
             let fileURL = assetsURL.appending(path: asset.storageFilename)
@@ -382,12 +425,11 @@ final class ReusablePartLibrary {
 
     // MARK: Bundle reading
 
-    private static let bundleExtension = "foundrypack"
     private nonisolated static let assetReferencePattern = /foundry-asset:([0-9A-Fa-f-]{36})/
 
-    private static func entry(at bundleURL: URL) -> ReusablePartLibraryEntry? {
-        let resourcesURL = bundleURL.appending(path: "Contents/Resources", directoryHint: .isDirectory)
-        guard let manifestData = try? Data(contentsOf: bundleURL.appending(path: "Contents/Info.plist")),
+    nonisolated static func entry(at bundleURL: URL) -> ReusablePartLibraryEntry? {
+        let resourcesURL = bundleURL.appending(path: "Resources", directoryHint: .isDirectory)
+        guard let manifestData = try? Data(contentsOf: bundleURL.appending(path: "Info.plist")),
               let manifest = try? PropertyListSerialization.propertyList(from: manifestData, format: nil) as? [String: Any],
               manifest["reusablePart"] as? Bool == true,
               let definitionData = try? Data(contentsOf: resourcesURL.appending(path: "part.json")),
