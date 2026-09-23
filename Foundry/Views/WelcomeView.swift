@@ -4,6 +4,7 @@ import AppKit
 struct WelcomeView: View {
     @Environment(\.newDocument) private var newDocument
     @Environment(\.openDocument) private var openDocument
+    @Environment(\.openWindow) private var openWindow
     @Environment(\.dismissWindow) private var dismissWindow
     @State private var recentProjects: [URL] = []
     @State private var selectedProject: URL?
@@ -36,7 +37,7 @@ struct WelcomeView: View {
                 Button("Open…") { isChoosingFile = true }
                     .keyboardShortcut("o", modifiers: .command)
                 Button("New Project") {
-                    newDocument(contentType: .foundryProject)
+                    openWindow(id: "new-project")
                     dismissWindow(id: "welcome")
                 }
                 .keyboardShortcut("n", modifiers: .command)

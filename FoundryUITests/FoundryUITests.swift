@@ -13,7 +13,8 @@ final class FoundryUITests: XCTestCase {
             "-foundry.workspace.layout.v1", "ui-test-standard-layout"
         ]
         app.launch()
-        app.typeKey("n", modifierFlags: .command)
+        // ⌘N opens the project chooser; ⌥⌘N is the direct blank document.
+        app.typeKey("n", modifierFlags: [.command, .option])
 
         let pagesTab = app.buttons["Pages"]
         await assertExists(pagesTab)

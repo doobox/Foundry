@@ -179,7 +179,7 @@ nonisolated struct PublishingDestination: Codable, Equatable, Identifiable, Send
 nonisolated struct Site: Codable, Equatable, Identifiable, Sendable {
     static let currentSchemaVersion = 14
 
-    let id: UUID
+    var id: UUID
     var schemaVersion: Int
     var name: String
     var language: String
@@ -300,6 +300,26 @@ nonisolated struct Site: Codable, Equatable, Identifiable, Sendable {
         globalPartLibrary.updateAllDefinitions {
             $0.root.bakeFrameworkDimensionReference(reference, amountPx: amountPx, fallbackToken: fallbackToken, isRadius: isRadius)
         }
+    }
+
+    /// Prepares this site to become a new project stamped from a kit: a
+    /// fresh identity — publishing destinations and keychain entries key off
+    /// the site id — and factory publishing settings, so nothing collides
+    /// with a sibling project or leaks the kit author's host details.
+    mutating func prepareAsKitCopy(named title: String) {
+        id = UUID()
+        name = title
+        let factory = Site(name: title, pages: [], assetLibrary: [])
+        publicURL = factory.publicURL
+        publishingDestination = factory.publishingDestination
+        publishingHost = factory.publishingHost
+        publishingPort = factory.publishingPort
+        publishingUsername = factory.publishingUsername
+        publishingRemotePath = factory.publishingRemotePath
+        publishingS3Bucket = factory.publishingS3Bucket
+        publishingS3Region = factory.publishingS3Region
+        publishingDestinations = factory.publishingDestinations
+        defaultPublishingDestinationID = factory.defaultPublishingDestinationID
     }
 
     init(

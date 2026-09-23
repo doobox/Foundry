@@ -31,12 +31,20 @@ struct FoundryApp: App {
         }
         .commands {
             AboutMenuCommands()
+            NewProjectCommands()
             PublishingMenuCommands()
             HelpMenuCommands()
         }
         .defaultSize(width: EditorWindowSize.idealWidth, height: EditorWindowSize.idealHeight)
         .windowResizability(.contentMinSize)
         .windowToolbarStyle(.unified)
+
+        Window("Create a New Project", id: "new-project") {
+            NewProjectChooserView()
+        }
+        .defaultSize(width: 960, height: 640)
+        .windowResizability(.contentMinSize)
+        .restorationBehavior(.disabled)
 
         Window("Welcome to Foundry", id: "welcome") {
             WelcomeView()
@@ -92,6 +100,35 @@ struct FoundryApp: App {
 
         Settings {
             SettingsView()
+        }
+    }
+}
+
+/// ⌘N opens the project chooser — the Elements/Pages pattern — with Empty
+/// Project as the Return-key default, so a blank document stays two
+/// keystrokes away. ⌥⌘N skips the chooser entirely.
+private struct NewProjectCommands: Commands {
+    @Environment(\.openWindow) private var openWindow
+    @Environment(\.newDocument) private var newDocument
+
+    var body: some Commands {
+        CommandGroup(replacing: .newItem) {
+            Button("New Project…") {
+                openWindow(id: "new-project")
+            }
+            .keyboardShortcut("n")
+
+            Button("New Empty Project") {
+                newDocument { FoundryDocument() }
+            }
+            .keyboardShortcut("n", modifiers: [.command, .option])
+
+            Divider()
+
+            Button("Open…") {
+                NSDocumentController.shared.openDocument(nil)
+            }
+            .keyboardShortcut("o")
         }
     }
 }

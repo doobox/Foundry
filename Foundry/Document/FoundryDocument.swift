@@ -270,6 +270,12 @@ final class FoundryDocument: ReferenceFileDocument {
         storage = Mutex(.init(site: site))
     }
 
+    /// A new document over a prepared snapshot — how a kit becomes a fresh
+    /// untitled project without touching the kit on disk.
+    init(snapshot: FoundryDocumentSnapshot) {
+        storage = Mutex(snapshot)
+    }
+
     required init(configuration: ReadConfiguration) throws {
         storage = Mutex(try Self.decodeSnapshot(from: configuration.file))
     }

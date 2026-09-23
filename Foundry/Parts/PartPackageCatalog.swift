@@ -242,6 +242,7 @@ final class PartPackageCatalog {
         ReusablePartLibrary.shared.refresh()
         FrameworkLibrary.shared.reload()
         AssetCollectionLibrary.shared.refresh()
+        SiteKitLibrary.shared.refresh()
     }
 
     func reloadAllPacks() {
@@ -249,6 +250,7 @@ final class PartPackageCatalog {
         ReusablePartLibrary.shared.refresh()
         FrameworkLibrary.shared.reload()
         AssetCollectionLibrary.shared.refresh()
+        SiteKitLibrary.shared.refresh()
     }
 
     func waitUntilLoaded() async {
@@ -319,6 +321,7 @@ final class PartPackageCatalog {
         ReusablePartLibrary.shared.openDevelopmentPack(at: rootURL)
         FrameworkLibrary.shared.openDevelopmentPack(at: rootURL)
         AssetCollectionLibrary.shared.openDevelopmentPack(at: rootURL)
+        SiteKitLibrary.shared.openDevelopmentPack(at: rootURL)
         reloadDevelopmentPack(at: rootURL)
         watchDevelopmentPack(at: rootURL)
     }
@@ -355,6 +358,7 @@ final class PartPackageCatalog {
         ReusablePartLibrary.shared.refresh()
         FrameworkLibrary.shared.reload()
         AssetCollectionLibrary.shared.refresh()
+        SiteKitLibrary.shared.refresh()
     }
 }
 

@@ -8,6 +8,7 @@ nonisolated struct FoundryPack: Sendable {
     let templateURLs: [URL]
     let frameworkURLs: [URL]
     let assetCollectionURLs: [URL]
+    let siteKitURLs: [URL]
     /// Typed items that are not a directory containing Info.plist and
     /// Resources — typically a part folder mid-creation in a development
     /// pack. Loading skips them so the rest of the pack stays usable;
@@ -20,6 +21,7 @@ nonisolated enum FoundryPackItemKind: String, CaseIterable, Sendable {
     case template = "Templates"
     case framework = "Frameworks"
     case assetCollection = "Assets"
+    case site = "Sites"
 }
 
 nonisolated enum FoundryPackLoadingError: Error, LocalizedError {
@@ -88,6 +90,7 @@ nonisolated enum FoundryPackLoader {
         let templateURLs = try itemURLs(in: rootURL, kind: .template, invalidPaths: &invalidItemPaths)
         let frameworkURLs = try itemURLs(in: rootURL, kind: .framework, invalidPaths: &invalidItemPaths)
         let assetCollectionURLs = try itemURLs(in: rootURL, kind: .assetCollection, invalidPaths: &invalidItemPaths)
+        let siteKitURLs = try itemURLs(in: rootURL, kind: .site, invalidPaths: &invalidItemPaths)
         return FoundryPack(
             identifier: identifier,
             rootURL: rootURL,
@@ -96,6 +99,7 @@ nonisolated enum FoundryPackLoader {
             templateURLs: templateURLs,
             frameworkURLs: frameworkURLs,
             assetCollectionURLs: assetCollectionURLs,
+            siteKitURLs: siteKitURLs,
             invalidItemPaths: invalidItemPaths.sorted()
         )
     }
@@ -216,11 +220,11 @@ nonisolated enum FoundryPackLoader {
         for url in children {
             let values = try url.resourceValues(forKeys: [.isDirectoryKey, .isSymbolicLinkKey])
             let isPlainDirectory = values.isDirectory == true && values.isSymbolicLink != true
-            // Asset collections are hand-authorable: any folder of files is a
-            // collection, and its Info.plist is optional licence metadata.
-            // The other kinds are structured items Foundry generates.
+            // Asset collections and site kits are hand-authorable: any folder
+            // is an item, with an optional Info.plist for metadata. The other
+            // kinds are structured items Foundry generates.
             let isValidItem: Bool
-            if kind == .assetCollection {
+            if kind == .assetCollection || kind == .site {
                 isValidItem = isPlainDirectory
             } else {
                 let hasManifest = FileManager.default.fileExists(atPath: url.appending(path: "Info.plist").path)
