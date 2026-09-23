@@ -42,18 +42,6 @@
 			<key>LSTypeIsPackage</key>
 			<true/>
 		</dict>
-		<dict>
-			<key>CFBundleTypeName</key>
-			<string>Foundry Framework</string>
-			<key>CFBundleTypeRole</key>
-			<string>Viewer</string>
-			<key>LSHandlerRank</key>
-			<string>Owner</string>
-			<key>LSItemContentTypes</key>
-			<array>
-				<string>uk.co.garysimpson.foundry.framework</string>
-			</array>
-		</dict>
 	</array>
 	<key>UTExportedTypeDeclarations</key>
 	<array>
@@ -123,27 +111,6 @@
 				<key>public.filename-extension</key>
 				<array>
 					<string>foundrydevpack</string>
-				</array>
-			</dict>
-		</dict>
-		<dict>
-			<key>UTTypeConformsTo</key>
-			<array>
-				<string>com.apple.package</string>
-			</array>
-			<key>UTTypeDescription</key>
-			<string>Foundry Framework</string>
-			<key>UTTypeIdentifier</key>
-			<string>uk.co.garysimpson.foundry.framework</string>
-			<key>UTTypeTagSpecification</key>
-			<dict>
-				<key>public.filename-extension</key>
-				<array>
-					<string>foundryframework</string>
-				</array>
-				<key>public.mime-type</key>
-				<array>
-					<string>application/vnd.foundry.framework</string>
 				</array>
 			</dict>
 		</dict>

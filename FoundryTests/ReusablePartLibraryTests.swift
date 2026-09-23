@@ -143,7 +143,7 @@ struct ReusablePartLibraryTests {
 
         // A fresh instance over the same directory sees the same organization.
         let reloaded = ReusablePartLibrary(directoryURL: library.bundleURL(forID: hero.id).deletingLastPathComponent())
-        #expect(reloaded.organization == library.organization)
+        #expect(reloaded.organizedNodes == library.organizedNodes)
 
         // Deleting the folder removes the bundles it contained.
         library.deleteFolder(id: folderID)
@@ -198,6 +198,51 @@ struct ReusablePartLibraryTests {
     }
 
     @Test
+    func projectTemplatesLiveInTheDocumentAndSupportUndo() throws {
+        let page = Page(title: "Home", slug: "index", parts: [PartNode.make(.container)])
+        let document = FoundryDocument(site: Site(name: "Project", pages: [page]))
+        let undoManager = UndoManager()
+        undoManager.groupsByEvent = false
+        let editor = ProjectEditor(document: document, undoManager: undoManager)
+        let partID = try #require(document.site.pages.first?.parts.first?.id)
+        let definition = try #require(editor.templateDefinition(fromPartID: partID, name: "Hero"))
+
+        undoManager.beginUndoGrouping()
+        #expect(editor.addProjectTemplate(definition))
+        undoManager.endUndoGrouping()
+        #expect(document.site.projectTemplateLibrary.allDefinitions.map(\.name) == ["Hero"])
+
+        // Project templates persist inside project.json like any other site data.
+        let data = try FoundryDocument.encoder.encode(document.site)
+        let decoded = try FoundryDocument.decoder.decode(Site.self, from: data)
+        #expect(decoded.projectTemplateLibrary == document.site.projectTemplateLibrary)
+
+        undoManager.beginUndoGrouping()
+        editor.renameProjectTemplate(id: definition.id, to: "Header")
+        undoManager.endUndoGrouping()
+        #expect(document.site.projectTemplateLibrary.allDefinitions.first?.name == "Header")
+        undoManager.undo()
+        #expect(document.site.projectTemplateLibrary.allDefinitions.first?.name == "Hero")
+        undoManager.undo()
+        #expect(document.site.projectTemplateLibrary.isEmpty)
+
+        // Folders organize project templates exactly like the pack library.
+        func grouped<Result>(_ mutation: () -> Result) -> Result {
+            undoManager.beginUndoGrouping()
+            defer { undoManager.endUndoGrouping() }
+            return mutation()
+        }
+        _ = grouped { editor.addProjectTemplate(definition) }
+        let folderID = try #require(grouped { editor.createProjectTemplateFolder(named: "Sections") })
+        #expect(grouped { editor.moveProjectTemplateNode(id: definition.id, to: .inside(folderID: folderID)) })
+        guard case .folder(let folder)? = document.site.projectTemplateLibrary.node(withID: folderID) else {
+            Issue.record("expected folder in project template library")
+            return
+        }
+        #expect(folder.children.map(\.id) == [definition.id])
+    }
+
+    @Test
     func duplicateCreatesAnIndependentBundleAfterTheOriginal() throws {
         let library = temporaryLibrary()
         let (document, _) = documentWithAsset()
@@ -210,6 +255,6 @@ struct ReusablePartLibraryTests {
         let copy = try #require(library.entries.first { $0.name == "Hero Copy" })
         #expect(copy.id != hero.id)
         #expect(copy.definition.root.id != hero.root.id)
-        #expect(library.organization.map(\.id) == [hero.id, copy.id])
+        #expect(library.organizedNodes.map(\.id) == [hero.id, copy.id])
     }
 }

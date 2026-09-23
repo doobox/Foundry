@@ -43,101 +43,188 @@ nonisolated indirect enum TemplateLibraryNode: Codable, Equatable, Identifiable,
     }
 }
 
-/// The templates library: the only home templates have. Saving a template in
-/// any project writes a self-contained bundle here; the Templates panel in
-/// every project is a live view of this directory. Inserting a template stamps
-/// an independent copy onto the page — nothing ever links back to the library.
+/// One source of templates in the panel: the personal "My Library" pack, an
+/// open development pack, or an installed read-only pack.
+nonisolated struct ReusablePartLibraryPack: Identifiable, Sendable {
+    let rootURL: URL?
+    let title: String
+    let isEditable: Bool
+    /// Whether the panel shows this source even without templates: the
+    /// personal pack and explicitly opened dev packs are standing drop
+    /// targets; a merely installed pack earns its section with content.
+    let showsWhenEmpty: Bool
+    let nodes: [ReusablePartNode]
+
+    var id: String { rootURL?.standardizedFileURL.path ?? "library" }
+}
+
+/// The templates library: every pack that carries templates, resolved into
+/// panel sections. Editable packs (the personal "My Library" pack and open
+/// development packs) accept saves, renames, deletions and moves; installed
+/// `.foundrypack`s are read-only sources whose templates can only be copied
+/// out. Inserting a template stamps an independent copy onto the page —
+/// nothing ever links back to the library.
 @MainActor
 @Observable
 final class ReusablePartLibrary {
     static let shared = ReusablePartLibrary()
 
+    /// One template source and everything loaded from it.
+    private struct PackState {
+        let rootURL: URL?
+        let templatesURL: URL
+        let organizationURL: URL
+        let title: String
+        let isEditable: Bool
+        let showsWhenEmpty: Bool
+        var entries: [ReusablePartLibraryEntry]
+        var organization: [TemplateLibraryNode]
+
+        var id: String { rootURL?.standardizedFileURL.path ?? "library" }
+    }
+
     private(set) var entries: [ReusablePartLibraryEntry] = []
-    private(set) var organization: [TemplateLibraryNode] = []
-    private var directoryURL: URL
-    private let usesPackCatalog: Bool
+    private(set) var packs: [ReusablePartLibraryPack] = []
+    private var packStates: [PackState] = []
     private var entryURLs: [UUID: URL] = [:]
+    private var entryPackIDs: [UUID: String] = [:]
     private var externalDevelopmentPackURLs: Set<URL> = []
+    /// Injected in tests: a plain directory of bundles instead of the pack
+    /// catalog, presented as one editable source.
+    private let fixedDirectoryURL: URL?
 
     init(directoryURL: URL? = nil) {
-        usesPackCatalog = directoryURL == nil
-        self.directoryURL = directoryURL ?? Self.defaultDirectoryURL()
+        fixedDirectoryURL = directoryURL
         refresh()
     }
 
-    private static func defaultDirectoryURL() -> URL {
-        (try? personalTemplatesURL())
-            ?? FileManager.default.temporaryDirectory
-                .appending(path: "FoundryTemplates", directoryHint: .isDirectory)
-    }
-
-    private static func personalTemplatesURL() throws -> URL {
-        let url = try FoundryPackLoader.personalDevelopmentPackURL()
-            .appending(path: FoundryPackItemKind.template.rawValue, directoryHint: .isDirectory)
-        try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
-        return url
-    }
-
-    /// Re-resolves the directory from the library-location preference, e.g.
-    /// after the user changes the Library Folder in Settings.
+    /// Re-resolves the personal pack from the library-location preference,
+    /// e.g. after the user changes the Library Folder in Settings.
     func reloadFromPreferredLocation() {
-        directoryURL = Self.defaultDirectoryURL()
         refresh()
     }
 
     // MARK: Listing
 
     func refresh() {
-        let fileManager = FileManager.default
-        let bundleURLs: [URL]
-        if usesPackCatalog, let packsRoot = try? FoundryPackLoader.installedPacksURL() {
-            bundleURLs = (FoundryPackLoader.packURLs(in: packsRoot) + externalDevelopmentPackURLs)
-                .compactMap { try? FoundryPackLoader.load(from: $0) }
-                .flatMap(\.templateURLs)
-        } else {
-            bundleURLs = (try? fileManager.contentsOfDirectory(
-                at: directoryURL,
+        entryURLs.removeAll(keepingCapacity: true)
+        entryPackIDs.removeAll(keepingCapacity: true)
+        var states: [PackState] = []
+        for source in resolvedSources() {
+            var state = source
+            let bundleURLs = templateBundleURLs(for: source)
+            let loaded = bundleURLs
+                .compactMap { url in Self.entry(at: url).map { ($0, url) } }
+                .sorted { $0.0.name.localizedCaseInsensitiveCompare($1.0.name) == .orderedAscending }
+            for (entry, url) in loaded where entryURLs[entry.id] == nil {
+                entryURLs[entry.id] = url
+                entryPackIDs[entry.id] = state.id
+                state.entries.append(entry)
+            }
+            state.organization = Self.normalized(
+                loadOrganization(at: state.organizationURL),
+                entryIDs: state.entries.map(\.id)
+            )
+            // Read-only packs keep their shipped arrangement untouched on disk.
+            if state.isEditable {
+                saveOrganization(state.organization, at: state.organizationURL)
+            }
+            states.append(state)
+        }
+        packStates = states
+        entries = states.flatMap(\.entries)
+            .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+        packs = states.map { state in
+            ReusablePartLibraryPack(
+                rootURL: state.rootURL,
+                title: state.title,
+                isEditable: state.isEditable,
+                showsWhenEmpty: state.showsWhenEmpty,
+                nodes: resolvedNodes(state.organization, entries: state.entries)
+            )
+        }
+    }
+
+    private func resolvedSources() -> [PackState] {
+        if let fixedDirectoryURL {
+            return [PackState(
+                rootURL: nil,
+                templatesURL: fixedDirectoryURL,
+                organizationURL: fixedDirectoryURL.appending(path: "library.json"),
+                title: "Templates",
+                isEditable: true,
+                showsWhenEmpty: true,
+                entries: [],
+                organization: []
+            )]
+        }
+        var roots: [(url: URL, showsWhenEmpty: Bool)] = []
+        if let personal = try? FoundryPackLoader.personalDevelopmentPackURL() {
+            roots.append((personal.standardizedFileURL, true))
+        }
+        let installedRoots = (try? FoundryPackLoader.installedPacksURL())
+            .map { FoundryPackLoader.packURLs(in: $0) } ?? []
+        // Explicitly opened dev packs are the active authoring context and
+        // stay visible even before their first template lands.
+        let external = externalDevelopmentPackURLs.subtracting(roots.map(\.url))
+        roots += external
+            .sorted { $0.lastPathComponent.localizedCaseInsensitiveCompare($1.lastPathComponent) == .orderedAscending }
+            .map { ($0, true) }
+        roots += installedRoots
+            .filter { url in !roots.contains { $0.url == url.standardizedFileURL } }
+            .map { ($0, false) }
+        // Templates shipped inside the app's built-in pack surface as the
+        // panel's final read-only section, like Elements' protected Core.
+        if let builtIn = Self.builtInPackURL() {
+            roots.append((builtIn, false))
+        }
+        return roots.compactMap { packSource(at: $0.url, showsWhenEmpty: $0.showsWhenEmpty) }
+    }
+
+    private nonisolated static func builtInPackURL() -> URL? {
+        guard let bundleURL = Bundle.main.url(forResource: "BuiltInParts", withExtension: "bundle"),
+              let partBundle = Bundle(url: bundleURL) else { return nil }
+        let containerURL = partBundle.url(forResource: "BuiltInParts", withExtension: "foundrypack")
+            ?? partBundle.resourceURL?.appending(path: "BuiltInParts.foundrypack", directoryHint: .isDirectory)
+        return containerURL?.standardizedFileURL
+    }
+
+    private func packSource(at rootURL: URL, showsWhenEmpty: Bool) -> PackState? {
+        guard let pack = try? FoundryPackLoader.load(from: rootURL) else { return nil }
+        return PackState(
+            rootURL: rootURL.standardizedFileURL,
+            templatesURL: rootURL.appending(
+                path: FoundryPackItemKind.template.rawValue,
+                directoryHint: .isDirectory
+            ),
+            organizationURL: rootURL
+                .appending(path: "Resources", directoryHint: .isDirectory)
+                .appending(path: "library.json"),
+            title: pack.metadata.title ?? rootURL.deletingPathExtension().lastPathComponent,
+            isEditable: rootURL.pathExtension.lowercased() == "foundrydevpack",
+            showsWhenEmpty: showsWhenEmpty,
+            entries: [],
+            organization: []
+        )
+    }
+
+    private func templateBundleURLs(for source: PackState) -> [URL] {
+        guard fixedDirectoryURL == nil else {
+            return (try? FileManager.default.contentsOfDirectory(
+                at: source.templatesURL,
                 includingPropertiesForKeys: nil,
                 options: [.skipsHiddenFiles]
             )) ?? []
         }
-        let loaded = bundleURLs.compactMap { url in Self.entry(at: url).map { ($0, url) } }
-        entryURLs.removeAll(keepingCapacity: true)
-        var uniqueEntries: [ReusablePartLibraryEntry] = []
-        for (entry, url) in loaded where entryURLs[entry.id] == nil {
-            entryURLs[entry.id] = url
-            uniqueEntries.append(entry)
-        }
-        entries = uniqueEntries
-            .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
-        organization = Self.normalized(loadOrganization(), entryIDs: entries.map(\.id))
-        saveOrganization()
+        guard let rootURL = source.rootURL,
+              let pack = try? FoundryPackLoader.load(from: rootURL) else { return [] }
+        return pack.templateURLs
     }
 
-    func entry(withID id: UUID) -> ReusablePartLibraryEntry? {
-        entries.first { $0.id == id }
-    }
-
-    func openDevelopmentPack(at url: URL) {
-        externalDevelopmentPackURLs.insert(url.standardizedFileURL)
-        refresh()
-    }
-
-    func bundleURL(forID id: UUID) -> URL {
-        entryURLs[id] ?? directoryURL.appending(path: id.uuidString, directoryHint: .isDirectory)
-    }
-
-    private func writableBundleURL(forID id: UUID) -> URL {
-        if let existing = entryURLs[id],
-           existing.deletingLastPathComponent().standardizedFileURL == directoryURL.standardizedFileURL {
-            return existing
-        }
-        return directoryURL.appending(path: id.uuidString, directoryHint: .isDirectory)
-    }
-
-    /// The panel's tree: the stored organization resolved against the loaded
-    /// entries, in the shared node vocabulary the outline renders.
-    var organizedNodes: [ReusablePartNode] {
+    private func resolvedNodes(
+        _ organization: [TemplateLibraryNode],
+        entries: [ReusablePartLibraryEntry]
+    ) -> [ReusablePartNode] {
         let entriesByID = Dictionary(uniqueKeysWithValues: entries.map { ($0.id, $0) })
         func resolve(_ nodes: [TemplateLibraryNode]) -> [ReusablePartNode] {
             nodes.compactMap { node in
@@ -157,14 +244,94 @@ final class ReusablePartLibrary {
         return resolve(organization)
     }
 
+    func entry(withID id: UUID) -> ReusablePartLibraryEntry? {
+        entries.first { $0.id == id }
+    }
+
+    func openDevelopmentPack(at url: URL) {
+        externalDevelopmentPackURLs.insert(url.standardizedFileURL)
+        refresh()
+    }
+
+    func bundleURL(forID id: UUID) -> URL {
+        entryURLs[id] ?? personalTemplatesURL().appending(path: id.uuidString, directoryHint: .isDirectory)
+    }
+
+    /// The pack a loaded template belongs to; nil for unknown ids.
+    func packRootURL(forID id: UUID) -> URL? {
+        packState(containingEntry: id)?.rootURL
+    }
+
+    func isEditable(id: UUID) -> Bool {
+        packState(containingEntry: id)?.isEditable ?? false
+    }
+
+    /// The tree of the first editable source — the personal pack, or the
+    /// injected directory in tests.
+    var organizedNodes: [ReusablePartNode] {
+        packs.first(where: \.isEditable)?.nodes ?? []
+    }
+
+    private func packState(containingEntry id: UUID) -> PackState? {
+        guard let packID = entryPackIDs[id] else { return nil }
+        return packStates.first { $0.id == packID }
+    }
+
+    /// The source whose organization tree contains this node (template or
+    /// folder) — folders exist only in organizations, not on disk.
+    private func packState(containingNode id: UUID) -> PackState? {
+        packStates.first { $0.organization.node(withID: id) != nil }
+    }
+
+    private func personalTemplatesURL() -> URL {
+        if let fixedDirectoryURL { return fixedDirectoryURL }
+        return packStates.first(where: \.isEditable)?.templatesURL
+            ?? FileManager.default.temporaryDirectory.appending(path: "FoundryTemplates", directoryHint: .isDirectory)
+    }
+
+    private func templatesURL(forPackRoot rootURL: URL?) -> URL? {
+        guard let rootURL else { return personalTemplatesURL() }
+        return packStates.first {
+            $0.rootURL?.standardizedFileURL == rootURL.standardizedFileURL && $0.isEditable
+        }?.templatesURL
+    }
+
     // MARK: Saving
 
-    /// Writes (or overwrites) the bundle for this definition: latest save wins.
-    /// `assetContents` supplies bytes for the assets the definition references;
-    /// unresolvable assets are skipped rather than failing the save.
-    func save(definition: ReusablePartDefinition, assetContents: ProjectAssetContents) {
+    /// Writes (or overwrites) the bundle for this definition: latest save
+    /// wins. `assetContents` supplies bytes for the assets the definition
+    /// references; unresolvable assets are skipped rather than failing the
+    /// save. Without a destination the bundle stays in its current editable
+    /// pack, or joins the personal pack.
+    func save(
+        definition: ReusablePartDefinition,
+        assetContents: ProjectAssetContents,
+        to packRootURL: URL? = nil
+    ) {
+        let bundleURL: URL
+        if let packRootURL {
+            guard let templatesURL = templatesURL(forPackRoot: packRootURL) else { return }
+            bundleURL = templatesURL.appending(path: definition.id.uuidString, directoryHint: .isDirectory)
+        } else {
+            bundleURL = writableBundleURL(forID: definition.id)
+        }
+        writeBundle(definition: definition, assetContents: assetContents, to: bundleURL)
+        refresh()
+    }
+
+    private func writableBundleURL(forID id: UUID) -> URL {
+        if let existing = entryURLs[id], packState(containingEntry: id)?.isEditable == true {
+            return existing
+        }
+        return personalTemplatesURL().appending(path: id.uuidString, directoryHint: .isDirectory)
+    }
+
+    private func writeBundle(
+        definition: ReusablePartDefinition,
+        assetContents: ProjectAssetContents,
+        to bundleURL: URL
+    ) {
         let fileManager = FileManager.default
-        let bundleURL = writableBundleURL(forID: definition.id)
         let resourcesURL = bundleURL.appending(path: "Resources", directoryHint: .isDirectory)
         let assetsURL = resourcesURL.appending(path: "Assets", directoryHint: .isDirectory)
         do {
@@ -199,7 +366,6 @@ final class ReusablePartLibrary {
         } catch {
             try? fileManager.removeItem(at: bundleURL)
         }
-        refresh()
     }
 
     // MARK: Previews
@@ -215,7 +381,7 @@ final class ReusablePartLibrary {
     /// Attaches the offscreen-rendered preview to an existing bundle; arrives a
     /// beat after the save once painting settles.
     func savePreview(_ data: Data, forID id: UUID) {
-        guard entry(withID: id) != nil else { return }
+        guard entry(withID: id) != nil, isEditable(id: id) else { return }
         let url = bundleURL(forID: id).appending(path: "Resources/preview.png")
         try? data.write(to: url, options: .atomic)
         previewRevision += 1
@@ -224,9 +390,7 @@ final class ReusablePartLibrary {
     // MARK: Managing
 
     func rename(id: UUID, to name: String) {
-        guard let entry = entry(withID: id) else { return }
-        guard bundleURL(forID: id).deletingLastPathComponent().standardizedFileURL
-            == directoryURL.standardizedFileURL else { return }
+        guard let entry = entry(withID: id), isEditable(id: id) else { return }
         var definition = entry.definition
         definition.name = name
         let resourcesURL = bundleURL(forID: id).appending(path: "Resources", directoryHint: .isDirectory)
@@ -236,28 +400,57 @@ final class ReusablePartLibrary {
     }
 
     func delete(id: UUID) {
-        guard bundleURL(forID: id).deletingLastPathComponent().standardizedFileURL
-            == directoryURL.standardizedFileURL else { return }
+        guard let state = packState(containingEntry: id), state.isEditable else { return }
         try? FileManager.default.removeItem(at: bundleURL(forID: id))
-        organization.removeNode(id: id)
-        saveOrganization()
+        mutateOrganization(ofPackID: state.id) { $0.removeNode(id: id) }
         refresh()
     }
 
-    /// Copies a template's bundle under a fresh identity, placed after the
-    /// original in the organization.
-    func duplicate(id: UUID) {
-        guard let entry = entry(withID: id) else { return }
-        var copy = entry.definition
+    /// Copies a template's bundle under a fresh identity. Without a
+    /// destination the copy lands beside the original when its pack is
+    /// editable, otherwise in the personal pack — the "duplicate out of a
+    /// read-only pack" gesture. An explicit duplicate gains a " Copy" suffix;
+    /// a drag-copy between packs keeps the original name.
+    @discardableResult
+    func duplicate(id: UUID, to packRootURL: URL? = nil, renaming: Bool = true) -> UUID? {
+        let sourceState = packState(containingEntry: id)
+        let destinationTemplatesURL: URL
+        if let packRootURL {
+            guard let url = templatesURL(forPackRoot: packRootURL) else { return nil }
+            destinationTemplatesURL = url
+        } else if let sourceState, sourceState.isEditable {
+            destinationTemplatesURL = sourceState.templatesURL
+        } else {
+            destinationTemplatesURL = personalTemplatesURL()
+        }
+        guard let copiedID = copyBundle(of: id, into: destinationTemplatesURL, renaming: renaming) else {
+            return nil
+        }
+        // A copy beside its original slots in right after it; a copy landing
+        // in another pack joins the end of that pack's tree via refresh.
+        if let sourceState, sourceState.isEditable,
+           destinationTemplatesURL.standardizedFileURL == sourceState.templatesURL.standardizedFileURL {
+            mutateOrganization(ofPackID: sourceState.id) {
+                _ = $0.insert(.template(copiedID), at: .after(nodeID: id))
+            }
+        }
+        refresh()
+        return copiedID
+    }
+
+    /// Copies one bundle into a templates directory under a fresh identity —
+    /// no organization changes, no refresh; callers arrange both.
+    private func copyBundle(of id: UUID, into destinationTemplatesURL: URL, renaming: Bool) -> UUID? {
+        guard let entry = entry(withID: id) else { return nil }
         let copied = ReusablePartDefinition(
-            name: copy.name + " Copy",
-            root: copy.root.duplicatedForReusableDefinition()
+            name: renaming ? entry.definition.name + " Copy" : entry.definition.name,
+            root: entry.definition.root.duplicatedForReusableDefinition()
         )
-        copy = copied
         let fileManager = FileManager.default
         let sourceURL = bundleURL(forID: id)
-        let destinationURL = bundleURL(forID: copied.id)
+        let destinationURL = destinationTemplatesURL.appending(path: copied.id.uuidString, directoryHint: .isDirectory)
         do {
+            try fileManager.createDirectory(at: destinationTemplatesURL, withIntermediateDirectories: true)
             try fileManager.copyItem(at: sourceURL, to: destinationURL)
             let resourcesURL = destinationURL.appending(path: "Resources", directoryHint: .isDirectory)
             try FoundryDocument.encoder.encode(copied)
@@ -272,47 +465,158 @@ final class ReusablePartLibrary {
                 .write(to: destinationURL.appending(path: "Info.plist"), options: .atomic)
         } catch {
             try? fileManager.removeItem(at: destinationURL)
-            return
+            return nil
         }
-        _ = organization.insert(.template(copied.id), at: .after(nodeID: id))
-        saveOrganization()
+        return copied.id
+    }
+
+    /// Physically moves a template's bundle into another editable pack.
+    @discardableResult
+    func moveTemplate(id: UUID, toPackRoot packRootURL: URL?) -> Bool {
+        guard let sourceState = packState(containingEntry: id), sourceState.isEditable,
+              let destinationTemplatesURL = templatesURL(forPackRoot: packRootURL),
+              destinationTemplatesURL.standardizedFileURL != sourceState.templatesURL.standardizedFileURL else {
+            return false
+        }
+        let fileManager = FileManager.default
+        let sourceURL = bundleURL(forID: id)
+        let destinationURL = destinationTemplatesURL.appending(path: id.uuidString, directoryHint: .isDirectory)
+        do {
+            try fileManager.createDirectory(at: destinationTemplatesURL, withIntermediateDirectories: true)
+            try fileManager.moveItem(at: sourceURL, to: destinationURL)
+        } catch {
+            return false
+        }
+        mutateOrganization(ofPackID: sourceState.id) { $0.removeNode(id: id) }
         refresh()
+        return true
+    }
+
+    /// Moves a folder — its organization subtree and every bundle inside —
+    /// into another editable pack, keeping the arrangement intact.
+    @discardableResult
+    func moveFolder(id: UUID, toPackRoot packRootURL: URL?, at placement: ReusablePartPlacement = .end) -> Bool {
+        guard let sourceState = packState(containingNode: id), sourceState.isEditable,
+              case .folder? = sourceState.organization.node(withID: id),
+              let targetState = editablePackState(forRoot: packRootURL),
+              targetState.id != sourceState.id else {
+            return false
+        }
+        var transplanted: TemplateLibraryNode?
+        mutateOrganization(ofPackID: sourceState.id) { transplanted = $0.removeNode(id: id) }
+        guard let transplanted else { return false }
+        let fileManager = FileManager.default
+        try? fileManager.createDirectory(at: targetState.templatesURL, withIntermediateDirectories: true)
+        for templateID in transplanted.templateIDs {
+            let sourceURL = bundleURL(forID: templateID)
+            let destinationURL = targetState.templatesURL.appending(path: templateID.uuidString, directoryHint: .isDirectory)
+            try? fileManager.moveItem(at: sourceURL, to: destinationURL)
+        }
+        mutateOrganization(ofPackID: targetState.id) { _ = $0.insert(transplanted, at: placement) }
+        refresh()
+        return true
+    }
+
+    /// Recreates a folder from a read-only pack inside an editable one:
+    /// fresh folder identities, freshly copied bundles, same names and
+    /// arrangement. The source is untouched.
+    @discardableResult
+    func copyFolder(id: UUID, toPackRoot packRootURL: URL?, at placement: ReusablePartPlacement = .end) -> Bool {
+        guard let sourceState = packState(containingNode: id),
+              case .folder? = sourceState.organization.node(withID: id),
+              let targetState = editablePackState(forRoot: packRootURL) else {
+            return false
+        }
+        func copied(_ node: TemplateLibraryNode) -> TemplateLibraryNode? {
+            switch node {
+            case .template(let templateID):
+                return copyBundle(of: templateID, into: targetState.templatesURL, renaming: false)
+                    .map(TemplateLibraryNode.template)
+            case .folder(let folder):
+                return .folder(TemplateLibraryFolder(
+                    name: folder.name,
+                    children: folder.children.compactMap(copied)
+                ))
+            }
+        }
+        guard let source = sourceState.organization.node(withID: id),
+              let replica = copied(source) else { return false }
+        mutateOrganization(ofPackID: targetState.id) { _ = $0.insert(replica, at: placement) }
+        refresh()
+        return true
+    }
+
+    private func editablePackState(forRoot packRootURL: URL?) -> PackState? {
+        guard let packRootURL else { return packStates.first(where: \.isEditable) }
+        return packStates.first {
+            $0.rootURL?.standardizedFileURL == packRootURL.standardizedFileURL && $0.isEditable
+        }
     }
 
     // MARK: Folders and ordering
 
     @discardableResult
-    func createFolder(name: String, at placement: ReusablePartPlacement = .end) -> UUID? {
+    func createFolder(
+        name: String,
+        inPackRoot packRootURL: URL? = nil,
+        at placement: ReusablePartPlacement = .end
+    ) -> UUID? {
+        let targetID: String?
+        if let packRootURL {
+            targetID = packStates.first {
+                $0.rootURL?.standardizedFileURL == packRootURL.standardizedFileURL && $0.isEditable
+            }?.id
+        } else {
+            targetID = packStates.first(where: \.isEditable)?.id
+        }
+        guard let targetID else { return nil }
         let folder = TemplateLibraryFolder(name: name)
-        guard organization.insert(.folder(folder), at: placement) else { return nil }
-        saveOrganization()
-        return folder.id
+        var created = false
+        mutateOrganization(ofPackID: targetID) {
+            created = $0.insert(.folder(folder), at: placement)
+        }
+        refresh()
+        return created ? folder.id : nil
     }
 
     func renameFolder(id: UUID, to name: String) {
-        guard organization.renameFolder(id: id, to: name) else { return }
-        saveOrganization()
+        guard let state = packState(containingNode: id), state.isEditable else { return }
+        mutateOrganization(ofPackID: state.id) { _ = $0.renameFolder(id: id, to: name) }
+        refresh()
     }
 
     /// Deletes a folder and every template bundle inside it.
     func deleteFolder(id: UUID) {
-        guard case .folder(let folder)? = organization.node(withID: id) else { return }
+        guard let state = packState(containingNode: id), state.isEditable,
+              case .folder(let folder)? = state.organization.node(withID: id) else { return }
         for templateID in folder.children.flatMap(\.templateIDs) {
             let url = bundleURL(forID: templateID)
-            if url.deletingLastPathComponent().standardizedFileURL == directoryURL.standardizedFileURL {
+            if url.deletingLastPathComponent().standardizedFileURL == state.templatesURL.standardizedFileURL {
                 try? FileManager.default.removeItem(at: url)
             }
         }
-        organization.removeNode(id: id)
-        saveOrganization()
+        mutateOrganization(ofPackID: state.id) { $0.removeNode(id: id) }
         refresh()
     }
 
+    /// Reorders within the node's own pack; crossing packs is `moveTemplate`.
     @discardableResult
     func moveNode(id: UUID, to placement: ReusablePartPlacement) -> Bool {
-        guard organization.move(id: id, to: placement) else { return false }
-        saveOrganization()
-        return true
+        guard let state = packState(containingNode: id), state.isEditable else { return false }
+        var moved = false
+        mutateOrganization(ofPackID: state.id) { moved = $0.move(id: id, to: placement) }
+        refresh()
+        return moved
+    }
+
+    private func mutateOrganization(
+        ofPackID packID: String,
+        _ mutation: (inout [TemplateLibraryNode]) -> Void
+    ) {
+        guard let index = packStates.firstIndex(where: { $0.id == packID }) else { return }
+        mutation(&packStates[index].organization)
+        guard packStates[index].isEditable else { return }
+        saveOrganization(packStates[index].organization, at: packStates[index].organizationURL)
     }
 
     // MARK: Importing
@@ -379,21 +683,21 @@ final class ReusablePartLibrary {
 
     // MARK: Organization persistence
 
-    private var organizationURL: URL {
-        directoryURL.appending(path: "library.json")
-    }
-
-    private func loadOrganization() -> [TemplateLibraryNode] {
-        guard let data = try? Data(contentsOf: organizationURL),
+    private func loadOrganization(at url: URL) -> [TemplateLibraryNode] {
+        guard let data = try? Data(contentsOf: url),
               let nodes = try? FoundryDocument.decoder.decode([TemplateLibraryNode].self, from: data) else {
             return []
         }
         return nodes
     }
 
-    private func saveOrganization() {
+    private func saveOrganization(_ organization: [TemplateLibraryNode], at url: URL) {
         guard let data = try? FoundryDocument.encoder.encode(organization) else { return }
-        try? data.write(to: organizationURL, options: .atomic)
+        try? FileManager.default.createDirectory(
+            at: url.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try? data.write(to: url, options: .atomic)
     }
 
     /// Drops references to bundles that no longer exist and appends templates

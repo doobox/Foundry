@@ -5188,6 +5188,31 @@ struct PartPackageTests {
         #expect(pack.partURLs == [part.standardizedFileURL])
         #expect(pack.templateURLs.isEmpty)
         #expect(pack.frameworkURLs.isEmpty)
+        #expect(pack.invalidItemPaths.isEmpty)
+
+        // Hidden files must not reject a pack: development packs live in git
+        // checkouts alongside .git and .gitignore.
+        try Data("Resources/".utf8).write(to: root.appending(path: ".gitignore"))
+        #expect(try FoundryPackLoader.load(from: root).partURLs == [part.standardizedFileURL])
+
+        // Pack-wide files belong in the root Resources directory — the home
+        // of the personal pack's template organization file.
+        let sharedResources = root.appending(path: "Resources", directoryHint: .isDirectory)
+        try FileManager.default.createDirectory(at: sharedResources, withIntermediateDirectories: true)
+        try Data("[]".utf8).write(to: sharedResources.appending(path: "library.json"))
+        let withSharedResources = try FoundryPackLoader.load(from: root)
+        #expect(withSharedResources.partURLs == [part.standardizedFileURL])
+        #expect(withSharedResources.invalidItemPaths.isEmpty)
+
+        // An incomplete item (a part folder mid-creation) is skipped and
+        // reported without hiding the pack's remaining valid items.
+        try FileManager.default.createDirectory(
+            at: root.appending(path: "Parts/com.example.incomplete", directoryHint: .isDirectory),
+            withIntermediateDirectories: true
+        )
+        let degraded = try FoundryPackLoader.load(from: root)
+        #expect(degraded.partURLs == [part.standardizedFileURL])
+        #expect(degraded.invalidItemPaths == ["Parts/com.example.incomplete"])
 
         try FileManager.default.createDirectory(
             at: root.appending(path: "Components", directoryHint: .isDirectory),

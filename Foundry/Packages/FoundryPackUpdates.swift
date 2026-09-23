@@ -215,6 +215,11 @@ nonisolated enum FoundryPackReleaseBuilder {
         }
 
         let pack = try FoundryPackLoader.load(from: request.sourceURL)
+        if let invalid = pack.invalidItemPaths.first {
+            throw FoundryPackUpdateError.invalidMetadata(
+                "Fix the incomplete pack item at '\(invalid)' before issuing a release."
+            )
+        }
         let version = request.version.trimmingCharacters(in: .whitespacesAndNewlines)
         let identifier = pack.identifier
         guard !identifier.isEmpty,

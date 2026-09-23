@@ -142,27 +142,44 @@ struct PublishingTests {
     }
 
     @Test
-    func publishingManifestRoundTripsForDestination() throws {
-        let directory = FileManager.default.temporaryDirectory
-            .appending(path: UUID().uuidString, directoryHint: .isDirectory)
-        defer { try? FileManager.default.removeItem(at: directory) }
-        let store = PublishingManifestStore(directory: directory)
+    func publishingManifestRoundTripsForDestination() {
+        let archive = PublishingManifestArchive()
         var site = Site.starter()
         site.publishingDestination = .sftp
         site.publishingHost = "example.com"
         let manifest = PublishingManifest(files: ["index.html": "hash"])
 
-        try store.save(manifest, for: site)
+        archive.setManifest(manifest, for: site, destinationID: nil)
 
-        #expect(store.load(for: site) == manifest)
+        #expect(archive.manifest(for: site, destinationID: nil) == manifest)
     }
 
     @Test
-    func publishingStatusUsesDefaultDestinationIdentity() throws {
-        let directory = FileManager.default.temporaryDirectory
-            .appending(path: UUID().uuidString, directoryHint: .isDirectory)
-        defer { try? FileManager.default.removeItem(at: directory) }
-        let store = PublishingManifestStore(directory: directory)
+    func remotePublishingManifestIgnoresAnUnrelatedLocalDirectory() {
+        let archive = PublishingManifestArchive()
+        var site = Site.starter()
+        site.publishingDestination = .sftp
+        site.publishingHost = "example.com"
+        let destinationID = UUID()
+        let manifest = PublishingManifest(files: ["index.html": "hash"])
+
+        archive.setManifest(
+            manifest,
+            for: site,
+            destinationID: destinationID,
+            localDirectory: URL(filePath: "/tmp/unrelated")
+        )
+
+        #expect(archive.manifest(
+            for: site,
+            destinationID: destinationID,
+            localDirectory: nil
+        ) == manifest)
+    }
+
+    @Test
+    func publishingStatusUsesDefaultDestinationIdentity() {
+        let archive = PublishingManifestArchive()
         let destination = PublishingDestination(
             name: "Production",
             kind: .sftp,
@@ -176,29 +193,64 @@ struct PublishingTests {
         publishedSite.defaultPublishingDestinationID = destination.id
         publishedSite.synchronizeLegacyPublishingFields()
         let manifest = PublishingManifest(files: ["index.html": "hash"])
-        try store.save(manifest, for: publishedSite)
+        archive.setManifest(manifest, for: publishedSite, destinationID: destination.id)
 
         var statusSite = publishedSite
         statusSite.publishingDestination = .local
         statusSite.publishingHost = "stale.example.com"
-        #expect(store.load(for: statusSite) == nil)
+        #expect(archive.manifest(for: statusSite, destinationID: destination.id) == nil)
 
         statusSite.synchronizeLegacyPublishingFields()
-        #expect(store.load(for: statusSite) == manifest)
+        #expect(archive.manifest(for: statusSite, destinationID: destination.id) == manifest)
     }
 
     @Test
-    func publishingManifestCanBeRemovedToMarkEverythingChanged() throws {
-        let directory = FileManager.default.temporaryDirectory
-            .appending(path: UUID().uuidString, directoryHint: .isDirectory)
-        defer { try? FileManager.default.removeItem(at: directory) }
-        let store = PublishingManifestStore(directory: directory)
+    func publishingManifestCanBeRemovedToMarkEverythingChanged() {
+        let archive = PublishingManifestArchive()
         let site = Site.starter()
 
-        try store.save(PublishingManifest(files: ["index.html": "hash"]), for: site)
-        try store.remove(for: site)
+        archive.setManifest(PublishingManifest(files: ["index.html": "hash"]), for: site, destinationID: nil)
+        archive.removeManifest(for: site, destinationID: nil)
 
-        #expect(store.load(for: site) == nil)
+        #expect(archive.manifest(for: site, destinationID: nil) == nil)
+    }
+
+    @Test
+    func publishingManifestArchiveKeepsEveryDestinationSeparate() {
+        let archive = PublishingManifestArchive()
+        var site = Site.starter()
+        let destinationIDs = (0..<200).map { _ in UUID() }
+
+        for (index, destinationID) in destinationIDs.enumerated() {
+            archive.setManifest(
+                PublishingManifest(files: ["index.html": "hash-\(index)"]),
+                for: site,
+                destinationID: destinationID
+            )
+        }
+        site.publishingHost = "new.example.com"
+        let replacement = PublishingManifest(files: ["index.html": "replacement"])
+        archive.setManifest(replacement, for: site, destinationID: destinationIDs[0])
+
+        #expect(archive.fileContents.count == 200)
+        #expect(archive.manifest(for: site, destinationID: destinationIDs[0]) == replacement)
+        #expect(archive.manifest(for: site, destinationID: destinationIDs[199]) == nil)
+    }
+
+    @Test
+    func publishingManifestsRoundTripThroughTheDocumentPackage() throws {
+        var site = Site.starter()
+        site.publishingDestination = .sftp
+        site.publishingHost = "example.com"
+        let destinationID = UUID()
+        let manifest = PublishingManifest(files: ["index.html": "hash"])
+        let snapshot = FoundryDocumentSnapshot(site: site)
+        snapshot.publishingManifests.setManifest(manifest, for: site, destinationID: destinationID)
+
+        let wrapper = try FoundryDocument.makeFileWrapper(snapshot: snapshot, existingFile: nil)
+        let decoded = try FoundryDocument.decodeSnapshot(from: wrapper)
+
+        #expect(decoded.publishingManifests.manifest(for: site, destinationID: destinationID) == manifest)
     }
 
     @Test
@@ -207,11 +259,8 @@ struct PublishingTests {
             .appending(path: UUID().uuidString, directoryHint: .isDirectory)
         var site = Site.starter()
         site.publishingDestination = .local
-        let store = PublishingManifestStore()
-        defer {
-            try? FileManager.default.removeItem(at: directory)
-            try? store.remove(for: site, localDirectory: directory)
-        }
+        let archive = PublishingManifestArchive()
+        defer { try? FileManager.default.removeItem(at: directory) }
         let bundle = SiteExportBundle(files: [
             .init(path: "index.html", contents: "published")
         ])
@@ -220,6 +269,7 @@ struct PublishingTests {
         let firstResult = try await publisher.publish(
             bundle: bundle,
             site: site,
+            manifests: archive,
             localDirectory: directory,
             credential: "",
             progress: { _ in }
@@ -230,16 +280,18 @@ struct PublishingTests {
         let unchangedResult = try await publisher.publish(
             bundle: bundle,
             site: site,
+            manifests: archive,
             localDirectory: directory,
             credential: "",
             progress: { _ in }
         )
         let skippedContents = String(decoding: try Data(contentsOf: outputURL), as: UTF8.self)
 
-        try store.remove(for: site, localDirectory: directory)
+        archive.removeManifest(for: site, destinationID: nil)
         let changedResult = try await publisher.publish(
             bundle: bundle,
             site: site,
+            manifests: archive,
             localDirectory: directory,
             credential: "",
             progress: { _ in }
@@ -319,21 +371,33 @@ struct PublishingTests {
     }
 
     @Test
-    func localPublishingDestinationsKeepSeparateManifests() throws {
-        let directory = FileManager.default.temporaryDirectory
-            .appending(path: UUID().uuidString, directoryHint: .isDirectory)
-        defer { try? FileManager.default.removeItem(at: directory) }
-        let store = PublishingManifestStore(directory: directory)
+    func localPublishingDestinationsKeepSeparateManifests() {
+        let archive = PublishingManifestArchive()
         var site = Site.starter()
         site.publishingDestination = .local
+        let firstDestinationID = UUID()
+        let secondDestinationID = UUID()
         let firstDestination = URL(filePath: "/tmp/first")
         let secondDestination = URL(filePath: "/tmp/second")
         let manifest = PublishingManifest(files: ["index.html": "hash"])
 
-        try store.save(manifest, for: site, localDirectory: firstDestination)
+        archive.setManifest(
+            manifest,
+            for: site,
+            destinationID: firstDestinationID,
+            localDirectory: firstDestination
+        )
 
-        #expect(store.load(for: site, localDirectory: firstDestination) == manifest)
-        #expect(store.load(for: site, localDirectory: secondDestination) == nil)
+        #expect(archive.manifest(
+            for: site,
+            destinationID: firstDestinationID,
+            localDirectory: firstDestination
+        ) == manifest)
+        #expect(archive.manifest(
+            for: site,
+            destinationID: secondDestinationID,
+            localDirectory: secondDestination
+        ) == nil)
     }
 }
 

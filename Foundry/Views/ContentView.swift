@@ -345,19 +345,20 @@ struct ContentView: View {
             )
         case .reusableParts:
             ReusablePartLibraryPanel(
-                library: ReusablePartLibrary.shared.organizedNodes,
+                sections: templatePanelSections,
                 selectedNodeID: inspectableTemplateSelection,
-                renameDefinition: { ReusablePartLibrary.shared.rename(id: $0, to: $1) },
-                deleteDefinition: { ReusablePartLibrary.shared.delete(id: $0) },
-                duplicateDefinition: { ReusablePartLibrary.shared.duplicate(id: $0) },
+                renameDefinition: renameTemplateNode(_:to:),
+                deleteDefinition: deleteTemplateDefinition(_:),
+                duplicateDefinition: duplicateTemplateDefinition(_:),
                 revealDefinition: {
+                    guard !isProjectTemplateNode($0) else { return }
                     NSWorkspace.shared.activateFileViewerSelecting([ReusablePartLibrary.shared.bundleURL(forID: $0)])
                 },
-                createFolder: { _ = ReusablePartLibrary.shared.createFolder(name: $0) },
-                renameFolder: { ReusablePartLibrary.shared.renameFolder(id: $0, to: $1) },
-                deleteFolder: { ReusablePartLibrary.shared.deleteFolder(id: $0) },
-                moveNode: { ReusablePartLibrary.shared.moveNode(id: $0, to: $1) },
-                saveDraggedParts: saveDraggedPartsAsReusable
+                createFolder: createTemplateFolder(named:inSection:),
+                renameFolder: renameTemplateFolder(_:to:),
+                deleteFolder: deleteTemplateFolder(_:),
+                moveNode: moveTemplateNode(_:toSection:placement:),
+                saveDraggedParts: saveDraggedPartsAsTemplates(_:inSection:)
             )
         case .globalParts:
             GlobalPartLibraryPanel(
@@ -477,7 +478,7 @@ struct ContentView: View {
                     selectedParts: selectedParts,
                     allowsMultiPartEditing: allowsMultiPartEditing,
                     libraryPartType: selectedLibraryPartType,
-                    templateEntry: selectedTemplateEntry,
+                    templateContext: selectedTemplateContext,
                     insertTemplate: { _ = insertReusablePartFromLibrary($0, .end) },
                     globalDefinition: selectedGlobalDefinition,
                     insertGlobalPart: { _ = insertGlobalPartFromLibrary($0, .end) },
@@ -499,21 +500,28 @@ struct ContentView: View {
     }
 
     private func schedulePublishingChangeRefresh(immediately: Bool = false) {
+        guard !partCatalog.isLoading else { return }
         publishingChangeTask?.cancel()
         publishingChangeTask = Task {
             if !immediately {
                 try? await Task.sleep(for: .milliseconds(750))
             }
             guard !Task.isCancelled else { return }
+            guard !partCatalog.isLoading else { return }
             var site = document.site
             site.synchronizeLegacyPublishingFields()
             let assets = document.assetContents
+            let manifests = document.publishingManifests
             let localDirectory = site.publishingDestination == .local
                 ? site.defaultPublishingDestinationID.flatMap { PublishingDestinationStore.url(for: site.id, destinationID: $0) }
                 : nil
             let result = await Task.detached {
                 let bundle = StaticSiteRenderer().render(site: site, assets: assets)
-                let previous = PublishingManifestStore().load(for: site, localDirectory: localDirectory)
+                let previous = manifests.manifest(
+                    for: site,
+                    destinationID: site.defaultPublishingDestinationID,
+                    localDirectory: localDirectory
+                )
                 let changesByPath = PublishingPlan.changes(bundle: bundle, previous: previous)
                 var changes: [UUID: PublishingChange] = [:]
                 for page in site.pages {
@@ -535,7 +543,9 @@ struct ContentView: View {
             schedulePublishingChangeRefresh()
             return
         }
-        markPublishingChangesDirty(for: impact)
+        if impact != .package {
+            markPublishingChangesDirty(for: impact)
+        }
         schedulePublishingChangeRefresh()
         schedulePreviewRefresh()
     }
@@ -1469,11 +1479,253 @@ struct ContentView: View {
     @State private var selectedTemplateNodeID: UUID?
     @State private var selectedGlobalNodeID: UUID?
 
+    /// The Templates panel's sections: this project's own templates first,
+    /// then every pack the library resolves — editable ones accept drops,
+    /// installed `.foundrypack`s are read-only sources. Only standing drop
+    /// targets (My Library, explicitly opened dev packs) appear while empty;
+    /// every other pack earns its section with content, so a parts
+    /// developer's installed dev packs don't flood the panel with headers.
+    private var templatePanelSections: [TemplatePanelSection] {
+        [TemplatePanelSection(
+            id: TemplatePanelSection.projectSectionID,
+            title: "Project",
+            isEditable: true,
+            nodes: document.site.projectTemplateLibrary
+        )] + ReusablePartLibrary.shared.packs
+            .filter { $0.showsWhenEmpty || !$0.nodes.isEmpty }
+            .map { pack in
+                TemplatePanelSection(
+                    id: pack.id,
+                    title: pack.title,
+                    isEditable: pack.isEditable,
+                    nodes: pack.nodes
+                )
+            }
+    }
+
+    private func isProjectTemplateNode(_ id: UUID) -> Bool {
+        document.site.projectTemplateLibrary.node(withID: id) != nil
+    }
+
+    private func packRootURL(forSection sectionID: String) -> URL? {
+        ReusablePartLibrary.shared.packs.first { $0.id == sectionID }?.rootURL
+    }
+
+    private func renameTemplateNode(_ id: UUID, to name: String) {
+        if isProjectTemplateNode(id) {
+            editor.renameProjectTemplate(id: id, to: name)
+        } else {
+            ReusablePartLibrary.shared.rename(id: id, to: name)
+        }
+    }
+
+    private func deleteTemplateDefinition(_ id: UUID) {
+        if isProjectTemplateNode(id) {
+            editor.removeProjectTemplate(id: id)
+        } else {
+            ReusablePartLibrary.shared.delete(id: id)
+        }
+    }
+
+    private func duplicateTemplateDefinition(_ id: UUID) {
+        if isProjectTemplateNode(id) {
+            _ = editor.duplicateProjectTemplate(id: id)
+        } else {
+            _ = ReusablePartLibrary.shared.duplicate(id: id)
+        }
+    }
+
+    private func createTemplateFolder(named name: String, inSection sectionID: String) {
+        if sectionID == TemplatePanelSection.projectSectionID {
+            _ = editor.createProjectTemplateFolder(named: name)
+        } else {
+            _ = ReusablePartLibrary.shared.createFolder(
+                name: name,
+                inPackRoot: packRootURL(forSection: sectionID)
+            )
+        }
+    }
+
+    private func renameTemplateFolder(_ id: UUID, to name: String) {
+        if isProjectTemplateNode(id) {
+            editor.renameProjectTemplateFolder(id: id, to: name)
+        } else {
+            ReusablePartLibrary.shared.renameFolder(id: id, to: name)
+        }
+    }
+
+    private func deleteTemplateFolder(_ id: UUID) {
+        if isProjectTemplateNode(id) {
+            editor.deleteProjectTemplateFolder(id: id)
+        } else {
+            ReusablePartLibrary.shared.deleteFolder(id: id)
+        }
+    }
+
+    /// One drop, four meanings: a reorder inside a section, a move between
+    /// editable sections, a copy out of a read-only pack, or a hand-off
+    /// between the project and a pack (embedding or importing assets).
+    /// Folders carry their whole subtree through the same routes.
+    private func moveTemplateNode(
+        _ id: UUID,
+        toSection sectionID: String,
+        placement: ReusablePartPlacement
+    ) -> Bool {
+        let library = ReusablePartLibrary.shared
+        let sourceIsProject = isProjectTemplateNode(id)
+        let targetIsProject = sectionID == TemplatePanelSection.projectSectionID
+
+        if sourceIsProject && targetIsProject {
+            return editor.moveProjectTemplateNode(id: id, to: placement)
+        }
+        if sourceIsProject {
+            guard let node = document.site.projectTemplateLibrary.node(withID: id),
+                  let packRootURL = packRootURL(forSection: sectionID) else { return false }
+            switch node {
+            case .part(let definition):
+                // Project → pack: embed the document's assets into a bundle,
+                // then drop the project copy.
+                saveTemplateToPack(definition, packRootURL: packRootURL)
+                editor.removeProjectTemplate(id: id)
+                _ = library.moveNode(id: id, to: placement)
+                return true
+            case .folder(let folder):
+                guard exportProjectFolderToPack(folder, packRootURL: packRootURL, at: placement) else { return false }
+                editor.deleteProjectTemplateFolder(id: id)
+                return true
+            }
+        }
+        if targetIsProject {
+            guard let sourceSection = templatePanelSections.first(where: { $0.nodes.node(withID: id) != nil }),
+                  let node = sourceSection.nodes.node(withID: id),
+                  let imported = importedProjectNode(node) else { return false }
+            guard editor.addProjectTemplateNode(imported, at: placement) else { return false }
+            // The section's editability decides move vs copy — folders have
+            // no template-entry record, so asking the library by id would
+            // wrongly answer "read-only" and leave the source behind.
+            if sourceSection.isEditable {
+                switch node {
+                case .part: library.delete(id: id)
+                case .folder: library.deleteFolder(id: id)
+                }
+            }
+            return true
+        }
+        let sourceRootURL = library.packRootURL(forID: id)
+            ?? templatePanelSections.first { $0.nodes.node(withID: id) != nil }
+                .flatMap { packRootURL(forSection: $0.id) }
+        let targetRootURL = packRootURL(forSection: sectionID)
+        if sourceRootURL?.standardizedFileURL == targetRootURL?.standardizedFileURL {
+            return library.moveNode(id: id, to: placement)
+        }
+        let sourceSection = templatePanelSections.first { $0.nodes.node(withID: id) != nil }
+        let isFolder = if case .folder? = sourceSection?.nodes.node(withID: id) { true } else { false }
+        if sourceSection?.isEditable == true {
+            if isFolder {
+                return library.moveFolder(id: id, toPackRoot: targetRootURL, at: placement)
+            }
+            guard library.moveTemplate(id: id, toPackRoot: targetRootURL) else { return false }
+            _ = library.moveNode(id: id, to: placement)
+            return true
+        }
+        // Read-only source: the drag copies content out, keeping its names.
+        if isFolder {
+            return library.copyFolder(id: id, toPackRoot: targetRootURL, at: placement)
+        }
+        return library.duplicate(id: id, to: targetRootURL, renaming: false) != nil
+    }
+
+    /// Recreates a project folder inside a pack: mirrored folder structure,
+    /// each template embedded with its assets and given a rendered preview.
+    private func exportProjectFolderToPack(
+        _ folder: ReusablePartFolder,
+        packRootURL: URL,
+        at placement: ReusablePartPlacement
+    ) -> Bool {
+        let library = ReusablePartLibrary.shared
+        guard let folderID = library.createFolder(name: folder.name, inPackRoot: packRootURL, at: placement) else {
+            return false
+        }
+        for child in folder.children {
+            switch child {
+            case .part(let definition):
+                saveTemplateToPack(definition, packRootURL: packRootURL)
+                _ = library.moveNode(id: definition.id, to: .inside(folderID: folderID))
+            case .folder(let subfolder):
+                _ = exportProjectFolderToPack(subfolder, packRootURL: packRootURL, at: .inside(folderID: folderID))
+            }
+        }
+        return true
+    }
+
+    /// Rebuilds a pack node for the project: embedded assets import into the
+    /// document and every template arrives under a fresh identity, so copies
+    /// out of read-only packs never collide with their originals.
+    private func importedProjectNode(_ node: ReusablePartNode) -> ReusablePartNode? {
+        let library = ReusablePartLibrary.shared
+        switch node {
+        case .part(let definition):
+            guard let entry = library.entry(withID: definition.id),
+                  let imported = library.importedDefinition(for: entry, into: document, undoManager: undoManager) else {
+                return nil
+            }
+            return .part(ReusablePartDefinition(name: imported.name, root: imported.root))
+        case .folder(let folder):
+            return .folder(ReusablePartFolder(
+                name: folder.name,
+                children: folder.children.compactMap(importedProjectNode)
+            ))
+        }
+    }
+
+    private func saveDraggedPartsAsTemplates(_ partIDs: [UUID], inSection sectionID: String) -> Bool {
+        guard let selectedPage else { return false }
+        let requestedIDs = Set(partIDs)
+        func flattenedIDs(_ nodes: [PartNode]) -> [UUID] {
+            nodes.flatMap { [$0.id] + flattenedIDs($0.children) }
+        }
+        let orderedTopLevelIDs = flattenedIDs(selectedPage.parts).filter { id in
+            guard requestedIDs.contains(id) else { return false }
+            return Set(selectedPage.parts.ancestorIDs(of: id)).isDisjoint(with: requestedIDs)
+        }
+        guard !orderedTopLevelIDs.isEmpty else { return false }
+        var savedCount = 0
+        for partID in orderedTopLevelIDs {
+            guard let part = document.site.part(withID: partID) else { continue }
+            let trimmedName = part.name.trimmingCharacters(in: .whitespacesAndNewlines)
+            let name = trimmedName.isEmpty ? part.type.displayName : trimmedName
+            guard let definition = editor.templateDefinition(fromPartID: partID, name: name) else { continue }
+            if sectionID == TemplatePanelSection.projectSectionID {
+                guard editor.addProjectTemplate(definition) else { continue }
+            } else if let packRootURL = packRootURL(forSection: sectionID) {
+                saveTemplateToPack(definition, packRootURL: packRootURL)
+            } else {
+                continue
+            }
+            savedCount += 1
+        }
+        return savedCount == orderedTopLevelIDs.count
+    }
+
     /// The template the Inspector shows when one is selected in the panel —
     /// folder selections resolve to nothing.
     private var selectedTemplateEntry: ReusablePartLibraryEntry? {
         guard let selectedTemplateNodeID else { return nil }
+        if case .part(let definition)? = document.site.projectTemplateLibrary.node(withID: selectedTemplateNodeID) {
+            return ReusablePartLibraryEntry(definition: definition, assets: [])
+        }
         return ReusablePartLibrary.shared.entry(withID: selectedTemplateNodeID)
+    }
+
+    private var selectedTemplateContext: TemplateInspectorContext? {
+        guard let entry = selectedTemplateEntry else { return nil }
+        let isProject = isProjectTemplateNode(entry.id)
+        return TemplateInspectorContext(
+            entry: entry,
+            isProjectTemplate: isProject,
+            isEditable: isProject || ReusablePartLibrary.shared.isEditable(id: entry.id),
+            rename: { renameTemplateNode(entry.id, to: $0) }
+        )
     }
 
     /// The global part the Inspector shows when one is selected in the panel —
@@ -1493,7 +1745,9 @@ struct ContentView: View {
             get: { selectedTemplateNodeID },
             set: { nodeID in
                 selectedTemplateNodeID = nodeID
-                guard let nodeID, ReusablePartLibrary.shared.entry(withID: nodeID) != nil else { return }
+                guard let nodeID,
+                      ReusablePartLibrary.shared.entry(withID: nodeID) != nil
+                        || document.site.projectTemplateLibrary.node(withID: nodeID) != nil else { return }
                 selectedPrimitive = nil
                 selectedPartIDs = []
                 selectedPartID = nil
@@ -1539,10 +1793,14 @@ struct ContentView: View {
         return true
     }
 
-    /// Resolves a template from the shared library for insertion: its embedded
-    /// assets import into this project (deduplicated by content) and the
-    /// returned definition references the imported copies.
+    /// Resolves a template for insertion. Project templates already reference
+    /// this document's assets; pack templates import their embedded assets
+    /// (deduplicated by content) and the returned definition references the
+    /// imported copies.
     private func resolvedTemplateDefinition(_ definitionID: UUID) -> ReusablePartDefinition? {
+        if case .part(let definition)? = document.site.projectTemplateLibrary.node(withID: definitionID) {
+            return definition
+        }
         guard let entry = ReusablePartLibrary.shared.entry(withID: definitionID) else { return nil }
         return ReusablePartLibrary.shared.importedDefinition(
             for: entry,
@@ -1565,20 +1823,26 @@ struct ContentView: View {
         return true
     }
 
+    /// Saving from the canvas or Structure targets the project's own template
+    /// section; dragging the template to a pack afterwards makes it app-wide.
     private func saveReusablePart(_ name: String) {
         guard let partID = selectedPartID,
               let definition = editor.templateDefinition(
                 fromPartID: partID,
                 name: name.trimmingCharacters(in: .whitespacesAndNewlines)
               ) else { return }
-        saveTemplateToLibrary(definition)
+        _ = editor.addProjectTemplate(definition)
         workspaceLayout.activate(.reusableParts)
     }
 
     /// Saves the bundle immediately and attaches the offscreen-rendered
     /// preview when it finishes painting.
-    private func saveTemplateToLibrary(_ definition: ReusablePartDefinition) {
-        ReusablePartLibrary.shared.save(definition: definition, assetContents: document.assetContents)
+    private func saveTemplateToPack(_ definition: ReusablePartDefinition, packRootURL: URL?) {
+        ReusablePartLibrary.shared.save(
+            definition: definition,
+            assetContents: document.assetContents,
+            to: packRootURL
+        )
         TemplatePreviewRenderer.shared.capturePreview(
             definition: definition,
             site: document.site,
@@ -1637,30 +1901,6 @@ struct ContentView: View {
         if selectedPart?.reusableDefinitionID == nil {
             editsSharedReusableDefinition = false
         }
-    }
-
-    private func saveDraggedPartsAsReusable(_ partIDs: [UUID]) -> Bool {
-        guard let selectedPage else { return false }
-        let requestedIDs = Set(partIDs)
-        func flattenedIDs(_ nodes: [PartNode]) -> [UUID] {
-            nodes.flatMap { [$0.id] + flattenedIDs($0.children) }
-        }
-        let orderedTopLevelIDs = flattenedIDs(selectedPage.parts).filter { id in
-            guard requestedIDs.contains(id) else { return false }
-            return Set(selectedPage.parts.ancestorIDs(of: id)).isDisjoint(with: requestedIDs)
-        }
-        guard !orderedTopLevelIDs.isEmpty else { return false }
-        var savedCount = 0
-        for partID in orderedTopLevelIDs {
-            guard let part = document.site.part(withID: partID) else { continue }
-            let trimmedName = part.name.trimmingCharacters(in: .whitespacesAndNewlines)
-            let name = trimmedName.isEmpty ? part.type.displayName : trimmedName
-            if let definition = editor.templateDefinition(fromPartID: partID, name: name) {
-                saveTemplateToLibrary(definition)
-                savedCount += 1
-            }
-        }
-        return savedCount == orderedTopLevelIDs.count
     }
 
     private func updateReusablePart() {
@@ -2005,7 +2245,6 @@ struct ContentView: View {
             nativeDocument.save(nil)
             return
         }
-        nativeDocument.save(nil)
         var site = document.site
         let selectedDestination = destinationID.flatMap { id in
             site.publishingDestinations.first { $0.id == id }
@@ -2022,9 +2261,11 @@ struct ContentView: View {
         }
         let selectedDestinationID = selectedDestination?.id
         let assets = document.assetContents
-        var localDirectory = selectedDestinationID.flatMap {
-            PublishingDestinationStore.url(for: site.id, destinationID: $0)
-        }
+        var localDirectory = site.publishingDestination == .local
+            ? selectedDestinationID.flatMap {
+                PublishingDestinationStore.url(for: site.id, destinationID: $0)
+            }
+            : nil
         if site.publishingDestination == .local, localDirectory == nil {
             let panel = NSOpenPanel()
             panel.title = "Choose Publishing Folder"
@@ -2050,6 +2291,7 @@ struct ContentView: View {
         publishingTask = Task {
             await Task.yield()
             do {
+                try await saveDocument(nativeDocument)
                 let bundle = await Task.detached {
                     StaticSiteRenderer().render(site: site, assets: assets)
                 }.value
@@ -2058,6 +2300,8 @@ struct ContentView: View {
                 let result = try await SitePublisher().publish(
                     bundle: bundle,
                     site: site,
+                    manifests: document.publishingManifests,
+                    destinationID: selectedDestinationID,
                     localDirectory: localDirectory,
                     credential: credential,
                     forceAllFiles: forceAllFiles
@@ -2066,9 +2310,14 @@ struct ContentView: View {
                         publishingState = .publishing(progress)
                     }
                 }
+                // Persist the updated manifest through the document's own
+                // save path; writing into the open package directly would be
+                // treated by NSDocument as an external change.
+                try await saveDocument(nativeDocument)
                 publishingState = .completed(result)
                 publishingChangeTask?.cancel()
                 publishingChangesByTreeItem.removeAll()
+                schedulePublishingChangeRefresh(immediately: true)
             } catch is CancellationError {
                 publishingState = .cancelled
             } catch {
@@ -2078,41 +2327,76 @@ struct ContentView: View {
         }
     }
 
+    private func saveDocument(_ nativeDocument: NSDocument) async throws {
+        guard let fileURL = nativeDocument.fileURL,
+              let fileType = nativeDocument.fileType else {
+            throw CocoaError(.fileWriteUnknown)
+        }
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, any Error>) in
+            nativeDocument.save(
+                to: fileURL,
+                ofType: fileType,
+                for: .saveOperation
+            ) { error in
+                if let error {
+                    continuation.resume(throwing: error)
+                } else {
+                    continuation.resume()
+                }
+            }
+        }
+    }
+
     private func markAllPublishingFilesChanged() {
         var site = document.site
         site.synchronizeLegacyPublishingFields()
-        let localDirectory = site.publishingDestination == .local
-            ? site.defaultPublishingDestinationID.flatMap { PublishingDestinationStore.url(for: site.id, destinationID: $0) }
-            : nil
-        do {
-            try PublishingManifestStore().remove(for: site, localDirectory: localDirectory)
-            schedulePublishingChangeRefresh(immediately: true)
-        } catch {
-            exportErrorMessage = error.localizedDescription
-        }
+        document.publishingManifests.removeManifest(
+            for: site,
+            destinationID: site.defaultPublishingDestinationID
+        )
+        persistPublishingManifests()
+        schedulePublishingChangeRefresh(immediately: true)
     }
 
     private func markAllPublishingFilesUnchanged() {
         var site = document.site
         site.synchronizeLegacyPublishingFields()
         let assets = document.assetContents
+        let manifests = document.publishingManifests
         let localDirectory = site.publishingDestination == .local
             ? site.defaultPublishingDestinationID.flatMap { PublishingDestinationStore.url(for: site.id, destinationID: $0) }
             : nil
         publishingChangeTask?.cancel()
         publishingChangeTask = Task {
+            let manifest = await Task.detached {
+                let bundle = StaticSiteRenderer().render(site: site, assets: assets)
+                return PublishingPlan.make(
+                    bundle: bundle,
+                    previous: nil,
+                    removesObsoleteFiles: false
+                ).nextManifest
+            }.value
+            manifests.setManifest(
+                manifest,
+                for: site,
+                destinationID: site.defaultPublishingDestinationID,
+                localDirectory: localDirectory
+            )
+            persistPublishingManifests()
+            guard !Task.isCancelled else { return }
+            publishingChangesByTreeItem.removeAll()
+        }
+    }
+
+    /// Saves the document so an updated in-memory manifest reaches disk. A
+    /// document that has never been saved has nowhere to persist to yet; its
+    /// manifests simply live in memory until the first save.
+    private func persistPublishingManifests() {
+        guard let nativeDocument = NSDocumentController.shared.currentDocument,
+              nativeDocument.fileURL != nil else { return }
+        Task {
             do {
-                let manifest = await Task.detached {
-                    let bundle = StaticSiteRenderer().render(site: site, assets: assets)
-                    return PublishingPlan.make(
-                        bundle: bundle,
-                        previous: nil,
-                        removesObsoleteFiles: false
-                    ).nextManifest
-                }.value
-                try PublishingManifestStore().save(manifest, for: site, localDirectory: localDirectory)
-                guard !Task.isCancelled else { return }
-                publishingChangesByTreeItem.removeAll()
+                try await saveDocument(nativeDocument)
             } catch {
                 exportErrorMessage = error.localizedDescription
             }

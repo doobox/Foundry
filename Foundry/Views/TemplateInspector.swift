@@ -1,14 +1,25 @@
 import AppKit
 import SwiftUI
 
-/// The Inspector's view of a template selected in the Templates panel: what it
-/// contains, what it needs, and what it carries — all read from the library
-/// bundle on disk.
-struct TemplateInspector: View {
+/// What the Inspector needs to know about a selected template beyond its
+/// contents: where it lives (project or pack) and how to rename it there.
+struct TemplateInspectorContext {
     let entry: ReusablePartLibraryEntry
+    let isProjectTemplate: Bool
+    let isEditable: Bool
+    let rename: (String) -> Void
+}
+
+/// The Inspector's view of a template selected in the Templates panel: what it
+/// contains, what it needs, and what it carries. Pack templates are read from
+/// their bundle on disk; project templates live inside the document itself.
+struct TemplateInspector: View {
+    let context: TemplateInspectorContext
     let insertTemplate: (UUID) -> Void
 
     @State private var renameText = ""
+
+    private var entry: ReusablePartLibraryEntry { context.entry }
 
     private struct PartTypeUsage: Identifiable {
         let type: PartType
@@ -56,8 +67,19 @@ struct TemplateInspector: View {
     private var previewImage: NSImage? {
         // Reading the revision re-runs this body when a fresh preview lands.
         _ = ReusablePartLibrary.shared.previewRevision
-        guard let url = ReusablePartLibrary.shared.previewURL(forID: entry.id) else { return nil }
+        guard !context.isProjectTemplate,
+              let url = ReusablePartLibrary.shared.previewURL(forID: entry.id) else { return nil }
         return NSImage(contentsOf: url)
+    }
+
+    private var availabilityCaption: String {
+        if context.isProjectTemplate {
+            return "Available in this project only. Adding it to a page places an independent copy. Drag it to a pack in the Templates panel to use it everywhere."
+        }
+        if context.isEditable {
+            return "Available in every project. Adding it to a page places an independent copy."
+        }
+        return "From an installed pack, so it is read-only. Adding it to a page places an independent copy; duplicate it to My Library to edit it."
     }
 
     var body: some View {
@@ -78,17 +100,18 @@ struct TemplateInspector: View {
                     .labelsHidden()
                     .textFieldStyle(.plain)
                     .multilineTextAlignment(.trailing)
+                    .disabled(!context.isEditable)
                     .onSubmit {
                         let trimmed = renameText.trimmingCharacters(in: .whitespacesAndNewlines)
                         guard !trimmed.isEmpty, trimmed != entry.name else { return }
-                        ReusablePartLibrary.shared.rename(id: entry.id, to: trimmed)
+                        context.rename(trimmed)
                     }
             }
             LabeledContent("Parts", value: flattenedParts.count.formatted())
-            if let modifiedDate {
+            if !context.isProjectTemplate, let modifiedDate {
                 LabeledContent("Modified", value: modifiedDate.formatted(date: .abbreviated, time: .shortened))
             }
-            Text("Available in every project. Adding it to a page places an independent copy.")
+            Text(availabilityCaption)
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
@@ -148,8 +171,10 @@ struct TemplateInspector: View {
 
         Section {
             Button("Add to Page") { insertTemplate(entry.id) }
-            Button("Show in Finder") {
-                NSWorkspace.shared.activateFileViewerSelecting([bundleURL])
+            if !context.isProjectTemplate {
+                Button("Show in Finder") {
+                    NSWorkspace.shared.activateFileViewerSelecting([bundleURL])
+                }
             }
         }
     }

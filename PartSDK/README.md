@@ -1,9 +1,11 @@
 # Foundry part API
 
-The current part format is a macOS-style `.foundrypack` bundle with an
-`Info.plist` manifest. While developing, use the identical structure with a
-`.foundrydevpack` extension so Finder exposes it as an ordinary folder and
-Foundry can watch it in place.
+The current distribution format is a macOS-style `.foundrypack` bundle
+(format version 2): a pack-level `Info.plist` at the root, plus typed
+`Parts/`, `Templates/`, and `Frameworks/` directories, each item a folder
+containing its own `Info.plist` and `Resources/`. While developing, use the
+identical structure with a `.foundrydevpack` extension so Finder exposes it
+as an ordinary folder and Foundry can watch it in place.
 
 The complete browsable reference lives at the [Foundry Developer API](https://doobox.github.io/foundry-developer-api/). Start
 with:
@@ -26,15 +28,39 @@ with:
 
 ```text
 Example.foundrydevpack/
-└── Contents/
-    ├── Info.plist
-    └── Resources/
-        ├── part.html
-        ├── part.css
-        └── icon.svg
+├── Info.plist
+└── Parts/
+    └── Example/
+        ├── Info.plist
+        └── Resources/
+            ├── part.html
+            ├── part.css
+            └── icon.svg
 ```
 
-`Contents/Info.plist`:
+The root `Info.plist` identifies the pack itself. A pack may carry any number
+of parts under `Parts/`, template bundles under `Templates/`, and framework
+bundles under `Frameworks/`; other top-level items are rejected (hidden files
+such as `.git` are ignored, so a development pack can live in a checkout).
+
+Root `Info.plist`:
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>formatVersion</key><integer>2</integer>
+    <key>id</key><string>com.example.pack</string>
+    <key>title</key><string>Example Pack</string>
+    <key>version</key><string>1.0.0</string>
+    <key>minimumAPIVersion</key><integer>1</integer>
+</dict>
+</plist>
+```
+
+`Parts/Example/Info.plist`:
 
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
@@ -75,7 +101,7 @@ uk.co.example.image-slider
 
 Uppercase letters, underscores, spaces, empty segments, and leading or trailing hyphens are invalid. For example, `com.example.focal_point`, `com.example.-hero`, and `Com.example.hero` are rejected.
 
-`Contents/Resources/part.html`:
+`Parts/Example/Resources/part.html`:
 
 ```html
 <section {{ part.attributes }}>
@@ -164,16 +190,17 @@ These two forms have different Inspector behaviour inside repeats. Plain `{{ ima
 
 Open a `.foundrydevpack` directly or put it in
 `~/Library/Application Support/Foundry/Packs`. Foundry watches development
-packs and reloads a valid edit when the application becomes active. Rename the
-finished bundle to `.foundrypack`; opening it validates and installs it into the
-same Packs directory. Packs may recursively contain other packs. A pack is a
-part by default; an outer packaging container sets the optional Boolean
-`collection` key to `true` so Foundry skips the parent itself while continuing
-to discover its nested parts. A collection manifest contains only
-`collection = true`; part metadata belongs to its nested packs.
+packs and reloads a valid edit when the application becomes active. While
+authoring, an incomplete item folder (for example a part without its
+`Info.plist` yet) is skipped so the rest of the pack keeps loading. Rename the
+finished bundle to `.foundrypack`; opening it validates and installs it into
+the same Packs directory. Installation rejects a pack that still contains
+incomplete items. A pack is a boundary: packs never nest inside other packs,
+and one pack distributes any number of parts, templates, and frameworks
+through its typed directories.
 
-The retired `.foundryblock`, `.foundryblock-dev` and `block.json`
-prototype formats are not accepted by the current loader.
+The retired `.foundryblock`, `.foundryblock-dev`, `block.json`, and
+single-part `Contents/` pack layouts are not accepted by the current loader.
 
 ## Execution boundary
 

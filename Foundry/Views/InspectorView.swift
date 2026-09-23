@@ -18,7 +18,7 @@ struct InspectorView: View {
     let selectedParts: [PartNode]
     let allowsMultiPartEditing: Bool
     let libraryPartType: PartType?
-    let templateEntry: ReusablePartLibraryEntry?
+    let templateContext: TemplateInspectorContext?
     let insertTemplate: (UUID) -> Void
     let globalDefinition: ReusablePartDefinition?
     let insertGlobalPart: (UUID) -> Void
@@ -46,7 +46,7 @@ struct InspectorView: View {
             if case .folder = assetLibraryNode { return "Asset Folder Info" }
             return "Asset Info"
         }
-        if templateEntry != nil { return "Template Info" }
+        if templateContext != nil { return "Template Info" }
         if globalDefinition != nil { return "Global Info" }
         if folder != nil { return "Page Folder Info" }
         if asset != nil { return "Asset Info" }
@@ -98,7 +98,7 @@ struct InspectorView: View {
                       folder == nil,
                       asset == nil,
                       assetLibraryNode == nil,
-                      templateEntry == nil,
+                      templateContext == nil,
                       globalDefinition == nil,
                       let libraryPartType {
                 PartLibraryInspector(type: libraryPartType)
@@ -129,8 +129,8 @@ struct InspectorView: View {
                 renameAsset: renameAsset,
                 renameFolder: renameAssetFolder
             )
-        } else if let templateEntry {
-            TemplateInspector(entry: templateEntry, insertTemplate: insertTemplate)
+        } else if let templateContext {
+            TemplateInspector(context: templateContext, insertTemplate: insertTemplate)
         } else if let globalDefinition {
             GlobalPartInspector(
                 definition: globalDefinition,
@@ -1565,7 +1565,7 @@ private struct PartInspectorPreviewHarness: View {
                     selectedParts: [part],
                     allowsMultiPartEditing: false,
                     libraryPartType: nil,
-                    templateEntry: nil,
+                    templateContext: nil,
                     insertTemplate: { _ in },
                     globalDefinition: nil,
                     insertGlobalPart: { _ in },

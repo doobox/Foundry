@@ -9,13 +9,20 @@ nonisolated struct FoundryDocumentSnapshot: Sendable {
     var site: Site
     var assetRevision: UInt64 = 0
     let byteStore: AssetByteStore
+    let publishingManifests: PublishingManifestArchive
     private(set) var assetDigestByID: [UUID: String]
     private(set) var assetIDsByDigest: [String: Set<UUID>]
 
-    init(site: Site, byteStore: AssetByteStore = AssetByteStore(), assetRevision: UInt64 = 0) {
+    init(
+        site: Site,
+        byteStore: AssetByteStore = AssetByteStore(),
+        assetRevision: UInt64 = 0,
+        publishingManifests: PublishingManifestArchive = PublishingManifestArchive()
+    ) {
         self.site = site
         self.byteStore = byteStore
         self.assetRevision = assetRevision
+        self.publishingManifests = publishingManifests
 
         // Every asset already carries its own digest as persisted metadata, so
         // building this index never needs to hash bytes at document open.
@@ -279,7 +286,11 @@ final class FoundryDocument: ReferenceFileDocument {
         let site = try decodeProject(from: projectData)
         let byteStore = AssetByteStore()
         byteStore.adoptFallbackWrapper(wrappers["assets"])
-        return .init(site: site, byteStore: byteStore)
+        let manifests = PublishingManifestArchive(
+            fileContents: (wrappers["Publishing"]?.fileWrappers ?? [:])
+                .compactMapValues { $0.regularFileContents }
+        )
+        return .init(site: site, byteStore: byteStore, publishingManifests: manifests)
     }
 
     nonisolated func snapshot(contentType: UTType) throws -> FoundryDocumentSnapshot {
@@ -290,8 +301,15 @@ final class FoundryDocument: ReferenceFileDocument {
         snapshot: FoundryDocumentSnapshot,
         configuration: WriteConfiguration
     ) throws -> FileWrapper {
+        try Self.makeFileWrapper(snapshot: snapshot, existingFile: configuration.existingFile)
+    }
+
+    nonisolated static func makeFileWrapper(
+        snapshot: FoundryDocumentSnapshot,
+        existingFile: FileWrapper?
+    ) throws -> FileWrapper {
         let project = FileWrapper(regularFileWithContents: try Self.encoder.encode(snapshot.site))
-        let existingAssetWrappers = configuration.existingFile?.fileWrappers?["assets"]?.fileWrappers ?? [:]
+        let existingAssetWrappers = existingFile?.fileWrappers?["assets"]?.fileWrappers ?? [:]
         var assets: [String: FileWrapper] = [:]
         for asset in snapshot.site.assets + snapshot.site.webIconAssets + snapshot.site.siteLogoAssets {
             // Reusing the existing child lets `FileWrapper` avoid rewriting
@@ -305,10 +323,17 @@ final class FoundryDocument: ReferenceFileDocument {
             guard let data = snapshot.byteStore.resolve(asset) else { continue }
             assets[asset.storageFilename] = FileWrapper(regularFileWithContents: data)
         }
-        return FileWrapper(directoryWithFileWrappers: [
+        var wrappers: [String: FileWrapper] = [
             "project.json": project,
             "assets": FileWrapper(directoryWithFileWrappers: assets)
-        ])
+        ]
+        let manifestFiles = snapshot.publishingManifests.fileContents
+        if !manifestFiles.isEmpty {
+            wrappers["Publishing"] = FileWrapper(
+                directoryWithFileWrappers: manifestFiles.mapValues(FileWrapper.init(regularFileWithContents:))
+            )
+        }
+        return FileWrapper(directoryWithFileWrappers: wrappers)
     }
 
     /// Adopted once SwiftUI's `DocumentGroup` reports the document's on-disk
@@ -316,6 +341,11 @@ final class FoundryDocument: ReferenceFileDocument {
     @MainActor
     func adoptPackageURL(_ url: URL?) {
         storage.withLock { $0.byteStore }.adoptPackageURL(url)
+    }
+
+    @MainActor
+    var publishingManifests: PublishingManifestArchive {
+        storage.withLock { $0.publishingManifests }
     }
 
     @MainActor

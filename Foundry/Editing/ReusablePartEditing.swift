@@ -89,6 +89,91 @@ extension ProjectEditor {
         )
     }
 
+    // MARK: Project templates
+
+    /// Adds a definition to this project's own template library — the
+    /// Templates panel's Project section. Unlike pack templates the project
+    /// stores the definition itself, so the save is undoable.
+    @discardableResult
+    func addProjectTemplate(_ definition: ReusablePartDefinition, at placement: ReusablePartPlacement = .end) -> Bool {
+        var added = false
+        mutate(actionName: "Save Template") { site in
+            added = site.projectTemplateLibrary.insert(.part(definition), at: placement)
+        }
+        return added
+    }
+
+    /// Adds a whole node — a template or a folder tree arriving from a pack —
+    /// to the project's template library.
+    @discardableResult
+    func addProjectTemplateNode(_ node: ReusablePartNode, at placement: ReusablePartPlacement = .end) -> Bool {
+        var added = false
+        mutate(actionName: "Move Templates") { site in
+            added = site.projectTemplateLibrary.insert(node, at: placement)
+        }
+        return added
+    }
+
+    func renameProjectTemplate(id: UUID, to name: String) {
+        mutate(actionName: "Rename Template") { site in
+            _ = site.projectTemplateLibrary.mutateDefinition(id: id) { $0.name = name }
+        }
+    }
+
+    func removeProjectTemplate(id: UUID) {
+        mutate(actionName: "Delete Template") { site in
+            site.projectTemplateLibrary.removeNode(id: id)
+        }
+    }
+
+    @discardableResult
+    func duplicateProjectTemplate(id: UUID) -> UUID? {
+        guard case .part(let definition)? = document.site.projectTemplateLibrary.node(withID: id) else {
+            return nil
+        }
+        let copy = ReusablePartDefinition(
+            name: definition.name + " Copy",
+            root: definition.root.duplicatedForReusableDefinition()
+        )
+        var duplicated = false
+        mutate(actionName: "Duplicate Template") { site in
+            duplicated = site.projectTemplateLibrary.insert(.part(copy), at: .after(nodeID: id))
+        }
+        return duplicated ? copy.id : nil
+    }
+
+    @discardableResult
+    func createProjectTemplateFolder(named name: String, at placement: ReusablePartPlacement = .end) -> UUID? {
+        let folder = ReusablePartFolder(name: name)
+        var created = false
+        mutate(actionName: "New Folder") { site in
+            created = site.projectTemplateLibrary.insert(.folder(folder), at: placement)
+        }
+        return created ? folder.id : nil
+    }
+
+    func renameProjectTemplateFolder(id: UUID, to name: String) {
+        mutate(actionName: "Rename Folder") { site in
+            _ = site.projectTemplateLibrary.renameFolder(id: id, to: name)
+        }
+    }
+
+    func deleteProjectTemplateFolder(id: UUID) {
+        mutate(actionName: "Delete Folder") { site in
+            site.projectTemplateLibrary.removeNode(id: id)
+        }
+    }
+
+    @discardableResult
+    func moveProjectTemplateNode(id: UUID, to placement: ReusablePartPlacement) -> Bool {
+        var moved = document.site.projectTemplateLibrary
+        guard moved.move(id: id, to: placement) else { return false }
+        mutate(actionName: "Move") { site in
+            site.projectTemplateLibrary = moved
+        }
+        return true
+    }
+
     @discardableResult
     func updateReusablePart(from partID: UUID) -> Bool {
         guard let source = document.site.part(withID: partID),

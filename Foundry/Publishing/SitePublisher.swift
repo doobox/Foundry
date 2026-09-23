@@ -1,6 +1,7 @@
 import Foundation
 import CryptoKit
 import Security
+import Synchronization
 
 nonisolated enum PublishingError: LocalizedError {
     case missingLocalDestination
@@ -141,37 +142,67 @@ nonisolated struct PublishingPlan: Sendable, Equatable {
     }
 }
 
-nonisolated struct PublishingManifestStore: Sendable {
-    let directory: URL
-
-    init(directory: URL? = nil) {
-        self.directory = directory ?? FileManager.default.urls(
-            for: .applicationSupportDirectory,
-            in: .userDomainMask
-        )[0].appending(path: "Foundry/Publishing Manifests", directoryHint: .isDirectory)
+/// The in-memory owner of per-destination publishing manifests for one
+/// document's lifetime. A manifest records last-published server state, not
+/// document state, so the archive lives outside the undoable model: document
+/// snapshots share it by reference (like `AssetByteStore`) and undo never
+/// rolls it backwards. It is serialized into the package's "Publishing"
+/// directory only by the document's own write path — never written into the
+/// open package out-of-band, which NSDocument would treat as an external
+/// change and could clobber on its next save.
+nonisolated final class PublishingManifestArchive: Sendable {
+    private struct StoredManifest: Codable {
+        let destinationIdentity: String
+        let manifest: PublishingManifest
     }
 
-    func load(for site: Site, localDirectory: URL? = nil) -> PublishingManifest? {
-        try? JSONDecoder().decode(
-            PublishingManifest.self,
-            from: Data(contentsOf: url(for: site, localDirectory: localDirectory))
+    private let files: Mutex<[String: Data]>
+
+    init(fileContents: [String: Data] = [:]) {
+        files = Mutex(fileContents)
+    }
+
+    /// One JSON file per destination, as stored inside the package's
+    /// "Publishing" directory.
+    var fileContents: [String: Data] {
+        files.withLock { $0 }
+    }
+
+    func manifest(for site: Site, destinationID: UUID?, localDirectory: URL? = nil) -> PublishingManifest? {
+        let identity = destinationIdentity(for: site, localDirectory: localDirectory)
+        guard let data = files.withLock({ $0[filename(for: site, destinationID: destinationID)] }),
+              let stored = try? JSONDecoder().decode(StoredManifest.self, from: data),
+              stored.destinationIdentity == identity else { return nil }
+        return stored.manifest
+    }
+
+    func setManifest(
+        _ manifest: PublishingManifest,
+        for site: Site,
+        destinationID: UUID?,
+        localDirectory: URL? = nil
+    ) {
+        let stored = StoredManifest(
+            destinationIdentity: destinationIdentity(for: site, localDirectory: localDirectory),
+            manifest: manifest
         )
+        guard let data = try? JSONEncoder().encode(stored) else { return }
+        files.withLock { $0[filename(for: site, destinationID: destinationID)] = data }
     }
 
-    func save(_ manifest: PublishingManifest, for site: Site, localDirectory: URL? = nil) throws {
-        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        let data = try JSONEncoder().encode(manifest)
-        try data.write(to: url(for: site, localDirectory: localDirectory), options: .atomic)
+    func removeManifest(for site: Site, destinationID: UUID?) {
+        files.withLock { $0[filename(for: site, destinationID: destinationID)] = nil }
     }
 
-    func remove(for site: Site, localDirectory: URL? = nil) throws {
-        let manifestURL = url(for: site, localDirectory: localDirectory)
-        guard FileManager.default.fileExists(atPath: manifestURL.path) else { return }
-        try FileManager.default.removeItem(at: manifestURL)
+    private func filename(for site: Site, destinationID: UUID?) -> String {
+        "\(destinationID?.uuidString ?? site.publishingDestination.rawValue).json"
     }
 
-    private func url(for site: Site, localDirectory: URL?) -> URL {
-        let identity = [
+    private func destinationIdentity(for site: Site, localDirectory: URL?) -> String {
+        let localPath = site.publishingDestination == .local
+            ? localDirectory?.standardizedFileURL.path ?? ""
+            : ""
+        return [
             site.id.uuidString,
             site.publishingDestination.rawValue,
             site.publishingHost,
@@ -180,10 +211,8 @@ nonisolated struct PublishingManifestStore: Sendable {
             site.publishingRemotePath,
             site.publishingS3Bucket,
             site.publishingS3Region,
-            localDirectory?.standardizedFileURL.path ?? ""
+            localPath
         ].joined(separator: "\u{1f}")
-        let key = SHA256.hash(data: Data(identity.utf8)).map { String(format: "%02x", $0) }.joined()
-        return directory.appending(path: "\(key).json")
     }
 }
 
@@ -298,6 +327,8 @@ nonisolated struct SitePublisher: Sendable {
     func publish(
         bundle: SiteExportBundle,
         site: Site,
+        manifests: PublishingManifestArchive? = nil,
+        destinationID: UUID? = nil,
         localDirectory: URL?,
         credential: String,
         forceAllFiles: Bool = false,
@@ -306,17 +337,25 @@ nonisolated struct SitePublisher: Sendable {
         try bundle.validate()
         if site.publishingDestination == .local {
             guard let localDirectory else { throw PublishingError.missingLocalDestination }
-            let manifestStore = PublishingManifestStore()
             let plan = PublishingPlan.make(
                 bundle: bundle,
-                previous: forceAllFiles ? nil : manifestStore.load(for: site, localDirectory: localDirectory),
+                previous: forceAllFiles ? nil : manifests?.manifest(
+                    for: site,
+                    destinationID: destinationID,
+                    localDirectory: localDirectory
+                ),
                 removesObsoleteFiles: site.cleansObsoleteExportFiles,
                 removesManagedSiteAssets: true
             )
             let removedFileCount = try await Task.detached {
                 try SiteExportWriter().apply(plan, bundle: bundle, to: localDirectory)
             }.value
-            try manifestStore.save(plan.nextManifest, for: site, localDirectory: localDirectory)
+            manifests?.setManifest(
+                plan.nextManifest,
+                for: site,
+                destinationID: destinationID,
+                localDirectory: localDirectory
+            )
             return PublishingResult(
                 uploadedFileCount: plan.uploads.count,
                 unchangedFileCount: plan.unchangedFileCount,
@@ -325,10 +364,13 @@ nonisolated struct SitePublisher: Sendable {
         }
 
         try validate(site: site, credential: credential)
-        let manifestStore = PublishingManifestStore()
         let plan = PublishingPlan.make(
             bundle: bundle,
-            previous: forceAllFiles ? nil : manifestStore.load(for: site, localDirectory: localDirectory),
+            previous: forceAllFiles ? nil : manifests?.manifest(
+                for: site,
+                destinationID: destinationID,
+                localDirectory: localDirectory
+            ),
             removesObsoleteFiles: false
         )
         let tracker = PublishingProgressTracker(files: plan.uploads, handler: progress)
@@ -338,7 +380,12 @@ nonisolated struct SitePublisher: Sendable {
             credential: credential,
             tracker: tracker
         )
-        try manifestStore.save(plan.nextManifest, for: site, localDirectory: localDirectory)
+        manifests?.setManifest(
+            plan.nextManifest,
+            for: site,
+            destinationID: destinationID,
+            localDirectory: localDirectory
+        )
         return PublishingResult(
             uploadedFileCount: plan.uploads.count,
             unchangedFileCount: plan.unchangedFileCount,

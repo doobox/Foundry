@@ -1322,24 +1322,29 @@ private struct LibraryPanelHeader<MenuContent: View>: View {
 }
 
 struct ReusablePartLibraryPanel: View {
-    let library: [ReusablePartNode]
+    let sections: [TemplatePanelSection]
     @Binding var selectedNodeID: UUID?
     let renameDefinition: (UUID, String) -> Void
     let deleteDefinition: (UUID) -> Void
     let duplicateDefinition: (UUID) -> Void
     let revealDefinition: (UUID) -> Void
-    let createFolder: (String) -> Void
+    /// Creates a folder in the identified section's organization.
+    let createFolder: (String, String) -> Void
     let renameFolder: (UUID, String) -> Void
     let deleteFolder: (UUID) -> Void
-    let moveNode: (UUID, ReusablePartPlacement) -> Bool
-    let saveDraggedParts: ([UUID]) -> Bool
+    /// A node dropped at a placement inside the identified section; the owner
+    /// decides between reorder, cross-section move, and copy-out.
+    let moveNode: (UUID, String, ReusablePartPlacement) -> Bool
+    let saveDraggedParts: ([UUID], String) -> Bool
 
     @State private var searchText = ""
     @State private var isNamingFolder = false
     @State private var folderName = ""
     @State private var nodesToDelete: [ReusablePartNode] = []
 
-    private var definitions: [ReusablePartDefinition] { library.allDefinitions }
+    private var definitions: [ReusablePartDefinition] {
+        sections.flatMap(\.nodes).allDefinitions
+    }
 
     private var searchResults: [ReusablePartDefinition] {
         let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -1351,10 +1356,28 @@ struct ReusablePartLibraryPanel: View {
         !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
-    /// Searching filters the same tree down to matching templates as a flat
-    /// list — one outline, one presentation, whether filtered or not.
-    private var displayedNodes: [ReusablePartNode] {
-        isSearching ? searchResults.map(ReusablePartNode.part) : library
+    /// Searching flattens every section down to matching templates in one
+    /// headerless, read-only list; organizing resumes when the search clears.
+    private var displayedSections: [TemplatePanelSection] {
+        isSearching
+            ? [TemplatePanelSection(
+                id: "search",
+                title: nil,
+                isEditable: false,
+                nodes: searchResults.map(ReusablePartNode.part)
+            )]
+            : sections
+    }
+
+    /// New folders land in the section owning the selection, when that
+    /// section can be edited; otherwise in the project.
+    private var folderTargetSectionID: String {
+        guard let selectedNodeID,
+              let section = sections.first(where: { $0.nodes.node(withID: selectedNodeID) != nil }),
+              section.isEditable else {
+            return TemplatePanelSection.projectSectionID
+        }
+        return section.id
     }
 
     var body: some View {
@@ -1368,35 +1391,32 @@ struct ReusablePartLibraryPanel: View {
             Divider()
             TemplatesOutlineView(
                 kind: .templates,
-                nodes: displayedNodes,
+                sections: displayedSections,
                 selectedNodeID: $selectedNodeID,
-                // Reordering a filtered list would silently reorganize the
-                // real tree; moves resume when the search clears.
-                moveNode: { id, placement in
-                    isSearching ? false : moveNode(id, placement)
+                moveNode: { id, sectionID, placement in
+                    isSearching ? false : moveNode(id, sectionID, placement)
                 },
                 saveDroppedParts: saveDraggedParts,
                 renameDefinition: renameDefinition,
                 renameFolder: renameFolder,
                 duplicateDefinition: duplicateDefinition,
                 revealDefinition: revealDefinition,
+                canRevealDefinition: { id in
+                    sections.first { $0.nodes.node(withID: id) != nil }?.id
+                        != TemplatePanelSection.projectSectionID
+                },
                 requestDelete: { ids in
-                    nodesToDelete = ids.compactMap { library.node(withID: $0) }
+                    nodesToDelete = ids.compactMap { id in
+                        sections.lazy.compactMap { $0.nodes.node(withID: id) }.first
+                    }
                 }
             )
             .overlay {
-                if displayedNodes.isEmpty {
-                    if isSearching {
-                        ContentUnavailableView.search(text: searchText)
-                            .allowsHitTesting(false)
-                    } else {
-                        ContentUnavailableView(
-                            "No Templates",
-                            systemImage: WorkspacePanel.reusableParts.systemImage,
-                            description: Text("Save a part as a template from Structure, or drop one here.")
-                        )
+                // The section headers explain the empty panel themselves;
+                // only a fruitless search needs an unavailable state.
+                if isSearching && searchResults.isEmpty {
+                    ContentUnavailableView.search(text: searchText)
                         .allowsHitTesting(false)
-                    }
                 }
             }
             Divider()
@@ -1406,7 +1426,10 @@ struct ReusablePartLibraryPanel: View {
             TextField("Folder Name", text: $folderName)
             Button("Cancel", role: .cancel) {}
             Button("Create") {
-                createFolder(folderName.trimmingCharacters(in: .whitespacesAndNewlines))
+                createFolder(
+                    folderName.trimmingCharacters(in: .whitespacesAndNewlines),
+                    folderTargetSectionID
+                )
             }
             .disabled(folderName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
         }
@@ -1437,6 +1460,13 @@ struct ReusablePartLibraryPanel: View {
         nodesToDelete.contains { if case .folder = $0 { true } else { false } }
     }
 
+    private var deletesOnlyProjectNodes: Bool {
+        nodesToDelete.allSatisfy { node in
+            sections.first { $0.nodes.node(withID: node.id) != nil }?.id
+                == TemplatePanelSection.projectSectionID
+        }
+    }
+
     private var deleteTitle: String {
         nodesToDelete.count > 1
             ? "Delete \(nodesToDelete.count) Items?"
@@ -1449,12 +1479,13 @@ struct ReusablePartLibraryPanel: View {
     }
 
     private var deleteMessage: String {
+        let scope = deletesOnlyProjectNodes ? "this project" : "every project"
         if deletesFolder {
-            "Also deletes the templates inside, for every project. Parts already added to pages are unchanged."
+            return "Also deletes the templates inside, for \(scope). Parts already added to pages are unchanged."
         } else if nodesToDelete.count > 1 {
-            "Removes them from the library for every project. Parts already added to pages are unchanged."
+            return "Removes them from the library for \(scope). Parts already added to pages are unchanged."
         } else {
-            "Removes it from the library for every project. Parts already added to pages are unchanged."
+            return "Removes it from the library for \(scope). Parts already added to pages are unchanged."
         }
     }
 
@@ -1627,18 +1658,25 @@ struct GlobalPartLibraryPanel: View {
             Divider()
             TemplatesOutlineView(
                 kind: .globals,
-                nodes: displayedNodes,
+                // Globals have one source, so the outline renders headerless.
+                sections: [TemplatePanelSection(
+                    id: "globals",
+                    title: nil,
+                    isEditable: true,
+                    nodes: displayedNodes
+                )],
                 selectedNodeID: $selectedNodeID,
                 // Reordering a filtered list would silently reorganize the
                 // real tree; moves resume when the search clears.
-                moveNode: { id, placement in
+                moveNode: { id, _, placement in
                     isSearching ? false : moveNode(id, placement)
                 },
-                saveDroppedParts: saveDraggedParts,
+                saveDroppedParts: { ids, _ in saveDraggedParts(ids) },
                 renameDefinition: renameDefinition,
                 renameFolder: renameFolder,
                 duplicateDefinition: duplicateDefinition,
                 revealDefinition: nil,
+                canRevealDefinition: nil,
                 requestDelete: { ids in
                     nodesToDelete = ids.compactMap { library.node(withID: $0) }
                 }

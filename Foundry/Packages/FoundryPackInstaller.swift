@@ -12,6 +12,9 @@ enum FoundryPackInstaller {
 
     nonisolated static func installFiles(from sourceURL: URL) throws {
         let pack = try FoundryPackLoader.load(from: sourceURL)
+        if let invalid = pack.invalidItemPaths.first {
+            throw FoundryPackLoadingError.invalidItem(invalid)
+        }
         for url in pack.partURLs {
             _ = try PartPackageLoader.load(from: url)
         }

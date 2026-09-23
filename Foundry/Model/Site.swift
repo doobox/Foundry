@@ -225,6 +225,10 @@ nonisolated struct Site: Codable, Equatable, Identifiable, Sendable {
     /// The Global Parts panel's ordered tree: folders and live-linked
     /// definitions, organized exactly like the templates library.
     var globalPartLibrary: [ReusablePartNode]
+    /// Templates saved to this project only — the Templates panel's Project
+    /// section. Their definitions reference the document's own assets
+    /// directly; embedding happens only when one moves into a pack.
+    var projectTemplateLibrary: [ReusablePartNode] = []
     var assetLibrary: [ProjectAssetNode]
     var partPackages: [PartPackageLock]
 
@@ -443,7 +447,7 @@ nonisolated struct Site: Codable, Equatable, Identifiable, Sendable {
 
     private enum CodingKeys: String, CodingKey {
         case appearanceMode
-        case id, schemaVersion, name, language, publicURL, titleSuffix, defaultDescription, favicon, webIconAssets, defaultSocialImage, logo, siteLogoAssets, logoAlt, generatesCanonicalURLs, generatesSitemap, generatesRobotsTXT, allowsSearchIndexing, customCodeEnabled, headCode, bodyStartCode, bodyEndCode, analyticsCode, generatesCacheBustingLinks, defaultPageExtension, previewServerPort, minifiesGeneratedOutput, cleansObsoleteExportFiles, publishingDestination, publishingHost, publishingPort, publishingUsername, publishingRemotePath, publishingS3Bucket, publishingS3Region, publishingDestinations, defaultPublishingDestinationID, pages, pageFolders, framework, frameworkSourceID, projectFrameworkValues, frameworkStates, globalPartLibrary, assetLibrary, partPackages
+        case id, schemaVersion, name, language, publicURL, titleSuffix, defaultDescription, favicon, webIconAssets, defaultSocialImage, logo, siteLogoAssets, logoAlt, generatesCanonicalURLs, generatesSitemap, generatesRobotsTXT, allowsSearchIndexing, customCodeEnabled, headCode, bodyStartCode, bodyEndCode, analyticsCode, generatesCacheBustingLinks, defaultPageExtension, previewServerPort, minifiesGeneratedOutput, cleansObsoleteExportFiles, publishingDestination, publishingHost, publishingPort, publishingUsername, publishingRemotePath, publishingS3Bucket, publishingS3Region, publishingDestinations, defaultPublishingDestinationID, pages, pageFolders, framework, frameworkSourceID, projectFrameworkValues, frameworkStates, globalPartLibrary, projectTemplateLibrary, assetLibrary, partPackages
     }
 
     init(from decoder: Decoder) throws {
@@ -513,6 +517,7 @@ nonisolated struct Site: Codable, Equatable, Identifiable, Sendable {
         projectFrameworkValues = try container.decode(ProjectFrameworkValues.self, forKey: .projectFrameworkValues)
         frameworkStates = try container.decode([ProjectFrameworkState].self, forKey: .frameworkStates)
         globalPartLibrary = try container.decodeIfPresent([ReusablePartNode].self, forKey: .globalPartLibrary) ?? []
+        projectTemplateLibrary = try container.decodeIfPresent([ReusablePartNode].self, forKey: .projectTemplateLibrary) ?? []
         assetLibrary = try container.decode([ProjectAssetNode].self, forKey: .assetLibrary)
         partPackages = try container.decode([PartPackageLock].self, forKey: .partPackages)
     }

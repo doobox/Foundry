@@ -7,6 +7,11 @@ nonisolated struct FoundryPack: Sendable {
     let partURLs: [URL]
     let templateURLs: [URL]
     let frameworkURLs: [URL]
+    /// Typed items that are not a directory containing Info.plist and
+    /// Resources — typically a part folder mid-creation in a development
+    /// pack. Loading skips them so the rest of the pack stays usable;
+    /// installation and release authoring reject packs that carry any.
+    let invalidItemPaths: [String]
 }
 
 nonisolated enum FoundryPackItemKind: String, CaseIterable, Sendable {
@@ -47,7 +52,7 @@ nonisolated enum FoundryPackLoadingError: Error, LocalizedError {
 nonisolated enum FoundryPackLoader {
     static let currentFormatVersion = 2
     private static let allowedTopLevelNames = Set(
-        ["Info.plist", "Resources", ".DS_Store"] + FoundryPackItemKind.allCases.map(\.rawValue)
+        ["Info.plist", "Resources"] + FoundryPackItemKind.allCases.map(\.rawValue)
     )
 
     static func load(from rootURL: URL) throws -> FoundryPack {
@@ -72,22 +77,29 @@ nonisolated enum FoundryPackLoader {
         let identifier = metadata.identifier.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !identifier.isEmpty else { throw FoundryPackLoadingError.missingIdentifier }
 
+        // Hidden files are tolerated so development packs can live inside a
+        // git checkout (.git, .gitignore) without being rejected.
         let children = try FileManager.default.contentsOfDirectory(
             at: rootURL,
             includingPropertiesForKeys: [.isDirectoryKey, .isSymbolicLinkKey],
-            options: []
+            options: [.skipsHiddenFiles]
         )
         if let unknown = children.first(where: { !allowedTopLevelNames.contains($0.lastPathComponent) }) {
             throw FoundryPackLoadingError.unknownTopLevelItem(unknown.lastPathComponent)
         }
 
+        var invalidItemPaths: [String] = []
+        let partURLs = try itemURLs(in: rootURL, kind: .part, invalidPaths: &invalidItemPaths)
+        let templateURLs = try itemURLs(in: rootURL, kind: .template, invalidPaths: &invalidItemPaths)
+        let frameworkURLs = try itemURLs(in: rootURL, kind: .framework, invalidPaths: &invalidItemPaths)
         return FoundryPack(
             identifier: identifier,
             rootURL: rootURL,
             metadata: metadata,
-            partURLs: try itemURLs(in: rootURL, kind: .part),
-            templateURLs: try itemURLs(in: rootURL, kind: .template),
-            frameworkURLs: try itemURLs(in: rootURL, kind: .framework)
+            partURLs: partURLs,
+            templateURLs: templateURLs,
+            frameworkURLs: frameworkURLs,
+            invalidItemPaths: invalidItemPaths.sorted()
         )
     }
 
@@ -97,13 +109,13 @@ nonisolated enum FoundryPackLoader {
 
     static func personalDevelopmentPackURL(fileManager: FileManager = .default) throws -> URL {
         let url = try installedPacksURL(fileManager: fileManager)
-            .appending(path: "My Foundry Content.foundrydevpack", directoryHint: .isDirectory)
+            .appending(path: "My Library.foundrydevpack", directoryHint: .isDirectory)
         if !fileManager.fileExists(atPath: url.path) {
             try fileManager.createDirectory(at: url, withIntermediateDirectories: true)
             let manifest: [String: Any] = [
                 "formatVersion": currentFormatVersion,
-                "id": "local.foundry.personal-content",
-                "title": "My Foundry Content",
+                "id": "local.foundry.my-library",
+                "title": "My Library",
                 "version": "1.0.0",
                 "minimumAPIVersion": 1
             ]
@@ -172,7 +184,11 @@ nonisolated enum FoundryPackLoader {
         }
     }
 
-    private static func itemURLs(in rootURL: URL, kind: FoundryPackItemKind) throws -> [URL] {
+    private static func itemURLs(
+        in rootURL: URL,
+        kind: FoundryPackItemKind,
+        invalidPaths: inout [String]
+    ) throws -> [URL] {
         let directoryURL = rootURL.appending(path: kind.rawValue, directoryHint: .isDirectory)
         guard FileManager.default.fileExists(atPath: directoryURL.path) else { return [] }
         let children = try FileManager.default.contentsOfDirectory(
@@ -180,16 +196,17 @@ nonisolated enum FoundryPackLoader {
             includingPropertiesForKeys: [.isDirectoryKey, .isSymbolicLinkKey],
             options: [.skipsHiddenFiles]
         )
-        return try children.map { url in
+        var valid: [URL] = []
+        for url in children {
             let values = try url.resourceValues(forKeys: [.isDirectoryKey, .isSymbolicLinkKey])
             let hasManifest = FileManager.default.fileExists(atPath: url.appending(path: "Info.plist").path)
             let hasResources = FileManager.default.fileExists(atPath: url.appending(path: "Resources").path)
-            guard values.isDirectory == true, values.isSymbolicLink != true, hasManifest, hasResources else {
-                throw FoundryPackLoadingError.invalidItem(
-                    "\(kind.rawValue)/\(url.lastPathComponent)"
-                )
+            if values.isDirectory == true, values.isSymbolicLink != true, hasManifest, hasResources {
+                valid.append(url.standardizedFileURL)
+            } else {
+                invalidPaths.append("\(kind.rawValue)/\(url.lastPathComponent)")
             }
-            return url.standardizedFileURL
-        }.sorted { $0.path < $1.path }
+        }
+        return valid.sorted { $0.path < $1.path }
     }
 }
