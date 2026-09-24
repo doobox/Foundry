@@ -33,11 +33,11 @@ struct BuiltInLayoutPartsTests {
         }
     }
 
-    @Test func navigationPartRendersMenuDropdownsAndCurrentState() throws {
-        // Loading throws if the pack fails validation; the shared catalog
-        // has already registered the bundled definition.
+    @Test func navigationPartRendersMenuDropdownsAndCurrentState() async throws {
+        // Loading throws if the pack fails validation; rendering resolves the
+        // part through the shared catalog, which loads asynchronously.
         let loaded = try package("Navigation")
-        _ = PartPackageCatalog.shared
+        await PartPackageCatalog.shared.waitUntilLoaded()
 
         let navigation = PartNode(type: PartType(rawValue: loaded.manifest.identifier))
         let about = Page(title: "About", slug: "about", order: 1)
