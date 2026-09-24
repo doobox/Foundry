@@ -173,6 +173,8 @@ struct StructureOutlineView: NSViewRepresentable {
             cell.textField?.isEditable = true
             cell.textField?.delegate = self
             cell.imageView?.image = partIcon(for: item.part)
+            // Match the square icon backing used in the other non-panel contexts.
+            (cell.imageView as? PartIconImageView)?.updateBackgroundColor()
             cell.imageView?.setAccessibilityLabel(name)
             let isLinkedToGlobal = globalContext(for: item)?.isLinked == true
             let isGlobalRoot = item.part.reusableDefinitionID != nil
@@ -204,7 +206,9 @@ struct StructureOutlineView: NSViewRepresentable {
         }
 
         private func partIcon(for part: PartNode) -> NSImage? {
-            if let iconURL = part.type.definition.package?.iconURL,
+            let appearance = outlineView?.effectiveAppearance ?? NSApp.effectiveAppearance
+            let isDark = appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+            if let iconURL = part.type.definition.package?.iconURL(forDarkAppearance: isDark),
                let icon = NSImage(contentsOf: iconURL) {
                 return icon
             }
@@ -350,11 +354,12 @@ struct StructureOutlineView: NSViewRepresentable {
             let author = package?.manifest.author ?? "Foundry"
             let version = package?.manifest.version ?? ""
             let subtitle = version.isEmpty ? author : "\(author)  v\(version)"
-            let icon = NSImageView(image: partIcon(for: item.part) ?? NSImage())
+            let icon = PartIconImageView(image: partIcon(for: item.part) ?? NSImage())
             icon.imageScaling = .scaleProportionallyUpOrDown
             icon.wantsLayer = true
             icon.layer?.cornerRadius = 36 * 0.16
             icon.layer?.masksToBounds = true
+            icon.updateBackgroundColor()
             icon.setAccessibilityLabel(title)
             icon.translatesAutoresizingMaskIntoConstraints = false
 
@@ -882,7 +887,7 @@ struct StructureOutlineView: NSViewRepresentable {
         private func makeCell(identifier: NSUserInterfaceItemIdentifier) -> StructureOutlineCell {
             let cell = StructureOutlineCell()
             cell.identifier = identifier
-            let imageView = NSImageView()
+            let imageView = PartIconImageView()
             imageView.symbolConfiguration = .init(pointSize: 14, weight: .regular)
             imageView.imageScaling = .scaleProportionallyUpOrDown
             imageView.wantsLayer = true
@@ -1041,6 +1046,11 @@ struct StructureOutlineView: NSViewRepresentable {
 
 private final class StructureNativeOutlineView: NSOutlineView {
     var handleKeyEvent: ((NSEvent) -> Bool)?
+
+    override func viewDidChangeEffectiveAppearance() {
+        super.viewDidChangeEffectiveAppearance()
+        reloadData()
+    }
 
     override func keyDown(with event: NSEvent) {
         if handleKeyEvent?(event) == true { return }

@@ -551,11 +551,11 @@ nonisolated private enum PartLibraryIconSize: String, CaseIterable, Identifiable
         }
     }
 
-    /// The icon slot's height; its width is twice this.
+    /// The icon slot's height; its width is 1.5× this — a 3:2 tile.
     var iconSize: CGFloat {
         switch self {
         case .list: 24
-        case .small: 45
+        case .small: 48
         case .medium: 60
         }
     }
@@ -563,15 +563,15 @@ nonisolated private enum PartLibraryIconSize: String, CaseIterable, Identifiable
     var tileWidth: CGFloat {
         switch self {
         case .list: 140
-        case .small: 102
-        case .medium: 132
+        case .small: 84
+        case .medium: 102
         }
     }
 
     var tileHeight: CGFloat {
         switch self {
         case .list: 44
-        case .small: 82
+        case .small: 84
         case .medium: 96
         }
     }
@@ -1637,14 +1637,18 @@ private struct PartLibraryTile: View {
                     .frame(width: iconSize.tileWidth, height: iconSize.tileHeight)
                 }
             }
-            // Explicit accent rather than .selection: that style only shows
-            // accent when focused, and these tiles never are — it rendered
-            // as pale grey in both appearances. Unselected tiles keep the
-            // same card shape in a quiet quaternary.
+            // The accent ring carries the selection; the fill is the
+            // system's, which reads as a subtle tonal step when unfocused.
             .background(
-                isSelected ? AnyShapeStyle(Color.accentColor) : AnyShapeStyle(.quaternary),
+                isSelected ? AnyShapeStyle(.selection) : AnyShapeStyle(.quinary),
                 in: RoundedRectangle(cornerRadius: 8)
             )
+            .overlay {
+                if isSelected {
+                    RoundedRectangle(cornerRadius: 8)
+                        .strokeBorder(Color.accentColor, lineWidth: 2)
+                }
+            }
             .contentShape(RoundedRectangle(cornerRadius: 8))
         }
         .buttonStyle(.plain)
@@ -1662,23 +1666,25 @@ private struct PartLibraryTile: View {
 
     // One size for every tile: long names truncate rather than shrink, so
     // the grid never mixes text sizes. The tooltip carries the full name.
-    // White on selection is safe now the background is guaranteed accent.
+    // The title stays primary — the system selection colour can be pale
+    // when unfocused, where white text vanishes in light appearance.
     private var partTitle: some View {
         Text(type.displayName)
             .lineLimit(1)
             .truncationMode(.tail)
             .font(.caption)
-            .foregroundStyle(isSelected ? Color.white : Color.primary)
+            .foregroundStyle(Color.primary)
             .help(type.displayName)
     }
 }
 
-/// A part's artwork on the Parts panel's 2:1 landscape tile; `size` is the
+/// A part's artwork on the Parts panel's 3:2 landscape tile; `size` is the
 /// tile height. Packs ship an optional `tile.svg` for this slot; without
 /// one the square `icon.svg` fits in the centre — any aspect ratio fits
 /// without cropping, and the tile's own backing means transparent artwork
 /// still reads as a deliberate shape.
 struct PartLibraryIcon: View {
+    @Environment(\.colorScheme) private var colorScheme
     @State private var loadedIcon: NSImage?
     let type: PartType
     let size: CGFloat
@@ -1686,7 +1692,8 @@ struct PartLibraryIcon: View {
 
     private var artworkURL: URL? {
         guard let package = type.definition.package else { return nil }
-        return package.tileURL ?? package.iconURL
+        return package.tileURL(forDarkAppearance: colorScheme == .dark)
+            ?? package.iconURL(forDarkAppearance: colorScheme == .dark)
     }
 
     var body: some View {
@@ -1701,7 +1708,7 @@ struct PartLibraryIcon: View {
                     .foregroundStyle(symbolColor)
             }
         }
-        .frame(width: size * 2, height: size)
+        .frame(width: size * 1.5, height: size)
         .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: size * 0.16))
         .clipShape(RoundedRectangle(cornerRadius: size * 0.16))
         .accessibilityHidden(true)
@@ -1727,10 +1734,15 @@ struct PartLibraryIcon: View {
 
 /// The part's square 1:1 icon — inspectors and other non-panel contexts.
 struct PartSquareIcon: View {
+    @Environment(\.colorScheme) private var colorScheme
     @State private var loadedIcon: NSImage?
     let type: PartType
     let size: CGFloat
     var symbolColor: Color = .accentColor
+
+    private var artworkURL: URL? {
+        type.definition.package?.iconURL(forDarkAppearance: colorScheme == .dark)
+    }
 
     var body: some View {
         Group {
@@ -1748,8 +1760,8 @@ struct PartSquareIcon: View {
         .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: size * 0.16))
         .clipShape(RoundedRectangle(cornerRadius: size * 0.16))
         .accessibilityHidden(true)
-        .task(id: type.definition.package?.iconURL) {
-            guard let url = type.definition.package?.iconURL else {
+        .task(id: artworkURL) {
+            guard let url = artworkURL else {
                 loadedIcon = nil
                 return
             }
@@ -1762,7 +1774,7 @@ struct PartSquareIcon: View {
     }
 
     private var displayedIcon: NSImage? {
-        loadedIcon ?? (type.definition.package?.iconURL).flatMap {
+        loadedIcon ?? artworkURL.flatMap {
             PartIconLoader.cachedIcon(at: $0)?.image
         }
     }

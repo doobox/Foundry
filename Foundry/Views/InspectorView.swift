@@ -768,7 +768,6 @@ private struct PartInspectorExpansion {
 
 private struct PartInspector: View {
     @AppStorage(AppPreferenceKey.inspectorAccordion) private var usesAccordion = true
-    @State private var loadedPartIcon: NSImage?
     @State private var showsAddAttributePopover = false
     let part: PartNode
     let selectedParts: [PartNode]
@@ -920,20 +919,7 @@ private struct PartInspector: View {
 
     private var partIdentityHeader: some View {
         HStack(alignment: .top, spacing: 12) {
-            Group {
-                if let icon = displayedPartIcon {
-                    Image(nsImage: icon)
-                        .resizable()
-                        .scaledToFit()
-                } else {
-                    Image(systemName: part.type.systemImage)
-                        .font(.title2)
-                        .foregroundStyle(.secondary)
-                }
-            }
-            .frame(width: 32, height: 32)
-            .background(.quaternary, in: RoundedRectangle(cornerRadius: 32 * 0.16))
-            .clipShape(RoundedRectangle(cornerRadius: 32 * 0.16))
+            PartSquareIcon(type: part.type, size: 32, symbolColor: .secondary)
 
             VStack(alignment: .leading, spacing: 3) {
                 Text(partHeaderTitle)
@@ -972,17 +958,6 @@ private struct PartInspector: View {
             }
         }
         .padding(.vertical, 4)
-        .task(id: part.type.definition.package?.iconURL) {
-            guard let url = part.type.definition.package?.iconURL else {
-                loadedPartIcon = nil
-                return
-            }
-            if let cached = PartIconLoader.cachedIcon(at: url) {
-                loadedPartIcon = cached.image
-                return
-            }
-            loadedPartIcon = await PartIconLoader.shared.icon(at: url)?.image
-        }
     }
 
     private var partHeaderTitle: String {
@@ -1009,11 +984,6 @@ private struct PartInspector: View {
         return isGlobalOverride ? "Global — Child — Overridden" : "Global — Child"
     }
 
-    private var displayedPartIcon: NSImage? {
-        loadedPartIcon ?? (part.type.definition.package?.iconURL).flatMap {
-            PartIconLoader.cachedIcon(at: $0)?.image
-        }
-    }
 
     private var partDeveloper: String {
         part.type.definition.package?.manifest.author.flatMap { author in

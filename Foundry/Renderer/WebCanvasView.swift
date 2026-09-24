@@ -1810,15 +1810,18 @@ struct WebCanvasView: NSViewRepresentable {
             let version = request["partVersion"] as? String ?? ""
             let subtitle = version.isEmpty ? author : "\(author)  v\(version)"
             let typeID = request["partTypeID"] as? String
+            let appearance = webView?.effectiveAppearance ?? NSApp.effectiveAppearance
+            let isDark = appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
             let iconURL = typeID
                 .map(PartType.init(rawValue:))?
-                .definition.package
-                .map(\.iconURL)
-            let icon = NSImageView(image: NSImage(size: NSSize(width: 36, height: 36)))
+                .definition.package?
+                .iconURL(forDarkAppearance: isDark)
+            let icon = PartIconImageView(image: NSImage(size: NSSize(width: 36, height: 36)))
             icon.imageScaling = .scaleProportionallyUpOrDown
             icon.wantsLayer = true
             icon.layer?.cornerRadius = 36 * 0.16
             icon.layer?.masksToBounds = true
+            icon.updateBackgroundColor()
             icon.setAccessibilityLabel(title)
             icon.translatesAutoresizingMaskIntoConstraints = false
             if let iconURL {

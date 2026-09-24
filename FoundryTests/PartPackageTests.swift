@@ -123,7 +123,11 @@ struct PartPackageTests {
             let encoded = try PropertyListSerialization.data(fromPropertyList: manifest, format: .xml, options: 0)
             let packageURL = try makePackage(
                 manifest: String(decoding: encoded, as: UTF8.self), template: snippet("\(stage):part.html"),
-                additionalFiles: ["part.css": snippet("\(stage):part.css"), "icon.svg": snippet("starter:icon.svg")]
+                additionalFiles: [
+                    "part.css": snippet("\(stage):part.css"),
+                    "icon.svg": snippet("starter:icon.svg"),
+                    "icon-dark.svg": snippet("starter:icon-dark.svg")
+                ]
             )
             defer { try? FileManager.default.removeItem(at: packageURL) }
             let package = try PartPackageLoader.load(from: packageURL)
@@ -5938,6 +5942,7 @@ struct PartPackageTests {
             "part.html": compatibleTemplate,
             "part.css": ":host { display: block; }",
             "icon.svg": "<svg xmlns=\"http://www.w3.org/2000/svg\"></svg>",
+            "icon-dark.svg": "<svg xmlns=\"http://www.w3.org/2000/svg\"></svg>",
             "images/icon.svg": "<svg xmlns=\"http://www.w3.org/2000/svg\"></svg>"
         ].merging(additionalFiles) { _, additional in additional }
         try Data(manifest.utf8).write(to: rootURL.appending(path: "Info.plist"))

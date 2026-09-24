@@ -106,16 +106,32 @@ nonisolated struct LoadedPartPackage: Sendable {
         .init(identifier: manifest.identifier)
     }
 
-    /// The square 1:1 icon — Structure rows, inspectors, the canvas.
+    /// The square 1:1 light-appearance icon — Structure rows, inspectors,
+    /// the canvas. Appearance-aware callers use `iconURL(forDarkAppearance:)`.
     var iconURL: URL {
         resourceRootURL.appending(path: "icon.svg")
     }
 
-    /// The Parts panel's 2:1 tile artwork. Optional — the panel fits the
-    /// square icon onto the tile when a part doesn't ship one.
-    var tileURL: URL? {
-        let url = resourceRootURL.appending(path: "tile.svg")
-        return FileManager.default.fileExists(atPath: url.path) ? url : nil
+    /// The square icon for the given appearance. Icons ship as a light/dark
+    /// pair — `icon.svg` and `icon-dark.svg`; either appearance falls back
+    /// to the other's file rather than to nothing.
+    func iconURL(forDarkAppearance isDark: Bool) -> URL? {
+        let names = isDark ? ["icon-dark.svg", "icon.svg"] : ["icon.svg", "icon-dark.svg"]
+        return names
+            .map { resourceRootURL.appending(path: $0) }
+            .first { FileManager.default.fileExists(atPath: $0.path) }
+    }
+
+    /// The Parts panel's 3:2 tile artwork for the given appearance. Tiles
+    /// ship as a light/dark pair — `tile.svg` and `tile-dark.svg` — and are
+    /// optional as a pair: the panel fits the square icon onto the tile when
+    /// a part doesn't ship them. Either appearance falls back to the other's
+    /// file rather than to nothing.
+    func tileURL(forDarkAppearance isDark: Bool) -> URL? {
+        let names = isDark ? ["tile-dark.svg", "tile.svg"] : ["tile.svg", "tile-dark.svg"]
+        return names
+            .map { resourceRootURL.appending(path: $0) }
+            .first { FileManager.default.fileExists(atPath: $0.path) }
     }
 
     var isDevelopmentPack: Bool {

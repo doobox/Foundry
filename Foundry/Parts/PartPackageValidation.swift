@@ -118,7 +118,7 @@ nonisolated enum PartPackageValidator {
                 diagnostics.append(.init(severity: .error, location: path, message: "The declared package file does not exist."))
             }
         }
-        for iconName in ["icon.svg", "tile.svg"] {
+        for iconName in ["icon.svg", "icon-dark.svg", "tile.svg", "tile-dark.svg"] {
             let iconURL = rootURL.appending(path: iconName)
             if let byteCount = try? iconURL.resourceValues(forKeys: [.fileSizeKey]).fileSize,
                byteCount > maximumIconByteCount {
