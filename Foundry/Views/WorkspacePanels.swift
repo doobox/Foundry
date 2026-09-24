@@ -555,24 +555,24 @@ nonisolated private enum PartLibraryIconSize: String, CaseIterable, Identifiable
     var iconSize: CGFloat {
         switch self {
         case .list: 24
-        case .small: 60
-        case .medium: 78
+        case .small: 45
+        case .medium: 60
         }
     }
 
     var tileWidth: CGFloat {
         switch self {
         case .list: 140
-        case .small: 132
-        case .medium: 168
+        case .small: 102
+        case .medium: 132
         }
     }
 
     var tileHeight: CGFloat {
         switch self {
         case .list: 44
-        case .small: 96
-        case .medium: 116
+        case .small: 82
+        case .medium: 96
         }
     }
 
