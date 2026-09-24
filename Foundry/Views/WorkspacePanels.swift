@@ -1637,8 +1637,11 @@ private struct PartLibraryTile: View {
                     .frame(width: iconSize.tileWidth, height: iconSize.tileHeight)
                 }
             }
+            // Explicit accent rather than .selection: that style only shows
+            // accent when focused, and these tiles never are — it rendered
+            // as pale grey in both appearances.
             .background(
-                isSelected ? AnyShapeStyle(.selection) : AnyShapeStyle(.clear),
+                isSelected ? AnyShapeStyle(Color.accentColor) : AnyShapeStyle(.clear),
                 in: RoundedRectangle(cornerRadius: 8)
             )
             .contentShape(RoundedRectangle(cornerRadius: 8))
@@ -1658,14 +1661,13 @@ private struct PartLibraryTile: View {
 
     // One size for every tile: long names truncate rather than shrink, so
     // the grid never mixes text sizes. The tooltip carries the full name.
-    // Colours stay fixed on selection — the unemphasized selection
-    // background is pale in light appearance, where white text vanishes.
+    // White on selection is safe now the background is guaranteed accent.
     private var partTitle: some View {
         Text(type.displayName)
             .lineLimit(1)
             .truncationMode(.tail)
             .font(.caption)
-            .foregroundStyle(Color.primary)
+            .foregroundStyle(isSelected ? Color.white : Color.primary)
             .help(type.displayName)
     }
 }
