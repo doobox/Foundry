@@ -76,12 +76,17 @@ final class SiteKitLibrary {
 
     private(set) var kits: [SiteKit] = []
     private var externalDevelopmentPackURLs: Set<URL> = []
+    /// Kits load lazily: nothing scans until the New Project chooser first
+    /// appears, so the launch path never pays for packs it may not show.
+    private var hasScanned = false
     /// Injected in tests: fixed pack roots instead of the installed catalog.
     private let fixedRootURLs: [URL]?
 
     init(fixedRootURLs: [URL]? = nil) {
         self.fixedRootURLs = fixedRootURLs
-        refresh()
+        if fixedRootURLs != nil {
+            refresh()
+        }
     }
 
     /// Installed packs and My Library — the chooser's "Your Library" section.
@@ -92,10 +97,18 @@ final class SiteKitLibrary {
 
     func openDevelopmentPack(at url: URL) {
         externalDevelopmentPackURLs.insert(url.standardizedFileURL)
+        refreshIfScanned()
+    }
+
+    /// Pack catalog reloads keep an already-presented chooser fresh without
+    /// triggering the first scan at launch.
+    func refreshIfScanned() {
+        guard hasScanned else { return }
         refresh()
     }
 
     func refresh() {
+        hasScanned = true
         var roots: [(url: URL, isPersonal: Bool)] = []
         if let fixedRootURLs {
             roots = fixedRootURLs.map { ($0.standardizedFileURL, false) }

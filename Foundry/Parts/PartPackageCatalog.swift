@@ -242,7 +242,7 @@ final class PartPackageCatalog {
         ReusablePartLibrary.shared.refresh()
         FrameworkLibrary.shared.reload()
         AssetCollectionLibrary.shared.refresh()
-        SiteKitLibrary.shared.refresh()
+        SiteKitLibrary.shared.refreshIfScanned()
     }
 
     func reloadAllPacks() {
@@ -250,7 +250,7 @@ final class PartPackageCatalog {
         ReusablePartLibrary.shared.refresh()
         FrameworkLibrary.shared.reload()
         AssetCollectionLibrary.shared.refresh()
-        SiteKitLibrary.shared.refresh()
+        SiteKitLibrary.shared.refreshIfScanned()
     }
 
     func waitUntilLoaded() async {
@@ -358,7 +358,7 @@ final class PartPackageCatalog {
         ReusablePartLibrary.shared.refresh()
         FrameworkLibrary.shared.reload()
         AssetCollectionLibrary.shared.refresh()
-        SiteKitLibrary.shared.refresh()
+        SiteKitLibrary.shared.refreshIfScanned()
     }
 }
 

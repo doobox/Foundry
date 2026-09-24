@@ -1652,19 +1652,20 @@ private struct PartLibraryTile: View {
     private var partIcon: some View {
         PartLibraryIcon(
             type: type,
-            size: iconSize.iconSize,
-            symbolColor: isSelected ? .white : .accentColor
+            size: iconSize.iconSize
         )
     }
 
     // One size for every tile: long names truncate rather than shrink, so
     // the grid never mixes text sizes. The tooltip carries the full name.
+    // Colours stay fixed on selection — the unemphasized selection
+    // background is pale in light appearance, where white text vanishes.
     private var partTitle: some View {
         Text(type.displayName)
             .lineLimit(1)
             .truncationMode(.tail)
             .font(.caption)
-            .foregroundStyle(isSelected ? Color.white : Color.primary)
+            .foregroundStyle(Color.primary)
             .help(type.displayName)
     }
 }
