@@ -1,1 +1,12 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 64"><defs><linearGradient id="blue" x2="0" y2="1"><stop stop-color="#1d5fc4"/><stop offset="1" stop-color="#02306b"/></linearGradient></defs><rect width="96" height="64" fill="url(#blue)"/><g fill="none" stroke="white" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 16h56M20 48h56" stroke-opacity="0.45"/><path d="M10 32h76"/></g></svg>
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<svg width="100%" height="100%" viewBox="0 0 192 129" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" xml:space="preserve" xmlns:serif="http://www.serif.com/" style="fill-rule:evenodd;clip-rule:evenodd;stroke-linejoin:round;stroke-miterlimit:2;">
+    <g transform="matrix(1,0,0,1,0,-169)">
+        <g id="tile-dark" transform="matrix(0.1875,0,0,0.125,0,169.111168)">
+            <rect x="0" y="0" width="1024" height="1024" style="fill:none;"/>
+            <g transform="matrix(5.333333,0,0,8,26.666667,0)">
+                <path d="M51,69C48.24,69 46,66.76 46,64C46,61.24 48.24,59 51,59L131,59C133.76,59 136,61.24 136,64C136,66.76 133.76,69 131,69L51,69Z" style="fill:rgb(255,45,85);"/>
+            </g>
+        </g>
+    </g>
+</svg>

@@ -1,1 +1,15 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 64"><defs><linearGradient id="blue" x2="0" y2="1"><stop stop-color="#2e85f8"/><stop offset="1" stop-color="#0050b8"/></linearGradient></defs><rect width="96" height="64" fill="url(#blue)"/><g fill="none" stroke="white" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="12" width="80" height="40" rx="6"/><path d="M24 32h48M24 32l7-6M24 32l7 6M72 32l-7-6M72 32l-7 6"/></g></svg>
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<svg width="100%" height="100%" viewBox="0 0 192 128" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" xml:space="preserve" xmlns:serif="http://www.serif.com/" style="fill-rule:evenodd;clip-rule:evenodd;stroke-linejoin:round;stroke-miterlimit:2;">
+    <g id="tile" transform="matrix(0.1875,0,0,0.125,0,0)">
+        <rect x="0" y="0" width="1024" height="1024" style="fill:none;"/>
+        <g>
+            <g transform="matrix(1.943872,0,0,5,325.388253,192)">
+                <rect x="0" y="0" width="192" height="128" style="fill:rgb(0,136,255);fill-opacity:0.4;"/>
+            </g>
+            <g transform="matrix(7.619048,0,0,17.142857,-85.9854,-430.857143)">
+                <path d="M50.5,34C52.433,34 54,35.045 54,36.333L54,73.667C54,74.286 53.631,74.879 52.975,75.317C52.318,75.754 51.428,76 50.5,76C48.567,76 47,74.955 47,73.667L47,36.333C47,35.045 48.567,34 50.5,34ZM106.471,34C108.404,34 109.971,35.045 109.971,36.333L109.971,73.667C109.971,74.286 109.602,74.879 108.946,75.317C108.29,75.754 107.399,76 106.471,76C104.538,76 102.971,74.955 102.971,73.667L102.971,36.333C102.971,35.045 104.538,34 106.471,34Z" style="fill:rgb(0,136,255);"/>
+            </g>
+        </g>
+    </g>
+</svg>

@@ -1,1 +1,15 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 64"><defs><linearGradient id="blue" x2="0" y2="1"><stop stop-color="#2e85f8"/><stop offset="1" stop-color="#0050b8"/></linearGradient></defs><rect width="96" height="64" fill="url(#blue)"/><g fill="none" stroke="white" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="12" width="24" height="18" rx="4"/><rect x="36" y="12" width="24" height="18" rx="4"/><rect x="64" y="12" width="24" height="18" rx="4"/><rect x="8" y="34" width="24" height="18" rx="4"/><rect x="36" y="34" width="24" height="18" rx="4"/><rect x="64" y="34" width="24" height="18" rx="4"/></g></svg>
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<svg width="100%" height="100%" viewBox="0 0 192 128" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" xml:space="preserve" xmlns:serif="http://www.serif.com/" style="fill-rule:evenodd;clip-rule:evenodd;stroke-linejoin:round;stroke-miterlimit:2;">
+    <g id="tile" transform="matrix(0.1875,0,0,0.125,0,0)">
+        <rect x="0" y="0" width="1024" height="1024" style="fill:none;"/>
+        <g>
+            <g transform="matrix(2.222222,0,0,5,298.666667,192)">
+                <path d="M0,56L0,8C-0,5.878 1.264,3.843 3.515,2.343C5.765,0.843 8.817,-0 12,0L84,0L84,56L0,56ZM108,0L180,0C183.183,-0 186.235,0.843 188.485,2.343C190.736,3.843 192,5.878 192,8L192,56L108,56L108,0ZM192,72L192,120C192,122.122 190.736,124.157 188.485,125.657C186.235,127.157 183.183,128 180,128L108,128L108,72L192,72ZM84,128L12,128C8.817,128 5.765,127.157 3.515,125.657C1.264,124.157 -0,122.122 0,120L0,72L84,72L84,128Z" style="fill:rgb(0,136,255);fill-opacity:0.4;"/>
+            </g>
+            <g transform="matrix(5.333333,0,0,8,64,0)">
+                <path d="M109,29L109,19L124,19C126.761,19 129,21.239 129,24L129,39L119,39L119,29L109,29ZM119,89L129,89L129,104C129,106.761 126.761,109 124,109L109,109L109,99L119,99L119,89ZM59,99L59,109L44,109C41.239,109 39,106.761 39,104L39,89L49,89L49,99L59,99ZM49,39L39,39L39,24C39,21.239 41.239,19 44,19L59,19L59,29L49,29L49,39Z" style="fill:rgb(0,136,255);"/>
+            </g>
+        </g>
+    </g>
+</svg>
