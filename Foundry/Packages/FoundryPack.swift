@@ -9,7 +9,7 @@ nonisolated struct FoundryPack: Sendable {
     let frameworkURLs: [URL]
     let assetCollectionURLs: [URL]
     let siteKitURLs: [URL]
-    /// Typed items that are not a directory containing Info.plist and
+    /// Typed items that are not a directory containing manifest.json and
     /// Resources — typically a part folder mid-creation in a development
     /// pack. Loading skips them so the rest of the pack stays usable;
     /// installation and release authoring reject packs that carry any.
@@ -37,34 +37,34 @@ nonisolated enum FoundryPackLoadingError: Error, LocalizedError {
         case .wrongExtension:
             "Foundry packs must use .foundrypack or .foundrydevpack."
         case .missingManifest:
-            "The pack does not contain Info.plist."
+            "The pack does not contain manifest.json."
         case .invalidManifest(let error):
-            "The pack's Info.plist is invalid: \(error.localizedDescription)"
+            "The pack's manifest.json is invalid: \(error.localizedDescription)"
         case .missingIdentifier:
-            "The pack's Info.plist must contain a non-empty id."
+            "The pack's manifest.json must contain a non-empty id."
         case .unknownTopLevelItem(let name):
             "The pack contains an unsupported top-level item named '\(name)'."
         case .invalidItem(let path):
-            "The pack item at '\(path)' must be a directory containing Info.plist and Resources."
+            "The pack item at '\(path)' must be a directory containing manifest.json and Resources."
         }
     }
 }
 
 nonisolated enum FoundryPackLoader {
     private static let allowedTopLevelNames = Set(
-        ["Info.plist", "Resources"] + FoundryPackItemKind.allCases.map(\.rawValue)
+        ["manifest.json", "Resources"] + FoundryPackItemKind.allCases.map(\.rawValue)
     )
 
     static func load(from rootURL: URL) throws -> FoundryPack {
         guard isPackURL(rootURL) else { throw FoundryPackLoadingError.wrongExtension }
-        let manifestURL = rootURL.appending(path: "Info.plist")
+        let manifestURL = rootURL.appending(path: "manifest.json")
         guard FileManager.default.fileExists(atPath: manifestURL.path) else {
             throw FoundryPackLoadingError.missingManifest
         }
 
         let metadata: FoundryPackMetadata
         do {
-            metadata = try PropertyListDecoder().decode(
+            metadata = try JSONDecoder().decode(
                 FoundryPackMetadata.self,
                 from: Data(contentsOf: manifestURL)
             )
@@ -128,12 +128,11 @@ nonisolated enum FoundryPackLoader {
                 "version": "1.0.0",
                 "minimumAPIVersion": 1
             ]
-            let data = try PropertyListSerialization.data(
-                fromPropertyList: manifest,
-                format: .xml,
-                options: 0
+            let data = try JSONSerialization.data(
+                withJSONObject: manifest,
+                options: [.prettyPrinted, .sortedKeys]
             )
-            try data.write(to: url.appending(path: "Info.plist"), options: .atomic)
+            try data.write(to: url.appending(path: "manifest.json"), options: .atomic)
         }
         return url
     }
@@ -171,12 +170,11 @@ nonisolated enum FoundryPackLoader {
                 "version": "1.0.0",
                 "minimumAPIVersion": 1
             ]
-            let data = try PropertyListSerialization.data(
-                fromPropertyList: manifest,
-                format: .xml,
-                options: 0
+            let data = try JSONSerialization.data(
+                withJSONObject: manifest,
+                options: [.prettyPrinted, .sortedKeys]
             )
-            try data.write(to: destinationURL.appending(path: "Info.plist"), options: .atomic)
+            try data.write(to: destinationURL.appending(path: "manifest.json"), options: .atomic)
             let frameworksURL = destinationURL.appending(
                 path: FoundryPackItemKind.framework.rawValue,
                 directoryHint: .isDirectory
@@ -199,8 +197,8 @@ nonisolated enum FoundryPackLoader {
     ) throws -> [URL] {
         let directoryURL = rootURL.appending(path: kind.rawValue, directoryHint: .isDirectory)
         guard FileManager.default.fileExists(atPath: directoryURL.path) else { return [] }
-        // Templates organize into plain directories — a child without an
-        // Info.plist is a folder, recursed for the bundles inside.
+        // Templates organize into plain directories — a child without a
+        // manifest.json is a folder, recursed for the bundles inside.
         if kind == .template {
             var valid: [URL] = []
             try collectTemplateItems(
@@ -221,13 +219,13 @@ nonisolated enum FoundryPackLoader {
             let values = try url.resourceValues(forKeys: [.isDirectoryKey, .isSymbolicLinkKey])
             let isPlainDirectory = values.isDirectory == true && values.isSymbolicLink != true
             // Asset collections and site kits are hand-authorable: any folder
-            // is an item, with an optional Info.plist for metadata. The other
-            // kinds are structured items Foundry generates.
+            // is an item, with an optional manifest.json for metadata. The
+            // other kinds are structured items Foundry generates.
             let isValidItem: Bool
             if kind == .assetCollection || kind == .site {
                 isValidItem = isPlainDirectory
             } else {
-                let hasManifest = FileManager.default.fileExists(atPath: url.appending(path: "Info.plist").path)
+                let hasManifest = FileManager.default.fileExists(atPath: url.appending(path: "manifest.json").path)
                 let hasResources = FileManager.default.fileExists(atPath: url.appending(path: "Resources").path)
                 isValidItem = isPlainDirectory && hasManifest && hasResources
             }
@@ -258,7 +256,7 @@ nonisolated enum FoundryPackLoader {
                 invalidPaths.append(path)
                 continue
             }
-            if FileManager.default.fileExists(atPath: url.appending(path: "Info.plist").path) {
+            if FileManager.default.fileExists(atPath: url.appending(path: "manifest.json").path) {
                 if FileManager.default.fileExists(atPath: url.appending(path: "Resources").path) {
                     valid.append(url.standardizedFileURL)
                 } else {

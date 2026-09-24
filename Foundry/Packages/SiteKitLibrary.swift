@@ -27,10 +27,10 @@ nonisolated enum SiteKitStore {
     /// packs; browsing uses `entry(at:)` and skips instead.
     static func load(from itemURL: URL, packTitle: String, isDevelopment: Bool) throws -> SiteKit {
         var manifest: [String: Any] = [:]
-        let manifestURL = itemURL.appending(path: "Info.plist")
+        let manifestURL = itemURL.appending(path: "manifest.json")
         if FileManager.default.fileExists(atPath: manifestURL.path) {
             let data = try Data(contentsOf: manifestURL)
-            guard let parsed = try PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any] else {
+            guard let parsed = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
                 throw CocoaError(.fileReadCorruptFile)
             }
             manifest = parsed

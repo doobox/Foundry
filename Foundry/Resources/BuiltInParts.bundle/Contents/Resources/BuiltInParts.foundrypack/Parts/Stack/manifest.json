@@ -1,0 +1,262 @@
+{
+  "assets" : [
+
+  ],
+  "author" : "Foundry",
+  "controls" : [
+    {
+      "defaults" : {
+        "base" : "column"
+      },
+      "group" : "Layout",
+      "id" : "direction",
+      "label" : "Flex Direction",
+      "options" : [
+        {
+          "title" : "Column",
+          "value" : "column"
+        },
+        {
+          "title" : "Row",
+          "value" : "row"
+        },
+        {
+          "title" : "Column Reverse",
+          "value" : "column-reverse"
+        },
+        {
+          "title" : "Row Reverse",
+          "value" : "row-reverse"
+        }
+      ],
+      "responsive" : true,
+      "type" : "select"
+    },
+    {
+      "defaults" : {
+        "base" : "nowrap"
+      },
+      "group" : "Layout",
+      "id" : "wrap",
+      "label" : "Flex Wrap",
+      "options" : [
+        {
+          "title" : "No Wrap",
+          "value" : "nowrap"
+        },
+        {
+          "title" : "Wrap",
+          "value" : "wrap"
+        },
+        {
+          "title" : "Wrap Reverse",
+          "value" : "wrap-reverse"
+        }
+      ],
+      "responsive" : true,
+      "type" : "select"
+    },
+    {
+      "defaults" : {
+        "base" : "flex-start"
+      },
+      "group" : "Layout",
+      "id" : "justifyContent",
+      "label" : "Justify Content",
+      "options" : [
+        {
+          "title" : "Start",
+          "value" : "flex-start"
+        },
+        {
+          "title" : "Centre",
+          "value" : "center"
+        },
+        {
+          "title" : "End",
+          "value" : "flex-end"
+        },
+        {
+          "title" : "Space between",
+          "value" : "space-between"
+        },
+        {
+          "title" : "Space around",
+          "value" : "space-around"
+        },
+        {
+          "title" : "Space evenly",
+          "value" : "space-evenly"
+        }
+      ],
+      "responsive" : true,
+      "tooltip" : "Distribute children along the stack's direction.",
+      "type" : "select"
+    },
+    {
+      "defaults" : {
+        "base" : "stretch"
+      },
+      "group" : "Layout",
+      "id" : "alignItems",
+      "label" : "Align Items",
+      "options" : [
+        {
+          "title" : "Stretch",
+          "value" : "stretch"
+        },
+        {
+          "title" : "Start",
+          "value" : "flex-start"
+        },
+        {
+          "title" : "Centre",
+          "value" : "center"
+        },
+        {
+          "title" : "End",
+          "value" : "flex-end"
+        },
+        {
+          "title" : "Baseline",
+          "value" : "baseline"
+        }
+      ],
+      "responsive" : true,
+      "tooltip" : "Controls child alignment on the cross axis.",
+      "type" : "select"
+    },
+    {
+      "defaults" : {
+        "base" : "normal"
+      },
+      "group" : "Layout",
+      "id" : "alignContent",
+      "label" : "Align Content",
+      "options" : [
+        {
+          "title" : "Normal",
+          "value" : "normal"
+        },
+        {
+          "title" : "Stretch",
+          "value" : "stretch"
+        },
+        {
+          "title" : "Start",
+          "value" : "flex-start"
+        },
+        {
+          "title" : "Centre",
+          "value" : "center"
+        },
+        {
+          "title" : "End",
+          "value" : "flex-end"
+        },
+        {
+          "title" : "Space Between",
+          "value" : "space-between"
+        },
+        {
+          "title" : "Space Around",
+          "value" : "space-around"
+        },
+        {
+          "title" : "Space Evenly",
+          "value" : "space-evenly"
+        }
+      ],
+      "responsive" : true,
+      "tooltip" : "Controls distribution between flex lines when Flex Wrap creates multiple lines.",
+      "type" : "select"
+    },
+    {
+      "defaults" : {
+        "base" : "md"
+      },
+      "group" : "Layout",
+      "id" : "frameworkGap",
+      "label" : "Gap",
+      "responsive" : true,
+      "type" : "frameworkSpacing"
+    },
+    {
+      "type" : "sizing"
+    },
+    {
+      "type" : "layoutItem"
+    },
+    {
+      "type" : "spacing"
+    },
+    {
+      "type" : "borders"
+    },
+    {
+      "type" : "effects"
+    },
+    {
+      "defaults" : {
+        "base" : "visible"
+      },
+      "group" : "Advanced",
+      "id" : "overflow",
+      "label" : "Overflow",
+      "options" : [
+        {
+          "title" : "Visible",
+          "value" : "visible"
+        },
+        {
+          "title" : "Clip",
+          "value" : "hidden"
+        },
+        {
+          "title" : "Scroll when needed",
+          "value" : "auto"
+        }
+      ],
+      "responsive" : true,
+      "tooltip" : "Clipping can hide shadows or focus outlines.",
+      "type" : "select"
+    },
+    {
+      "type" : "background"
+    },
+    {
+      "type" : "reveal"
+    }
+  ],
+  "description" : "A responsive CSS Flexbox container with shared sizing, spacing and appearance controls.",
+  "group" : "Layout",
+  "groups" : [
+    {
+      "name" : "Layout",
+      "systemImage" : "rectangle.3.group"
+    },
+    {
+      "name" : "Advanced",
+      "systemImage" : "gearshape"
+    }
+  ],
+  "id" : "foundry.layout.flex",
+  "minimumAPIVersion" : 1,
+  "tags" : [
+    "Foundry",
+    "built-in",
+    "layout",
+    "flex"
+  ],
+  "templates" : {
+    "files" : [
+      {
+        "path" : "part.css",
+        "scope" : "instance"
+      }
+    ],
+    "html" : "part.html"
+  },
+  "title" : "Flex",
+  "version" : "2.0.0"
+}

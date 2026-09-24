@@ -1,9 +1,0 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0"><dict>
-<key>type</key><string>effects</string><key>name</key><string>Effects</string><key>systemImage</key><string>sparkles</string>
-<key>controls</key><array>
-    <dict><key>type</key><string>toggle</string><key>id</key><string>effectsEnabled</string><key>label</key><string>Enable</string><key>group</key><string>Effects</string><key>defaults</key><dict><key>base</key><false/></dict><key>responsive</key><true/></dict>
-    <dict><key>type</key><string>frameworkShadow</string><key>id</key><string>frameworkShadow</string><key>label</key><string>Shadow</string><key>group</key><string>Effects</string><key>defaults</key><dict><key>base</key><string>none</string></dict><key>responsive</key><true/><key>visibleWhen</key><dict><key>id</key><string>effectsEnabled</string><key>value</key><true/></dict></dict>
-    <dict><key>type</key><string>slider</string><key>id</key><string>opacity</string><key>label</key><string>Opacity</string><key>group</key><string>Effects</string><key>minimum</key><integer>0</integer><key>maximum</key><integer>100</integer><key>step</key><integer>1</integer><key>showsValueField</key><true/><key>units</key><string>%</string><key>defaults</key><dict><key>base</key><integer>100</integer></dict><key>responsive</key><true/><key>visibleWhen</key><dict><key>id</key><string>effectsEnabled</string><key>value</key><true/></dict></dict>
-</array></dict></plist>

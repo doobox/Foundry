@@ -1,0 +1,141 @@
+{
+  "assets" : [
+
+  ],
+  "author" : "Foundry",
+  "controls" : [
+    {
+      "defaults" : {
+        "base" : "2"
+      },
+      "group" : "Typography",
+      "id" : "headingLevel",
+      "label" : "Level",
+      "options" : [
+        {
+          "title" : "Heading 1",
+          "value" : "1"
+        },
+        {
+          "title" : "Heading 2",
+          "value" : "2"
+        },
+        {
+          "title" : "Heading 3",
+          "value" : "3"
+        },
+        {
+          "title" : "Heading 4",
+          "value" : "4"
+        },
+        {
+          "title" : "Heading 5",
+          "value" : "5"
+        },
+        {
+          "title" : "Heading 6",
+          "value" : "6"
+        }
+      ],
+      "responsive" : false,
+      "type" : "select"
+    },
+    {
+      "defaults" : {
+        "base" : "start"
+      },
+      "group" : "Typography",
+      "id" : "textAlignment",
+      "label" : "Alignment",
+      "responsive" : true,
+      "type" : "textAlignment"
+    },
+    {
+      "defaults" : {
+        "base" : false
+      },
+      "group" : "Typography",
+      "id" : "sizeEnabled",
+      "label" : "Custom Size",
+      "responsive" : true,
+      "type" : "toggle"
+    },
+    {
+      "defaults" : {
+        "base" : "2xl"
+      },
+      "group" : "Typography",
+      "id" : "fontSize",
+      "label" : "Size",
+      "responsive" : true,
+      "type" : "frameworkFontSize",
+      "visibleWhen" : {
+        "id" : "sizeEnabled",
+        "value" : true
+      }
+    },
+    {
+      "allowsCustom" : true,
+      "customColor" : "#171719",
+      "defaults" : {
+        "base" : {
+          "palette" : "custom"
+        }
+      },
+      "group" : "Colour",
+      "id" : "textColor",
+      "label" : "Colour",
+      "opacity" : true,
+      "responsive" : true,
+      "type" : "frameworkColor"
+    },
+    {
+      "defaultOverrides" : {
+        "frameworkMargin" : {
+          "bottom" : "md",
+          "left" : "none",
+          "right" : "none",
+          "top" : "none"
+        }
+      },
+      "type" : "spacing"
+    },
+    {
+      "type" : "reveal"
+    }
+  ],
+  "description" : "Adds an editable semantic heading.",
+  "group" : "Content",
+  "groups" : [
+    {
+      "name" : "Content",
+      "systemImage" : "doc.text"
+    },
+    {
+      "name" : "Typography",
+      "systemImage" : "textformat"
+    },
+    {
+      "name" : "Colour",
+      "systemImage" : "paintpalette"
+    }
+  ],
+  "id" : "foundry.content.heading",
+  "minimumAPIVersion" : 1,
+  "tags" : [
+    "Foundry",
+    "built-in",
+    "text"
+  ],
+  "templates" : {
+    "files" : [
+      {
+        "path" : "part.css",
+        "scope" : "instance"
+      }
+    ],
+    "html" : "part.html"
+  },
+  "title" : "Heading",
+  "version" : "1.0.0"
+}

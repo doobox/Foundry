@@ -9,8 +9,8 @@ struct SiteKitLibraryTests {
             .appending(path: "\(UUID().uuidString).foundrydevpack", directoryHint: .isDirectory)
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
         let manifest: [String: Any] = ["id": "test.kits.\(UUID().uuidString.lowercased())", "title": "Kit Pack"]
-        try PropertyListSerialization.data(fromPropertyList: manifest, format: .xml, options: 0)
-            .write(to: root.appending(path: "Info.plist"))
+        try JSONSerialization.data(withJSONObject: manifest, options: [.prettyPrinted, .sortedKeys])
+            .write(to: root.appending(path: "manifest.json"))
         return root
     }
 
@@ -43,11 +43,10 @@ struct SiteKitLibraryTests {
 
         // The optional manifest adds a display title and card description;
         // preview.png becomes the card artwork.
-        try PropertyListSerialization.data(
-            fromPropertyList: ["title": "Restaurant", "description": "High-impact site for restaurants."],
-            format: .xml,
-            options: 0
-        ).write(to: itemURL.appending(path: "Info.plist"))
+        try JSONSerialization.data(
+            withJSONObject: ["title": "Restaurant", "description": "High-impact site for restaurants."],
+            options: [.prettyPrinted, .sortedKeys]
+        ).write(to: itemURL.appending(path: "manifest.json"))
         try Data([1]).write(to: itemURL.appending(path: "preview.jpg"))
         library.refresh()
         let described = try #require(library.kits.first)

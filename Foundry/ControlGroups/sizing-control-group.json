@@ -1,0 +1,120 @@
+{
+  "controls" : [
+    {
+      "defaults" : {
+        "base" : "full"
+      },
+      "group" : "Sizing",
+      "id" : "widthMode",
+      "label" : "Width",
+      "options" : [
+        {
+          "title" : "Fill parent",
+          "value" : "full"
+        },
+        {
+          "title" : "Fit content",
+          "value" : "auto"
+        },
+        {
+          "title" : "Custom",
+          "value" : "custom"
+        }
+      ],
+      "responsive" : true,
+      "type" : "select"
+    },
+    {
+      "defaults" : {
+        "base" : 320
+      },
+      "group" : "Sizing",
+      "id" : "customWidth",
+      "label" : "Custom width",
+      "maximum" : 10000,
+      "minimum" : 0,
+      "responsive" : true,
+      "step" : 1,
+      "type" : "number",
+      "units" : "px",
+      "visibleWhen" : {
+        "id" : "widthMode",
+        "value" : "custom"
+      }
+    },
+    {
+      "defaults" : {
+        "base" : 0
+      },
+      "group" : "Sizing",
+      "id" : "maxWidth",
+      "label" : "Maximum width",
+      "maximum" : 10000,
+      "minimum" : 0,
+      "responsive" : true,
+      "step" : 1,
+      "tooltip" : "Zero removes the width limit. Never exceeds the available parent width.",
+      "type" : "number",
+      "units" : "px"
+    },
+    {
+      "defaults" : {
+        "base" : 0
+      },
+      "group" : "Sizing",
+      "id" : "minimumHeight",
+      "label" : "Minimum height",
+      "maximum" : 10000,
+      "minimum" : 0,
+      "responsive" : true,
+      "step" : 1,
+      "type" : "number",
+      "units" : "px"
+    },
+    {
+      "defaults" : {
+        "base" : "auto"
+      },
+      "group" : "Sizing",
+      "id" : "heightMode",
+      "label" : "Height",
+      "options" : [
+        {
+          "title" : "Fit content",
+          "value" : "auto"
+        },
+        {
+          "title" : "Fill viewport",
+          "value" : "viewport"
+        },
+        {
+          "title" : "Custom",
+          "value" : "custom"
+        }
+      ],
+      "responsive" : true,
+      "type" : "select"
+    },
+    {
+      "defaults" : {
+        "base" : 400
+      },
+      "group" : "Sizing",
+      "id" : "customHeight",
+      "label" : "Custom height",
+      "maximum" : 10000,
+      "minimum" : 0,
+      "responsive" : true,
+      "step" : 1,
+      "type" : "number",
+      "units" : "px",
+      "visibleWhen" : {
+        "id" : "heightMode",
+        "value" : "custom"
+      }
+    }
+  ],
+  "name" : "Sizing",
+  "systemImage" : "arrow.up.left.and.arrow.down.right",
+  "type" : "sizing"
+}

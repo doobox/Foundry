@@ -1181,11 +1181,11 @@ private struct DeveloperPackageIssue: Identifiable {
         self.url = url
         self.diagnostics = diagnostics
 
-        let manifestURL = url.appending(path: "Info.plist")
+        let manifestURL = url.appending(path: "manifest.json")
         let manifest: [String: Any]?
         if let data = try? Data(contentsOf: manifestURL),
-           let propertyList = try? PropertyListSerialization.propertyList(from: data, format: nil) {
-            manifest = propertyList as? [String: Any]
+           let object = try? JSONSerialization.jsonObject(with: data) {
+            manifest = object as? [String: Any]
         } else {
             manifest = nil
         }

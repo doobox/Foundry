@@ -18,9 +18,9 @@ nonisolated enum PartPackageManifestSchema {
         var errorDescription: String? {
             switch self {
             case .rootIsNotDictionary:
-                "Info.plist must contain a dictionary at its root."
+                "manifest.json must contain a dictionary at its root."
             case .missingPartIdentifier:
-                "A part Info.plist requires a non-empty id."
+                "A part manifest.json requires a non-empty id."
             }
         }
     }
@@ -60,17 +60,17 @@ nonisolated enum PartPackageManifestSchema {
     static func diagnostics(for data: Data) throws -> [PartPackageDiagnostic] {
         let dictionary = try rootDictionary(from: data)
         var diagnostics: [PartPackageDiagnostic] = []
-        unknownKeys(in: dictionary, allowed: partKeys, location: "Info.plist", into: &diagnostics)
+        unknownKeys(in: dictionary, allowed: partKeys, location: "manifest.json", into: &diagnostics)
         validatePartFields(in: dictionary, into: &diagnostics)
 
         validateAPIVersion(in: dictionary, into: &diagnostics)
         validateReleaseVersion(in: dictionary, into: &diagnostics)
 
-        validateDictionaryArray(dictionary["controls"], key: "controls", parent: "Info.plist", into: &diagnostics)
+        validateDictionaryArray(dictionary["controls"], key: "controls", parent: "manifest.json", into: &diagnostics)
         let knownControlGroupKinds = Set(PartPackageControlGroup.Kind.allCases.map(\.rawValue))
         var seenControlGroupKinds: Set<String> = []
         dictionaries(in: dictionary["controls"]).enumerated().forEach { index, entry in
-            let location = "Info.plist:controls[\(index)]"
+            let location = "manifest.json:controls[\(index)]"
             guard let type = entry["type"] as? String, knownControlGroupKinds.contains(type) else {
                 validateStandardOrFrameworkControl(entry, location: location, into: &diagnostics)
                 return
@@ -85,20 +85,20 @@ nonisolated enum PartPackageManifestSchema {
         }
         validateGroups(in: dictionary, into: &diagnostics)
         if let templates = dictionary["templates"], !(templates is [String: Any]) {
-            appendTypeError(key: "templates", expected: "a dictionary", location: "Info.plist", into: &diagnostics)
+            appendTypeError(key: "templates", expected: "a dictionary", location: "manifest.json", into: &diagnostics)
         }
         if let templates = dictionary["templates"] as? [String: Any] {
             unknownKeys(
                 in: templates,
                 allowed: templateKeys,
-                location: "Info.plist:templates",
+                location: "manifest.json:templates",
                 into: &diagnostics
             )
-            requireString("html", in: templates, location: "Info.plist:templates", into: &diagnostics)
-            optionalString("editorCSS", in: templates, location: "Info.plist:templates", into: &diagnostics)
-            validateDictionaryArray(templates["files"], key: "files", parent: "Info.plist:templates", into: &diagnostics)
+            requireString("html", in: templates, location: "manifest.json:templates", into: &diagnostics)
+            optionalString("editorCSS", in: templates, location: "manifest.json:templates", into: &diagnostics)
+            validateDictionaryArray(templates["files"], key: "files", parent: "manifest.json:templates", into: &diagnostics)
             dictionaries(in: templates["files"]).enumerated().forEach { index, file in
-                let fileLocation = "Info.plist:templates.files[\(index)]"
+                let fileLocation = "manifest.json:templates.files[\(index)]"
                 unknownKeys(
                     in: file,
                     allowed: templateFileKeys,
@@ -107,9 +107,9 @@ nonisolated enum PartPackageManifestSchema {
                 )
                 validateTemplateFile(file, location: fileLocation, into: &diagnostics)
             }
-            validateDictionaryArray(templates["htmlContributions"], key: "htmlContributions", parent: "Info.plist:templates", into: &diagnostics)
+            validateDictionaryArray(templates["htmlContributions"], key: "htmlContributions", parent: "manifest.json:templates", into: &diagnostics)
             dictionaries(in: templates["htmlContributions"]).enumerated().forEach { index, contribution in
-                let location = "Info.plist:templates.htmlContributions[\(index)]"
+                let location = "manifest.json:templates.htmlContributions[\(index)]"
                 unknownKeys(in: contribution, allowed: htmlContributionKeys, location: location, into: &diagnostics)
                 requireString("placement", in: contribution, location: location, into: &diagnostics)
                 requireString("template", in: contribution, location: location, into: &diagnostics)
@@ -122,13 +122,13 @@ nonisolated enum PartPackageManifestSchema {
         if let rawAssets = dictionary["assets"], !(rawAssets is [Any]) {
             diagnostics.append(.init(
                 severity: .error,
-                location: "Info.plist:assets",
+                location: "manifest.json:assets",
                 message: "assets must be an array of asset dictionaries."
             ))
         }
         if let assets = dictionary["assets"] as? [Any] {
             for (index, asset) in assets.enumerated() {
-                let location = "Info.plist:assets[\(index)]"
+                let location = "manifest.json:assets[\(index)]"
                 guard let dictionary = asset as? [String: Any] else {
                     diagnostics.append(.init(
                         severity: .error,
@@ -160,17 +160,17 @@ nonisolated enum PartPackageManifestSchema {
             unknownKeys(
                 in: missingPart,
                 allowed: missingPartKeys,
-                location: "Info.plist:missingPart",
+                location: "manifest.json:missingPart",
                 into: &diagnostics
             )
-            optionalString("message", in: missingPart, location: "Info.plist:missingPart", into: &diagnostics)
-            optionalString("preview", in: missingPart, location: "Info.plist:missingPart", into: &diagnostics)
+            optionalString("message", in: missingPart, location: "manifest.json:missingPart", into: &diagnostics)
+            optionalString("preview", in: missingPart, location: "manifest.json:missingPart", into: &diagnostics)
         } else if dictionary["missingPart"] != nil {
-            appendTypeError(key: "missingPart", expected: "a dictionary", location: "Info.plist", into: &diagnostics)
+            appendTypeError(key: "missingPart", expected: "a dictionary", location: "manifest.json", into: &diagnostics)
         }
-        validateDictionaryArray(dictionary["libraries"], key: "libraries", parent: "Info.plist", into: &diagnostics)
+        validateDictionaryArray(dictionary["libraries"], key: "libraries", parent: "manifest.json", into: &diagnostics)
         dictionaries(in: dictionary["libraries"]).enumerated().forEach { index, library in
-            let location = "Info.plist:libraries[\(index)]"
+            let location = "manifest.json:libraries[\(index)]"
             unknownKeys(
                 in: library,
                 allowed: libraryKeys,
@@ -184,16 +184,16 @@ nonisolated enum PartPackageManifestSchema {
     }
 
     private static func validatePartFields(in dictionary: [String: Any], into diagnostics: inout [PartPackageDiagnostic]) {
-        requireString("id", in: dictionary, location: "Info.plist", into: &diagnostics)
-        requireString("title", in: dictionary, location: "Info.plist", into: &diagnostics)
-        optionalString("description", in: dictionary, location: "Info.plist", into: &diagnostics)
-        optionalString("author", in: dictionary, location: "Info.plist", into: &diagnostics)
-        optionalString("group", in: dictionary, location: "Info.plist", into: &diagnostics)
-        optionalString("helpURL", in: dictionary, location: "Info.plist", into: &diagnostics)
-        optionalBoolean("requiresPHP", in: dictionary, location: "Info.plist", into: &diagnostics)
-        optionalBoolean("showsInPartLibrary", in: dictionary, location: "Info.plist", into: &diagnostics)
-        optionalStringArray("tags", in: dictionary, location: "Info.plist", into: &diagnostics)
-        optionalStringArray("allowedParents", in: dictionary, location: "Info.plist", into: &diagnostics)
+        requireString("id", in: dictionary, location: "manifest.json", into: &diagnostics)
+        requireString("title", in: dictionary, location: "manifest.json", into: &diagnostics)
+        optionalString("description", in: dictionary, location: "manifest.json", into: &diagnostics)
+        optionalString("author", in: dictionary, location: "manifest.json", into: &diagnostics)
+        optionalString("group", in: dictionary, location: "manifest.json", into: &diagnostics)
+        optionalString("helpURL", in: dictionary, location: "manifest.json", into: &diagnostics)
+        optionalBoolean("requiresPHP", in: dictionary, location: "manifest.json", into: &diagnostics)
+        optionalBoolean("showsInPartLibrary", in: dictionary, location: "manifest.json", into: &diagnostics)
+        optionalStringArray("tags", in: dictionary, location: "manifest.json", into: &diagnostics)
+        optionalStringArray("allowedParents", in: dictionary, location: "manifest.json", into: &diagnostics)
         if let identifiers = dictionary["allowedParents"] as? [String] {
             for (index, identifier) in identifiers.enumerated() where partIdentifierExpression.firstMatch(
                 in: identifier,
@@ -201,13 +201,13 @@ nonisolated enum PartPackageManifestSchema {
             ) == nil {
                 diagnostics.append(.init(
                     severity: .error,
-                    location: "Info.plist:allowedParents[\(index)]",
+                    location: "manifest.json:allowedParents[\(index)]",
                     message: "Use a lowercase reverse-DNS part identifier."
                 ))
             }
         }
         if dictionary["templates"] == nil {
-            appendMissing("templates", expected: "dictionary", location: "Info.plist", into: &diagnostics)
+            appendMissing("templates", expected: "dictionary", location: "manifest.json", into: &diagnostics)
         }
     }
 
@@ -840,7 +840,7 @@ nonisolated enum PartPackageManifestSchema {
         guard let rawVersion = dictionary["minimumAPIVersion"] else {
             diagnostics.append(.init(
                 severity: .error,
-                location: "Info.plist:minimumAPIVersion",
+                location: "manifest.json:minimumAPIVersion",
                 message: "A minimumAPIVersion integer is required."
             ))
             return
@@ -848,7 +848,7 @@ nonisolated enum PartPackageManifestSchema {
         guard let version = integer(rawVersion) else {
             diagnostics.append(.init(
                 severity: .error,
-                location: "Info.plist:minimumAPIVersion",
+                location: "manifest.json:minimumAPIVersion",
                 message: "minimumAPIVersion must be an integer."
             ))
             return
@@ -856,13 +856,13 @@ nonisolated enum PartPackageManifestSchema {
         if version > FoundryPartAPI.supportedVersions.upperBound {
             diagnostics.append(.init(
                 severity: .error,
-                location: "Info.plist:minimumAPIVersion",
+                location: "manifest.json:minimumAPIVersion",
                 message: "This part requires Foundry part API \(version), but this version of Foundry supports through API \(FoundryPartAPI.supportedVersions.upperBound). Update Foundry to use this part."
             ))
         } else if version < FoundryPartAPI.supportedVersions.lowerBound {
             diagnostics.append(.init(
                 severity: .error,
-                location: "Info.plist:minimumAPIVersion",
+                location: "manifest.json:minimumAPIVersion",
                 message: "This part requires Foundry part API \(version), which is no longer supported. The oldest supported API is \(FoundryPartAPI.supportedVersions.lowerBound)."
             ))
         }
@@ -875,7 +875,7 @@ nonisolated enum PartPackageManifestSchema {
         guard let version = dictionary["version"] as? String else {
             diagnostics.append(.init(
                 severity: .error,
-                location: "Info.plist:version",
+                location: "manifest.json:version",
                 message: "A semantic part version such as 1.0.0 is required."
             ))
             return
@@ -883,7 +883,7 @@ nonisolated enum PartPackageManifestSchema {
         guard SemanticVersion(version) != nil else {
             diagnostics.append(.init(
                 severity: .error,
-                location: "Info.plist:version",
+                location: "manifest.json:version",
                 message: "Use a semantic version in MAJOR.MINOR.PATCH form, for example 1.0.0."
             ))
             return
@@ -891,7 +891,7 @@ nonisolated enum PartPackageManifestSchema {
     }
 
     private static func rootDictionary(from data: Data) throws -> [String: Any] {
-        let value = try PropertyListSerialization.propertyList(from: data, options: [], format: nil)
+        let value = try JSONSerialization.jsonObject(with: data)
         guard let dictionary = value as? [String: Any] else {
             throw SchemaError.rootIsNotDictionary
         }
@@ -903,7 +903,7 @@ nonisolated enum PartPackageManifestSchema {
         into diagnostics: inout [PartPackageDiagnostic]
     ) {
         guard dictionary["groups"] != nil else { return }
-        validateDictionaryArray(dictionary["groups"], key: "groups", parent: "Info.plist", into: &diagnostics)
+        validateDictionaryArray(dictionary["groups"], key: "groups", parent: "manifest.json", into: &diagnostics)
 
         // Editable template primitives inject their properties into Content,
         // so that group can carry an icon even with no declared control in it.
@@ -919,7 +919,7 @@ nonisolated enum PartPackageManifestSchema {
 
         var seenNames: Set<String> = []
         dictionaries(in: dictionary["groups"]).enumerated().forEach { index, entry in
-            let location = "Info.plist:groups[\(index)]"
+            let location = "manifest.json:groups[\(index)]"
             unknownKeys(in: entry, allowed: groupKeys, location: location, into: &diagnostics)
             requireString("name", in: entry, location: location, into: &diagnostics)
             optionalString("systemImage", in: entry, location: location, into: &diagnostics)

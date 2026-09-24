@@ -1,0 +1,6 @@
+{
+  "id" : "dev.foundry.fixtures.enable-conditions",
+  "minimumAPIVersion" : 1,
+  "title" : "EnableConditions",
+  "version" : "1.0.0"
+}

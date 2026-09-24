@@ -1,0 +1,6 @@
+{
+  "id" : "dev.foundry.fixtures.live-refresh-boundary",
+  "minimumAPIVersion" : 1,
+  "title" : "LiveRefreshBoundary",
+  "version" : "1.0.0"
+}

@@ -26,38 +26,38 @@ nonisolated enum PartPackageValidator {
         if manifest.minimumAPIVersion > FoundryPartAPI.supportedVersions.upperBound {
             diagnostics.append(.init(
                 severity: .error,
-                location: "Info.plist:minimumAPIVersion",
+                location: "manifest.json:minimumAPIVersion",
                 message: "This part requires Foundry part API \(manifest.minimumAPIVersion), but this version of Foundry supports through API \(FoundryPartAPI.supportedVersions.upperBound). Update Foundry to use this part."
             ))
         } else if manifest.minimumAPIVersion < FoundryPartAPI.supportedVersions.lowerBound {
             diagnostics.append(.init(
                 severity: .error,
-                location: "Info.plist:minimumAPIVersion",
+                location: "manifest.json:minimumAPIVersion",
                 message: "This part requires an unsupported Foundry part API."
             ))
         }
-        validate(manifest.identifier, expression: identifierExpression, location: "Info.plist:id", message: "Use a lowercase reverse-DNS identifier, for example com.example.focal-point-hero.", into: &diagnostics)
+        validate(manifest.identifier, expression: identifierExpression, location: "manifest.json:id", message: "Use a lowercase reverse-DNS identifier, for example com.example.focal-point-hero.", into: &diagnostics)
         if manifest.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            diagnostics.append(.init(severity: .error, location: "Info.plist:title", message: "A part title is required."))
+            diagnostics.append(.init(severity: .error, location: "manifest.json:title", message: "A part title is required."))
         }
         if SemanticVersion(manifest.version) == nil {
             diagnostics.append(.init(
                 severity: .error,
-                location: "Info.plist:version",
+                location: "manifest.json:version",
                 message: "Use a semantic version in MAJOR.MINOR.PATCH form, for example 1.0.0."
             ))
         }
         if manifest.tags.count > maximumTagCount {
             diagnostics.append(.init(
                 severity: .error,
-                location: "Info.plist:tags",
+                location: "manifest.json:tags",
                 message: "A part can declare at most \(maximumTagCount) tags."
             ))
         }
 
         var seenLibraries = Set<PartPackageLibraryRequirement>()
         for library in manifest.libraries {
-            let location = "Info.plist:libraries.\(library.identifier)"
+            let location = "manifest.json:libraries.\(library.identifier)"
             if library.identifier.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 diagnostics.append(.init(
                     severity: .error,
@@ -89,22 +89,22 @@ nonisolated enum PartPackageValidator {
         validateUnique(manifest.resolvedProperties.map(\.id), kind: "property", into: &diagnostics)
         validateUnique(manifest.slots.map(\.id), kind: "slot", into: &diagnostics)
         for property in manifest.resolvedProperties {
-            validate(property.id, expression: propertyExpression, location: "Info.plist:controls.\(property.id)", message: "Property IDs must start with a letter and contain only letters, numbers, underscores, or hyphens.", into: &diagnostics)
+            validate(property.id, expression: propertyExpression, location: "manifest.json:controls.\(property.id)", message: "Property IDs must start with a letter and contain only letters, numbers, underscores, or hyphens.", into: &diagnostics)
             validate(property, into: &diagnostics)
             validateVisibility(property, properties: manifest.resolvedProperties, into: &diagnostics)
             if let font = property.control.font,
                !manifest.resolvedProperties.contains(where: { $0.id == font && $0.control.type == .frameworkFont }) {
-                diagnostics.append(.init(severity: .error, location: "Info.plist:controls.\(property.id).font", message: "font must reference a frameworkFont control in this part."))
+                diagnostics.append(.init(severity: .error, location: "manifest.json:controls.\(property.id).font", message: "font must reference a frameworkFont control in this part."))
             }
         }
         validateVisibilityCycles(manifest.resolvedProperties, into: &diagnostics)
         for slot in manifest.slots {
-            validate(slot.id, expression: propertyExpression, location: "Info.plist:slots.\(slot.id)", message: "Slot IDs must start with a letter and contain only letters, numbers, underscores, or hyphens.", into: &diagnostics)
+            validate(slot.id, expression: propertyExpression, location: "manifest.json:slots.\(slot.id)", message: "Slot IDs must start with a letter and contain only letters, numbers, underscores, or hyphens.", into: &diagnostics)
             if slot.minimum < 0 || (slot.maximum.map { $0 < slot.minimum } == true) {
-                diagnostics.append(.init(severity: .error, location: "Info.plist:slots.\(slot.id)", message: "Slot minimum and maximum values are inconsistent."))
+                diagnostics.append(.init(severity: .error, location: "manifest.json:slots.\(slot.id)", message: "Slot minimum and maximum values are inconsistent."))
             }
             if slot.accepts.isEmpty {
-                diagnostics.append(.init(severity: .error, location: "Info.plist:controls.\(slot.id)", message: "A childPicker must accept at least one part identifier, category, or '*'."))
+                diagnostics.append(.init(severity: .error, location: "manifest.json:controls.\(slot.id)", message: "A childPicker must accept at least one part identifier, category, or '*'."))
             }
         }
 
@@ -134,49 +134,49 @@ nonisolated enum PartPackageValidator {
             if file.scope == .site, fileExtension != "css" {
                 diagnostics.append(.init(
                     severity: .error,
-                    location: "Info.plist:templates.files.\(file.path)",
+                    location: "manifest.json:templates.files.\(file.path)",
                     message: "Site scope is available only to CSS templates."
                 ))
             }
             if fileExtension == "css", file.placement != nil {
                 diagnostics.append(.init(
                     severity: .error,
-                    location: "Info.plist:templates.files.\(file.path)",
+                    location: "manifest.json:templates.files.\(file.path)",
                     message: "CSS templates do not use HTML placement."
                 ))
             }
             if fileExtension == "js", file.placement != nil {
                 diagnostics.append(.init(
                     severity: .error,
-                    location: "Info.plist:templates.files.\(file.path)",
+                    location: "manifest.json:templates.files.\(file.path)",
                     message: "JavaScript templates are emitted at the end of the body and do not use placement."
                 ))
             }
             if fileExtension == "php", file.placement != nil {
                 diagnostics.append(.init(
                     severity: .error,
-                    location: "Info.plist:templates.files.\(file.path)",
+                    location: "manifest.json:templates.files.\(file.path)",
                     message: "PHP templates run before page markup and do not use HTML placement."
                 ))
             }
             if fileExtension == "html", file.placement == nil {
                 diagnostics.append(.init(
                     severity: .error,
-                    location: "Info.plist:templates.files.\(file.path)",
+                    location: "manifest.json:templates.files.\(file.path)",
                     message: "Additional HTML templates require placement."
                 ))
             }
             if fileExtension == "html", file.scope == .instance {
                 diagnostics.append(.init(
                     severity: .error,
-                    location: "Info.plist:templates.files.\(file.path)",
+                    location: "manifest.json:templates.files.\(file.path)",
                     message: "Placed HTML templates currently require page scope."
                 ))
             }
             if fileExtension != "css" && fileExtension != "html" && fileExtension != "js" && fileExtension != "php" {
                 diagnostics.append(.init(
                     severity: .error,
-                    location: "Info.plist:templates.files.\(file.path)",
+                    location: "manifest.json:templates.files.\(file.path)",
                     message: "Template files currently support CSS, JavaScript, PHP and placed HTML."
                 ))
             }
@@ -186,7 +186,7 @@ nonisolated enum PartPackageValidator {
         if !manifest.requiresPHP, declaresPHP {
             diagnostics.append(.init(
                 severity: .error,
-                location: "Info.plist:requiresPHP",
+                location: "manifest.json:requiresPHP",
                 message: "Parts with PHP templates or assets must set requiresPHP to true."
             ))
         }
@@ -221,7 +221,7 @@ nonisolated enum PartPackageValidator {
         for (index, contribution) in manifest.htmlContributions.enumerated() {
             validateTemplate(
                 contribution.template,
-                location: "Info.plist:templates.htmlContributions[\(index)].template",
+                location: "manifest.json:templates.htmlContributions[\(index)].template",
                 requiresEditorAttributes: false,
                 manifest: manifest,
                 into: &diagnostics
@@ -448,7 +448,7 @@ nonisolated enum PartPackageValidator {
                     templateLocation,
                     template: template,
                     offset: reference.offset,
-                    message: "Asset '\(reference.value)' must be declared in Info.plist."
+                    message: "Asset '\(reference.value)' must be declared in manifest.json."
                 ))
             }
         }
@@ -458,7 +458,7 @@ nonisolated enum PartPackageValidator {
             if !defaultPath.isEmpty && manifest.assetDeclaration(containing: defaultPath) == nil {
                 diagnostics.append(.init(
                     severity: .error,
-                    location: "Info.plist:controls[\(index)].default",
+                    location: "manifest.json:controls[\(index)].default",
                     message: "The default image '\(defaultPath)' must reference a declared package asset."
                 ))
             }
@@ -600,7 +600,7 @@ nonisolated enum PartPackageValidator {
                     templateLocation,
                     template: template,
                     offset: reference.offset,
-                    message: "Unknown property '\(propertyID)'. Declare it in Info.plist controls."
+                    message: "Unknown property '\(propertyID)'. Declare it in manifest.json controls."
                 ))
                 continue
             }
@@ -630,7 +630,7 @@ nonisolated enum PartPackageValidator {
                         templateLocation,
                         template: template,
                         offset: reference.offset,
-                        message: "Unknown property '\(propertyID)'. Declare it in Info.plist controls."
+                        message: "Unknown property '\(propertyID)'. Declare it in manifest.json controls."
                     ))
                 }
             } catch {
@@ -665,7 +665,7 @@ nonisolated enum PartPackageValidator {
                         templateLocation,
                         template: template,
                         offset: match.range.location,
-                        message: "Unknown property '\(propertyID)'. Declare it in Info.plist controls."
+                        message: "Unknown property '\(propertyID)'. Declare it in manifest.json controls."
                     ))
                 }
             } catch {
@@ -732,7 +732,7 @@ nonisolated enum PartPackageValidator {
     }
 
     private static func validateBase(_ property: PartPackageProperty, into diagnostics: inout [PartPackageDiagnostic]) {
-        let location = "Info.plist:controls.\(property.id)"
+        let location = "manifest.json:controls.\(property.id)"
         validateFrameworkValues(property, location: location, into: &diagnostics)
         validateDateBounds(property, location: location, into: &diagnostics)
         if let count = property.control.count {
@@ -1250,7 +1250,7 @@ nonisolated enum PartPackageValidator {
     private static func validateUnique(_ values: [String], kind: String, into diagnostics: inout [PartPackageDiagnostic]) {
         var seen: Set<String> = []
         for value in values where !seen.insert(value).inserted {
-            diagnostics.append(.init(severity: .error, location: "Info.plist", message: "Duplicate \(kind) identifier '\(value)'."))
+            diagnostics.append(.init(severity: .error, location: "manifest.json", message: "Duplicate \(kind) identifier '\(value)'."))
         }
     }
 
@@ -1260,7 +1260,7 @@ nonisolated enum PartPackageValidator {
         into diagnostics: inout [PartPackageDiagnostic]
     ) {
         guard let visibleWhen = property.visibleWhen else { return }
-        let location = "Info.plist:controls.\(property.id).visibleWhen"
+        let location = "manifest.json:controls.\(property.id).visibleWhen"
         validateVisibilityCondition(visibleWhen, property: property, properties: properties, location: location, into: &diagnostics)
     }
 
@@ -1340,7 +1340,7 @@ nonisolated enum PartPackageValidator {
             var visited = Set<String>()
             func visit(_ value: String) {
                 guard visited.insert(value).inserted else {
-                    diagnostics.append(.init(severity: .error, location: "Info.plist:controls.\(property.id).visibleWhen", message: "visibleWhen conditions contain a dependency cycle."))
+                    diagnostics.append(.init(severity: .error, location: "manifest.json:controls.\(property.id).visibleWhen", message: "visibleWhen conditions contain a dependency cycle."))
                     return
                 }
                 for next in dependencies[value] ?? [] { visit(next) }

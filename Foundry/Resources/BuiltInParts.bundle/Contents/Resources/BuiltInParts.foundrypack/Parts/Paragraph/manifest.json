@@ -1,0 +1,137 @@
+{
+  "assets" : [
+
+  ],
+  "author" : "Foundry",
+  "controls" : [
+    {
+      "defaults" : {
+        "base" : {
+          "family" : "body",
+          "style" : "normal",
+          "weight" : 400
+        }
+      },
+      "group" : "Typography",
+      "id" : "font",
+      "label" : "Font",
+      "responsive" : true,
+      "showsStyle" : true,
+      "showsWeight" : true,
+      "type" : "frameworkFont"
+    },
+    {
+      "defaults" : {
+        "base" : false
+      },
+      "group" : "Typography",
+      "id" : "sizeEnabled",
+      "label" : "Custom Size",
+      "responsive" : true,
+      "type" : "toggle"
+    },
+    {
+      "defaults" : {
+        "base" : "base"
+      },
+      "group" : "Typography",
+      "id" : "fontSize",
+      "label" : "Size",
+      "responsive" : true,
+      "type" : "frameworkFontSize",
+      "visibleWhen" : {
+        "id" : "sizeEnabled",
+        "value" : true
+      }
+    },
+    {
+      "defaults" : {
+        "base" : "start"
+      },
+      "group" : "Typography",
+      "id" : "textAlignment",
+      "label" : "Alignment",
+      "responsive" : true,
+      "type" : "textAlignment"
+    },
+    {
+      "defaults" : {
+        "base" : "none"
+      },
+      "group" : "Typography",
+      "id" : "textDecoration",
+      "label" : "Underline",
+      "options" : [
+        {
+          "title" : "No Underline",
+          "value" : "none"
+        },
+        {
+          "title" : "Underline",
+          "value" : "underline"
+        },
+        {
+          "title" : "Overline",
+          "value" : "overline"
+        },
+        {
+          "title" : "Line Through",
+          "value" : "line-through"
+        }
+      ],
+      "responsive" : true,
+      "type" : "select"
+    },
+    {
+      "allowsCustom" : true,
+      "customColor" : "#000000",
+      "defaults" : {
+        "base" : {
+          "palette" : "text"
+        }
+      },
+      "group" : "Colour",
+      "id" : "textColor",
+      "label" : "Colour",
+      "opacity" : true,
+      "responsive" : true,
+      "type" : "frameworkColor"
+    },
+    {
+      "type" : "reveal"
+    }
+  ],
+  "description" : "Adds a paragraph of body text to the page.",
+  "group" : "Content",
+  "groups" : [
+    {
+      "name" : "Content",
+      "systemImage" : "doc.text"
+    },
+    {
+      "name" : "Typography",
+      "systemImage" : "textformat"
+    },
+    {
+      "name" : "Colour",
+      "systemImage" : "paintpalette"
+    }
+  ],
+  "id" : "foundry.content.paragraph",
+  "minimumAPIVersion" : 1,
+  "tags" : [
+    "Foundry",
+    "built-in"
+  ],
+  "templates" : {
+    "files" : [
+      {
+        "path" : "part.css",
+        "scope" : "instance"
+      }
+    ],
+    "html" : "part.html"
+  },
+  "title" : "Paragraph",
+  "version" : "1.0.0"
+}

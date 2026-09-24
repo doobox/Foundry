@@ -1,0 +1,6 @@
+{
+  "id" : "dev.foundry.fixtures.framework-values",
+  "minimumAPIVersion" : 1,
+  "title" : "FrameworkValues",
+  "version" : "1.0.0"
+}

@@ -1,0 +1,6 @@
+{
+  "id" : "dev.foundry.fixtures.broken-part",
+  "minimumAPIVersion" : 1,
+  "title" : "BrokenPart",
+  "version" : "1.0.0"
+}

@@ -836,7 +836,7 @@ struct FrameworkEditingTests {
         expectedFramework.screens = .standard
         #expect(loaded.framework == expectedFramework)
         #expect(loaded.resources == [ProjectAssetContent(asset: fontAsset, data: fontData)])
-        #expect(FileManager.default.fileExists(atPath: root.appending(path: "Info.plist").path))
+        #expect(FileManager.default.fileExists(atPath: root.appending(path: "manifest.json").path))
         #expect(FileManager.default.fileExists(atPath: root.appending(path: "Resources/framework.json").path))
         #expect(FileManager.default.fileExists(atPath: loaded.previewURL.path))
     }

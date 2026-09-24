@@ -1,0 +1,7 @@
+{
+  "author" : "Example Developer",
+  "id" : "com.example.starter",
+  "minimumAPIVersion" : 1,
+  "title" : "Starter",
+  "version" : "1.0.0"
+}

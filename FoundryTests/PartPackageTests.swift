@@ -16,7 +16,7 @@ struct PartPackageTests {
         // Read the current sibling working tree, not copied or stale fixtures.
         let pages = try FileManager.default.contentsOfDirectory(at: Self.developerDocsURL, includingPropertiesForKeys: nil)
             .filter { $0.pathExtension == "md" }.sorted { $0.lastPathComponent < $1.lastPathComponent }
-        let expression = try NSRegularExpression(pattern: #"(?s)## Quick example\s+.*?```xml\s*\n(.*?)```"#)
+        let expression = try NSRegularExpression(pattern: #"(?s)## Quick example\s+.*?```json\s*\n(.*?)```"#)
         var checked = 0
         for page in pages {
             let source = try String(contentsOf: page, encoding: .utf8)
@@ -67,23 +67,23 @@ struct PartPackageTests {
                 let content = String(section[try #require(Range(fence.range(at: 2), in: section))])
                 snippets[language, default: ""] += content
             }
-            let xml = try #require(snippets["xml"], "Missing declaration in \(page.lastPathComponent)")
+            let json = try #require(snippets["json"], "Missing declaration in \(page.lastPathComponent)")
             // Older complete examples show the controls key and array; newer ones show a single item.
             let controls: String
-            if xml.contains("<key>controls</key>") {
-                let start = try #require(xml.range(of: "<array>"))
-                let end = try #require(xml.range(of: "</array>", options: .backwards))
-                controls = String(xml[start.upperBound..<end.lowerBound])
+            if json.contains("\"controls\"") {
+                let start = try #require(json.range(of: "["))
+                let end = try #require(json.range(of: "]", options: .backwards))
+                controls = String(json[start.upperBound..<end.lowerBound])
             } else {
-                controls = xml
+                controls = json
             }
-            var exampleManifest = try #require(PropertyListSerialization.propertyList(
-                from: Data(manifest(withControls: controls).utf8), format: nil
+            var exampleManifest = try #require(JSONSerialization.jsonObject(
+                with: Data(manifest(withControls: controls).utf8)
             ) as? [String: Any])
             var declarations = try #require(exampleManifest["controls"] as? [[String: Any]])
             declarations.removeLast() // Remove the test helper's unrelated content childPicker.
             exampleManifest["controls"] = declarations
-            let manifestData = try PropertyListSerialization.data(fromPropertyList: exampleManifest, format: .xml, options: 0)
+            let manifestData = try JSONSerialization.data(withJSONObject: exampleManifest)
             let html = snippets["html", default: ""]
             let template = html.contains("{{ part.attributes }}") ? html
                 : "<section {{ part.attributes }}>\(html)</section>"
@@ -111,23 +111,19 @@ struct PartPackageTests {
             return String(source[try #require(Range(match.range(at: 1), in: source))])
         }
         for stage in ["starter", "complete"] {
-            let base = try snippet("starter:Info.plist")
-            var manifest = try #require(PropertyListSerialization.propertyList(from: Data(base.utf8), format: nil) as? [String: Any])
+            let base = try snippet("starter:manifest.json")
+            var manifest = try #require(JSONSerialization.jsonObject(with: Data(base.utf8)) as? [String: Any])
             if stage == "complete" {
                 let fragment = try snippet("complete:controls")
-                let additions = try #require(PropertyListSerialization.propertyList(
-                    from: Data("<plist version=\"1.0\"><dict>\(fragment)</dict></plist>".utf8), format: nil
+                let additions = try #require(JSONSerialization.jsonObject(
+                    with: Data("{\(fragment)}".utf8)
                 ) as? [String: Any])
                 manifest["controls"] = additions["controls"]
             }
-            let encoded = try PropertyListSerialization.data(fromPropertyList: manifest, format: .xml, options: 0)
+            let encoded = try JSONSerialization.data(withJSONObject: manifest)
             let packageURL = try makePackage(
                 manifest: String(decoding: encoded, as: UTF8.self), template: snippet("\(stage):part.html"),
-                additionalFiles: [
-                    "part.css": snippet("\(stage):part.css"),
-                    "icon.svg": snippet("starter:icon.svg"),
-                    "icon-dark.svg": snippet("starter:icon-dark.svg")
-                ]
+                additionalFiles: ["part.css": snippet("\(stage):part.css")]
             )
             defer { try? FileManager.default.removeItem(at: packageURL) }
             let package = try PartPackageLoader.load(from: packageURL)
@@ -140,14 +136,14 @@ struct PartPackageTests {
 
     @Test @MainActor func structuredAndArrayBreakpointDefaultsUseNormalConversion() throws {
         let controls = """
-        <dict><key>type</key><string>number</string><key>id</key><string>pair</string><key>count</key><integer>2</integer><key>responsive</key><true/>
-        <key>defaults</key><dict><key>base</key><array><integer>1</integer><integer>2</integer></array><key>large</key><array><integer>3</integer><integer>4</integer></array></dict></dict>
-        <dict><key>type</key><string>frameworkBorder</string><key>id</key><string>border</string><key>responsive</key><true/>
-        <key>defaults</key><dict><key>base</key><dict><key>width</key><string>none</string></dict><key>large</key><dict><key>width</key><string>sm</string><key>style</key><string>dashed</string></dict></dict></dict>
-        <dict><key>type</key><string>frameworkFont</string><key>id</key><string>font</string><key>showsWeight</key><true/><key>responsive</key><true/>
-        <key>defaults</key><dict><key>base</key><dict><key>family</key><string>body</string><key>weight</key><integer>400</integer></dict><key>large</key><dict><key>family</key><string>heading</string><key>weight</key><integer>700</integer></dict></dict></dict>
-        <dict><key>type</key><string>frameworkColor</string><key>id</key><string>colour</string><key>responsive</key><true/>
-        <key>defaults</key><dict><key>base</key><dict><key>palette</key><string>accent</string></dict><key>large</key><dict><key>palette</key><string>standard.lime</string><key>lightShade</key><integer>8</integer><key>darkShade</key><integer>3</integer></dict></dict></dict>
+        {"type" : "number", "id" : "pair", "count" : 2, "responsive" : true,
+        "defaults" : {"base" : [1, 2], "large" : [3, 4]}},
+        {"type" : "frameworkBorder", "id" : "border", "responsive" : true,
+        "defaults" : {"base" : {"width" : "none"}, "large" : {"width" : "sm", "style" : "dashed"}}},
+        {"type" : "frameworkFont", "id" : "font", "showsWeight" : true, "responsive" : true,
+        "defaults" : {"base" : {"family" : "body", "weight" : 400}, "large" : {"family" : "heading", "weight" : 700}}},
+        {"type" : "frameworkColor", "id" : "colour", "responsive" : true,
+        "defaults" : {"base" : {"palette" : "accent"}, "large" : {"palette" : "standard.lime", "lightShade" : 8, "darkShade" : 3}}}
         """
         let url = try makePackage(manifest: manifest(withControls: controls), template: "<section {{ part.attributes }}>{{ childArea(\"content\") }}</section>")
         defer { try? FileManager.default.removeItem(at: url) }
@@ -166,15 +162,15 @@ struct PartPackageTests {
         guard case .packageColor(let colour) = node.propertyValue(.init(rawValue: "colour")) else { Issue.record("Missing colour"); return }
         #expect(colour.shade.rawValue == 8)
         #expect(colour.darkShade.rawValue == 3)
-        let encoded = try PropertyListEncoder().encode(package.manifest)
-        let decoded = try PropertyListDecoder().decode(PartPackageManifest.self, from: encoded)
+        let encoded = try JSONEncoder().encode(package.manifest)
+        let decoded = try JSONDecoder().decode(PartPackageManifest.self, from: encoded)
         #expect(decoded.resolvedProperties.first?.breakpointDefaults["large"] == .array([.number(3), .number(4)]))
     }
 
     @Test @MainActor func developerBreakpointDefaultsCascadeAndExport() throws {
         let controls = """
-        <dict><key>type</key><string>number</string><key>id</key><string>gap</string><key>responsive</key><true/>
-        <key>defaults</key><dict><key>base</key><integer>4</integer><key>medium</key><integer>12</integer><key>large</key><integer>24</integer></dict></dict>
+        {"type" : "number", "id" : "gap", "responsive" : true,
+        "defaults" : {"base" : 4, "medium" : 12, "large" : 24}}
         """
         let url = try makePackage(manifest: manifest(withControls: controls), template: "<section {{ part.attributes }}>{{ childArea(\"content\") }}</section>", additionalFiles: ["part.css": ":instance { gap: {{ control.gap }}px; }"])
         defer { try? FileManager.default.removeItem(at: url) }
@@ -211,8 +207,8 @@ struct PartPackageTests {
 
     @Test @MainActor func editsTargetTheGoverningBreakpointNotTheViewedOne() throws {
         let controls = """
-        <dict><key>type</key><string>number</string><key>id</key><string>gap</string><key>responsive</key><true/>
-        <key>defaults</key><dict><key>base</key><integer>4</integer><key>medium</key><integer>12</integer></dict></dict>
+        {"type" : "number", "id" : "gap", "responsive" : true,
+        "defaults" : {"base" : 4, "medium" : 12}}
         """
         let url = try makePackage(manifest: manifest(withControls: controls), template: "<section {{ part.attributes }}>{{ childArea(\"content\") }}</section>")
         defer { try? FileManager.default.removeItem(at: url) }
@@ -245,30 +241,30 @@ struct PartPackageTests {
 
     @Test func defaultsSchemaRejectsInvalidContracts() throws {
         for fields in [
-            "<key>default</key><integer>1</integer>",
-            "<key>defaults</key><dict><key>large</key><integer>1</integer></dict>",
-            "<key>defaults</key><dict><key>base</key><integer>1</integer><key>desktop</key><integer>2</integer></dict>",
-            "<key>defaults</key><dict><key>base</key><integer>1</integer><key>large</key><integer>2</integer></dict>"
+            "\"default\" : 1",
+            "\"defaults\" : {\"large\" : 1}",
+            "\"defaults\" : {\"base\" : 1, \"desktop\" : 2}",
+            "\"defaults\" : {\"base\" : 1, \"large\" : 2}"
         ] {
-            let item = "<dict><key>type</key><string>number</string><key>id</key><string>n</string>\(fields)</dict>"
+            let item = "{\"type\" : \"number\", \"id\" : \"n\", \(fields)}"
             #expect(try PartPackageManifestSchema.diagnostics(for: Data(manifest(withControls: item).utf8)).contains { $0.severity == .error })
         }
     }
 
     @Test @MainActor func edgesAndCornersControlsLoadPersistAndRender() throws {
         let controls = """
-        <dict><key>type</key><string>edges</string><key>id</key><string>inset</string>
-        <key>units</key><array><string>px</string><string>%</string></array>
-        <key>defaults</key><dict><key>base</key><dict><key>value</key><real>10</real><key>unit</key><string>px</string></dict></dict></dict>
-        <dict><key>type</key><string>corners</string><key>id</key><string>round</string>
-        <key>defaults</key><dict><key>base</key><dict>
-            <key>topLeft</key><dict><key>value</key><real>2</real><key>unit</key><string>px</string></dict>
-            <key>topRight</key><dict><key>value</key><real>4</real><key>unit</key><string>px</string></dict>
-            <key>bottomLeft</key><dict><key>value</key><real>6</real><key>unit</key><string>px</string></dict>
-            <key>bottomRight</key><dict><key>value</key><real>8</real><key>unit</key><string>px</string></dict>
-        </dict></dict></dict>
-        <dict><key>type</key><string>edges</string><key>id</key><string>free</string><key>linked</key><false/>
-        <key>defaults</key><dict><key>base</key><dict><key>value</key><real>10</real><key>unit</key><string>px</string></dict></dict></dict>
+        {"type" : "edges", "id" : "inset",
+        "units" : ["px", "%"],
+        "defaults" : {"base" : {"value" : 10, "unit" : "px"}}},
+        {"type" : "corners", "id" : "round",
+        "defaults" : {"base" : {
+            "topLeft" : {"value" : 2, "unit" : "px"},
+            "topRight" : {"value" : 4, "unit" : "px"},
+            "bottomLeft" : {"value" : 6, "unit" : "px"},
+            "bottomRight" : {"value" : 8, "unit" : "px"}
+        }}},
+        {"type" : "edges", "id" : "free", "linked" : false,
+        "defaults" : {"base" : {"value" : 10, "unit" : "px"}}}
         """
         let url = try makePackage(
             manifest: manifest(withControls: controls),
@@ -333,61 +329,61 @@ struct PartPackageTests {
         }
         // Framework tokens are not part of the generic contract.
         #expect(throws: (any Error).self) { try load("""
-        <dict><key>type</key><string>edges</string><key>id</key><string>inset</string>
-        <key>defaults</key><dict><key>base</key><string>sm</string></dict></dict>
+        {"type" : "edges", "id" : "inset",
+        "defaults" : {"base" : "sm"}}
         """) }
         // A default must use a declared unit.
         #expect(throws: (any Error).self) { try load("""
-        <dict><key>type</key><string>edges</string><key>id</key><string>inset</string>
-        <key>units</key><array><string>px</string></array>
-        <key>defaults</key><dict><key>base</key><dict><key>value</key><real>1</real><key>unit</key><string>rem</string></dict></dict></dict>
+        {"type" : "edges", "id" : "inset",
+        "units" : ["px"],
+        "defaults" : {"base" : {"value" : 1, "unit" : "rem"}}}
         """) }
         // Corners are nonnegative.
         #expect(throws: (any Error).self) { try load("""
-        <dict><key>type</key><string>corners</string><key>id</key><string>round</string>
-        <key>defaults</key><dict><key>base</key><dict><key>value</key><real>-2</real><key>unit</key><string>px</string></dict></dict></dict>
+        {"type" : "corners", "id" : "round",
+        "defaults" : {"base" : {"value" : -2, "unit" : "px"}}}
         """) }
         // Unknown units are rejected.
         #expect(throws: (any Error).self) { try load("""
-        <dict><key>type</key><string>edges</string><key>id</key><string>inset</string>
-        <key>units</key><array><string>pt</string></array>
-        <key>defaults</key><dict><key>base</key><dict><key>value</key><real>1</real><key>unit</key><string>px</string></dict></dict></dict>
+        {"type" : "edges", "id" : "inset",
+        "units" : ["pt"],
+        "defaults" : {"base" : {"value" : 1, "unit" : "px"}}}
         """) }
         // No multi variant.
         #expect(throws: (any Error).self) { try load("""
-        <dict><key>type</key><string>edges</string><key>id</key><string>inset</string><key>count</key><integer>2</integer>
-        <key>defaults</key><dict><key>base</key><dict><key>value</key><real>1</real><key>unit</key><string>px</string></dict></dict></dict>
+        {"type" : "edges", "id" : "inset", "count" : 2,
+        "defaults" : {"base" : {"value" : 1, "unit" : "px"}}}
         """) }
         // Negative edges are permitted, matching margin semantics.
         #expect(throws: Never.self) { try load("""
-        <dict><key>type</key><string>edges</string><key>id</key><string>inset</string>
-        <key>defaults</key><dict><key>base</key><dict><key>value</key><real>-4</real><key>unit</key><string>px</string></dict></dict></dict>
+        {"type" : "edges", "id" : "inset",
+        "defaults" : {"base" : {"value" : -4, "unit" : "px"}}}
         """) }
         // linked: true contradicts differing defaults.
         #expect(throws: (any Error).self) { try load("""
-        <dict><key>type</key><string>corners</string><key>id</key><string>round</string><key>linked</key><true/>
-        <key>defaults</key><dict><key>base</key><dict>
-            <key>topLeft</key><dict><key>value</key><real>2</real><key>unit</key><string>px</string></dict>
-            <key>topRight</key><dict><key>value</key><real>4</real><key>unit</key><string>px</string></dict>
-            <key>bottomLeft</key><dict><key>value</key><real>2</real><key>unit</key><string>px</string></dict>
-            <key>bottomRight</key><dict><key>value</key><real>2</real><key>unit</key><string>px</string></dict>
-        </dict></dict></dict>
+        {"type" : "corners", "id" : "round", "linked" : true,
+        "defaults" : {"base" : {
+            "topLeft" : {"value" : 2, "unit" : "px"},
+            "topRight" : {"value" : 4, "unit" : "px"},
+            "bottomLeft" : {"value" : 2, "unit" : "px"},
+            "bottomRight" : {"value" : 2, "unit" : "px"}
+        }}}
         """) }
         // linked belongs to edges/corners only.
         #expect(throws: (any Error).self) { try load("""
-        <dict><key>type</key><string>number</string><key>id</key><string>n</string><key>linked</key><true/>
-        <key>defaults</key><dict><key>base</key><integer>1</integer></dict></dict>
+        {"type" : "number", "id" : "n", "linked" : true,
+        "defaults" : {"base" : 1}}
         """) }
     }
 
     @Test @MainActor func frameworkColorChannelsFiltersAndFormatsResolveForBothAppearances() throws {
         let controls = """
-        <dict><key>type</key><string>frameworkColor</string><key>id</key><string>primary</string>
-        <key>allowsCustom</key><true/><key>customColor</key><string>#FF0000</string>
-        <key>defaults</key><dict><key>base</key><dict><key>palette</key><string>custom</string></dict></dict></dict>
-        <dict><key>type</key><string>frameworkColor</string><key>id</key><string>formatted</string>
-        <key>allowsCustom</key><true/><key>customColor</key><string>#FF0000</string><key>outputFormat</key><string>rgb</string>
-        <key>defaults</key><dict><key>base</key><dict><key>palette</key><string>custom</string></dict></dict></dict>
+        {"type" : "frameworkColor", "id" : "primary",
+        "allowsCustom" : true, "customColor" : "#FF0000",
+        "defaults" : {"base" : {"palette" : "custom"}}},
+        {"type" : "frameworkColor", "id" : "formatted",
+        "allowsCustom" : true, "customColor" : "#FF0000", "outputFormat" : "rgb",
+        "defaults" : {"base" : {"palette" : "custom"}}}
         """
         let url = try makePackage(
             manifest: manifest(withControls: controls),
@@ -448,9 +444,9 @@ struct PartPackageTests {
     @Test func frameworkColorOutputFormatAcceptsColoursAndRejectsFragments() throws {
         func packageURL(forFormat format: String) throws -> URL {
             let controls = """
-            <dict><key>type</key><string>frameworkColor</string><key>id</key><string>primary</string>
-            <key>outputFormat</key><string>\(format)</string>
-            <key>defaults</key><dict><key>base</key><dict><key>palette</key><string>accent</string></dict></dict></dict>
+            {"type" : "frameworkColor", "id" : "primary",
+            "outputFormat" : "\(format)",
+            "defaults" : {"base" : {"palette" : "accent"}}}
             """
             return try makePackage(
                 manifest: manifest(withControls: controls),
@@ -469,8 +465,8 @@ struct PartPackageTests {
 
     @Test @MainActor func frameworkSpacingLoadsPersistsAndRenders() throws {
         let control = """
-        <dict><key>type</key><string>frameworkSpacing</string><key>id</key><string>frameworkSpacing</string>
-        <key>responsive</key><true/><key>defaults</key><dict><key>base</key><string>sm</string></dict></dict>
+        {"type" : "frameworkSpacing", "id" : "frameworkSpacing",
+        "responsive" : true, "defaults" : {"base" : "sm"}}
         """
         let url = try makePackage(manifest: manifest(withControls: control), template: "<section {{ part.attributes }} data-spacing=\"{{ control.frameworkSpacing.css }}\" data-top=\"{{ control.frameworkSpacing }}\">{{ childArea(\"content\") }}</section>",
                                   additionalFiles: ["part.css": ":instance { gap: {{ control.frameworkSpacing }}; --numeric-top: {{ control.frameworkSpacing.value }}{{ control.frameworkSpacing.unit }}; }"])
@@ -507,14 +503,14 @@ struct PartPackageTests {
     }
     @Test @MainActor func invalidBorderDefaultsAreRejected() throws {
         let invalid = [
-            "<string>sm</string>",
-            "<dict><key>width</key><string>auto</string></dict>",
-            "<dict><key>width</key><string>sm</string><key>style</key><string>invalid</string></dict>",
-            "<dict><key>width</key><string>sm</string><key>color</key><dict><key>palette</key><string>bad</string></dict></dict>",
-            "<dict><key>width</key><string>sm</string><key>color</key><dict><key>palette</key><string>accent</string><key>darkShade</key><integer>12</integer></dict></dict>"
+            "\"sm\"",
+            "{\"width\" : \"auto\"}",
+            "{\"width\" : \"sm\", \"style\" : \"invalid\"}",
+            "{\"width\" : \"sm\", \"color\" : {\"palette\" : \"bad\"}}",
+            "{\"width\" : \"sm\", \"color\" : {\"palette\" : \"accent\", \"darkShade\" : 12}}"
         ]
         for value in invalid {
-            let url = try makePackage(manifest: manifest(withControls: "<dict><key>type</key><string>frameworkBorder</string><key>id</key><string>border</string><key>defaults</key><dict><key>base</key>\(value)</dict></dict>"), template: "<section {{ part.attributes }}>{{ childArea(\"content\") }}</section>")
+            let url = try makePackage(manifest: manifest(withControls: "{\"type\" : \"frameworkBorder\", \"id\" : \"border\", \"defaults\" : {\"base\" : \(value)}}"), template: "<section {{ part.attributes }}>{{ childArea(\"content\") }}</section>")
             defer { try? FileManager.default.removeItem(at: url) }
             #expect(throws: (any Error).self) { try PartPackageLoader.load(from: url) }
         }
@@ -522,9 +518,9 @@ struct PartPackageTests {
 
     @Test @MainActor func frameworkBorderLoadsPersistsAndRenders() throws {
         let control = """
-        <dict><key>type</key><string>frameworkBorder</string><key>id</key><string>border</string>
-        <key>responsive</key><true/><key>showsStyle</key><true/><key>defaults</key><dict><key>base</key><dict><key>width</key><string>sm</string><key>style</key><string>dashed</string></dict></dict></dict>
-        <dict><key>type</key><string>frameworkColor</string><key>id</key><string>borderColour</string><key>group</key><string>Settings</string><key>defaults</key><dict><key>base</key><dict><key>palette</key><string>standard.lime</string><key>lightShade</key><integer>8</integer></dict></dict></dict>
+        {"type" : "frameworkBorder", "id" : "border",
+        "responsive" : true, "showsStyle" : true, "defaults" : {"base" : {"width" : "sm", "style" : "dashed"}}},
+        {"type" : "frameworkColor", "id" : "borderColour", "group" : "Settings", "defaults" : {"base" : {"palette" : "standard.lime", "lightShade" : 8}}}
         """
         let url = try makePackage(manifest: manifest(withControls: control), template: "<section {{ part.attributes }} data-borderWidth=\"{{ control.border.width.css }}\" data-top=\"{{ control.border.width.top }}\">{{ childArea(\"content\") }}</section>",
                                   additionalFiles: ["part.css": ":instance { border-width: {{ control.border.width }}; border-style: {{ control.border.style }}; border-color: {{ control.borderColour }}; --numeric-top: {{ control.border.width.values.top }}{{ control.border.width.units.top }}; }"])
@@ -566,8 +562,8 @@ struct PartPackageTests {
 
     @Test @MainActor func frameworkRadiusLoadsPersistsAndRenders() throws {
         let control = """
-        <dict><key>type</key><string>frameworkRadius</string><key>id</key><string>frameworkRadius</string>
-        <key>responsive</key><true/><key>defaults</key><dict><key>base</key><string>sm</string></dict></dict>
+        {"type" : "frameworkRadius", "id" : "frameworkRadius",
+        "responsive" : true, "defaults" : {"base" : "sm"}}
         """
         let url = try makePackage(manifest: manifest(withControls: control), template: "<section {{ part.attributes }} data-radius=\"{{ control.frameworkRadius.css }}\" data-top=\"{{ control.frameworkRadius.topLeft }}\">{{ childArea(\"content\") }}</section>",
                                   additionalFiles: ["part.css": ":instance { border-radius: {{ control.frameworkRadius }}; --numeric-top: {{ control.frameworkRadius.values.topLeft }}{{ control.frameworkRadius.units.topLeft }}; }"])
@@ -606,9 +602,9 @@ struct PartPackageTests {
     @Test @MainActor func standardPaletteDefaultsLoadAndRender() throws {
         for palette in ColourPaletteDefaults.standard {
             let control = """
-            <dict><key>type</key><string>frameworkColor</string><key>id</key><string>colour</string>
-            <key>defaults</key><dict><key>base</key><dict><key>palette</key><string>\(palette.id)</string>
-            <key>lightShade</key><integer>8</integer><key>darkShade</key><integer>3</integer></dict></dict></dict>
+            {"type" : "frameworkColor", "id" : "colour",
+            "defaults" : {"base" : {"palette" : "\(palette.id)",
+            "lightShade" : 8, "darkShade" : 3}}}
             """
             let url = try makePackage(manifest: manifest(withControls: control),
                 template: "<section {{ part.attributes }} style=\"color: {{ control.colour }}\">{{ childArea(\"content\") }}</section>")
@@ -628,15 +624,15 @@ struct PartPackageTests {
             #expect(try #require(StaticSiteRenderer().render(site: site).file(at: "index.html")?.contents).contains(expected))
         }
         for id in ["lime", "standard.unknown", "custom:missing"] {
-            let control = "<dict><key>type</key><string>frameworkColor</string><key>id</key><string>colour</string><key>defaults</key><dict><key>base</key><dict><key>palette</key><string>\(id)</string></dict></dict></dict>"
-            let decoded = try PropertyListDecoder().decode(PartPackageManifest.self, from: Data(manifest(withControls: control).utf8))
+            let control = "{\"type\" : \"frameworkColor\", \"id\" : \"colour\", \"defaults\" : {\"base\" : {\"palette\" : \"\(id)\"}}}"
+            let decoded = try JSONDecoder().decode(PartPackageManifest.self, from: Data(manifest(withControls: control).utf8))
             #expect(PartPackageValidator.validate(decoded, rootURL: FileManager.default.temporaryDirectory).contains { $0.severity == .error })
         }
     }
     @Test @MainActor func frameworkMarginLoadsPersistsAndRenders() throws {
         let control = """
-        <dict><key>type</key><string>frameworkMargin</string><key>id</key><string>frameworkMargin</string>
-        <key>responsive</key><true/><key>defaults</key><dict><key>base</key><string>auto</string></dict></dict>
+        {"type" : "frameworkMargin", "id" : "frameworkMargin",
+        "responsive" : true, "defaults" : {"base" : "auto"}}
         """
         let url = try makePackage(manifest: manifest(withControls: control), template: "<section {{ part.attributes }} data-margin=\"{{ control.frameworkMargin.css }}\" data-top=\"{{ control.frameworkMargin.top }}\">{{ childArea(\"content\") }}</section>",
                                   additionalFiles: ["part.css": ":instance { margin: {{ control.frameworkMargin }}; --numeric-top: {{ control.frameworkMargin.values.top }}{{ control.frameworkMargin.units.top }}; }"])
@@ -674,8 +670,8 @@ struct PartPackageTests {
     }
     @Test @MainActor func frameworkPaddingLoadsPersistsAndRenders() throws {
         let control = """
-        <dict><key>type</key><string>frameworkPadding</string><key>id</key><string>frameworkPadding</string>
-        <key>responsive</key><true/><key>defaults</key><dict><key>base</key><string>sm</string></dict></dict>
+        {"type" : "frameworkPadding", "id" : "frameworkPadding",
+        "responsive" : true, "defaults" : {"base" : "sm"}}
         """
         let url = try makePackage(manifest: manifest(withControls: control), template: "<section {{ part.attributes }} data-padding=\"{{ control.frameworkPadding.css }}\" data-top=\"{{ control.frameworkPadding.top }}\">{{ childArea(\"content\") }}</section>",
                                   additionalFiles: ["part.css": ":instance { padding: {{ control.frameworkPadding }}; --numeric-top: {{ control.frameworkPadding.values.top }}{{ control.frameworkPadding.units.top }}; }"])
@@ -713,9 +709,9 @@ struct PartPackageTests {
     }
 
     @Test func frameworkPaddingRejectsUnsupportedManifestKeys() throws {
-        for extra in ["<key>count</key><integer>4</integer>", "<key>allowsCustom</key><true/>",
-                      "<key>options</key><array/>", "<key>frameworkValues</key><string>spacing</string>"] {
-            let control = "<dict><key>type</key><string>frameworkPadding</string><key>id</key><string>frameworkPadding</string><key>defaults</key><dict><key>base</key><string>sm</string></dict>\(extra)</dict>"
+        for extra in ["\"count\" : 4", "\"allowsCustom\" : true",
+                      "\"options\" : []", "\"frameworkValues\" : \"spacing\""] {
+            let control = "{\"type\" : \"frameworkPadding\", \"id\" : \"frameworkPadding\", \"defaults\" : {\"base\" : \"sm\"}, \(extra)}"
             #expect(try PartPackageManifestSchema.diagnostics(for: Data(manifest(withControls: control).utf8)).contains { $0.severity == .error })
         }
     }
@@ -738,10 +734,10 @@ struct PartPackageTests {
 
     @Test func generatedFontRowsShareOneInspectorGrid() throws {
         let item = """
-        <dict><key>type</key><string>frameworkFont</string><key>id</key><string>font</string>
-        <key>defaults</key><dict><key>base</key><string>body</string></dict><key>showsWeight</key><true/><key>showsStyle</key><true/></dict>
+        {"type" : "frameworkFont", "id" : "font",
+        "defaults" : {"base" : "body"}, "showsWeight" : true, "showsStyle" : true}
         """
-        let decoded = try PropertyListDecoder().decode(PartPackageManifest.self, from: Data(manifest(withControls: item).utf8))
+        let decoded = try JSONDecoder().decode(PartPackageManifest.self, from: Data(manifest(withControls: item).utf8))
         let property = try #require(decoded.resolvedProperties.first)
         let rows = PartPackageFontControl.properties(property)
         let separate = PartPropertyDefinition(key: .init(rawValue: "other"), label: "Other",
@@ -756,9 +752,9 @@ struct PartPackageTests {
 
     @Test @MainActor func selectUsesOnlyDeclaredOptions() throws {
         let item = """
-        <dict><key>type</key><string>select</string><key>id</key><string>choice</string>
-        <key>options</key><array><dict><key>value</key><string>body</string><key>title</key><string>Body</string></dict></array>
-        <key>defaults</key><dict><key>base</key><string>body</string></dict></dict>
+        {"type" : "select", "id" : "choice",
+        "options" : [{"value" : "body", "title" : "Body"}],
+        "defaults" : {"base" : "body"}}
         """
         let url = try makePackage(manifest: manifest(withControls: item),
             template: "<section {{ part.attributes }} data-choice=\"{{ control.choice }}\">{{ childArea(\"content\") }}</section>")
@@ -775,9 +771,9 @@ struct PartPackageTests {
         #expect(HTMLPageRenderer(site: site).render(page: site.pages[0], framework: site.framework).contains("data-choice=\"body\""))
         #expect(try #require(StaticSiteRenderer().render(site: site).file(at: "index.html")?.contents).contains("data-choice=\"body\""))
 
-        for extra in ["<key>allowsCustom</key><false/>", "<key>allowsCustom</key><true/>"] +
-            ["fontFamilies", "fontSizes", "spacing", "shadows", "colors"].map({ "<key>frameworkValues</key><string>\($0)</string>" }) {
-            let invalid = item.replacingOccurrences(of: "<key>type</key>", with: extra + "<key>type</key>")
+        for extra in ["\"allowsCustom\" : false", "\"allowsCustom\" : true"] +
+            ["fontFamilies", "fontSizes", "spacing", "shadows", "colors"].map({ "\"frameworkValues\" : \"\($0)\"" }) {
+            let invalid = item.replacingOccurrences(of: "\"type\"", with: extra + ", \"type\"")
             #expect(try PartPackageManifestSchema.diagnostics(for: Data(manifest(withControls: invalid).utf8))
                 .contains { $0.message.contains("Select supports only declared options") })
         }
@@ -785,9 +781,9 @@ struct PartPackageTests {
 
     @Test @MainActor func frameworkFontSizeControlResolvesSizeAndLineHeightVariables() throws {
         let item = """
-        <dict><key>type</key><string>frameworkFontSize</string><key>id</key><string>size</string>
-        <key>label</key><string>Size</string><key>responsive</key><true/>
-        <key>defaults</key><dict><key>base</key><string>xl</string></dict></dict>
+        {"type" : "frameworkFontSize", "id" : "size",
+        "label" : "Size", "responsive" : true,
+        "defaults" : {"base" : "xl"}}
         """
         let url = try makePackage(manifest: manifest(withControls: item),
             template: "<p {{ part.attributes }} style=\"font-size: {{ control.size }}; line-height: {{ control.size.lineHeight }}\">{{ childArea(\"content\") }}</p>")
@@ -806,20 +802,20 @@ struct PartPackageTests {
 
         // Options-style keys are rejected, and portable defaults accept only
         // the predefined scale — project custom sizes are not portable.
-        let withValues = item.replacingOccurrences(of: "<key>type</key>", with: "<key>frameworkValues</key><string>fontSizes</string><key>type</key>")
+        let withValues = item.replacingOccurrences(of: "\"type\"", with: "\"frameworkValues\" : \"fontSizes\", \"type\"")
         #expect(try PartPackageManifestSchema.diagnostics(for: Data(manifest(withControls: withValues).utf8))
             .contains { $0.message.contains("does not accept frameworkValues") })
-        let badDefault = item.replacingOccurrences(of: "<string>xl</string>", with: "<string>huge</string>")
-        let decoded = try PropertyListDecoder().decode(PartPackageManifest.self, from: Data(manifest(withControls: badDefault).utf8))
+        let badDefault = item.replacingOccurrences(of: "\"xl\"", with: "\"huge\"")
+        let decoded = try JSONDecoder().decode(PartPackageManifest.self, from: Data(manifest(withControls: badDefault).utf8))
         #expect(PartPackageValidator.validate(decoded, rootURL: FileManager.default.temporaryDirectory)
             .contains { $0.message.contains("frameworkFontSize default must be a predefined size ID") })
     }
 
     @Test @MainActor func frameworkStackingOrderControlResolvesVariable() throws {
         let item = """
-        <dict><key>type</key><string>frameworkStackingOrder</string><key>id</key><string>layer</string>
-        <key>label</key><string>Layer</string><key>responsive</key><true/>
-        <key>defaults</key><dict><key>base</key><string>modal</string></dict></dict>
+        {"type" : "frameworkStackingOrder", "id" : "layer",
+        "label" : "Layer", "responsive" : true,
+        "defaults" : {"base" : "modal"}}
         """
         let url = try makePackage(manifest: manifest(withControls: item),
             template: "<div {{ part.attributes }} style=\"z-index: {{ control.layer }}\">{{ childArea(\"content\") }}</div>")
@@ -848,20 +844,20 @@ struct PartPackageTests {
 
         // Options-style keys are rejected, and portable defaults accept only
         // the predefined scale — project custom values are not portable.
-        let withValues = item.replacingOccurrences(of: "<key>type</key>", with: "<key>frameworkValues</key><string>zIndexes</string><key>type</key>")
+        let withValues = item.replacingOccurrences(of: "\"type\"", with: "\"frameworkValues\" : \"zIndexes\", \"type\"")
         #expect(try PartPackageManifestSchema.diagnostics(for: Data(manifest(withControls: withValues).utf8))
             .contains { $0.message.contains("does not accept frameworkValues") })
-        let badDefault = item.replacingOccurrences(of: "<string>modal</string>", with: "<string>everest</string>")
-        let decoded = try PropertyListDecoder().decode(PartPackageManifest.self, from: Data(manifest(withControls: badDefault).utf8))
+        let badDefault = item.replacingOccurrences(of: "\"modal\"", with: "\"everest\"")
+        let decoded = try JSONDecoder().decode(PartPackageManifest.self, from: Data(manifest(withControls: badDefault).utf8))
         #expect(PartPackageValidator.validate(decoded, rootURL: FileManager.default.temporaryDirectory)
             .contains { $0.message.contains("frameworkStackingOrder default must be a predefined stacking ID") })
     }
 
     @Test @MainActor func unifiedFontControlHasStructuredOutputAndIndependentOverrides() throws {
         let item = """
-        <dict><key>type</key><string>frameworkFont</string><key>id</key><string>typography</string>
-        <key>showsWeight</key><true/><key>showsStyle</key><true/><key>responsive</key><true/>
-        <key>defaults</key><dict><key>base</key><dict><key>family</key><string>body</string><key>weight</key><integer>650</integer><key>style</key><string>italic</string></dict></dict></dict>
+        {"type" : "frameworkFont", "id" : "typography",
+        "showsWeight" : true, "showsStyle" : true, "responsive" : true,
+        "defaults" : {"base" : {"family" : "body", "weight" : 650, "style" : "italic"}}}
         """
         let url = try makePackage(manifest: manifest(withControls: item), template: "<section {{ part.attributes }} data-face=\"{{ control.typography.family }}|{{ control.typography.weight }}|{{ control.typography.style }}\">{{ childArea(\"content\") }}</section>")
         defer { try? FileManager.default.removeItem(at: url) }
@@ -888,24 +884,24 @@ struct PartPackageTests {
 
     @Test func unifiedFontControlValidatesCapabilities() throws {
         for extra in [
-            "<key>showsFamily</key><false/>",
-            "<key>defaults</key><dict><key>base</key><dict><key>family</key><string>body</string><key>weight</key><integer>500</integer></dict></dict>",
-            "<key>showsWeight</key><true/><key>defaults</key><dict><key>base</key><dict><key>family</key><string>body</string><key>weight</key><integer>1001</integer></dict></dict>",
-            "<key>showsStyle</key><true/><key>defaults</key><dict><key>base</key><dict><key>family</key><string>body</string><key>style</key><string>bold</string></dict></dict>"
+            "\"showsFamily\" : false",
+            "\"defaults\" : {\"base\" : {\"family\" : \"body\", \"weight\" : 500}}",
+            "\"showsWeight\" : true, \"defaults\" : {\"base\" : {\"family\" : \"body\", \"weight\" : 1001}}",
+            "\"showsStyle\" : true, \"defaults\" : {\"base\" : {\"family\" : \"body\", \"style\" : \"bold\"}}"
         ] {
-            let defaultXML = extra.contains("<key>defaults</key>") ? "" : "<key>defaults</key><dict><key>base</key><string>body</string></dict>"
-            let item = "<dict><key>type</key><string>frameworkFont</string><key>id</key><string>font</string>\(defaultXML)\(extra)</dict>"
-            let decoded = try PropertyListDecoder().decode(PartPackageManifest.self, from: Data(manifest(withControls: item).utf8))
+            let defaultJSON = extra.contains("\"defaults\"") ? "" : ", \"defaults\" : {\"base\" : \"body\"}"
+            let item = "{\"type\" : \"frameworkFont\", \"id\" : \"font\"\(defaultJSON), \(extra)}"
+            let decoded = try JSONDecoder().decode(PartPackageManifest.self, from: Data(manifest(withControls: item).utf8))
             #expect(PartPackageValidator.validate(decoded, rootURL: FileManager.default.temporaryDirectory).contains { $0.severity == .error && ($0.message.contains("default.") || $0.message.contains("at least one")) })
         }
         for kind in ["fontWeight", "fontStyle"] {
-            let item = "<dict><key>type</key><string>\(kind)</string><key>id</key><string>font</string><key>defaults</key><dict><key>base</key><string>normal</string></dict></dict>"
+            let item = "{\"type\" : \"\(kind)\", \"id\" : \"font\", \"defaults\" : {\"base\" : \"normal\"}}"
             #expect(try PartPackageManifestSchema.diagnostics(for: Data(manifest(withControls: item).utf8)).contains { $0.message.contains("Use one frameworkFont") })
         }
     }
 
     @Test @MainActor func fixedFamilyCanExposeOnlyWeight() throws {
-        let item = "<dict><key>type</key><string>frameworkFont</string><key>id</key><string>font</string><key>showsFamily</key><false/><key>showsWeight</key><true/><key>responsive</key><true/><key>defaults</key><dict><key>base</key><string>body</string></dict></dict>"
+        let item = "{\"type\" : \"frameworkFont\", \"id\" : \"font\", \"showsFamily\" : false, \"showsWeight\" : true, \"responsive\" : true, \"defaults\" : {\"base\" : \"body\"}}"
         let url = try makePackage(manifest: manifest(withControls: item), template: "<section {{ part.attributes }}>{{ childArea(\"content\") }}</section>")
         defer { try? FileManager.default.removeItem(at: url) }
         let package = try PartPackageLoader.load(from: url)
@@ -927,7 +923,7 @@ struct PartPackageTests {
     @Test @MainActor
     func standaloneFrameworkFontLoadsAndRenders() throws {
         for role in ["body", "heading", "monospaced"] {
-            let item = "<dict><key>type</key><string>frameworkFont</string><key>id</key><string>family</string><key>defaults</key><dict><key>base</key><string>\(role)</string></dict><key>responsive</key><true/></dict>"
+            let item = "{\"type\" : \"frameworkFont\", \"id\" : \"family\", \"defaults\" : {\"base\" : \"\(role)\"}, \"responsive\" : true}"
             let url = try makePackage(manifest: manifest(withControls: item), template: "<section {{ part.attributes }} style=\"font-family: {{ control.family.family }}\">{{ childArea(\"content\") }}</section>")
             defer { try? FileManager.default.removeItem(at: url) }
             let package = try PartPackageLoader.load(from: url)
@@ -946,12 +942,12 @@ struct PartPackageTests {
 
     @Test func standaloneFrameworkFontRejectsInvalidContracts() throws {
         for value in ["accent", "custom:anything", "Arial"] {
-            let item = "<dict><key>type</key><string>frameworkFont</string><key>id</key><string>family</string><key>defaults</key><dict><key>base</key><string>\(value)</string></dict></dict>"
-            let decoded = try PropertyListDecoder().decode(PartPackageManifest.self, from: Data(manifest(withControls: item).utf8))
+            let item = "{\"type\" : \"frameworkFont\", \"id\" : \"family\", \"defaults\" : {\"base\" : \"\(value)\"}}"
+            let decoded = try JSONDecoder().decode(PartPackageManifest.self, from: Data(manifest(withControls: item).utf8))
             #expect(PartPackageValidator.validate(decoded, rootURL: FileManager.default.temporaryDirectory).contains { $0.message.contains("frameworkFont default") })
         }
-        for extra in ["<key>count</key><integer>2</integer>", "<key>frameworkValues</key><string>fontFamilies</string>", "<key>options</key><array/>", "<key>allowsCustom</key><false/>"] {
-            let item = "<dict><key>type</key><string>frameworkFont</string><key>id</key><string>family</string><key>defaults</key><dict><key>base</key><string>body</string></dict>\(extra)</dict>"
+        for extra in ["\"count\" : 2", "\"frameworkValues\" : \"fontFamilies\"", "\"options\" : []", "\"allowsCustom\" : false"] {
+            let item = "{\"type\" : \"frameworkFont\", \"id\" : \"family\", \"defaults\" : {\"base\" : \"body\"}, \(extra)}"
             #expect(try PartPackageManifestSchema.diagnostics(for: Data(manifest(withControls: item).utf8)).contains { $0.message.contains("frameworkFont control does not accept") })
         }
     }
@@ -961,10 +957,10 @@ struct PartPackageTests {
         for key in ["lightShade", "darkShade"] {
         for shade in [nil, 1, 8, 11] as [Int?] {
             let item = """
-            <dict><key>id</key><string>colour</string>
-            <key>type</key><string>frameworkColor</string>
-            <key>defaults</key><dict><key>base</key><dict><key>palette</key><string>accent</string>
-            \(shade.map { "<key>\(key)</key><integer>\($0)</integer>" } ?? "")</dict></dict></dict>
+            {"id" : "colour",
+            "type" : "frameworkColor",
+            "defaults" : {"base" : {"palette" : "accent"
+            \(shade.map { ", \"\(key)\" : \($0)" } ?? "")}}}
             """
             let url = try makePackage(manifest: manifest(withControls: item),
                                       template: "<div {{ part.attributes }}>{{ childArea(\"content\") }}</div>")
@@ -982,28 +978,28 @@ struct PartPackageTests {
         for (type, value, initial) in [("frameworkColor", "accent", 0), ("frameworkColor", "accent", 12),
                                        ("frameworkColor", "custom", 3)] {
             let item = """
-            <dict><key>id</key><string>colour</string><key>type</key><string>\(type)</string>
-            <key>defaults</key><dict><key>base</key><dict><key>palette</key><string>\(value)</string><key>lightShade</key><integer>\(initial)</integer></dict></dict></dict>
+            {"id" : "colour", "type" : "\(type)",
+            "defaults" : {"base" : {"palette" : "\(value)", "lightShade" : \(initial)}}}
             """
-            let decoded = try PropertyListDecoder().decode(PartPackageManifest.self,
+            let decoded = try JSONDecoder().decode(PartPackageManifest.self,
                 from: Data(manifest(withControls: item).utf8))
             #expect(PartPackageValidator.validate(decoded, rootURL: FileManager.default.temporaryDirectory)
                 .contains { $0.location.hasSuffix(".lightShade") && $0.severity == .error })
         }
-        for invalid in ["<string>8</string>", "<true/>", "<real>2.5</real>"] {
-            let item = "<dict><key>id</key><string>colour</string><key>type</key><string>frameworkColor</string><key>defaults</key><dict><key>base</key><dict><key>palette</key><string>accent</string><key>lightShade</key>\(invalid)</dict></dict></dict>"
+        for invalid in ["\"8\"", "true", "2.5"] {
+            let item = "{\"id\" : \"colour\", \"type\" : \"frameworkColor\", \"defaults\" : {\"base\" : {\"palette\" : \"accent\", \"lightShade\" : \(invalid)}}}"
             #expect(try PartPackageManifestSchema.diagnostics(for: Data(manifest(withControls: item).utf8))
                 .contains { $0.message == "lightShade must be an integer." })
         }
     }
 
     @Test func frameworkColourRejectsOldDefaultsAndUnknownNestedKeys() throws {
-        for value in ["<string>accent</string>", "<array><string>accent</string></array>",
-                      "<dict><key>palette</key><string>accent</string><key>shade</key><integer>3</integer></dict>"] {
-            let item = "<dict><key>id</key><string>colour</string><key>type</key><string>frameworkColor</string><key>defaults</key><dict><key>base</key>\(value)</dict></dict>"
+        for value in ["\"accent\"", "[\"accent\"]",
+                      "{\"palette\" : \"accent\", \"shade\" : 3}"] {
+            let item = "{\"id\" : \"colour\", \"type\" : \"frameworkColor\", \"defaults\" : {\"base\" : \(value)}}"
             #expect(try PartPackageManifestSchema.diagnostics(for: Data(manifest(withControls: item).utf8)).contains { $0.severity == .error })
         }
-        let oldKeys = "<dict><key>id</key><string>colour</string><key>type</key><string>frameworkColor</string><key>defaults</key><dict><key>base</key><dict><key>palette</key><string>accent</string></dict></dict><key>lightShade</key><integer>8</integer></dict>"
+        let oldKeys = "{\"id\" : \"colour\", \"type\" : \"frameworkColor\", \"defaults\" : {\"base\" : {\"palette\" : \"accent\"}}, \"lightShade\" : 8}"
         #expect(try PartPackageManifestSchema.diagnostics(for: Data(manifest(withControls: oldKeys).utf8)).contains { $0.message.contains("Unknown key 'lightShade'") })
     }
 
@@ -1091,17 +1087,16 @@ struct PartPackageTests {
     @Test
     func removedControlTypesAreRejected() {
         for type in ["fontFamily", "info", "margin", "padding"] {
-            let plist = """
-            <?xml version="1.0" encoding="UTF-8"?>
-            <plist version="1.0"><dict>
-            <key>type</key><string>\(type)</string>
-            </dict></plist>
+            let json = """
+            {
+            "type" : "\(type)"
+            }
             """
 
             do {
-                _ = try PropertyListDecoder().decode(
+                _ = try JSONDecoder().decode(
                     PartPackageControl.self,
-                    from: Data(plist.utf8)
+                    from: Data(json.utf8)
                 )
                 Issue.record("The removed \(type) control unexpectedly decoded.")
             } catch {
@@ -1267,20 +1262,19 @@ struct PartPackageTests {
 
     @Test
     func backgroundControlGroupExpandsIntoFoundryOwnedControls() throws {
-        let plist = """
-        <?xml version="1.0" encoding="UTF-8"?>
-        <plist version="1.0"><dict>
-        <key>minimumAPIVersion</key><integer>1</integer>
-        <key>id</key><string>com.example.background-group</string>
-        <key>title</key><string>Background Group</string>
-        <key>version</key><string>1.0.0</string>
-        <key>controls</key><array><dict><key>type</key><string>background</string></dict></array>
-        <key>templates</key><dict><key>html</key><string>part.html</string></dict>
-        </dict></plist>
+        let json = """
+        {
+        "minimumAPIVersion" : 1,
+        "id" : "com.example.background-group",
+        "title" : "Background Group",
+        "version" : "1.0.0",
+        "controls" : [{"type" : "background"}],
+        "templates" : {"html" : "part.html"}
+        }
         """
 
-        let data = Data(plist.utf8)
-        let manifest = try PropertyListDecoder().decode(PartPackageManifest.self, from: data)
+        let data = Data(json.utf8)
+        let manifest = try JSONDecoder().decode(PartPackageManifest.self, from: data)
         #expect(manifest.controlGroups == [.init(type: .background)])
         #expect(manifest.resolvedProperties.first?.id == "backgroundMode")
         #expect(manifest.resolvedProperties.first?.defaultValue == .string("none"))
@@ -1293,24 +1287,23 @@ struct PartPackageTests {
 
     @Test
     func backgroundControlGroupCanSelectStylesAndStates() throws {
-        let plist = """
-        <?xml version="1.0" encoding="UTF-8"?>
-        <plist version="1.0"><dict>
-        <key>minimumAPIVersion</key><integer>1</integer>
-        <key>id</key><string>com.example.selective-background-group</string>
-        <key>title</key><string>Selective Background Group</string>
-        <key>version</key><string>1.0.0</string>
-        <key>controls</key><array><dict>
-            <key>type</key><string>background</string>
-            <key>styles</key><array><string>colour</string><string>image</string></array>
-            <key>states</key><array><string>static</string></array>
-        </dict></array>
-        <key>templates</key><dict><key>html</key><string>part.html</string></dict>
-        </dict></plist>
+        let json = """
+        {
+        "minimumAPIVersion" : 1,
+        "id" : "com.example.selective-background-group",
+        "title" : "Selective Background Group",
+        "version" : "1.0.0",
+        "controls" : [{
+            "type" : "background",
+            "styles" : ["colour", "image"],
+            "states" : ["static"]
+        }],
+        "templates" : {"html" : "part.html"}
+        }
         """
 
-        let data = Data(plist.utf8)
-        let manifest = try PropertyListDecoder().decode(PartPackageManifest.self, from: data)
+        let data = Data(json.utf8)
+        let manifest = try JSONDecoder().decode(PartPackageManifest.self, from: data)
         #expect(manifest.controlGroups == [
             .init(type: .background, styles: [.colour, .image], states: [.staticState])
         ])
@@ -1334,23 +1327,22 @@ struct PartPackageTests {
 
     @Test
     func backgroundControlGroupValidatesSelectedStylesAndStates() throws {
-        let plist = """
-        <?xml version="1.0" encoding="UTF-8"?>
-        <plist version="1.0"><dict>
-        <key>minimumAPIVersion</key><integer>1</integer>
-        <key>id</key><string>com.example.invalid-background-group</string>
-        <key>title</key><string>Invalid Background Group</string>
-        <key>version</key><string>1.0.0</string>
-        <key>controls</key><array><dict>
-            <key>type</key><string>background</string>
-            <key>styles</key><array/>
-            <key>states</key><array><string>hover</string><string>hover</string></array>
-        </dict></array>
-        <key>templates</key><dict><key>html</key><string>part.html</string></dict>
-        </dict></plist>
+        let json = """
+        {
+        "minimumAPIVersion" : 1,
+        "id" : "com.example.invalid-background-group",
+        "title" : "Invalid Background Group",
+        "version" : "1.0.0",
+        "controls" : [{
+            "type" : "background",
+            "styles" : [],
+            "states" : ["hover", "hover"]
+        }],
+        "templates" : {"html" : "part.html"}
+        }
         """
 
-        let diagnostics = try PartPackageManifestSchema.diagnostics(for: Data(plist.utf8))
+        let diagnostics = try PartPackageManifestSchema.diagnostics(for: Data(json.utf8))
         let messages = diagnostics.map(\.message)
         #expect(messages.contains("styles must contain at least one value."))
         #expect(messages.contains("Duplicate states value 'hover'."))
@@ -1359,18 +1351,17 @@ struct PartPackageTests {
 
     @Test
     func backgroundControlGroupDecoratesVideoHTML() throws {
-        let plist = """
-        <?xml version="1.0" encoding="UTF-8"?>
-        <plist version="1.0"><dict>
-        <key>minimumAPIVersion</key><integer>1</integer>
-        <key>id</key><string>com.example.background-video</string>
-        <key>title</key><string>Background Video</string>
-        <key>version</key><string>1.0.0</string>
-        <key>controls</key><array><dict><key>type</key><string>background</string></dict></array>
-        <key>templates</key><dict><key>html</key><string>part.html</string></dict>
-        </dict></plist>
+        let json = """
+        {
+        "minimumAPIVersion" : 1,
+        "id" : "com.example.background-video",
+        "title" : "Background Video",
+        "version" : "1.0.0",
+        "controls" : [{"type" : "background"}],
+        "templates" : {"html" : "part.html"}
+        }
         """
-        let manifest = try PropertyListDecoder().decode(PartPackageManifest.self, from: Data(plist.utf8))
+        let manifest = try JSONDecoder().decode(PartPackageManifest.self, from: Data(json.utf8))
         let properties: [String: PartPackageValue] = [
             "backgroundMode": .string("hover"),
             "backgroundStyle": .string("color"),
@@ -1428,24 +1419,23 @@ struct PartPackageTests {
 
     @Test
     func backgroundControlGroupRequiresExactlyOnePlacementMacro() throws {
-        let plist = """
-        <?xml version="1.0" encoding="UTF-8"?>
-        <plist version="1.0"><dict>
-        <key>minimumAPIVersion</key><integer>1</integer>
-        <key>id</key><string>com.example.background-placement</string>
-        <key>title</key><string>Background Placement</string>
-        <key>version</key><string>1.0.0</string>
-        <key>controls</key><array><dict><key>type</key><string>background</string></dict></array>
-        <key>templates</key><dict><key>html</key><string>part.html</string></dict>
-        </dict></plist>
+        let json = """
+        {
+        "minimumAPIVersion" : 1,
+        "id" : "com.example.background-placement",
+        "title" : "Background Placement",
+        "version" : "1.0.0",
+        "controls" : [{"type" : "background"}],
+        "templates" : {"html" : "part.html"}
+        }
         """
-        let manifest = try PropertyListDecoder().decode(PartPackageManifest.self, from: Data(plist.utf8))
+        let manifest = try JSONDecoder().decode(PartPackageManifest.self, from: Data(json.utf8))
 
         for template in [
             #"<section class="sample {{ part.class }}" {{ part.attributes }}></section>"#,
             #"<section class="sample {{ part.class }}" {{ part.attributes }} {{ controlGroup.background }}><div {{ controlGroup.background }}></div></section>"#
         ] {
-            let packageURL = try makePackage(manifest: plist, template: template)
+            let packageURL = try makePackage(manifest: json, template: template)
             defer { try? FileManager.default.removeItem(at: packageURL) }
             let diagnostics = PartPackageValidator.validate(
                 manifest,
@@ -1464,19 +1454,18 @@ struct PartPackageTests {
             ("effects", ["effectsEnabled", "frameworkShadow", "opacity"]),
             ("layoutItem", ["itemEnabled", "flexGrow", "flexShrink", "alignSelf", "columnSpan", "rowSpan"])
         ] {
-            let plist = """
-            <?xml version="1.0" encoding="UTF-8"?>
-            <plist version="1.0"><dict>
-            <key>minimumAPIVersion</key><integer>1</integer>
-            <key>id</key><string>com.example.\(kind)-group</string>
-            <key>title</key><string>\(kind) Group</string>
-            <key>version</key><string>1.0.0</string>
-            <key>controls</key><array><dict><key>type</key><string>\(kind)</string></dict></array>
-            <key>templates</key><dict><key>html</key><string>part.html</string></dict>
-            </dict></plist>
+            let json = """
+            {
+            "minimumAPIVersion" : 1,
+            "id" : "com.example.\(kind)-group",
+            "title" : "\(kind) Group",
+            "version" : "1.0.0",
+            "controls" : [{"type" : "\(kind)"}],
+            "templates" : {"html" : "part.html"}
+            }
             """
-            let data = Data(plist.utf8)
-            let manifest = try PropertyListDecoder().decode(PartPackageManifest.self, from: data)
+            let data = Data(json.utf8)
+            let manifest = try JSONDecoder().decode(PartPackageManifest.self, from: data)
             #expect(manifest.resolvedProperties.map(\.id) == expectedIDs)
             #expect(manifest.controlGroupCSS.isEmpty)
             #expect(manifest.htmlContributions.isEmpty)
@@ -1499,24 +1488,23 @@ struct PartPackageTests {
 
     @Test
     func sharedControlGroupDefaultOverridesReplaceOnlyTheNamedProperty() throws {
-        let plist = """
-        <?xml version="1.0" encoding="UTF-8"?>
-        <plist version="1.0"><dict>
-        <key>minimumAPIVersion</key><integer>1</integer>
-        <key>id</key><string>com.example.spacing-override-group</string>
-        <key>title</key><string>Spacing Override Group</string>
-        <key>version</key><string>1.0.0</string>
-        <key>controls</key><array><dict>
-            <key>type</key><string>spacing</string>
-            <key>defaultOverrides</key><dict>
-                <key>frameworkPadding</key><dict><key>left</key><string>sm</string></dict>
-            </dict>
-        </dict></array>
-        <key>templates</key><dict><key>html</key><string>part.html</string></dict>
-        </dict></plist>
+        let json = """
+        {
+        "minimumAPIVersion" : 1,
+        "id" : "com.example.spacing-override-group",
+        "title" : "Spacing Override Group",
+        "version" : "1.0.0",
+        "controls" : [{
+            "type" : "spacing",
+            "defaultOverrides" : {
+                "frameworkPadding" : {"left" : "sm"}
+            }
+        }],
+        "templates" : {"html" : "part.html"}
+        }
         """
-        let data = Data(plist.utf8)
-        let manifest = try PropertyListDecoder().decode(PartPackageManifest.self, from: data)
+        let data = Data(json.utf8)
+        let manifest = try JSONDecoder().decode(PartPackageManifest.self, from: data)
         #expect(manifest.resolvedProperties.first { $0.id == "frameworkPadding" }?.defaultValue == .object(["left": .string("sm")]))
         #expect(manifest.resolvedProperties.first { $0.id == "frameworkMargin" }?.defaultValue == .string("none"))
         #expect(manifest.resolvedProperties.first { $0.id == "spacingEnabled" }?.defaultValue == .boolean(true))
@@ -1525,18 +1513,17 @@ struct PartPackageTests {
 
     @Test
     func unknownControlGroupTypeIsRejected() throws {
-        let plist = """
-        <?xml version="1.0" encoding="UTF-8"?>
-        <plist version="1.0"><dict>
-        <key>minimumAPIVersion</key><integer>1</integer>
-        <key>id</key><string>com.example.unknown-group</string>
-        <key>title</key><string>Unknown Group</string>
-        <key>version</key><string>1.0.0</string>
-        <key>controls</key><array><dict><key>id</key><string>gradientField</string><key>type</key><string>gradient</string></dict></array>
-        <key>templates</key><dict><key>html</key><string>part.html</string></dict>
-        </dict></plist>
+        let json = """
+        {
+        "minimumAPIVersion" : 1,
+        "id" : "com.example.unknown-group",
+        "title" : "Unknown Group",
+        "version" : "1.0.0",
+        "controls" : [{"id" : "gradientField", "type" : "gradient"}],
+        "templates" : {"html" : "part.html"}
+        }
         """
-        let diagnostics = try PartPackageManifestSchema.diagnostics(for: Data(plist.utf8))
+        let diagnostics = try PartPackageManifestSchema.diagnostics(for: Data(json.utf8))
         // "gradient" isn't a recognised Grouped-control kind, so it falls
         // through to standard property validation, which rejects it as an
         // unrecognised control type instead.
@@ -1545,53 +1532,51 @@ struct PartPackageTests {
 
     @Test
     func duplicateControlGroupTypeIsRejected() throws {
-        let plist = """
-        <?xml version="1.0" encoding="UTF-8"?>
-        <plist version="1.0"><dict>
-        <key>minimumAPIVersion</key><integer>1</integer>
-        <key>id</key><string>com.example.duplicate-group</string>
-        <key>title</key><string>Duplicate Group</string>
-        <key>version</key><string>1.0.0</string>
-        <key>controls</key><array>
-            <dict><key>type</key><string>spacing</string></dict>
-            <dict><key>type</key><string>spacing</string></dict>
-        </array>
-        <key>templates</key><dict><key>html</key><string>part.html</string></dict>
-        </dict></plist>
+        let json = """
+        {
+        "minimumAPIVersion" : 1,
+        "id" : "com.example.duplicate-group",
+        "title" : "Duplicate Group",
+        "version" : "1.0.0",
+        "controls" : [
+            {"type" : "spacing"},
+            {"type" : "spacing"}
+        ],
+        "templates" : {"html" : "part.html"}
+        }
         """
-        let diagnostics = try PartPackageManifestSchema.diagnostics(for: Data(plist.utf8))
+        let diagnostics = try PartPackageManifestSchema.diagnostics(for: Data(json.utf8))
         #expect(diagnostics.contains { $0.message.contains("declared more than once") })
     }
 
     @Test
     func groupedControlReferencesExpandInlineAtTheAuthorsDeclaredPosition() throws {
-        let plist = """
-        <?xml version="1.0" encoding="UTF-8"?>
-        <plist version="1.0"><dict>
-        <key>minimumAPIVersion</key><integer>1</integer>
-        <key>id</key><string>com.example.inline-ordering</string>
-        <key>title</key><string>Inline Ordering</string>
-        <key>version</key><string>1.0.0</string>
-        <key>controls</key><array>
-            <dict>
-                <key>id</key><string>before</string>
-                <key>label</key><string>Before</string>
-                <key>type</key><string>toggle</string>
-                <key>defaults</key><dict><key>base</key><true/></dict>
-            </dict>
-            <dict><key>type</key><string>borders</string></dict>
-            <dict>
-                <key>id</key><string>after</string>
-                <key>label</key><string>After</string>
-                <key>type</key><string>toggle</string>
-                <key>defaults</key><dict><key>base</key><false/></dict>
-            </dict>
-        </array>
-        <key>templates</key><dict><key>html</key><string>part.html</string></dict>
-        </dict></plist>
+        let json = """
+        {
+        "minimumAPIVersion" : 1,
+        "id" : "com.example.inline-ordering",
+        "title" : "Inline Ordering",
+        "version" : "1.0.0",
+        "controls" : [
+            {
+                "id" : "before",
+                "label" : "Before",
+                "type" : "toggle",
+                "defaults" : {"base" : true}
+            },
+            {"type" : "borders"},
+            {
+                "id" : "after",
+                "label" : "After",
+                "type" : "toggle",
+                "defaults" : {"base" : false}
+            }
+        ],
+        "templates" : {"html" : "part.html"}
+        }
         """
-        let data = Data(plist.utf8)
-        let manifest = try PropertyListDecoder().decode(PartPackageManifest.self, from: data)
+        let data = Data(json.utf8)
+        let manifest = try JSONDecoder().decode(PartPackageManifest.self, from: data)
 
         #expect(manifest.resolvedProperties.map(\.id) == [
             "before", "borderEnabled", "frameworkBorder", "frameworkBorderColour", "frameworkRadius", "after"
@@ -1601,45 +1586,44 @@ struct PartPackageTests {
 
     @Test
     func theOldSeparateControlGroupsKeyIsNoLongerRecognised() throws {
-        let plist = """
-        <?xml version="1.0" encoding="UTF-8"?>
-        <plist version="1.0"><dict>
-        <key>minimumAPIVersion</key><integer>1</integer>
-        <key>id</key><string>com.example.legacy-control-groups-key</string>
-        <key>title</key><string>Legacy Control Groups Key</string>
-        <key>version</key><string>1.0.0</string>
-        <key>controlGroups</key><array><dict><key>type</key><string>background</string></dict></array>
-        <key>templates</key><dict><key>html</key><string>part.html</string></dict>
-        </dict></plist>
+        let json = """
+        {
+        "minimumAPIVersion" : 1,
+        "id" : "com.example.legacy-control-groups-key",
+        "title" : "Legacy Control Groups Key",
+        "version" : "1.0.0",
+        "controlGroups" : [{"type" : "background"}],
+        "templates" : {"html" : "part.html"}
+        }
         """
-        let data = Data(plist.utf8)
+        let data = Data(json.utf8)
         let diagnostics = try PartPackageManifestSchema.diagnostics(for: data)
 
         #expect(diagnostics.contains { $0.message.contains("Unknown key 'controlGroups'") })
         // Grouped controls declared this way are also silently absent from
         // decode, since the separate key is no longer read at all.
-        let manifest = try PropertyListDecoder().decode(PartPackageManifest.self, from: data)
+        let manifest = try JSONDecoder().decode(PartPackageManifest.self, from: data)
         #expect(manifest.controlGroups.isEmpty)
     }
 
     @Test @MainActor
     func videoControlProvidesStructuredTemplateValues() throws {
         let control = """
-        <dict>
-            <key>id</key><string>film</string>
-            <key>label</key><string>Film</string>
-            <key>type</key><string>video</string>
-            <key>defaults</key><dict><key>base</key><string></string></dict>
-        </dict>
+        {
+            "id" : "film",
+            "label" : "Film",
+            "type" : "video",
+            "defaults" : {"base" : ""}
+        }
         """
         let data = Data(manifest(withControls: control).utf8)
-        let decodedManifest = try PropertyListDecoder().decode(PartPackageManifest.self, from: data)
+        let decodedManifest = try JSONDecoder().decode(PartPackageManifest.self, from: data)
         let property = try #require(decodedManifest.resolvedProperties.first)
         #expect(property.control.type == .video)
         #expect(!property.responsive)
         let responsiveControl = control.replacingOccurrences(
-            of: "<key>defaults</key><dict><key>base</key><string></string></dict>",
-            with: "<key>defaults</key><dict><key>base</key><string></string></dict><key>responsive</key><true/>"
+            of: "\"defaults\" : {\"base\" : \"\"}",
+            with: "\"defaults\" : {\"base\" : \"\"}, \"responsive\" : true"
         )
         let responsiveDiagnostics = try PartPackageManifestSchema.diagnostics(
             for: Data(manifest(withControls: responsiveControl).utf8)
@@ -1768,43 +1752,41 @@ struct PartPackageTests {
 
     @Test
     func controlGroupsUseCurrentPartAPI() throws {
-        let plist = """
-        <?xml version="1.0" encoding="UTF-8"?>
-        <plist version="1.0"><dict>
-        <key>minimumAPIVersion</key><integer>1</integer>
-        <key>id</key><string>com.example.background-group</string>
-        <key>title</key><string>Background Group</string>
-        <key>version</key><string>1.0.0</string>
-        <key>controls</key><array><dict><key>type</key><string>background</string></dict></array>
-        <key>templates</key><dict><key>html</key><string>part.html</string></dict>
-        </dict></plist>
+        let json = """
+        {
+        "minimumAPIVersion" : 1,
+        "id" : "com.example.background-group",
+        "title" : "Background Group",
+        "version" : "1.0.0",
+        "controls" : [{"type" : "background"}],
+        "templates" : {"html" : "part.html"}
+        }
         """
 
-        let diagnostics = try PartPackageManifestSchema.diagnostics(for: Data(plist.utf8))
+        let diagnostics = try PartPackageManifestSchema.diagnostics(for: Data(json.utf8))
         #expect(diagnostics.isEmpty)
     }
 
     @Test
     func controlArraysDecodePersistAndRenderIndexedValues() throws {
-        let plist = """
-        <?xml version="1.0" encoding="UTF-8"?>
-        <plist version="1.0"><dict>
-        <key>minimumAPIVersion</key><integer>1</integer>
-        <key>id</key><string>com.example.arrays</string>
-        <key>title</key><string>Arrays</string><key>description</key><string>Array controls</string>
-        <key>author</key><string>Foundry</string><key>version</key><string>1.0.0</string><key>group</key><string>Other</string>
-        <key>tags</key><array/><key>assets</key><array/>
-        <key>controls</key><array><dict>
-        <key>id</key><string>palette</string><key>label</key><string>Palette</string><key>group</key><string>Appearance</string>
-        <key>subtitle</key><array><string>First</string><string>Second</string><string>Third</string><string>Fourth</string></array>
-        <key>tooltip</key><string>Four colours</string>
-        <key>type</key><string>color</string><key>count</key><integer>4</integer>
-        <key>defaults</key><dict><key>base</key><array><string>#111111</string><string>#222222</string><string>#333333</string><string>#444444</string></array></dict>
-        <key>responsive</key><true/>        </dict></array>
-        <key>templates</key><dict><key>html</key><string>part.html</string></dict>
-        </dict></plist>
+        let json = """
+        {
+        "minimumAPIVersion" : 1,
+        "id" : "com.example.arrays",
+        "title" : "Arrays", "description" : "Array controls",
+        "author" : "Foundry", "version" : "1.0.0", "group" : "Other",
+        "tags" : [], "assets" : [],
+        "controls" : [{
+        "id" : "palette", "label" : "Palette", "group" : "Appearance",
+        "subtitle" : ["First", "Second", "Third", "Fourth"],
+        "tooltip" : "Four colours",
+        "type" : "color", "count" : 4,
+        "defaults" : {"base" : ["#111111", "#222222", "#333333", "#444444"]},
+        "responsive" : true        }],
+        "templates" : {"html" : "part.html"}
+        }
         """
-        let manifest = try PropertyListDecoder().decode(PartPackageManifest.self, from: Data(plist.utf8))
+        let manifest = try JSONDecoder().decode(PartPackageManifest.self, from: Data(json.utf8))
         let property = try #require(manifest.resolvedProperties.first)
         #expect(property.control.count == 4)
         #expect(property.label == "Palette")
@@ -1825,25 +1807,24 @@ struct PartPackageTests {
 
     @Test
     func selectRejectsFrameworkValuesAndFrameworkDefaults() throws {
-        let plist = """
-        <?xml version="1.0" encoding="UTF-8"?>
-        <plist version="1.0"><dict>
-        <key>minimumAPIVersion</key><integer>1</integer>
-        <key>id</key><string>com.example.framework-values</string>
-        <key>title</key><string>Framework Values</string><key>description</key><string>Named framework sources</string>
-        <key>author</key><string>Foundry</string><key>version</key><string>1.0.0</string><key>group</key><string>Other</string>
-        <key>tags</key><array/><key>assets</key><array/>
-        <key>controls</key><array><dict>
-        <key>id</key><string>tone</string><key>label</key><string>Tone</string><key>group</key><string>Appearance</string>
-        <key>type</key><string>select</string><key>frameworkValues</key><string>spacing</string>
-        <key>allowsCustom</key><true/>
-        <key>options</key><array><dict><key>value</key><string>inherit</string><key>title</key><string>Inherit</string></dict></array>
-        <key>defaults</key><dict><key>base</key><string>md</string></dict><key>responsive</key><false/>
-        </dict></array>
-        <key>templates</key><dict><key>html</key><string>part.html</string></dict>
-        </dict></plist>
+        let json = """
+        {
+        "minimumAPIVersion" : 1,
+        "id" : "com.example.framework-values",
+        "title" : "Framework Values", "description" : "Named framework sources",
+        "author" : "Foundry", "version" : "1.0.0", "group" : "Other",
+        "tags" : [], "assets" : [],
+        "controls" : [{
+        "id" : "tone", "label" : "Tone", "group" : "Appearance",
+        "type" : "select", "frameworkValues" : "spacing",
+        "allowsCustom" : true,
+        "options" : [{"value" : "inherit", "title" : "Inherit"}],
+        "defaults" : {"base" : "md"}, "responsive" : false
+        }],
+        "templates" : {"html" : "part.html"}
+        }
         """
-        let manifest = try PropertyListDecoder().decode(PartPackageManifest.self, from: Data(plist.utf8))
+        let manifest = try JSONDecoder().decode(PartPackageManifest.self, from: Data(json.utf8))
         let property = try #require(manifest.resolvedProperties.first)
 
         #expect(property.control.frameworkValues == .source(.spacing))
@@ -1867,14 +1848,14 @@ struct PartPackageTests {
         #expect(sizeChoices.last?.value == "display")
         #expect(sizeChoices.last?.separatorBefore == true)
 
-        let countedFrameworkSelect = plist
+        let countedFrameworkSelect = json
             .replacingOccurrences(
-                of: "<key>frameworkValues</key><string>spacing</string>",
-                with: "<key>frameworkValues</key><string>fontSizes</string>"
+                of: "\"frameworkValues\" : \"spacing\"",
+                with: "\"frameworkValues\" : \"fontSizes\""
             )
             .replacingOccurrences(
-                of: "<key>defaults</key><dict><key>base</key><string>md</string></dict><key>responsive</key><false/>",
-                with: "<key>defaults</key><dict><key>base</key><string>base</string></dict><key>responsive</key><false/><key>count</key><integer>2</integer>"
+                of: "\"defaults\" : {\"base\" : \"md\"}, \"responsive\" : false",
+                with: "\"defaults\" : {\"base\" : \"base\"}, \"responsive\" : false, \"count\" : 2"
             )
         let schemaDiagnostics = try PartPackageManifestSchema.diagnostics(
             for: Data(countedFrameworkSelect.utf8)
@@ -1886,8 +1867,8 @@ struct PartPackageTests {
 
         let countedFrameworkColor = countedFrameworkSelect
             .replacingOccurrences(
-                of: "<key>type</key><string>select</string>",
-                with: "<key>type</key><string>frameworkColor</string>"
+                of: "\"type\" : \"select\"",
+                with: "\"type\" : \"frameworkColor\""
             )
         let colorSchemaDiagnostics = try PartPackageManifestSchema.diagnostics(
             for: Data(countedFrameworkColor.utf8)
@@ -1898,9 +1879,9 @@ struct PartPackageTests {
         })
 
         let booleanFrameworkValues = Data(
-            plist.replacingOccurrences(
-                of: "<key>frameworkValues</key><string>spacing</string>",
-                with: "<key>frameworkValues</key><true/>"
+            json.replacingOccurrences(
+                of: "\"frameworkValues\" : \"spacing\"",
+                with: "\"frameworkValues\" : true"
             ).utf8
         )
         #expect(try PartPackageManifestSchema.diagnostics(for: booleanFrameworkValues).contains {
@@ -1908,9 +1889,9 @@ struct PartPackageTests {
         })
 
         do {
-            _ = try PropertyListDecoder().decode(
+            _ = try JSONDecoder().decode(
                 PartPackageControl.self,
-                from: Data("<plist version=\"1.0\"><dict><key>type</key><string>color</string><key>frameworkValues</key><true/></dict></plist>".utf8)
+                from: Data("{\"type\" : \"color\", \"frameworkValues\" : true}".utf8)
             )
             Issue.record("Boolean frameworkValues should be rejected")
         } catch {
@@ -1921,18 +1902,18 @@ struct PartPackageTests {
     @Test
     func fontFamilyFrameworkSelectRejectsCustomValues() throws {
         let item = """
-        <dict>
-            <key>id</key><string>typeface</string>
-            <key>label</key><string>Typeface</string>
-            <key>group</key><string>Typography</string>
-            <key>type</key><string>select</string>
-            <key>frameworkValues</key><string>fontFamilies</string>
-            <key>allowsCustom</key><true/>
-            <key>defaults</key><dict><key>base</key><string>body</string></dict>
-            <key>responsive</key><true/>
-        </dict>
+        {
+            "id" : "typeface",
+            "label" : "Typeface",
+            "group" : "Typography",
+            "type" : "select",
+            "frameworkValues" : "fontFamilies",
+            "allowsCustom" : true,
+            "defaults" : {"base" : "body"},
+            "responsive" : true
+        }
         """
-        let manifest = try PropertyListDecoder().decode(
+        let manifest = try JSONDecoder().decode(
             PartPackageManifest.self,
             from: Data(manifest(withControls: item).utf8)
         )
@@ -1949,17 +1930,17 @@ struct PartPackageTests {
     @Test
     func shadowIsAStandaloneFrameworkAwareControl() throws {
         let item = """
-        <dict>
-            <key>id</key><string>cardShadow</string>
-            <key>label</key><string>Shadow</string>
-            <key>group</key><string>Appearance</string>
-            <key>type</key><string>frameworkShadow</string>
-            <key>allowsCustom</key><true/>
-            <key>defaults</key><dict><key>base</key><string>md</string></dict>
-            <key>responsive</key><false/>
-        </dict>
+        {
+            "id" : "cardShadow",
+            "label" : "Shadow",
+            "group" : "Appearance",
+            "type" : "frameworkShadow",
+            "allowsCustom" : true,
+            "defaults" : {"base" : "md"},
+            "responsive" : false
+        }
         """
-        let decodedManifest = try PropertyListDecoder().decode(
+        let decodedManifest = try JSONDecoder().decode(
             PartPackageManifest.self,
             from: Data(manifest(withControls: item).utf8)
         )
@@ -1978,8 +1959,8 @@ struct PartPackageTests {
 
         let legacyItem = item
             .replacingOccurrences(
-                of: "<key>type</key><string>frameworkShadow</string>",
-                with: "<key>type</key><string>select</string><key>frameworkValues</key><string>shadows</string>"
+                of: "\"type\" : \"frameworkShadow\"",
+                with: "\"type\" : \"select\", \"frameworkValues\" : \"shadows\""
             )
         let legacyDiagnostics = try PartPackageManifestSchema.diagnostics(
             for: Data(manifest(withControls: legacyItem).utf8)
@@ -1991,8 +1972,8 @@ struct PartPackageTests {
 
         // The pre-rename spelling is gone for good: bare `shadow` is an unknown type.
         let renamedItem = item.replacingOccurrences(
-            of: "<key>type</key><string>frameworkShadow</string>",
-            with: "<key>type</key><string>shadow</string>"
+            of: "\"type\" : \"frameworkShadow\"",
+            with: "\"type\" : \"shadow\""
         )
         let renamedDiagnostics = try PartPackageManifestSchema.diagnostics(
             for: Data(manifest(withControls: renamedItem).utf8)
@@ -2003,51 +1984,51 @@ struct PartPackageTests {
     @Test
     func malformedControlFieldsProduceActionableSchemaDiagnostics() throws {
         let validItem = """
-        <dict>
-            <key>id</key><string>example</string>
-            <key>label</key><string>Example</string>
-            <key>type</key><string>text</string>
-            <key>defaults</key><dict><key>base</key><string>Hello</string></dict>
-            <key>responsive</key><false/>
-        </dict>
+        {
+            "id" : "example",
+            "label" : "Example",
+            "type" : "text",
+            "defaults" : {"base" : "Hello"},
+            "responsive" : false
+        }
         """
         let cases: [(replacement: String, locationSuffix: String, message: String)] = [
             (
                 validItem
-                    .replacingOccurrences(of: "<string>text</string>", with: "<string>frameworkColor</string>")
-                    .replacingOccurrences(of: "<key>label</key>", with: "<key>colorMath</key><true/><key>label</key>"),
+                    .replacingOccurrences(of: "\"text\"", with: "\"frameworkColor\"")
+                    .replacingOccurrences(of: "\"label\"", with: "\"colorMath\" : true, \"label\""),
                 ":colorMath", "Unknown key 'colorMath'. Check the spelling or remove it."
             ),
             (
-                validItem.replacingOccurrences(of: "<key>type</key><string>text</string>", with: "<key>type</key><integer>1</integer>"),
+                validItem.replacingOccurrences(of: "\"type\" : \"text\"", with: "\"type\" : 1"),
                 ":type", "type must be a string."
             ),
             (
-                validItem.replacingOccurrences(of: "<string>text</string>", with: "<string>fontFamily</string>"),
+                validItem.replacingOccurrences(of: "\"text\"", with: "\"fontFamily\""),
                 ":type", "Unknown control type 'fontFamily'."
             ),
             (
-                validItem.replacingOccurrences(of: "<key>label</key><string>Example</string>", with: "<key>label</key><array><string>Example</string></array>"),
+                validItem.replacingOccurrences(of: "\"label\" : \"Example\"", with: "\"label\" : [\"Example\"]"),
                 ":label", "label must be a string."
             ),
             (
-                validItem.replacingOccurrences(of: "<key>label</key>", with: "<key>labels</key>"),
+                validItem.replacingOccurrences(of: "\"label\"", with: "\"labels\""),
                 ":labels", "Unknown key 'labels'. Check the spelling or remove it."
             ),
             (
-                validItem.replacingOccurrences(of: "<key>responsive</key><false/>", with: "<key>responsive</key><string>false</string>"),
+                validItem.replacingOccurrences(of: "\"responsive\" : false", with: "\"responsive\" : \"false\""),
                 ":responsive", "responsive must be a Boolean."
             ),
             (
-                validItem.replacingOccurrences(of: "<key>defaults</key><dict><key>base</key><string>Hello</string></dict>", with: "<key>defaults</key><dict><key>base</key><dict/></dict>"),
+                validItem.replacingOccurrences(of: "\"defaults\" : {\"base\" : \"Hello\"}", with: "\"defaults\" : {\"base\" : {}}"),
                 ":defaults.base", "defaults.base must be a string, number, Boolean, or array of those values."
             ),
             (
-                validItem.replacingOccurrences(of: "<key>responsive</key><false/>", with: "<key>responsive</key><false/><key>minimum</key><string>zero</string>"),
+                validItem.replacingOccurrences(of: "\"responsive\" : false", with: "\"responsive\" : false, \"minimum\" : \"zero\""),
                 ":minimum", "minimum must be a number."
             ),
             (
-                validItem.replacingOccurrences(of: "<key>responsive</key><false/>", with: "<key>responsive</key><false/><key>count</key><string>two</string>"),
+                validItem.replacingOccurrences(of: "\"responsive\" : false", with: "\"responsive\" : false, \"count\" : \"two\""),
                 ":count", "count must be an integer."
             )
         ]
@@ -2062,8 +2043,8 @@ struct PartPackageTests {
         }
 
         let malformedOptions = validItem.replacingOccurrences(
-            of: "<key>responsive</key><false/>",
-            with: "<key>responsive</key><false/><key>options</key><array><string>bad</string></array>"
+            of: "\"responsive\" : false",
+            with: "\"responsive\" : false, \"options\" : [\"bad\"]"
         )
         #expect(try PartPackageManifestSchema.diagnostics(
             for: Data(manifest(withControls: malformedOptions).utf8)
@@ -2072,34 +2053,33 @@ struct PartPackageTests {
         })
 
         let withoutResponsive = validItem.replacingOccurrences(
-            of: "<key>responsive</key><false/>",
+            of: ",\n    \"responsive\" : false",
             with: ""
         )
         let withoutResponsiveData = Data(manifest(withControls: withoutResponsive).utf8)
         #expect(try PartPackageManifestSchema.diagnostics(for: withoutResponsiveData).isEmpty)
-        let decoded = try PropertyListDecoder().decode(PartPackageManifest.self, from: withoutResponsiveData)
+        let decoded = try JSONDecoder().decode(PartPackageManifest.self, from: withoutResponsiveData)
         #expect(decoded.resolvedProperties.first?.responsive == false)
     }
 
     @Test
     func visibilityConditionsDecodeAndEvaluateScalarAndIndexedValues() throws {
-        let plist = """
-        <?xml version="1.0" encoding="UTF-8"?>
-        <plist version="1.0"><dict>
-        <key>minimumAPIVersion</key><integer>1</integer>
-        <key>id</key><string>com.example.visibleWhen</string>
-        <key>title</key><string>Visibility</string><key>description</key><string>Conditional controls</string>
-        <key>version</key><string>1.0.0</string><key>group</key><string>Other</string>
-        <key>assets</key><array/>
-        <key>controls</key><array>
-        <dict><key>id</key><string>mode</string><key>label</key><string>Mode</string><key>type</key><string>select</string><key>options</key><array><dict><key>value</key><string>featured</string><key>title</key><string>Featured</string></dict></array><key>defaults</key><dict><key>base</key><string>featured</string></dict><key>responsive</key><false/></dict>
-        <dict><key>id</key><string>titles</string><key>label</key><string>Titles</string><key>type</key><string>text</string><key>count</key><integer>3</integer><key>defaults</key><dict><key>base</key><array><string>One</string><string>Two</string><string>Featured story</string></array></dict><key>responsive</key><false/></dict>
-        <dict><key>id</key><string>detail</string><key>label</key><string>Detail</string><key>type</key><string>text</string><key>defaults</key><dict><key>base</key><string>Visible</string></dict><key>responsive</key><false/><key>visibleWhen</key><dict><key>id</key><string>titles[2]</string><key>operation</key><string>containsInsensitive</string><key>value</key><string>featured</string></dict><key>valueAvailability</key><string>whenVisible</string></dict>
-        <dict><key>id</key><string>compoundDetail</string><key>label</key><string>Compound detail</string><key>type</key><string>text</string><key>defaults</key><dict><key>base</key><string>Visible</string></dict><key>responsive</key><false/><key>visibleWhen</key><dict><key>all</key><array><dict><key>id</key><string>mode</string><key>value</key><string>featured</string></dict><dict><key>any</key><array><dict><key>id</key><string>titles[0]</string><key>value</key><string>One</string></dict><dict><key>id</key><string>titles[1]</string><key>value</key><string>Other</string></dict></array></dict></array></dict></dict>
-        </array><key>templates</key><dict><key>html</key><string>part.html</string></dict>
-        </dict></plist>
+        let json = """
+        {
+        "minimumAPIVersion" : 1,
+        "id" : "com.example.visibleWhen",
+        "title" : "Visibility", "description" : "Conditional controls",
+        "version" : "1.0.0", "group" : "Other",
+        "assets" : [],
+        "controls" : [
+        {"id" : "mode", "label" : "Mode", "type" : "select", "options" : [{"value" : "featured", "title" : "Featured"}], "defaults" : {"base" : "featured"}, "responsive" : false},
+        {"id" : "titles", "label" : "Titles", "type" : "text", "count" : 3, "defaults" : {"base" : ["One", "Two", "Featured story"]}, "responsive" : false},
+        {"id" : "detail", "label" : "Detail", "type" : "text", "defaults" : {"base" : "Visible"}, "responsive" : false, "visibleWhen" : {"id" : "titles[2]", "operation" : "containsInsensitive", "value" : "featured"}, "valueAvailability" : "whenVisible"},
+        {"id" : "compoundDetail", "label" : "Compound detail", "type" : "text", "defaults" : {"base" : "Visible"}, "responsive" : false, "visibleWhen" : {"all" : [{"id" : "mode", "value" : "featured"}, {"any" : [{"id" : "titles[0]", "value" : "One"}, {"id" : "titles[1]", "value" : "Other"}]}]}}
+        ], "templates" : {"html" : "part.html"}
+        }
         """
-        let manifest = try PropertyListDecoder().decode(PartPackageManifest.self, from: Data(plist.utf8))
+        let manifest = try JSONDecoder().decode(PartPackageManifest.self, from: Data(json.utf8))
         let enabledProperty = try #require(manifest.resolvedProperties.first { $0.id == "detail" })
         #expect(enabledProperty.visibleWhen?.id == "titles[2]")
         #expect(enabledProperty.visibleWhen?.operation == "containsInsensitive")
@@ -2121,29 +2101,28 @@ struct PartPackageTests {
         let compound = try #require(manifest.resolvedProperties.first { $0.id == "compoundDetail" }?.visibleWhen)
         #expect(compound.all?.count == 2)
         #expect(compound.all?.last?.any?.count == 2)
-        #expect(try PartPackageManifestSchema.diagnostics(for: Data(plist.utf8)).isEmpty)
+        #expect(try PartPackageManifestSchema.diagnostics(for: Data(json.utf8)).isEmpty)
     }
 
     @Test @MainActor
     func templateValuesCanBeAvailableOnlyWhileTheirControlsAreVisible() throws {
-        let plist = """
-        <?xml version="1.0" encoding="UTF-8"?>
-        <plist version="1.0"><dict>
-        <key>minimumAPIVersion</key><integer>1</integer>
-        <key>id</key><string>com.example.value-availability</string>
-        <key>title</key><string>Value availability</string>
-        <key>version</key><string>1.0.0</string>
-        <key>controls</key><array>
-        <dict><key>id</key><string>mode</string><key>label</key><string>Mode</string><key>type</key><string>select</string><key>options</key><array><dict><key>value</key><string>preset</string><key>title</key><string>Preset</string></dict><dict><key>value</key><string>custom</string><key>title</key><string>Custom</string></dict></array><key>defaults</key><dict><key>base</key><string>preset</string></dict><key>responsive</key><false/></dict>
-        <dict><key>id</key><string>presetSize</string><key>label</key><string>Preset size</string><key>type</key><string>text</string><key>defaults</key><dict><key>base</key><string>1rem</string></dict><key>responsive</key><false/><key>visibleWhen</key><dict><key>id</key><string>mode</string><key>value</key><string>preset</string></dict><key>valueAvailability</key><string>whenVisible</string></dict>
-        <dict><key>id</key><string>customSize</string><key>label</key><string>Custom size</string><key>type</key><string>text</string><key>defaults</key><dict><key>base</key><string>24px</string></dict><key>responsive</key><false/><key>visibleWhen</key><dict><key>id</key><string>mode</string><key>value</key><string>custom</string></dict><key>valueAvailability</key><string>whenVisible</string></dict>
-        </array>
-        <key>templates</key><dict><key>html</key><string>part.html</string></dict>
-        </dict></plist>
+        let json = """
+        {
+        "minimumAPIVersion" : 1,
+        "id" : "com.example.value-availability",
+        "title" : "Value availability",
+        "version" : "1.0.0",
+        "controls" : [
+        {"id" : "mode", "label" : "Mode", "type" : "select", "options" : [{"value" : "preset", "title" : "Preset"}, {"value" : "custom", "title" : "Custom"}], "defaults" : {"base" : "preset"}, "responsive" : false},
+        {"id" : "presetSize", "label" : "Preset size", "type" : "text", "defaults" : {"base" : "1rem"}, "responsive" : false, "visibleWhen" : {"id" : "mode", "value" : "preset"}, "valueAvailability" : "whenVisible"},
+        {"id" : "customSize", "label" : "Custom size", "type" : "text", "defaults" : {"base" : "24px"}, "responsive" : false, "visibleWhen" : {"id" : "mode", "value" : "custom"}, "valueAvailability" : "whenVisible"}
+        ],
+        "templates" : {"html" : "part.html"}
+        }
         """
-        let data = Data(plist.utf8)
+        let data = Data(json.utf8)
         #expect(try PartPackageManifestSchema.diagnostics(for: data).isEmpty)
-        let manifest = try PropertyListDecoder().decode(PartPackageManifest.self, from: data)
+        let manifest = try JSONDecoder().decode(PartPackageManifest.self, from: data)
         let package = LoadedPartPackage(
             manifest: manifest,
             rootURL: FileManager.default.temporaryDirectory,
@@ -2190,7 +2169,7 @@ struct PartPackageTests {
     @Test
     func whenVisibleValueAvailabilityRequiresAVisibilityCondition() throws {
         let control = """
-        <dict><key>id</key><string>detail</string><key>label</key><string>Detail</string><key>type</key><string>text</string><key>defaults</key><dict><key>base</key><string>Value</string></dict><key>responsive</key><false/><key>valueAvailability</key><string>whenVisible</string></dict>
+        {"id" : "detail", "label" : "Detail", "type" : "text", "defaults" : {"base" : "Value"}, "responsive" : false, "valueAvailability" : "whenVisible"}
         """
         let diagnostics = try PartPackageManifestSchema.diagnostics(
             for: Data(manifest(withControls: control).utf8)
@@ -2203,22 +2182,21 @@ struct PartPackageTests {
 
     @Test
     func virtualControlsAndButtonOutputsResolveFromManifestValues() throws {
-        let plist = """
-        <?xml version="1.0" encoding="UTF-8"?>
-        <plist version="1.0"><dict>
-        <key>minimumAPIVersion</key><integer>1</integer>
-        <key>id</key><string>com.example.derived</string>
-        <key>title</key><string>Derived</string><key>description</key><string>Derived controls</string>
-        <key>version</key><string>1.0.0</string>
-        <key>group</key><string>Other</string><key>assets</key><array/>
-        <key>controls</key><array>
-        <dict><key>id</key><string>amount</string><key>label</key><string>Amount</string><key>group</key><string>Test</string><key>type</key><string>number</string><key>defaults</key><dict><key>base</key><real>21</real></dict><key>responsive</key><false/></dict>
-        <dict><key>id</key><string>action</string><key>label</key><string>Action</string><key>group</key><string>Test</string><key>type</key><string>button</string><key>trueValue</key><string>active</string><key>falseValue</key><string>ready</string><key>defaults</key><dict><key>base</key><false/></dict><key>responsive</key><false/></dict>
-        <dict><key>id</key><string>doubled</string><key>group</key><string>Test</string><key>type</key><string>math</string><key>argument1</key><string>amount</string><key>argument2</key><real>2</real><key>operation</key><string>*</string><key>round</key><false/></dict>
-        </array><key>templates</key><dict><key>html</key><string>part.html</string></dict>
-        </dict></plist>
+        let json = """
+        {
+        "minimumAPIVersion" : 1,
+        "id" : "com.example.derived",
+        "title" : "Derived", "description" : "Derived controls",
+        "version" : "1.0.0",
+        "group" : "Other", "assets" : [],
+        "controls" : [
+        {"id" : "amount", "label" : "Amount", "group" : "Test", "type" : "number", "defaults" : {"base" : 21}, "responsive" : false},
+        {"id" : "action", "label" : "Action", "group" : "Test", "type" : "button", "trueValue" : "active", "falseValue" : "ready", "defaults" : {"base" : false}, "responsive" : false},
+        {"id" : "doubled", "group" : "Test", "type" : "math", "argument1" : "amount", "argument2" : 2, "operation" : "*", "round" : false}
+        ], "templates" : {"html" : "part.html"}
+        }
         """
-        let manifest = try PropertyListDecoder().decode(PartPackageManifest.self, from: Data(plist.utf8))
+        let manifest = try JSONDecoder().decode(PartPackageManifest.self, from: Data(json.utf8))
         let resolved = PartPackageDerivedValueResolver.resolve(
             ["amount": .number(21), "action": .boolean(true)],
             properties: manifest.resolvedProperties
@@ -2229,28 +2207,27 @@ struct PartPackageTests {
 
     @Test
     func buttonContractSupportsOptionalLabelsSubtitlesAndValidatedMappings() throws {
-        let plist = """
-        <?xml version="1.0" encoding="UTF-8"?>
-        <plist version="1.0"><dict>
-        <key>minimumAPIVersion</key><integer>1</integer>
-        <key>id</key><string>com.example.buttons</string>
-        <key>title</key><string>Buttons</string><key>description</key><string>Button contract</string>
-        <key>version</key><string>1.0.0</string>
-        <key>group</key><string>Other</string><key>assets</key><array/>
-        <key>controls</key><array>
-        <dict><key>id</key><string>plain</string><key>subtitle</key><string>Optional help</string><key>type</key><string>button</string><key>defaults</key><dict><key>base</key><false/></dict></dict>
-        <dict><key>id</key><string>mapped</string><key>type</key><string>button</string><key>buttonText</key><string>Apply</string><key>buttonIcon</key><string>bolt.fill</string><key>trueValue</key><string>active</string><key>falseValue</key><string>idle</string><key>defaults</key><dict><key>base</key><true/></dict></dict>
-        <dict><key>id</key><string>multiple</string><key>type</key><string>button</string><key>count</key><integer>2</integer><key>subtitle</key><array><string>First</string><string>Second</string></array><key>buttonText</key><array><string>Previous</string><string>Next</string></array><key>buttonIcon</key><array><string>arrow.left</string><string>arrow.right</string></array><key>activeButtonText</key><array><string>Selected previous</string><string>Selected next</string></array><key>activeButtonIcon</key><array><string>checkmark</string><string>checkmark</string></array><key>trueValue</key><array><string>one</string><string>two</string></array><key>falseValue</key><string>off</string><key>defaults</key><dict><key>base</key><array><true/><false/></array></dict></dict>
-        <dict><key>id</key><string>singleChoice</string><key>type</key><string>button</string><key>count</key><integer>2</integer><key>selectionMode</key><string>single</string><key>trueValue</key><array><string>first</string><string>second</string></array><key>defaults</key><dict><key>base</key><array><false/><true/></array></dict></dict>
-        <dict><key>id</key><string>wrongDefault</string><key>type</key><string>button</string><key>defaults</key><dict><key>base</key><string>no</string></dict></dict>
-        <dict><key>id</key><string>wrongMapping</string><key>type</key><string>button</string><key>count</key><integer>2</integer><key>selectionMode</key><string>single</string><key>trueValue</key><array><string>only-one</string></array><key>defaults</key><dict><key>base</key><array><true/><true/></array></dict></dict>
-        </array><key>templates</key><dict><key>html</key><string>part.html</string></dict>
-        </dict></plist>
+        let json = """
+        {
+        "minimumAPIVersion" : 1,
+        "id" : "com.example.buttons",
+        "title" : "Buttons", "description" : "Button contract",
+        "version" : "1.0.0",
+        "group" : "Other", "assets" : [],
+        "controls" : [
+        {"id" : "plain", "subtitle" : "Optional help", "type" : "button", "defaults" : {"base" : false}},
+        {"id" : "mapped", "type" : "button", "buttonText" : "Apply", "buttonIcon" : "bolt.fill", "trueValue" : "active", "falseValue" : "idle", "defaults" : {"base" : true}},
+        {"id" : "multiple", "type" : "button", "count" : 2, "subtitle" : ["First", "Second"], "buttonText" : ["Previous", "Next"], "buttonIcon" : ["arrow.left", "arrow.right"], "activeButtonText" : ["Selected previous", "Selected next"], "activeButtonIcon" : ["checkmark", "checkmark"], "trueValue" : ["one", "two"], "falseValue" : "off", "defaults" : {"base" : [true, false]}},
+        {"id" : "singleChoice", "type" : "button", "count" : 2, "selectionMode" : "single", "trueValue" : ["first", "second"], "defaults" : {"base" : [false, true]}},
+        {"id" : "wrongDefault", "type" : "button", "defaults" : {"base" : "no"}},
+        {"id" : "wrongMapping", "type" : "button", "count" : 2, "selectionMode" : "single", "trueValue" : ["only-one"], "defaults" : {"base" : [true, true]}}
+        ], "templates" : {"html" : "part.html"}
+        }
         """
-        let data = Data(plist.utf8)
+        let data = Data(json.utf8)
         #expect(try PartPackageManifestSchema.diagnostics(for: data).isEmpty)
 
-        let manifest = try PropertyListDecoder().decode(PartPackageManifest.self, from: data)
+        let manifest = try JSONDecoder().decode(PartPackageManifest.self, from: data)
         #expect(manifest.resolvedProperties[0].label.isEmpty)
         #expect(manifest.resolvedProperties[0].subtitles == ["Optional help"])
         #expect(manifest.resolvedProperties[1].buttonTexts == ["Apply"])
@@ -2292,29 +2269,28 @@ struct PartPackageTests {
         ]
         let declarations = formats.map { format in
             """
-            <dict><key>id</key><string>\(format)</string><key>type</key><string>color</string><key>opacity</key><true/><key>outputFormat</key><string>\(format)</string><key>defaults</key><dict><key>base</key><string>#FF336680</string></dict></dict>
+            {"id" : "\(format)", "type" : "color", "opacity" : true, "outputFormat" : "\(format)", "defaults" : {"base" : "#FF336680"}}
             """
-        }.joined()
-        let plist = """
-        <?xml version="1.0" encoding="UTF-8"?>
-        <plist version="1.0"><dict>
-        <key>minimumAPIVersion</key><integer>1</integer>
-        <key>id</key><string>com.example.color-formats</string>
-        <key>title</key><string>Colour formats</string><key>description</key><string>Colour output contract</string>
-        <key>version</key><string>1.0.0</string>
-        <key>group</key><string>Other</string><key>assets</key><array/>
-        <key>controls</key><array>
-        \(declarations)
-        <dict><key>id</key><string>defaultHex</string><key>type</key><string>color</string><key>defaults</key><dict><key>base</key><string>#FF3366</string></dict></dict>
-        <dict><key>id</key><string>opaqueRGBA</string><key>type</key><string>color</string><key>outputFormat</key><string>rgba</string><key>defaults</key><dict><key>base</key><string>#FF3366</string></dict></dict>
-        <dict><key>id</key><string>array</string><key>type</key><string>color</string><key>count</key><integer>2</integer><key>outputFormat</key><string>rgbValues</string><key>defaults</key><dict><key>base</key><array><string>#FF3366</string><string>#3366CC</string></array></dict></dict>
-        </array><key>templates</key><dict><key>html</key><string>part.html</string></dict>
-        </dict></plist>
+        }.joined(separator: ",\n")
+        let json = """
+        {
+        "minimumAPIVersion" : 1,
+        "id" : "com.example.color-formats",
+        "title" : "Colour formats", "description" : "Colour output contract",
+        "version" : "1.0.0",
+        "group" : "Other", "assets" : [],
+        "controls" : [
+        \(declarations),
+        {"id" : "defaultHex", "type" : "color", "defaults" : {"base" : "#FF3366"}},
+        {"id" : "opaqueRGBA", "type" : "color", "outputFormat" : "rgba", "defaults" : {"base" : "#FF3366"}},
+        {"id" : "array", "type" : "color", "count" : 2, "outputFormat" : "rgbValues", "defaults" : {"base" : ["#FF3366", "#3366CC"]}}
+        ], "templates" : {"html" : "part.html"}
+        }
         """
-        let data = Data(plist.utf8)
+        let data = Data(json.utf8)
         #expect(try PartPackageManifestSchema.diagnostics(for: data).isEmpty)
 
-        let manifest = try PropertyListDecoder().decode(PartPackageManifest.self, from: data)
+        let manifest = try JSONDecoder().decode(PartPackageManifest.self, from: data)
         let values = Dictionary(uniqueKeysWithValues: manifest.resolvedProperties.map {
             ($0.id, $0.defaultValue)
         })
@@ -2382,24 +2358,23 @@ struct PartPackageTests {
 
     @Test
     func dateControlsUseDateOnlyValuesPartsAndFormatting() throws {
-        let plist = """
-        <?xml version="1.0" encoding="UTF-8"?>
-        <plist version="1.0"><dict>
-        <key>minimumAPIVersion</key><integer>1</integer>
-        <key>id</key><string>com.example.dates</string>
-        <key>title</key><string>Dates</string><key>description</key><string>Date contract</string>
-        <key>version</key><string>1.0.0</string>
-        <key>group</key><string>Other</string><key>assets</key><array/>
-        <key>controls</key><array>
-        <dict><key>id</key><string>published</string><key>type</key><string>date</string><key>minimum</key><string>2026-01-01</string><key>maximum</key><string>2026-12-31</string><key>defaults</key><dict><key>base</key><string>2026-09-08</string></dict></dict>
-        <dict><key>id</key><string>schedule</string><key>type</key><string>date</string><key>count</key><integer>2</integer><key>defaults</key><dict><key>base</key><array><string>2026-10-01</string><string>2026-10-20</string></array></dict></dict>
-        </array><key>templates</key><dict><key>html</key><string>part.html</string></dict>
-        </dict></plist>
+        let json = """
+        {
+        "minimumAPIVersion" : 1,
+        "id" : "com.example.dates",
+        "title" : "Dates", "description" : "Date contract",
+        "version" : "1.0.0",
+        "group" : "Other", "assets" : [],
+        "controls" : [
+        {"id" : "published", "type" : "date", "minimum" : "2026-01-01", "maximum" : "2026-12-31", "defaults" : {"base" : "2026-09-08"}},
+        {"id" : "schedule", "type" : "date", "count" : 2, "defaults" : {"base" : ["2026-10-01", "2026-10-20"]}}
+        ], "templates" : {"html" : "part.html"}
+        }
         """
-        let data = Data(plist.utf8)
+        let data = Data(json.utf8)
         #expect(try PartPackageManifestSchema.diagnostics(for: data).isEmpty)
 
-        let manifest = try PropertyListDecoder().decode(PartPackageManifest.self, from: data)
+        let manifest = try JSONDecoder().decode(PartPackageManifest.self, from: data)
         #expect(manifest.resolvedProperties.first?.control.minimumDate == "2026-01-01")
         #expect(manifest.resolvedProperties.first?.control.maximumDate == "2026-12-31")
         let values = Dictionary(uniqueKeysWithValues: manifest.resolvedProperties.map { ($0.id, $0.defaultValue) })
@@ -2447,13 +2422,13 @@ struct PartPackageTests {
             context: context
         ) == "8 October 2026")
 
-        let invalid = plist.replacingOccurrences(of: "2026-09-08", with: "2026-02-30")
-        let invalidManifest = try PropertyListDecoder().decode(PartPackageManifest.self, from: Data(invalid.utf8))
+        let invalid = json.replacingOccurrences(of: "2026-09-08", with: "2026-02-30")
+        let invalidManifest = try JSONDecoder().decode(PartPackageManifest.self, from: Data(invalid.utf8))
         let diagnostics = PartPackageValidator.validate(invalidManifest, rootURL: FileManager.default.temporaryDirectory)
         #expect(diagnostics.contains { $0.message == "A date control requires a real calendar date using YYYY-MM-DD." })
 
-        let outOfRange = plist.replacingOccurrences(of: "2026-09-08", with: "2027-01-01")
-        let outOfRangeManifest = try PropertyListDecoder().decode(PartPackageManifest.self, from: Data(outOfRange.utf8))
+        let outOfRange = json.replacingOccurrences(of: "2026-09-08", with: "2027-01-01")
+        let outOfRangeManifest = try JSONDecoder().decode(PartPackageManifest.self, from: Data(outOfRange.utf8))
         let rangeDiagnostics = PartPackageValidator.validate(outOfRangeManifest, rootURL: FileManager.default.temporaryDirectory)
         #expect(rangeDiagnostics.contains { $0.message == "The default date is after maximum." })
     }
@@ -2510,17 +2485,17 @@ struct PartPackageTests {
 
     @Test
     func partLibraryVisibilityDefaultsToShownAndCanBeHidden() throws {
-        let defaultManifest = try PropertyListDecoder().decode(
+        let defaultManifest = try JSONDecoder().decode(
             PartPackageManifest.self,
             from: Data(validManifest.utf8)
         )
         #expect(defaultManifest.showsInPartLibrary)
 
         let hiddenManifestText = validManifest.replacingOccurrences(
-            of: "<key>templates</key>",
-            with: "<key>showsInPartLibrary</key><false/>\n            <key>templates</key>"
+            of: "\"templates\"",
+            with: "\"showsInPartLibrary\" : false,\n            \"templates\""
         )
-        let hiddenManifest = try PropertyListDecoder().decode(
+        let hiddenManifest = try JSONDecoder().decode(
             PartPackageManifest.self,
             from: Data(hiddenManifestText.utf8)
         )
@@ -2529,7 +2504,7 @@ struct PartPackageTests {
 
     @Test
     func phpCapabilityForcesPageExtensionWithoutAnInlinePHPTemplate() throws {
-        let defaultManifest = try PropertyListDecoder().decode(
+        let defaultManifest = try JSONDecoder().decode(
             PartPackageManifest.self,
             from: Data(validManifest.utf8)
         )
@@ -2539,12 +2514,12 @@ struct PartPackageTests {
         let manifest = validManifest
             .replacingOccurrences(of: "com.example.card", with: identifier)
             .replacingOccurrences(
-                of: "<key>assets</key><array><dict><key>path</key><string>images/icon.svg</string></dict></array>",
-                with: "<key>assets</key><array><dict><key>path</key><string>images/icon.svg</string></dict><dict><key>path</key><string>server/endpoint.php</string></dict></array>"
+                of: "\"assets\" : [{\"path\" : \"images/icon.svg\"}]",
+                with: "\"assets\" : [{\"path\" : \"images/icon.svg\"}, {\"path\" : \"server/endpoint.php\"}]"
             )
             .replacingOccurrences(
-                of: "<key>templates</key>",
-                with: "<key>requiresPHP</key><true/>\n            <key>templates</key>"
+                of: "\"templates\"",
+                with: "\"requiresPHP\" : true,\n            \"templates\""
             )
         let packageURL = try makePackage(
             manifest: manifest,
@@ -2571,12 +2546,12 @@ struct PartPackageTests {
         let manifest = validManifest
             .replacingOccurrences(of: "com.example.card", with: identifier)
             .replacingOccurrences(
-                of: "<key>assets</key><array><dict><key>path</key><string>images/icon.svg</string></dict></array>",
+                of: "\"assets\" : [{\"path\" : \"images/icon.svg\"}]",
                 with: """
-                <key>assets</key><array>
-                    <dict><key>path</key><string>images/icon.svg</string></dict>
-                    <dict><key>path</key><string>shared/icons</string><key>scope</key><string>site</string></dict>
-                </array>
+                "assets" : [
+                    {"path" : "images/icon.svg"},
+                    {"path" : "shared/icons", "scope" : "site"}
+                ]
                 """
             )
         let template = """
@@ -2616,12 +2591,12 @@ struct PartPackageTests {
         let manifest = validManifest
             .replacingOccurrences(of: "com.example.card", with: identifier)
             .replacingOccurrences(
-                of: "<key>assets</key><array><dict><key>path</key><string>images/icon.svg</string></dict></array>",
+                of: "\"assets\" : [{\"path\" : \"images/icon.svg\"}]",
                 with: """
-                <key>assets</key><array>
-                    <dict><key>path</key><string>images/icon.svg</string></dict>
-                    <dict><key>path</key><string>shared/icons</string><key>scope</key><string>site</string></dict>
-                </array>
+                "assets" : [
+                    {"path" : "images/icon.svg"},
+                    {"path" : "shared/icons", "scope" : "site"}
+                ]
                 """
             )
         let packageURL = try makePackage(
@@ -2899,15 +2874,15 @@ struct PartPackageTests {
     @Test
     func loopValidationRequiresBalancedBlocksAndBoundedNumericControls() throws {
         let item = """
-        <dict>
-            <key>id</key><string>itemCount</string>
-            <key>label</key><string>Items</string>
-            <key>type</key><string>number</string>
-            <key>minimum</key><real>0</real>
-            <key>maximum</key><real>12</real>
-            <key>defaults</key><dict><key>base</key><real>4</real></dict>
-            <key>responsive</key><false/>
-        </dict>
+        {
+            "id" : "itemCount",
+            "label" : "Items",
+            "type" : "number",
+            "minimum" : 0,
+            "maximum" : 12,
+            "defaults" : {"base" : 4},
+            "responsive" : false
+        }
         """
         let manifestText = manifest(withControls: item)
         let validURL = try makePackage(
@@ -2919,7 +2894,7 @@ struct PartPackageTests {
         #expect(package.loopMaximums == ["itemCount": 12])
 
         let invalidURL = try makePackage(
-            manifest: manifestText.replacingOccurrences(of: "<key>maximum</key><real>12</real>", with: ""),
+            manifest: manifestText.replacingOccurrences(of: "\"maximum\" : 12,", with: ""),
             template: "<section {{ part.attributes }}>{{ loop control.itemCount }}<b></b>{{ childArea(\"content\") }}</section>"
         )
         defer { try? FileManager.default.removeItem(at: invalidURL) }
@@ -3190,15 +3165,15 @@ struct PartPackageTests {
 
     @Test
     func imageControlMayOmitItsDefaultAndResponsiveKeys() throws {
-        let manifest = try PropertyListDecoder().decode(
+        let manifest = try JSONDecoder().decode(
             PartPackageManifest.self,
             from: Data(manifest(withControls: """
-                <dict>
-                    <key>id</key><string>source</string>
-                    <key>label</key><string>Image</string>
-                    <key>group</key><string>Content</string>
-                    <key>type</key><string>image</string>
-                </dict>
+                {
+                    "id" : "source",
+                    "label" : "Image",
+                    "group" : "Content",
+                    "type" : "image"
+                }
                 """).utf8)
         )
         let image = try #require(manifest.resolvedProperties.first)
@@ -3212,19 +3187,18 @@ struct PartPackageTests {
 
     @Test
     func imageControlSupportsStaticClampedRenditions() throws {
-        let manifest = try PropertyListDecoder().decode(
+        let manifest = try JSONDecoder().decode(
             PartPackageManifest.self,
             from: Data(manifest(withControls: """
-                <dict>
-                    <key>id</key><string>source</string>
-                    <key>label</key><string>Image</string>
-                    <key>type</key><string>image</string>
-                    <key>renditions</key>
-                    <array>
-                        <dict><key>id</key><string>thumbnail</string><key>maximumDimension</key><integer>480</integer></dict>
-                        <dict><key>id</key><string>hero</string><key>maximumDimension</key><integer>5000</integer></dict>
-                    </array>
-                </dict>
+                {
+                    "id" : "source",
+                    "label" : "Image",
+                    "type" : "image",
+                    "renditions" : [
+                        {"id" : "thumbnail", "maximumDimension" : 480},
+                        {"id" : "hero", "maximumDimension" : 5000}
+                    ]
+                }
                 """).utf8)
         )
         let image = try #require(manifest.resolvedProperties.first)
@@ -3270,14 +3244,14 @@ struct PartPackageTests {
         let identifier = "com.example.rendition\(UUID().uuidString.replacingOccurrences(of: "-", with: "").lowercased())"
         let packageURL = try makePackage(
             manifest: manifest(withControls: """
-                <dict>
-                    <key>id</key><string>source</string>
-                    <key>label</key><string>Image</string>
-                    <key>type</key><string>image</string>
-                    <key>renditions</key><array>
-                        <dict><key>id</key><string>thumbnail</string><key>maximumDimension</key><integer>20</integer></dict>
-                    </array>
-                </dict>
+                {
+                    "id" : "source",
+                    "label" : "Image",
+                    "type" : "image",
+                    "renditions" : [
+                        {"id" : "thumbnail", "maximumDimension" : 20}
+                    ]
+                }
                 """).replacingOccurrences(of: "com.example.card", with: identifier),
             template: #"<figure {{ part.attributes }}><img src="{{ control.source.rendition.thumbnail.href }}">{{ childArea("content") }}</figure>"#
         )
@@ -3358,14 +3332,14 @@ struct PartPackageTests {
     func imageControlProvidesAltAndStructuredTemplateValues() throws {
         let packageURL = try makePackage(
             manifest: manifest(withControls: """
-                <dict>
-                    <key>id</key><string>source</string>
-                    <key>label</key><string>Image</string>
-                    <key>group</key><string>Content</string>
-                    <key>type</key><string>image</string>
-                    <key>alt</key><string>Default description</string>
-                    <key>focalPoint</key><true/>
-                </dict>
+                {
+                    "id" : "source",
+                    "label" : "Image",
+                    "group" : "Content",
+                    "type" : "image",
+                    "alt" : "Default description",
+                    "focalPoint" : true
+                }
                 """),
             template: """
                 <figure {{ part.attributes }}><img src="{{ control.source.href }}" width="{{ control.source.width }}" height="{{ control.source.height }}" data-type="{{ control.source.mimeType }}" data-bytes="{{ control.source.byteCount }}" data-name="{{ control.source.filename }}" data-extension="{{ control.source.extension }}" data-ratio="{{ control.source.aspectRatio }}" data-x="{{ control.source.focalPointX }}" data-y="{{ control.source.focalPointY }}" style="object-position: {{ control.source.position }}" alt="{{ control.source.alt }}">{{ childArea("content") }}</figure>
@@ -3434,14 +3408,14 @@ struct PartPackageTests {
     @Test
     func imageMacroRequiresADeclaredPersistentName() throws {
         let manifestText = manifest(withControls: """
-            <dict>
-                <key>id</key><string>title</string>
-                <key>label</key><string>Title</string>
-                <key>group</key><string>Content</string>
-                <key>type</key><string>text</string>
-                <key>defaults</key><dict><key>base</key><string>Hello</string></dict>
-                <key>responsive</key><false/>
-            </dict>
+            {
+                "id" : "title",
+                "label" : "Title",
+                "group" : "Content",
+                "type" : "text",
+                "defaults" : {"base" : "Hello"},
+                "responsive" : false
+            }
             """)
         let barePackage = try makePackage(
             manifest: manifestText,
@@ -3467,13 +3441,13 @@ struct PartPackageTests {
     @Test
     func imageDefaultMustBeDeclaredAndResolvesThroughAssetPaths() throws {
         let validImageManifest = manifest(withControls: """
-            <dict>
-                <key>id</key><string>source</string>
-                <key>label</key><string>Image</string>
-                <key>group</key><string>Content</string>
-                <key>type</key><string>image</string>
-                <key>defaults</key><dict><key>base</key><string>images/icon.svg</string></dict>
-            </dict>
+            {
+                "id" : "source",
+                "label" : "Image",
+                "group" : "Content",
+                "type" : "image",
+                "defaults" : {"base" : "images/icon.svg"}
+            }
             """)
         let packageURL = try makePackage(
             manifest: validImageManifest,
@@ -3496,8 +3470,8 @@ struct PartPackageTests {
         #expect(rendered.contains("src=\"files/icon.svg\""))
 
         let invalidManifest = validImageManifest.replacingOccurrences(
-            of: "<key>defaults</key><dict><key>base</key><string>images/icon.svg</string></dict>",
-            with: "<key>defaults</key><dict><key>base</key><string>images/missing.svg</string></dict>"
+            of: "\"defaults\" : {\"base\" : \"images/icon.svg\"}",
+            with: "\"defaults\" : {\"base\" : \"images/missing.svg\"}"
         )
         let invalidPackage = try makePackage(
             manifest: invalidManifest,
@@ -3532,7 +3506,7 @@ struct PartPackageTests {
             template: "<section {{ part.attributes }}>{{ slot.content }}</section>"
         )
         defer { try? FileManager.default.removeItem(at: packageURL) }
-        let manifest = try PropertyListDecoder().decode(
+        let manifest = try JSONDecoder().decode(
             PartPackageManifest.self,
             from: Data(validManifest.utf8)
         )
@@ -3570,7 +3544,7 @@ struct PartPackageTests {
             """
         )
         defer { try? FileManager.default.removeItem(at: packageURL) }
-        let manifest = try PropertyListDecoder().decode(
+        let manifest = try JSONDecoder().decode(
             PartPackageManifest.self,
             from: Data(validManifest.utf8)
         )
@@ -3599,7 +3573,7 @@ struct PartPackageTests {
             template: #"<section class="sample {{ part.class }}" {{ part.attributes }}>{{ text }}{{ html="<p>Old</p>" }}{{ image }}{{ dropZone "content" }}{{ childArea("content") }}</section>"#
         )
         defer { try? FileManager.default.removeItem(at: packageURL) }
-        let manifest = try PropertyListDecoder().decode(
+        let manifest = try JSONDecoder().decode(
             PartPackageManifest.self,
             from: Data(validManifest.utf8)
         )
@@ -3620,7 +3594,7 @@ struct PartPackageTests {
             template: #"<section class="sample {{ part.class }}" {{ part.attributes }}>{{ text("shared") }}{{ image("shared") }}{{ dropZone("shared") }}{{ childArea("content") }}</section>"#
         )
         defer { try? FileManager.default.removeItem(at: packageURL) }
-        let manifest = try PropertyListDecoder().decode(
+        let manifest = try JSONDecoder().decode(
             PartPackageManifest.self,
             from: Data(validManifest.utf8)
         )
@@ -3645,7 +3619,7 @@ struct PartPackageTests {
         let templateURL = packageURL.appending(path: "Resources/part.html")
         try #"<section id="developer-root" {{ part.attributes }}>{{ childArea("content") }}</section>"#
             .write(to: templateURL, atomically: true, encoding: .utf8)
-        let manifest = try PropertyListDecoder().decode(
+        let manifest = try JSONDecoder().decode(
             PartPackageManifest.self,
             from: Data(validManifest.utf8)
         )
@@ -3667,7 +3641,7 @@ struct PartPackageTests {
             template: #"<section class="sample{{ part.class }}" {{ part.attributes }}>{{ childArea("content") }}</section>"#
         )
         defer { try? FileManager.default.removeItem(at: packageURL) }
-        let manifest = try PropertyListDecoder().decode(
+        let manifest = try JSONDecoder().decode(
             PartPackageManifest.self,
             from: Data(validManifest.utf8)
         )
@@ -3690,7 +3664,7 @@ struct PartPackageTests {
             "<section class=\"sample {{ part.class }}\" {{ part.attributes }}></section><aside>Sibling</aside>",
             "{{ if control.title }}<section class=\"sample {{ part.class }}\" {{ part.attributes }}></section>{{ endif }}"
         ]
-        let manifest = try PropertyListDecoder().decode(
+        let manifest = try JSONDecoder().decode(
             PartPackageManifest.self,
             from: Data(validManifest.utf8)
         )
@@ -3725,7 +3699,7 @@ struct PartPackageTests {
             """
         )
         defer { try? FileManager.default.removeItem(at: packageURL) }
-        let manifest = try PropertyListDecoder().decode(
+        let manifest = try JSONDecoder().decode(
             PartPackageManifest.self,
             from: Data(validManifest.utf8)
         )
@@ -3757,14 +3731,13 @@ struct PartPackageTests {
     @Test
     func validatorRejectsMoreThanFiveTags() throws {
         let manifestText = validManifest.replacingOccurrences(
-            of: "<key>description</key><string>A test card.</string>",
+            of: "\"description\" : \"A test card.\"",
             with: """
-            <key>description</key><string>A test card.</string>
-            <key>tags</key>
-            <array>
-                <string>one</string><string>two</string><string>three</string>
-                <string>four</string><string>five</string><string>six</string>
-            </array>
+            "description" : "A test card.",
+            "tags" : [
+                "one", "two", "three",
+                "four", "five", "six"
+            ]
             """
         )
         let packageURL = try makePackage(
@@ -3772,7 +3745,7 @@ struct PartPackageTests {
             template: "<section {{ part.attributes }}>{{ childArea(\"content\") }}</section>"
         )
         defer { try? FileManager.default.removeItem(at: packageURL) }
-        let manifest = try PropertyListDecoder().decode(
+        let manifest = try JSONDecoder().decode(
             PartPackageManifest.self,
             from: Data(manifestText.utf8)
         )
@@ -3783,7 +3756,7 @@ struct PartPackageTests {
         )
 
         #expect(diagnostics.contains {
-            $0.location == "Info.plist:tags" && $0.message == "A part can declare at most 5 tags."
+            $0.location == "manifest.json:tags" && $0.message == "A part can declare at most 5 tags."
         })
     }
 
@@ -3792,16 +3765,15 @@ struct PartPackageTests {
         let manifest = validManifest.replacingOccurrences(
             of: instanceCSSDeclaration,
             with: """
-            <key>files</key>
-            <array>
-                <dict>
-                    <key>path</key><string>instance.css</string>
-                    <key>scope</key><string>instance</string>
-                </dict>
-                <dict>
-                    <key>path</key><string>default-scope.css</string>
-                </dict>
-            </array>
+            "files" : [
+                {
+                    "path" : "instance.css",
+                    "scope" : "instance"
+                },
+                {
+                    "path" : "default-scope.css"
+                }
+            ]
             """
         )
         let packageURL = try makePackage(
@@ -3826,10 +3798,9 @@ struct PartPackageTests {
         let manifestText = validManifest.replacingOccurrences(
             of: instanceCSSDeclaration,
             with: """
-            <key>files</key>
-            <array>
-                <dict><key>path</key><string>part.scss</string><key>scope</key><string>instance</string></dict>
-            </array>
+            "files" : [
+                {"path" : "part.scss", "scope" : "instance"}
+            ]
             """
         )
         let packageURL = try makePackage(
@@ -3838,7 +3809,7 @@ struct PartPackageTests {
             additionalFiles: ["part.scss": ":host {}"]
         )
         defer { try? FileManager.default.removeItem(at: packageURL) }
-        let manifest = try PropertyListDecoder().decode(
+        let manifest = try JSONDecoder().decode(
             PartPackageManifest.self,
             from: Data(manifestText.utf8)
         )
@@ -3854,11 +3825,10 @@ struct PartPackageTests {
     @Test
     func loaderProcessesScopedJavaScriptTemplates() throws {
         let declaration = """
-        <key>files</key>
-        <array>
-            <dict><key>path</key><string>instance.js</string><key>scope</key><string>instance</string></dict>
-            <dict><key>path</key><string>page.js</string><key>scope</key><string>page</string><key>closure</key><false/></dict>
-        </array>
+        "files" : [
+            {"path" : "instance.js", "scope" : "instance"},
+            {"path" : "page.js", "scope" : "page", "closure" : false}
+        ]
         """
         let manifestText = validManifest
             .replacingOccurrences(of: instanceCSSDeclaration, with: declaration)
@@ -3889,14 +3859,13 @@ struct PartPackageTests {
     @Test
     func validatorAllowsSiteScopeOnlyForCSS() throws {
         let declaration = """
-        <key>files</key>
-        <array>
-            <dict><key>path</key><string>site.js</string><key>scope</key><string>site</string></dict>
-            <dict><key>path</key><string>site.php</string><key>scope</key><string>site</string></dict>
-        </array>
+        "files" : [
+            {"path" : "site.js", "scope" : "site"},
+            {"path" : "site.php", "scope" : "site"}
+        ]
         """
         let manifestText = validManifest
-            .replacingOccurrences(of: "<key>templates</key>", with: "<key>requiresPHP</key><true/>\n            <key>templates</key>")
+            .replacingOccurrences(of: "\"templates\"", with: "\"requiresPHP\" : true,\n            \"templates\"")
             .replacingOccurrences(of: instanceCSSDeclaration, with: declaration)
         let packageURL = try makePackage(
             manifest: manifestText,
@@ -3907,7 +3876,7 @@ struct PartPackageTests {
             ]
         )
         defer { try? FileManager.default.removeItem(at: packageURL) }
-        let manifest = try PropertyListDecoder().decode(
+        let manifest = try JSONDecoder().decode(
             PartPackageManifest.self,
             from: Data(manifestText.utf8)
         )
@@ -3924,10 +3893,9 @@ struct PartPackageTests {
     func staticRendererConnectsInstanceJavaScriptToItsPartElement() throws {
         let identifier = "com.example.javascript\(UUID().uuidString.replacingOccurrences(of: "-", with: "").lowercased())"
         let declaration = """
-        <key>files</key>
-        <array>
-            <dict><key>path</key><string>instance.js</string><key>scope</key><string>instance</string></dict>
-        </array>
+        "files" : [
+            {"path" : "instance.js", "scope" : "instance"}
+        ]
         """
         let manifestText = validManifest
             .replacingOccurrences(of: "com.example.card", with: identifier)
@@ -4000,27 +3968,26 @@ struct PartPackageTests {
     @Test
     func manifestRejectsRemovedAnchorOptInKey() throws {
         let manifestText = validManifest.replacingOccurrences(
-            of: "<key>minimumAPIVersion</key>",
-            with: "<key>anchor</key><true/>\n            <key>minimumAPIVersion</key>"
+            of: "\"minimumAPIVersion\"",
+            with: "\"anchor\" : true,\n            \"minimumAPIVersion\""
         )
         let diagnostics = try PartPackageManifestSchema.diagnostics(for: Data(manifestText.utf8))
 
-        #expect(diagnostics.contains { $0.location == "Info.plist:anchor" && $0.message.contains("Unknown key") })
+        #expect(diagnostics.contains { $0.location == "manifest.json:anchor" && $0.message.contains("Unknown key") })
     }
 
     @Test
     func loaderProcessesScopedPHPTemplatesIntoExportedPagePrelude() throws {
         let identifier = "com.example.phptemplates\(UUID().uuidString.replacingOccurrences(of: "-", with: "").lowercased())"
         let declaration = """
-        <key>files</key>
-        <array>
-            <dict><key>path</key><string>instance.php</string><key>scope</key><string>instance</string></dict>
-            <dict><key>path</key><string>page.php</string><key>scope</key><string>page</string></dict>
-        </array>
+        "files" : [
+            {"path" : "instance.php", "scope" : "instance"},
+            {"path" : "page.php", "scope" : "page"}
+        ]
         """
         let manifestText = validManifest
             .replacingOccurrences(of: "com.example.card", with: identifier)
-            .replacingOccurrences(of: "<key>templates</key>", with: "<key>requiresPHP</key><true/>\n            <key>templates</key>")
+            .replacingOccurrences(of: "\"templates\"", with: "\"requiresPHP\" : true,\n            \"templates\"")
             .replacingOccurrences(of: instanceCSSDeclaration, with: declaration)
         let packageURL = try makePackage(
             manifest: manifestText,
@@ -4052,8 +4019,7 @@ struct PartPackageTests {
     @Test
     func validatorRequiresPhpExtensionForPHPTemplates() throws {
         let declaration = """
-        <key>files</key>
-        <array><dict><key>path</key><string>part.php</string></dict></array>
+        "files" : [{"path" : "part.php"}]
         """
         let manifestText = validManifest.replacingOccurrences(of: instanceCSSDeclaration, with: declaration)
         let packageURL = try makePackage(
@@ -4062,27 +4028,27 @@ struct PartPackageTests {
             additionalFiles: ["part.php": "<?php return; ?>"]
         )
         defer { try? FileManager.default.removeItem(at: packageURL) }
-        let manifest = try PropertyListDecoder().decode(PartPackageManifest.self, from: Data(manifestText.utf8))
+        let manifest = try JSONDecoder().decode(PartPackageManifest.self, from: Data(manifestText.utf8))
 
         let diagnostics = PartPackageValidator.validate(
             manifest,
             rootURL: packageURL.appending(path: "Resources", directoryHint: .isDirectory)
         )
 
-        #expect(diagnostics.contains { $0.location == "Info.plist:requiresPHP" })
+        #expect(diagnostics.contains { $0.location == "manifest.json:requiresPHP" })
     }
 
     @Test
     func textAlignmentSpecializedControlProvidesValidatedLogicalValues() throws {
         let item = """
-        <dict>
-            <key>id</key><string>alignment</string>
-            <key>label</key><string>Alignment</string>
-            <key>group</key><string>Typography</string>
-            <key>type</key><string>textAlignment</string>
-            <key>defaults</key><dict><key>base</key><string>start</string></dict>
-            <key>responsive</key><true/>
-        </dict>
+        {
+            "id" : "alignment",
+            "label" : "Alignment",
+            "group" : "Typography",
+            "type" : "textAlignment",
+            "defaults" : {"base" : "start"},
+            "responsive" : true
+        }
         """
         let manifestText = manifest(withControls: item)
         let packageURL = try makePackage(
@@ -4102,11 +4068,11 @@ struct PartPackageTests {
     @Test
     func controlsDefaultToTheSettingsGroup() throws {
         let manifestText = validManifest.replacingOccurrences(
-            of: "<key>group</key><string>Content</string>",
+            of: "\"group\" : \"Content\",",
             with: ""
         )
 
-        let manifest = try PropertyListDecoder().decode(
+        let manifest = try JSONDecoder().decode(
             PartPackageManifest.self,
             from: Data(manifestText.utf8)
         )
@@ -4117,17 +4083,17 @@ struct PartPackageTests {
     @Test
     func multiSelectRejectsFrameworkValues() throws {
         let item = """
-        <dict>
-            <key>id</key><string>sizes</string>
-            <key>label</key><string>Font sizes</string>
-            <key>type</key><string>select</string>
-            <key>frameworkValues</key><string>fontSizes</string>
-            <key>count</key><integer>2</integer>
-            <key>defaults</key><dict><key>base</key><array><string>base</string><string>base</string></array></dict>
-            <key>responsive</key><false/>
-        </dict>
+        {
+            "id" : "sizes",
+            "label" : "Font sizes",
+            "type" : "select",
+            "frameworkValues" : "fontSizes",
+            "count" : 2,
+            "defaults" : {"base" : ["base", "base"]},
+            "responsive" : false
+        }
         """
-        let manifest = try PropertyListDecoder().decode(
+        let manifest = try JSONDecoder().decode(
             PartPackageManifest.self,
             from: Data(manifest(withControls: item).utf8)
         )
@@ -4137,7 +4103,7 @@ struct PartPackageTests {
         )
 
         #expect(diagnostics.contains {
-            $0.location == "Info.plist:controls.sizes.frameworkValues" &&
+            $0.location == "manifest.json:controls.sizes.frameworkValues" &&
                 $0.message == "Select supports only declared options; remove frameworkValues."
         })
     }
@@ -4145,16 +4111,16 @@ struct PartPackageTests {
     @Test
     func numberControlUnitsAreOptionalAndLimitedToThreeCharacters() throws {
         let numberItem = """
-        <dict>
-            <key>id</key><string>spacing</string>
-            <key>label</key><string>Spacing</string>
-            <key>type</key><string>number</string>
-            <key>defaults</key><dict><key>base</key><real>12</real></dict>
-            <key>responsive</key><false/>
-        </dict>
+        {
+            "id" : "spacing",
+            "label" : "Spacing",
+            "type" : "number",
+            "defaults" : {"base" : 12},
+            "responsive" : false
+        }
         """
         let manifestText = manifest(withControls: numberItem)
-        let manifest = try PropertyListDecoder().decode(
+        let manifest = try JSONDecoder().decode(
             PartPackageManifest.self,
             from: Data(manifestText.utf8)
         )
@@ -4162,10 +4128,10 @@ struct PartPackageTests {
         #expect(property.units == [""])
 
         let invalidText = manifestText.replacingOccurrences(
-            of: "<key>type</key><string>number</string>",
-            with: "<key>type</key><string>number</string><key>units</key><string>pixels</string>"
+            of: "\"type\" : \"number\"",
+            with: "\"type\" : \"number\", \"units\" : \"pixels\""
         )
-        let invalidManifest = try PropertyListDecoder().decode(
+        let invalidManifest = try JSONDecoder().decode(
             PartPackageManifest.self,
             from: Data(invalidText.utf8)
         )
@@ -4180,17 +4146,17 @@ struct PartPackageTests {
     @Test
     func sliderUsesContinuousDefaultStepVisualTicksAndOptionalUnits() throws {
         let sliderItem = """
-        <dict>
-            <key>id</key><string>opacity</string>
-            <key>label</key><string>Opacity</string>
-            <key>type</key><string>slider</string>
-            <key>minimum</key><real>0</real>
-            <key>maximum</key><real>100</real>
-            <key>ticks</key><integer>11</integer>
-            <key>units</key><string>%</string>
-            <key>defaults</key><dict><key>base</key><real>50</real></dict>
-            <key>responsive</key><false/>
-        </dict>
+        {
+            "id" : "opacity",
+            "label" : "Opacity",
+            "type" : "slider",
+            "minimum" : 0,
+            "maximum" : 100,
+            "ticks" : 11,
+            "units" : "%",
+            "defaults" : {"base" : 50},
+            "responsive" : false
+        }
         """
         let manifestText = manifest(withControls: sliderItem)
         let packageURL = try makePackage(
@@ -4216,16 +4182,15 @@ struct PartPackageTests {
     @Test
     func multiSliderSupportsOneDisplayUnitPerValue() throws {
         let item = """
-        <dict>
-            <key>id</key><string>dimensions</string>
-            <key>label</key><string>Dimensions</string>
-            <key>type</key><string>slider</string>
-            <key>count</key><integer>3</integer>
-            <key>units</key>
-            <array><string>px</string><string>rem</string><string>%</string></array>
-            <key>defaults</key><dict><key>base</key><array><real>20</real><real>4</real><real>80</real></array></dict>
-            <key>responsive</key><false/>
-        </dict>
+        {
+            "id" : "dimensions",
+            "label" : "Dimensions",
+            "type" : "slider",
+            "count" : 3,
+            "units" : ["px", "rem", "%"],
+            "defaults" : {"base" : [20, 4, 80]},
+            "responsive" : false
+        }
         """
         let manifestText = manifest(withControls: item)
         let packageURL = try makePackage(
@@ -4255,18 +4220,18 @@ struct PartPackageTests {
 
         for testCase in cases {
             let item = """
-            <dict>
-                <key>id</key><string>slider</string>
-                <key>label</key><string>Slider</string>
-                <key>type</key><string>slider</string>
-                <key>minimum</key><real>\(testCase.minimum)</real>
-                <key>maximum</key><real>\(testCase.maximum)</real>
-                <key>responsive</key><false/>
-            </dict>
+            {
+                "id" : "slider",
+                "label" : "Slider",
+                "type" : "slider",
+                "minimum" : \(testCase.minimum),
+                "maximum" : \(testCase.maximum),
+                "responsive" : false
+            }
             """
             let manifestText = manifest(withControls: item)
             #expect(throws: (any Error).self) {
-                try PropertyListDecoder().decode(PartPackageManifest.self, from: Data(manifestText.utf8))
+                try JSONDecoder().decode(PartPackageManifest.self, from: Data(manifestText.utf8))
             }
         }
     }
@@ -4274,14 +4239,14 @@ struct PartPackageTests {
     @Test
     func sliderCanHideItsValueField() throws {
         let item = """
-        <dict>
-            <key>id</key><string>slider</string>
-            <key>label</key><string>Slider</string>
-            <key>type</key><string>slider</string>
-            <key>showsValueField</key><false/>
-            <key>defaults</key><dict><key>base</key><integer>0</integer></dict>
-            <key>responsive</key><false/>
-        </dict>
+        {
+            "id" : "slider",
+            "label" : "Slider",
+            "type" : "slider",
+            "showsValueField" : false,
+            "defaults" : {"base" : 0},
+            "responsive" : false
+        }
         """
         let manifestText = manifest(withControls: item)
         let packageURL = try makePackage(
@@ -4311,21 +4276,21 @@ struct PartPackageTests {
     @Test
     func sliderRejectsInvalidTicksStepRangeAndUnit() throws {
         let item = """
-        <dict>
-            <key>id</key><string>slider</string>
-            <key>label</key><string>Slider</string>
-            <key>type</key><string>slider</string>
-            <key>minimum</key><real>10</real>
-            <key>maximum</key><real>10</real>
-            <key>step</key><real>-1</real>
-            <key>ticks</key><integer>1</integer>
-            <key>units</key><string>pixels</string>
-            <key>defaults</key><dict><key>base</key><real>10</real></dict>
-            <key>responsive</key><false/>
-        </dict>
+        {
+            "id" : "slider",
+            "label" : "Slider",
+            "type" : "slider",
+            "minimum" : 10,
+            "maximum" : 10,
+            "step" : -1,
+            "ticks" : 1,
+            "units" : "pixels",
+            "defaults" : {"base" : 10},
+            "responsive" : false
+        }
         """
         let manifestText = manifest(withControls: item)
-        let manifest = try PropertyListDecoder().decode(
+        let manifest = try JSONDecoder().decode(
             PartPackageManifest.self,
             from: Data(manifestText.utf8)
         )
@@ -4344,11 +4309,11 @@ struct PartPackageTests {
     @Test
     func dividerCustomControlIsPresentationOnly() throws {
         let item = """
-        <dict>
-            <key>id</key><string>contentDivider</string>
-            <key>group</key><string>Content</string>
-            <key>type</key><string>divider</string>
-        </dict>
+        {
+            "id" : "contentDivider",
+            "group" : "Content",
+            "type" : "divider"
+        }
         """
         let manifestText = manifest(withControls: item)
         let packageURL = try makePackage(
@@ -4381,16 +4346,16 @@ struct PartPackageTests {
         for key in unsupportedKeys {
             let value: String
             switch key {
-            case "responsive": value = "<true/>"
-            case "count": value = "<integer>2</integer>"
-            default: value = "<string>Unsupported</string>"
+            case "responsive": value = "true"
+            case "count": value = "2"
+            default: value = "\"Unsupported\""
             }
             let invalidItem = """
-            <dict>
-                <key>id</key><string>divider</string>
-                <key>type</key><string>divider</string>
-                <key>\(key)</key>\(value)
-            </dict>
+            {
+                "id" : "divider",
+                "type" : "divider",
+                "\(key)" : \(value)
+            }
             """
             let schemaDiagnostics = try PartPackageManifestSchema.diagnostics(
                 for: Data(manifest(withControls: invalidItem).utf8)
@@ -4402,18 +4367,18 @@ struct PartPackageTests {
     @Test
     func noteCustomControlUsesDedicatedContentKeys() throws {
         let validItem = """
-        <dict>
-            <key>id</key><string>guidance</string>
-            <key>type</key><string>note</string>
-            <key>title</key><string>About this setting</string>
-            <key>body</key><string>Helpful guidance.</string>
-            <key>systemImage</key><string>info.circle</string>
-        </dict>
+        {
+            "id" : "guidance",
+            "type" : "note",
+            "title" : "About this setting",
+            "body" : "Helpful guidance.",
+            "systemImage" : "info.circle"
+        }
         """
         let validData = Data(manifest(withControls: validItem).utf8)
         #expect(try PartPackageManifestSchema.diagnostics(for: validData).isEmpty)
 
-        let decodedManifest = try PropertyListDecoder().decode(PartPackageManifest.self, from: validData)
+        let decodedManifest = try JSONDecoder().decode(PartPackageManifest.self, from: validData)
         let property = try #require(decodedManifest.resolvedProperties.first)
         #expect(property.noteTitle == "About this setting")
         #expect(property.noteBody == "Helpful guidance.")
@@ -4426,17 +4391,17 @@ struct PartPackageTests {
         let unsupportedKeys = ["label", "subtitle", "responsive", "count"]
         for key in unsupportedKeys {
             let value = switch key {
-            case "responsive": "<true/>"
-            case "count": "<integer>2</integer>"
-            default: "<string>Unsupported</string>"
+            case "responsive": "true"
+            case "count": "2"
+            default: "\"Unsupported\""
             }
             let item = """
-            <dict>
-                <key>id</key><string>guidance</string>
-                <key>type</key><string>note</string>
-                <key>body</key><string>Helpful guidance.</string>
-                <key>\(key)</key>\(value)
-            </dict>
+            {
+                "id" : "guidance",
+                "type" : "note",
+                "body" : "Helpful guidance.",
+                "\(key)" : \(value)
+            }
             """
 
             let diagnostics = try PartPackageManifestSchema.diagnostics(
@@ -4444,22 +4409,22 @@ struct PartPackageTests {
             )
 
             #expect(diagnostics.contains {
-                $0.location == "Info.plist:controls[0]:\(key)" &&
+                $0.location == "manifest.json:controls[0]:\(key)" &&
                     $0.message == "A note control does not support \(key)."
             })
         }
 
         let missingBodyItem = """
-        <dict>
-            <key>id</key><string>guidance</string>
-            <key>type</key><string>note</string>
-        </dict>
+        {
+            "id" : "guidance",
+            "type" : "note"
+        }
         """
         let missingBodyDiagnostics = try PartPackageManifestSchema.diagnostics(
             for: Data(manifest(withControls: missingBodyItem).utf8)
         )
         #expect(missingBodyDiagnostics.contains {
-            $0.location == "Info.plist:controls[0]:body" &&
+            $0.location == "manifest.json:controls[0]:body" &&
                 $0.message == "A body string is required."
         })
     }
@@ -4467,15 +4432,15 @@ struct PartPackageTests {
     @Test
     func linkControlRejectsCountAndResponsive() throws {
         for key in ["count", "responsive"] {
-            let value = key == "count" ? "<integer>2</integer>" : "<true/>"
+            let value = key == "count" ? "2" : "true"
             let item = """
-            <dict>
-                <key>id</key><string>destination</string>
-                <key>type</key><string>link</string>
-                <key>label</key><string>Destination</string>
-                <key>defaults</key><dict><key>base</key><string></string></dict>
-                <key>\(key)</key>\(value)
-            </dict>
+            {
+                "id" : "destination",
+                "type" : "link",
+                "label" : "Destination",
+                "defaults" : {"base" : ""},
+                "\(key)" : \(value)
+            }
             """
 
             let diagnostics = try PartPackageManifestSchema.diagnostics(
@@ -4483,7 +4448,7 @@ struct PartPackageTests {
             )
 
             #expect(diagnostics.contains {
-                $0.location == "Info.plist:controls[0]:\(key)" &&
+                $0.location == "manifest.json:controls[0]:\(key)" &&
                     $0.message == "A link control does not support \(key)."
             })
         }
@@ -4492,19 +4457,18 @@ struct PartPackageTests {
     @Test
     func loaderProcessesPageScopedHTMLPlacements() throws {
         let declaration = """
-        <key>files</key>
-        <array>
-            <dict>
-                <key>path</key><string>head.html</string>
-                <key>scope</key><string>page</string>
-                <key>placement</key><string>headEnd</string>
-            </dict>
-            <dict>
-                <key>path</key><string>body.html</string>
-                <key>scope</key><string>page</string>
-                <key>placement</key><string>bodyEnd</string>
-            </dict>
-        </array>
+        "files" : [
+            {
+                "path" : "head.html",
+                "scope" : "page",
+                "placement" : "headEnd"
+            },
+            {
+                "path" : "body.html",
+                "scope" : "page",
+                "placement" : "bodyEnd"
+            }
+        ]
         """
         let manifestText = validManifest.replacingOccurrences(of: instanceCSSDeclaration, with: declaration)
         let packageURL = try makePackage(
@@ -4526,10 +4490,9 @@ struct PartPackageTests {
     @Test
     func loaderProcessesSiteScopedCSSAndRejectsInstanceMacrosThere() throws {
         let declaration = """
-        <key>files</key>
-        <array>
-            <dict><key>path</key><string>site.css</string><key>scope</key><string>site</string></dict>
-        </array>
+        "files" : [
+            {"path" : "site.css", "scope" : "site"}
+        ]
         """
         let manifestText = validManifest.replacingOccurrences(of: instanceCSSDeclaration, with: declaration)
         let validURL = try makePackage(
@@ -4558,10 +4521,9 @@ struct PartPackageTests {
     @Test
     func loaderProcessesPageScopedCSSAndRejectsInstanceMacrosThere() throws {
         let declaration = """
-        <key>files</key>
-        <array>
-            <dict><key>path</key><string>page.css</string><key>scope</key><string>page</string></dict>
-        </array>
+        "files" : [
+            {"path" : "page.css", "scope" : "page"}
+        ]
         """
         let manifestText = validManifest.replacingOccurrences(of: instanceCSSDeclaration, with: declaration)
         let validURL = try makePackage(
@@ -4611,10 +4573,10 @@ struct PartPackageTests {
     func childPickersEnforceAcceptedTypesMaximumAndLockedContainment() throws {
         let manifest = validManifest
             .replacingOccurrences(of: "com.example.card", with: "com.example.managed-parent")
-            .replacingOccurrences(of: "<key>label</key><string>Content</string>", with: "<key>label</key><string>Cards</string>")
+            .replacingOccurrences(of: "\"label\" : \"Content\"", with: "\"label\" : \"Cards\"")
             .replacingOccurrences(
-                of: "<key>accepts</key><array><string>*</string></array>",
-                with: "<key>accepts</key><array><string>foundry.content.paragraph</string></array><key>initial</key><array><string>foundry.content.paragraph</string></array><key>minimum</key><integer>1</integer><key>maximum</key><integer>2</integer><key>containment</key><string>locked</string>"
+                of: "\"accepts\" : [\"*\"]",
+                with: "\"accepts\" : [\"foundry.content.paragraph\"], \"initial\" : [\"foundry.content.paragraph\"], \"minimum\" : 1, \"maximum\" : 2, \"containment\" : \"locked\""
             )
         let packageURL = try makePackage(
             manifest: manifest,
@@ -4657,7 +4619,7 @@ struct PartPackageTests {
         let grandchildIdentifier = "com.example.initial-grandchild"
         let childIdentifier = "com.example.initial-child"
         let parentIdentifier = "com.example.initial-parent"
-        let acceptsDeclaration = "<key>accepts</key><array><string>*</string></array>"
+        let acceptsDeclaration = "\"accepts\" : [\"*\"]"
 
         let grandchildURL = try makePackage(
             manifest: validManifest.replacingOccurrences(of: "com.example.card", with: grandchildIdentifier),
@@ -4669,18 +4631,16 @@ struct PartPackageTests {
         defer { PartRegistry.unregisterPackage(identifier: grandchildIdentifier) }
 
         let childInitial = """
-        \(acceptsDeclaration)
-        <key>pickerItems</key>
-        <array><string>\(grandchildIdentifier)</string></array>
-        <key>initial</key>
-        <array>
-            <string>\(grandchildIdentifier)</string>
-            <string>\(grandchildIdentifier)</string>
-        </array>
+        \(acceptsDeclaration),
+        "initial" : [
+            "\(grandchildIdentifier)",
+            "\(grandchildIdentifier)"
+        ]
         """
         let childURL = try makePackage(
             manifest: validManifest
                 .replacingOccurrences(of: "com.example.card", with: childIdentifier)
+                .replacingOccurrences(of: "\"pickerItems\" : [\"com.example.child\"]", with: "\"pickerItems\" : [\"\(grandchildIdentifier)\"]")
                 .replacingOccurrences(of: acceptsDeclaration, with: childInitial),
             template: "<section {{ part.attributes }}>{{ childArea(\"content\") }}</section>"
         )
@@ -4690,19 +4650,17 @@ struct PartPackageTests {
         defer { PartRegistry.unregisterPackage(identifier: childIdentifier) }
 
         let parentInitial = """
-        \(acceptsDeclaration)
-        <key>pickerItems</key>
-        <array><string>\(childIdentifier)</string></array>
-        <key>initial</key>
-        <array>
-            <string>\(childIdentifier)</string>
-            <string>\(grandchildIdentifier)</string>
-            <string>\(childIdentifier)</string>
-        </array>
+        \(acceptsDeclaration),
+        "initial" : [
+            "\(childIdentifier)",
+            "\(grandchildIdentifier)",
+            "\(childIdentifier)"
+        ]
         """
         let parentURL = try makePackage(
             manifest: validManifest
                 .replacingOccurrences(of: "com.example.card", with: parentIdentifier)
+                .replacingOccurrences(of: "\"pickerItems\" : [\"com.example.child\"]", with: "\"pickerItems\" : [\"\(childIdentifier)\"]")
                 .replacingOccurrences(of: acceptsDeclaration, with: parentInitial),
             template: "<section {{ part.attributes }}>{{ childArea(\"content\") }}</section>"
         )
@@ -4730,16 +4688,10 @@ struct PartPackageTests {
     func childPickerCanOfferFewerTypesThanItAccepts() throws {
         let childIdentifier = "com.example.picker-child"
         let parentIdentifier = "com.example.picker-parent"
-        let acceptsDeclaration = "<key>accepts</key><array><string>*</string></array>"
-        let pickerDeclaration = """
-        \(acceptsDeclaration)
-        <key>pickerItems</key>
-        <array><string>\(childIdentifier)</string></array>
-        """
         let parentURL = try makePackage(
             manifest: validManifest
                 .replacingOccurrences(of: "com.example.card", with: parentIdentifier)
-                .replacingOccurrences(of: acceptsDeclaration, with: pickerDeclaration),
+                .replacingOccurrences(of: "\"pickerItems\" : [\"com.example.child\"]", with: "\"pickerItems\" : [\"\(childIdentifier)\"]"),
             template: "<section {{ part.attributes }}>{{ childArea(\"content\") }}</section>"
         )
         defer { try? FileManager.default.removeItem(at: parentURL) }
@@ -4754,13 +4706,18 @@ struct PartPackageTests {
     @Test
     func childPickerValidatesInitialChildren() throws {
         let wrongShape = validManifest.replacingOccurrences(
-            of: "<key>accepts</key><array><string>*</string></array>",
-            with: "<key>accepts</key><array><string>*</string></array><key>initial</key><integer>2</integer>"
+            of: "\"accepts\" : [\"*\"]",
+            with: "\"accepts\" : [\"*\"], \"initial\" : 2"
         )
-        let invalidValues = validManifest.replacingOccurrences(
-            of: "<key>accepts</key><array><string>*</string></array>",
-            with: "<key>accepts</key><array><string>com.example.child</string></array><key>pickerItems</key><array><string>Invalid</string><string>com.example.child</string></array><key>initial</key><array><string>com.example.child</string><string>com.example.other</string></array><key>maximum</key><integer>1</integer>"
-        )
+        let invalidValues = validManifest
+            .replacingOccurrences(
+                of: "\"pickerItems\" : [\"com.example.child\"]",
+                with: "\"pickerItems\" : [\"Invalid\", \"com.example.child\"]"
+            )
+            .replacingOccurrences(
+                of: "\"accepts\" : [\"*\"]",
+                with: "\"accepts\" : [\"com.example.child\"], \"initial\" : [\"com.example.child\", \"com.example.other\"], \"maximum\" : 1"
+            )
 
         let wrongShapeDiagnostics = try PartPackageManifestSchema.diagnostics(for: Data(wrongShape.utf8))
         let invalidValueDiagnostics = try PartPackageManifestSchema.diagnostics(for: Data(invalidValues.utf8))
@@ -4773,17 +4730,17 @@ struct PartPackageTests {
 
     @Test
     func childPickerContainmentDefaultsToOpenAndDecodesLocked() throws {
-        let openManifest = try PropertyListDecoder().decode(
+        let openManifest = try JSONDecoder().decode(
             PartPackageManifest.self,
             from: Data(validManifest.utf8)
         )
         #expect(openManifest.slots.first?.containment == .open)
 
         let lockedText = validManifest.replacingOccurrences(
-            of: "<key>accepts</key><array><string>*</string></array>",
-            with: "<key>accepts</key><array><string>*</string></array><key>containment</key><string>locked</string>"
+            of: "\"accepts\" : [\"*\"]",
+            with: "\"accepts\" : [\"*\"], \"containment\" : \"locked\""
         )
-        let lockedManifest = try PropertyListDecoder().decode(
+        let lockedManifest = try JSONDecoder().decode(
             PartPackageManifest.self,
             from: Data(lockedText.utf8)
         )
@@ -4793,8 +4750,8 @@ struct PartPackageTests {
     @Test
     func childPickerAddPresentationIsOwnedByFoundry() throws {
         let manifest = validManifest.replacingOccurrences(
-            of: "<key>accepts</key><array><string>*</string></array>",
-            with: "<key>accepts</key><array><string>*</string></array><key>buttonText</key><string>Add Card</string>"
+            of: "\"accepts\" : [\"*\"]",
+            with: "\"accepts\" : [\"*\"], \"buttonText\" : \"Add Card\""
         )
 
         let diagnostics = try PartPackageManifestSchema.diagnostics(for: Data(manifest.utf8))
@@ -4810,7 +4767,7 @@ struct PartPackageTests {
         let identifier = "com.example.drop-zone-parent"
         let manifest = validManifest
             .replacingOccurrences(of: "com.example.card", with: identifier)
-            .replacingOccurrences(of: defaultCustomItemsDeclaration, with: "")
+            .replacingOccurrences(of: defaultCustomItemsDeclaration + ",", with: "")
         let packageURL = try makePackage(
             manifest: manifest,
             template: "<section class=\"container {{ part.class }}\" {{ part.attributes }}>{{ dropZone(\"content\") }}</section>"
@@ -4836,7 +4793,7 @@ struct PartPackageTests {
         let identifier = "com.example.updated-drop-zone-parent"
         let manifest = validManifest
             .replacingOccurrences(of: "com.example.card", with: identifier)
-            .replacingOccurrences(of: defaultCustomItemsDeclaration, with: "")
+            .replacingOccurrences(of: defaultCustomItemsDeclaration + ",", with: "")
         let originalURL = try makePackage(
             manifest: manifest,
             template: "<main class=\"layout {{ part.class }}\" {{ part.attributes }}>{{ dropZone(\"content\") }}{{ dropZone(\"sidebar\") }}</main>"
@@ -4880,12 +4837,12 @@ struct PartPackageTests {
         let childIdentifier = "com.example.restricted-child"
         let parentManifest = validManifest
             .replacingOccurrences(of: "com.example.card", with: parentIdentifier)
-            .replacingOccurrences(of: defaultCustomItemsDeclaration, with: "")
+            .replacingOccurrences(of: defaultCustomItemsDeclaration + ",", with: "")
         let childManifest = validManifest
             .replacingOccurrences(of: "com.example.card", with: childIdentifier)
             .replacingOccurrences(
-                of: "<key>title</key><string>Card</string>",
-                with: "<key>title</key><string>Card</string><key>allowedParents</key><array><string>\(parentIdentifier)</string></array>"
+                of: "\"title\" : \"Card\"",
+                with: "\"title\" : \"Card\", \"allowedParents\" : [\"\(parentIdentifier)\"]"
             )
         let parentURL = try makePackage(
             manifest: parentManifest,
@@ -5186,7 +5143,7 @@ struct PartPackageTests {
             at: part.appending(path: "Resources", directoryHint: .isDirectory),
             withIntermediateDirectories: true
         )
-        try Data(validManifest.utf8).write(to: part.appending(path: "Info.plist"))
+        try Data(validManifest.utf8).write(to: part.appending(path: "manifest.json"))
 
         let pack = try FoundryPackLoader.load(from: root)
         #expect(pack.partURLs == [part.standardizedFileURL])
@@ -5251,8 +5208,8 @@ struct PartPackageTests {
             "licenseURL": "https://example.com/license",
             "attribution": "Photos by Example"
         ]
-        try PropertyListSerialization.data(fromPropertyList: manifest, format: .xml, options: 0)
-            .write(to: item.appending(path: "Info.plist"))
+        try JSONSerialization.data(withJSONObject: manifest)
+            .write(to: item.appending(path: "manifest.json"))
 
         let pack = try FoundryPackLoader.load(from: root)
         #expect(pack.assetCollectionURLs.count == 1)
@@ -5281,12 +5238,12 @@ struct PartPackageTests {
 
         // A manifest without an id is fine — it exists just for the licence
         // or title; a malformed manifest still fails the collection.
-        try PropertyListSerialization.data(fromPropertyList: ["license": "CC0"], format: .xml, options: 0)
-            .write(to: plain.appending(path: "Info.plist"))
+        try JSONSerialization.data(withJSONObject: ["license": "CC0"])
+            .write(to: plain.appending(path: "manifest.json"))
         #expect(AssetCollectionStore.entry(at: plain)?.license == "CC0")
         let broken = root.appending(path: "Assets/broken", directoryHint: .isDirectory)
         try FileManager.default.createDirectory(at: broken, withIntermediateDirectories: true)
-        try Data("not a plist".utf8).write(to: broken.appending(path: "Info.plist"))
+        try Data("not json".utf8).write(to: broken.appending(path: "manifest.json"))
         #expect(AssetCollectionStore.entry(at: broken) == nil)
         #expect(throws: Error.self) { try AssetCollectionStore.load(from: broken) }
 
@@ -5330,8 +5287,8 @@ struct PartPackageTests {
         defer { try? FileManager.default.removeItem(at: root) }
         try FileManager.default.createDirectory(at: contents, withIntermediateDirectories: true)
         let legacyManifest: [String: Any] = ["CFBundleIdentifier": "com.example.legacy"]
-        let data = try PropertyListSerialization.data(fromPropertyList: legacyManifest, format: .xml, options: 0)
-        try data.write(to: contents.appending(path: "Info.plist"))
+        let data = try JSONSerialization.data(withJSONObject: legacyManifest)
+        try data.write(to: contents.appending(path: "manifest.json"))
 
         #expect(throws: FoundryPackLoadingError.self) {
             try FoundryPackLoader.load(from: root)
@@ -5343,29 +5300,29 @@ struct PartPackageTests {
         let cases: [(manifest: String, expected: String)] = [
             (
                 validManifest.replacingOccurrences(
-                    of: "<key>title</key>",
-                    with: "<key>titel</key><string>Typo</string><key>title</key>"
+                    of: "\"title\" : \"Card\"",
+                    with: "\"titel\" : \"Typo\", \"title\" : \"Card\""
                 ),
                 "Unknown key 'titel'"
             ),
             (
                 validManifest.replacingOccurrences(
-                    of: "<key>minimumAPIVersion</key><integer>1</integer>",
-                    with: "<key>minimumAPIVersion</key><integer>999</integer>"
+                    of: "\"minimumAPIVersion\" : 1",
+                    with: "\"minimumAPIVersion\" : 999"
                 ),
                 "requires Foundry part API 999"
             ),
             (
                 validManifest.replacingOccurrences(
-                    of: "<key>version</key><string>1.0.0</string>",
-                    with: "<key>version</key><string>1.0</string>"
+                    of: "\"version\" : \"1.0.0\"",
+                    with: "\"version\" : \"1.0\""
                 ),
                 "MAJOR.MINOR.PATCH"
             ),
             (
                 validManifest.replacingOccurrences(
-                    of: "<key>version</key><string>1.0.0</string>",
-                    with: "<key>version</key><string>1.0.0-01</string>"
+                    of: "\"version\" : \"1.0.0\"",
+                    with: "\"version\" : \"1.0.0-01\""
                 ),
                 "MAJOR.MINOR.PATCH"
             )
@@ -5405,16 +5362,16 @@ struct PartPackageTests {
                 "publicKey": Data(repeating: 1, count: 32).base64EncodedString()
             ]
         ]
-        let updateData = try PropertyListSerialization.data(fromPropertyList: updateEnabled, format: .xml, options: 0)
-        try updateData.write(to: root.appending(path: "Info.plist"))
+        let updateData = try JSONSerialization.data(withJSONObject: updateEnabled)
+        try updateData.write(to: root.appending(path: "manifest.json"))
         let updatePack = try FoundryPackLoader.load(from: root)
         #expect(updatePack.identifier == "com.example.collection")
         #expect(updatePack.metadata.version == "1.2.3")
         #expect(updatePack.metadata.updates?.appcastURL.absoluteString == "https://example.com/appcast.json")
 
         let invalid: [String: Any] = ["unexpected": "value"]
-        let data = try PropertyListSerialization.data(fromPropertyList: invalid, format: .xml, options: 0)
-        try data.write(to: root.appending(path: "Info.plist"))
+        let data = try JSONSerialization.data(withJSONObject: invalid)
+        try data.write(to: root.appending(path: "manifest.json"))
         #expect(throws: FoundryPackLoadingError.self) {
             try FoundryPackLoader.load(from: root)
         }
@@ -5488,14 +5445,13 @@ struct PartPackageTests {
         let manifest = validManifest
             .replacingOccurrences(of: "com.example.card", with: identifier)
             .replacingOccurrences(
-                of: "<key>templates</key>",
+                of: "\"templates\"",
                 with: """
-                <key>libraries</key>
-                <array><dict>
-                    <key>id</key><string>bootstrapIcons</string>
-                    <key>majorVersion</key><integer>1</integer>
-                </dict></array>
-                <key>templates</key>
+                "libraries" : [{
+                    "id" : "bootstrapIcons",
+                    "majorVersion" : 1
+                }],
+                "templates"
                 """
             )
         let packageURL = try makePackage(
@@ -5521,14 +5477,14 @@ struct PartPackageTests {
     @Test
     func iconControlUsesTheBuiltInIconCatalogue() throws {
         let item = """
-        <dict>
-            <key>id</key><string>symbol</string>
-            <key>label</key><string>Icon</string>
-            <key>group</key><string>Content</string>
-            <key>type</key><string>icon</string>
-            <key>defaults</key><dict><key>base</key><string>stars</string></dict>
-            <key>responsive</key><false/>
-        </dict>
+        {
+            "id" : "symbol",
+            "label" : "Icon",
+            "group" : "Content",
+            "type" : "icon",
+            "defaults" : {"base" : "stars"},
+            "responsive" : false
+        }
         """
         let manifest = manifest(withControls: item)
         let packageURL = try makePackage(
@@ -5558,20 +5514,18 @@ struct PartPackageTests {
     func revealControlGroupIncludesGSAPAndScrollTrigger() throws {
         let identifier = "com.example.reveal-library.\(UUID().uuidString.lowercased())"
         let manifest = """
-        <?xml version="1.0" encoding="UTF-8"?>
-        <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-        <plist version="1.0"><dict>
-        <key>minimumAPIVersion</key><integer>1</integer>
-        <key>id</key><string>\(identifier)</string>
-        <key>title</key><string>Reveal Library</string>
-        <key>version</key><string>1.0.0</string>
-        <key>libraries</key><array><dict>
-            <key>id</key><string>alpine</string>
-            <key>majorVersion</key><integer>3</integer>
-        </dict></array>
-        <key>controls</key><array><dict><key>type</key><string>reveal</string></dict></array>
-        <key>templates</key><dict><key>html</key><string>part.html</string></dict>
-        </dict></plist>
+        {
+        "minimumAPIVersion" : 1,
+        "id" : "\(identifier)",
+        "title" : "Reveal Library",
+        "version" : "1.0.0",
+        "libraries" : [{
+            "id" : "alpine",
+            "majorVersion" : 3
+        }],
+        "controls" : [{"type" : "reveal"}],
+        "templates" : {"html" : "part.html"}
+        }
         """
         let packageURL = try makePackage(
             manifest: manifest,
@@ -5622,16 +5576,16 @@ struct PartPackageTests {
     @Test
     func iconControlAutomaticallyIncludesItsLibraryAndRequiresAValidDefault() throws {
         let item = """
-        <dict>
-            <key>id</key><string>symbol</string>
-            <key>label</key><string>Icon</string>
-            <key>type</key><string>icon</string>
-            <key>defaults</key><dict><key>base</key><string>not-a-real-foundry-icon</string></dict>
-            <key>responsive</key><false/>
-        </dict>
+        {
+            "id" : "symbol",
+            "label" : "Icon",
+            "type" : "icon",
+            "defaults" : {"base" : "not-a-real-foundry-icon"},
+            "responsive" : false
+        }
         """
         let manifestText = manifest(withControls: item)
-        let manifest = try PropertyListDecoder().decode(
+        let manifest = try JSONDecoder().decode(
             PartPackageManifest.self,
             from: Data(manifestText.utf8)
         )
@@ -5648,18 +5602,17 @@ struct PartPackageTests {
     @Test
     func iconControlValidatesEveryMultiControlDefault() throws {
         let item = """
-        <dict>
-            <key>type</key><string>icon</string>
-            <key>id</key><string>icons</string>
-            <key>label</key><string>Icons</string>
-            <key>count</key><integer>2</integer>
-            <key>subtitle</key>
-            <array><string>Previous</string><string>Next</string></array>
-            <key>defaults</key><dict><key>base</key><array><string>arrow-left</string><string>not-a-real-foundry-icon</string></array></dict>
-        </dict>
+        {
+            "type" : "icon",
+            "id" : "icons",
+            "label" : "Icons",
+            "count" : 2,
+            "subtitle" : ["Previous", "Next"],
+            "defaults" : {"base" : ["arrow-left", "not-a-real-foundry-icon"]}
+        }
         """
         let manifestText = manifest(withControls: item)
-        let manifest = try PropertyListDecoder().decode(
+        let manifest = try JSONDecoder().decode(
             PartPackageManifest.self,
             from: Data(manifestText.utf8)
         )
@@ -5717,71 +5670,65 @@ struct PartPackageTests {
 
     private var validManifest: String {
         """
-        <?xml version="1.0" encoding="UTF-8"?>
-        <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-        <plist version="1.0">
-        <dict>
-            <key>minimumAPIVersion</key><integer>1</integer>
-            <key>id</key><string>com.example.card</string>
-            <key>title</key><string>Card</string>
-            <key>version</key><string>1.0.0</string>
-            <key>description</key><string>A test card.</string>
-            <key>group</key><string>Content part</string>
-            \(defaultCustomItemsDeclaration)
-            <key>templates</key>
-            <dict>
-                <key>html</key><string>part.html</string>
+        {
+            "minimumAPIVersion" : 1,
+            "id" : "com.example.card",
+            "title" : "Card",
+            "version" : "1.0.0",
+            "description" : "A test card.",
+            "group" : "Content part",
+            \(defaultCustomItemsDeclaration),
+            "templates" : {
+                "html" : "part.html",
                 \(instanceCSSDeclaration)
-            </dict>
-            <key>assets</key><array><dict><key>path</key><string>images/icon.svg</string></dict></array>
-        </dict>
-        </plist>
+            },
+            "assets" : [{"path" : "images/icon.svg"}]
+        }
         """
     }
 
     private var defaultCustomItemsDeclaration: String {
         """
-        <key>controls</key>
-        <array>
-            <dict>
-                <key>id</key><string>title</string>
-                <key>label</key><string>Title</string>
-                <key>group</key><string>Content</string>
-                <key>type</key><string>text</string>
-                <key>defaults</key><dict><key>base</key><string>Hello</string></dict>
-                <key>responsive</key><false/>
-            </dict>
-            <dict>
-                <key>type</key><string>childPicker</string>
-                <key>id</key><string>content</string>
-                <key>label</key><string>Content</string>
-                <key>pickerItems</key><array><string>com.example.child</string></array>
-                <key>accepts</key><array><string>*</string></array>
-            </dict>
-        </array>
+        "controls" : [
+            {
+                "id" : "title",
+                "label" : "Title",
+                "group" : "Content",
+                "type" : "text",
+                "defaults" : {"base" : "Hello"},
+                "responsive" : false
+            },
+            {
+                "type" : "childPicker",
+                "id" : "content",
+                "label" : "Content",
+                "pickerItems" : ["com.example.child"],
+                "accepts" : ["*"]
+            }
+        ]
         """
     }
 
     @Test
     func manifestDecodeFailureNamesTheFailingSpot() throws {
         let item = """
-        <dict>
-            <key>id</key><string>cardShadow</string>
-            <key>label</key><string>Shadow</string>
-            <key>type</key><string>shadow</string>
-            <key>defaults</key><dict><key>base</key><string>md</string></dict>
-            <key>responsive</key><false/>
-        </dict>
+        {
+            "id" : "cardShadow",
+            "label" : "Shadow",
+            "type" : "shadow",
+            "defaults" : {"base" : "md"},
+            "responsive" : false
+        }
         """
         let data = Data(manifest(withControls: item).utf8)
         let error = #expect(throws: (any Error).self) {
-            try PropertyListDecoder().decode(PartPackageManifest.self, from: data)
+            try JSONDecoder().decode(PartPackageManifest.self, from: data)
         }
         let message = PartPackageLoadingError
             .unreadableManifest(try #require(error))
             .errorDescription ?? ""
         // A renamed control type must be identifiable from the error alone:
-        // the invalid value and the plist location, not "isn't in the correct format".
+        // the invalid value and the manifest location, not "isn't in the correct format".
         #expect(message.contains("shadow"), Comment(rawValue: message))
         #expect(message.contains("controls[0]"), Comment(rawValue: message))
     }
@@ -5789,29 +5736,29 @@ struct PartPackageTests {
     @Test
     func inspectorGroupIconsResolveFromGroupsAndGroupedControls() throws {
         let controls = """
-        <dict>
-            <key>id</key><string>galleryStyle</string>
-            <key>label</key><string>Style</string>
-            <key>group</key><string>Gallery</string>
-            <key>type</key><string>toggle</string>
-            <key>defaults</key><dict><key>base</key><true/></dict>
-            <key>responsive</key><false/>
-        </dict>
-        <dict><key>type</key><string>spacing</string></dict>
+        {
+            "id" : "galleryStyle",
+            "label" : "Style",
+            "group" : "Gallery",
+            "type" : "toggle",
+            "defaults" : {"base" : true},
+            "responsive" : false
+        },
+        {"type" : "spacing"}
         """
         func source(groups: String) -> Data {
             Data(manifest(withControls: controls).replacingOccurrences(
-                of: "<key>controls</key>",
-                with: "<key>groups</key>\n<array>\n\(groups)\n</array>\n<key>controls</key>"
+                of: "\"controls\"",
+                with: "\"groups\" : [\n\(groups)\n],\n\"controls\""
             ).utf8)
         }
 
         let valid = source(groups: """
-        <dict><key>name</key><string>Gallery</string><key>systemImage</key><string>photo.stack</string></dict>
-        <dict><key>name</key><string>Content</string><key>systemImage</key><string>doc.text</string></dict>
+        {"name" : "Gallery", "systemImage" : "photo.stack"},
+        {"name" : "Content", "systemImage" : "doc.text"}
         """)
         #expect(try PartPackageManifestSchema.diagnostics(for: valid).allSatisfy { !$0.location.contains("groups") })
-        let decoded = try PropertyListDecoder().decode(PartPackageManifest.self, from: valid)
+        let decoded = try JSONDecoder().decode(PartPackageManifest.self, from: valid)
         #expect(decoded.groups == [
             .init(name: "Gallery", systemImage: "photo.stack"),
             .init(name: "Content", systemImage: "doc.text")
@@ -5821,23 +5768,23 @@ struct PartPackageTests {
         #expect(decoded.resolvedGroupIcons["Spacing"] == "arrow.up.and.down.and.arrow.left.and.right")
         // Undeclared groups fall back at presentation time, not in the manifest.
         #expect(decoded.resolvedGroupIcons["Settings"] == nil)
-        let reencoded = try PropertyListDecoder().decode(
+        let reencoded = try JSONDecoder().decode(
             PartPackageManifest.self,
-            from: PropertyListEncoder().encode(decoded)
+            from: JSONEncoder().encode(decoded)
         )
         #expect(reencoded.groups == decoded.groups)
         #expect(reencoded.resolvedGroupIcons == decoded.resolvedGroupIcons)
 
         let failures: [(entries: String, message: String)] = [
-            ("<dict><key>name</key><string>Gallery</string></dict><dict><key>name</key><string>Gallery</string></dict>",
+            ("{\"name\" : \"Gallery\"}, {\"name\" : \"Gallery\"}",
              "Duplicate group entry 'Gallery'."),
-            ("<dict><key>name</key><string>Sidebar</string></dict>",
+            ("{\"name\" : \"Sidebar\"}",
              "groups declares 'Sidebar' but no control uses that group."),
-            ("<dict><key>name</key><string>Gallery</string><key>icon</key><string>star</string></dict>",
+            ("{\"name\" : \"Gallery\", \"icon\" : \"star\"}",
              "Unknown key 'icon'. Check the spelling or remove it."),
-            ("<dict><key>name</key><string> </string></dict>",
+            ("{\"name\" : \" \"}",
              "A group entry requires a non-empty name."),
-            ("<dict><key>systemImage</key><string>star</string></dict>",
+            ("{\"systemImage\" : \"star\"}",
              "A name string is required.")
         ]
         for failure in failures {
@@ -5848,30 +5795,28 @@ struct PartPackageTests {
 
     private func manifest(withControls items: String) -> String {
         let replacement = """
-        <key>controls</key>
-        <array>
-            \(items)
-            <dict>
-                <key>type</key><string>childPicker</string>
-                <key>id</key><string>content</string>
-                <key>label</key><string>Content</string>
-                <key>pickerItems</key><array><string>com.example.child</string></array>
-                <key>accepts</key><array><string>*</string></array>
-            </dict>
-        </array>
+        "controls" : [
+            \(items.isEmpty ? "" : items + ",")
+            {
+                "type" : "childPicker",
+                "id" : "content",
+                "label" : "Content",
+                "pickerItems" : ["com.example.child"],
+                "accepts" : ["*"]
+            }
+        ]
         """
         return validManifest.replacingOccurrences(of: defaultCustomItemsDeclaration, with: replacement)
     }
 
     private var instanceCSSDeclaration: String {
         """
-        <key>files</key>
-        <array>
-            <dict>
-                <key>path</key><string>part.css</string>
-                <key>scope</key><string>instance</string>
-            </dict>
-        </array>
+        "files" : [
+            {
+                "path" : "part.css",
+                "scope" : "instance"
+            }
+        ]
         """
     }
 
@@ -5887,7 +5832,7 @@ struct PartPackageTests {
             additionalFiles: ["icon.svg": oversizedIcon]
         )
         defer { try? FileManager.default.removeItem(at: packageURL) }
-        let manifest = try PropertyListDecoder().decode(
+        let manifest = try JSONDecoder().decode(
             PartPackageManifest.self,
             from: Data(validManifest.utf8)
         )
@@ -5945,7 +5890,7 @@ struct PartPackageTests {
             "icon-dark.svg": "<svg xmlns=\"http://www.w3.org/2000/svg\"></svg>",
             "images/icon.svg": "<svg xmlns=\"http://www.w3.org/2000/svg\"></svg>"
         ].merging(additionalFiles) { _, additional in additional }
-        try Data(manifest.utf8).write(to: rootURL.appending(path: "Info.plist"))
+        try Data(manifest.utf8).write(to: rootURL.appending(path: "manifest.json"))
         for (path, contents) in files {
             let fileURL = resourcesURL.appending(path: path)
             try FileManager.default.createDirectory(
@@ -5962,11 +5907,11 @@ struct PartPackageTests {
         at rootURL: URL
     ) throws {
         try FileManager.default.createDirectory(at: rootURL, withIntermediateDirectories: true)
-        let plist: [String: Any] = [
+        let manifest: [String: Any] = [
             "id": identifier,
             "minimumAPIVersion": 1
         ]
-        let data = try PropertyListSerialization.data(fromPropertyList: plist, format: .xml, options: 0)
-        try data.write(to: rootURL.appending(path: "Info.plist"))
+        let data = try JSONSerialization.data(withJSONObject: manifest)
+        try data.write(to: rootURL.appending(path: "manifest.json"))
     }
 }

@@ -1,9 +1,9 @@
 # Foundry part API
 
 The current distribution format is a macOS-style `.foundrypack` bundle
-(format version 2): a pack-level `Info.plist` at the root, plus typed
+(format version 2): a pack-level `manifest.json` at the root, plus typed
 `Parts/`, `Templates/`, and `Frameworks/` directories, each item a folder
-containing its own `Info.plist` and `Resources/`. While developing, use the
+containing its own `manifest.json` and `Resources/`. While developing, use the
 identical structure with a `.foundrydevpack` extension so Finder exposes it
 as an ordinary folder and Foundry can watch it in place.
 
@@ -12,7 +12,6 @@ with:
 
 - [Build a part](https://doobox.github.io/foundry-developer-api/quick-start.html)
 - [Pack structure and development workflow](https://doobox.github.io/foundry-developer-api/bundle-structure.html)
-- [Info.plist overview](https://doobox.github.io/foundry-developer-api/info-plist.html)
 - [Identity and metadata](https://doobox.github.io/foundry-developer-api/manifest-identity.html)
 - [Template file declarations](https://doobox.github.io/foundry-developer-api/templates.html)
 - [Libraries and assets](https://doobox.github.io/foundry-developer-api/manifest-resources.html)
@@ -28,68 +27,56 @@ with:
 
 ```text
 Example.foundrydevpack/
-├── Info.plist
+├── manifest.json
 └── Parts/
     └── Example/
-        ├── Info.plist
+        ├── manifest.json
         └── Resources/
             ├── part.html
             ├── part.css
             └── icon.svg
 ```
 
-The root `Info.plist` identifies the pack itself. A pack may carry any number
+The root `manifest.json` identifies the pack itself. A pack may carry any number
 of parts under `Parts/`, template bundles under `Templates/`, framework
 bundles under `Frameworks/`, and importable asset collections under `Assets/`;
 other top-level items are rejected (hidden files such as `.git` are ignored,
 so a development pack can live in a checkout).
 
-An asset collection is a folder with an `Info.plist` (requires `id`; may
+An asset collection is a folder with a `manifest.json` (requires `id`; may
 declare `title`, `license`, `licenseURL`, `attribution` — shown before
 import) and a `Resources/` directory of files, nested folders included.
 Importing copies files into the project's own asset library.
 
-Root `Info.plist`:
+Root `manifest.json`:
 
-```xml
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
-  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-    <key>id</key><string>com.example.pack</string>
-    <key>title</key><string>Example Pack</string>
-    <key>version</key><string>1.0.0</string>
-    <key>minimumAPIVersion</key><integer>1</integer>
-</dict>
-</plist>
+```json
+{
+    "id" : "com.example.pack",
+    "title" : "Example Pack",
+    "version" : "1.0.0",
+    "minimumAPIVersion" : 1
+}
 ```
 
-`Parts/Example/Info.plist`:
+`Parts/Example/manifest.json`:
 
-```xml
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
-  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-    <key>minimumAPIVersion</key><integer>1</integer>
-    <key>id</key><string>com.example.part</string>
-    <key>title</key><string>Example</string>
-    <key>version</key><string>1.0.0</string>
-    <key>templates</key>
-    <dict>
-        <key>html</key><string>part.html</string>
-        <key>files</key>
-        <array>
-            <dict>
-                <key>path</key><string>part.css</string>
-                <key>scope</key><string>instance</string>
-            </dict>
-        </array>
-    </dict>
-</dict>
-</plist>
+```json
+{
+    "minimumAPIVersion" : 1,
+    "id" : "com.example.part",
+    "title" : "Example",
+    "version" : "1.0.0",
+    "templates" : {
+        "html" : "part.html",
+        "files" : [
+            {
+                "path" : "part.css",
+                "scope" : "instance"
+            }
+        ]
+    }
+}
 ```
 
 ### Part identifiers
@@ -128,25 +115,23 @@ Foundry stores this value privately on the part instance. Inside a repeat, every
 
 To expose an image in the Inspector, declare a normal image control:
 
-```xml
-<key>customItems</key>
-<array>
-    <dict>
-        <key>id</key><string>source</string>
-        <key>label</key><string>Image</string>
-        <key>group</key><string>Content</string>
-        <key>type</key><string>image</string>
-        <key>alt</key><string>Default image description</string>
-        <key>focalPoint</key><true/>
-        <key>renditions</key>
-        <array>
-            <dict>
-                <key>id</key><string>thumbnail</string>
-                <key>maximumDimension</key><integer>480</integer>
-            </dict>
-        </array>
-    </dict>
-</array>
+```json
+"controls" : [
+    {
+        "id" : "source",
+        "label" : "Image",
+        "group" : "Content",
+        "type" : "image",
+        "alt" : "Default image description",
+        "focalPoint" : true,
+        "renditions" : [
+            {
+                "id" : "thumbnail",
+                "maximumDimension" : 480
+            }
+        ]
+    }
+]
 ```
 
 ```html
@@ -170,7 +155,7 @@ The optional `alt` key defaults to an empty string. Foundry automatically places
 - `{{ control.source.focalPointX }}` and `{{ control.source.focalPointY }}` — instance-specific focal-point percentages from `0` to `100`, defaulting to `50`.
 - `{{ control.source.position }}` — the focal point as a ready-to-use CSS pair such as `35% 60%`.
 
-Focal-point editing is opt-in. Add `<key>focalPoint</key><true/>` to let the user set it directly on the Inspector image preview; omitting the key or setting it to false leaves the image well unchanged and returns the centred defaults. Use the same `position` value with either replaced images or backgrounds:
+Focal-point editing is opt-in. Add `"focalPoint" : true` to let the user set it directly on the Inspector image preview; omitting the key or setting it to false leaves the image well unchanged and returns the centred defaults. Use the same `position` value with either replaced images or backgrounds:
 
 ```css
 object-position: {{ control.source.position }};
@@ -197,7 +182,7 @@ Open a `.foundrydevpack` directly or put it in
 `~/Library/Application Support/Foundry/Packs`. Foundry watches development
 packs and reloads a valid edit when the application becomes active. While
 authoring, an incomplete item folder (for example a part without its
-`Info.plist` yet) is skipped so the rest of the pack keeps loading. Rename the
+`manifest.json` yet) is skipped so the rest of the pack keeps loading. Rename the
 finished bundle to `.foundrypack`; opening it validates and installs it into
 the same Packs directory. Installation rejects a pack that still contains
 incomplete items. A pack is a boundary: packs never nest inside other packs,

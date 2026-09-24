@@ -37,7 +37,7 @@ nonisolated struct ReusablePartLibraryPack: Identifiable, Sendable {
 /// nothing ever links back to the library.
 ///
 /// Organization is the directory tree itself: a child of `Templates/`
-/// without an `Info.plist` is a folder, hand-authorable in Finder. Folders
+/// without a `manifest.json` is a folder, hand-authorable in Finder. Folders
 /// and templates list alphabetically — there is no custom ordering to store,
 /// so there is no sidecar file.
 @MainActor
@@ -111,8 +111,8 @@ final class ReusablePartLibrary {
         }
     }
 
-    /// One directory level of a pack's Templates tree: a directory with an
-    /// Info.plist is a template bundle, a directory without one is an
+    /// One directory level of a pack's Templates tree: a directory with a
+    /// manifest.json is a template bundle, a directory without one is an
     /// organization folder, recursed. Folders list first, then templates,
     /// each in name order.
     private func scanNodes(
@@ -130,7 +130,7 @@ final class ReusablePartLibrary {
         for url in children {
             guard let values = try? url.resourceValues(forKeys: [.isDirectoryKey, .isSymbolicLinkKey]),
                   values.isDirectory == true, values.isSymbolicLink != true else { continue }
-            if FileManager.default.fileExists(atPath: url.appending(path: "Info.plist").path) {
+            if FileManager.default.fileExists(atPath: url.appending(path: "manifest.json").path) {
                 guard let entry = Self.entry(at: url), entryURLs[entry.id] == nil else { continue }
                 entryURLs[entry.id] = url.standardizedFileURL
                 entryPackIDs[entry.id] = packID
@@ -367,10 +367,10 @@ final class ReusablePartLibrary {
                 "id": definition.id.uuidString,
                 "title": definition.name
             ]
-            let manifestData = try PropertyListSerialization.data(
-                fromPropertyList: manifest, format: .xml, options: 0
+            let manifestData = try JSONSerialization.data(
+                withJSONObject: manifest, options: [.prettyPrinted, .sortedKeys]
             )
-            try manifestData.write(to: bundleURL.appending(path: "Info.plist"), options: .atomic)
+            try manifestData.write(to: bundleURL.appending(path: "manifest.json"), options: .atomic)
 
             try FoundryDocument.encoder.encode(definition)
                 .write(to: resourcesURL.appending(path: "part.json"), options: .atomic)
@@ -475,8 +475,8 @@ final class ReusablePartLibrary {
                 "id": copied.id.uuidString,
                 "title": copied.name
             ]
-            try PropertyListSerialization.data(fromPropertyList: manifest, format: .xml, options: 0)
-                .write(to: destinationURL.appending(path: "Info.plist"), options: .atomic)
+            try JSONSerialization.data(withJSONObject: manifest, options: [.prettyPrinted, .sortedKeys])
+                .write(to: destinationURL.appending(path: "manifest.json"), options: .atomic)
         } catch {
             try? fileManager.removeItem(at: destinationURL)
             return nil
@@ -543,7 +543,7 @@ final class ReusablePartLibrary {
         ) else { return }
         for url in children {
             guard (try? url.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory == true else { continue }
-            guard fileManager.fileExists(atPath: url.appending(path: "Info.plist").path) else {
+            guard fileManager.fileExists(atPath: url.appending(path: "manifest.json").path) else {
                 reidentifyBundles(in: url)
                 continue
             }
@@ -565,8 +565,8 @@ final class ReusablePartLibrary {
                     "id": copied.id.uuidString,
                     "title": copied.name
                 ]
-                try PropertyListSerialization.data(fromPropertyList: manifest, format: .xml, options: 0)
-                    .write(to: url.appending(path: "Info.plist"), options: .atomic)
+                try JSONSerialization.data(withJSONObject: manifest, options: [.prettyPrinted, .sortedKeys])
+                    .write(to: url.appending(path: "manifest.json"), options: .atomic)
                 try fileManager.moveItem(
                     at: url,
                     to: url.deletingLastPathComponent()
@@ -714,8 +714,8 @@ final class ReusablePartLibrary {
 
     nonisolated static func entry(at bundleURL: URL) -> ReusablePartLibraryEntry? {
         let resourcesURL = bundleURL.appending(path: "Resources", directoryHint: .isDirectory)
-        guard let manifestData = try? Data(contentsOf: bundleURL.appending(path: "Info.plist")),
-              let manifest = try? PropertyListSerialization.propertyList(from: manifestData, format: nil) as? [String: Any],
+        guard let manifestData = try? Data(contentsOf: bundleURL.appending(path: "manifest.json")),
+              let manifest = try? JSONSerialization.jsonObject(with: manifestData) as? [String: Any],
               manifest["reusablePart"] as? Bool == true,
               let definitionData = try? Data(contentsOf: resourcesURL.appending(path: "part.json")),
               let definition = try? FoundryDocument.decoder.decode(ReusablePartDefinition.self, from: definitionData) else {

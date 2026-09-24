@@ -1,0 +1,7 @@
+{
+  "author" : "Foundry",
+  "id" : "uk.co.garysimpson.foundry.builtin-parts",
+  "minimumAPIVersion" : 1,
+  "title" : "Foundry Built-in Content",
+  "version" : "1.0.0"
+}

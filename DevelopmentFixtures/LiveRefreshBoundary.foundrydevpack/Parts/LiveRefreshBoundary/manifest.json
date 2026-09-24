@@ -1,0 +1,49 @@
+{
+  "author" : "Foundry Development",
+  "controls" : [
+    {
+      "defaults" : {
+        "base" : "#ff375f"
+      },
+      "group" : "Reproduction",
+      "id" : "pageColour",
+      "label" : "Diagnostic Colour",
+      "options" : [
+        {
+          "title" : "Red",
+          "value" : "#ff375f"
+        },
+        {
+          "title" : "Blue",
+          "value" : "#0a84ff"
+        },
+        {
+          "title" : "Green",
+          "value" : "#30d158"
+        }
+      ],
+      "responsive" : false,
+      "type" : "select"
+    }
+  ],
+  "description" : "Reproduces stale template output outside a part root after a control value changes.",
+  "group" : "Other",
+  "id" : "dev.foundry.live-refresh-boundary",
+  "minimumAPIVersion" : 1,
+  "tags" : [
+    "Development",
+    "Diagnostics",
+    "Live Refresh"
+  ],
+  "templates" : {
+    "files" : [
+      {
+        "path" : "part.css",
+        "scope" : "instance"
+      }
+    ],
+    "html" : "part.html"
+  },
+  "title" : "Live Refresh Boundary",
+  "version" : "1.0.0"
+}

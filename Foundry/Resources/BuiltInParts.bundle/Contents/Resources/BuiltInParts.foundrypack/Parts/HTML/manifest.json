@@ -1,0 +1,30 @@
+{
+  "assets" : [
+
+  ],
+  "author" : "Foundry",
+  "controls" : [
+    {
+      "type" : "reveal"
+    }
+  ],
+  "description" : "Adds editable custom HTML to the page.",
+  "group" : "Content",
+  "groups" : [
+    {
+      "name" : "Content",
+      "systemImage" : "doc.text"
+    }
+  ],
+  "id" : "foundry.content.html",
+  "minimumAPIVersion" : 1,
+  "tags" : [
+    "Foundry",
+    "built-in"
+  ],
+  "templates" : {
+    "html" : "part.html"
+  },
+  "title" : "HTML",
+  "version" : "1.0.0"
+}

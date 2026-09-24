@@ -199,7 +199,7 @@ nonisolated enum FoundryPackReleaseBuilder {
         try writeUpdateConfiguration(
             appcastURL: publishingDirectoryURL.appending(path: "appcast.php"),
             publicKey: key.publicKey.rawRepresentation.base64EncodedString(),
-            manifestURL: sourceURL.appending(path: "Info.plist")
+            manifestURL: sourceURL.appending(path: "manifest.json")
         )
     }
 
@@ -261,7 +261,7 @@ nonisolated enum FoundryPackReleaseBuilder {
             .appending(path: request.sourceURL.deletingPathExtension().lastPathComponent)
             .appendingPathExtension("foundrypack")
         try fileManager.copyItem(at: request.sourceURL, to: releasePackURL)
-        try writePackVersion(version, manifestURL: releasePackURL.appending(path: "Info.plist"))
+        try writePackVersion(version, manifestURL: releasePackURL.appending(path: "manifest.json"))
 
         let publishingDirectoryURL = configuration.appcastURL.deletingLastPathComponent()
         let releaseDirectoryName = "\(identifier) \(version)"
@@ -518,29 +518,21 @@ nonisolated enum FoundryPackReleaseBuilder {
 
     private static func writeUpdateConfiguration(appcastURL: URL, publicKey: String, manifestURL: URL) throws {
         let data = try Data(contentsOf: manifestURL)
-        guard var dictionary = try PropertyListSerialization.propertyList(
-            from: data,
-            options: [],
-            format: nil
-        ) as? [String: Any] else {
-            throw FoundryPackUpdateError.invalidMetadata("The pack Info.plist is not a dictionary.")
+        guard var dictionary = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            throw FoundryPackUpdateError.invalidMetadata("The pack manifest.json is not a dictionary.")
         }
         dictionary["updates"] = ["appcastURL": appcastURL.absoluteString, "publicKey": publicKey]
-        let output = try PropertyListSerialization.data(fromPropertyList: dictionary, format: .xml, options: 0)
+        let output = try JSONSerialization.data(withJSONObject: dictionary, options: [.prettyPrinted, .sortedKeys])
         try output.write(to: manifestURL, options: .atomic)
     }
 
     private static func writePackVersion(_ version: String, manifestURL: URL) throws {
         let data = try Data(contentsOf: manifestURL)
-        guard var dictionary = try PropertyListSerialization.propertyList(
-            from: data,
-            options: [],
-            format: nil
-        ) as? [String: Any] else {
-            throw FoundryPackUpdateError.invalidMetadata("The pack Info.plist is not a dictionary.")
+        guard var dictionary = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            throw FoundryPackUpdateError.invalidMetadata("The pack manifest.json is not a dictionary.")
         }
         dictionary["version"] = version
-        let output = try PropertyListSerialization.data(fromPropertyList: dictionary, format: .xml, options: 0)
+        let output = try JSONSerialization.data(withJSONObject: dictionary, options: [.prettyPrinted, .sortedKeys])
         try output.write(to: manifestURL, options: .atomic)
     }
 

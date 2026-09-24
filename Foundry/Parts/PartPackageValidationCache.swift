@@ -94,7 +94,7 @@ nonisolated enum PartPackageValidationCache {
             }
             guard state.isDirty, let document = state.document else { return nil }
             state.isDirty = false
-            return try? PropertyListEncoder().encode(document)
+            return try? JSONEncoder().encode(document)
         }
         guard let data, let cacheURL = try? cacheURL() else { return }
         do {
@@ -113,7 +113,7 @@ nonisolated enum PartPackageValidationCache {
         let build = applicationBuild
         if let url = try? cacheURL(),
            let data = try? Data(contentsOf: url),
-           let decoded = try? PropertyListDecoder().decode(Document.self, from: data),
+           let decoded = try? JSONDecoder().decode(Document.self, from: data),
            decoded.formatVersion == formatVersion,
            decoded.validatorVersion == validatorVersion,
            decoded.applicationBuild == build {
@@ -156,6 +156,6 @@ nonisolated enum PartPackageValidationCache {
         return root
             .appending(path: Bundle.main.bundleIdentifier ?? "uk.co.garysimpson.Foundry", directoryHint: .isDirectory)
             .appending(path: "PartCatalog", directoryHint: .isDirectory)
-            .appending(path: "SuccessfulValidation-v\(formatVersion).plist")
+            .appending(path: "SuccessfulValidation-v\(formatVersion).json")
     }
 }

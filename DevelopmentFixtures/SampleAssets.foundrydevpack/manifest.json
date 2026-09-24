@@ -1,0 +1,6 @@
+{
+  "id" : "dev.foundry.fixtures.sample-assets",
+  "minimumAPIVersion" : 1,
+  "title" : "Sample Assets",
+  "version" : "1.0.0"
+}

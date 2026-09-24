@@ -1,0 +1,18 @@
+{
+  "author" : "Example Developer",
+  "description" : "A minimal Foundry part.",
+  "group" : "Content",
+  "id" : "com.example.starter",
+  "minimumAPIVersion" : 1,
+  "templates" : {
+    "files" : [
+      {
+        "path" : "part.css",
+        "scope" : "instance"
+      }
+    ],
+    "html" : "part.html"
+  },
+  "title" : "Starter",
+  "version" : "1.0.0"
+}

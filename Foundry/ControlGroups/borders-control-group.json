@@ -1,0 +1,67 @@
+{
+  "controls" : [
+    {
+      "defaults" : {
+        "base" : false
+      },
+      "group" : "Borders",
+      "id" : "borderEnabled",
+      "label" : "Enable",
+      "responsive" : true,
+      "type" : "toggle"
+    },
+    {
+      "defaults" : {
+        "base" : {
+          "style" : "solid",
+          "width" : "none"
+        }
+      },
+      "group" : "Borders",
+      "id" : "frameworkBorder",
+      "label" : "Border",
+      "responsive" : true,
+      "showsStyle" : true,
+      "type" : "frameworkBorder",
+      "visibleWhen" : {
+        "id" : "borderEnabled",
+        "value" : true
+      }
+    },
+    {
+      "allowsCustom" : true,
+      "defaults" : {
+        "base" : {
+          "palette" : "muted"
+        }
+      },
+      "group" : "Borders",
+      "id" : "frameworkBorderColour",
+      "label" : "Colour",
+      "opacity" : true,
+      "responsive" : true,
+      "type" : "frameworkColor",
+      "visibleWhen" : {
+        "id" : "borderEnabled",
+        "value" : true
+      }
+    },
+    {
+      "defaults" : {
+        "base" : "none"
+      },
+      "group" : "Borders",
+      "id" : "frameworkRadius",
+      "label" : "Radius",
+      "responsive" : true,
+      "type" : "frameworkRadius",
+      "visibleWhen" : {
+        "id" : "borderEnabled",
+        "value" : true
+      }
+    }
+  ],
+  "name" : "Borders",
+  "systemImage" : "square.dashed",
+  "type" : "borders"
+}

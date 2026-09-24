@@ -14,8 +14,8 @@ struct AssetCollectionLibraryTests {
             "version": "1.0.0",
             "minimumAPIVersion": 1
         ]
-        try PropertyListSerialization.data(fromPropertyList: manifest, format: .xml, options: 0)
-            .write(to: root.appending(path: "Info.plist"))
+        try JSONSerialization.data(withJSONObject: manifest, options: [.prettyPrinted, .sortedKeys])
+            .write(to: root.appending(path: "manifest.json"))
         return root
     }
 

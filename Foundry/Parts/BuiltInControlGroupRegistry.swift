@@ -12,12 +12,12 @@ nonisolated enum BuiltInControlGroupRegistry {
 
     private static let definitions: [PartPackageControlGroup.Kind: Definition] = {
         var result: [PartPackageControlGroup.Kind: Definition] = [:]
-        let decoder = PropertyListDecoder()
+        let decoder = JSONDecoder()
 
         for kind in PartPackageControlGroup.Kind.allCases {
             let resourceName = "\(kind.rawValue)-control-group"
-            guard let url = Bundle.main.url(forResource: resourceName, withExtension: "plist") else {
-                preconditionFailure("Missing built-in control-group resource: \(resourceName).plist")
+            guard let url = Bundle.main.url(forResource: resourceName, withExtension: "json") else {
+                preconditionFailure("Missing built-in control-group resource: \(resourceName).json")
             }
 
             do {
@@ -27,7 +27,7 @@ nonisolated enum BuiltInControlGroupRegistry {
                 try validateControls(in: data, definition: definition)
                 result[kind] = definition
             } catch {
-                preconditionFailure("Invalid built-in control-group resource \(resourceName).plist: \(error)")
+                preconditionFailure("Invalid built-in control-group resource \(resourceName).json: \(error)")
             }
         }
 
@@ -77,12 +77,7 @@ nonisolated enum BuiltInControlGroupRegistry {
         in data: Data,
         definition: Definition
     ) throws {
-        var format = PropertyListSerialization.PropertyListFormat.xml
-        guard let resource = try PropertyListSerialization.propertyList(
-            from: data,
-            options: [],
-            format: &format
-        ) as? [String: Any],
+        guard let resource = try JSONSerialization.jsonObject(with: data) as? [String: Any],
               let controls = resource["controls"] as? [[String: Any]] else {
             throw DefinitionError.invalidControls
         }
@@ -95,11 +90,7 @@ nonisolated enum BuiltInControlGroupRegistry {
             "controls": controls,
             "templates": ["html": "part.html"]
         ]
-        let manifestData = try PropertyListSerialization.data(
-            fromPropertyList: manifest,
-            format: .xml,
-            options: 0
-        )
+        let manifestData = try JSONSerialization.data(withJSONObject: manifest)
         let diagnostics = try PartPackageManifestSchema.diagnostics(for: manifestData)
         guard diagnostics.isEmpty else {
             throw DefinitionError.controlDiagnostics(

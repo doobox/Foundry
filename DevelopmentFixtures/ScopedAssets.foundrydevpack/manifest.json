@@ -1,0 +1,6 @@
+{
+  "id" : "dev.foundry.fixtures.scoped-assets",
+  "minimumAPIVersion" : 1,
+  "title" : "ScopedAssets",
+  "version" : "1.0.0"
+}

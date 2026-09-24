@@ -1,0 +1,6 @@
+{
+  "id" : "dev.foundry.fixtures.appearance-toggle",
+  "minimumAPIVersion" : 1,
+  "title" : "AppearanceToggle",
+  "version" : "1.0.0"
+}

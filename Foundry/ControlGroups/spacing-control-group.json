@@ -1,0 +1,45 @@
+{
+  "controls" : [
+    {
+      "defaults" : {
+        "base" : true
+      },
+      "group" : "Spacing",
+      "id" : "spacingEnabled",
+      "label" : "Enable",
+      "responsive" : true,
+      "type" : "toggle"
+    },
+    {
+      "defaults" : {
+        "base" : "none"
+      },
+      "group" : "Spacing",
+      "id" : "frameworkPadding",
+      "label" : "Padding",
+      "responsive" : true,
+      "type" : "frameworkPadding",
+      "visibleWhen" : {
+        "id" : "spacingEnabled",
+        "value" : true
+      }
+    },
+    {
+      "defaults" : {
+        "base" : "none"
+      },
+      "group" : "Spacing",
+      "id" : "frameworkMargin",
+      "label" : "Margin",
+      "responsive" : true,
+      "type" : "frameworkMargin",
+      "visibleWhen" : {
+        "id" : "spacingEnabled",
+        "value" : true
+      }
+    }
+  ],
+  "name" : "Spacing",
+  "systemImage" : "arrow.up.and.down.and.arrow.left.and.right",
+  "type" : "spacing"
+}

@@ -1,0 +1,6 @@
+{
+  "id" : "dev.foundry.fixtures.expression-engine",
+  "minimumAPIVersion" : 1,
+  "title" : "ExpressionEngine",
+  "version" : "1.0.0"
+}

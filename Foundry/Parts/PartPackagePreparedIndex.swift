@@ -76,7 +76,7 @@ nonisolated enum PartPackagePreparedIndex {
             }
             guard state.isDirty, let document = state.document else { return nil }
             state.isDirty = false
-            return try? PropertyListEncoder().encode(document)
+            return try? JSONEncoder().encode(document)
         }
         guard let data, let cacheURL = try? cacheURL() else { return }
         do {
@@ -95,7 +95,7 @@ nonisolated enum PartPackagePreparedIndex {
         let currentBuild = applicationBuild
         if let url = try? cacheURL(),
            let data = try? Data(contentsOf: url),
-           let decoded = try? PropertyListDecoder().decode(Document.self, from: data),
+           let decoded = try? JSONDecoder().decode(Document.self, from: data),
            decoded.formatVersion == formatVersion,
            decoded.applicationBuild == currentBuild {
             state.document = decoded
@@ -113,7 +113,7 @@ nonisolated enum PartPackagePreparedIndex {
         for rootURL: URL,
         manifest: PartPackageManifest
     ) -> Fingerprint? {
-        let manifestURL = rootURL.appending(path: "Info.plist")
+        let manifestURL = rootURL.appending(path: "manifest.json")
         let templateURL = rootURL.appending(path: "Resources/\(manifest.render.html)")
         guard let manifestValues = try? manifestURL.resourceValues(forKeys: [.fileSizeKey, .contentModificationDateKey]),
               let templateValues = try? templateURL.resourceValues(forKeys: [.fileSizeKey, .contentModificationDateKey]),
@@ -145,6 +145,6 @@ nonisolated enum PartPackagePreparedIndex {
         return root
             .appending(path: Bundle.main.bundleIdentifier ?? "uk.co.garysimpson.Foundry", directoryHint: .isDirectory)
             .appending(path: "PartCatalog", directoryHint: .isDirectory)
-            .appending(path: "PreparedIndex-v\(formatVersion).plist")
+            .appending(path: "PreparedIndex-v\(formatVersion).json")
     }
 }

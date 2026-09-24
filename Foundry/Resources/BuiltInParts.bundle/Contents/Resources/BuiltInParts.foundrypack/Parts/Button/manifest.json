@@ -1,0 +1,118 @@
+{
+  "assets" : [
+
+  ],
+  "author" : "Foundry",
+  "controls" : [
+    {
+      "absoluteURL" : false,
+      "defaults" : {
+        "base" : "#"
+      },
+      "group" : "Link",
+      "id" : "destination",
+      "label" : "Destination",
+      "responsive" : false,
+      "type" : "link"
+    },
+    {
+      "allowsCustom" : true,
+      "customColor" : "#FFFFFF",
+      "defaults" : {
+        "base" : {
+          "palette" : "custom"
+        }
+      },
+      "group" : "Typography",
+      "id" : "textColor",
+      "label" : "Text colour",
+      "opacity" : true,
+      "responsive" : true,
+      "type" : "frameworkColor"
+    },
+    {
+      "allowsCustom" : true,
+      "customColor" : "#5B5BD6",
+      "defaults" : {
+        "base" : {
+          "palette" : "custom"
+        }
+      },
+      "group" : "Appearance",
+      "id" : "backgroundColor",
+      "label" : "Background",
+      "opacity" : true,
+      "responsive" : true,
+      "type" : "frameworkColor"
+    },
+    {
+      "defaults" : {
+        "base" : 10
+      },
+      "group" : "Appearance",
+      "id" : "cornerRadius",
+      "label" : "Corner radius",
+      "maximum" : 120,
+      "minimum" : 0,
+      "responsive" : true,
+      "step" : 1,
+      "type" : "number",
+      "units" : "px"
+    },
+    {
+      "defaults" : {
+        "base" : ""
+      },
+      "group" : "Accessibility",
+      "id" : "accessibilityLabel",
+      "label" : "Accessibility label",
+      "responsive" : false,
+      "type" : "text"
+    },
+    {
+      "type" : "reveal"
+    }
+  ],
+  "description" : "Creates a styled link for calls to action and navigation.",
+  "group" : "Content",
+  "groups" : [
+    {
+      "name" : "Content",
+      "systemImage" : "doc.text"
+    },
+    {
+      "name" : "Link",
+      "systemImage" : "link"
+    },
+    {
+      "name" : "Typography",
+      "systemImage" : "textformat"
+    },
+    {
+      "name" : "Appearance",
+      "systemImage" : "paintpalette"
+    },
+    {
+      "name" : "Accessibility",
+      "systemImage" : "accessibility"
+    }
+  ],
+  "id" : "foundry.content.button",
+  "minimumAPIVersion" : 1,
+  "tags" : [
+    "Foundry",
+    "built-in",
+    "link"
+  ],
+  "templates" : {
+    "files" : [
+      {
+        "path" : "part.css",
+        "scope" : "instance"
+      }
+    ],
+    "html" : "part.html"
+  },
+  "title" : "Button",
+  "version" : "1.0.0"
+}

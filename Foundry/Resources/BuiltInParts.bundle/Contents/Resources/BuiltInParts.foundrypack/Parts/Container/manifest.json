@@ -1,0 +1,98 @@
+{
+  "assets" : [
+
+  ],
+  "author" : "Foundry",
+  "controls" : [
+    {
+      "defaultOverrides" : {
+        "maxWidth" : 1120
+      },
+      "type" : "sizing"
+    },
+    {
+      "defaultOverrides" : {
+        "itemEnabled" : true
+      },
+      "type" : "layoutItem"
+    },
+    {
+      "defaultOverrides" : {
+        "frameworkMargin" : {
+          "bottom" : "none",
+          "left" : "auto",
+          "right" : "auto",
+          "top" : "none"
+        }
+      },
+      "type" : "spacing"
+    },
+    {
+      "defaultOverrides" : {
+        "borderEnabled" : true
+      },
+      "type" : "borders"
+    },
+    {
+      "type" : "effects"
+    },
+    {
+      "defaults" : {
+        "base" : "visible"
+      },
+      "group" : "Advanced",
+      "id" : "overflow",
+      "label" : "Overflow",
+      "options" : [
+        {
+          "title" : "Visible",
+          "value" : "visible"
+        },
+        {
+          "title" : "Clip",
+          "value" : "hidden"
+        },
+        {
+          "title" : "Scroll when needed",
+          "value" : "auto"
+        }
+      ],
+      "responsive" : true,
+      "tooltip" : "Clipping can hide shadows or focus outlines.",
+      "type" : "select"
+    },
+    {
+      "type" : "background"
+    },
+    {
+      "type" : "reveal"
+    }
+  ],
+  "description" : "A width-constrained content group with shared spacing and appearance settings.",
+  "group" : "Layout",
+  "groups" : [
+    {
+      "name" : "Advanced",
+      "systemImage" : "gearshape"
+    }
+  ],
+  "id" : "foundry.layout.container",
+  "minimumAPIVersion" : 1,
+  "tags" : [
+    "Foundry",
+    "built-in",
+    "layout",
+    "width"
+  ],
+  "templates" : {
+    "files" : [
+      {
+        "path" : "part.css",
+        "scope" : "instance"
+      }
+    ],
+    "html" : "part.html"
+  },
+  "title" : "Container",
+  "version" : "2.0.0"
+}

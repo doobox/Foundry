@@ -170,7 +170,7 @@ final class PartPackageCatalog {
                 diagnostics[url] = [
                     .init(
                         severity: .error,
-                        location: "Info.plist:id",
+                        location: "manifest.json:id",
                         message: "Another installed package already uses '\(package.manifest.identifier)'."
                     )
                 ]
@@ -425,7 +425,7 @@ private struct PartCatalogSnapshot: Sendable {
                 if let previous = packages[identifier], previous.rootURL.standardizedFileURL != url {
                     diagnostics[url] = [.init(
                         severity: .error,
-                        location: "Info.plist:id",
+                        location: "manifest.json:id",
                         message: "Another installed package already uses '\(identifier)'."
                     )]
                 } else {

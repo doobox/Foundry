@@ -72,18 +72,20 @@ nonisolated enum FrameworkBundleStore {
     static let systemFrameworkID = UUID(uuid: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1))
 
     static func isFrameworkURL(_ url: URL) -> Bool {
-        FileManager.default.fileExists(atPath: url.appending(path: "Info.plist").path)
+        FileManager.default.fileExists(atPath: url.appending(path: "manifest.json").path)
             && FileManager.default.fileExists(atPath: url.appending(path: "Resources/framework.json").path)
     }
 
     static func load(from bundleURL: URL, isBuiltIn: Bool = false) throws -> SavedFramework {
-        let metadataURL = bundleURL.appending(path: "Info.plist")
+        let metadataURL = bundleURL.appending(path: "manifest.json")
         let frameworkURL = bundleURL.appending(path: "Resources/framework.json")
         guard FileManager.default.fileExists(atPath: metadataURL.path),
               FileManager.default.fileExists(atPath: frameworkURL.path) else {
             throw FrameworkBundleError.missingContents
         }
-        let metadata = try PropertyListDecoder().decode(
+        let metadataDecoder = JSONDecoder()
+        metadataDecoder.dateDecodingStrategy = .iso8601
+        let metadata = try metadataDecoder.decode(
             FrameworkBundleMetadata.self,
             from: Data(contentsOf: metadataURL)
         )
@@ -154,9 +156,10 @@ nonisolated enum FrameworkBundleStore {
             modifiedAt: Date(),
             resources: resources
         )
-        let plistEncoder = PropertyListEncoder()
-        plistEncoder.outputFormat = .xml
-        try plistEncoder.encode(metadata).write(to: bundleURL.appending(path: "Info.plist"), options: .atomic)
+        let metadataEncoder = JSONEncoder()
+        metadataEncoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        metadataEncoder.dateEncodingStrategy = .iso8601
+        try metadataEncoder.encode(metadata).write(to: bundleURL.appending(path: "manifest.json"), options: .atomic)
         let frameworkEncoder = JSONEncoder()
         frameworkEncoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
         try frameworkEncoder.encode(bundleFramework).write(to: resourcesURL.appending(path: "framework.json"), options: .atomic)
@@ -206,11 +209,12 @@ nonisolated enum FrameworkBundleStore {
             createdAt: saved.metadata.createdAt,
             modifiedAt: Date(), resources: saved.metadata.resources
         )
-        let encoder = PropertyListEncoder()
-        encoder.outputFormat = .xml
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        encoder.dateEncodingStrategy = .iso8601
         let data = try encoder.encode(metadata)
         try preview.data.write(to: saved.bundleURL.appending(path: "Resources/\(preview.filename)"), options: .atomic)
-        try data.write(to: saved.bundleURL.appending(path: "Info.plist"), options: .atomic)
+        try data.write(to: saved.bundleURL.appending(path: "manifest.json"), options: .atomic)
         return try load(from: saved.bundleURL)
     }
 

@@ -1,0 +1,11 @@
+{
+  "description" : "An intentionally invalid development part used to test diagnostics.",
+  "group" : "Development",
+  "id" : "Com.Foundry.BrokenTest",
+  "minimumAPIVersion" : 1,
+  "templates" : {
+    "html" : "missing-part.html"
+  },
+  "title" : "Broken Test Part",
+  "version" : "1.0.0"
+}

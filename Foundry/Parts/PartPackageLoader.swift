@@ -336,9 +336,9 @@ nonisolated enum PartPackageLoadingError: Error, LocalizedError {
     var errorDescription: String? {
         switch self {
         case .missingManifest:
-            "The part directory does not contain Info.plist."
+            "The part directory does not contain manifest.json."
         case .unreadableManifest(let error):
-            "Info.plist could not be decoded: \(Self.decodingDetail(error))"
+            "manifest.json could not be decoded: \(Self.decodingDetail(error))"
         case .invalid(let diagnostics):
             diagnostics.map { "\($0.location): \($0.message)" }.joined(separator: "\n")
         case .unreadableResource(let path, let error):
@@ -430,7 +430,7 @@ nonisolated enum PartPackageLoader {
 
         let clock = ContinuousClock()
         var timings = PartPackageLoadTimings()
-        let manifestURL = rootURL.appending(path: "Info.plist")
+        let manifestURL = rootURL.appending(path: "manifest.json")
         guard FileManager.default.fileExists(atPath: manifestURL.path) else {
             throw PartPackageLoadingError.missingManifest
         }
@@ -453,7 +453,7 @@ nonisolated enum PartPackageLoader {
                 schemaDiagnostics = []
             }
             let decodeStart = clock.now
-            manifest = try PropertyListDecoder().decode(PartPackageManifest.self, from: data)
+            manifest = try JSONDecoder().decode(PartPackageManifest.self, from: data)
             timings.manifestDecoding = decodeStart.duration(to: clock.now)
         } catch let error as PartPackageLoadingError {
             throw error
@@ -521,7 +521,7 @@ nonisolated enum PartPackageLoader {
     ) throws -> PartPackageLoadResult {
         let clock = ContinuousClock()
         var timings = PartPackageLoadTimings()
-        let manifestURL = rootURL.appending(path: "Info.plist")
+        let manifestURL = rootURL.appending(path: "manifest.json")
         guard FileManager.default.fileExists(atPath: manifestURL.path) else {
             throw PartPackageLoadingError.missingManifest
         }
@@ -544,7 +544,7 @@ nonisolated enum PartPackageLoader {
                 schemaDiagnostics = []
             }
             let decodingStart = clock.now
-            manifest = try PropertyListDecoder().decode(PartPackageManifest.self, from: data)
+            manifest = try JSONDecoder().decode(PartPackageManifest.self, from: data)
             timings.manifestDecoding = decodingStart.duration(to: clock.now)
         } catch let error as PartPackageLoadingError {
             throw error

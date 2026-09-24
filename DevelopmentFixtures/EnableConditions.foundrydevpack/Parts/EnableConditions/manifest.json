@@ -1,0 +1,147 @@
+{
+  "assets" : [
+    {
+      "path" : "icon.svg"
+    }
+  ],
+  "author" : "Foundry Development",
+  "controls" : [
+    {
+      "defaults" : {
+        "base" : "standard"
+      },
+      "group" : "Visibility Demo",
+      "id" : "mode",
+      "label" : "Mode",
+      "options" : [
+        {
+          "title" : "Standard",
+          "value" : "standard"
+        },
+        {
+          "title" : "Featured",
+          "value" : "featured"
+        }
+      ],
+      "responsive" : false,
+      "type" : "select"
+    },
+    {
+      "defaults" : {
+        "base" : "A featured title"
+      },
+      "group" : "Visibility Demo",
+      "id" : "featuredTitle",
+      "label" : "Featured title",
+      "responsive" : false,
+      "type" : "text",
+      "visibleWhen" : {
+        "id" : "mode",
+        "value" : "featured"
+      }
+    },
+    {
+      "defaults" : {
+        "base" : 400
+      },
+      "group" : "Visibility Demo",
+      "id" : "width",
+      "label" : "Width",
+      "maximum" : 1000,
+      "minimum" : 0,
+      "responsive" : false,
+      "step" : 10,
+      "type" : "number",
+      "units" : "px"
+    },
+    {
+      "body" : "Width is at least 600 px",
+      "group" : "Visibility Demo",
+      "id" : "wideMessage",
+      "type" : "note",
+      "visibleWhen" : {
+        "id" : "width",
+        "operation" : ">=",
+        "value" : 600
+      }
+    },
+    {
+      "count" : 3,
+      "defaults" : {
+        "base" : [
+          "Alpha",
+          "Beta",
+          "Ordinary"
+        ]
+      },
+      "group" : "Visibility Demo",
+      "id" : "titles",
+      "label" : "Titles",
+      "responsive" : false,
+      "subtitle" : [
+        "Title 1",
+        "Title 2",
+        "Title 3"
+      ],
+      "type" : "text"
+    },
+    {
+      "body" : "Third title contains “featured”",
+      "group" : "Visibility Demo",
+      "id" : "thirdTitleMessage",
+      "type" : "note",
+      "visibleWhen" : {
+        "id" : "titles[2]",
+        "operation" : "containsInsensitive",
+        "value" : "featured"
+      }
+    },
+    {
+      "defaults" : {
+        "base" : ""
+      },
+      "group" : "Visibility Demo",
+      "id" : "note",
+      "label" : "Optional note",
+      "responsive" : false,
+      "type" : "text"
+    },
+    {
+      "body" : "The optional note is empty",
+      "group" : "Visibility Demo",
+      "id" : "emptyMessage",
+      "type" : "note",
+      "visibleWhen" : {
+        "id" : "note",
+        "operation" : "isEmpty"
+      }
+    },
+    {
+      "defaults" : {
+        "base" : "This appears after entering a note."
+      },
+      "group" : "Visibility Demo",
+      "id" : "noteDetail",
+      "label" : "Note detail",
+      "responsive" : false,
+      "type" : "textArea",
+      "visibleWhen" : {
+        "id" : "note",
+        "operation" : "isNotEmpty"
+      }
+    }
+  ],
+  "description" : "Demonstrates conditional control visibility.",
+  "group" : "Other",
+  "id" : "dev.foundry.enable-conditions",
+  "minimumAPIVersion" : 1,
+  "tags" : [
+    "Development",
+    "Conditional"
+  ],
+  "templates" : {
+    "html" : "part.html"
+  },
+  "title" : "Visibility Conditions Demo",
+  "version" : "1.0.0"
+}

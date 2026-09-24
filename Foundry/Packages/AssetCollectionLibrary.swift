@@ -64,7 +64,7 @@ nonisolated enum AssetCollectionNode: Identifiable, Equatable, Sendable {
 
 /// A curated collection of importable files shipped in a pack's `Assets`
 /// directory: photos, icons, textures, fonts, video. A collection is just a
-/// folder — hand-authorable in Finder. An optional `Info.plist` inside it
+/// folder — hand-authorable in Finder. An optional `manifest.json` inside it
 /// adds a display title, a stable id, and the licence shown before anything
 /// imports.
 nonisolated struct AssetCollection: Identifiable, Equatable, Sendable {
@@ -93,11 +93,11 @@ nonisolated enum AssetCollectionStore {
     /// exists but cannot be parsed throws so installs can reject bad packs;
     /// browsing uses `entry(at:)` and skips instead.
     static func load(from itemURL: URL) throws -> AssetCollection {
-        let manifestURL = itemURL.appending(path: "Info.plist")
+        let manifestURL = itemURL.appending(path: "manifest.json")
         var manifest: [String: Any] = [:]
         if FileManager.default.fileExists(atPath: manifestURL.path) {
             let data = try Data(contentsOf: manifestURL)
-            guard let parsed = try PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any] else {
+            guard let parsed = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
                 throw CocoaError(.fileReadCorruptFile)
             }
             manifest = parsed
@@ -106,7 +106,7 @@ nonisolated enum AssetCollectionStore {
             let trimmed = id.trimmingCharacters(in: .whitespacesAndNewlines)
             return trimmed.isEmpty ? nil : trimmed
         }
-        let nodes = nodes(in: itemURL, excludingRootNames: ["Info.plist"])
+        let nodes = nodes(in: itemURL, excludingRootNames: ["manifest.json"])
         return AssetCollection(
             identifier: manifestID ?? itemURL.standardizedFileURL.path,
             manifestID: manifestID,
@@ -138,8 +138,8 @@ nonisolated enum AssetCollectionStore {
         if let license, !license.isEmpty { manifest["license"] = license }
         if let licenseURL { manifest["licenseURL"] = licenseURL.absoluteString }
         if let attribution, !attribution.isEmpty { manifest["attribution"] = attribution }
-        let data = try PropertyListSerialization.data(fromPropertyList: manifest, format: .xml, options: 0)
-        try data.write(to: itemURL.appending(path: "Info.plist"), options: .atomic)
+        let data = try JSONSerialization.data(withJSONObject: manifest, options: [.prettyPrinted, .sortedKeys])
+        try data.write(to: itemURL.appending(path: "manifest.json"), options: .atomic)
     }
 
     /// One directory level of the collection tree, recursing into subfolders:
@@ -457,9 +457,9 @@ final class AssetCollectionLibrary {
         try? fileManager.createDirectory(at: destinationURL, withIntermediateDirectories: true)
         var copied = 0
         for url in urls {
-            // A file named Info.plist at the collection root would become
+            // A file named manifest.json at the collection root would become
             // the manifest; refuse rather than corrupt the collection.
-            if folderID == nil, url.lastPathComponent == "Info.plist" { continue }
+            if folderID == nil, url.lastPathComponent == "manifest.json" { continue }
             let destination = uniqueDestination(for: url.lastPathComponent, in: destinationURL)
             if (try? fileManager.copyItem(at: url, to: destination)) != nil {
                 copied += 1
@@ -518,7 +518,7 @@ final class AssetCollectionLibrary {
               let destinationURL = writableDirectory(in: collectionID, folderID: folderID) else { return }
         var moved = false
         for file in collection.files where fileIDs.contains(file.id) {
-            if folderID == nil, file.filename == "Info.plist" { continue }
+            if folderID == nil, file.filename == "manifest.json" { continue }
             guard file.url.deletingLastPathComponent().standardizedFileURL
                     != destinationURL.standardizedFileURL else { continue }
             let destination = uniqueDestination(for: file.filename, in: destinationURL)

@@ -1,0 +1,984 @@
+{
+  "controls" : [
+    {
+      "defaults" : {
+        "base" : "none"
+      },
+      "group" : "Background",
+      "id" : "backgroundMode",
+      "label" : "Type",
+      "options" : [
+        {
+          "title" : "None",
+          "value" : "none"
+        },
+        {
+          "title" : "Static",
+          "value" : "static"
+        },
+        {
+          "title" : "Hover",
+          "value" : "hover"
+        }
+      ],
+      "presentation" : "segmented",
+      "responsive" : false,
+      "type" : "select"
+    },
+    {
+      "defaults" : {
+        "base" : "color"
+      },
+      "group" : "Background",
+      "id" : "backgroundStyle",
+      "label" : "Style",
+      "options" : [
+        {
+          "systemImage" : "paintbrush.fill",
+          "title" : "Colour",
+          "value" : "color"
+        },
+        {
+          "systemImage" : "photo",
+          "title" : "Image",
+          "value" : "image"
+        },
+        {
+          "systemImage" : "circle.lefthalf.filled",
+          "title" : "Gradient",
+          "value" : "gradient"
+        },
+        {
+          "systemImage" : "video.fill",
+          "title" : "Video",
+          "value" : "video"
+        }
+      ],
+      "presentation" : "segmented",
+      "responsive" : false,
+      "type" : "select",
+      "visibleWhen" : {
+        "id" : "backgroundMode",
+        "value" : "static"
+      }
+    },
+    {
+      "allowsCustom" : true,
+      "defaults" : {
+        "base" : {
+          "palette" : "surface"
+        }
+      },
+      "group" : "Background",
+      "id" : "backgroundColor",
+      "label" : "Colour",
+      "opacity" : true,
+      "responsive" : true,
+      "type" : "frameworkColor",
+      "visibleWhen" : {
+        "all" : [
+          {
+            "id" : "backgroundMode",
+            "value" : "static"
+          },
+          {
+            "id" : "backgroundStyle",
+            "value" : "color"
+          }
+        ]
+      }
+    },
+    {
+      "defaults" : {
+        "base" : ""
+      },
+      "group" : "Background",
+      "id" : "backgroundImage",
+      "label" : "Image",
+      "responsive" : true,
+      "type" : "image",
+      "visibleWhen" : {
+        "all" : [
+          {
+            "id" : "backgroundMode",
+            "value" : "static"
+          },
+          {
+            "id" : "backgroundStyle",
+            "value" : "image"
+          }
+        ]
+      }
+    },
+    {
+      "defaults" : {
+        "base" : "center"
+      },
+      "group" : "Background",
+      "id" : "backgroundPosition",
+      "label" : "Position",
+      "options" : [
+        {
+          "title" : "Centre",
+          "value" : "center"
+        },
+        {
+          "title" : "Top",
+          "value" : "top"
+        },
+        {
+          "title" : "Right",
+          "value" : "right"
+        },
+        {
+          "title" : "Bottom",
+          "value" : "bottom"
+        },
+        {
+          "title" : "Left",
+          "value" : "left"
+        },
+        {
+          "title" : "Top left",
+          "value" : "left top"
+        },
+        {
+          "title" : "Top right",
+          "value" : "right top"
+        },
+        {
+          "title" : "Bottom left",
+          "value" : "left bottom"
+        },
+        {
+          "title" : "Bottom right",
+          "value" : "right bottom"
+        }
+      ],
+      "responsive" : true,
+      "type" : "select",
+      "visibleWhen" : {
+        "all" : [
+          {
+            "id" : "backgroundMode",
+            "value" : "static"
+          },
+          {
+            "id" : "backgroundStyle",
+            "value" : "image"
+          }
+        ]
+      }
+    },
+    {
+      "defaults" : {
+        "base" : "cover"
+      },
+      "group" : "Background",
+      "id" : "backgroundSize",
+      "label" : "Size",
+      "options" : [
+        {
+          "title" : "Cover",
+          "value" : "cover"
+        },
+        {
+          "title" : "Contain",
+          "value" : "contain"
+        },
+        {
+          "title" : "Auto",
+          "value" : "auto"
+        }
+      ],
+      "responsive" : true,
+      "type" : "select",
+      "visibleWhen" : {
+        "all" : [
+          {
+            "id" : "backgroundMode",
+            "value" : "static"
+          },
+          {
+            "id" : "backgroundStyle",
+            "value" : "image"
+          }
+        ]
+      }
+    },
+    {
+      "defaults" : {
+        "base" : "no-repeat"
+      },
+      "group" : "Background",
+      "id" : "backgroundRepeat",
+      "label" : "Repeat",
+      "options" : [
+        {
+          "title" : "No repeat",
+          "value" : "no-repeat"
+        },
+        {
+          "title" : "Repeat",
+          "value" : "repeat"
+        },
+        {
+          "title" : "Repeat horizontally",
+          "value" : "repeat-x"
+        },
+        {
+          "title" : "Repeat vertically",
+          "value" : "repeat-y"
+        },
+        {
+          "title" : "Space",
+          "value" : "space"
+        },
+        {
+          "title" : "Round",
+          "value" : "round"
+        }
+      ],
+      "responsive" : true,
+      "type" : "select",
+      "visibleWhen" : {
+        "all" : [
+          {
+            "id" : "backgroundMode",
+            "value" : "static"
+          },
+          {
+            "id" : "backgroundStyle",
+            "value" : "image"
+          }
+        ]
+      }
+    },
+    {
+      "defaults" : {
+        "base" : "linear"
+      },
+      "group" : "Background",
+      "id" : "backgroundGradientType",
+      "label" : "Type",
+      "options" : [
+        {
+          "title" : "Linear",
+          "value" : "linear"
+        },
+        {
+          "title" : "Radial",
+          "value" : "radial"
+        },
+        {
+          "title" : "Conic",
+          "value" : "conic"
+        }
+      ],
+      "presentation" : "segmented",
+      "responsive" : true,
+      "type" : "select",
+      "visibleWhen" : {
+        "all" : [
+          {
+            "id" : "backgroundMode",
+            "value" : "static"
+          },
+          {
+            "id" : "backgroundStyle",
+            "value" : "gradient"
+          }
+        ]
+      }
+    },
+    {
+      "defaults" : {
+        "base" : "to bottom"
+      },
+      "group" : "Background",
+      "id" : "backgroundGradientDirection",
+      "label" : "Direction",
+      "options" : [
+        {
+          "title" : "To bottom",
+          "value" : "to bottom"
+        },
+        {
+          "title" : "To top",
+          "value" : "to top"
+        },
+        {
+          "title" : "To right",
+          "value" : "to right"
+        },
+        {
+          "title" : "To left",
+          "value" : "to left"
+        },
+        {
+          "title" : "To bottom right",
+          "value" : "to bottom right"
+        },
+        {
+          "title" : "To bottom left",
+          "value" : "to bottom left"
+        },
+        {
+          "title" : "To top right",
+          "value" : "to top right"
+        },
+        {
+          "title" : "To top left",
+          "value" : "to top left"
+        }
+      ],
+      "responsive" : true,
+      "type" : "select",
+      "visibleWhen" : {
+        "all" : [
+          {
+            "id" : "backgroundMode",
+            "value" : "static"
+          },
+          {
+            "id" : "backgroundStyle",
+            "value" : "gradient"
+          },
+          {
+            "id" : "backgroundGradientType",
+            "value" : "linear"
+          }
+        ]
+      }
+    },
+    {
+      "allowsCustom" : true,
+      "defaults" : {
+        "base" : {
+          "palette" : "surface"
+        }
+      },
+      "group" : "Background",
+      "id" : "backgroundGradientFrom",
+      "label" : "From colour",
+      "opacity" : true,
+      "responsive" : true,
+      "type" : "frameworkColor",
+      "visibleWhen" : {
+        "all" : [
+          {
+            "id" : "backgroundMode",
+            "value" : "static"
+          },
+          {
+            "id" : "backgroundStyle",
+            "value" : "gradient"
+          }
+        ]
+      }
+    },
+    {
+      "defaults" : {
+        "base" : 0
+      },
+      "group" : "Background",
+      "id" : "backgroundGradientFromPosition",
+      "label" : "From position",
+      "maximum" : 100,
+      "minimum" : 0,
+      "responsive" : true,
+      "showsValueField" : true,
+      "step" : 1,
+      "type" : "slider",
+      "visibleWhen" : {
+        "all" : [
+          {
+            "id" : "backgroundMode",
+            "value" : "static"
+          },
+          {
+            "id" : "backgroundStyle",
+            "value" : "gradient"
+          }
+        ]
+      }
+    },
+    {
+      "allowsCustom" : true,
+      "defaults" : {
+        "base" : {
+          "palette" : "accent"
+        }
+      },
+      "group" : "Background",
+      "id" : "backgroundGradientTo",
+      "label" : "To colour",
+      "opacity" : true,
+      "responsive" : true,
+      "type" : "frameworkColor",
+      "visibleWhen" : {
+        "all" : [
+          {
+            "id" : "backgroundMode",
+            "value" : "static"
+          },
+          {
+            "id" : "backgroundStyle",
+            "value" : "gradient"
+          }
+        ]
+      }
+    },
+    {
+      "defaults" : {
+        "base" : 100
+      },
+      "group" : "Background",
+      "id" : "backgroundGradientToPosition",
+      "label" : "To position",
+      "maximum" : 100,
+      "minimum" : 0,
+      "responsive" : true,
+      "showsValueField" : true,
+      "step" : 1,
+      "type" : "slider",
+      "visibleWhen" : {
+        "all" : [
+          {
+            "id" : "backgroundMode",
+            "value" : "static"
+          },
+          {
+            "id" : "backgroundStyle",
+            "value" : "gradient"
+          }
+        ]
+      }
+    },
+    {
+      "defaults" : {
+        "base" : ""
+      },
+      "group" : "Background",
+      "id" : "backgroundVideo",
+      "label" : "Video",
+      "tooltip" : "Choose a video from project resources. Background video is muted, loops, and does not capture pointer events.",
+      "type" : "video",
+      "visibleWhen" : {
+        "all" : [
+          {
+            "id" : "backgroundMode",
+            "value" : "static"
+          },
+          {
+            "id" : "backgroundStyle",
+            "value" : "video"
+          }
+        ]
+      }
+    },
+    {
+      "defaults" : {
+        "base" : false
+      },
+      "group" : "Background",
+      "id" : "backgroundVideoAspectRatio",
+      "label" : "Force 16:9 aspect ratio",
+      "responsive" : true,
+      "type" : "toggle",
+      "visibleWhen" : {
+        "all" : [
+          {
+            "id" : "backgroundMode",
+            "value" : "static"
+          },
+          {
+            "id" : "backgroundStyle",
+            "value" : "video"
+          }
+        ]
+      }
+    },
+    {
+      "defaults" : {
+        "base" : "none"
+      },
+      "group" : "Background",
+      "id" : "backgroundHoverStyle",
+      "label" : "Style",
+      "options" : [
+        {
+          "title" : "None",
+          "value" : "none"
+        },
+        {
+          "systemImage" : "paintbrush.fill",
+          "title" : "Colour",
+          "value" : "color"
+        },
+        {
+          "systemImage" : "photo",
+          "title" : "Image",
+          "value" : "image"
+        },
+        {
+          "systemImage" : "circle.lefthalf.filled",
+          "title" : "Gradient",
+          "value" : "gradient"
+        },
+        {
+          "systemImage" : "video.fill",
+          "title" : "Video",
+          "value" : "video"
+        }
+      ],
+      "presentation" : "segmented",
+      "responsive" : true,
+      "type" : "select",
+      "visibleWhen" : {
+        "id" : "backgroundMode",
+        "value" : "hover"
+      }
+    },
+    {
+      "allowsCustom" : true,
+      "defaults" : {
+        "base" : {
+          "palette" : "surface"
+        }
+      },
+      "group" : "Background",
+      "id" : "backgroundHoverColor",
+      "label" : "Colour",
+      "opacity" : true,
+      "responsive" : true,
+      "type" : "frameworkColor",
+      "visibleWhen" : {
+        "all" : [
+          {
+            "id" : "backgroundMode",
+            "value" : "hover"
+          },
+          {
+            "id" : "backgroundHoverStyle",
+            "value" : "color"
+          }
+        ]
+      }
+    },
+    {
+      "defaults" : {
+        "base" : ""
+      },
+      "group" : "Background",
+      "id" : "backgroundHoverImage",
+      "label" : "Image",
+      "responsive" : true,
+      "type" : "image",
+      "visibleWhen" : {
+        "all" : [
+          {
+            "id" : "backgroundMode",
+            "value" : "hover"
+          },
+          {
+            "id" : "backgroundHoverStyle",
+            "value" : "image"
+          }
+        ]
+      }
+    },
+    {
+      "defaults" : {
+        "base" : "center"
+      },
+      "group" : "Background",
+      "id" : "backgroundHoverPosition",
+      "label" : "Position",
+      "options" : [
+        {
+          "title" : "Centre",
+          "value" : "center"
+        },
+        {
+          "title" : "Top",
+          "value" : "top"
+        },
+        {
+          "title" : "Right",
+          "value" : "right"
+        },
+        {
+          "title" : "Bottom",
+          "value" : "bottom"
+        },
+        {
+          "title" : "Left",
+          "value" : "left"
+        },
+        {
+          "title" : "Top left",
+          "value" : "left top"
+        },
+        {
+          "title" : "Top right",
+          "value" : "right top"
+        },
+        {
+          "title" : "Bottom left",
+          "value" : "left bottom"
+        },
+        {
+          "title" : "Bottom right",
+          "value" : "right bottom"
+        }
+      ],
+      "responsive" : true,
+      "type" : "select",
+      "visibleWhen" : {
+        "all" : [
+          {
+            "id" : "backgroundMode",
+            "value" : "hover"
+          },
+          {
+            "id" : "backgroundHoverStyle",
+            "value" : "image"
+          }
+        ]
+      }
+    },
+    {
+      "defaults" : {
+        "base" : "cover"
+      },
+      "group" : "Background",
+      "id" : "backgroundHoverSize",
+      "label" : "Size",
+      "options" : [
+        {
+          "title" : "Cover",
+          "value" : "cover"
+        },
+        {
+          "title" : "Contain",
+          "value" : "contain"
+        },
+        {
+          "title" : "Auto",
+          "value" : "auto"
+        }
+      ],
+      "responsive" : true,
+      "type" : "select",
+      "visibleWhen" : {
+        "all" : [
+          {
+            "id" : "backgroundMode",
+            "value" : "hover"
+          },
+          {
+            "id" : "backgroundHoverStyle",
+            "value" : "image"
+          }
+        ]
+      }
+    },
+    {
+      "defaults" : {
+        "base" : "no-repeat"
+      },
+      "group" : "Background",
+      "id" : "backgroundHoverRepeat",
+      "label" : "Repeat",
+      "options" : [
+        {
+          "title" : "No repeat",
+          "value" : "no-repeat"
+        },
+        {
+          "title" : "Repeat",
+          "value" : "repeat"
+        },
+        {
+          "title" : "Repeat horizontally",
+          "value" : "repeat-x"
+        },
+        {
+          "title" : "Repeat vertically",
+          "value" : "repeat-y"
+        },
+        {
+          "title" : "Space",
+          "value" : "space"
+        },
+        {
+          "title" : "Round",
+          "value" : "round"
+        }
+      ],
+      "responsive" : true,
+      "type" : "select",
+      "visibleWhen" : {
+        "all" : [
+          {
+            "id" : "backgroundMode",
+            "value" : "hover"
+          },
+          {
+            "id" : "backgroundHoverStyle",
+            "value" : "image"
+          }
+        ]
+      }
+    },
+    {
+      "defaults" : {
+        "base" : "linear"
+      },
+      "group" : "Background",
+      "id" : "backgroundHoverGradientType",
+      "label" : "Type",
+      "options" : [
+        {
+          "title" : "Linear",
+          "value" : "linear"
+        },
+        {
+          "title" : "Radial",
+          "value" : "radial"
+        },
+        {
+          "title" : "Conic",
+          "value" : "conic"
+        }
+      ],
+      "presentation" : "segmented",
+      "responsive" : true,
+      "type" : "select",
+      "visibleWhen" : {
+        "all" : [
+          {
+            "id" : "backgroundMode",
+            "value" : "hover"
+          },
+          {
+            "id" : "backgroundHoverStyle",
+            "value" : "gradient"
+          }
+        ]
+      }
+    },
+    {
+      "defaults" : {
+        "base" : "to bottom"
+      },
+      "group" : "Background",
+      "id" : "backgroundHoverGradientDirection",
+      "label" : "Direction",
+      "options" : [
+        {
+          "title" : "To bottom",
+          "value" : "to bottom"
+        },
+        {
+          "title" : "To top",
+          "value" : "to top"
+        },
+        {
+          "title" : "To right",
+          "value" : "to right"
+        },
+        {
+          "title" : "To left",
+          "value" : "to left"
+        },
+        {
+          "title" : "To bottom right",
+          "value" : "to bottom right"
+        },
+        {
+          "title" : "To bottom left",
+          "value" : "to bottom left"
+        },
+        {
+          "title" : "To top right",
+          "value" : "to top right"
+        },
+        {
+          "title" : "To top left",
+          "value" : "to top left"
+        }
+      ],
+      "responsive" : true,
+      "type" : "select",
+      "visibleWhen" : {
+        "all" : [
+          {
+            "id" : "backgroundMode",
+            "value" : "hover"
+          },
+          {
+            "id" : "backgroundHoverStyle",
+            "value" : "gradient"
+          },
+          {
+            "id" : "backgroundHoverGradientType",
+            "value" : "linear"
+          }
+        ]
+      }
+    },
+    {
+      "allowsCustom" : true,
+      "defaults" : {
+        "base" : {
+          "palette" : "surface"
+        }
+      },
+      "group" : "Background",
+      "id" : "backgroundHoverGradientFrom",
+      "label" : "From colour",
+      "opacity" : true,
+      "responsive" : true,
+      "type" : "frameworkColor",
+      "visibleWhen" : {
+        "all" : [
+          {
+            "id" : "backgroundMode",
+            "value" : "hover"
+          },
+          {
+            "id" : "backgroundHoverStyle",
+            "value" : "gradient"
+          }
+        ]
+      }
+    },
+    {
+      "defaults" : {
+        "base" : 0
+      },
+      "group" : "Background",
+      "id" : "backgroundHoverGradientFromPosition",
+      "label" : "From position",
+      "maximum" : 100,
+      "minimum" : 0,
+      "responsive" : true,
+      "showsValueField" : true,
+      "step" : 1,
+      "type" : "slider",
+      "visibleWhen" : {
+        "all" : [
+          {
+            "id" : "backgroundMode",
+            "value" : "hover"
+          },
+          {
+            "id" : "backgroundHoverStyle",
+            "value" : "gradient"
+          }
+        ]
+      }
+    },
+    {
+      "allowsCustom" : true,
+      "defaults" : {
+        "base" : {
+          "palette" : "accent"
+        }
+      },
+      "group" : "Background",
+      "id" : "backgroundHoverGradientTo",
+      "label" : "To colour",
+      "opacity" : true,
+      "responsive" : true,
+      "type" : "frameworkColor",
+      "visibleWhen" : {
+        "all" : [
+          {
+            "id" : "backgroundMode",
+            "value" : "hover"
+          },
+          {
+            "id" : "backgroundHoverStyle",
+            "value" : "gradient"
+          }
+        ]
+      }
+    },
+    {
+      "defaults" : {
+        "base" : 100
+      },
+      "group" : "Background",
+      "id" : "backgroundHoverGradientToPosition",
+      "label" : "To position",
+      "maximum" : 100,
+      "minimum" : 0,
+      "responsive" : true,
+      "showsValueField" : true,
+      "step" : 1,
+      "type" : "slider",
+      "visibleWhen" : {
+        "all" : [
+          {
+            "id" : "backgroundMode",
+            "value" : "hover"
+          },
+          {
+            "id" : "backgroundHoverStyle",
+            "value" : "gradient"
+          }
+        ]
+      }
+    },
+    {
+      "defaults" : {
+        "base" : ""
+      },
+      "group" : "Background",
+      "id" : "backgroundHoverVideo",
+      "label" : "Video",
+      "tooltip" : "Choose a video from project resources.",
+      "type" : "video",
+      "visibleWhen" : {
+        "all" : [
+          {
+            "id" : "backgroundMode",
+            "value" : "hover"
+          },
+          {
+            "id" : "backgroundHoverStyle",
+            "value" : "video"
+          }
+        ]
+      }
+    },
+    {
+      "defaults" : {
+        "base" : false
+      },
+      "group" : "Background",
+      "id" : "backgroundHoverVideoAspectRatio",
+      "label" : "Force 16:9 aspect ratio",
+      "responsive" : true,
+      "type" : "toggle",
+      "visibleWhen" : {
+        "all" : [
+          {
+            "id" : "backgroundMode",
+            "value" : "hover"
+          },
+          {
+            "id" : "backgroundHoverStyle",
+            "value" : "video"
+          }
+        ]
+      }
+    }
+  ],
+  "name" : "Background",
+  "systemImage" : "paintbrush.fill",
+  "type" : "background"
+}

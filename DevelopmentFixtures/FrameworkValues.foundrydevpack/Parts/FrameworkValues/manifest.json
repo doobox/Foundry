@@ -1,0 +1,79 @@
+{
+  "assets" : [
+    {
+      "path" : "icon.svg"
+    }
+  ],
+  "author" : "Foundry Development",
+  "controls" : [
+    {
+      "allowsCustom" : true,
+      "customColor" : "#D946EF",
+      "defaults" : {
+        "base" : {
+          "palette" : "custom"
+        }
+      },
+      "group" : "Framework Values",
+      "id" : "foreground",
+      "label" : "Foreground",
+      "responsive" : true,
+      "type" : "frameworkColor"
+    },
+    {
+      "allowsCustom" : true,
+      "customColor" : "#FFF1F2",
+      "defaults" : {
+        "base" : {
+          "palette" : "custom"
+        }
+      },
+      "group" : "Framework Values",
+      "id" : "background",
+      "label" : "Background",
+      "responsive" : true,
+      "type" : "frameworkColor"
+    },
+    {
+      "allowsCustom" : true,
+      "customColor" : "#5B5BD6",
+      "defaults" : {
+        "base" : {
+          "palette" : "custom"
+        }
+      },
+      "group" : "Framework Values",
+      "id" : "topBorder",
+      "label" : "Top border",
+      "responsive" : false,
+      "type" : "frameworkColor"
+    },
+    {
+      "allowsCustom" : true,
+      "customColor" : "#5B5BD6",
+      "defaults" : {
+        "base" : {
+          "palette" : "custom"
+        }
+      },
+      "group" : "Framework Values",
+      "id" : "bottomBorder",
+      "label" : "Bottom border",
+      "responsive" : false,
+      "type" : "frameworkColor"
+    }
+  ],
+  "description" : "Demonstrates basic select controls populated from named framework sources.",
+  "group" : "Other",
+  "id" : "dev.foundry.framework-values",
+  "minimumAPIVersion" : 1,
+  "tags" : [
+    "Development",
+    "Framework"
+  ],
+  "templates" : {
+    "html" : "part.html"
+  },
+  "title" : "Framework Values Demo",
+  "version" : "1.0.0"
+}
