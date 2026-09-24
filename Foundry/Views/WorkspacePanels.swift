@@ -1661,9 +1661,10 @@ private struct PartLibraryTile: View {
     }
 }
 
-/// A part's icon in a 2:1 landscape slot — pack SVGs are authored wide,
-/// like miniature previews; `size` is the slot height. Square legacy icons
-/// letterbox in the centre.
+/// A part's icon on a 2:1 landscape tile; `size` is the tile height. The
+/// SVG may be any aspect ratio — it fits inside the tile without cropping,
+/// and the tile's own backing means a transparent icon still reads as a
+/// deliberate shape.
 struct PartLibraryIcon: View {
     @State private var loadedIcon: NSImage?
     let type: PartType
@@ -1683,6 +1684,7 @@ struct PartLibraryIcon: View {
             }
         }
         .frame(width: size * 2, height: size)
+        .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: size * 0.16))
         .clipShape(RoundedRectangle(cornerRadius: size * 0.16))
         .accessibilityHidden(true)
         .task(id: type.definition.package?.iconURL) {
