@@ -1,239 +1,230 @@
 {
-  "assets" : [
-
-  ],
-  "author" : "Foundry",
-  "controls" : [
+  "assets": [],
+  "author": "Foundry",
+  "description": "Responsive two-dimensional layouts with fixed or automatic columns.",
+  "group": "Layout",
+  "id": "foundry.layout.grid",
+  "inspector": [
     {
-      "defaults" : {
-        "base" : "count"
-      },
-      "group" : "Layout",
-      "id" : "gridMode",
-      "label" : "Grid Template Columns",
-      "options" : [
+      "controls": [
         {
-          "title" : "Repeat Column Count",
-          "value" : "count"
+          "defaults": {
+            "base": "count"
+          },
+          "id": "gridMode",
+          "label": "Grid Template Columns",
+          "options": [
+            {
+              "title": "Repeat Column Count",
+              "value": "count"
+            },
+            {
+              "title": "Auto Fit Minimum Width",
+              "value": "auto"
+            }
+          ],
+          "responsive": true,
+          "type": "select"
         },
         {
-          "title" : "Auto Fit Minimum Width",
-          "value" : "auto"
+          "defaults": {
+            "base": 1,
+            "large": 3,
+            "medium": 2
+          },
+          "id": "columnCount",
+          "label": "Column Count",
+          "maximum": 12,
+          "minimum": 1,
+          "responsive": true,
+          "step": 1,
+          "type": "number",
+          "visibleWhen": {
+            "id": "gridMode",
+            "value": "count"
+          }
+        },
+        {
+          "defaults": {
+            "base": 240
+          },
+          "id": "minimumColumnWidth",
+          "label": "Minimum Column Width",
+          "maximum": 2000,
+          "minimum": 40,
+          "responsive": true,
+          "step": 1,
+          "tooltip": "Adds columns when they fit, without overflowing narrow screens.",
+          "type": "number",
+          "units": "px",
+          "visibleWhen": {
+            "id": "gridMode",
+            "value": "auto"
+          }
+        },
+        {
+          "defaults": {
+            "base": "md"
+          },
+          "id": "frameworkGap",
+          "label": "Column Gap",
+          "responsive": true,
+          "type": "frameworkSpacing"
+        },
+        {
+          "defaults": {
+            "base": "md"
+          },
+          "id": "rowGap",
+          "label": "Row Gap",
+          "responsive": true,
+          "type": "frameworkSpacing"
+        },
+        {
+          "defaults": {
+            "base": "auto"
+          },
+          "id": "rowSizing",
+          "label": "Grid Auto Rows",
+          "options": [
+            {
+              "title": "Fit content",
+              "value": "auto"
+            },
+            {
+              "title": "Equal height",
+              "value": "equal"
+            }
+          ],
+          "responsive": true,
+          "type": "select"
+        },
+        {
+          "defaults": {
+            "base": "stretch"
+          },
+          "id": "alignItems",
+          "label": "Align Items",
+          "options": [
+            {
+              "title": "Stretch",
+              "value": "stretch"
+            },
+            {
+              "title": "Start",
+              "value": "flex-start"
+            },
+            {
+              "title": "Centre",
+              "value": "center"
+            },
+            {
+              "title": "End",
+              "value": "flex-end"
+            }
+          ],
+          "responsive": true,
+          "type": "select"
+        },
+        {
+          "defaults": {
+            "base": "stretch"
+          },
+          "id": "justifyItems",
+          "label": "Justify Items",
+          "options": [
+            {
+              "title": "Stretch",
+              "value": "stretch"
+            },
+            {
+              "title": "Start",
+              "value": "start"
+            },
+            {
+              "title": "Centre",
+              "value": "center"
+            },
+            {
+              "title": "End",
+              "value": "end"
+            }
+          ],
+          "responsive": true,
+          "type": "select"
         }
       ],
-      "responsive" : true,
-      "type" : "select"
+      "section": "Layout",
+      "systemImage": "rectangle.3.group"
     },
     {
-      "defaults" : {
-        "base" : 1,
-        "large" : 3,
-        "medium" : 2
-      },
-      "group" : "Layout",
-      "id" : "columnCount",
-      "label" : "Column Count",
-      "maximum" : 12,
-      "minimum" : 1,
-      "responsive" : true,
-      "step" : 1,
-      "type" : "number",
-      "visibleWhen" : {
-        "id" : "gridMode",
-        "value" : "count"
-      }
+      "type": "sizing"
     },
     {
-      "defaults" : {
-        "base" : 240
-      },
-      "group" : "Layout",
-      "id" : "minimumColumnWidth",
-      "label" : "Minimum Column Width",
-      "maximum" : 2000,
-      "minimum" : 40,
-      "responsive" : true,
-      "step" : 1,
-      "tooltip" : "Adds columns when they fit, without overflowing narrow screens.",
-      "type" : "number",
-      "units" : "px",
-      "visibleWhen" : {
-        "id" : "gridMode",
-        "value" : "auto"
-      }
+      "type": "layoutItem"
     },
     {
-      "defaults" : {
-        "base" : "md"
-      },
-      "group" : "Layout",
-      "id" : "frameworkGap",
-      "label" : "Column Gap",
-      "responsive" : true,
-      "type" : "frameworkSpacing"
+      "type": "spacing"
     },
     {
-      "defaults" : {
-        "base" : "md"
-      },
-      "group" : "Layout",
-      "id" : "rowGap",
-      "label" : "Row Gap",
-      "responsive" : true,
-      "type" : "frameworkSpacing"
+      "type": "borders"
     },
     {
-      "defaults" : {
-        "base" : "auto"
-      },
-      "group" : "Layout",
-      "id" : "rowSizing",
-      "label" : "Grid Auto Rows",
-      "options" : [
+      "type": "effects"
+    },
+    {
+      "controls": [
         {
-          "title" : "Fit content",
-          "value" : "auto"
-        },
-        {
-          "title" : "Equal height",
-          "value" : "equal"
+          "defaults": {
+            "base": "visible"
+          },
+          "id": "overflow",
+          "label": "Overflow",
+          "options": [
+            {
+              "title": "Visible",
+              "value": "visible"
+            },
+            {
+              "title": "Clip",
+              "value": "hidden"
+            },
+            {
+              "title": "Scroll when needed",
+              "value": "auto"
+            }
+          ],
+          "responsive": true,
+          "tooltip": "Clipping can hide shadows or focus outlines.",
+          "type": "select"
         }
       ],
-      "responsive" : true,
-      "type" : "select"
+      "section": "Advanced",
+      "systemImage": "gearshape"
     },
     {
-      "defaults" : {
-        "base" : "stretch"
-      },
-      "group" : "Layout",
-      "id" : "alignItems",
-      "label" : "Align Items",
-      "options" : [
-        {
-          "title" : "Stretch",
-          "value" : "stretch"
-        },
-        {
-          "title" : "Start",
-          "value" : "flex-start"
-        },
-        {
-          "title" : "Centre",
-          "value" : "center"
-        },
-        {
-          "title" : "End",
-          "value" : "flex-end"
-        }
-      ],
-      "responsive" : true,
-      "type" : "select"
+      "type": "background"
     },
     {
-      "defaults" : {
-        "base" : "stretch"
-      },
-      "group" : "Layout",
-      "id" : "justifyItems",
-      "label" : "Justify Items",
-      "options" : [
-        {
-          "title" : "Stretch",
-          "value" : "stretch"
-        },
-        {
-          "title" : "Start",
-          "value" : "start"
-        },
-        {
-          "title" : "Centre",
-          "value" : "center"
-        },
-        {
-          "title" : "End",
-          "value" : "end"
-        }
-      ],
-      "responsive" : true,
-      "type" : "select"
-    },
-    {
-      "type" : "sizing"
-    },
-    {
-      "type" : "layoutItem"
-    },
-    {
-      "type" : "spacing"
-    },
-    {
-      "type" : "borders"
-    },
-    {
-      "type" : "effects"
-    },
-    {
-      "defaults" : {
-        "base" : "visible"
-      },
-      "group" : "Advanced",
-      "id" : "overflow",
-      "label" : "Overflow",
-      "options" : [
-        {
-          "title" : "Visible",
-          "value" : "visible"
-        },
-        {
-          "title" : "Clip",
-          "value" : "hidden"
-        },
-        {
-          "title" : "Scroll when needed",
-          "value" : "auto"
-        }
-      ],
-      "responsive" : true,
-      "tooltip" : "Clipping can hide shadows or focus outlines.",
-      "type" : "select"
-    },
-    {
-      "type" : "background"
-    },
-    {
-      "type" : "reveal"
+      "type": "reveal"
     }
   ],
-  "description" : "Responsive two-dimensional layouts with fixed or automatic columns.",
-  "group" : "Layout",
-  "groups" : [
-    {
-      "name" : "Layout",
-      "systemImage" : "rectangle.3.group"
-    },
-    {
-      "name" : "Advanced",
-      "systemImage" : "gearshape"
-    }
-  ],
-  "id" : "foundry.layout.grid",
-  "minimumAPIVersion" : 1,
-  "tags" : [
+  "minimumAPIVersion": 1,
+  "tags": [
     "Foundry",
     "built-in",
     "layout",
     "flex"
   ],
-  "templates" : {
-    "files" : [
+  "templates": {
+    "files": [
       {
-        "path" : "part.css",
-        "scope" : "instance"
+        "path": "part.css",
+        "scope": "instance"
       }
     ],
-    "html" : "part.html"
+    "html": "part.html"
   },
-  "title" : "Grid",
-  "version" : "2.0.0"
+  "title": "Grid",
+  "version": "2.0.0"
 }

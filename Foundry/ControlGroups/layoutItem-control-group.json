@@ -1,129 +1,123 @@
 {
-  "controls" : [
+  "controls": [
     {
-      "defaults" : {
-        "base" : false
+      "defaults": {
+        "base": false
       },
-      "group" : "Layout item",
-      "id" : "itemEnabled",
-      "label" : "Enable",
-      "responsive" : true,
-      "type" : "toggle"
+      "id": "itemEnabled",
+      "label": "Enable",
+      "responsive": true,
+      "type": "toggle"
     },
     {
-      "defaults" : {
-        "base" : 0
+      "defaults": {
+        "base": 0
       },
-      "group" : "Layout item",
-      "id" : "flexGrow",
-      "label" : "Grow",
-      "maximum" : 10,
-      "minimum" : 0,
-      "responsive" : true,
-      "step" : 1,
-      "tooltip" : "Flex parent: share remaining space. Zero keeps the natural size.",
-      "type" : "number",
-      "visibleWhen" : {
-        "id" : "itemEnabled",
-        "value" : true
+      "id": "flexGrow",
+      "label": "Grow",
+      "maximum": 10,
+      "minimum": 0,
+      "responsive": true,
+      "step": 1,
+      "tooltip": "Flex parent: share remaining space. Zero keeps the natural size.",
+      "type": "number",
+      "visibleWhen": {
+        "id": "itemEnabled",
+        "value": true
       }
     },
     {
-      "defaults" : {
-        "base" : 1
+      "defaults": {
+        "base": 1
       },
-      "group" : "Layout item",
-      "id" : "flexShrink",
-      "label" : "Shrink",
-      "maximum" : 10,
-      "minimum" : 0,
-      "responsive" : true,
-      "step" : 1,
-      "tooltip" : "Flex parent: allow this item to shrink. Zero prevents shrinking.",
-      "type" : "number",
-      "visibleWhen" : {
-        "id" : "itemEnabled",
-        "value" : true
+      "id": "flexShrink",
+      "label": "Shrink",
+      "maximum": 10,
+      "minimum": 0,
+      "responsive": true,
+      "step": 1,
+      "tooltip": "Flex parent: allow this item to shrink. Zero prevents shrinking.",
+      "type": "number",
+      "visibleWhen": {
+        "id": "itemEnabled",
+        "value": true
       }
     },
     {
-      "defaults" : {
-        "base" : "auto"
+      "defaults": {
+        "base": "auto"
       },
-      "group" : "Layout item",
-      "id" : "alignSelf",
-      "label" : "Alignment",
-      "options" : [
+      "id": "alignSelf",
+      "label": "Alignment",
+      "options": [
         {
-          "title" : "Follow parent",
-          "value" : "auto"
+          "title": "Follow parent",
+          "value": "auto"
         },
         {
-          "title" : "Stretch",
-          "value" : "stretch"
+          "title": "Stretch",
+          "value": "stretch"
         },
         {
-          "title" : "Start",
-          "value" : "flex-start"
+          "title": "Start",
+          "value": "flex-start"
         },
         {
-          "title" : "Centre",
-          "value" : "center"
+          "title": "Centre",
+          "value": "center"
         },
         {
-          "title" : "End",
-          "value" : "flex-end"
+          "title": "End",
+          "value": "flex-end"
         },
         {
-          "title" : "Baseline",
-          "value" : "baseline"
+          "title": "Baseline",
+          "value": "baseline"
         }
       ],
-      "responsive" : true,
-      "type" : "select",
-      "visibleWhen" : {
-        "id" : "itemEnabled",
-        "value" : true
+      "responsive": true,
+      "type": "select",
+      "visibleWhen": {
+        "id": "itemEnabled",
+        "value": true
       }
     },
     {
-      "defaults" : {
-        "base" : 1
+      "defaults": {
+        "base": 1
       },
-      "group" : "Layout item",
-      "id" : "columnSpan",
-      "label" : "Column span",
-      "maximum" : 12,
-      "minimum" : 1,
-      "responsive" : true,
-      "step" : 1,
-      "tooltip" : "Grid parent only. Keep within the parent's column count at this breakpoint.",
-      "type" : "number",
-      "visibleWhen" : {
-        "id" : "itemEnabled",
-        "value" : true
+      "id": "columnSpan",
+      "label": "Column span",
+      "maximum": 12,
+      "minimum": 1,
+      "responsive": true,
+      "step": 1,
+      "tooltip": "Grid parent only. Keep within the parent's column count at this breakpoint.",
+      "type": "number",
+      "visibleWhen": {
+        "id": "itemEnabled",
+        "value": true
       }
     },
     {
-      "defaults" : {
-        "base" : 1
+      "defaults": {
+        "base": 1
       },
-      "group" : "Layout item",
-      "id" : "rowSpan",
-      "label" : "Row span",
-      "maximum" : 12,
-      "minimum" : 1,
-      "responsive" : true,
-      "step" : 1,
-      "tooltip" : "Grid parent only.",
-      "type" : "number",
-      "visibleWhen" : {
-        "id" : "itemEnabled",
-        "value" : true
+      "id": "rowSpan",
+      "label": "Row span",
+      "maximum": 12,
+      "minimum": 1,
+      "responsive": true,
+      "step": 1,
+      "tooltip": "Grid parent only.",
+      "type": "number",
+      "visibleWhen": {
+        "id": "itemEnabled",
+        "value": true
       }
     }
   ],
-  "name" : "Layout item",
-  "systemImage" : "square.on.square",
-  "type" : "layoutItem"
+  "name": "Layout item",
+  "systemImage": "square.on.square",
+  "type": "layoutItem"
 }

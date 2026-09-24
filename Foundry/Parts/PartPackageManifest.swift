@@ -1,20 +1,26 @@
 import Foundation
 
-/// One entry of a manifest's `controls` array: either a single Standard/Framework
-/// property, or a reference to a prebuilt Grouped control (`background`,
-/// `spacing`, `sizing`, `borders`, `effects`, `layoutItem`) that expands into
-/// several properties at this exact position.
+/// One entry of a manifest's `inspector` array: a single Standard/Framework
+/// property (Inspector section `Settings`), a reference to a prebuilt Grouped
+/// control (`background`, `spacing`, `sizing`, `borders`, `effects`,
+/// `layoutItem`) that expands into several properties at this exact position,
+/// or a named section that carries its own controls. Entries with a `type`
+/// are controls; entries without one are sections.
 nonisolated enum PartPackageControlsEntry: Codable, Equatable, Sendable {
     case property(PartPackageProperty)
     case group(PartPackageControlGroup)
+    case section(PartPackageControlSection)
 
     private struct TypeDiscriminator: Decodable {
-        let type: String
+        let type: String?
     }
 
     init(from decoder: Decoder) throws {
-        let discriminator = try TypeDiscriminator(from: decoder)
-        if PartPackageControlGroup.Kind(rawValue: discriminator.type) != nil {
+        guard let type = try TypeDiscriminator(from: decoder).type else {
+            self = .section(try PartPackageControlSection(from: decoder))
+            return
+        }
+        if PartPackageControlGroup.Kind(rawValue: type) != nil {
             self = .group(try PartPackageControlGroup(from: decoder))
         } else {
             self = .property(try PartPackageProperty(from: decoder))
@@ -25,7 +31,49 @@ nonisolated enum PartPackageControlsEntry: Codable, Equatable, Sendable {
         switch self {
         case .property(let property): try property.encode(to: encoder)
         case .group(let group): try group.encode(to: encoder)
+        case .section(let section): try section.encode(to: encoder)
         }
+    }
+}
+
+/// A named Inspector section declared inline in `inspector`: the section name
+/// and its optional disclosure-header icon appear once, and every control
+/// inside belongs to it. Controls outside any section live in `Settings`.
+nonisolated struct PartPackageControlSection: Codable, Equatable, Sendable {
+    let name: String
+    let systemImage: String?
+    let properties: [PartPackageProperty]
+
+    private enum CodingKeys: String, CodingKey {
+        case name = "section"
+        case systemImage
+        case properties = "controls"
+    }
+
+    init(name: String, systemImage: String? = nil, properties: [PartPackageProperty] = []) {
+        self.name = name
+        self.systemImage = systemImage
+        self.properties = properties.map { property in
+            var property = property
+            property.group = name
+            return property
+        }
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.init(
+            name: try container.decode(String.self, forKey: .name),
+            systemImage: try container.decodeIfPresent(String.self, forKey: .systemImage),
+            properties: try container.decodeIfPresent([PartPackageProperty].self, forKey: .properties) ?? []
+        )
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(name, forKey: .name)
+        try container.encodeIfPresent(systemImage, forKey: .systemImage)
+        try container.encode(properties, forKey: .properties)
     }
 }
 
@@ -41,7 +89,6 @@ nonisolated struct PartPackageManifest: Codable, Equatable, Sendable {
     let showsInPartLibrary: Bool
     let allowedParents: [String]
     let controlsEntries: [PartPackageControlsEntry]
-    let groups: [PartPackageInspectorGroup]
     let render: PartPackageRender
     let assets: [PartPackageAsset]
     let helpURL: URL?
@@ -61,8 +108,7 @@ nonisolated struct PartPackageManifest: Codable, Equatable, Sendable {
         case tags
         case showsInPartLibrary
         case allowedParents
-        case controlsEntries = "controls"
-        case groups
+        case controlsEntries = "inspector"
         case render = "templates"
         case assets
         case helpURL
@@ -85,7 +131,6 @@ nonisolated struct PartPackageManifest: Codable, Equatable, Sendable {
         showsInPartLibrary = try container.decodeIfPresent(Bool.self, forKey: .showsInPartLibrary) ?? true
         allowedParents = try container.decodeIfPresent([String].self, forKey: .allowedParents) ?? []
         controlsEntries = try container.decodeIfPresent([PartPackageControlsEntry].self, forKey: .controlsEntries) ?? []
-        groups = try container.decodeIfPresent([PartPackageInspectorGroup].self, forKey: .groups) ?? []
         render = try container.decode(PartPackageRender.self, forKey: .render)
         assets = try container.decodeIfPresent([PartPackageAsset].self, forKey: .assets) ?? []
         helpURL = try container.decodeIfPresent(URL.self, forKey: .helpURL)
@@ -111,7 +156,6 @@ nonisolated struct PartPackageManifest: Codable, Equatable, Sendable {
         try container.encode(showsInPartLibrary, forKey: .showsInPartLibrary)
         try container.encode(allowedParents, forKey: .allowedParents)
         try container.encode(controlsEntries, forKey: .controlsEntries)
-        try container.encode(groups, forKey: .groups)
         try container.encode(render, forKey: .render)
         try container.encode(assets, forKey: .assets)
         try container.encodeIfPresent(helpURL, forKey: .helpURL)
@@ -158,23 +202,23 @@ nonisolated struct PartPackageAsset: Codable, Equatable, Hashable, Sendable {
     }
 }
 
-/// Optional metadata for an Inspector section named by controls' `group` values.
-/// `systemImage` sets the SF Symbol on the section's disclosure header; groups
-/// without one use the generic fallback icon.
-nonisolated struct PartPackageInspectorGroup: Codable, Hashable, Sendable {
-    let name: String
-    let systemImage: String?
-}
-
 extension PartPackageManifest {
     /// Standard/Framework properties in the exact order the manifest declared
-    /// them, with each Grouped-control reference expanded in place.
+    /// them, with each Grouped-control reference and section expanded in place.
     nonisolated var resolvedProperties: [PartPackageProperty] {
         controlsEntries.flatMap { entry in
             switch entry {
             case .property(let property): [property]
             case .group(let group): group.properties
+            case .section(let section): section.properties
             }
+        }
+    }
+
+    /// The named sections this manifest declared, in declaration order.
+    nonisolated var controlSections: [PartPackageControlSection] {
+        controlsEntries.compactMap {
+            if case .section(let section) = $0 { section } else { nil }
         }
     }
 
@@ -188,17 +232,17 @@ extension PartPackageManifest {
     }
 
     /// Inspector section icons by group name: each declared Grouped control
-    /// supplies its section's standard icon, and the manifest's `groups` array
-    /// overrides or extends that for the part's own groups. Groups with no
-    /// entry here render with the generic fallback icon.
+    /// supplies its section's standard icon, and each named section's
+    /// `systemImage` overrides or extends that. Sections with no entry here
+    /// render with the generic fallback icon.
     nonisolated var resolvedGroupIcons: [String: String] {
         var icons: [String: String] = [:]
         for group in controlGroups {
             icons[group.type.groupName] = group.type.groupSystemImage
         }
-        for group in groups {
-            if let systemImage = group.systemImage {
-                icons[group.name] = systemImage
+        for section in controlSections {
+            if let systemImage = section.systemImage {
+                icons[section.name] = systemImage
             }
         }
         return icons
@@ -240,16 +284,21 @@ nonisolated struct PartPackageControlGroup: Codable, Equatable, Sendable {
         case effects
         case layoutItem
         case reveal
+        /// The opt-in HTML identity section (ID, classes, custom attributes).
+        /// Unlike the other kinds it carries native Inspector fields bound to
+        /// the placed part, not property controls, so it has no registry
+        /// definition.
+        case advanced
 
-        /// The Inspector section this Grouped control's properties live in, and
-        /// the icon that section carries — the same metadata a part declares for
-        /// its own groups through the manifest's `groups` array.
+        /// The Inspector section this Grouped control's properties live in,
+        /// and the icon that section carries — the same metadata a part
+        /// declares for its own sections.
         var groupName: String {
-            BuiltInControlGroupRegistry.definition(for: self).name
+            self == .advanced ? "Advanced" : BuiltInControlGroupRegistry.definition(for: self).name
         }
 
         var groupSystemImage: String {
-            BuiltInControlGroupRegistry.definition(for: self).systemImage
+            self == .advanced ? "gearshape" : BuiltInControlGroupRegistry.definition(for: self).systemImage
         }
     }
 
@@ -307,6 +356,7 @@ nonisolated struct PartPackageControlGroup: Codable, Equatable, Sendable {
     }
 
     var properties: [PartPackageProperty] {
+        guard type != .advanced else { return [] }
         let definition = BuiltInControlGroupRegistry.definition(for: type)
         let base = type == .background
             ? configuredBackgroundProperties(definition.controls)
@@ -372,7 +422,7 @@ nonisolated struct PartPackageControlGroup: Codable, Equatable, Sendable {
         switch type {
         case .background:
             backgroundCSS
-        case .spacing, .sizing, .borders, .effects, .layoutItem, .reveal:
+        case .spacing, .sizing, .borders, .effects, .layoutItem, .reveal, .advanced:
             ""
         }
     }
@@ -394,7 +444,7 @@ nonisolated struct PartPackageControlGroup: Codable, Equatable, Sendable {
                 template: fragments.joined(separator: "\n"),
                 target: .controlGroupBackground
             )]
-        case .spacing, .sizing, .borders, .effects, .layoutItem, .reveal:
+        case .spacing, .sizing, .borders, .effects, .layoutItem, .reveal, .advanced:
             return []
         }
     }
@@ -646,7 +696,10 @@ nonisolated struct PartPackageProperty: Codable, Equatable, Identifiable, Sendab
     let noteTitle: String?
     let noteBody: String
     let noteSystemImage: String?
-    let group: String
+    /// The Inspector section this control belongs to — assigned by the
+    /// containing section wrapper (or its Grouped-control definition), never
+    /// decoded from the control itself. Top-level controls live in Settings.
+    var group: String
     var control: PartPackageControl
     var defaultValue: PartPackageValue
     var breakpointDefaults: [String: PartPackageValue] = [:]
@@ -674,7 +727,6 @@ nonisolated struct PartPackageProperty: Codable, Equatable, Identifiable, Sendab
         case title
         case body
         case systemImage
-        case group
         case defaultValue = "defaults"
         case responsive
         case subtitle
@@ -738,7 +790,7 @@ nonisolated struct PartPackageProperty: Codable, Equatable, Identifiable, Sendab
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         id = try container.decode(String.self, forKey: .id)
-        group = try container.decodeIfPresent(String.self, forKey: .group) ?? "Settings"
+        group = "Settings"
         control = try PartPackageControl(from: decoder)
         tooltip = try container.decodeIfPresent(String.self, forKey: .tooltip)
         visibleWhen = try container.decodeIfPresent(PartPackageVisibilityCondition.self, forKey: .visibleWhen)
@@ -826,7 +878,6 @@ nonisolated struct PartPackageProperty: Codable, Equatable, Identifiable, Sendab
             try container.encode(noteBody, forKey: .body)
             try container.encodeIfPresent(noteSystemImage, forKey: .systemImage)
         }
-        try container.encode(group, forKey: .group)
         if ![.note, .divider, .math, .childPicker].contains(control.type) {
             try container.encode(breakpointDefaults.merging(["base": defaultValue]) { _, base in base }, forKey: .defaultValue)
             if control.type != .video {

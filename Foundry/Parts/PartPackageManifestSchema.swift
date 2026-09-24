@@ -27,11 +27,11 @@ nonisolated enum PartPackageManifestSchema {
 
     private static let partKeys: Set<String> = [
         "minimumAPIVersion", "id", "title", "description", "author", "version", "group",
-        "tags", "showsInPartLibrary", "allowedParents", "controls", "groups", "templates", "assets", "helpURL", "missingPart",
+        "tags", "showsInPartLibrary", "allowedParents", "inspector", "templates", "assets", "helpURL", "missingPart",
         "requiresPHP", "libraries"
     ]
     private static let propertyKeys: Set<String> = [
-        "id", "label", "title", "body", "systemImage", "group", "defaults", "responsive", "subtitle", "buttonText", "units", "tooltip", "linked",
+        "id", "label", "title", "body", "systemImage", "defaults", "responsive", "subtitle", "buttonText", "units", "tooltip", "linked",
         "type", "font", "showsFamily", "showsWeight", "showsStyle", "minimum", "maximum", "step", "options", "frameworkValues", "allowsCustom", "opacity", "outputFormat",
         "customColor", "count", "ticks", "showsValueField", "trueValue", "falseValue",
         "buttonIcon", "activeButtonText", "activeButtonIcon", "selectionMode", "fontSize", "argument1", "argument2", "operation", "round", "absoluteURL", "presentation", "visibleWhen", "valueAvailability", "alt", "focalPoint", "renditions", "accepts", "pickerItems", "initial", "containment"
@@ -46,7 +46,7 @@ nonisolated enum PartPackageManifestSchema {
     private static let assetKeys: Set<String> = ["path", "scope"]
     private static let renditionKeys: Set<String> = ["id", "maximumDimension"]
     private static let controlGroupKeys: Set<String> = ["type", "styles", "states", "defaultOverrides"]
-    private static let groupKeys: Set<String> = ["name", "systemImage"]
+    private static let sectionKeys: Set<String> = ["section", "systemImage", "controls"]
 
     static func inspect(_ data: Data) throws -> String {
         let dictionary = try rootDictionary(from: data)
@@ -66,24 +66,41 @@ nonisolated enum PartPackageManifestSchema {
         validateAPIVersion(in: dictionary, into: &diagnostics)
         validateReleaseVersion(in: dictionary, into: &diagnostics)
 
-        validateDictionaryArray(dictionary["controls"], key: "controls", parent: "manifest.json", into: &diagnostics)
+        validateDictionaryArray(dictionary["inspector"], key: "inspector", parent: "manifest.json", into: &diagnostics)
         let knownControlGroupKinds = Set(PartPackageControlGroup.Kind.allCases.map(\.rawValue))
         var seenControlGroupKinds: Set<String> = []
-        dictionaries(in: dictionary["controls"]).enumerated().forEach { index, entry in
-            let location = "manifest.json:controls[\(index)]"
-            guard let type = entry["type"] as? String, knownControlGroupKinds.contains(type) else {
+        var seenSectionNames: Set<String> = []
+        dictionaries(in: dictionary["inspector"]).enumerated().forEach { index, entry in
+            let location = "manifest.json:inspector[\(index)]"
+            // An entry with no type at all is a section; an entry whose type
+            // is present but malformed is still a control, so it gets the
+            // control diagnostics rather than section ones.
+            if entry["type"] == nil {
+                validateControlSection(
+                    entry,
+                    location: location,
+                    seenNames: &seenSectionNames,
+                    groupedKinds: knownControlGroupKinds,
+                    into: &diagnostics
+                )
+                return
+            }
+            guard let type = entry["type"] as? String else {
                 validateStandardOrFrameworkControl(entry, location: location, into: &diagnostics)
                 return
             }
-            validateGroupedControlReference(
-                entry,
-                type: type,
-                location: location,
-                seenKinds: &seenControlGroupKinds,
-                into: &diagnostics
-            )
+            if knownControlGroupKinds.contains(type) {
+                validateGroupedControlReference(
+                    entry,
+                    type: type,
+                    location: location,
+                    seenKinds: &seenControlGroupKinds,
+                    into: &diagnostics
+                )
+            } else {
+                validateStandardOrFrameworkControl(entry, location: location, into: &diagnostics)
+            }
         }
-        validateGroups(in: dictionary, into: &diagnostics)
         if let templates = dictionary["templates"], !(templates is [String: Any]) {
             appendTypeError(key: "templates", expected: "a dictionary", location: "manifest.json", into: &diagnostics)
         }
@@ -213,6 +230,58 @@ nonisolated enum PartPackageManifestSchema {
 
     /// Validates one `controls` entry that is a plain Standard/Framework
     /// property (i.e. its `type` didn't match a Grouped-control kind).
+    /// An `inspector` entry without a `type` declares a named section: its
+    /// `section` key names it, `systemImage` sets the disclosure-header icon,
+    /// and the nested `controls` all belong to it.
+    private static func validateControlSection(
+        _ entry: [String: Any],
+        location: String,
+        seenNames: inout Set<String>,
+        groupedKinds: Set<String>,
+        into diagnostics: inout [PartPackageDiagnostic]
+    ) {
+        unknownKeys(in: entry, allowed: sectionKeys, location: location, into: &diagnostics)
+        guard let name = entry["section"] as? String,
+              !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            diagnostics.append(.init(
+                severity: .error,
+                location: "\(location).section",
+                message: "An inspector entry without a type is a section and requires a non-empty section name."
+            ))
+            return
+        }
+        optionalString("systemImage", in: entry, location: location, into: &diagnostics)
+        if !seenNames.insert(name).inserted {
+            diagnostics.append(.init(
+                severity: .error,
+                location: "\(location).section",
+                message: "Duplicate section '\(name)'. Declare each section once and list its controls inside it."
+            ))
+        }
+        guard let rawControls = entry["controls"] else { return }
+        validateDictionaryArray(rawControls, key: "controls", parent: location, into: &diagnostics)
+        dictionaries(in: rawControls).enumerated().forEach { index, control in
+            let controlLocation = "\(location).controls[\(index)]"
+            guard let type = control["type"] as? String else {
+                diagnostics.append(.init(
+                    severity: .error,
+                    location: controlLocation,
+                    message: "Sections cannot nest inside sections; every entry here must be a control with a type."
+                ))
+                return
+            }
+            if groupedKinds.contains(type) {
+                diagnostics.append(.init(
+                    severity: .error,
+                    location: controlLocation,
+                    message: "The grouped control '\(type)' carries its own section — declare it at the top level of the inspector."
+                ))
+                return
+            }
+            validateStandardOrFrameworkControl(control, location: controlLocation, into: &diagnostics)
+        }
+    }
+
     private static func validateStandardOrFrameworkControl(
         _ property: [String: Any],
         location: String,
@@ -312,6 +381,16 @@ nonisolated enum PartPackageManifestSchema {
                 message: "Control group '\(type)' is declared more than once."
             ))
         }
+        if type == PartPackageControlGroup.Kind.advanced.rawValue {
+            for key in controlGroup.keys.sorted() where key != "type" {
+                diagnostics.append(.init(
+                    severity: .error,
+                    location: "\(location).\(key)",
+                    message: "The advanced group has no options; remove \(key)."
+                ))
+            }
+            return
+        }
         optionalStringArray("styles", in: controlGroup, location: location, into: &diagnostics)
         optionalStringArray("states", in: controlGroup, location: location, into: &diagnostics)
         if type == PartPackageControlGroup.Kind.background.rawValue {
@@ -391,7 +470,6 @@ nonisolated enum PartPackageManifestSchema {
 
     private static func validateResolvedProperty(_ property: [String: Any], location: String, into diagnostics: inout [PartPackageDiagnostic]) {
         requireString("id", in: property, location: location, into: &diagnostics)
-        optionalString("group", in: property, location: location, into: &diagnostics)
         optionalString("tooltip", in: property, location: location, into: &diagnostics)
         optionalString("alt", in: property, location: location, into: &diagnostics)
         optionalBoolean("focalPoint", in: property, location: location, into: &diagnostics)
@@ -437,11 +515,11 @@ nonisolated enum PartPackageManifestSchema {
             return
         }
         if (type == .frameworkSpacing || type == .frameworkPadding || type == .frameworkMargin || type == .frameworkRadius) {
-            let allowed: Set<String> = ["type", "id", "label", "subtitle", "group", "default", "responsive", "tooltip", "visibleWhen", "valueAvailability"]
+            let allowed: Set<String> = ["type", "id", "label", "subtitle", "default", "responsive", "tooltip", "visibleWhen", "valueAvailability"]
             unknownKeys(in: property, allowed: allowed, location: location, into: &diagnostics)
         }
         if type == .edges || type == .corners {
-            let allowed: Set<String> = ["type", "id", "label", "subtitle", "group", "default", "responsive", "tooltip", "visibleWhen", "valueAvailability", "units", "linked"]
+            let allowed: Set<String> = ["type", "id", "label", "subtitle", "default", "responsive", "tooltip", "visibleWhen", "valueAvailability", "units", "linked"]
             unknownKeys(in: property, allowed: allowed, location: location, into: &diagnostics)
             optionalBoolean("linked", in: property, location: location, into: &diagnostics)
             if let units = property["units"] {
@@ -487,7 +565,7 @@ nonisolated enum PartPackageManifestSchema {
             }
         }
         if type == .frameworkBorder {
-            unknownKeys(in: property, allowed: ["type", "id", "label", "subtitle", "group", "default", "responsive", "tooltip", "visibleWhen", "valueAvailability", "showsStyle"], location: location, into: &diagnostics)
+            unknownKeys(in: property, allowed: ["type", "id", "label", "subtitle", "default", "responsive", "tooltip", "visibleWhen", "valueAvailability", "showsStyle"], location: location, into: &diagnostics)
             for key in ["showsStyle"] {
                 optionalBoolean(key, in: property, location: location, into: &diagnostics)
             }
@@ -514,7 +592,7 @@ nonisolated enum PartPackageManifestSchema {
         }
         if type == .childPicker {
             let supportedKeys: Set<String> = [
-                "type", "id", "label", "group", "tooltip", "visibleWhen",
+                "type", "id", "label", "tooltip", "visibleWhen",
                 "accepts", "pickerItems", "initial", "minimum", "maximum", "containment"
             ]
             for key in property.keys where !supportedKeys.contains(key) {
@@ -601,7 +679,7 @@ nonisolated enum PartPackageManifestSchema {
             return
         }
         if type == .divider {
-            let supportedKeys: Set<String> = ["type", "id", "group", "visibleWhen"]
+            let supportedKeys: Set<String> = ["type", "id", "visibleWhen"]
             for key in property.keys where !supportedKeys.contains(key) {
                 diagnostics.append(.init(
                     severity: .error,
@@ -611,7 +689,7 @@ nonisolated enum PartPackageManifestSchema {
             }
         }
         if type == .note {
-            let supportedKeys: Set<String> = ["type", "id", "title", "body", "systemImage", "group", "visibleWhen"]
+            let supportedKeys: Set<String> = ["type", "id", "title", "body", "systemImage", "visibleWhen"]
             for key in property.keys where !supportedKeys.contains(key) {
                 diagnostics.append(.init(
                     severity: .error,
@@ -896,45 +974,6 @@ nonisolated enum PartPackageManifestSchema {
             throw SchemaError.rootIsNotDictionary
         }
         return dictionary
-    }
-
-    private static func validateGroups(
-        in dictionary: [String: Any],
-        into diagnostics: inout [PartPackageDiagnostic]
-    ) {
-        guard dictionary["groups"] != nil else { return }
-        validateDictionaryArray(dictionary["groups"], key: "groups", parent: "manifest.json", into: &diagnostics)
-
-        // Editable template primitives inject their properties into Content,
-        // so that group can carry an icon even with no declared control in it.
-        var usedGroups: Set<String> = ["Content"]
-        for entry in dictionaries(in: dictionary["controls"]) {
-            if let type = entry["type"] as? String,
-               let kind = PartPackageControlGroup.Kind(rawValue: type) {
-                usedGroups.insert(kind.groupName)
-            } else {
-                usedGroups.insert(entry["group"] as? String ?? "Settings")
-            }
-        }
-
-        var seenNames: Set<String> = []
-        dictionaries(in: dictionary["groups"]).enumerated().forEach { index, entry in
-            let location = "manifest.json:groups[\(index)]"
-            unknownKeys(in: entry, allowed: groupKeys, location: location, into: &diagnostics)
-            requireString("name", in: entry, location: location, into: &diagnostics)
-            optionalString("systemImage", in: entry, location: location, into: &diagnostics)
-            guard let name = entry["name"] as? String else { return }
-            if name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                diagnostics.append(.init(severity: .error, location: "\(location).name", message: "A group entry requires a non-empty name."))
-                return
-            }
-            if !seenNames.insert(name).inserted {
-                diagnostics.append(.init(severity: .error, location: "\(location).name", message: "Duplicate group entry '\(name)'."))
-            }
-            if !usedGroups.contains(name) {
-                diagnostics.append(.init(severity: .error, location: "\(location).name", message: "groups declares '\(name)' but no control uses that group."))
-            }
-        }
     }
 
     private static func validateDictionaryArray(

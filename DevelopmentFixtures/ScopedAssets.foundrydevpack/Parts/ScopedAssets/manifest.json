@@ -1,41 +1,39 @@
 {
-  "assets" : [
+  "assets": [
     {
-      "path" : "images\/page-badge.svg"
+      "path": "images/page-badge.svg"
     },
     {
-      "path" : "gallery",
-      "scope" : "page"
+      "path": "gallery",
+      "scope": "page"
     },
     {
-      "path" : "shared\/brand",
-      "scope" : "site"
+      "path": "shared/brand",
+      "scope": "site"
     }
   ],
-  "author" : "Foundry Development",
-  "controls" : [
-
-  ],
-  "description" : "Demonstrates page- and site-scoped files, folders, asset URLs, and site path values.",
-  "group" : "Other",
-  "id" : "dev.foundry.scoped-assets",
-  "minimumAPIVersion" : 1,
-  "tags" : [
+  "author": "Foundry Development",
+  "description": "Demonstrates page- and site-scoped files, folders, asset URLs, and site path values.",
+  "group": "Other",
+  "id": "dev.foundry.scoped-assets",
+  "inspector": [],
+  "minimumAPIVersion": 1,
+  "tags": [
     "Development",
     "Assets"
   ],
-  "templates" : {
-    "files" : [
+  "templates": {
+    "files": [
       {
-        "path" : "part.css"
+        "path": "part.css"
       },
       {
-        "path" : "site.css",
-        "scope" : "site"
+        "path": "site.css",
+        "scope": "site"
       }
     ],
-    "html" : "part.html"
+    "html": "part.html"
   },
-  "title" : "Scoped Assets Demo",
-  "version" : "1.0.0"
+  "title": "Scoped Assets Demo",
+  "version": "1.0.0"
 }

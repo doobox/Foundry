@@ -1,29 +1,27 @@
 {
-  "author" : "Foundry Development",
-  "controls" : [
-
-  ],
-  "description" : "Tests the light, dark and system visitor appearance API in browser Preview or export.",
-  "group" : "Other",
-  "id" : "dev.foundry.appearance-toggle",
-  "minimumAPIVersion" : 1,
-  "tags" : [
+  "author": "Foundry Development",
+  "description": "Tests the light, dark and system visitor appearance API in browser Preview or export.",
+  "group": "Other",
+  "id": "dev.foundry.appearance-toggle",
+  "inspector": [],
+  "minimumAPIVersion": 1,
+  "tags": [
     "Development",
     "Appearance"
   ],
-  "templates" : {
-    "files" : [
+  "templates": {
+    "files": [
       {
-        "path" : "part.css",
-        "scope" : "instance"
+        "path": "part.css",
+        "scope": "instance"
       },
       {
-        "path" : "part.js",
-        "scope" : "instance"
+        "path": "part.js",
+        "scope": "instance"
       }
     ],
-    "html" : "part.html"
+    "html": "part.html"
   },
-  "title" : "Appearance Toggle Test",
-  "version" : "1.0.0"
+  "title": "Appearance Toggle Test",
+  "version": "1.0.0"
 }

@@ -468,12 +468,8 @@ struct WebCanvasView: NSViewRepresentable {
             }
             return element.closest('[data-foundry-global]') ? globalHoverChromeColor : hoverChromeColor;
           };
-          const partChromeTitle = part => {
-            const name = part?.dataset.foundryName || '';
-            const isLinkedGlobal = !part?.closest('[data-foundry-global-override="true"]')
-              && part?.closest('[data-foundry-global]');
-            return isLinkedGlobal ? 'Global · ' + name : name;
-          };
+          // The green chrome already marks globals; the label stays plain.
+          const partChromeTitle = part => part?.dataset.foundryName || '';
 
           const chromeRect = target => {
             const elementRect = target.getBoundingClientRect();
@@ -1767,7 +1763,7 @@ struct WebCanvasView: NSViewRepresentable {
             } else if contextMenuGlobalTargetID != nil {
                 let isLinked = request["isGlobalLinked"] as? Bool == true
                 menu.addItem(menuItem(
-                    isLinked ? "Make Local Override" : "Relink to Global",
+                    isLinked ? "Unpin from Global" : "Pin to Global",
                     action: #selector(performContextAction(_:)),
                     representedAction: isLinked ? .makeLocalOverride : .relinkGlobal
                 ))

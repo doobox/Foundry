@@ -1,118 +1,117 @@
 {
-  "assets" : [
-
-  ],
-  "author" : "Foundry",
-  "controls" : [
+  "assets": [],
+  "author": "Foundry",
+  "description": "Creates a styled link for calls to action and navigation.",
+  "group": "Content",
+  "id": "foundry.content.button",
+  "inspector": [
     {
-      "absoluteURL" : false,
-      "defaults" : {
-        "base" : "#"
-      },
-      "group" : "Link",
-      "id" : "destination",
-      "label" : "Destination",
-      "responsive" : false,
-      "type" : "link"
-    },
-    {
-      "allowsCustom" : true,
-      "customColor" : "#FFFFFF",
-      "defaults" : {
-        "base" : {
-          "palette" : "custom"
+      "controls": [
+        {
+          "absoluteURL": false,
+          "defaults": {
+            "base": "#"
+          },
+          "id": "destination",
+          "label": "Destination",
+          "responsive": false,
+          "type": "link"
         }
-      },
-      "group" : "Typography",
-      "id" : "textColor",
-      "label" : "Text colour",
-      "opacity" : true,
-      "responsive" : true,
-      "type" : "frameworkColor"
+      ],
+      "section": "Link",
+      "systemImage": "link"
     },
     {
-      "allowsCustom" : true,
-      "customColor" : "#5B5BD6",
-      "defaults" : {
-        "base" : {
-          "palette" : "custom"
+      "controls": [
+        {
+          "allowsCustom": true,
+          "customColor": "#FFFFFF",
+          "defaults": {
+            "base": {
+              "palette": "custom"
+            }
+          },
+          "id": "textColor",
+          "label": "Text colour",
+          "opacity": true,
+          "responsive": true,
+          "type": "frameworkColor"
         }
-      },
-      "group" : "Appearance",
-      "id" : "backgroundColor",
-      "label" : "Background",
-      "opacity" : true,
-      "responsive" : true,
-      "type" : "frameworkColor"
+      ],
+      "section": "Typography",
+      "systemImage": "textformat"
     },
     {
-      "defaults" : {
-        "base" : 10
-      },
-      "group" : "Appearance",
-      "id" : "cornerRadius",
-      "label" : "Corner radius",
-      "maximum" : 120,
-      "minimum" : 0,
-      "responsive" : true,
-      "step" : 1,
-      "type" : "number",
-      "units" : "px"
+      "controls": [
+        {
+          "allowsCustom": true,
+          "customColor": "#5B5BD6",
+          "defaults": {
+            "base": {
+              "palette": "custom"
+            }
+          },
+          "id": "backgroundColor",
+          "label": "Background",
+          "opacity": true,
+          "responsive": true,
+          "type": "frameworkColor"
+        },
+        {
+          "defaults": {
+            "base": 10
+          },
+          "id": "cornerRadius",
+          "label": "Corner radius",
+          "maximum": 120,
+          "minimum": 0,
+          "responsive": true,
+          "step": 1,
+          "type": "number",
+          "units": "px"
+        }
+      ],
+      "section": "Appearance",
+      "systemImage": "paintpalette"
     },
     {
-      "defaults" : {
-        "base" : ""
-      },
-      "group" : "Accessibility",
-      "id" : "accessibilityLabel",
-      "label" : "Accessibility label",
-      "responsive" : false,
-      "type" : "text"
+      "controls": [
+        {
+          "defaults": {
+            "base": ""
+          },
+          "id": "accessibilityLabel",
+          "label": "Accessibility label",
+          "responsive": false,
+          "type": "text"
+        }
+      ],
+      "section": "Accessibility",
+      "systemImage": "accessibility"
     },
     {
-      "type" : "reveal"
+      "type": "reveal"
+    },
+    {
+      "section": "Content",
+      "systemImage": "doc.text"
     }
   ],
-  "description" : "Creates a styled link for calls to action and navigation.",
-  "group" : "Content",
-  "groups" : [
-    {
-      "name" : "Content",
-      "systemImage" : "doc.text"
-    },
-    {
-      "name" : "Link",
-      "systemImage" : "link"
-    },
-    {
-      "name" : "Typography",
-      "systemImage" : "textformat"
-    },
-    {
-      "name" : "Appearance",
-      "systemImage" : "paintpalette"
-    },
-    {
-      "name" : "Accessibility",
-      "systemImage" : "accessibility"
-    }
-  ],
-  "id" : "foundry.content.button",
-  "minimumAPIVersion" : 1,
-  "tags" : [
+  "minimumAPIVersion": 1,
+  "tags": [
     "Foundry",
     "built-in",
     "link"
   ],
-  "templates" : {
-    "files" : [
+  "templates": {
+    "files": [
       {
-        "path" : "part.css",
-        "scope" : "instance"
+        "path": "part.css",
+        "scope": "instance"
       }
     ],
-    "html" : "part.html"
+    "html": "part.html"
   },
-  "title" : "Button",
-  "version" : "1.0.0"
+  "title": "Button",
+  "version": "1.0.0"
 }

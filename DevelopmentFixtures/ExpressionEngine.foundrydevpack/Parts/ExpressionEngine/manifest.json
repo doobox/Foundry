@@ -1,142 +1,149 @@
 {
-  "assets" : [
+  "assets": [
     {
-      "path" : "icon.svg"
+      "path": "icon.svg"
     }
   ],
-  "author" : "Foundry Development",
-  "controls" : [
+  "author": "Foundry Development",
+  "description": "Interactive examples of calculations, comparisons, logic, functions and conditional branches.",
+  "group": "Other",
+  "id": "dev.foundry.expression-engine",
+  "inspector": [
     {
-      "defaults" : {
-        "base" : "featured"
-      },
-      "group" : "Conditions",
-      "id" : "status",
-      "label" : "Status",
-      "options" : [
+      "controls": [
         {
-          "title" : "Featured",
-          "value" : "featured"
+          "defaults": {
+            "base": "featured"
+          },
+          "id": "status",
+          "label": "Status",
+          "options": [
+            {
+              "title": "Featured",
+              "value": "featured"
+            },
+            {
+              "title": "Draft",
+              "value": "draft"
+            },
+            {
+              "title": "Standard",
+              "value": "standard"
+            }
+          ],
+          "responsive": false,
+          "type": "select"
         },
         {
-          "title" : "Draft",
-          "value" : "draft"
+          "defaults": {
+            "base": true
+          },
+          "id": "enabled",
+          "label": "Enabled",
+          "responsive": false,
+          "type": "toggle"
         },
         {
-          "title" : "Standard",
-          "value" : "standard"
+          "defaults": {
+            "base": 72
+          },
+          "id": "score",
+          "label": "Score",
+          "maximum": 100,
+          "minimum": 0,
+          "responsive": false,
+          "step": 1,
+          "type": "number"
+        },
+        {
+          "defaults": {
+            "base": 60
+          },
+          "id": "threshold",
+          "label": "Threshold",
+          "maximum": 100,
+          "minimum": 0,
+          "responsive": false,
+          "step": 1,
+          "type": "number"
         }
       ],
-      "responsive" : false,
-      "type" : "select"
+      "section": "Conditions"
     },
     {
-      "defaults" : {
-        "base" : true
-      },
-      "group" : "Conditions",
-      "id" : "enabled",
-      "label" : "Enabled",
-      "responsive" : false,
-      "type" : "toggle"
+      "controls": [
+        {
+          "defaults": {
+            "base": 10
+          },
+          "id": "base",
+          "label": "Base",
+          "maximum": 100,
+          "minimum": -100,
+          "responsive": false,
+          "step": 1,
+          "type": "number"
+        },
+        {
+          "defaults": {
+            "base": 6
+          },
+          "id": "offset",
+          "label": "Offset",
+          "maximum": 100,
+          "minimum": -100,
+          "responsive": false,
+          "step": 1,
+          "type": "number"
+        },
+        {
+          "defaults": {
+            "base": 3
+          },
+          "id": "multiplier",
+          "label": "Multiplier",
+          "maximum": 10,
+          "minimum": -10,
+          "responsive": false,
+          "step": 1,
+          "type": "number"
+        }
+      ],
+      "section": "Arithmetic"
     },
     {
-      "defaults" : {
-        "base" : 72
-      },
-      "group" : "Conditions",
-      "id" : "score",
-      "label" : "Score",
-      "maximum" : 100,
-      "minimum" : 0,
-      "responsive" : false,
-      "step" : 1,
-      "type" : "number"
-    },
-    {
-      "defaults" : {
-        "base" : 60
-      },
-      "group" : "Conditions",
-      "id" : "threshold",
-      "label" : "Threshold",
-      "maximum" : 100,
-      "minimum" : 0,
-      "responsive" : false,
-      "step" : 1,
-      "type" : "number"
-    },
-    {
-      "defaults" : {
-        "base" : 10
-      },
-      "group" : "Arithmetic",
-      "id" : "base",
-      "label" : "Base",
-      "maximum" : 100,
-      "minimum" : -100,
-      "responsive" : false,
-      "step" : 1,
-      "type" : "number"
-    },
-    {
-      "defaults" : {
-        "base" : 6
-      },
-      "group" : "Arithmetic",
-      "id" : "offset",
-      "label" : "Offset",
-      "maximum" : 100,
-      "minimum" : -100,
-      "responsive" : false,
-      "step" : 1,
-      "type" : "number"
-    },
-    {
-      "defaults" : {
-        "base" : 3
-      },
-      "group" : "Arithmetic",
-      "id" : "multiplier",
-      "label" : "Multiplier",
-      "maximum" : 10,
-      "minimum" : -10,
-      "responsive" : false,
-      "step" : 1,
-      "type" : "number"
-    },
-    {
-      "count" : 2,
-      "defaults" : {
-        "base" : [
-          "Alpha",
-          "Beta"
-        ]
-      },
-      "group" : "Indexed values",
-      "id" : "labels",
-      "label" : "Labels",
-      "responsive" : false,
-      "type" : "text"
+      "controls": [
+        {
+          "count": 2,
+          "defaults": {
+            "base": [
+              "Alpha",
+              "Beta"
+            ]
+          },
+          "id": "labels",
+          "label": "Labels",
+          "responsive": false,
+          "type": "text"
+        }
+      ],
+      "section": "Indexed values"
     }
   ],
-  "description" : "Interactive examples of calculations, comparisons, logic, functions and conditional branches.",
-  "group" : "Other",
-  "id" : "dev.foundry.expression-engine",
-  "minimumAPIVersion" : 1,
-  "tags" : [
+  "minimumAPIVersion": 1,
+  "tags": [
     "Development",
     "Expressions"
   ],
-  "templates" : {
-    "files" : [
+  "templates": {
+    "files": [
       {
-        "path" : "part.css",
-        "scope" : "instance"
+        "path": "part.css",
+        "scope": "instance"
       }
     ],
-    "html" : "part.html"
+    "html": "part.html"
   },
-  "title" : "Expression Engine Demo",
-  "version" : "1.0.0"
+  "title": "Expression Engine Demo",
+  "version": "1.0.0"
 }

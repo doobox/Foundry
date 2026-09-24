@@ -20,7 +20,10 @@ struct BuiltInLayoutPartsTests {
             let loaded = try package(name)
             #expect(loaded.hasDropZone)
             let properties = loaded.manifest.resolvedProperties
-            #expect(Set(loaded.manifest.controlGroups.map(\.type)) == Set(PartPackageControlGroup.Kind.allCases))
+            // Layouts share every value-producing group; the advanced group
+            // (author-set ID/classes/attributes) is a per-part product choice
+            // and no built-in opts in.
+            #expect(Set(loaded.manifest.controlGroups.map(\.type)) == Set(PartPackageControlGroup.Kind.allCases).subtracting([.advanced]))
             #expect(Set(loaded.manifest.controlGroups.map(\.type)).count == loaded.manifest.controlGroups.count)
             for (id, group) in [("widthMode", "Sizing"), ("frameworkPadding", "Spacing"),
                                 ("frameworkMargin", "Spacing"), ("backgroundColor", "Background"),

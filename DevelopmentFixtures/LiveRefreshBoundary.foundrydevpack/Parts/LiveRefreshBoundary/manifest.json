@@ -1,49 +1,53 @@
 {
-  "author" : "Foundry Development",
-  "controls" : [
+  "author": "Foundry Development",
+  "description": "Reproduces stale template output outside a part root after a control value changes.",
+  "group": "Other",
+  "id": "dev.foundry.live-refresh-boundary",
+  "inspector": [
     {
-      "defaults" : {
-        "base" : "#ff375f"
-      },
-      "group" : "Reproduction",
-      "id" : "pageColour",
-      "label" : "Diagnostic Colour",
-      "options" : [
+      "controls": [
         {
-          "title" : "Red",
-          "value" : "#ff375f"
-        },
-        {
-          "title" : "Blue",
-          "value" : "#0a84ff"
-        },
-        {
-          "title" : "Green",
-          "value" : "#30d158"
+          "defaults": {
+            "base": "#ff375f"
+          },
+          "id": "pageColour",
+          "label": "Diagnostic Colour",
+          "options": [
+            {
+              "title": "Red",
+              "value": "#ff375f"
+            },
+            {
+              "title": "Blue",
+              "value": "#0a84ff"
+            },
+            {
+              "title": "Green",
+              "value": "#30d158"
+            }
+          ],
+          "responsive": false,
+          "type": "select"
         }
       ],
-      "responsive" : false,
-      "type" : "select"
+      "section": "Reproduction"
     }
   ],
-  "description" : "Reproduces stale template output outside a part root after a control value changes.",
-  "group" : "Other",
-  "id" : "dev.foundry.live-refresh-boundary",
-  "minimumAPIVersion" : 1,
-  "tags" : [
+  "minimumAPIVersion": 1,
+  "tags": [
     "Development",
     "Diagnostics",
     "Live Refresh"
   ],
-  "templates" : {
-    "files" : [
+  "templates": {
+    "files": [
       {
-        "path" : "part.css",
-        "scope" : "instance"
+        "path": "part.css",
+        "scope": "instance"
       }
     ],
-    "html" : "part.html"
+    "html": "part.html"
   },
-  "title" : "Live Refresh Boundary",
-  "version" : "1.0.0"
+  "title": "Live Refresh Boundary",
+  "version": "1.0.0"
 }

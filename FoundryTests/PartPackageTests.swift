@@ -32,7 +32,7 @@ struct PartPackageTests {
                 return String(quickSection[outputRange])
             }
             let packageURL = try makePackage(
-                manifest: manifest(withControls: controls),
+                manifest: manifest(withInspectorEntries: controls),
                 template: "<section class=\"{{ part.class }}\" {{ part.attributes }}>\(try output("html")){{ childArea(\"content\") }}</section>",
                 additionalFiles: ["part.css": try output("css")]
             )
@@ -45,7 +45,7 @@ struct PartPackageTests {
             }
             checked += 1
         }
-        #expect(checked == 38, "Expected every documented control and control group's Quick example; update this count when adding a reference page.")
+        #expect(checked == 39, "Expected every documented control and control group's Quick example; update this count when adding a reference page.")
     }
 
     @Test(.enabled(if: FileManager.default.fileExists(atPath: developerDocsURL.appending(path: "AGENTS.md").path)))
@@ -68,9 +68,9 @@ struct PartPackageTests {
                 snippets[language, default: ""] += content
             }
             let json = try #require(snippets["json"], "Missing declaration in \(page.lastPathComponent)")
-            // Older complete examples show the controls key and array; newer ones show a single item.
+            // Older complete examples show the inspector key and array; newer ones show a single item.
             let controls: String
-            if json.contains("\"controls\"") {
+            if json.contains("\"inspector\"") {
                 let start = try #require(json.range(of: "["))
                 let end = try #require(json.range(of: "]", options: .backwards))
                 controls = String(json[start.upperBound..<end.lowerBound])
@@ -78,11 +78,11 @@ struct PartPackageTests {
                 controls = json
             }
             var exampleManifest = try #require(JSONSerialization.jsonObject(
-                with: Data(manifest(withControls: controls).utf8)
+                with: Data(manifest(withInspectorEntries: controls).utf8)
             ) as? [String: Any])
-            var declarations = try #require(exampleManifest["controls"] as? [[String: Any]])
+            var declarations = try #require(exampleManifest["inspector"] as? [[String: Any]])
             declarations.removeLast() // Remove the test helper's unrelated content childPicker.
-            exampleManifest["controls"] = declarations
+            exampleManifest["inspector"] = declarations
             let manifestData = try JSONSerialization.data(withJSONObject: exampleManifest)
             let html = snippets["html", default: ""]
             let template = html.contains("{{ part.attributes }}") ? html
@@ -114,11 +114,11 @@ struct PartPackageTests {
             let base = try snippet("starter:manifest.json")
             var manifest = try #require(JSONSerialization.jsonObject(with: Data(base.utf8)) as? [String: Any])
             if stage == "complete" {
-                let fragment = try snippet("complete:controls")
+                let fragment = try snippet("complete:inspector")
                 let additions = try #require(JSONSerialization.jsonObject(
                     with: Data("{\(fragment)}".utf8)
                 ) as? [String: Any])
-                manifest["controls"] = additions["controls"]
+                manifest["inspector"] = additions["inspector"]
             }
             let encoded = try JSONSerialization.data(withJSONObject: manifest)
             let packageURL = try makePackage(
@@ -145,7 +145,7 @@ struct PartPackageTests {
         {"type" : "frameworkColor", "id" : "colour", "responsive" : true,
         "defaults" : {"base" : {"palette" : "accent"}, "large" : {"palette" : "standard.lime", "lightShade" : 8, "darkShade" : 3}}}
         """
-        let url = try makePackage(manifest: manifest(withControls: controls), template: "<section {{ part.attributes }}>{{ childArea(\"content\") }}</section>")
+        let url = try makePackage(manifest: manifest(withInspectorEntries: controls), template: "<section {{ part.attributes }}>{{ childArea(\"content\") }}</section>")
         defer { try? FileManager.default.removeItem(at: url) }
         let package = try PartPackageLoader.load(from: url)
         PartRegistry.register(package)
@@ -172,7 +172,7 @@ struct PartPackageTests {
         {"type" : "number", "id" : "gap", "responsive" : true,
         "defaults" : {"base" : 4, "medium" : 12, "large" : 24}}
         """
-        let url = try makePackage(manifest: manifest(withControls: controls), template: "<section {{ part.attributes }}>{{ childArea(\"content\") }}</section>", additionalFiles: ["part.css": ":instance { gap: {{ control.gap }}px; }"])
+        let url = try makePackage(manifest: manifest(withInspectorEntries: controls), template: "<section {{ part.attributes }}>{{ childArea(\"content\") }}</section>", additionalFiles: ["part.css": ":instance { gap: {{ control.gap }}px; }"])
         defer { try? FileManager.default.removeItem(at: url) }
         let package = try PartPackageLoader.load(from: url)
         PartRegistry.register(package)
@@ -210,7 +210,7 @@ struct PartPackageTests {
         {"type" : "number", "id" : "gap", "responsive" : true,
         "defaults" : {"base" : 4, "medium" : 12}}
         """
-        let url = try makePackage(manifest: manifest(withControls: controls), template: "<section {{ part.attributes }}>{{ childArea(\"content\") }}</section>")
+        let url = try makePackage(manifest: manifest(withInspectorEntries: controls), template: "<section {{ part.attributes }}>{{ childArea(\"content\") }}</section>")
         defer { try? FileManager.default.removeItem(at: url) }
         let package = try PartPackageLoader.load(from: url)
         PartRegistry.register(package)
@@ -247,7 +247,7 @@ struct PartPackageTests {
             "\"defaults\" : {\"base\" : 1, \"large\" : 2}"
         ] {
             let item = "{\"type\" : \"number\", \"id\" : \"n\", \(fields)}"
-            #expect(try PartPackageManifestSchema.diagnostics(for: Data(manifest(withControls: item).utf8)).contains { $0.severity == .error })
+            #expect(try PartPackageManifestSchema.diagnostics(for: Data(manifest(withInspectorEntries: item).utf8)).contains { $0.severity == .error })
         }
     }
 
@@ -267,7 +267,7 @@ struct PartPackageTests {
         "defaults" : {"base" : {"value" : 10, "unit" : "px"}}}
         """
         let url = try makePackage(
-            manifest: manifest(withControls: controls),
+            manifest: manifest(withInspectorEntries: controls),
             template: "<section {{ part.attributes }}>{{ childArea(\"content\") }}</section>",
             additionalFiles: ["part.css": ":instance { inset: {{ control.inset }}; --top: {{ control.inset.top }}; --n: {{ control.inset.values.top }}; border-radius: {{ control.round }}; --tl: {{ control.round.topLeft }}; }"]
         )
@@ -320,7 +320,7 @@ struct PartPackageTests {
     @Test func edgesAndCornersRejectTokensBadUnitsAndCount() throws {
         func load(_ controls: String) throws {
             let url = try makePackage(
-                manifest: manifest(withControls: controls),
+                manifest: manifest(withInspectorEntries: controls),
                 template: "<section {{ part.attributes }}>{{ childArea(\"content\") }}</section>",
                 additionalFiles: ["part.css": ":instance { }"]
             )
@@ -386,7 +386,7 @@ struct PartPackageTests {
         "defaults" : {"base" : {"palette" : "custom"}}}
         """
         let url = try makePackage(
-            manifest: manifest(withControls: controls),
+            manifest: manifest(withInspectorEntries: controls),
             template: "<section {{ part.attributes }}>{{ childArea(\"content\") }}</section>",
             additionalFiles: ["part.css": """
             :instance {
@@ -449,7 +449,7 @@ struct PartPackageTests {
             "defaults" : {"base" : {"palette" : "accent"}}}
             """
             return try makePackage(
-                manifest: manifest(withControls: controls),
+                manifest: manifest(withInspectorEntries: controls),
                 template: "<section {{ part.attributes }}>{{ childArea(\"content\") }}</section>",
                 additionalFiles: ["part.css": ":instance { color: {{ control.primary }}; }"]
             )
@@ -468,7 +468,7 @@ struct PartPackageTests {
         {"type" : "frameworkSpacing", "id" : "frameworkSpacing",
         "responsive" : true, "defaults" : {"base" : "sm"}}
         """
-        let url = try makePackage(manifest: manifest(withControls: control), template: "<section {{ part.attributes }} data-spacing=\"{{ control.frameworkSpacing.css }}\" data-top=\"{{ control.frameworkSpacing }}\">{{ childArea(\"content\") }}</section>",
+        let url = try makePackage(manifest: manifest(withInspectorEntries: control), template: "<section {{ part.attributes }} data-spacing=\"{{ control.frameworkSpacing.css }}\" data-top=\"{{ control.frameworkSpacing }}\">{{ childArea(\"content\") }}</section>",
                                   additionalFiles: ["part.css": ":instance { gap: {{ control.frameworkSpacing }}; --numeric-top: {{ control.frameworkSpacing.value }}{{ control.frameworkSpacing.unit }}; }"])
         defer { try? FileManager.default.removeItem(at: url) }
         let package = try PartPackageLoader.load(from: url)
@@ -510,7 +510,7 @@ struct PartPackageTests {
             "{\"width\" : \"sm\", \"color\" : {\"palette\" : \"accent\", \"darkShade\" : 12}}"
         ]
         for value in invalid {
-            let url = try makePackage(manifest: manifest(withControls: "{\"type\" : \"frameworkBorder\", \"id\" : \"border\", \"defaults\" : {\"base\" : \(value)}}"), template: "<section {{ part.attributes }}>{{ childArea(\"content\") }}</section>")
+            let url = try makePackage(manifest: manifest(withInspectorEntries: "{\"type\" : \"frameworkBorder\", \"id\" : \"border\", \"defaults\" : {\"base\" : \(value)}}"), template: "<section {{ part.attributes }}>{{ childArea(\"content\") }}</section>")
             defer { try? FileManager.default.removeItem(at: url) }
             #expect(throws: (any Error).self) { try PartPackageLoader.load(from: url) }
         }
@@ -520,9 +520,9 @@ struct PartPackageTests {
         let control = """
         {"type" : "frameworkBorder", "id" : "border",
         "responsive" : true, "showsStyle" : true, "defaults" : {"base" : {"width" : "sm", "style" : "dashed"}}},
-        {"type" : "frameworkColor", "id" : "borderColour", "group" : "Settings", "defaults" : {"base" : {"palette" : "standard.lime", "lightShade" : 8}}}
+        {"type" : "frameworkColor", "id" : "borderColour", "defaults" : {"base" : {"palette" : "standard.lime", "lightShade" : 8}}}
         """
-        let url = try makePackage(manifest: manifest(withControls: control), template: "<section {{ part.attributes }} data-borderWidth=\"{{ control.border.width.css }}\" data-top=\"{{ control.border.width.top }}\">{{ childArea(\"content\") }}</section>",
+        let url = try makePackage(manifest: manifest(withInspectorEntries: control), template: "<section {{ part.attributes }} data-borderWidth=\"{{ control.border.width.css }}\" data-top=\"{{ control.border.width.top }}\">{{ childArea(\"content\") }}</section>",
                                   additionalFiles: ["part.css": ":instance { border-width: {{ control.border.width }}; border-style: {{ control.border.style }}; border-color: {{ control.borderColour }}; --numeric-top: {{ control.border.width.values.top }}{{ control.border.width.units.top }}; }"])
         defer { try? FileManager.default.removeItem(at: url) }
         let package = try PartPackageLoader.load(from: url)
@@ -565,7 +565,7 @@ struct PartPackageTests {
         {"type" : "frameworkRadius", "id" : "frameworkRadius",
         "responsive" : true, "defaults" : {"base" : "sm"}}
         """
-        let url = try makePackage(manifest: manifest(withControls: control), template: "<section {{ part.attributes }} data-radius=\"{{ control.frameworkRadius.css }}\" data-top=\"{{ control.frameworkRadius.topLeft }}\">{{ childArea(\"content\") }}</section>",
+        let url = try makePackage(manifest: manifest(withInspectorEntries: control), template: "<section {{ part.attributes }} data-radius=\"{{ control.frameworkRadius.css }}\" data-top=\"{{ control.frameworkRadius.topLeft }}\">{{ childArea(\"content\") }}</section>",
                                   additionalFiles: ["part.css": ":instance { border-radius: {{ control.frameworkRadius }}; --numeric-top: {{ control.frameworkRadius.values.topLeft }}{{ control.frameworkRadius.units.topLeft }}; }"])
         defer { try? FileManager.default.removeItem(at: url) }
         let package = try PartPackageLoader.load(from: url)
@@ -606,7 +606,7 @@ struct PartPackageTests {
             "defaults" : {"base" : {"palette" : "\(palette.id)",
             "lightShade" : 8, "darkShade" : 3}}}
             """
-            let url = try makePackage(manifest: manifest(withControls: control),
+            let url = try makePackage(manifest: manifest(withInspectorEntries: control),
                 template: "<section {{ part.attributes }} style=\"color: {{ control.colour }}\">{{ childArea(\"content\") }}</section>")
             defer { try? FileManager.default.removeItem(at: url) }
             let package = try PartPackageLoader.load(from: url)
@@ -625,7 +625,7 @@ struct PartPackageTests {
         }
         for id in ["lime", "standard.unknown", "custom:missing"] {
             let control = "{\"type\" : \"frameworkColor\", \"id\" : \"colour\", \"defaults\" : {\"base\" : {\"palette\" : \"\(id)\"}}}"
-            let decoded = try JSONDecoder().decode(PartPackageManifest.self, from: Data(manifest(withControls: control).utf8))
+            let decoded = try JSONDecoder().decode(PartPackageManifest.self, from: Data(manifest(withInspectorEntries: control).utf8))
             #expect(PartPackageValidator.validate(decoded, rootURL: FileManager.default.temporaryDirectory).contains { $0.severity == .error })
         }
     }
@@ -634,7 +634,7 @@ struct PartPackageTests {
         {"type" : "frameworkMargin", "id" : "frameworkMargin",
         "responsive" : true, "defaults" : {"base" : "auto"}}
         """
-        let url = try makePackage(manifest: manifest(withControls: control), template: "<section {{ part.attributes }} data-margin=\"{{ control.frameworkMargin.css }}\" data-top=\"{{ control.frameworkMargin.top }}\">{{ childArea(\"content\") }}</section>",
+        let url = try makePackage(manifest: manifest(withInspectorEntries: control), template: "<section {{ part.attributes }} data-margin=\"{{ control.frameworkMargin.css }}\" data-top=\"{{ control.frameworkMargin.top }}\">{{ childArea(\"content\") }}</section>",
                                   additionalFiles: ["part.css": ":instance { margin: {{ control.frameworkMargin }}; --numeric-top: {{ control.frameworkMargin.values.top }}{{ control.frameworkMargin.units.top }}; }"])
         defer { try? FileManager.default.removeItem(at: url) }
         let package = try PartPackageLoader.load(from: url)
@@ -673,7 +673,7 @@ struct PartPackageTests {
         {"type" : "frameworkPadding", "id" : "frameworkPadding",
         "responsive" : true, "defaults" : {"base" : "sm"}}
         """
-        let url = try makePackage(manifest: manifest(withControls: control), template: "<section {{ part.attributes }} data-padding=\"{{ control.frameworkPadding.css }}\" data-top=\"{{ control.frameworkPadding.top }}\">{{ childArea(\"content\") }}</section>",
+        let url = try makePackage(manifest: manifest(withInspectorEntries: control), template: "<section {{ part.attributes }} data-padding=\"{{ control.frameworkPadding.css }}\" data-top=\"{{ control.frameworkPadding.top }}\">{{ childArea(\"content\") }}</section>",
                                   additionalFiles: ["part.css": ":instance { padding: {{ control.frameworkPadding }}; --numeric-top: {{ control.frameworkPadding.values.top }}{{ control.frameworkPadding.units.top }}; }"])
         defer { try? FileManager.default.removeItem(at: url) }
         let package = try PartPackageLoader.load(from: url)
@@ -710,9 +710,10 @@ struct PartPackageTests {
 
     @Test func frameworkPaddingRejectsUnsupportedManifestKeys() throws {
         for extra in ["\"count\" : 4", "\"allowsCustom\" : true",
-                      "\"options\" : []", "\"frameworkValues\" : \"spacing\""] {
+                      "\"options\" : []", "\"frameworkValues\" : \"spacing\"",
+                      "\"group\" : \"Spacing\""] {
             let control = "{\"type\" : \"frameworkPadding\", \"id\" : \"frameworkPadding\", \"defaults\" : {\"base\" : \"sm\"}, \(extra)}"
-            #expect(try PartPackageManifestSchema.diagnostics(for: Data(manifest(withControls: control).utf8)).contains { $0.severity == .error })
+            #expect(try PartPackageManifestSchema.diagnostics(for: Data(manifest(withInspectorEntries: control).utf8)).contains { $0.severity == .error })
         }
     }
 
@@ -737,7 +738,7 @@ struct PartPackageTests {
         {"type" : "frameworkFont", "id" : "font",
         "defaults" : {"base" : "body"}, "showsWeight" : true, "showsStyle" : true}
         """
-        let decoded = try JSONDecoder().decode(PartPackageManifest.self, from: Data(manifest(withControls: item).utf8))
+        let decoded = try JSONDecoder().decode(PartPackageManifest.self, from: Data(manifest(withInspectorEntries: item).utf8))
         let property = try #require(decoded.resolvedProperties.first)
         let rows = PartPackageFontControl.properties(property)
         let separate = PartPropertyDefinition(key: .init(rawValue: "other"), label: "Other",
@@ -756,7 +757,7 @@ struct PartPackageTests {
         "options" : [{"value" : "body", "title" : "Body"}],
         "defaults" : {"base" : "body"}}
         """
-        let url = try makePackage(manifest: manifest(withControls: item),
+        let url = try makePackage(manifest: manifest(withInspectorEntries: item),
             template: "<section {{ part.attributes }} data-choice=\"{{ control.choice }}\">{{ childArea(\"content\") }}</section>")
         defer { try? FileManager.default.removeItem(at: url) }
         let package = try PartPackageLoader.load(from: url)
@@ -774,7 +775,7 @@ struct PartPackageTests {
         for extra in ["\"allowsCustom\" : false", "\"allowsCustom\" : true"] +
             ["fontFamilies", "fontSizes", "spacing", "shadows", "colors"].map({ "\"frameworkValues\" : \"\($0)\"" }) {
             let invalid = item.replacingOccurrences(of: "\"type\"", with: extra + ", \"type\"")
-            #expect(try PartPackageManifestSchema.diagnostics(for: Data(manifest(withControls: invalid).utf8))
+            #expect(try PartPackageManifestSchema.diagnostics(for: Data(manifest(withInspectorEntries: invalid).utf8))
                 .contains { $0.message.contains("Select supports only declared options") })
         }
     }
@@ -785,7 +786,7 @@ struct PartPackageTests {
         "label" : "Size", "responsive" : true,
         "defaults" : {"base" : "xl"}}
         """
-        let url = try makePackage(manifest: manifest(withControls: item),
+        let url = try makePackage(manifest: manifest(withInspectorEntries: item),
             template: "<p {{ part.attributes }} style=\"font-size: {{ control.size }}; line-height: {{ control.size.lineHeight }}\">{{ childArea(\"content\") }}</p>")
         defer { try? FileManager.default.removeItem(at: url) }
         let package = try PartPackageLoader.load(from: url)
@@ -803,10 +804,10 @@ struct PartPackageTests {
         // Options-style keys are rejected, and portable defaults accept only
         // the predefined scale — project custom sizes are not portable.
         let withValues = item.replacingOccurrences(of: "\"type\"", with: "\"frameworkValues\" : \"fontSizes\", \"type\"")
-        #expect(try PartPackageManifestSchema.diagnostics(for: Data(manifest(withControls: withValues).utf8))
+        #expect(try PartPackageManifestSchema.diagnostics(for: Data(manifest(withInspectorEntries: withValues).utf8))
             .contains { $0.message.contains("does not accept frameworkValues") })
         let badDefault = item.replacingOccurrences(of: "\"xl\"", with: "\"huge\"")
-        let decoded = try JSONDecoder().decode(PartPackageManifest.self, from: Data(manifest(withControls: badDefault).utf8))
+        let decoded = try JSONDecoder().decode(PartPackageManifest.self, from: Data(manifest(withInspectorEntries: badDefault).utf8))
         #expect(PartPackageValidator.validate(decoded, rootURL: FileManager.default.temporaryDirectory)
             .contains { $0.message.contains("frameworkFontSize default must be a predefined size ID") })
     }
@@ -817,7 +818,7 @@ struct PartPackageTests {
         "label" : "Layer", "responsive" : true,
         "defaults" : {"base" : "modal"}}
         """
-        let url = try makePackage(manifest: manifest(withControls: item),
+        let url = try makePackage(manifest: manifest(withInspectorEntries: item),
             template: "<div {{ part.attributes }} style=\"z-index: {{ control.layer }}\">{{ childArea(\"content\") }}</div>")
         defer { try? FileManager.default.removeItem(at: url) }
         let package = try PartPackageLoader.load(from: url)
@@ -845,10 +846,10 @@ struct PartPackageTests {
         // Options-style keys are rejected, and portable defaults accept only
         // the predefined scale — project custom values are not portable.
         let withValues = item.replacingOccurrences(of: "\"type\"", with: "\"frameworkValues\" : \"zIndexes\", \"type\"")
-        #expect(try PartPackageManifestSchema.diagnostics(for: Data(manifest(withControls: withValues).utf8))
+        #expect(try PartPackageManifestSchema.diagnostics(for: Data(manifest(withInspectorEntries: withValues).utf8))
             .contains { $0.message.contains("does not accept frameworkValues") })
         let badDefault = item.replacingOccurrences(of: "\"modal\"", with: "\"everest\"")
-        let decoded = try JSONDecoder().decode(PartPackageManifest.self, from: Data(manifest(withControls: badDefault).utf8))
+        let decoded = try JSONDecoder().decode(PartPackageManifest.self, from: Data(manifest(withInspectorEntries: badDefault).utf8))
         #expect(PartPackageValidator.validate(decoded, rootURL: FileManager.default.temporaryDirectory)
             .contains { $0.message.contains("frameworkStackingOrder default must be a predefined stacking ID") })
     }
@@ -859,7 +860,7 @@ struct PartPackageTests {
         "showsWeight" : true, "showsStyle" : true, "responsive" : true,
         "defaults" : {"base" : {"family" : "body", "weight" : 650, "style" : "italic"}}}
         """
-        let url = try makePackage(manifest: manifest(withControls: item), template: "<section {{ part.attributes }} data-face=\"{{ control.typography.family }}|{{ control.typography.weight }}|{{ control.typography.style }}\">{{ childArea(\"content\") }}</section>")
+        let url = try makePackage(manifest: manifest(withInspectorEntries: item), template: "<section {{ part.attributes }} data-face=\"{{ control.typography.family }}|{{ control.typography.weight }}|{{ control.typography.style }}\">{{ childArea(\"content\") }}</section>")
         defer { try? FileManager.default.removeItem(at: url) }
         let package = try PartPackageLoader.load(from: url)
         PartRegistry.register(package)
@@ -891,18 +892,18 @@ struct PartPackageTests {
         ] {
             let defaultJSON = extra.contains("\"defaults\"") ? "" : ", \"defaults\" : {\"base\" : \"body\"}"
             let item = "{\"type\" : \"frameworkFont\", \"id\" : \"font\"\(defaultJSON), \(extra)}"
-            let decoded = try JSONDecoder().decode(PartPackageManifest.self, from: Data(manifest(withControls: item).utf8))
+            let decoded = try JSONDecoder().decode(PartPackageManifest.self, from: Data(manifest(withInspectorEntries: item).utf8))
             #expect(PartPackageValidator.validate(decoded, rootURL: FileManager.default.temporaryDirectory).contains { $0.severity == .error && ($0.message.contains("default.") || $0.message.contains("at least one")) })
         }
         for kind in ["fontWeight", "fontStyle"] {
             let item = "{\"type\" : \"\(kind)\", \"id\" : \"font\", \"defaults\" : {\"base\" : \"normal\"}}"
-            #expect(try PartPackageManifestSchema.diagnostics(for: Data(manifest(withControls: item).utf8)).contains { $0.message.contains("Use one frameworkFont") })
+            #expect(try PartPackageManifestSchema.diagnostics(for: Data(manifest(withInspectorEntries: item).utf8)).contains { $0.message.contains("Use one frameworkFont") })
         }
     }
 
     @Test @MainActor func fixedFamilyCanExposeOnlyWeight() throws {
         let item = "{\"type\" : \"frameworkFont\", \"id\" : \"font\", \"showsFamily\" : false, \"showsWeight\" : true, \"responsive\" : true, \"defaults\" : {\"base\" : \"body\"}}"
-        let url = try makePackage(manifest: manifest(withControls: item), template: "<section {{ part.attributes }}>{{ childArea(\"content\") }}</section>")
+        let url = try makePackage(manifest: manifest(withInspectorEntries: item), template: "<section {{ part.attributes }}>{{ childArea(\"content\") }}</section>")
         defer { try? FileManager.default.removeItem(at: url) }
         let package = try PartPackageLoader.load(from: url)
         let definitions = PartPackageAdapter.definition(from: package).properties
@@ -924,7 +925,7 @@ struct PartPackageTests {
     func standaloneFrameworkFontLoadsAndRenders() throws {
         for role in ["body", "heading", "monospaced"] {
             let item = "{\"type\" : \"frameworkFont\", \"id\" : \"family\", \"defaults\" : {\"base\" : \"\(role)\"}, \"responsive\" : true}"
-            let url = try makePackage(manifest: manifest(withControls: item), template: "<section {{ part.attributes }} style=\"font-family: {{ control.family.family }}\">{{ childArea(\"content\") }}</section>")
+            let url = try makePackage(manifest: manifest(withInspectorEntries: item), template: "<section {{ part.attributes }} style=\"font-family: {{ control.family.family }}\">{{ childArea(\"content\") }}</section>")
             defer { try? FileManager.default.removeItem(at: url) }
             let package = try PartPackageLoader.load(from: url)
             let definition = try #require(PartPackageAdapter.definition(from: package).properties.first { $0.key.rawValue == "family" })
@@ -943,12 +944,12 @@ struct PartPackageTests {
     @Test func standaloneFrameworkFontRejectsInvalidContracts() throws {
         for value in ["accent", "custom:anything", "Arial"] {
             let item = "{\"type\" : \"frameworkFont\", \"id\" : \"family\", \"defaults\" : {\"base\" : \"\(value)\"}}"
-            let decoded = try JSONDecoder().decode(PartPackageManifest.self, from: Data(manifest(withControls: item).utf8))
+            let decoded = try JSONDecoder().decode(PartPackageManifest.self, from: Data(manifest(withInspectorEntries: item).utf8))
             #expect(PartPackageValidator.validate(decoded, rootURL: FileManager.default.temporaryDirectory).contains { $0.message.contains("frameworkFont default") })
         }
         for extra in ["\"count\" : 2", "\"frameworkValues\" : \"fontFamilies\"", "\"options\" : []", "\"allowsCustom\" : false"] {
             let item = "{\"type\" : \"frameworkFont\", \"id\" : \"family\", \"defaults\" : {\"base\" : \"body\"}, \(extra)}"
-            #expect(try PartPackageManifestSchema.diagnostics(for: Data(manifest(withControls: item).utf8)).contains { $0.message.contains("frameworkFont control does not accept") })
+            #expect(try PartPackageManifestSchema.diagnostics(for: Data(manifest(withInspectorEntries: item).utf8)).contains { $0.message.contains("frameworkFont control does not accept") })
         }
     }
 
@@ -962,7 +963,7 @@ struct PartPackageTests {
             "defaults" : {"base" : {"palette" : "accent"
             \(shade.map { ", \"\(key)\" : \($0)" } ?? "")}}}
             """
-            let url = try makePackage(manifest: manifest(withControls: item),
+            let url = try makePackage(manifest: manifest(withInspectorEntries: item),
                                       template: "<div {{ part.attributes }}>{{ childArea(\"content\") }}</div>")
             defer { try? FileManager.default.removeItem(at: url) }
             let package = try PartPackageLoader.load(from: url)
@@ -982,13 +983,13 @@ struct PartPackageTests {
             "defaults" : {"base" : {"palette" : "\(value)", "lightShade" : \(initial)}}}
             """
             let decoded = try JSONDecoder().decode(PartPackageManifest.self,
-                from: Data(manifest(withControls: item).utf8))
+                from: Data(manifest(withInspectorEntries: item).utf8))
             #expect(PartPackageValidator.validate(decoded, rootURL: FileManager.default.temporaryDirectory)
                 .contains { $0.location.hasSuffix(".lightShade") && $0.severity == .error })
         }
         for invalid in ["\"8\"", "true", "2.5"] {
             let item = "{\"id\" : \"colour\", \"type\" : \"frameworkColor\", \"defaults\" : {\"base\" : {\"palette\" : \"accent\", \"lightShade\" : \(invalid)}}}"
-            #expect(try PartPackageManifestSchema.diagnostics(for: Data(manifest(withControls: item).utf8))
+            #expect(try PartPackageManifestSchema.diagnostics(for: Data(manifest(withInspectorEntries: item).utf8))
                 .contains { $0.message == "lightShade must be an integer." })
         }
     }
@@ -997,10 +998,10 @@ struct PartPackageTests {
         for value in ["\"accent\"", "[\"accent\"]",
                       "{\"palette\" : \"accent\", \"shade\" : 3}"] {
             let item = "{\"id\" : \"colour\", \"type\" : \"frameworkColor\", \"defaults\" : {\"base\" : \(value)}}"
-            #expect(try PartPackageManifestSchema.diagnostics(for: Data(manifest(withControls: item).utf8)).contains { $0.severity == .error })
+            #expect(try PartPackageManifestSchema.diagnostics(for: Data(manifest(withInspectorEntries: item).utf8)).contains { $0.severity == .error })
         }
         let oldKeys = "{\"id\" : \"colour\", \"type\" : \"frameworkColor\", \"defaults\" : {\"base\" : {\"palette\" : \"accent\"}}, \"lightShade\" : 8}"
-        #expect(try PartPackageManifestSchema.diagnostics(for: Data(manifest(withControls: oldKeys).utf8)).contains { $0.message.contains("Unknown key 'lightShade'") })
+        #expect(try PartPackageManifestSchema.diagnostics(for: Data(manifest(withInspectorEntries: oldKeys).utf8)).contains { $0.message.contains("Unknown key 'lightShade'") })
     }
 
     @Test
@@ -1268,7 +1269,7 @@ struct PartPackageTests {
         "id" : "com.example.background-group",
         "title" : "Background Group",
         "version" : "1.0.0",
-        "controls" : [{"type" : "background"}],
+        "inspector" : [{"type" : "background"}],
         "templates" : {"html" : "part.html"}
         }
         """
@@ -1293,7 +1294,7 @@ struct PartPackageTests {
         "id" : "com.example.selective-background-group",
         "title" : "Selective Background Group",
         "version" : "1.0.0",
-        "controls" : [{
+        "inspector" : [{
             "type" : "background",
             "styles" : ["colour", "image"],
             "states" : ["static"]
@@ -1333,7 +1334,7 @@ struct PartPackageTests {
         "id" : "com.example.invalid-background-group",
         "title" : "Invalid Background Group",
         "version" : "1.0.0",
-        "controls" : [{
+        "inspector" : [{
             "type" : "background",
             "styles" : [],
             "states" : ["hover", "hover"]
@@ -1357,7 +1358,7 @@ struct PartPackageTests {
         "id" : "com.example.background-video",
         "title" : "Background Video",
         "version" : "1.0.0",
-        "controls" : [{"type" : "background"}],
+        "inspector" : [{"type" : "background"}],
         "templates" : {"html" : "part.html"}
         }
         """
@@ -1425,7 +1426,7 @@ struct PartPackageTests {
         "id" : "com.example.background-placement",
         "title" : "Background Placement",
         "version" : "1.0.0",
-        "controls" : [{"type" : "background"}],
+        "inspector" : [{"type" : "background"}],
         "templates" : {"html" : "part.html"}
         }
         """
@@ -1460,7 +1461,7 @@ struct PartPackageTests {
             "id" : "com.example.\(kind)-group",
             "title" : "\(kind) Group",
             "version" : "1.0.0",
-            "controls" : [{"type" : "\(kind)"}],
+            "inspector" : [{"type" : "\(kind)"}],
             "templates" : {"html" : "part.html"}
             }
             """
@@ -1475,7 +1476,9 @@ struct PartPackageTests {
 
     @Test
     func builtInControlGroupResourcesDecodeToRealControls() {
-        for kind in PartPackageControlGroup.Kind.allCases {
+        // The advanced kind carries native identity fields, not a controls
+        // resource, so it has no registry definition.
+        for kind in PartPackageControlGroup.Kind.allCases where kind != .advanced {
             let definition = BuiltInControlGroupRegistry.definition(for: kind)
             #expect(definition.type == kind)
             #expect(!definition.name.isEmpty)
@@ -1484,6 +1487,13 @@ struct PartPackageTests {
             #expect(Set(definition.controls.map(\.id)).count == definition.controls.count)
             #expect(definition.controls.allSatisfy { $0.group == definition.name })
         }
+        #expect(PartPackageControlGroup.Kind.advanced.groupName == "Advanced")
+        #expect(PartPackageControlGroup.Kind.advanced.groupSystemImage == "gearshape")
+        let advanced = try? JSONDecoder().decode(
+            PartPackageControlGroup.self,
+            from: Data(#"{"type" : "advanced"}"#.utf8)
+        )
+        #expect(advanced?.properties.isEmpty == true)
     }
 
     @Test
@@ -1494,7 +1504,7 @@ struct PartPackageTests {
         "id" : "com.example.spacing-override-group",
         "title" : "Spacing Override Group",
         "version" : "1.0.0",
-        "controls" : [{
+        "inspector" : [{
             "type" : "spacing",
             "defaultOverrides" : {
                 "frameworkPadding" : {"left" : "sm"}
@@ -1519,7 +1529,7 @@ struct PartPackageTests {
         "id" : "com.example.unknown-group",
         "title" : "Unknown Group",
         "version" : "1.0.0",
-        "controls" : [{"id" : "gradientField", "type" : "gradient"}],
+        "inspector" : [{"id" : "gradientField", "type" : "gradient"}],
         "templates" : {"html" : "part.html"}
         }
         """
@@ -1538,7 +1548,7 @@ struct PartPackageTests {
         "id" : "com.example.duplicate-group",
         "title" : "Duplicate Group",
         "version" : "1.0.0",
-        "controls" : [
+        "inspector" : [
             {"type" : "spacing"},
             {"type" : "spacing"}
         ],
@@ -1557,7 +1567,7 @@ struct PartPackageTests {
         "id" : "com.example.inline-ordering",
         "title" : "Inline Ordering",
         "version" : "1.0.0",
-        "controls" : [
+        "inspector" : [
             {
                 "id" : "before",
                 "label" : "Before",
@@ -1616,7 +1626,7 @@ struct PartPackageTests {
             "defaults" : {"base" : ""}
         }
         """
-        let data = Data(manifest(withControls: control).utf8)
+        let data = Data(manifest(withInspectorEntries: control).utf8)
         let decodedManifest = try JSONDecoder().decode(PartPackageManifest.self, from: data)
         let property = try #require(decodedManifest.resolvedProperties.first)
         #expect(property.control.type == .video)
@@ -1626,11 +1636,11 @@ struct PartPackageTests {
             with: "\"defaults\" : {\"base\" : \"\"}, \"responsive\" : true"
         )
         let responsiveDiagnostics = try PartPackageManifestSchema.diagnostics(
-            for: Data(manifest(withControls: responsiveControl).utf8)
+            for: Data(manifest(withInspectorEntries: responsiveControl).utf8)
         )
         #expect(responsiveDiagnostics.contains { $0.message == "A video control does not support responsive." })
         let packageURL = try makePackage(
-            manifest: manifest(withControls: control),
+            manifest: manifest(withInspectorEntries: control),
             template: #"<section class="sample {{ part.class }}" {{ part.attributes }}>{{ control.film }}{{ childArea("content") }}</section>"#
         )
         defer { try? FileManager.default.removeItem(at: packageURL) }
@@ -1758,7 +1768,7 @@ struct PartPackageTests {
         "id" : "com.example.background-group",
         "title" : "Background Group",
         "version" : "1.0.0",
-        "controls" : [{"type" : "background"}],
+        "inspector" : [{"type" : "background"}],
         "templates" : {"html" : "part.html"}
         }
         """
@@ -1776,8 +1786,8 @@ struct PartPackageTests {
         "title" : "Arrays", "description" : "Array controls",
         "author" : "Foundry", "version" : "1.0.0", "group" : "Other",
         "tags" : [], "assets" : [],
-        "controls" : [{
-        "id" : "palette", "label" : "Palette", "group" : "Appearance",
+        "inspector" : [{
+        "id" : "palette", "label" : "Palette",
         "subtitle" : ["First", "Second", "Third", "Fourth"],
         "tooltip" : "Four colours",
         "type" : "color", "count" : 4,
@@ -1814,8 +1824,8 @@ struct PartPackageTests {
         "title" : "Framework Values", "description" : "Named framework sources",
         "author" : "Foundry", "version" : "1.0.0", "group" : "Other",
         "tags" : [], "assets" : [],
-        "controls" : [{
-        "id" : "tone", "label" : "Tone", "group" : "Appearance",
+        "inspector" : [{
+        "id" : "tone", "label" : "Tone",
         "type" : "select", "frameworkValues" : "spacing",
         "allowsCustom" : true,
         "options" : [{"value" : "inherit", "title" : "Inherit"}],
@@ -1905,7 +1915,6 @@ struct PartPackageTests {
         {
             "id" : "typeface",
             "label" : "Typeface",
-            "group" : "Typography",
             "type" : "select",
             "frameworkValues" : "fontFamilies",
             "allowsCustom" : true,
@@ -1915,7 +1924,7 @@ struct PartPackageTests {
         """
         let manifest = try JSONDecoder().decode(
             PartPackageManifest.self,
-            from: Data(manifest(withControls: item).utf8)
+            from: Data(manifest(withInspectorEntries: item).utf8)
         )
         let diagnostics = PartPackageValidator.validate(
             manifest,
@@ -1933,7 +1942,6 @@ struct PartPackageTests {
         {
             "id" : "cardShadow",
             "label" : "Shadow",
-            "group" : "Appearance",
             "type" : "frameworkShadow",
             "allowsCustom" : true,
             "defaults" : {"base" : "md"},
@@ -1942,7 +1950,7 @@ struct PartPackageTests {
         """
         let decodedManifest = try JSONDecoder().decode(
             PartPackageManifest.self,
-            from: Data(manifest(withControls: item).utf8)
+            from: Data(manifest(withInspectorEntries: item).utf8)
         )
         let property = try #require(decodedManifest.resolvedProperties.first)
         #expect(property.control.type == .frameworkShadow)
@@ -1954,7 +1962,7 @@ struct PartPackageTests {
             rootURL: FileManager.default.temporaryDirectory
         )
         #expect(!diagnostics.contains {
-            $0.location.contains("cardShadow") || $0.location.contains("controls")
+            $0.location.contains("cardShadow") || $0.location.contains("inspector")
         })
 
         let legacyItem = item
@@ -1963,7 +1971,7 @@ struct PartPackageTests {
                 with: "\"type\" : \"select\", \"frameworkValues\" : \"shadows\""
             )
         let legacyDiagnostics = try PartPackageManifestSchema.diagnostics(
-            for: Data(manifest(withControls: legacyItem).utf8)
+            for: Data(manifest(withInspectorEntries: legacyItem).utf8)
         )
         #expect(legacyDiagnostics.contains {
             $0.location.hasSuffix(".frameworkValues")
@@ -1976,7 +1984,7 @@ struct PartPackageTests {
             with: "\"type\" : \"shadow\""
         )
         let renamedDiagnostics = try PartPackageManifestSchema.diagnostics(
-            for: Data(manifest(withControls: renamedItem).utf8)
+            for: Data(manifest(withInspectorEntries: renamedItem).utf8)
         )
         #expect(renamedDiagnostics.contains { $0.message == "Unknown control type 'shadow'." })
     }
@@ -2035,7 +2043,7 @@ struct PartPackageTests {
 
         for testCase in cases {
             let diagnostics = try PartPackageManifestSchema.diagnostics(
-                for: Data(manifest(withControls: testCase.replacement).utf8)
+                for: Data(manifest(withInspectorEntries: testCase.replacement).utf8)
             )
             #expect(diagnostics.contains {
                 $0.location.hasSuffix(testCase.locationSuffix) && $0.message == testCase.message
@@ -2047,7 +2055,7 @@ struct PartPackageTests {
             with: "\"responsive\" : false, \"options\" : [\"bad\"]"
         )
         #expect(try PartPackageManifestSchema.diagnostics(
-            for: Data(manifest(withControls: malformedOptions).utf8)
+            for: Data(manifest(withInspectorEntries: malformedOptions).utf8)
         ).contains {
             $0.location.hasSuffix(":options[0]") && $0.message == "Each options entry must be a dictionary."
         })
@@ -2056,7 +2064,7 @@ struct PartPackageTests {
             of: ",\n    \"responsive\" : false",
             with: ""
         )
-        let withoutResponsiveData = Data(manifest(withControls: withoutResponsive).utf8)
+        let withoutResponsiveData = Data(manifest(withInspectorEntries: withoutResponsive).utf8)
         #expect(try PartPackageManifestSchema.diagnostics(for: withoutResponsiveData).isEmpty)
         let decoded = try JSONDecoder().decode(PartPackageManifest.self, from: withoutResponsiveData)
         #expect(decoded.resolvedProperties.first?.responsive == false)
@@ -2071,7 +2079,7 @@ struct PartPackageTests {
         "title" : "Visibility", "description" : "Conditional controls",
         "version" : "1.0.0", "group" : "Other",
         "assets" : [],
-        "controls" : [
+        "inspector" : [
         {"id" : "mode", "label" : "Mode", "type" : "select", "options" : [{"value" : "featured", "title" : "Featured"}], "defaults" : {"base" : "featured"}, "responsive" : false},
         {"id" : "titles", "label" : "Titles", "type" : "text", "count" : 3, "defaults" : {"base" : ["One", "Two", "Featured story"]}, "responsive" : false},
         {"id" : "detail", "label" : "Detail", "type" : "text", "defaults" : {"base" : "Visible"}, "responsive" : false, "visibleWhen" : {"id" : "titles[2]", "operation" : "containsInsensitive", "value" : "featured"}, "valueAvailability" : "whenVisible"},
@@ -2112,7 +2120,7 @@ struct PartPackageTests {
         "id" : "com.example.value-availability",
         "title" : "Value availability",
         "version" : "1.0.0",
-        "controls" : [
+        "inspector" : [
         {"id" : "mode", "label" : "Mode", "type" : "select", "options" : [{"value" : "preset", "title" : "Preset"}, {"value" : "custom", "title" : "Custom"}], "defaults" : {"base" : "preset"}, "responsive" : false},
         {"id" : "presetSize", "label" : "Preset size", "type" : "text", "defaults" : {"base" : "1rem"}, "responsive" : false, "visibleWhen" : {"id" : "mode", "value" : "preset"}, "valueAvailability" : "whenVisible"},
         {"id" : "customSize", "label" : "Custom size", "type" : "text", "defaults" : {"base" : "24px"}, "responsive" : false, "visibleWhen" : {"id" : "mode", "value" : "custom"}, "valueAvailability" : "whenVisible"}
@@ -2172,7 +2180,7 @@ struct PartPackageTests {
         {"id" : "detail", "label" : "Detail", "type" : "text", "defaults" : {"base" : "Value"}, "responsive" : false, "valueAvailability" : "whenVisible"}
         """
         let diagnostics = try PartPackageManifestSchema.diagnostics(
-            for: Data(manifest(withControls: control).utf8)
+            for: Data(manifest(withInspectorEntries: control).utf8)
         )
         #expect(diagnostics.contains {
             $0.location.hasSuffix(".valueAvailability") &&
@@ -2189,10 +2197,10 @@ struct PartPackageTests {
         "title" : "Derived", "description" : "Derived controls",
         "version" : "1.0.0",
         "group" : "Other", "assets" : [],
-        "controls" : [
-        {"id" : "amount", "label" : "Amount", "group" : "Test", "type" : "number", "defaults" : {"base" : 21}, "responsive" : false},
-        {"id" : "action", "label" : "Action", "group" : "Test", "type" : "button", "trueValue" : "active", "falseValue" : "ready", "defaults" : {"base" : false}, "responsive" : false},
-        {"id" : "doubled", "group" : "Test", "type" : "math", "argument1" : "amount", "argument2" : 2, "operation" : "*", "round" : false}
+        "inspector" : [
+        {"id" : "amount", "label" : "Amount", "type" : "number", "defaults" : {"base" : 21}, "responsive" : false},
+        {"id" : "action", "label" : "Action", "type" : "button", "trueValue" : "active", "falseValue" : "ready", "defaults" : {"base" : false}, "responsive" : false},
+        {"id" : "doubled", "type" : "math", "argument1" : "amount", "argument2" : 2, "operation" : "*", "round" : false}
         ], "templates" : {"html" : "part.html"}
         }
         """
@@ -2214,7 +2222,7 @@ struct PartPackageTests {
         "title" : "Buttons", "description" : "Button contract",
         "version" : "1.0.0",
         "group" : "Other", "assets" : [],
-        "controls" : [
+        "inspector" : [
         {"id" : "plain", "subtitle" : "Optional help", "type" : "button", "defaults" : {"base" : false}},
         {"id" : "mapped", "type" : "button", "buttonText" : "Apply", "buttonIcon" : "bolt.fill", "trueValue" : "active", "falseValue" : "idle", "defaults" : {"base" : true}},
         {"id" : "multiple", "type" : "button", "count" : 2, "subtitle" : ["First", "Second"], "buttonText" : ["Previous", "Next"], "buttonIcon" : ["arrow.left", "arrow.right"], "activeButtonText" : ["Selected previous", "Selected next"], "activeButtonIcon" : ["checkmark", "checkmark"], "trueValue" : ["one", "two"], "falseValue" : "off", "defaults" : {"base" : [true, false]}},
@@ -2279,7 +2287,7 @@ struct PartPackageTests {
         "title" : "Colour formats", "description" : "Colour output contract",
         "version" : "1.0.0",
         "group" : "Other", "assets" : [],
-        "controls" : [
+        "inspector" : [
         \(declarations),
         {"id" : "defaultHex", "type" : "color", "defaults" : {"base" : "#FF3366"}},
         {"id" : "opaqueRGBA", "type" : "color", "outputFormat" : "rgba", "defaults" : {"base" : "#FF3366"}},
@@ -2365,7 +2373,7 @@ struct PartPackageTests {
         "title" : "Dates", "description" : "Date contract",
         "version" : "1.0.0",
         "group" : "Other", "assets" : [],
-        "controls" : [
+        "inspector" : [
         {"id" : "published", "type" : "date", "minimum" : "2026-01-01", "maximum" : "2026-12-31", "defaults" : {"base" : "2026-09-08"}},
         {"id" : "schedule", "type" : "date", "count" : 2, "defaults" : {"base" : ["2026-10-01", "2026-10-20"]}}
         ], "templates" : {"html" : "part.html"}
@@ -2722,7 +2730,7 @@ struct PartPackageTests {
     func navigationLoopUsesPageHierarchyVisibilityAndCurrentState() throws {
         let identifier = "com.example.navigation\(UUID().uuidString.replacingOccurrences(of: "-", with: "").lowercased())"
         let packageURL = try makePackage(
-            manifest: manifest(withControls: "").replacingOccurrences(of: "com.example.card", with: identifier),
+            manifest: manifest(withInspectorEntries: "").replacingOccurrences(of: "com.example.card", with: identifier),
             template: """
             <nav {{ part.attributes }}>{{ loop navigation.items as item }}
             <a href="{{ item.href }}">{{ item.title }}</a>
@@ -2884,7 +2892,7 @@ struct PartPackageTests {
             "responsive" : false
         }
         """
-        let manifestText = manifest(withControls: item)
+        let manifestText = manifest(withInspectorEntries: item)
         let validURL = try makePackage(
             manifest: manifestText,
             template: "<section {{ part.attributes }}>{{ loop control.itemCount reversed }}<b>{{ loop.position }}</b>{{ endloop }}{{ childArea(\"content\") }}</section>"
@@ -3167,11 +3175,10 @@ struct PartPackageTests {
     func imageControlMayOmitItsDefaultAndResponsiveKeys() throws {
         let manifest = try JSONDecoder().decode(
             PartPackageManifest.self,
-            from: Data(manifest(withControls: """
+            from: Data(manifest(withInspectorEntries: """
                 {
                     "id" : "source",
                     "label" : "Image",
-                    "group" : "Content",
                     "type" : "image"
                 }
                 """).utf8)
@@ -3189,7 +3196,7 @@ struct PartPackageTests {
     func imageControlSupportsStaticClampedRenditions() throws {
         let manifest = try JSONDecoder().decode(
             PartPackageManifest.self,
-            from: Data(manifest(withControls: """
+            from: Data(manifest(withInspectorEntries: """
                 {
                     "id" : "source",
                     "label" : "Image",
@@ -3243,7 +3250,7 @@ struct PartPackageTests {
     func staticExportPublishesOneSharedRenditionForRepeatedPartUse() throws {
         let identifier = "com.example.rendition\(UUID().uuidString.replacingOccurrences(of: "-", with: "").lowercased())"
         let packageURL = try makePackage(
-            manifest: manifest(withControls: """
+            manifest: manifest(withInspectorEntries: """
                 {
                     "id" : "source",
                     "label" : "Image",
@@ -3296,7 +3303,7 @@ struct PartPackageTests {
     func staticPreviewResolvesManagedAssetsInLoopImagePrimitives() throws {
         let identifier = "com.example.repeatedimages\(UUID().uuidString.replacingOccurrences(of: "-", with: "").lowercased())"
         let packageURL = try makePackage(
-            manifest: manifest(withControls: "").replacingOccurrences(of: "com.example.card", with: identifier),
+            manifest: manifest(withInspectorEntries: "").replacingOccurrences(of: "com.example.card", with: identifier),
             template: "<section {{ part.attributes }}>{{ loop 2 }}{{ image(\"photo\") }}{{ endloop }}{{ childArea(\"content\") }}</section>"
         )
         defer { try? FileManager.default.removeItem(at: packageURL) }
@@ -3331,11 +3338,10 @@ struct PartPackageTests {
     @Test
     func imageControlProvidesAltAndStructuredTemplateValues() throws {
         let packageURL = try makePackage(
-            manifest: manifest(withControls: """
+            manifest: manifest(withInspectorEntries: """
                 {
                     "id" : "source",
                     "label" : "Image",
-                    "group" : "Content",
                     "type" : "image",
                     "alt" : "Default description",
                     "focalPoint" : true
@@ -3407,11 +3413,10 @@ struct PartPackageTests {
 
     @Test
     func imageMacroRequiresADeclaredPersistentName() throws {
-        let manifestText = manifest(withControls: """
+        let manifestText = manifest(withInspectorEntries: """
             {
                 "id" : "title",
                 "label" : "Title",
-                "group" : "Content",
                 "type" : "text",
                 "defaults" : {"base" : "Hello"},
                 "responsive" : false
@@ -3440,11 +3445,10 @@ struct PartPackageTests {
 
     @Test
     func imageDefaultMustBeDeclaredAndResolvesThroughAssetPaths() throws {
-        let validImageManifest = manifest(withControls: """
+        let validImageManifest = manifest(withInspectorEntries: """
             {
                 "id" : "source",
                 "label" : "Image",
-                "group" : "Content",
                 "type" : "image",
                 "defaults" : {"base" : "images/icon.svg"}
             }
@@ -4044,13 +4048,12 @@ struct PartPackageTests {
         {
             "id" : "alignment",
             "label" : "Alignment",
-            "group" : "Typography",
             "type" : "textAlignment",
             "defaults" : {"base" : "start"},
             "responsive" : true
         }
         """
-        let manifestText = manifest(withControls: item)
+        let manifestText = manifest(withInspectorEntries: item)
         let packageURL = try makePackage(
             manifest: manifestText,
             template: "<section {{ part.attributes }} style=\"text-align: {{ control.alignment }}\">{{ childArea(\"content\") }}</section>"
@@ -4067,17 +4070,15 @@ struct PartPackageTests {
 
     @Test
     func controlsDefaultToTheSettingsGroup() throws {
-        let manifestText = validManifest.replacingOccurrences(
-            of: "\"group\" : \"Content\",",
-            with: ""
-        )
-
         let manifest = try JSONDecoder().decode(
             PartPackageManifest.self,
-            from: Data(manifestText.utf8)
+            from: Data(validManifest.utf8)
         )
 
-        #expect(manifest.resolvedProperties.first?.group == "Settings")
+        // The title control sits inside the Content section wrapper; the
+        // top-level childPicker carries no wrapper and lands in Settings.
+        #expect(manifest.resolvedProperties.first?.group == "Content")
+        #expect(manifest.resolvedProperties.last?.group == "Settings")
     }
 
     @Test
@@ -4095,7 +4096,7 @@ struct PartPackageTests {
         """
         let manifest = try JSONDecoder().decode(
             PartPackageManifest.self,
-            from: Data(manifest(withControls: item).utf8)
+            from: Data(manifest(withInspectorEntries: item).utf8)
         )
         let diagnostics = PartPackageValidator.validate(
             manifest,
@@ -4103,7 +4104,7 @@ struct PartPackageTests {
         )
 
         #expect(diagnostics.contains {
-            $0.location == "manifest.json:controls.sizes.frameworkValues" &&
+            $0.location == "manifest.json:inspector.sizes.frameworkValues" &&
                 $0.message == "Select supports only declared options; remove frameworkValues."
         })
     }
@@ -4119,7 +4120,7 @@ struct PartPackageTests {
             "responsive" : false
         }
         """
-        let manifestText = manifest(withControls: numberItem)
+        let manifestText = manifest(withInspectorEntries: numberItem)
         let manifest = try JSONDecoder().decode(
             PartPackageManifest.self,
             from: Data(manifestText.utf8)
@@ -4158,7 +4159,7 @@ struct PartPackageTests {
             "responsive" : false
         }
         """
-        let manifestText = manifest(withControls: sliderItem)
+        let manifestText = manifest(withInspectorEntries: sliderItem)
         let packageURL = try makePackage(
             manifest: manifestText,
             template: "<output {{ part.attributes }}>{{ control.opacity }}{{ childArea(\"content\") }}</output>"
@@ -4192,7 +4193,7 @@ struct PartPackageTests {
             "responsive" : false
         }
         """
-        let manifestText = manifest(withControls: item)
+        let manifestText = manifest(withInspectorEntries: item)
         let packageURL = try makePackage(
             manifest: manifestText,
             template: "<output {{ part.attributes }}>{{ control.dimensions[0] }}{{ childArea(\"content\") }}</output>"
@@ -4229,7 +4230,7 @@ struct PartPackageTests {
                 "responsive" : false
             }
             """
-            let manifestText = manifest(withControls: item)
+            let manifestText = manifest(withInspectorEntries: item)
             #expect(throws: (any Error).self) {
                 try JSONDecoder().decode(PartPackageManifest.self, from: Data(manifestText.utf8))
             }
@@ -4248,7 +4249,7 @@ struct PartPackageTests {
             "responsive" : false
         }
         """
-        let manifestText = manifest(withControls: item)
+        let manifestText = manifest(withInspectorEntries: item)
         let packageURL = try makePackage(
             manifest: manifestText,
             template: "<output {{ part.attributes }}>{{ control.slider }}{{ childArea(\"content\") }}</output>"
@@ -4289,7 +4290,7 @@ struct PartPackageTests {
             "responsive" : false
         }
         """
-        let manifestText = manifest(withControls: item)
+        let manifestText = manifest(withInspectorEntries: item)
         let manifest = try JSONDecoder().decode(
             PartPackageManifest.self,
             from: Data(manifestText.utf8)
@@ -4311,11 +4312,10 @@ struct PartPackageTests {
         let item = """
         {
             "id" : "contentDivider",
-            "group" : "Content",
             "type" : "divider"
         }
         """
-        let manifestText = manifest(withControls: item)
+        let manifestText = manifest(withInspectorEntries: item)
         let packageURL = try makePackage(
             manifest: manifestText,
             template: "<section {{ part.attributes }}>{{ childArea(\"content\") }}</section>"
@@ -4342,7 +4342,7 @@ struct PartPackageTests {
         )
         #expect(diagnostics.contains { $0.message.contains("Unknown property 'contentDivider'") })
 
-        let unsupportedKeys = ["label", "subtitle", "tooltip", "default", "responsive", "count"]
+        let unsupportedKeys = ["label", "subtitle", "tooltip", "default", "responsive", "count", "group"]
         for key in unsupportedKeys {
             let value: String
             switch key {
@@ -4358,7 +4358,7 @@ struct PartPackageTests {
             }
             """
             let schemaDiagnostics = try PartPackageManifestSchema.diagnostics(
-                for: Data(manifest(withControls: invalidItem).utf8)
+                for: Data(manifest(withInspectorEntries: invalidItem).utf8)
             )
             #expect(schemaDiagnostics.contains { $0.severity == .error })
         }
@@ -4375,7 +4375,7 @@ struct PartPackageTests {
             "systemImage" : "info.circle"
         }
         """
-        let validData = Data(manifest(withControls: validItem).utf8)
+        let validData = Data(manifest(withInspectorEntries: validItem).utf8)
         #expect(try PartPackageManifestSchema.diagnostics(for: validData).isEmpty)
 
         let decodedManifest = try JSONDecoder().decode(PartPackageManifest.self, from: validData)
@@ -4388,7 +4388,7 @@ struct PartPackageTests {
         #expect(!property.responsive)
         #expect(property.control.count == nil)
 
-        let unsupportedKeys = ["label", "subtitle", "responsive", "count"]
+        let unsupportedKeys = ["label", "subtitle", "responsive", "count", "group"]
         for key in unsupportedKeys {
             let value = switch key {
             case "responsive": "true"
@@ -4405,11 +4405,11 @@ struct PartPackageTests {
             """
 
             let diagnostics = try PartPackageManifestSchema.diagnostics(
-                for: Data(manifest(withControls: item).utf8)
+                for: Data(manifest(withInspectorEntries: item).utf8)
             )
 
             #expect(diagnostics.contains {
-                $0.location == "manifest.json:controls[0]:\(key)" &&
+                $0.location == "manifest.json:inspector[0]:\(key)" &&
                     $0.message == "A note control does not support \(key)."
             })
         }
@@ -4421,10 +4421,10 @@ struct PartPackageTests {
         }
         """
         let missingBodyDiagnostics = try PartPackageManifestSchema.diagnostics(
-            for: Data(manifest(withControls: missingBodyItem).utf8)
+            for: Data(manifest(withInspectorEntries: missingBodyItem).utf8)
         )
         #expect(missingBodyDiagnostics.contains {
-            $0.location == "manifest.json:controls[0]:body" &&
+            $0.location == "manifest.json:inspector[0]:body" &&
                 $0.message == "A body string is required."
         })
     }
@@ -4444,11 +4444,11 @@ struct PartPackageTests {
             """
 
             let diagnostics = try PartPackageManifestSchema.diagnostics(
-                for: Data(manifest(withControls: item).utf8)
+                for: Data(manifest(withInspectorEntries: item).utf8)
             )
 
             #expect(diagnostics.contains {
-                $0.location == "manifest.json:controls[0]:\(key)" &&
+                $0.location == "manifest.json:inspector[0]:\(key)" &&
                     $0.message == "A link control does not support \(key)."
             })
         }
@@ -5480,13 +5480,12 @@ struct PartPackageTests {
         {
             "id" : "symbol",
             "label" : "Icon",
-            "group" : "Content",
             "type" : "icon",
             "defaults" : {"base" : "stars"},
             "responsive" : false
         }
         """
-        let manifest = manifest(withControls: item)
+        let manifest = manifest(withInspectorEntries: item)
         let packageURL = try makePackage(
             manifest: manifest,
             template: "<span {{ part.attributes }}><i class=\"bi bi-{{ control.symbol }}\"></i>{{ childArea(\"content\") }}</span>"
@@ -5523,7 +5522,7 @@ struct PartPackageTests {
             "id" : "alpine",
             "majorVersion" : 3
         }],
-        "controls" : [{"type" : "reveal"}],
+        "inspector" : [{"type" : "reveal"}],
         "templates" : {"html" : "part.html"}
         }
         """
@@ -5584,7 +5583,7 @@ struct PartPackageTests {
             "responsive" : false
         }
         """
-        let manifestText = manifest(withControls: item)
+        let manifestText = manifest(withInspectorEntries: item)
         let manifest = try JSONDecoder().decode(
             PartPackageManifest.self,
             from: Data(manifestText.utf8)
@@ -5611,7 +5610,7 @@ struct PartPackageTests {
             "defaults" : {"base" : ["arrow-left", "not-a-real-foundry-icon"]}
         }
         """
-        let manifestText = manifest(withControls: item)
+        let manifestText = manifest(withInspectorEntries: item)
         let manifest = try JSONDecoder().decode(
             PartPackageManifest.self,
             from: Data(manifestText.utf8)
@@ -5689,14 +5688,18 @@ struct PartPackageTests {
 
     private var defaultCustomItemsDeclaration: String {
         """
-        "controls" : [
+        "inspector" : [
             {
-                "id" : "title",
-                "label" : "Title",
-                "group" : "Content",
-                "type" : "text",
-                "defaults" : {"base" : "Hello"},
-                "responsive" : false
+                "section" : "Content",
+                "controls" : [
+                    {
+                        "id" : "title",
+                        "label" : "Title",
+                        "type" : "text",
+                        "defaults" : {"base" : "Hello"},
+                        "responsive" : false
+                    }
+                ]
             },
             {
                 "type" : "childPicker",
@@ -5720,7 +5723,7 @@ struct PartPackageTests {
             "responsive" : false
         }
         """
-        let data = Data(manifest(withControls: item).utf8)
+        let data = Data(manifest(withInspectorEntries: item).utf8)
         let error = #expect(throws: (any Error).self) {
             try JSONDecoder().decode(PartPackageManifest.self, from: data)
         }
@@ -5730,72 +5733,105 @@ struct PartPackageTests {
         // A renamed control type must be identifiable from the error alone:
         // the invalid value and the manifest location, not "isn't in the correct format".
         #expect(message.contains("shadow"), Comment(rawValue: message))
-        #expect(message.contains("controls[0]"), Comment(rawValue: message))
+        #expect(message.contains("inspector[0]"), Comment(rawValue: message))
     }
 
     @Test
-    func inspectorGroupIconsResolveFromGroupsAndGroupedControls() throws {
+    func inspectorGroupIconsResolveFromSectionWrappersAndGroupedControls() throws {
         let controls = """
         {
-            "id" : "galleryStyle",
-            "label" : "Style",
-            "group" : "Gallery",
-            "type" : "toggle",
-            "defaults" : {"base" : true},
-            "responsive" : false
+            "section" : "Gallery",
+            "systemImage" : "photo.stack",
+            "controls" : [
+                {
+                    "id" : "galleryStyle",
+                    "label" : "Style",
+                    "type" : "toggle",
+                    "defaults" : {"base" : true},
+                    "responsive" : false
+                }
+            ]
         },
+        {"section" : "Content", "systemImage" : "doc.text"},
         {"type" : "spacing"}
         """
-        func source(groups: String) -> Data {
-            Data(manifest(withControls: controls).replacingOccurrences(
-                of: "\"controls\"",
-                with: "\"groups\" : [\n\(groups)\n],\n\"controls\""
-            ).utf8)
-        }
-
-        let valid = source(groups: """
-        {"name" : "Gallery", "systemImage" : "photo.stack"},
-        {"name" : "Content", "systemImage" : "doc.text"}
-        """)
-        #expect(try PartPackageManifestSchema.diagnostics(for: valid).allSatisfy { !$0.location.contains("groups") })
+        let valid = Data(manifest(withInspectorEntries: controls).utf8)
+        #expect(try PartPackageManifestSchema.diagnostics(for: valid).isEmpty)
         let decoded = try JSONDecoder().decode(PartPackageManifest.self, from: valid)
-        #expect(decoded.groups == [
-            .init(name: "Gallery", systemImage: "photo.stack"),
-            .init(name: "Content", systemImage: "doc.text")
-        ])
+        #expect(decoded.controlSections.map(\.name) == ["Gallery", "Content"])
+        #expect(decoded.resolvedProperties.first { $0.id == "galleryStyle" }?.group == "Gallery")
         #expect(decoded.resolvedGroupIcons["Gallery"] == "photo.stack")
+        // An icon-only wrapper gives the implicit Content section its icon.
+        #expect(decoded.resolvedGroupIcons["Content"] == "doc.text")
         // Grouped controls carry their standard section icon with no declaration.
         #expect(decoded.resolvedGroupIcons["Spacing"] == "arrow.up.and.down.and.arrow.left.and.right")
-        // Undeclared groups fall back at presentation time, not in the manifest.
+        // Undeclared sections fall back at presentation time, not in the manifest.
         #expect(decoded.resolvedGroupIcons["Settings"] == nil)
+        // Sections round-trip as wrappers: no per-control section keys survive encoding.
+        let encoded = JSONEncoder()
         let reencoded = try JSONDecoder().decode(
             PartPackageManifest.self,
-            from: JSONEncoder().encode(decoded)
+            from: encoded.encode(decoded)
         )
-        #expect(reencoded.groups == decoded.groups)
+        #expect(reencoded.controlSections == decoded.controlSections)
         #expect(reencoded.resolvedGroupIcons == decoded.resolvedGroupIcons)
+        #expect(!String(decoding: try encoded.encode(decoded.resolvedProperties), as: UTF8.self).contains("\"section\""))
 
         let failures: [(entries: String, message: String)] = [
-            ("{\"name\" : \"Gallery\"}, {\"name\" : \"Gallery\"}",
-             "Duplicate group entry 'Gallery'."),
-            ("{\"name\" : \"Sidebar\"}",
-             "groups declares 'Sidebar' but no control uses that group."),
-            ("{\"name\" : \"Gallery\", \"icon\" : \"star\"}",
-             "Unknown key 'icon'. Check the spelling or remove it."),
-            ("{\"name\" : \" \"}",
-             "A group entry requires a non-empty name."),
             ("{\"systemImage\" : \"star\"}",
-             "A name string is required.")
+             "An inspector entry without a type is a section and requires a non-empty section name."),
+            ("{\"section\" : \" \"}",
+             "An inspector entry without a type is a section and requires a non-empty section name."),
+            ("{\"section\" : \"Gallery\"}, {\"section\" : \"Gallery\"}",
+             "Duplicate section 'Gallery'. Declare each section once and list its controls inside it."),
+            ("{\"section\" : \"Gallery\", \"icon\" : \"star\"}",
+             "Unknown key 'icon'. Check the spelling or remove it."),
+            ("{\"section\" : \"Gallery\", \"controls\" : [{\"type\" : \"spacing\"}]}",
+             "The grouped control 'spacing' carries its own section — declare it at the top level of the inspector."),
+            ("{\"section\" : \"Gallery\", \"controls\" : [{\"section\" : \"Inner\"}]}",
+             "Sections cannot nest inside sections; every entry here must be a control with a type.")
         ]
         for failure in failures {
-            let diagnostics = try PartPackageManifestSchema.diagnostics(for: source(groups: failure.entries))
-            #expect(diagnostics.contains { $0.message.contains(failure.message) }, Comment(rawValue: failure.message))
+            let diagnostics = try PartPackageManifestSchema.diagnostics(
+                for: Data(manifest(withInspectorEntries: failure.entries).utf8)
+            )
+            #expect(diagnostics.contains { $0.message == failure.message }, Comment(rawValue: failure.message))
         }
+
+        // Controls inside a wrapper receive the normal control validation at
+        // their nested location.
+        let invalidInner = try PartPackageManifestSchema.diagnostics(
+            for: Data(manifest(withInspectorEntries: """
+            {"section" : "Gallery", "controls" : [{"id" : "broken", "type" : "mystery"}]}
+            """).utf8)
+        )
+        #expect(invalidInner.contains {
+            $0.location == "manifest.json:inspector[0].controls[0]:type"
+                && $0.message == "Unknown control type 'mystery'."
+        })
+
+        // Section wrappers are the only home for section names: a control
+        // carrying its own group key fails as an unknown key.
+        let strayGroup = try PartPackageManifestSchema.diagnostics(
+            for: Data(manifest(withInspectorEntries: """
+            {"id" : "styled", "type" : "text", "group" : "Gallery", "defaults" : {"base" : ""}}
+            """).utf8)
+        )
+        #expect(strayGroup.contains { $0.message == "Unknown key 'group'. Check the spelling or remove it." })
+
+        // The removed top-level groups array is an unknown manifest key.
+        let legacyGroups = manifest(withInspectorEntries: controls).replacingOccurrences(
+            of: "\"minimumAPIVersion\"",
+            with: "\"groups\" : [{\"name\" : \"Gallery\", \"systemImage\" : \"photo.stack\"}],\n    \"minimumAPIVersion\""
+        )
+        #expect(try PartPackageManifestSchema.diagnostics(for: Data(legacyGroups.utf8)).contains {
+            $0.location == "manifest.json:groups" && $0.message.contains("Unknown key 'groups'")
+        })
     }
 
-    private func manifest(withControls items: String) -> String {
+    private func manifest(withInspectorEntries items: String) -> String {
         let replacement = """
-        "controls" : [
+        "inspector" : [
             \(items.isEmpty ? "" : items + ",")
             {
                 "type" : "childPicker",

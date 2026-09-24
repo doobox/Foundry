@@ -2353,10 +2353,10 @@ private struct WorkspaceColumnView<PanelContent: View>: View {
         }
         .frame(height: 36)
         .background {
+            // The sidebar dock's tab bar stays clear so the sidebar material
+            // behind the whole column shows through.
             if !usesSidebarMaterial {
                 Rectangle().fill(.bar)
-            } else {
-                Color(.windowBackgroundColor)
             }
         }
         .dropDestination(for: WorkspacePanelDragPayload.self) { values, _ in

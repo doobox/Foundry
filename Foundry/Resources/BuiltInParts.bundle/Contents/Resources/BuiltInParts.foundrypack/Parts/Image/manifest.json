@@ -1,85 +1,82 @@
 {
-  "assets" : [
-
-  ],
-  "author" : "Foundry",
-  "controls" : [
+  "assets": [],
+  "author": "Foundry",
+  "description": "Displays a responsive project image.",
+  "group": "Media",
+  "id": "foundry.media.image",
+  "inspector": [
     {
-      "group" : "Content",
-      "id" : "source",
-      "label" : "Image",
-      "type" : "image"
-    },
-    {
-      "defaults" : {
-        "base" : 1200
-      },
-      "group" : "Sizing",
-      "id" : "maxWidth",
-      "label" : "Max Width",
-      "maximum" : 2400,
-      "minimum" : 100,
-      "responsive" : true,
-      "step" : 10,
-      "type" : "number",
-      "units" : "px"
-    },
-    {
-      "defaults" : {
-        "base" : "center"
-      },
-      "group" : "Sizing",
-      "id" : "alignment",
-      "label" : "Alignment",
-      "options" : [
+      "controls": [
         {
-          "title" : "Start",
-          "value" : "start"
-        },
-        {
-          "title" : "Centre",
-          "value" : "center"
-        },
-        {
-          "title" : "End",
-          "value" : "end"
+          "id": "source",
+          "label": "Image",
+          "type": "image"
         }
       ],
-      "responsive" : true,
-      "type" : "select"
+      "section": "Content",
+      "systemImage": "doc.text"
     },
     {
-      "type" : "reveal"
-    }
-  ],
-  "description" : "Displays a responsive project image.",
-  "group" : "Media",
-  "groups" : [
-    {
-      "name" : "Content",
-      "systemImage" : "doc.text"
+      "controls": [
+        {
+          "defaults": {
+            "base": 1200
+          },
+          "id": "maxWidth",
+          "label": "Max Width",
+          "maximum": 2400,
+          "minimum": 100,
+          "responsive": true,
+          "step": 10,
+          "type": "number",
+          "units": "px"
+        },
+        {
+          "defaults": {
+            "base": "center"
+          },
+          "id": "alignment",
+          "label": "Alignment",
+          "options": [
+            {
+              "title": "Start",
+              "value": "start"
+            },
+            {
+              "title": "Centre",
+              "value": "center"
+            },
+            {
+              "title": "End",
+              "value": "end"
+            }
+          ],
+          "responsive": true,
+          "type": "select"
+        }
+      ],
+      "section": "Sizing",
+      "systemImage": "arrow.up.left.and.arrow.down.right"
     },
     {
-      "name" : "Sizing",
-      "systemImage" : "arrow.up.left.and.arrow.down.right"
+      "type": "reveal"
     }
   ],
-  "id" : "foundry.media.image",
-  "minimumAPIVersion" : 1,
-  "tags" : [
+  "minimumAPIVersion": 1,
+  "tags": [
     "Foundry",
     "built-in"
   ],
-  "templates" : {
-    "editorCSS" : "editor.css",
-    "files" : [
+  "templates": {
+    "editorCSS": "editor.css",
+    "files": [
       {
-        "path" : "part.css",
-        "scope" : "instance"
+        "path": "part.css",
+        "scope": "instance"
       }
     ],
-    "html" : "part.html"
+    "html": "part.html"
   },
-  "title" : "Image",
-  "version" : "1.0.0"
+  "title": "Image",
+  "version": "1.0.0"
 }

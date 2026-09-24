@@ -1,98 +1,95 @@
 {
-  "assets" : [
-
-  ],
-  "author" : "Foundry",
-  "controls" : [
+  "assets": [],
+  "author": "Foundry",
+  "description": "A width-constrained content group with shared spacing and appearance settings.",
+  "group": "Layout",
+  "id": "foundry.layout.container",
+  "inspector": [
     {
-      "defaultOverrides" : {
-        "maxWidth" : 1120
+      "defaultOverrides": {
+        "maxWidth": 1120
       },
-      "type" : "sizing"
+      "type": "sizing"
     },
     {
-      "defaultOverrides" : {
-        "itemEnabled" : true
+      "defaultOverrides": {
+        "itemEnabled": true
       },
-      "type" : "layoutItem"
+      "type": "layoutItem"
     },
     {
-      "defaultOverrides" : {
-        "frameworkMargin" : {
-          "bottom" : "none",
-          "left" : "auto",
-          "right" : "auto",
-          "top" : "none"
+      "defaultOverrides": {
+        "frameworkMargin": {
+          "bottom": "none",
+          "left": "auto",
+          "right": "auto",
+          "top": "none"
         }
       },
-      "type" : "spacing"
+      "type": "spacing"
     },
     {
-      "defaultOverrides" : {
-        "borderEnabled" : true
+      "defaultOverrides": {
+        "borderEnabled": true
       },
-      "type" : "borders"
+      "type": "borders"
     },
     {
-      "type" : "effects"
+      "type": "effects"
     },
     {
-      "defaults" : {
-        "base" : "visible"
-      },
-      "group" : "Advanced",
-      "id" : "overflow",
-      "label" : "Overflow",
-      "options" : [
+      "controls": [
         {
-          "title" : "Visible",
-          "value" : "visible"
-        },
-        {
-          "title" : "Clip",
-          "value" : "hidden"
-        },
-        {
-          "title" : "Scroll when needed",
-          "value" : "auto"
+          "defaults": {
+            "base": "visible"
+          },
+          "id": "overflow",
+          "label": "Overflow",
+          "options": [
+            {
+              "title": "Visible",
+              "value": "visible"
+            },
+            {
+              "title": "Clip",
+              "value": "hidden"
+            },
+            {
+              "title": "Scroll when needed",
+              "value": "auto"
+            }
+          ],
+          "responsive": true,
+          "tooltip": "Clipping can hide shadows or focus outlines.",
+          "type": "select"
         }
       ],
-      "responsive" : true,
-      "tooltip" : "Clipping can hide shadows or focus outlines.",
-      "type" : "select"
+      "section": "Advanced",
+      "systemImage": "gearshape"
     },
     {
-      "type" : "background"
+      "type": "background"
     },
     {
-      "type" : "reveal"
+      "type": "reveal"
     }
   ],
-  "description" : "A width-constrained content group with shared spacing and appearance settings.",
-  "group" : "Layout",
-  "groups" : [
-    {
-      "name" : "Advanced",
-      "systemImage" : "gearshape"
-    }
-  ],
-  "id" : "foundry.layout.container",
-  "minimumAPIVersion" : 1,
-  "tags" : [
+  "minimumAPIVersion": 1,
+  "tags": [
     "Foundry",
     "built-in",
     "layout",
     "width"
   ],
-  "templates" : {
-    "files" : [
+  "templates": {
+    "files": [
       {
-        "path" : "part.css",
-        "scope" : "instance"
+        "path": "part.css",
+        "scope": "instance"
       }
     ],
-    "html" : "part.html"
+    "html": "part.html"
   },
-  "title" : "Container",
-  "version" : "2.0.0"
+  "title": "Container",
+  "version": "2.0.0"
 }

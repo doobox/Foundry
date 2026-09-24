@@ -768,7 +768,8 @@ private struct PartInspectorExpansion {
 
 private struct PartInspector: View {
     @AppStorage(AppPreferenceKey.inspectorAccordion) private var usesAccordion = true
-    @State private var showsAddAttributePopover = false
+    @State private var hoversGlobalChildToggle = false
+    @State private var hoversExplodeGlobal = false
     let part: PartNode
     let selectedParts: [PartNode]
     let currentPage: Page?
@@ -791,6 +792,25 @@ private struct PartInspector: View {
         groupExpansion[part.id]?.groups ?? []
     }
 
+    /// Whether the part's manifest opts into the Advanced section — the HTML
+    /// ID, classes, and custom-attribute fields.
+    private var declaresAdvanced: Bool {
+        part.type.definition.package?.manifest.controlGroups.contains { $0.type == .advanced } == true
+    }
+
+    private var advancedSection: PartPropertySection {
+        PartPropertySection(rawValue: PartPackageControlGroup.Kind.advanced.groupName)
+    }
+
+    /// The Inspector never starts fully collapsed: whenever a part arrives
+    /// with no group open — never remembered, or remembered as all closed —
+    /// its first group opens. Closing every group stays possible within the
+    /// current appearance.
+    private func openFirstGroupIfAllClosed() {
+        guard expandedGroups.isEmpty, let first = inspectorGroups.first else { return }
+        groupExpansion[part.id] = PartInspectorExpansion(groups: [first])
+    }
+
     private func setExpanded(_ expanded: Bool, group: PartPropertySection) {
         var groups = expandedGroups.filter { $0 != group }
         if expanded {
@@ -804,28 +824,10 @@ private struct PartInspector: View {
             LazyVStack(spacing: 0) {
                 InspectorCard {
                     partIdentityHeader
-
-                    if selectedParts.count == 1 {
-                        Divider()
-                        PartIdentityFields(
-                            anchor: partAnchorBinding,
-                            classes: partClassesBinding,
-                            attributes: partAttributesBinding,
-                            isDuplicateAnchor: partAnchorIsDuplicate,
-                            // Overriding is a child-level affair; the root
-                            // offers Explode Global instead of the switch.
-                            localOverride: reusableDefinition == nil || isGlobalRoot ? nil : Binding(
-                                get: { isGlobalOverride },
-                                set: setGlobalOverride
-                            ),
-                            explodeGlobal: isGlobalRoot ? {
-                                editor.explodeGlobalPart(partID: part.id)
-                            } : nil,
-                            globalLabel: reusableDefinition == nil ? nil : globalIndicatorLabel,
-                            globalColor: globalIndicatorColor
-                        )
-                    }
                 }
+                // The identity card wears the same inset as the Part Info
+                // header card; the sections below stay edge-to-edge.
+                .padding(EdgeInsets(top: 16, leading: 16, bottom: 14, trailing: 16))
 
                 ForEach(inspectorGroups, id: \.rawValue) { group in
                     Divider()
@@ -833,6 +835,14 @@ private struct PartInspector: View {
                         group: group,
                         properties: properties(in: group),
                         childPickers: selectedParts.count == 1 ? childPickers(in: group) : [],
+                        identityFields: declaresAdvanced && group == advancedSection && selectedParts.count == 1
+                            ? PartIdentityContext(
+                                anchor: partAnchorBinding,
+                                classes: partClassesBinding,
+                                attributes: partAttributesBinding,
+                                isDuplicateAnchor: partAnchorIsDuplicate
+                            )
+                            : nil,
                         part: part,
                         selectedParts: selectedParts,
                         currentPage: currentPage,
@@ -871,6 +881,9 @@ private struct PartInspector: View {
                 }
             }
         }
+        .onChange(of: part.id, initial: true) { _, _ in
+            openFirstGroupIfAllClosed()
+        }
     }
 
     private var inspectorGroups: [PartPropertySection] {
@@ -884,6 +897,9 @@ private struct PartInspector: View {
             if !groups.contains(section) {
                 groups.append(section)
             }
+        }
+        if declaresAdvanced, !groups.contains(advancedSection) {
+            groups.append(advancedSection)
         }
         return groups
     }
@@ -918,46 +934,111 @@ private struct PartInspector: View {
     }
 
     private var partIdentityHeader: some View {
+        // Mirrors the Part Info header card exactly: same icon size, text
+        // styles and spacing — only the subtitle rows differ.
         HStack(alignment: .top, spacing: 12) {
-            PartSquareIcon(type: part.type, size: 32, symbolColor: .secondary)
+            PartSquareIcon(type: part.type, size: 48)
 
-            VStack(alignment: .leading, spacing: 3) {
-                Text(partHeaderTitle)
-                    .font(.headline)
-                Text(partDeveloper)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 6) {
+                    if part.type.definition.package?.isDevelopmentPack == true {
+                        Circle()
+                            .fill(.red)
+                            .frame(width: 7, height: 7)
+                            .accessibilityHidden(true)
+                    }
+                    Text(partHeaderTitle)
+                        .font(.headline)
+                }
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(partTypeAndVersion)
+                    Text(partDeveloper)
+                    if selectedParts.count == 1, reusableDefinition != nil {
+                        if isGlobalRoot {
+                            // Reads like the status line but acts: exploding
+                            // is the root's only global affordance.
+                            Button {
+                                editor.explodeGlobalPart(partID: part.id)
+                            } label: {
+                                HStack(spacing: 4) {
+                                    Image(systemName: "burst")
+                                    Text("Explode Global")
+                                }
+                                .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+                            .fontWeight(.medium)
+                            .foregroundStyle(hoversExplodeGlobal ? Color.blue : Color.green)
+                            .padding(.top, 4)
+                            .help("Disconnect this instance from its global; the parts stay on the page.")
+                            .onHover { hovering in
+                                hoversExplodeGlobal = hovering
+                                if hovering {
+                                    NSCursor.pointingHand.set()
+                                } else {
+                                    NSCursor.arrow.set()
+                                }
+                            }
+                        } else {
+                            // The status line is also the switch: clicking
+                            // toggles the child's local override, and hovering
+                            // previews the icon of the state a click produces.
+                            Button {
+                                setGlobalOverride(!isGlobalOverride)
+                            } label: {
+                                HStack(spacing: 4) {
+                                    // Hovering previews the state a click
+                                    // produces: linked shows the slashed pin,
+                                    // unlinked shows the plain pin.
+                                    Image(systemName: isGlobalOverride != hoversGlobalChildToggle
+                                        ? "pin.slash"
+                                        : "pin")
+                                    Text(globalIndicatorLabel)
+                                }
+                                .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+                            .fontWeight(.medium)
+                            // Hover previews the destination state's colour
+                            // along with the icon: pinned goes blue, unpinned
+                            // goes green.
+                            .foregroundStyle(isGlobalOverride != hoversGlobalChildToggle ? Color.blue : Color.green)
+                            .padding(.top, 4)
+                            .help(isGlobalOverride
+                                ? "Re-link this child; it follows the global's values again."
+                                : "Override this child locally; it stops following the global's values.")
+                            .onHover { hovering in
+                                hoversGlobalChildToggle = hovering
+                                // set() rather than push/pop: the hover also
+                                // rebuilds this view, which unbalances a
+                                // pushed cursor stack.
+                                if hovering {
+                                    NSCursor.pointingHand.set()
+                                } else {
+                                    NSCursor.arrow.set()
+                                }
+                            }
+                        }
+                    }
+                }
+                .foregroundStyle(.secondary)
             }
 
             Spacer(minLength: 0)
-
-            if selectedParts.count == 1 {
-                Menu {
-                    Button("Add Attribute…") {
-                        showsAddAttributePopover = true
-                    }
-                } label: {
-                    Image(systemName: "gearshape")
-                        .foregroundStyle(.secondary)
-                }
-                .menuStyle(.borderlessButton)
-                .menuIndicator(.hidden)
-                .fixedSize()
-                .padding(.top, 1)
-                .help("Part options")
-                .popover(isPresented: $showsAddAttributePopover, arrowEdge: .trailing) {
-                    PartAttributePopover(
-                        attribute: nil,
-                        existingAttributes: part.rootAttributes ?? []
-                    ) { attribute in
-                        var attributes = part.rootAttributes ?? []
-                        attributes.append(attribute)
-                        editor.setPartRootAttributes(id: part.id, attributes: attributes)
-                    }
-                }
-            }
         }
-        .padding(.vertical, 4)
+        .padding(.vertical, 2)
+    }
+
+    private var partTypeAndVersion: String {
+        let name = part.type.displayName
+        guard let version = part.type.definition.package?.manifest.version else { return name }
+        return "\(name) v\(version)"
+    }
+
+    private var partDeveloper: String {
+        part.type.definition.package?.manifest.author.flatMap { author in
+            author.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : author
+        } ?? "Unknown Developer"
     }
 
     private var partHeaderTitle: String {
@@ -974,22 +1055,14 @@ private struct PartInspector: View {
     }
 
     private var globalIndicatorColor: Color {
-        isGlobalOverride && !isGlobalRoot
-            ? .blue
-            : Color(red: 48.0 / 255.0, green: 209.0 / 255.0, blue: 88.0 / 255.0)
+        isGlobalOverride && !isGlobalRoot ? .blue : .green
     }
 
     private var globalIndicatorLabel: String {
         if isGlobalRoot { return "Global" }
-        return isGlobalOverride ? "Global — Child — Overridden" : "Global — Child"
+        return isGlobalOverride ? "Pin to Global" : "Unpin from Global"
     }
 
-
-    private var partDeveloper: String {
-        part.type.definition.package?.manifest.author.flatMap { author in
-            author.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : author
-        } ?? "Unknown Developer"
-    }
 
     private var partAnchorBinding: Binding<String> {
         Binding(
@@ -1078,15 +1151,15 @@ private struct PartSlotInspectorCard: View {
     }
 }
 
+/// The opt-in Advanced section's fields: HTML ID, classes, and custom
+/// attributes for the placed part. Shown only when the part's manifest
+/// declares the `advanced` grouped control.
 private struct PartIdentityFields: View {
     @Binding var anchor: String
     @Binding var classes: String
     @Binding var attributes: [PartHTMLAttribute]
     let isDuplicateAnchor: Bool
-    let localOverride: Binding<Bool>?
-    let explodeGlobal: (() -> Void)?
-    let globalLabel: String?
-    let globalColor: Color
+    @State private var showsAddAttributePopover = false
 
     var body: some View {
         InspectorGrid(contentInsets: EdgeInsets()) {
@@ -1111,64 +1184,30 @@ private struct PartIdentityFields: View {
                     .frame(maxWidth: .infinity)
             }
 
-            if !attributes.isEmpty {
-                GridRow {
-                    Divider()
-                        .gridCellColumns(2)
-                }
-
-                InspectorRow(title: "Attributes") {
-                    PartAttributeRows(attributes: $attributes)
-                }
+            GridRow {
+                Divider()
+                    .gridCellColumns(2)
             }
 
-            if let explodeGlobal {
-                GridRow {
-                    Divider()
-                        .gridCellColumns(2)
-                }
-
-                InspectorRow(title: "Global", alignment: .center) {
-                    HStack(spacing: 8) {
-                        Button("Explode Global", action: explodeGlobal)
-                            .help("Disconnect this instance from its global; the parts stay on the page.")
-
-                        Spacer(minLength: 8)
-
-                        globalBadge
+            InspectorRow(title: "Attributes") {
+                VStack(alignment: .leading, spacing: 0) {
+                    if !attributes.isEmpty {
+                        PartAttributeRows(attributes: $attributes)
+                            .padding(.bottom, 15)
                     }
-                }
-            } else if let localOverride {
-                GridRow {
-                    Divider()
-                        .gridCellColumns(2)
-                }
-
-                InspectorRow(title: "Local Override", alignment: .center) {
-                    HStack(spacing: 8) {
-                        Toggle("Local Override", isOn: localOverride)
-                            .labelsHidden()
-                            .toggleStyle(.switch)
-                            .controlSize(.mini)
-
-                        Spacer(minLength: 8)
-
-                        globalBadge
+                    Button("Add Attribute…") {
+                        showsAddAttributePopover = true
+                    }
+                    .popover(isPresented: $showsAddAttributePopover, arrowEdge: .trailing) {
+                        PartAttributePopover(
+                            attribute: nil,
+                            existingAttributes: attributes
+                        ) { attribute in
+                            attributes.append(attribute)
+                        }
                     }
                 }
             }
-        }
-    }
-
-    @ViewBuilder
-    private var globalBadge: some View {
-        if let globalLabel {
-            Text(globalLabel)
-                .font(.caption2.weight(.semibold))
-                .foregroundStyle(globalColor)
-                .padding(.horizontal, 6)
-                .padding(.vertical, 2)
-                .background(globalColor.opacity(0.14), in: Capsule())
         }
     }
 }
@@ -1361,10 +1400,20 @@ private struct PartAttributePopover: View {
     }
 }
 
+/// The bindings the Advanced section renders — the placed part's HTML
+/// identity, which lives on the node rather than in package properties.
+private struct PartIdentityContext {
+    let anchor: Binding<String>
+    let classes: Binding<String>
+    let attributes: Binding<[PartHTMLAttribute]>
+    let isDuplicateAnchor: Bool
+}
+
 private struct PartInspectorGroup: View {
     let group: PartPropertySection
     let properties: [PartPropertyDefinition]
     let childPickers: [PartPackageSlot]
+    let identityFields: PartIdentityContext?
     let part: PartNode
     let selectedParts: [PartNode]
     let currentPage: Page?
@@ -1386,6 +1435,15 @@ private struct PartInspectorGroup: View {
     var body: some View {
         DisclosureGroup(isExpanded: $isExpanded) {
             VStack(spacing: InspectorMetrics.controlSpacing) {
+                if let identityFields {
+                    PartIdentityFields(
+                        anchor: identityFields.anchor,
+                        classes: identityFields.classes,
+                        attributes: identityFields.attributes,
+                        isDuplicateAnchor: identityFields.isDuplicateAnchor
+                    )
+                    .padding(.horizontal, InspectorMetrics.horizontalSectionPadding)
+                }
                 ForEach(PartInspectorControlGroup.groups(for: properties)) { controlGroup in
                     InspectorGrid(
                         contentInsets: EdgeInsets(

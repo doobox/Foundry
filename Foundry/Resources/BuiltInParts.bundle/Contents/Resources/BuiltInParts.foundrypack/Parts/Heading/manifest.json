@@ -1,141 +1,136 @@
 {
-  "assets" : [
-
-  ],
-  "author" : "Foundry",
-  "controls" : [
+  "assets": [],
+  "author": "Foundry",
+  "description": "Adds an editable semantic heading.",
+  "group": "Content",
+  "id": "foundry.content.heading",
+  "inspector": [
     {
-      "defaults" : {
-        "base" : "2"
-      },
-      "group" : "Typography",
-      "id" : "headingLevel",
-      "label" : "Level",
-      "options" : [
+      "controls": [
         {
-          "title" : "Heading 1",
-          "value" : "1"
+          "defaults": {
+            "base": "2"
+          },
+          "id": "headingLevel",
+          "label": "Level",
+          "options": [
+            {
+              "title": "Heading 1",
+              "value": "1"
+            },
+            {
+              "title": "Heading 2",
+              "value": "2"
+            },
+            {
+              "title": "Heading 3",
+              "value": "3"
+            },
+            {
+              "title": "Heading 4",
+              "value": "4"
+            },
+            {
+              "title": "Heading 5",
+              "value": "5"
+            },
+            {
+              "title": "Heading 6",
+              "value": "6"
+            }
+          ],
+          "responsive": false,
+          "type": "select"
         },
         {
-          "title" : "Heading 2",
-          "value" : "2"
+          "defaults": {
+            "base": "start"
+          },
+          "id": "textAlignment",
+          "label": "Alignment",
+          "responsive": true,
+          "type": "textAlignment"
         },
         {
-          "title" : "Heading 3",
-          "value" : "3"
+          "defaults": {
+            "base": false
+          },
+          "id": "sizeEnabled",
+          "label": "Custom Size",
+          "responsive": true,
+          "type": "toggle"
         },
         {
-          "title" : "Heading 4",
-          "value" : "4"
-        },
-        {
-          "title" : "Heading 5",
-          "value" : "5"
-        },
-        {
-          "title" : "Heading 6",
-          "value" : "6"
+          "defaults": {
+            "base": "2xl"
+          },
+          "id": "fontSize",
+          "label": "Size",
+          "responsive": true,
+          "type": "frameworkFontSize",
+          "visibleWhen": {
+            "id": "sizeEnabled",
+            "value": true
+          }
         }
       ],
-      "responsive" : false,
-      "type" : "select"
+      "section": "Typography",
+      "systemImage": "textformat"
     },
     {
-      "defaults" : {
-        "base" : "start"
-      },
-      "group" : "Typography",
-      "id" : "textAlignment",
-      "label" : "Alignment",
-      "responsive" : true,
-      "type" : "textAlignment"
+      "controls": [
+        {
+          "allowsCustom": true,
+          "customColor": "#171719",
+          "defaults": {
+            "base": {
+              "palette": "custom"
+            }
+          },
+          "id": "textColor",
+          "label": "Colour",
+          "opacity": true,
+          "responsive": true,
+          "type": "frameworkColor"
+        }
+      ],
+      "section": "Colour",
+      "systemImage": "paintpalette"
     },
     {
-      "defaults" : {
-        "base" : false
-      },
-      "group" : "Typography",
-      "id" : "sizeEnabled",
-      "label" : "Custom Size",
-      "responsive" : true,
-      "type" : "toggle"
-    },
-    {
-      "defaults" : {
-        "base" : "2xl"
-      },
-      "group" : "Typography",
-      "id" : "fontSize",
-      "label" : "Size",
-      "responsive" : true,
-      "type" : "frameworkFontSize",
-      "visibleWhen" : {
-        "id" : "sizeEnabled",
-        "value" : true
-      }
-    },
-    {
-      "allowsCustom" : true,
-      "customColor" : "#171719",
-      "defaults" : {
-        "base" : {
-          "palette" : "custom"
+      "defaultOverrides": {
+        "frameworkMargin": {
+          "bottom": "md",
+          "left": "none",
+          "right": "none",
+          "top": "none"
         }
       },
-      "group" : "Colour",
-      "id" : "textColor",
-      "label" : "Colour",
-      "opacity" : true,
-      "responsive" : true,
-      "type" : "frameworkColor"
+      "type": "spacing"
     },
     {
-      "defaultOverrides" : {
-        "frameworkMargin" : {
-          "bottom" : "md",
-          "left" : "none",
-          "right" : "none",
-          "top" : "none"
-        }
-      },
-      "type" : "spacing"
+      "type": "reveal"
     },
     {
-      "type" : "reveal"
+      "section": "Content",
+      "systemImage": "doc.text"
     }
   ],
-  "description" : "Adds an editable semantic heading.",
-  "group" : "Content",
-  "groups" : [
-    {
-      "name" : "Content",
-      "systemImage" : "doc.text"
-    },
-    {
-      "name" : "Typography",
-      "systemImage" : "textformat"
-    },
-    {
-      "name" : "Colour",
-      "systemImage" : "paintpalette"
-    }
-  ],
-  "id" : "foundry.content.heading",
-  "minimumAPIVersion" : 1,
-  "tags" : [
+  "minimumAPIVersion": 1,
+  "tags": [
     "Foundry",
     "built-in",
     "text"
   ],
-  "templates" : {
-    "files" : [
+  "templates": {
+    "files": [
       {
-        "path" : "part.css",
-        "scope" : "instance"
+        "path": "part.css",
+        "scope": "instance"
       }
     ],
-    "html" : "part.html"
+    "html": "part.html"
   },
-  "title" : "Heading",
-  "version" : "1.0.0"
+  "title": "Heading",
+  "version": "1.0.0"
 }

@@ -1,292 +1,276 @@
 {
-  "assets" : [
-
-  ],
-  "author" : "Foundry",
-  "controls" : [
+  "assets": [],
+  "author": "Foundry",
+  "description": "Displays an accessible, responsive carousel of editable images and captions.",
+  "group": "Media",
+  "id": "foundry.media.imageslider",
+  "inspector": [
     {
-      "focalPoint" : true,
-      "group" : "Slides",
-      "id" : "slide-1",
-      "label" : "Slide 1 Image",
-      "type" : "image"
-    },
-    {
-      "focalPoint" : true,
-      "group" : "Slides",
-      "id" : "slide-2",
-      "label" : "Slide 2 Image",
-      "type" : "image"
-    },
-    {
-      "focalPoint" : true,
-      "group" : "Slides",
-      "id" : "slide-3",
-      "label" : "Slide 3 Image",
-      "type" : "image"
-    },
-    {
-      "focalPoint" : true,
-      "group" : "Slides",
-      "id" : "slide-4",
-      "label" : "Slide 4 Image",
-      "type" : "image"
-    },
-    {
-      "focalPoint" : true,
-      "group" : "Slides",
-      "id" : "slide-5",
-      "label" : "Slide 5 Image",
-      "type" : "image"
-    },
-    {
-      "focalPoint" : true,
-      "group" : "Slides",
-      "id" : "slide-6",
-      "label" : "Slide 6 Image",
-      "type" : "image"
-    },
-    {
-      "focalPoint" : true,
-      "group" : "Slides",
-      "id" : "slide-7",
-      "label" : "Slide 7 Image",
-      "type" : "image"
-    },
-    {
-      "focalPoint" : true,
-      "group" : "Slides",
-      "id" : "slide-8",
-      "label" : "Slide 8 Image",
-      "type" : "image"
-    },
-    {
-      "defaults" : {
-        "base" : 3
-      },
-      "group" : "Slides",
-      "id" : "slideCount",
-      "label" : "Number of Slides",
-      "maximum" : 8,
-      "minimum" : 1,
-      "responsive" : false,
-      "step" : 1,
-      "type" : "number"
-    },
-    {
-      "defaults" : {
-        "base" : 1
-      },
-      "group" : "Slides",
-      "id" : "canvasSlide",
-      "label" : "Edit Slide",
-      "maximum" : 8,
-      "minimum" : 1,
-      "responsive" : false,
-      "step" : 1,
-      "ticks" : 8,
-      "tooltip" : "Chooses which slide is visible and editable on the canvas.",
-      "type" : "slider"
-    },
-    {
-      "defaults" : {
-        "base" : true
-      },
-      "group" : "Slides",
-      "id" : "showCaptions",
-      "label" : "Show Captions",
-      "responsive" : false,
-      "type" : "toggle"
-    },
-    {
-      "defaults" : {
-        "base" : true
-      },
-      "group" : "Navigation",
-      "id" : "showArrows",
-      "label" : "Show Arrows",
-      "responsive" : false,
-      "type" : "toggle"
-    },
-    {
-      "defaults" : {
-        "base" : true
-      },
-      "group" : "Navigation",
-      "id" : "showDots",
-      "label" : "Show Position Dots",
-      "responsive" : false,
-      "type" : "toggle"
-    },
-    {
-      "defaults" : {
-        "base" : true
-      },
-      "group" : "Navigation",
-      "id" : "loop",
-      "label" : "Loop Slides",
-      "responsive" : false,
-      "type" : "toggle"
-    },
-    {
-      "defaults" : {
-        "base" : false
-      },
-      "group" : "Autoplay",
-      "id" : "autoplay",
-      "label" : "Autoplay",
-      "responsive" : false,
-      "type" : "toggle"
-    },
-    {
-      "defaults" : {
-        "base" : 5
-      },
-      "group" : "Autoplay",
-      "id" : "interval",
-      "label" : "Interval",
-      "maximum" : 12,
-      "minimum" : 2,
-      "responsive" : false,
-      "step" : 1,
-      "type" : "slider",
-      "units" : "s",
-      "visibleWhen" : {
-        "id" : "autoplay",
-        "value" : true
-      }
-    },
-    {
-      "defaults" : {
-        "base" : true
-      },
-      "group" : "Autoplay",
-      "id" : "pauseOnHover",
-      "label" : "Pause on Hover",
-      "responsive" : false,
-      "type" : "toggle",
-      "visibleWhen" : {
-        "id" : "autoplay",
-        "value" : true
-      }
-    },
-    {
-      "defaults" : {
-        "base" : "fade"
-      },
-      "group" : "Appearance",
-      "id" : "transition",
-      "label" : "Transition",
-      "options" : [
+      "controls": [
         {
-          "title" : "Fade",
-          "value" : "fade"
+          "focalPoint": true,
+          "id": "slide-1",
+          "label": "Slide 1 Image",
+          "type": "image"
         },
         {
-          "title" : "Slide",
-          "value" : "slide"
+          "focalPoint": true,
+          "id": "slide-2",
+          "label": "Slide 2 Image",
+          "type": "image"
         },
         {
-          "title" : "None",
-          "value" : "none"
+          "focalPoint": true,
+          "id": "slide-3",
+          "label": "Slide 3 Image",
+          "type": "image"
+        },
+        {
+          "focalPoint": true,
+          "id": "slide-4",
+          "label": "Slide 4 Image",
+          "type": "image"
+        },
+        {
+          "focalPoint": true,
+          "id": "slide-5",
+          "label": "Slide 5 Image",
+          "type": "image"
+        },
+        {
+          "focalPoint": true,
+          "id": "slide-6",
+          "label": "Slide 6 Image",
+          "type": "image"
+        },
+        {
+          "focalPoint": true,
+          "id": "slide-7",
+          "label": "Slide 7 Image",
+          "type": "image"
+        },
+        {
+          "focalPoint": true,
+          "id": "slide-8",
+          "label": "Slide 8 Image",
+          "type": "image"
+        },
+        {
+          "defaults": {
+            "base": 3
+          },
+          "id": "slideCount",
+          "label": "Number of Slides",
+          "maximum": 8,
+          "minimum": 1,
+          "responsive": false,
+          "step": 1,
+          "type": "number"
+        },
+        {
+          "defaults": {
+            "base": 1
+          },
+          "id": "canvasSlide",
+          "label": "Edit Slide",
+          "maximum": 8,
+          "minimum": 1,
+          "responsive": false,
+          "step": 1,
+          "ticks": 8,
+          "tooltip": "Chooses which slide is visible and editable on the canvas.",
+          "type": "slider"
+        },
+        {
+          "defaults": {
+            "base": true
+          },
+          "id": "showCaptions",
+          "label": "Show Captions",
+          "responsive": false,
+          "type": "toggle"
         }
       ],
-      "responsive" : false,
-      "type" : "select"
+      "section": "Slides",
+      "systemImage": "photo.stack"
     },
     {
-      "defaults" : {
-        "base" : "16 \/ 9"
-      },
-      "group" : "Appearance",
-      "id" : "aspectRatio",
-      "label" : "Aspect Ratio",
-      "options" : [
+      "controls": [
         {
-          "title" : "Widescreen",
-          "value" : "16 \/ 9"
+          "defaults": {
+            "base": true
+          },
+          "id": "showArrows",
+          "label": "Show Arrows",
+          "responsive": false,
+          "type": "toggle"
         },
         {
-          "title" : "Landscape",
-          "value" : "3 \/ 2"
+          "defaults": {
+            "base": true
+          },
+          "id": "showDots",
+          "label": "Show Position Dots",
+          "responsive": false,
+          "type": "toggle"
         },
         {
-          "title" : "Standard",
-          "value" : "4 \/ 3"
-        },
-        {
-          "title" : "Square",
-          "value" : "1 \/ 1"
-        },
-        {
-          "title" : "Portrait",
-          "value" : "4 \/ 5"
+          "defaults": {
+            "base": true
+          },
+          "id": "loop",
+          "label": "Loop Slides",
+          "responsive": false,
+          "type": "toggle"
         }
       ],
-      "responsive" : true,
-      "type" : "select"
+      "section": "Navigation",
+      "systemImage": "arrow.left.arrow.right"
     },
     {
-      "defaults" : {
-        "base" : 16
-      },
-      "group" : "Appearance",
-      "id" : "cornerRadius",
-      "label" : "Corner Radius",
-      "maximum" : 80,
-      "minimum" : 0,
-      "responsive" : true,
-      "step" : 1,
-      "type" : "number",
-      "units" : "px"
+      "controls": [
+        {
+          "defaults": {
+            "base": false
+          },
+          "id": "autoplay",
+          "label": "Autoplay",
+          "responsive": false,
+          "type": "toggle"
+        },
+        {
+          "defaults": {
+            "base": 5
+          },
+          "id": "interval",
+          "label": "Interval",
+          "maximum": 12,
+          "minimum": 2,
+          "responsive": false,
+          "step": 1,
+          "type": "slider",
+          "units": "s",
+          "visibleWhen": {
+            "id": "autoplay",
+            "value": true
+          }
+        },
+        {
+          "defaults": {
+            "base": true
+          },
+          "id": "pauseOnHover",
+          "label": "Pause on Hover",
+          "responsive": false,
+          "type": "toggle",
+          "visibleWhen": {
+            "id": "autoplay",
+            "value": true
+          }
+        }
+      ],
+      "section": "Autoplay",
+      "systemImage": "play.circle"
     },
     {
-      "type" : "reveal"
+      "controls": [
+        {
+          "defaults": {
+            "base": "fade"
+          },
+          "id": "transition",
+          "label": "Transition",
+          "options": [
+            {
+              "title": "Fade",
+              "value": "fade"
+            },
+            {
+              "title": "Slide",
+              "value": "slide"
+            },
+            {
+              "title": "None",
+              "value": "none"
+            }
+          ],
+          "responsive": false,
+          "type": "select"
+        },
+        {
+          "defaults": {
+            "base": "16 / 9"
+          },
+          "id": "aspectRatio",
+          "label": "Aspect Ratio",
+          "options": [
+            {
+              "title": "Widescreen",
+              "value": "16 / 9"
+            },
+            {
+              "title": "Landscape",
+              "value": "3 / 2"
+            },
+            {
+              "title": "Standard",
+              "value": "4 / 3"
+            },
+            {
+              "title": "Square",
+              "value": "1 / 1"
+            },
+            {
+              "title": "Portrait",
+              "value": "4 / 5"
+            }
+          ],
+          "responsive": true,
+          "type": "select"
+        },
+        {
+          "defaults": {
+            "base": 16
+          },
+          "id": "cornerRadius",
+          "label": "Corner Radius",
+          "maximum": 80,
+          "minimum": 0,
+          "responsive": true,
+          "step": 1,
+          "type": "number",
+          "units": "px"
+        }
+      ],
+      "section": "Appearance",
+      "systemImage": "paintpalette"
+    },
+    {
+      "type": "reveal"
     }
   ],
-  "description" : "Displays an accessible, responsive carousel of editable images and captions.",
-  "group" : "Media",
-  "groups" : [
-    {
-      "name" : "Slides",
-      "systemImage" : "photo.stack"
-    },
-    {
-      "name" : "Navigation",
-      "systemImage" : "arrow.left.arrow.right"
-    },
-    {
-      "name" : "Autoplay",
-      "systemImage" : "play.circle"
-    },
-    {
-      "name" : "Appearance",
-      "systemImage" : "paintpalette"
-    }
-  ],
-  "id" : "foundry.media.imageslider",
-  "minimumAPIVersion" : 1,
-  "tags" : [
+  "minimumAPIVersion": 1,
+  "tags": [
     "Foundry",
     "built-in",
     "image",
     "slider",
     "gallery"
   ],
-  "templates" : {
-    "editorCSS" : "editor.css",
-    "files" : [
+  "templates": {
+    "editorCSS": "editor.css",
+    "files": [
       {
-        "path" : "part.css",
-        "scope" : "instance"
+        "path": "part.css",
+        "scope": "instance"
       },
       {
-        "path" : "part.js",
-        "scope" : "instance"
+        "path": "part.js",
+        "scope": "instance"
       }
     ],
-    "html" : "part.html"
+    "html": "part.html"
   },
-  "title" : "Image Slider",
-  "version" : "1.0.0"
+  "title": "Image Slider",
+  "version": "1.0.0"
 }

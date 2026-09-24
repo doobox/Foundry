@@ -1,50 +1,47 @@
 {
-  "controls" : [
+  "controls": [
     {
-      "defaults" : {
-        "base" : false
+      "defaults": {
+        "base": false
       },
-      "group" : "Effects",
-      "id" : "effectsEnabled",
-      "label" : "Enable",
-      "responsive" : true,
-      "type" : "toggle"
+      "id": "effectsEnabled",
+      "label": "Enable",
+      "responsive": true,
+      "type": "toggle"
     },
     {
-      "defaults" : {
-        "base" : "none"
+      "defaults": {
+        "base": "none"
       },
-      "group" : "Effects",
-      "id" : "frameworkShadow",
-      "label" : "Shadow",
-      "responsive" : true,
-      "type" : "frameworkShadow",
-      "visibleWhen" : {
-        "id" : "effectsEnabled",
-        "value" : true
+      "id": "frameworkShadow",
+      "label": "Shadow",
+      "responsive": true,
+      "type": "frameworkShadow",
+      "visibleWhen": {
+        "id": "effectsEnabled",
+        "value": true
       }
     },
     {
-      "defaults" : {
-        "base" : 100
+      "defaults": {
+        "base": 100
       },
-      "group" : "Effects",
-      "id" : "opacity",
-      "label" : "Opacity",
-      "maximum" : 100,
-      "minimum" : 0,
-      "responsive" : true,
-      "showsValueField" : true,
-      "step" : 1,
-      "type" : "slider",
-      "units" : "%",
-      "visibleWhen" : {
-        "id" : "effectsEnabled",
-        "value" : true
+      "id": "opacity",
+      "label": "Opacity",
+      "maximum": 100,
+      "minimum": 0,
+      "responsive": true,
+      "showsValueField": true,
+      "step": 1,
+      "type": "slider",
+      "units": "%",
+      "visibleWhen": {
+        "id": "effectsEnabled",
+        "value": true
       }
     }
   ],
-  "name" : "Effects",
-  "systemImage" : "sparkles",
-  "type" : "effects"
+  "name": "Effects",
+  "systemImage": "sparkles",
+  "type": "effects"
 }

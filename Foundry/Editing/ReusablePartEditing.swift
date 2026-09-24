@@ -65,7 +65,7 @@ extension ProjectEditor {
     func setGlobalPartLinked(partID: UUID, isLinked: Bool) {
         guard let context = document.site.globalPartContext(containing: partID) else { return }
         let targetID = isLinked ? (context.overrideOwnerID ?? partID) : partID
-        mutate(actionName: isLinked ? "Relink Global Part" : "Override Global Part") { site in
+        mutate(actionName: isLinked ? "Pin to Global" : "Unpin from Global") { site in
             site.updatePart(id: targetID) { $0.overridesGlobalDefinition = !isLinked }
             guard isLinked,
                   case .part(let definition)? = site.globalPartLibrary.node(withID: context.definitionID) else { return }

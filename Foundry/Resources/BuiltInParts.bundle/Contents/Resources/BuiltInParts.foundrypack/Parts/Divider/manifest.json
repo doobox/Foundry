@@ -1,77 +1,73 @@
 {
-  "assets" : [
-
-  ],
-  "author" : "Foundry",
-  "controls" : [
+  "assets": [],
+  "author": "Foundry",
+  "description": "Adds a visual rule between groups of content.",
+  "group": "Content",
+  "id": "foundry.content.divider",
+  "inspector": [
     {
-      "allowsCustom" : true,
-      "customColor" : "#D9D9DE",
-      "defaults" : {
-        "base" : {
-          "palette" : "custom"
+      "controls": [
+        {
+          "allowsCustom": true,
+          "customColor": "#D9D9DE",
+          "defaults": {
+            "base": {
+              "palette": "custom"
+            }
+          },
+          "id": "borderColor",
+          "label": "Colour",
+          "opacity": true,
+          "responsive": true,
+          "type": "frameworkColor"
+        },
+        {
+          "defaults": {
+            "base": 1
+          },
+          "id": "borderWidth",
+          "label": "Thickness",
+          "maximum": 24,
+          "minimum": 1,
+          "responsive": true,
+          "step": 1,
+          "type": "number",
+          "units": "px"
+        }
+      ],
+      "section": "Appearance",
+      "systemImage": "paintpalette"
+    },
+    {
+      "defaultOverrides": {
+        "frameworkMargin": {
+          "bottom": "md",
+          "left": "none",
+          "right": "none",
+          "top": "md"
         }
       },
-      "group" : "Appearance",
-      "id" : "borderColor",
-      "label" : "Colour",
-      "opacity" : true,
-      "responsive" : true,
-      "type" : "frameworkColor"
+      "type": "spacing"
     },
     {
-      "defaults" : {
-        "base" : 1
-      },
-      "group" : "Appearance",
-      "id" : "borderWidth",
-      "label" : "Thickness",
-      "maximum" : 24,
-      "minimum" : 1,
-      "responsive" : true,
-      "step" : 1,
-      "type" : "number",
-      "units" : "px"
-    },
-    {
-      "defaultOverrides" : {
-        "frameworkMargin" : {
-          "bottom" : "md",
-          "left" : "none",
-          "right" : "none",
-          "top" : "md"
-        }
-      },
-      "type" : "spacing"
-    },
-    {
-      "type" : "reveal"
+      "type": "reveal"
     }
   ],
-  "description" : "Adds a visual rule between groups of content.",
-  "group" : "Content",
-  "groups" : [
-    {
-      "name" : "Appearance",
-      "systemImage" : "paintpalette"
-    }
-  ],
-  "id" : "foundry.content.divider",
-  "minimumAPIVersion" : 1,
-  "tags" : [
+  "minimumAPIVersion": 1,
+  "tags": [
     "Foundry",
     "built-in",
     "separator"
   ],
-  "templates" : {
-    "files" : [
+  "templates": {
+    "files": [
       {
-        "path" : "part.css",
-        "scope" : "instance"
+        "path": "part.css",
+        "scope": "instance"
       }
     ],
-    "html" : "part.html"
+    "html": "part.html"
   },
-  "title" : "Divider",
-  "version" : "1.0.0"
+  "title": "Divider",
+  "version": "1.0.0"
 }

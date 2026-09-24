@@ -89,12 +89,12 @@ nonisolated enum PartPackageValidator {
         validateUnique(manifest.resolvedProperties.map(\.id), kind: "property", into: &diagnostics)
         validateUnique(manifest.slots.map(\.id), kind: "slot", into: &diagnostics)
         for property in manifest.resolvedProperties {
-            validate(property.id, expression: propertyExpression, location: "manifest.json:controls.\(property.id)", message: "Property IDs must start with a letter and contain only letters, numbers, underscores, or hyphens.", into: &diagnostics)
+            validate(property.id, expression: propertyExpression, location: "manifest.json:inspector.\(property.id)", message: "Property IDs must start with a letter and contain only letters, numbers, underscores, or hyphens.", into: &diagnostics)
             validate(property, into: &diagnostics)
             validateVisibility(property, properties: manifest.resolvedProperties, into: &diagnostics)
             if let font = property.control.font,
                !manifest.resolvedProperties.contains(where: { $0.id == font && $0.control.type == .frameworkFont }) {
-                diagnostics.append(.init(severity: .error, location: "manifest.json:controls.\(property.id).font", message: "font must reference a frameworkFont control in this part."))
+                diagnostics.append(.init(severity: .error, location: "manifest.json:inspector.\(property.id).font", message: "font must reference a frameworkFont control in this part."))
             }
         }
         validateVisibilityCycles(manifest.resolvedProperties, into: &diagnostics)
@@ -104,7 +104,7 @@ nonisolated enum PartPackageValidator {
                 diagnostics.append(.init(severity: .error, location: "manifest.json:slots.\(slot.id)", message: "Slot minimum and maximum values are inconsistent."))
             }
             if slot.accepts.isEmpty {
-                diagnostics.append(.init(severity: .error, location: "manifest.json:controls.\(slot.id)", message: "A childPicker must accept at least one part identifier, category, or '*'."))
+                diagnostics.append(.init(severity: .error, location: "manifest.json:inspector.\(slot.id)", message: "A childPicker must accept at least one part identifier, category, or '*'."))
             }
         }
 
@@ -458,7 +458,7 @@ nonisolated enum PartPackageValidator {
             if !defaultPath.isEmpty && manifest.assetDeclaration(containing: defaultPath) == nil {
                 diagnostics.append(.init(
                     severity: .error,
-                    location: "manifest.json:controls[\(index)].default",
+                    location: "manifest.json:inspector[\(index)].default",
                     message: "The default image '\(defaultPath)' must reference a declared package asset."
                 ))
             }
@@ -732,7 +732,7 @@ nonisolated enum PartPackageValidator {
     }
 
     private static func validateBase(_ property: PartPackageProperty, into diagnostics: inout [PartPackageDiagnostic]) {
-        let location = "manifest.json:controls.\(property.id)"
+        let location = "manifest.json:inspector.\(property.id)"
         validateFrameworkValues(property, location: location, into: &diagnostics)
         validateDateBounds(property, location: location, into: &diagnostics)
         if let count = property.control.count {
@@ -1260,7 +1260,7 @@ nonisolated enum PartPackageValidator {
         into diagnostics: inout [PartPackageDiagnostic]
     ) {
         guard let visibleWhen = property.visibleWhen else { return }
-        let location = "manifest.json:controls.\(property.id).visibleWhen"
+        let location = "manifest.json:inspector.\(property.id).visibleWhen"
         validateVisibilityCondition(visibleWhen, property: property, properties: properties, location: location, into: &diagnostics)
     }
 
@@ -1340,7 +1340,7 @@ nonisolated enum PartPackageValidator {
             var visited = Set<String>()
             func visit(_ value: String) {
                 guard visited.insert(value).inserted else {
-                    diagnostics.append(.init(severity: .error, location: "manifest.json:controls.\(property.id).visibleWhen", message: "visibleWhen conditions contain a dependency cycle."))
+                    diagnostics.append(.init(severity: .error, location: "manifest.json:inspector.\(property.id).visibleWhen", message: "visibleWhen conditions contain a dependency cycle."))
                     return
                 }
                 for next in dependencies[value] ?? [] { visit(next) }

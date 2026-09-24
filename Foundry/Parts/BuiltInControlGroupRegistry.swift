@@ -7,14 +7,16 @@ nonisolated enum BuiltInControlGroupRegistry {
         let type: PartPackageControlGroup.Kind
         let name: String
         let systemImage: String
-        let controls: [PartPackageProperty]
+        var controls: [PartPackageProperty]
     }
 
     private static let definitions: [PartPackageControlGroup.Kind: Definition] = {
         var result: [PartPackageControlGroup.Kind: Definition] = [:]
         let decoder = JSONDecoder()
 
-        for kind in PartPackageControlGroup.Kind.allCases {
+        // The advanced kind has no controls resource — its section carries
+        // native identity fields, not property controls.
+        for kind in PartPackageControlGroup.Kind.allCases where kind != .advanced {
             let resourceName = "\(kind.rawValue)-control-group"
             guard let url = Bundle.main.url(forResource: resourceName, withExtension: "json") else {
                 preconditionFailure("Missing built-in control-group resource: \(resourceName).json")
@@ -22,7 +24,12 @@ nonisolated enum BuiltInControlGroupRegistry {
 
             do {
                 let data = try Data(contentsOf: url)
-                let definition = try decoder.decode(Definition.self, from: data)
+                var definition = try decoder.decode(Definition.self, from: data)
+                definition.controls = definition.controls.map { control in
+                    var control = control
+                    control.group = definition.name
+                    return control
+                }
                 try validate(definition, expectedKind: kind)
                 try validateControls(in: data, definition: definition)
                 result[kind] = definition
@@ -63,13 +70,6 @@ nonisolated enum BuiltInControlGroupRegistry {
             guard identifiers.insert(control.id).inserted else {
                 throw DefinitionError.duplicateControlID(control.id)
             }
-            guard control.group == definition.name else {
-                throw DefinitionError.wrongInspectorGroup(
-                    controlID: control.id,
-                    expected: definition.name,
-                    actual: control.group
-                )
-            }
         }
     }
 
@@ -87,7 +87,11 @@ nonisolated enum BuiltInControlGroupRegistry {
             "id": "foundry.internal.control-group.\(definition.type.rawValue)",
             "title": definition.name,
             "version": "1.0.0",
-            "controls": controls,
+            "inspector": [[
+                "section": definition.name,
+                "systemImage": definition.systemImage,
+                "controls": controls
+            ] as [String: Any]],
             "templates": ["html": "part.html"]
         ]
         let manifestData = try JSONSerialization.data(withJSONObject: manifest)
@@ -107,7 +111,6 @@ nonisolated enum BuiltInControlGroupRegistry {
         case invalidControls
         case controlDiagnostics(String)
         case duplicateControlID(String)
-        case wrongInspectorGroup(controlID: String, expected: String, actual: String)
 
         var errorDescription: String? {
             switch self {
@@ -125,8 +128,6 @@ nonisolated enum BuiltInControlGroupRegistry {
                 "The controls failed manifest validation: \(message)"
             case .duplicateControlID(let id):
                 "Control ID '\(id)' is declared more than once."
-            case .wrongInspectorGroup(let controlID, let expected, let actual):
-                "Control '\(controlID)' uses Inspector group '\(actual)' instead of '\(expected)'."
             }
         }
     }

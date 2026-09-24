@@ -259,7 +259,7 @@ struct StructureOutlineView: NSViewRepresentable {
                 menu.addItem(.separator())
             } else if let globalContext = selectedGlobalContext {
                 menu.addItem(menuItem(
-                    globalContext.isLinked ? "Make Local Override" : "Relink to Global",
+                    globalContext.isLinked ? "Unpin from Global" : "Pin to Global",
                     action: globalContext.isLinked
                         ? #selector(makeLocalOverrideFromContextMenu(_:))
                         : #selector(relinkGlobalFromContextMenu(_:)),
@@ -1078,6 +1078,10 @@ private final class StructureScrollView: NSScrollView {
         )
         if outlineView.frame.size != desiredSize {
             outlineView.setFrameSize(desiredSize)
+            // Setting the frame directly bypasses column autoresizing, so the
+            // single column would keep its old width and clip trailing
+            // accessories until a live resize re-tiles it.
+            outlineView.sizeLastColumnToFit()
         }
     }
 }

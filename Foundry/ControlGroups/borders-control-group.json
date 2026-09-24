@@ -1,67 +1,63 @@
 {
-  "controls" : [
+  "controls": [
     {
-      "defaults" : {
-        "base" : false
+      "defaults": {
+        "base": false
       },
-      "group" : "Borders",
-      "id" : "borderEnabled",
-      "label" : "Enable",
-      "responsive" : true,
-      "type" : "toggle"
+      "id": "borderEnabled",
+      "label": "Enable",
+      "responsive": true,
+      "type": "toggle"
     },
     {
-      "defaults" : {
-        "base" : {
-          "style" : "solid",
-          "width" : "none"
+      "defaults": {
+        "base": {
+          "style": "solid",
+          "width": "none"
         }
       },
-      "group" : "Borders",
-      "id" : "frameworkBorder",
-      "label" : "Border",
-      "responsive" : true,
-      "showsStyle" : true,
-      "type" : "frameworkBorder",
-      "visibleWhen" : {
-        "id" : "borderEnabled",
-        "value" : true
+      "id": "frameworkBorder",
+      "label": "Border",
+      "responsive": true,
+      "showsStyle": true,
+      "type": "frameworkBorder",
+      "visibleWhen": {
+        "id": "borderEnabled",
+        "value": true
       }
     },
     {
-      "allowsCustom" : true,
-      "defaults" : {
-        "base" : {
-          "palette" : "muted"
+      "allowsCustom": true,
+      "defaults": {
+        "base": {
+          "palette": "muted"
         }
       },
-      "group" : "Borders",
-      "id" : "frameworkBorderColour",
-      "label" : "Colour",
-      "opacity" : true,
-      "responsive" : true,
-      "type" : "frameworkColor",
-      "visibleWhen" : {
-        "id" : "borderEnabled",
-        "value" : true
+      "id": "frameworkBorderColour",
+      "label": "Colour",
+      "opacity": true,
+      "responsive": true,
+      "type": "frameworkColor",
+      "visibleWhen": {
+        "id": "borderEnabled",
+        "value": true
       }
     },
     {
-      "defaults" : {
-        "base" : "none"
+      "defaults": {
+        "base": "none"
       },
-      "group" : "Borders",
-      "id" : "frameworkRadius",
-      "label" : "Radius",
-      "responsive" : true,
-      "type" : "frameworkRadius",
-      "visibleWhen" : {
-        "id" : "borderEnabled",
-        "value" : true
+      "id": "frameworkRadius",
+      "label": "Radius",
+      "responsive": true,
+      "type": "frameworkRadius",
+      "visibleWhen": {
+        "id": "borderEnabled",
+        "value": true
       }
     }
   ],
-  "name" : "Borders",
-  "systemImage" : "square.dashed",
-  "type" : "borders"
+  "name": "Borders",
+  "systemImage": "square.dashed",
+  "type": "borders"
 }
