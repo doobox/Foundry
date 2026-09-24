@@ -931,7 +931,7 @@ private struct PartInspector: View {
                         .foregroundStyle(.secondary)
                 }
             }
-            .frame(width: 32, height: 32)
+            .frame(width: 64, height: 32)
             .background(.quaternary, in: RoundedRectangle(cornerRadius: 32 * 0.16))
             .clipShape(RoundedRectangle(cornerRadius: 32 * 0.16))
 

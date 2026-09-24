@@ -551,11 +551,12 @@ nonisolated private enum PartLibraryIconSize: String, CaseIterable, Identifiable
         }
     }
 
+    /// The icon slot's height; its width is twice this.
     var iconSize: CGFloat {
         switch self {
-        case .list: 28
-        case .small: 42
-        case .medium: 60
+        case .list: 24
+        case .small: 30
+        case .medium: 39
         }
     }
 
@@ -1660,6 +1661,9 @@ private struct PartLibraryTile: View {
     }
 }
 
+/// A part's icon in a 2:1 landscape slot — pack SVGs are authored wide,
+/// like miniature previews; `size` is the slot height. Square legacy icons
+/// letterbox in the centre.
 struct PartLibraryIcon: View {
     @State private var loadedIcon: NSImage?
     let type: PartType
@@ -1678,7 +1682,7 @@ struct PartLibraryIcon: View {
                     .foregroundStyle(symbolColor)
             }
         }
-        .frame(width: size, height: size)
+        .frame(width: size * 2, height: size)
         .clipShape(RoundedRectangle(cornerRadius: size * 0.16))
         .accessibilityHidden(true)
         .task(id: type.definition.package?.iconURL) {
