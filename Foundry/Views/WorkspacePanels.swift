@@ -1639,9 +1639,10 @@ private struct PartLibraryTile: View {
             }
             // Explicit accent rather than .selection: that style only shows
             // accent when focused, and these tiles never are — it rendered
-            // as pale grey in both appearances.
+            // as pale grey in both appearances. Unselected tiles keep the
+            // same card shape in a quiet quaternary.
             .background(
-                isSelected ? AnyShapeStyle(Color.accentColor) : AnyShapeStyle(.clear),
+                isSelected ? AnyShapeStyle(Color.accentColor) : AnyShapeStyle(.quaternary),
                 in: RoundedRectangle(cornerRadius: 8)
             )
             .contentShape(RoundedRectangle(cornerRadius: 8))
