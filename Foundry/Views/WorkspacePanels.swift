@@ -1648,12 +1648,15 @@ private struct PartLibraryTile: View {
         )
     }
 
+    // One size for every tile: long names truncate rather than shrink, so
+    // the grid never mixes text sizes. The tooltip carries the full name.
     private var partTitle: some View {
         Text(type.displayName)
             .lineLimit(1)
-            .minimumScaleFactor(0.75)
+            .truncationMode(.tail)
             .font(.caption)
             .foregroundStyle(isSelected ? Color.white : Color.primary)
+            .help(type.displayName)
     }
 }
 
