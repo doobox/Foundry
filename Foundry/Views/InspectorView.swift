@@ -336,7 +336,7 @@ private struct PartLibraryInspectorHeader: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
-            PartLibraryIcon(type: type, size: 48)
+            PartSquareIcon(type: type, size: 48)
 
             VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 6) {
@@ -931,7 +931,7 @@ private struct PartInspector: View {
                         .foregroundStyle(.secondary)
                 }
             }
-            .frame(width: 64, height: 32)
+            .frame(width: 32, height: 32)
             .background(.quaternary, in: RoundedRectangle(cornerRadius: 32 * 0.16))
             .clipShape(RoundedRectangle(cornerRadius: 32 * 0.16))
 

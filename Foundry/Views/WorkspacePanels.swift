@@ -1661,11 +1661,60 @@ private struct PartLibraryTile: View {
     }
 }
 
-/// A part's icon on a 2:1 landscape tile; `size` is the tile height. The
-/// SVG may be any aspect ratio — it fits inside the tile without cropping,
-/// and the tile's own backing means a transparent icon still reads as a
-/// deliberate shape.
+/// A part's artwork on the Parts panel's 2:1 landscape tile; `size` is the
+/// tile height. Packs ship an optional `tile.svg` for this slot; without
+/// one the square `icon.svg` fits in the centre — any aspect ratio fits
+/// without cropping, and the tile's own backing means transparent artwork
+/// still reads as a deliberate shape.
 struct PartLibraryIcon: View {
+    @State private var loadedIcon: NSImage?
+    let type: PartType
+    let size: CGFloat
+    var symbolColor: Color = .accentColor
+
+    private var artworkURL: URL? {
+        guard let package = type.definition.package else { return nil }
+        return package.tileURL ?? package.iconURL
+    }
+
+    var body: some View {
+        Group {
+            if let image = displayedIcon {
+                Image(nsImage: image)
+                    .resizable()
+                    .scaledToFit()
+            } else {
+                Image(systemName: type.systemImage)
+                    .font(.system(size: size * 0.5, weight: .medium))
+                    .foregroundStyle(symbolColor)
+            }
+        }
+        .frame(width: size * 2, height: size)
+        .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: size * 0.16))
+        .clipShape(RoundedRectangle(cornerRadius: size * 0.16))
+        .accessibilityHidden(true)
+        .task(id: artworkURL) {
+            guard let url = artworkURL else {
+                loadedIcon = nil
+                return
+            }
+            if let cached = PartIconLoader.cachedIcon(at: url) {
+                loadedIcon = cached.image
+                return
+            }
+            loadedIcon = await PartIconLoader.shared.icon(at: url)?.image
+        }
+    }
+
+    private var displayedIcon: NSImage? {
+        loadedIcon ?? artworkURL.flatMap {
+            PartIconLoader.cachedIcon(at: $0)?.image
+        }
+    }
+}
+
+/// The part's square 1:1 icon — inspectors and other non-panel contexts.
+struct PartSquareIcon: View {
     @State private var loadedIcon: NSImage?
     let type: PartType
     let size: CGFloat
@@ -1683,7 +1732,7 @@ struct PartLibraryIcon: View {
                     .foregroundStyle(symbolColor)
             }
         }
-        .frame(width: size * 2, height: size)
+        .frame(width: size, height: size)
         .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: size * 0.16))
         .clipShape(RoundedRectangle(cornerRadius: size * 0.16))
         .accessibilityHidden(true)

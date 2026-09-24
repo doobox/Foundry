@@ -106,8 +106,16 @@ nonisolated struct LoadedPartPackage: Sendable {
         .init(identifier: manifest.identifier)
     }
 
+    /// The square 1:1 icon — Structure rows, inspectors, the canvas.
     var iconURL: URL {
         resourceRootURL.appending(path: "icon.svg")
+    }
+
+    /// The Parts panel's 2:1 tile artwork. Optional — the panel fits the
+    /// square icon onto the tile when a part doesn't ship one.
+    var tileURL: URL? {
+        let url = resourceRootURL.appending(path: "tile.svg")
+        return FileManager.default.fileExists(atPath: url.path) ? url : nil
     }
 
     var isDevelopmentPack: Bool {

@@ -118,14 +118,16 @@ nonisolated enum PartPackageValidator {
                 diagnostics.append(.init(severity: .error, location: path, message: "The declared package file does not exist."))
             }
         }
-        let iconURL = rootURL.appending(path: "icon.svg")
-        if let byteCount = try? iconURL.resourceValues(forKeys: [.fileSizeKey]).fileSize,
-           byteCount > maximumIconByteCount {
-            diagnostics.append(.init(
-                severity: .error,
-                location: "icon.svg",
-                message: "Part icons cannot exceed 64 KiB."
-            ))
+        for iconName in ["icon.svg", "tile.svg"] {
+            let iconURL = rootURL.appending(path: iconName)
+            if let byteCount = try? iconURL.resourceValues(forKeys: [.fileSizeKey]).fileSize,
+               byteCount > maximumIconByteCount {
+                diagnostics.append(.init(
+                    severity: .error,
+                    location: iconName,
+                    message: "Part icons cannot exceed 64 KiB."
+                ))
+            }
         }
         for file in manifest.render.files {
             let fileExtension = URL(fileURLWithPath: file.path).pathExtension.lowercased()
