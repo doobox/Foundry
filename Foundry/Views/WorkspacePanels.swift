@@ -1699,7 +1699,7 @@ struct PartLibraryIcon: View {
             }
         }
         .frame(width: size * 2, height: size)
-        .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: size * 0.16))
+        .background(Color.gray, in: RoundedRectangle(cornerRadius: size * 0.16))
         .clipShape(RoundedRectangle(cornerRadius: size * 0.16))
         .accessibilityHidden(true)
         .task(id: artworkURL) {
@@ -1742,7 +1742,7 @@ struct PartSquareIcon: View {
             }
         }
         .frame(width: size, height: size)
-        .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: size * 0.16))
+        .background(Color.gray, in: RoundedRectangle(cornerRadius: size * 0.16))
         .clipShape(RoundedRectangle(cornerRadius: size * 0.16))
         .accessibilityHidden(true)
         .task(id: type.definition.package?.iconURL) {
