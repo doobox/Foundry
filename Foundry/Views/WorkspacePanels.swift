@@ -1702,7 +1702,7 @@ struct PartLibraryIcon: View {
             }
         }
         .frame(width: size * 2, height: size)
-        .background(Color(nsColor: .tertiarySystemFill), in: RoundedRectangle(cornerRadius: size * 0.16))
+        .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: size * 0.16))
         .clipShape(RoundedRectangle(cornerRadius: size * 0.16))
         .accessibilityHidden(true)
         .task(id: artworkURL) {
@@ -1745,7 +1745,7 @@ struct PartSquareIcon: View {
             }
         }
         .frame(width: size, height: size)
-        .background(Color(nsColor: .tertiarySystemFill), in: RoundedRectangle(cornerRadius: size * 0.16))
+        .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: size * 0.16))
         .clipShape(RoundedRectangle(cornerRadius: size * 0.16))
         .accessibilityHidden(true)
         .task(id: type.definition.package?.iconURL) {
