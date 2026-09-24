@@ -555,23 +555,31 @@ nonisolated private enum PartLibraryIconSize: String, CaseIterable, Identifiable
     var iconSize: CGFloat {
         switch self {
         case .list: 24
-        case .small: 30
-        case .medium: 39
+        case .small: 60
+        case .medium: 78
         }
     }
 
-    var tileSize: CGFloat {
+    var tileWidth: CGFloat {
+        switch self {
+        case .list: 140
+        case .small: 132
+        case .medium: 168
+        }
+    }
+
+    var tileHeight: CGFloat {
         switch self {
         case .list: 44
-        case .small: 72
-        case .medium: 90
+        case .small: 96
+        case .medium: 116
         }
     }
 
     var gridMinimumWidth: CGFloat {
         switch self {
         case .list: 140
-        case .small, .medium: tileSize
+        case .small, .medium: tileWidth
         }
     }
 }
@@ -1618,7 +1626,7 @@ private struct PartLibraryTile: View {
                         Spacer(minLength: 0)
                     }
                     .padding(6)
-                    .frame(maxWidth: .infinity, minHeight: iconSize.tileSize, maxHeight: iconSize.tileSize)
+                    .frame(maxWidth: .infinity, minHeight: iconSize.tileHeight, maxHeight: iconSize.tileHeight)
                 } else {
                     VStack(spacing: 6) {
                         partIcon
@@ -1626,7 +1634,7 @@ private struct PartLibraryTile: View {
                             .frame(maxWidth: .infinity)
                     }
                     .padding(6)
-                    .frame(width: iconSize.tileSize, height: iconSize.tileSize)
+                    .frame(width: iconSize.tileWidth, height: iconSize.tileHeight)
                 }
             }
             .background(
