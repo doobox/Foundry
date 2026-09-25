@@ -42,9 +42,10 @@ struct PartDefinitionTests {
     @Test
     func registryDeclaresChildCapabilities() {
         #expect(PartType.container.definition.allowsChildren)
-        #expect(PartType.section.definition.allowsChildren)
         #expect(PartType.flex.definition.allowsChildren)
+        #expect(PartType.flexItem.definition.allowsChildren)
         #expect(PartType.grid.definition.allowsChildren)
+        #expect(PartType.gridItem.definition.allowsChildren)
         #expect(!PartType.paragraph.definition.allowsChildren)
         #expect(!PartType.button.definition.allowsChildren)
         #expect(!PartType.image.definition.allowsChildren)
@@ -54,15 +55,17 @@ struct PartDefinitionTests {
     func flexLayoutsUseFrameworkControlsAndResponsiveDefaults() throws {
         let container = PartNode.make(.container)
         let flex = PartNode.make(.flex)
-        #expect(flex.propertyValue(.init(rawValue: "direction")) == .choice("column"))
+        #expect(flex.propertyValue(.init(rawValue: "direction")) == .choice("row"))
         #expect(flex.type.definition.package!.css.contains("display: flex"))
-        #expect(!container.type.definition.package!.css.contains("display: flex"))
+        // Container is a section, not an arranger: its root never becomes a
+        // flexbox; only the content wrapper does, and only for tall sections.
+        #expect(container.type.definition.package!.css.contains("fd-container__content"))
         #expect(!flex.type.definition.package!.css.contains("data-alignment"))
         #expect(container.type.definition.package!.css.contains("box-shadow"))
-        for type in [PartType.section, .container, .flex, .grid] {
+        for type in [PartType.container, .flex, .grid] {
             #expect(type.definition.properties.contains { $0.key.rawValue == "frameworkPadding" && $0.isResponsive })
         }
-        for type in [PartType.section, .flex, .grid] {
+        for type in [PartType.flex, .grid] {
             #expect(type.definition.properties.contains { $0.key.rawValue == "frameworkGap" && $0.isResponsive })
         }
         let grid = PartNode.make(.grid)
@@ -84,7 +87,6 @@ struct PartDefinitionTests {
     func stockRegistryUsesUniqueNamespacedIdentifiers() {
         let identifiers = [
             PartType.container,
-            .section,
             .flex,
             .grid,
             .paragraph,
@@ -160,12 +162,15 @@ struct PartDefinitionTests {
     @Test
     func rendererAppliesPackagePropertiesAndEscapesAccessibilityLabel() {
         var container = PartNode.make(.container)
+        var stack = PartNode.make(.flex)
         var text = PartNode.make(.paragraph)
         var button = PartNode.make(.button)
         container.setProperty(.init(rawValue: "frameworkBorder.width"), value: .frameworkBorderWidth(PartPackageFrameworkBorderWidthControl.defaultValue(.object(["value": .number(2), "unit": .string("px")]))!))
         container.setProperty(.init(rawValue: "frameworkBorderColour"), value: .packageColor(.init(source: "custom", customColor: "#ABCDEF", opacity: 1)))
         container.setProperty(.init(rawValue: "frameworkRadius"), value: .frameworkRadius(PartPackageFrameworkRadiusControl.defaultValue(.object(["value": .number(28), "unit": .string("px")]))!))
-        container.setProperty(.maxWidth, value: .number(920))
+        // Container roots are always full width; a Flex carries the shared
+        // sizing group's max-width control.
+        stack.setProperty(.maxWidth, value: .number(920))
         text.setProperty(.init(rawValue: "typeface"), value: .choice("heading"))
         text.setProperty(.init(rawValue: "textSize"), value: .packageFontSize(.init(
             source: "xl",
@@ -174,7 +179,7 @@ struct PartDefinitionTests {
         button.setProperty(.accessibilityLabel, value: .string("Open \"details\""))
         container.children = [text, button]
 
-        let page = Page(title: "Test", slug: "test", parts: [container])
+        let page = Page(title: "Test", slug: "test", parts: [container, stack])
         let html = HTMLPageRenderer().render(page: page, framework: .standard)
 
         #expect(html.contains("border-width: 2.0px"))
@@ -199,7 +204,7 @@ struct PartDefinitionTests {
         var grid = PartNode.make(.grid)
         grid.children = [PartNode.make(.heading), PartNode.make(.image)]
         let parts: [PartNode] = [
-            PartNode(type: .section, children: [grid]),
+            PartNode(type: .flex, children: [grid]),
             PartNode.make(.divider)
         ]
         let html = HTMLPageRenderer().render(
@@ -207,7 +212,7 @@ struct PartDefinitionTests {
             framework: .standard
         )
 
-        #expect(html.contains("class=\"foundry-section"))
+        #expect(html.contains("class=\"foundry-flex"))
         #expect(html.contains("class=\"foundry-grid"))
         #expect(html.contains("<h2 class=\""))
         #expect(html.contains("class=\"foundry-image-part"))
@@ -225,6 +230,22 @@ struct PartDefinitionTests {
 
         #expect(html.contains("Missing part: com.example.gallery"))
         #expect(html.contains("class=\"paragraph"))
+    }
+
+    @Test
+    func missingPartPlaceholderShowsTheTitleAndHelpAddress() {
+        var unknown = PartNode(type: PartType(rawValue: "com.example.gallery"))
+        unknown.missingPackageSnapshot = MissingPartSnapshot(
+            name: "Gallery",
+            category: "Media",
+            helpURL: URL(string: "https://example.com/gallery/help")
+        )
+        let html = HTMLPageRenderer().render(
+            page: Page(title: "Missing", slug: "missing", parts: [unknown]),
+            framework: .standard
+        )
+
+        #expect(html.contains("Missing part: Gallery — help: https://example.com/gallery/help"))
     }
 
     @Test

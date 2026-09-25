@@ -31,6 +31,12 @@ nonisolated enum PartPackageFontControl {
                 control: .fontStyle(font: property.id), defaultValue: .choice(fields["style"]?.stringValue ?? "normal"),
                 isResponsive: property.responsive, visibleWhen: property.visibleWhen))
         }
+        if property.control.showsSize == true {
+            result.append(PartPropertyDefinition(
+                key: fieldKey(property.id, "size"), label: "Size", section: .init(rawValue: property.group),
+                control: .frameworkFontSize, defaultValue: .choice(fields["size"]?.stringValue ?? "base"),
+                isResponsive: property.responsive, visibleWhen: property.visibleWhen))
+        }
         for index in result.indices {
             result[index].inspectorControlID = property.id
         }
@@ -56,6 +62,11 @@ nonisolated enum PartPackageFontControl {
         let styleKey = fieldKey(id, "style")
         if definitions.contains(where: { $0.key == styleKey }) {
             fields["style"] = .string(node.propertyValue(styleKey).stringValue)
+        }
+        let sizeKey = fieldKey(id, "size")
+        if definitions.contains(where: { $0.key == sizeKey }) {
+            let size = node.propertyValue(sizeKey).stringValue
+            fields["size"] = .string(PartPackageFrameworkValueResolver.resolve(size, from: .fontSizes, framework: framework) ?? "inherit")
         }
         return .object(fields)
     }

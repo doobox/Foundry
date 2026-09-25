@@ -1223,7 +1223,7 @@ private struct DeveloperPackageIssueCard: View {
 
                 Spacer(minLength: 8)
 
-                Button("Show in Finder", systemImage: "macwindow.and.pointer.arrow") {
+                Button("Show in Finder", systemImage: "finder") {
                     NSWorkspace.shared.activateFileViewerSelecting([issue.url])
                 }
                 .labelStyle(.iconOnly)
@@ -1646,7 +1646,7 @@ private struct PartLibraryTile: View {
             .overlay {
                 if isSelected {
                     RoundedRectangle(cornerRadius: 8)
-                        .strokeBorder(Color.accentColor, lineWidth: 2)
+                        .strokeBorder(.quinary, lineWidth: 1)
                 }
             }
             .contentShape(RoundedRectangle(cornerRadius: 8))

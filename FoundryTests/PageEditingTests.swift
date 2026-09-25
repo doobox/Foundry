@@ -20,6 +20,33 @@ struct PageEditingTests {
     }
 
     @Test
+    func folderAndFilenameOverridesNormalizeAndNeverTouchHome() throws {
+        let document = FoundryDocument()
+        let editor = ProjectEditor(document: document, undoManager: nil)
+        let pageID = editor.addPage()
+        let homeID = try #require(document.site.pages.first { $0.slug == "index" }?.id)
+
+        #expect(editor.setPageFolderOverride(id: pageID, value: " /Test/Deeper And Deeper/ ") == "test/deeper-and-deeper")
+        #expect(document.site.pages.first { $0.id == pageID }?.folderOverride == "test/deeper-and-deeper")
+        // "/" targets the site root; empty input clears the override.
+        #expect(editor.setPageFolderOverride(id: pageID, value: "/") == "")
+        #expect(editor.setPageFolderOverride(id: pageID, value: "  ") == nil)
+        #expect(document.site.pages.first { $0.id == pageID }?.folderOverride == nil)
+
+        #expect(editor.setPageFilename(id: pageID, value: "Menu.HTML") == "menu.html")
+        // Extensions other than html/php drop; the plain default clears.
+        #expect(editor.setPageFilename(id: pageID, value: "download.htm") == "download")
+        #expect(editor.setPageFilename(id: pageID, value: "index") == nil)
+        #expect(document.site.pages.first { $0.id == pageID }?.filenameOverride == nil)
+
+        #expect(editor.setPageFolderOverride(id: homeID, value: "elsewhere") == nil)
+        #expect(editor.setPageFilename(id: homeID, value: "welcome.html") == nil)
+        let home = document.site.pages.first { $0.id == homeID }
+        #expect(home?.folderOverride == nil)
+        #expect(home?.filenameOverride == nil)
+    }
+
+    @Test
     func createsPageWithUniqueSlugAndStableIdentifier() {
         let document = FoundryDocument()
         let editor = ProjectEditor(document: document, undoManager: nil)

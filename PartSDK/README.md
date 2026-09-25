@@ -7,21 +7,20 @@ containing its own `manifest.json` and `Resources/`. While developing, use the
 identical structure with a `.foundrydevpack` extension so Finder exposes it
 as an ordinary folder and Foundry can watch it in place.
 
-The complete browsable reference lives at the [Foundry Developer API](https://doobox.github.io/foundry-developer-api/). Start
+The complete browsable reference lives at the [Foundry Developer API](https://doobox.github.io/foundry-docs/developer/). Start
 with:
 
-- [Build a part](https://doobox.github.io/foundry-developer-api/quick-start.html)
-- [Pack structure and development workflow](https://doobox.github.io/foundry-developer-api/bundle-structure.html)
-- [Identity and metadata](https://doobox.github.io/foundry-developer-api/manifest-identity.html)
-- [Template file declarations](https://doobox.github.io/foundry-developer-api/templates.html)
-- [Libraries and assets](https://doobox.github.io/foundry-developer-api/manifest-resources.html)
-- [Template values and macros](https://doobox.github.io/foundry-developer-api/template-values.html)
-- [Custom controls](https://doobox.github.io/foundry-developer-api/custom-controls.html)
-- [Conditional control visibility](https://doobox.github.io/foundry-developer-api/enable-control.html)
-- [Icon control](https://doobox.github.io/foundry-developer-api/icon-control.html)
-- [Editable content primitives](https://doobox.github.io/foundry-developer-api/editable-text.html)
-- [Child-part slots](https://doobox.github.io/foundry-developer-api/slots.html)
-- [Support and recovery](https://doobox.github.io/foundry-developer-api/manifest-support.html)
+- [Build a part](https://doobox.github.io/foundry-docs/developer/quick-start.html)
+- [Pack structure and development workflow](https://doobox.github.io/foundry-docs/developer/bundle-structure.html)
+- [Identity and metadata](https://doobox.github.io/foundry-docs/developer/manifest-identity.html)
+- [Template file declarations](https://doobox.github.io/foundry-docs/developer/templates.html)
+- [Libraries and assets](https://doobox.github.io/foundry-docs/developer/manifest-resources.html)
+- [Template values and macros](https://doobox.github.io/foundry-docs/developer/template-values.html)
+- [Custom controls](https://doobox.github.io/foundry-docs/developer/custom-controls.html)
+- [Conditional control visibility](https://doobox.github.io/foundry-docs/developer/enable-control.html)
+- [Icon control](https://doobox.github.io/foundry-docs/developer/icon-control.html)
+- [Editable content primitives](https://doobox.github.io/foundry-docs/developer/editable-text.html)
+- [Child-part slots](https://doobox.github.io/foundry-docs/developer/slots.html)
 
 ## Minimal structure
 

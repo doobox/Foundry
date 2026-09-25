@@ -1,10 +1,44 @@
 {
+  "allowedParents": [
+    "foundry.layout.grid"
+  ],
   "assets": [],
   "author": "Foundry",
-  "description": "A responsive CSS Flexbox container with shared sizing, spacing and appearance controls.",
+  "description": "A box that lives inside a Grid — it spans columns and rows of its parent, and stacks its own content with Flexbox.",
   "group": "Layout",
-  "id": "foundry.layout.flex",
+  "id": "foundry.layout.grid-item",
   "inspector": [
+    {
+      "controls": [
+        {
+          "defaults": {
+            "base": 1
+          },
+          "id": "columnSpan",
+          "label": "Span Columns",
+          "maximum": 12,
+          "minimum": 1,
+          "responsive": true,
+          "step": 1,
+          "tooltip": "Keep within the parent's column count at this breakpoint.",
+          "type": "number"
+        },
+        {
+          "defaults": {
+            "base": 1
+          },
+          "id": "rowSpan",
+          "label": "Span Rows",
+          "maximum": 12,
+          "minimum": 1,
+          "responsive": true,
+          "step": 1,
+          "type": "number"
+        }
+      ],
+      "section": "Grid item",
+      "systemImage": "square.on.square"
+    },
     {
       "controls": [
         {
@@ -12,7 +46,7 @@
             "base": "column"
           },
           "id": "direction",
-          "label": "Flex Direction",
+          "label": "Direction",
           "options": [
             {
               "title": "Column",
@@ -39,7 +73,7 @@
             "base": "nowrap"
           },
           "id": "wrap",
-          "label": "Flex Wrap",
+          "label": "Wrap",
           "options": [
             {
               "title": "No Wrap",
@@ -62,7 +96,7 @@
             "base": "flex-start"
           },
           "id": "justifyContent",
-          "label": "Justify Content",
+          "label": "Distribute",
           "options": [
             {
               "title": "Start",
@@ -90,7 +124,7 @@
             }
           ],
           "responsive": true,
-          "tooltip": "Distribute children along the stack's direction.",
+          "tooltip": "Distribute this item's own children along its direction.",
           "type": "select"
         },
         {
@@ -98,7 +132,7 @@
             "base": "stretch"
           },
           "id": "alignItems",
-          "label": "Align Items",
+          "label": "Align",
           "options": [
             {
               "title": "Stretch",
@@ -127,50 +161,6 @@
         },
         {
           "defaults": {
-            "base": "normal"
-          },
-          "id": "alignContent",
-          "label": "Align Content",
-          "options": [
-            {
-              "title": "Normal",
-              "value": "normal"
-            },
-            {
-              "title": "Stretch",
-              "value": "stretch"
-            },
-            {
-              "title": "Start",
-              "value": "flex-start"
-            },
-            {
-              "title": "Centre",
-              "value": "center"
-            },
-            {
-              "title": "End",
-              "value": "flex-end"
-            },
-            {
-              "title": "Space Between",
-              "value": "space-between"
-            },
-            {
-              "title": "Space Around",
-              "value": "space-around"
-            },
-            {
-              "title": "Space Evenly",
-              "value": "space-evenly"
-            }
-          ],
-          "responsive": true,
-          "tooltip": "Controls distribution between flex lines when Flex Wrap creates multiple lines.",
-          "type": "select"
-        },
-        {
-          "defaults": {
             "base": "md"
           },
           "id": "frameworkGap",
@@ -183,22 +173,10 @@
       "systemImage": "rectangle.3.group"
     },
     {
-      "type": "sizing"
-    },
-    {
-      "type": "layoutItem"
-    },
-    {
-      "type": "spacing"
-    },
-    {
-      "type": "borders"
-    },
-    {
-      "type": "effects"
-    },
-    {
       "controls": [
+        {
+          "type": "sizing"
+        },
         {
           "defaults": {
             "base": "visible"
@@ -224,22 +202,62 @@
           "type": "select"
         }
       ],
-      "section": "Advanced",
-      "systemImage": "gearshape"
+      "section": "Sizing",
+      "systemImage": "arrow.up.left.and.arrow.down.right"
     },
     {
-      "type": "background"
+      "controls": [
+        {
+          "type": "spacing"
+        }
+      ],
+      "section": "Spacing",
+      "systemImage": "arrow.up.and.down.and.arrow.left.and.right"
     },
     {
-      "type": "reveal"
+      "controls": [
+        {
+          "type": "background"
+        }
+      ],
+      "section": "Background",
+      "systemImage": "paintbrush.fill"
+    },
+    {
+      "controls": [
+        {
+          "type": "borders"
+        }
+      ],
+      "section": "Borders",
+      "systemImage": "square.dashed"
+    },
+    {
+      "controls": [
+        {
+          "type": "effects"
+        }
+      ],
+      "section": "Effects",
+      "systemImage": "sparkles"
+    },
+    {
+      "controls": [
+        {
+          "type": "reveal"
+        }
+      ],
+      "section": "Reveal",
+      "systemImage": "sparkles.rectangle.stack"
     }
   ],
   "minimumAPIVersion": 1,
+  "showsInPartLibrary": false,
   "tags": [
     "Foundry",
     "built-in",
     "layout",
-    "flex"
+    "grid"
   ],
   "templates": {
     "files": [
@@ -250,6 +268,6 @@
     ],
     "html": "part.html"
   },
-  "title": "Flex",
-  "version": "2.0.0"
+  "title": "Grid Item",
+  "version": "1.0.0"
 }

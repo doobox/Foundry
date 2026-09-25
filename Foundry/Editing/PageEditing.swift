@@ -111,7 +111,7 @@ extension ProjectEditor {
 
     func setPageFolderSlug(id: UUID, slug: String) {
         let normalized = Page.slugify(slug)
-        mutate(actionName: "Edit Page Folder Slug") { site in
+        mutate(actionName: "Edit Folder URL Name") { site in
             guard let index = site.pageFolders.firstIndex(where: { $0.id == id }) else { return }
             site.pageFolders[index].slug = normalized
         }
@@ -225,12 +225,83 @@ extension ProjectEditor {
         }
     }
 
+    /// Stores the page's folder override and returns the normalized value the
+    /// field should display; nil clears the override (empty input) or means
+    /// the page is the home page, which always publishes at the root.
+    @discardableResult
+    func setPageFolderOverride(id: UUID, value: String) -> String? {
+        guard document.site.pages.first(where: { $0.id == id })?.slug != "index" else { return nil }
+        let normalized = Self.normalizedFolderOverride(value)
+        mutate(actionName: "Edit Page Folder") { site in
+            guard let index = site.pages.firstIndex(where: { $0.id == id }) else { return }
+            site.pages[index].folderOverride = normalized
+        }
+        return normalized
+    }
+
+    /// Slash-separated segments, each slugified; segments with no letters or
+    /// numbers drop. "/" alone normalizes to the empty string — the site root.
+    static func normalizedFolderOverride(_ value: String) -> String? {
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        return trimmed
+            .split(separator: "/")
+            .filter { $0.rangeOfCharacter(from: .alphanumerics) != nil }
+            .map { Page.slugify(String($0)) }
+            .joined(separator: "/")
+    }
+
+    /// Stores the page's filename override and returns the normalized value
+    /// the field should display; nil restores the standard `index` filename.
+    @discardableResult
+    func setPageFilename(id: UUID, value: String) -> String? {
+        guard document.site.pages.first(where: { $0.id == id })?.slug != "index" else { return nil }
+        let normalized = Self.normalizedFilenameOverride(value)
+        mutate(actionName: "Edit Page Filename") { site in
+            guard let index = site.pages.firstIndex(where: { $0.id == id }) else { return }
+            site.pages[index].filenameOverride = normalized
+        }
+        return normalized
+    }
+
+    /// A slugified base name plus an optional explicit html/php extension;
+    /// other extensions drop so the page's normal extension rules decide.
+    static func normalizedFilenameOverride(_ value: String) -> String? {
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !trimmed.isEmpty else { return nil }
+        let declared = (trimmed as NSString).pathExtension
+        let base = Page.slugify((trimmed as NSString).deletingPathExtension)
+        let result = ["html", "php"].contains(declared) ? "\(base).\(declared)" : base
+        return result == "index" ? nil : result
+    }
+
+    func setPageLanguage(id: UUID, language: String?) {
+        mutate(actionName: "Edit Page Language") { site in
+            guard let index = site.pages.firstIndex(where: { $0.id == id }) else { return }
+            site.pages[index].language = language
+        }
+    }
+
+    func setPageIncludedInSearch(id: UUID, included: Bool) {
+        mutate(actionName: included ? "Include Page in Search" : "Exclude Page from Search") { site in
+            guard let index = site.pages.firstIndex(where: { $0.id == id }) else { return }
+            site.pages[index].includeInSearch = included
+        }
+    }
+
+    func setPageIncludedInSitemap(id: UUID, included: Bool) {
+        mutate(actionName: included ? "Include Page in Sitemap" : "Exclude Page from Sitemap") { site in
+            guard let index = site.pages.firstIndex(where: { $0.id == id }) else { return }
+            site.pages[index].includeInSitemap = included
+        }
+    }
+
     func setPageSlug(id: UUID, slug: String) {
         guard document.site.pages.first(where: { $0.id == id })?.slug != "index" else {
             return
         }
         let normalized = uniqueSlug(for: slug, excluding: id)
-        mutate(actionName: "Edit Page Slug") { site in
+        mutate(actionName: "Edit Page URL Name") { site in
             guard let index = site.pages.firstIndex(where: { $0.id == id }) else {
                 return
             }

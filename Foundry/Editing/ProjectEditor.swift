@@ -85,6 +85,17 @@ struct ProjectEditor {
         mutate(actionName: "Set Default Social Image") { $0.defaultSocialImage = image }
     }
 
+    func setSiteSocialImageAlt(_ alt: String) {
+        mutate(actionName: "Edit Social Image Description") { $0.socialImageAlt = alt }
+    }
+
+    /// Stores the site's social handle, adding the leading @ when omitted.
+    func setSiteSocialAccount(_ account: String) {
+        let trimmed = account.trimmingCharacters(in: .whitespacesAndNewlines)
+        let normalized = trimmed.isEmpty || trimmed.hasPrefix("@") ? trimmed : "@" + trimmed
+        mutate(actionName: "Edit Social Account") { $0.socialAccount = normalized }
+    }
+
     func setSiteLogo(_ logo: String) {
         let source = logo.foundryAssetID.flatMap { document.assetContents[$0] }
         document.setSiteLogoSource(source, undoManager: undoManager)

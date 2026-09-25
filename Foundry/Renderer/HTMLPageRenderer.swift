@@ -3,6 +3,7 @@ import Foundation
 nonisolated struct HTMLPageRenderer: PageRendering {
     let site: Site?
     let appearance: SiteAppearance
+    private let templateValuesCache = PartTemplateValuesCache()
 
     init(site: Site? = nil, appearance: SiteAppearance = .light) { self.site = site; self.appearance = appearance }
     func render(page: Page, framework: Framework) -> String {
@@ -34,7 +35,7 @@ nonisolated struct HTMLPageRenderer: PageRendering {
         let customBodyStartCode = site?.customCodeEnabled == true ? site?.bodyStartCode ?? "" : ""
         let customBodyEndCode = site?.customCodeEnabled == true ? site?.bodyEndCode ?? "" : ""
         let analyticsCode = site?.customCodeEnabled == true ? site?.analyticsCode ?? "" : ""
-        let documentLanguage = language.trimmingCharacters(in: .whitespacesAndNewlines)
+        let documentLanguage = (page.language ?? language).trimmingCharacters(in: .whitespacesAndNewlines)
         return """
         <!doctype html>
         <html lang="\(escapeAttribute(documentLanguage.isEmpty ? "en" : documentLanguage))">
@@ -223,10 +224,12 @@ nonisolated struct HTMLPageRenderer: PageRendering {
     }
 
     private func templateValues(for page: Page, framework: Framework) -> [String: PartPackageValue] {
-        let breakpointValues = PartBreakpointTemplateValues.values(screens: framework.screens)
-        guard let site else { return breakpointValues }
-        return PartNavigationTemplateValues.values(site: site, currentPage: page)
-            .merging(breakpointValues) { current, _ in current }
+        templateValuesCache.values(for: page.id) {
+            let breakpointValues = PartBreakpointTemplateValues.values(screens: framework.screens)
+            guard let site else { return breakpointValues }
+            return PartNavigationTemplateValues.values(site: site, currentPage: page)
+                .merging(breakpointValues) { current, _ in current }
+        }
     }
 
     private func metadataHTML(
@@ -289,13 +292,7 @@ nonisolated struct HTMLPageRenderer: PageRendering {
     }
 
     private func absoluteURL(for page: Page, in site: Site, baseURL: String) -> String {
-        guard page.slug != "index" else { return baseURL + "/" }
-        let slugs = PageRouteResolver.pathSegments(
-            for: page,
-            pages: site.pages,
-            folders: site.pageFolders
-        )
-        return baseURL + "/" + slugs.joined(separator: "/") + "/"
+        baseURL + StaticSiteRenderer.urlPath(for: page, pages: site.pages, folders: site.pageFolders)
     }
 
     private func render(_ sourceNode: PartNode, page: Page, framework: Framework, assets: ProjectAssetContents, globalDefinitionID: UUID?, breakpoint: ResponsiveBreakpoint, parentPartID: UUID? = nil, parentSlot: PartPackageSlot? = nil, parentDropZoneSlotID: String? = nil) -> String {
@@ -532,8 +529,15 @@ nonisolated struct HTMLPageRenderer: PageRendering {
     }
 
     private func packageProperties(_ node: PartNode, framework: Framework, assets: ProjectAssetContents) -> [String: PartPackageValue] {
-        var values: [String: PartPackageValue] = Dictionary(uniqueKeysWithValues: node.type.definition.properties.map { definition in
-            let value = node.propertyValue(definition.key)
+        // One definition fetch, one stored-value index and one manifest
+        // property expansion for the whole pass; repeating any of them per
+        // key dominates page-render profiles.
+        let partDefinition = node.type.definition
+        let definitions = partDefinition.properties
+        let manifestProperties = partDefinition.package?.manifest.resolvedProperties ?? []
+        let stored = Dictionary(node.properties.map { ($0.key, $0.value) }, uniquingKeysWith: { first, _ in first })
+        var values: [String: PartPackageValue] = Dictionary(uniqueKeysWithValues: definitions.map { definition in
+            let value = stored[definition.key] ?? definition.defaultValue
             if case .frameworkBorderWidth(let width) = value {
                 return (definition.key.rawValue, PartPackageFrameworkBorderWidthControl.resolved(width, framework: framework))
             }
@@ -595,7 +599,7 @@ nonisolated struct HTMLPageRenderer: PageRendering {
             }
             return (definition.key.rawValue, packageValue(value))
         })
-        for definition in node.type.definition.properties {
+        for definition in definitions {
             if definition.control.isFrameworkSpacing,
                case .object(let fields) = values[definition.key.rawValue] {
                 for (field, value) in fields {
@@ -633,15 +637,15 @@ nonisolated struct HTMLPageRenderer: PageRendering {
                     includesOpacity: opacity,
                     to: &values
                 )
-                if let format = node.type.definition.package?.manifest.resolvedProperties
+                if let format = manifestProperties
                     .first(where: { $0.id == definition.key.rawValue })?.control.outputFormat,
                    let current = appearance == .light ? light : dark {
                     values[definition.key.rawValue] = .string(current.formatted(as: format, includesOpacity: opacity))
                 }
             }
         }
-        if let package = node.type.definition.package {
-            for property in package.manifest.resolvedProperties where property.control.type == .image {
+        if let package = partDefinition.package {
+            for property in manifestProperties where property.control.type == .image {
                 let key = PartProperty.Key(rawValue: property.id)
                 guard case .url(let source) = node.propertyValue(key) else { continue }
                 let metadata = source.foundryAssetID.flatMap { assets.asset($0)?.imageMetadata }
@@ -665,7 +669,7 @@ nonisolated struct HTMLPageRenderer: PageRendering {
                     values[key + ".href"] = .string(href)
                 }
             }
-            for property in package.manifest.resolvedProperties where property.control.type == .video {
+            for property in manifestProperties where property.control.type == .video {
                 let key = PartProperty.Key(rawValue: property.id)
                 guard case .url(let source) = node.propertyValue(key) else { continue }
                 let asset = source.foundryAssetID.flatMap { assets.asset($0) }
@@ -686,7 +690,7 @@ nonisolated struct HTMLPageRenderer: PageRendering {
             }
         }
         if let site {
-            for definition in node.type.definition.properties {
+            for definition in definitions {
                 guard case .link(let absoluteURL) = definition.control,
                       case .link(let link) = node.propertyValue(definition.key) else { continue }
                 let resolved = PartLinkResolver.resolve(
@@ -700,14 +704,14 @@ nonisolated struct HTMLPageRenderer: PageRendering {
         }
         let resolved = PartPackageDerivedValueResolver.resolve(
             values,
-            properties: node.type.definition.package?.manifest.resolvedProperties ?? []
+            properties: manifestProperties
         )
-        guard let properties = node.type.definition.package?.manifest.resolvedProperties else {
+        guard partDefinition.package != nil else {
             return resolved
         }
         return PartPackageVisibilityEvaluator.availableTemplateValues(
             resolved,
-            properties: properties,
+            properties: manifestProperties,
             for: node,
             screens: framework.screens
         )
@@ -736,7 +740,11 @@ nonisolated struct HTMLPageRenderer: PageRendering {
     private func unavailablePart(_ node: PartNode, page: Page, framework: Framework, assets: ProjectAssetContents, globalDefinitionID: UUID?, breakpoint: ResponsiveBreakpoint, parentPartID: UUID?) -> String {
         let children = node.children.map { render($0, page: page, framework: framework, assets: assets, globalDefinitionID: globalDefinitionID, breakpoint: breakpoint, parentPartID: node.id) }.joined()
         let name = node.missingPackageSnapshot?.name ?? node.type.rawValue
-        return "<div class=\"unavailable\" \(attributes(for: node, globalDefinitionID: globalDefinitionID, parentPartID: parentPartID))>Missing part: \(escape(name))\(children)</div>"
+        // The snapshot travels in the document, so the title and the pack's
+        // help address show even on a machine that never had the pack.
+        let help = node.missingPackageSnapshot?.helpURL
+            .map { " — help: \(escape($0.absoluteString))" } ?? ""
+        return "<div class=\"unavailable\" \(attributes(for: node, globalDefinitionID: globalDefinitionID, parentPartID: parentPartID))>Missing part: \(escape(name))\(help)\(children)</div>"
     }
 
     private func failedPart(_ node: PartNode, page: Page, package: LoadedPartPackage, framework: Framework, assets: ProjectAssetContents, globalDefinitionID: UUID?, breakpoint: ResponsiveBreakpoint, parentPartID: UUID?) -> String {

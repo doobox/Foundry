@@ -1036,7 +1036,8 @@ nonisolated enum PartPackageValidator {
                 diagnostics.append(.init(severity: .error, location: location, message: "A frameworkFont default family must be body, heading, or monospaced."))
                 return
             }
-            if property.control.showsFamily == false && property.control.showsWeight != true && property.control.showsStyle != true {
+            if property.control.showsFamily == false, property.control.showsWeight != true,
+               property.control.showsStyle != true, property.control.showsSize != true {
                 diagnostics.append(.init(severity: .error, location: location, message: "A frameworkFont must expose at least one field."))
             }
             if let weight = fields["weight"] {
@@ -1053,6 +1054,15 @@ nonisolated enum PartPackageValidator {
                 }
                 if case .string(let value) = style, ["normal", "italic"].contains(value) {} else {
                     diagnostics.append(.init(severity: .error, location: location, message: "default.style must be normal or italic."))
+                }
+            }
+            if let size = fields["size"] {
+                if property.control.showsSize != true {
+                    diagnostics.append(.init(severity: .error, location: location, message: "default.size requires showsSize."))
+                }
+                // Only the predefined scale is portable; project custom sizes are not.
+                if case .string(let value) = size, TypographyTokens.standardFontSizes.contains(where: { $0.id == value }) {} else {
+                    diagnostics.append(.init(severity: .error, location: location, message: "default.size must be a predefined size ID: xs, sm, base, lg, xl, or 2xl through 9xl."))
                 }
             }
         case .fontWeight:

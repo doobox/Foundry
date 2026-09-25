@@ -79,6 +79,10 @@
           "value": "auto"
         },
         {
+          "title": "Fill Remaining Space",
+          "value": "fill"
+        },
+        {
           "title": "Fill viewport",
           "value": "viewport"
         },

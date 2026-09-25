@@ -7,7 +7,7 @@ nonisolated enum BuiltInControlGroupRegistry {
         let type: PartPackageControlGroup.Kind
         let name: String
         let systemImage: String
-        var controls: [PartPackageProperty]
+        let controls: [PartPackageProperty]
     }
 
     private static let definitions: [PartPackageControlGroup.Kind: Definition] = {
@@ -24,12 +24,7 @@ nonisolated enum BuiltInControlGroupRegistry {
 
             do {
                 let data = try Data(contentsOf: url)
-                var definition = try decoder.decode(Definition.self, from: data)
-                definition.controls = definition.controls.map { control in
-                    var control = control
-                    control.group = definition.name
-                    return control
-                }
+                let definition = try decoder.decode(Definition.self, from: data)
                 try validate(definition, expectedKind: kind)
                 try validateControls(in: data, definition: definition)
                 result[kind] = definition

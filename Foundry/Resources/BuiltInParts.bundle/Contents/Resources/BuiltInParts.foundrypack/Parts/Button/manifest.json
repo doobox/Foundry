@@ -90,7 +90,13 @@
       "systemImage": "accessibility"
     },
     {
-      "type": "reveal"
+      "controls": [
+        {
+          "type": "reveal"
+        }
+      ],
+      "section": "Reveal",
+      "systemImage": "sparkles.rectangle.stack"
     },
     {
       "section": "Content",
@@ -113,5 +119,5 @@
     "html": "part.html"
   },
   "title": "Button",
-  "version": "1.0.0"
+  "version": "1.1.0"
 }

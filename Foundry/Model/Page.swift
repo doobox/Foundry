@@ -55,6 +55,22 @@ nonisolated struct Page: Codable, Equatable, Identifiable, Sendable {
     /// The extension chosen when the page was created. PHP requirements from
     /// parts still promote the rendered page to PHP regardless of this value.
     var preferredExtension: PageExtensionPreference?
+    /// Publishes the page into an explicit directory from the site root
+    /// instead of the one derived from the page tree. Slash-separated
+    /// segments; the empty string targets the site root. Nil follows the
+    /// page tree. Never applies to the home page.
+    var folderOverride: String?
+    /// Replaces the exported `index` filename. Stored with an explicit
+    /// `html`/`php` extension when the author typed one; without one the
+    /// page's normal extension rules apply. Nil publishes `index`. Pages
+    /// with a non-`index` filename link with the filename visible.
+    var filenameOverride: String?
+    /// BCP-47 language for this page's `<html lang>`; nil inherits the site.
+    var language: String?
+    /// Emits a per-page noindex when false; the sitemap also skips the page
+    /// so crawlers aren't invited to a page they're told not to index.
+    var includeInSearch: Bool
+    var includeInSitemap: Bool
     /// Nil intentionally follows the framework's Page defaults in both appearances.
     var backgroundOverride: PartPackageColorValue?
 
@@ -69,6 +85,11 @@ nonisolated struct Page: Codable, Equatable, Identifiable, Sendable {
         order: Int = 0,
         includeInNavigation: Bool = true,
         preferredExtension: PageExtensionPreference? = nil,
+        folderOverride: String? = nil,
+        filenameOverride: String? = nil,
+        language: String? = nil,
+        includeInSearch: Bool = true,
+        includeInSitemap: Bool = true,
         backgroundOverride: PartPackageColorValue? = nil
     ) {
         self.id = id
@@ -81,11 +102,17 @@ nonisolated struct Page: Codable, Equatable, Identifiable, Sendable {
         self.order = order
         self.includeInNavigation = includeInNavigation
         self.preferredExtension = preferredExtension
+        self.folderOverride = folderOverride
+        self.filenameOverride = filenameOverride
+        self.language = language
+        self.includeInSearch = includeInSearch
+        self.includeInSitemap = includeInSitemap
         self.backgroundOverride = backgroundOverride
     }
 
     private enum CodingKeys: String, CodingKey {
-        case id, title, slug, metadata, parts, folderID, parentPageID, order, includeInNavigation, preferredExtension, backgroundOverride
+        case id, title, slug, metadata, parts, folderID, parentPageID, order, includeInNavigation, preferredExtension,
+             folderOverride, filenameOverride, language, includeInSearch, includeInSitemap, backgroundOverride
     }
 
     init(from decoder: Decoder) throws {
@@ -100,6 +127,11 @@ nonisolated struct Page: Codable, Equatable, Identifiable, Sendable {
         order = try container.decode(Int.self, forKey: .order)
         includeInNavigation = try container.decodeIfPresent(Bool.self, forKey: .includeInNavigation) ?? true
         preferredExtension = try container.decodeIfPresent(PageExtensionPreference.self, forKey: .preferredExtension)
+        folderOverride = try container.decodeIfPresent(String.self, forKey: .folderOverride)
+        filenameOverride = try container.decodeIfPresent(String.self, forKey: .filenameOverride)
+        language = try container.decodeIfPresent(String.self, forKey: .language)
+        includeInSearch = try container.decodeIfPresent(Bool.self, forKey: .includeInSearch) ?? true
+        includeInSitemap = try container.decodeIfPresent(Bool.self, forKey: .includeInSitemap) ?? true
         backgroundOverride = try container.decodeIfPresent(PartPackageColorValue.self, forKey: .backgroundOverride)
     }
 
@@ -127,6 +159,8 @@ nonisolated struct Page: Codable, Equatable, Identifiable, Sendable {
         return slug.isEmpty ? "page" : slug
     }
 
+    /// Folder and filename overrides intentionally do not copy: the copy
+    /// would publish over the original.
     func duplicated(title: String, slug: String) -> Page {
         Page(
             title: title,
@@ -137,6 +171,10 @@ nonisolated struct Page: Codable, Equatable, Identifiable, Sendable {
             parentPageID: parentPageID,
             order: order,
             includeInNavigation: includeInNavigation,
+            preferredExtension: preferredExtension,
+            language: language,
+            includeInSearch: includeInSearch,
+            includeInSitemap: includeInSitemap,
             backgroundOverride: backgroundOverride
         )
     }
@@ -149,6 +187,9 @@ nonisolated enum PageRouteResolver {
         folders: [PageFolder]
     ) -> [String] {
         guard page.slug != "index" else { return [] }
+        if let override = page.folderOverride {
+            return override.split(separator: "/").map(String.init)
+        }
 
         var segments = [page.slug]
         var currentPage = page

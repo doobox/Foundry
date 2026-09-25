@@ -6,7 +6,13 @@
   "id": "foundry.content.html",
   "inspector": [
     {
-      "type": "reveal"
+      "controls": [
+        {
+          "type": "reveal"
+        }
+      ],
+      "section": "Reveal",
+      "systemImage": "sparkles.rectangle.stack"
     },
     {
       "section": "Content",
@@ -19,8 +25,13 @@
     "built-in"
   ],
   "templates": {
+    "files": [
+      {
+        "path": "part.css"
+      }
+    ],
     "html": "part.html"
   },
   "title": "HTML",
-  "version": "1.0.0"
+  "version": "1.1.0"
 }

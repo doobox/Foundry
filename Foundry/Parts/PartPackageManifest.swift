@@ -1,11 +1,12 @@
 import Foundation
 
 /// One entry of a manifest's `inspector` array: a single Standard/Framework
-/// property (Inspector section `Settings`), a reference to a prebuilt Grouped
-/// control (`background`, `spacing`, `sizing`, `borders`, `effects`,
-/// `layoutItem`) that expands into several properties at this exact position,
-/// or a named section that carries its own controls. Entries with a `type`
-/// are controls; entries without one are sections.
+/// property, a reference to a prebuilt Grouped control (`background`,
+/// `spacing`, `sizing`, `borders`, `effects`, `layoutItem`, `reveal`) that
+/// expands into several properties at this exact position, or a named section
+/// that carries its own controls. Entries with a `type` are controls; entries
+/// without one are sections. Sectioning is entirely the developer's: controls
+/// outside any section — grouped ones included — live in `Settings`.
 nonisolated enum PartPackageControlsEntry: Codable, Equatable, Sendable {
     case property(PartPackageProperty)
     case group(PartPackageControlGroup)
@@ -38,34 +39,45 @@ nonisolated enum PartPackageControlsEntry: Codable, Equatable, Sendable {
 
 /// A named Inspector section declared inline in `inspector`: the section name
 /// and its optional disclosure-header icon appear once, and every control
-/// inside belongs to it. Controls outside any section live in `Settings`.
+/// inside belongs to it — plain controls and Grouped-control references
+/// alike. Controls outside any section live in `Settings`.
 nonisolated struct PartPackageControlSection: Codable, Equatable, Sendable {
     let name: String
     let systemImage: String?
-    let properties: [PartPackageProperty]
+    /// Property and Grouped-control entries in declaration order; sections
+    /// cannot nest.
+    let entries: [PartPackageControlsEntry]
 
     private enum CodingKeys: String, CodingKey {
         case name = "section"
         case systemImage
-        case properties = "controls"
+        case entries = "controls"
     }
 
-    init(name: String, systemImage: String? = nil, properties: [PartPackageProperty] = []) {
+    init(name: String, systemImage: String? = nil, entries: [PartPackageControlsEntry] = []) {
         self.name = name
         self.systemImage = systemImage
-        self.properties = properties.map { property in
-            var property = property
+        self.entries = entries.map { entry in
+            guard case .property(var property) = entry else { return entry }
             property.group = name
-            return property
+            return .property(property)
         }
     }
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
+        let entries = try container.decodeIfPresent([PartPackageControlsEntry].self, forKey: .entries) ?? []
+        if entries.contains(where: { if case .section = $0 { true } else { false } }) {
+            throw DecodingError.dataCorruptedError(
+                forKey: .entries,
+                in: container,
+                debugDescription: "Sections cannot nest inside sections."
+            )
+        }
         self.init(
             name: try container.decode(String.self, forKey: .name),
             systemImage: try container.decodeIfPresent(String.self, forKey: .systemImage),
-            properties: try container.decodeIfPresent([PartPackageProperty].self, forKey: .properties) ?? []
+            entries: entries
         )
     }
 
@@ -73,7 +85,33 @@ nonisolated struct PartPackageControlSection: Codable, Equatable, Sendable {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encode(name, forKey: .name)
         try container.encodeIfPresent(systemImage, forKey: .systemImage)
-        try container.encode(properties, forKey: .properties)
+        try container.encode(entries, forKey: .entries)
+    }
+
+    /// The section's controls with every Grouped-control reference expanded
+    /// in place; all of them belong to this section.
+    var properties: [PartPackageProperty] {
+        entries.flatMap { entry -> [PartPackageProperty] in
+            switch entry {
+            case .property(let property):
+                return [property]
+            case .group(let group):
+                return group.properties.map { property in
+                    var property = property
+                    property.group = name
+                    return property
+                }
+            case .section:
+                return []
+            }
+        }
+    }
+
+    /// The Grouped controls referenced inside this section.
+    var groups: [PartPackageControlGroup] {
+        entries.compactMap {
+            if case .group(let group) = $0 { group } else { nil }
+        }
     }
 }
 
@@ -92,7 +130,6 @@ nonisolated struct PartPackageManifest: Codable, Equatable, Sendable {
     let render: PartPackageRender
     let assets: [PartPackageAsset]
     let helpURL: URL?
-    let missingPart: PartPackageMissingPart?
     let requiresPHP: Bool
     let libraries: [PartPackageLibraryRequirement]
     let updates: FoundryPackUpdateConfiguration?
@@ -112,7 +149,6 @@ nonisolated struct PartPackageManifest: Codable, Equatable, Sendable {
         case render = "templates"
         case assets
         case helpURL
-        case missingPart
         case requiresPHP
         case libraries
         case updates
@@ -134,7 +170,6 @@ nonisolated struct PartPackageManifest: Codable, Equatable, Sendable {
         render = try container.decode(PartPackageRender.self, forKey: .render)
         assets = try container.decodeIfPresent([PartPackageAsset].self, forKey: .assets) ?? []
         helpURL = try container.decodeIfPresent(URL.self, forKey: .helpURL)
-        missingPart = try container.decodeIfPresent(PartPackageMissingPart.self, forKey: .missingPart)
         requiresPHP = try container.decodeIfPresent(Bool.self, forKey: .requiresPHP) ?? false
         libraries = try container.decodeIfPresent(
             [PartPackageLibraryRequirement].self,
@@ -159,7 +194,6 @@ nonisolated struct PartPackageManifest: Codable, Equatable, Sendable {
         try container.encode(render, forKey: .render)
         try container.encode(assets, forKey: .assets)
         try container.encodeIfPresent(helpURL, forKey: .helpURL)
-        try container.encodeIfPresent(missingPart, forKey: .missingPart)
         try container.encode(requiresPHP, forKey: .requiresPHP)
         try container.encode(libraries, forKey: .libraries)
         try container.encodeIfPresent(updates, forKey: .updates)
@@ -222,24 +256,25 @@ extension PartPackageManifest {
         }
     }
 
-    /// The Grouped controls this manifest references, in declaration order.
-    /// Position-preserving order lives in `controlsEntries`/`resolvedProperties`;
-    /// this is just the set of groups, for CSS/HTML-contribution/lookup purposes.
+    /// The Grouped controls this manifest references — top level and inside
+    /// sections — in declaration order. Position-preserving order lives in
+    /// `controlsEntries`/`resolvedProperties`; this is just the set of groups,
+    /// for CSS/HTML-contribution/lookup purposes.
     nonisolated var controlGroups: [PartPackageControlGroup] {
-        controlsEntries.compactMap {
-            if case .group(let group) = $0 { group } else { nil }
+        controlsEntries.flatMap { entry -> [PartPackageControlGroup] in
+            switch entry {
+            case .group(let group): [group]
+            case .section(let section): section.groups
+            case .property: []
+            }
         }
     }
 
-    /// Inspector section icons by group name: each declared Grouped control
-    /// supplies its section's standard icon, and each named section's
-    /// `systemImage` overrides or extends that. Sections with no entry here
-    /// render with the generic fallback icon.
+    /// Inspector section icons by section name, from each named section's
+    /// `systemImage`. Sections with no entry here render with the generic
+    /// fallback icon.
     nonisolated var resolvedGroupIcons: [String: String] {
         var icons: [String: String] = [:]
-        for group in controlGroups {
-            icons[group.type.groupName] = group.type.groupSystemImage
-        }
         for section in controlSections {
             if let systemImage = section.systemImage {
                 icons[section.name] = systemImage
@@ -287,19 +322,8 @@ nonisolated struct PartPackageControlGroup: Codable, Equatable, Sendable {
         /// The opt-in HTML identity section (ID, classes, custom attributes).
         /// Unlike the other kinds it carries native Inspector fields bound to
         /// the placed part, not property controls, so it has no registry
-        /// definition.
+        /// definition and always renders as Foundry's own Advanced section.
         case advanced
-
-        /// The Inspector section this Grouped control's properties live in,
-        /// and the icon that section carries — the same metadata a part
-        /// declares for its own sections.
-        var groupName: String {
-            self == .advanced ? "Advanced" : BuiltInControlGroupRegistry.definition(for: self).name
-        }
-
-        var groupSystemImage: String {
-            self == .advanced ? "gearshape" : BuiltInControlGroupRegistry.definition(for: self).systemImage
-        }
     }
 
     enum BackgroundStyle: String, Codable, CaseIterable, Hashable, Sendable {
@@ -994,9 +1018,11 @@ nonisolated struct PartPackageVisibilityCondition: Codable, Equatable, Sendable 
 }
 
 nonisolated struct PartPackageControl: Codable, Equatable, Sendable {
-    enum SelectPresentation: String, Codable, Sendable {
+    enum ControlPresentation: String, Codable, Sendable {
         case menu
         case segmented
+        case checkbox
+        case `switch`
     }
     enum ButtonSelectionMode: String, Codable, Sendable {
         case multiple
@@ -1057,6 +1083,7 @@ nonisolated struct PartPackageControl: Codable, Equatable, Sendable {
     let showsFamily: Bool?
     let showsWeight: Bool?
     let showsStyle: Bool?
+    let showsSize: Bool?
     let minimum: Double?
     let maximum: Double?
     let minimumDate: String?
@@ -1079,14 +1106,14 @@ nonisolated struct PartPackageControl: Codable, Equatable, Sendable {
     let operation: String?
     let round: Bool?
     let absoluteURL: Bool?
-    let presentation: SelectPresentation?
+    let presentation: ControlPresentation?
     /// Explicit starting link state for edges/corners controls; nil infers it from
     /// whether the declared edge defaults are all equal.
     let linked: Bool?
 
     enum CodingKeys: String, CodingKey {
         case type, font, minimum, maximum, step, options, frameworkValues, allowsCustom
-        case showsFamily, showsWeight, showsStyle
+        case showsFamily, showsWeight, showsStyle, showsSize
         case opacity, outputFormat, customColor, count, ticks, showsValueField
         case trueValue, falseValue, selectionMode, argument1, argument2, operation, round, absoluteURL, presentation, linked
     }
@@ -1101,7 +1128,7 @@ nonisolated struct PartPackageControl: Codable, Equatable, Sendable {
         opacity: Bool? = nil,
         showsValueField: Bool? = nil,
         absoluteURL: Bool? = nil,
-        presentation: SelectPresentation? = nil,
+        presentation: ControlPresentation? = nil,
         showsStyle: Bool? = nil
     ) {
         self.type = type
@@ -1109,6 +1136,7 @@ nonisolated struct PartPackageControl: Codable, Equatable, Sendable {
         showsFamily = nil
         showsWeight = nil
         self.showsStyle = showsStyle
+        showsSize = nil
         self.minimum = minimum
         self.maximum = maximum
         minimumDate = nil
@@ -1135,7 +1163,7 @@ nonisolated struct PartPackageControl: Codable, Equatable, Sendable {
         linked = nil
     }
 
-    static func select(_ options: [(String, String)], presentation: SelectPresentation? = nil) -> Self {
+    static func select(_ options: [(String, String)], presentation: ControlPresentation? = nil) -> Self {
         Self(type: .select, options: options.map { PartPackageOption(value: $0.0, title: $0.1) }, presentation: presentation)
     }
 
@@ -1146,6 +1174,7 @@ nonisolated struct PartPackageControl: Codable, Equatable, Sendable {
         showsFamily = try container.decodeIfPresent(Bool.self, forKey: .showsFamily)
         showsWeight = try container.decodeIfPresent(Bool.self, forKey: .showsWeight)
         showsStyle = try container.decodeIfPresent(Bool.self, forKey: .showsStyle)
+        showsSize = try container.decodeIfPresent(Bool.self, forKey: .showsSize)
         if type == .date {
             minimum = nil
             maximum = nil
@@ -1175,7 +1204,7 @@ nonisolated struct PartPackageControl: Codable, Equatable, Sendable {
         operation = try container.decodeIfPresent(String.self, forKey: .operation)
         round = try container.decodeIfPresent(Bool.self, forKey: .round)
         absoluteURL = try container.decodeIfPresent(Bool.self, forKey: .absoluteURL)
-        presentation = try container.decodeIfPresent(SelectPresentation.self, forKey: .presentation)
+        presentation = try container.decodeIfPresent(ControlPresentation.self, forKey: .presentation)
         linked = try container.decodeIfPresent(Bool.self, forKey: .linked)
     }
 
@@ -1186,6 +1215,7 @@ nonisolated struct PartPackageControl: Codable, Equatable, Sendable {
         try container.encodeIfPresent(showsFamily, forKey: .showsFamily)
         try container.encodeIfPresent(showsWeight, forKey: .showsWeight)
         try container.encodeIfPresent(showsStyle, forKey: .showsStyle)
+        try container.encodeIfPresent(showsSize, forKey: .showsSize)
         if type == .date {
             try container.encodeIfPresent(minimumDate, forKey: .minimum)
             try container.encodeIfPresent(maximumDate, forKey: .maximum)
@@ -1389,11 +1419,6 @@ nonisolated struct PartPackageTemplateFile: Codable, Equatable, Sendable {
     }
 }
 
-nonisolated struct PartPackageMissingPart: Codable, Equatable, Sendable {
-    let message: String?
-    let preview: String?
-}
-
 nonisolated struct PartPackageLock: Codable, Equatable, Hashable, Sendable {
     let identifier: String
 }
@@ -1401,6 +1426,5 @@ nonisolated struct PartPackageLock: Codable, Equatable, Hashable, Sendable {
 nonisolated struct MissingPartSnapshot: Codable, Equatable, Sendable {
     let name: String
     let category: String
-    let previewHTML: String?
     let helpURL: URL?
 }

@@ -392,11 +392,11 @@ struct ReusablePartTests {
         nestedGlobal.reusableDefinitionID = nestedDefinitionID
         var overriddenChild = PartNode.make(.heading)
         overriddenChild.overridesGlobalDefinition = true
-        var instance = PartNode.make(.section)
+        var instance = PartNode.make(.container)
         instance.reusableDefinitionID = UUID()
         instance.overridesGlobalDefinition = true
         instance.children = [overriddenChild, nestedGlobal]
-        var untouched = PartNode.make(.section)
+        var untouched = PartNode.make(.container)
         untouched.reusableDefinitionID = instance.reusableDefinitionID
 
         var parts = [instance, untouched]

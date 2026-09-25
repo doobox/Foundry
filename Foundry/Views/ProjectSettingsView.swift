@@ -124,6 +124,8 @@ private struct ProjectSettingsWindowContent: View {
             defaultDescription: document.site.defaultDescription,
             favicon: document.site.favicon,
             defaultSocialImage: document.site.defaultSocialImage,
+            socialImageAlt: document.site.socialImageAlt,
+            socialAccount: document.site.socialAccount,
             logo: document.site.logo,
             logoAlt: document.site.logoAlt,
             assets: document.site.assets,
@@ -156,6 +158,8 @@ struct ProjectSettingsView: View {
     let defaultDescription: String
     let favicon: String
     let defaultSocialImage: String
+    let socialImageAlt: String
+    let socialAccount: String
     let logo: String
     let logoAlt: String
     let assets: [ProjectAsset]
@@ -234,6 +238,8 @@ struct ProjectSettingsView: View {
                     titleSuffix: titleSuffix,
                     defaultDescription: defaultDescription,
                     defaultSocialImage: defaultSocialImage,
+                    socialImageAlt: socialImageAlt,
+                    socialAccount: socialAccount,
                     assets: assets,
                     editor: editor
                 )
@@ -1133,7 +1139,7 @@ private struct GeneralProjectSettingsView: View {
         self.assets = assets
         self.assetContents = assetContents
         self.editor = editor
-        let isCommonLanguage = Self.commonLanguages.contains { $0.code == language }
+        let isCommonLanguage = SiteLanguageOption.common.contains { $0.code == language }
         _selectedLanguageCode = State(initialValue: isCommonLanguage ? language : Self.customLanguageCode)
         _customLanguage = State(initialValue: isCommonLanguage ? "" : language)
     }
@@ -1172,7 +1178,7 @@ private struct GeneralProjectSettingsView: View {
                 ProjectSettingsGridRow("Language", alignment: .top) {
                     VStack(alignment: .leading, spacing: 8) {
                         Picker("Language", selection: languageSelection) {
-                            ForEach(Self.commonLanguages) { language in
+                            ForEach(SiteLanguageOption.common) { language in
                                 Text("\(language.name) — \(language.code)")
                                     .tag(language.code)
                             }
@@ -1246,16 +1252,7 @@ private struct GeneralProjectSettingsView: View {
     }
 
     private var isValidLanguage: Bool {
-        let value = language.trimmingCharacters(in: .whitespacesAndNewlines)
-        let parts = value.split(separator: "-", omittingEmptySubsequences: false)
-        guard let languageCode = parts.first,
-              (2...8).contains(languageCode.count),
-              languageCode.allSatisfy(\.isLetter) else { return false }
-        return parts.dropFirst().allSatisfy { part in
-            (1...8).contains(part.count) && part.allSatisfy { character in
-                character.isLetter || character.isNumber
-            }
-        }
+        SiteLanguageOption.isValidTag(language)
     }
 
     private var languageSelection: Binding<String> {
@@ -1274,27 +1271,6 @@ private struct GeneralProjectSettingsView: View {
 
     private static let customLanguageCode = "__custom__"
 
-    private static let commonLanguages: [LanguageOption] = [
-        .init(code: "en", name: "English"),
-        .init(code: "en-GB", name: "English (United Kingdom)"),
-        .init(code: "en-US", name: "English (United States)"),
-        .init(code: "fr", name: "French"),
-        .init(code: "de", name: "German"),
-        .init(code: "es", name: "Spanish"),
-        .init(code: "it", name: "Italian"),
-        .init(code: "nl", name: "Dutch"),
-        .init(code: "pt", name: "Portuguese"),
-        .init(code: "ja", name: "Japanese"),
-        .init(code: "zh-Hans", name: "Chinese (Simplified)"),
-        .init(code: "zh-Hant", name: "Chinese (Traditional)")
-    ]
-
-    private struct LanguageOption: Identifiable {
-        let code: String
-        let name: String
-
-        var id: String { code }
-    }
 }
 
 private struct ProjectSettingsGridRow<Content: View>: View {
@@ -1523,6 +1499,8 @@ private struct SiteIdentityProjectSettingsView: View {
     let titleSuffix: String
     let defaultDescription: String
     let defaultSocialImage: String
+    let socialImageAlt: String
+    let socialAccount: String
     let assets: [ProjectAsset]
     let editor: ProjectEditor
 
@@ -1548,7 +1526,7 @@ private struct SiteIdentityProjectSettingsView: View {
                         TextField(
                             "Description",
                             text: Binding(get: { defaultDescription }, set: editor.setSiteDefaultDescription),
-                            prompt: Text("Default description for pages").foregroundStyle(.secondary),
+                            prompt: Text("A short description of the site — ideally about 155 characters").foregroundStyle(.secondary),
                             axis: .vertical
                         )
                         .labelsHidden()
@@ -1571,6 +1549,34 @@ private struct SiteIdentityProjectSettingsView: View {
                             }
                         )
                         Text("Used when a page does not provide its own social image. Use a landscape image; 1200 × 630 pixels is the usual sharing size.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
+                ProjectSettingsGridRow("Image Description", alignment: .top) {
+                    VStack(alignment: .leading, spacing: 5) {
+                        TextField(
+                            "Image Description",
+                            text: Binding(get: { socialImageAlt }, set: editor.setSiteSocialImageAlt),
+                            prompt: Text("Describe the social image").foregroundStyle(.secondary)
+                        )
+                        .labelsHidden()
+                        Text("Read by screen readers when the shared link preview shows the social image above.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
+                ProjectSettingsGridRow("Social Account", alignment: .top) {
+                    VStack(alignment: .leading, spacing: 5) {
+                        TextField(
+                            "Social Account",
+                            text: Binding(get: { socialAccount }, set: editor.setSiteSocialAccount),
+                            prompt: Text("@yoursite").foregroundStyle(.secondary)
+                        )
+                        .labelsHidden()
+                        Text("Optional. Credits shared links to this account on networks that support attribution cards.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
@@ -1610,7 +1616,8 @@ private struct SiteIdentityProjectSettingsView: View {
     }
 }
 
-private struct SiteLogoImageWell: View {
+/// Shared by Site Settings and Page Info for choosing a managed image.
+struct SiteLogoImageWell: View {
     @Binding var selection: String
     let assets: [ProjectAsset]
     let assetContents: ProjectAssetContents

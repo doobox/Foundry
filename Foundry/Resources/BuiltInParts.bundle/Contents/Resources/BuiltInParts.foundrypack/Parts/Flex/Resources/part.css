@@ -8,23 +8,10 @@
     min-height: {{ control.minimumHeight }}px;
     height: auto;
     {{ if control.heightMode == "custom" }}height: {{ control.customHeight }}px;{{ endif }}
-    {{ if control.heightMode == "viewport" }}height: 100svh;{{ endif }}
+    {{ if control.heightMode == "viewport" }}min-height: max({{ control.minimumHeight }}px, 100svh);{{ endif }}
     padding: {{ if control.spacingEnabled }}{{ control.frameworkPadding }}{{ else }}0{{ endif }};
     margin: {{ if control.spacingEnabled }}{{ control.frameworkMargin }}{{ else }}0{{ endif }};
     overflow: {{ control.overflow }};
-    {{ if control.itemEnabled }}
-    flex-grow: {{ control.flexGrow }};
-    flex-shrink: {{ control.flexShrink }};
-    align-self: {{ control.alignSelf }};
-    grid-column: span {{ control.columnSpan }};
-    grid-row: span {{ control.rowSpan }};
-    {{ else }}
-    flex-grow: 0;
-    flex-shrink: 1;
-    align-self: auto;
-    grid-column: auto;
-    grid-row: auto;
-    {{ endif }}
     border-width: {{ if control.borderEnabled }}{{ control.frameworkBorder.width }}{{ else }}0{{ endif }};
     border-style: {{ control.frameworkBorder.style }};
     border-color: {{ control.frameworkBorderColour }};
@@ -32,6 +19,11 @@
     box-shadow: {{ if control.effectsEnabled }}{{ control.frameworkShadow }}{{ else }}none{{ endif }};
     opacity: 1;
     {{ if control.effectsEnabled }}opacity: calc({{ control.opacity }} / 100);{{ endif }}
+    {{ if control.heightMode == "fill" }}
+    /* Grows into the viewport space left by siblings; the body is a
+       min-height column, so this needs no height of its own. */
+    flex: 1 1 auto;
+    {{ endif }}
 }
 :instance > * { min-width: 0; }
 :instance {

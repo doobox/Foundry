@@ -94,8 +94,10 @@ nonisolated enum PartPackageVisibilityEvaluator {
         }
     }
 
+    private static let referenceExpression = try! NSRegularExpression(pattern: #"^([A-Za-z][A-Za-z0-9_-]*)(?:\[([0-9]+)\])?$"#)
+
     private static func reference(_ value: String) -> (key: PartProperty.Key, index: Int?)? {
-        let expression = try! NSRegularExpression(pattern: #"^([A-Za-z][A-Za-z0-9_-]*)(?:\[([0-9]+)\])?$"#)
+        let expression = referenceExpression
         guard let match = expression.firstMatch(in: value, range: NSRange(value.startIndex..., in: value)),
               let keyRange = Range(match.range(at: 1), in: value) else { return nil }
         let index = Range(match.range(at: 2), in: value).flatMap { Int(value[$0]) }
@@ -108,7 +110,7 @@ nonisolated enum PartPackageVisibilityEvaluator {
         breakpoint: ResponsiveBreakpoint,
         screens: ScreenTokens
     ) -> PartProperty.Value? {
-        guard part.type.definition.properties.contains(where: { $0.key == key }) else { return nil }
+        guard part.type.definition.property(for: key) != nil else { return nil }
         return part.propertyValue(key, at: breakpoint, screens: screens)
     }
 

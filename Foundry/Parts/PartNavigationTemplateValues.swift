@@ -1,5 +1,32 @@
 import Foundation
 
+/// Memoizes per-page template values for the lifetime of one renderer.
+/// Navigation values walk the whole site, and the renderers build a template
+/// context per part instance — recomputing them per part scales the cost by
+/// pages × parts. Renderers are created per render pass and their site is
+/// fixed at init, so an instance-lifetime cache can never serve stale values.
+nonisolated final class PartTemplateValuesCache: @unchecked Sendable {
+    private let lock = NSLock()
+    private var storage: [UUID: [String: PartPackageValue]] = [:]
+
+    func values(
+        for pageID: UUID,
+        compute: () -> [String: PartPackageValue]
+    ) -> [String: PartPackageValue] {
+        lock.lock()
+        if let cached = storage[pageID] {
+            lock.unlock()
+            return cached
+        }
+        lock.unlock()
+        let computed = compute()
+        lock.lock()
+        storage[pageID] = computed
+        lock.unlock()
+        return computed
+    }
+}
+
 nonisolated enum PartBreakpointTemplateValues {
     static func values(screens: ScreenTokens) -> [String: PartPackageValue] {
         let breakpoints = Dictionary(uniqueKeysWithValues: ResponsiveBreakpoint.allCases.map { breakpoint in
@@ -34,7 +61,7 @@ nonisolated enum PartNavigationTemplateValues {
             return .object([
                 "id": .string(page.id.uuidString),
                 "title": .string(page.title),
-                "href": .string(PageRouteResolver.path(for: page, pages: site.pages, folders: site.pageFolders)),
+                "href": .string(StaticSiteRenderer.urlPath(for: page, pages: site.pages, folders: site.pageFolders)),
                 "slug": .string(page.slug),
                 "depth": .number(Double(depth)),
                 "current": .boolean(page.id == currentPage.id),

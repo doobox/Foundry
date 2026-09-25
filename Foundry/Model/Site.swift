@@ -1,5 +1,44 @@
 import Foundation
 
+/// The curated language choices Site Settings and Page Info offer up front.
+/// Any other BCP-47 tag stays available through each surface's Custom option.
+nonisolated struct SiteLanguageOption: Identifiable, Sendable {
+    let code: String
+    let name: String
+
+    var id: String { code }
+
+    static let common: [SiteLanguageOption] = [
+        .init(code: "en", name: "English"),
+        .init(code: "en-GB", name: "English (United Kingdom)"),
+        .init(code: "en-US", name: "English (United States)"),
+        .init(code: "fr", name: "French"),
+        .init(code: "de", name: "German"),
+        .init(code: "es", name: "Spanish"),
+        .init(code: "it", name: "Italian"),
+        .init(code: "nl", name: "Dutch"),
+        .init(code: "pt", name: "Portuguese"),
+        .init(code: "ja", name: "Japanese"),
+        .init(code: "zh-Hans", name: "Chinese (Simplified)"),
+        .init(code: "zh-Hant", name: "Chinese (Traditional)")
+    ]
+
+    /// A structurally valid BCP-47 tag: a 2–8 letter language code followed
+    /// by optional alphanumeric subtags, such as en, en-GB, or zh-Hant-TW.
+    static func isValidTag(_ value: String) -> Bool {
+        let value = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        let parts = value.split(separator: "-", omittingEmptySubsequences: false)
+        guard let languageCode = parts.first,
+              (2...8).contains(languageCode.count),
+              languageCode.allSatisfy(\.isLetter) else { return false }
+        return parts.dropFirst().allSatisfy { part in
+            (1...8).contains(part.count) && part.allSatisfy { character in
+                character.isLetter || character.isNumber
+            }
+        }
+    }
+}
+
 nonisolated enum PageExtensionPreference: String, Codable, CaseIterable, Sendable {
     case automatic
     case html
@@ -189,6 +228,11 @@ nonisolated struct Site: Codable, Equatable, Identifiable, Sendable {
     var favicon: String
     var webIconAssets: [ProjectAsset]
     var defaultSocialImage: String
+    /// Describes the default social image for shares (og:image:alt); only
+    /// emitted on pages that use the site-wide image.
+    var socialImageAlt: String
+    /// The site's social handle, such as @doobox, emitted as twitter:site.
+    var socialAccount: String
     var logo: String
     var siteLogoAssets: [ProjectAsset]
     var logoAlt: String
@@ -333,6 +377,8 @@ nonisolated struct Site: Codable, Equatable, Identifiable, Sendable {
         favicon: String = "",
         webIconAssets: [ProjectAsset] = [],
         defaultSocialImage: String = "",
+        socialImageAlt: String = "",
+        socialAccount: String = "",
         logo: String = "",
         siteLogoAssets: [ProjectAsset] = [],
         logoAlt: String = "",
@@ -380,6 +426,8 @@ nonisolated struct Site: Codable, Equatable, Identifiable, Sendable {
         self.favicon = favicon
         self.webIconAssets = webIconAssets
         self.defaultSocialImage = defaultSocialImage
+        self.socialImageAlt = socialImageAlt
+        self.socialAccount = socialAccount
         self.logo = logo
         self.siteLogoAssets = siteLogoAssets
         self.logoAlt = logoAlt
@@ -467,7 +515,7 @@ nonisolated struct Site: Codable, Equatable, Identifiable, Sendable {
 
     private enum CodingKeys: String, CodingKey {
         case appearanceMode
-        case id, schemaVersion, name, language, publicURL, titleSuffix, defaultDescription, favicon, webIconAssets, defaultSocialImage, logo, siteLogoAssets, logoAlt, generatesCanonicalURLs, generatesSitemap, generatesRobotsTXT, allowsSearchIndexing, customCodeEnabled, headCode, bodyStartCode, bodyEndCode, analyticsCode, generatesCacheBustingLinks, defaultPageExtension, previewServerPort, minifiesGeneratedOutput, cleansObsoleteExportFiles, publishingDestination, publishingHost, publishingPort, publishingUsername, publishingRemotePath, publishingS3Bucket, publishingS3Region, publishingDestinations, defaultPublishingDestinationID, pages, pageFolders, framework, frameworkSourceID, projectFrameworkValues, frameworkStates, globalPartLibrary, projectTemplateLibrary, assetLibrary, partPackages
+        case id, schemaVersion, name, language, publicURL, titleSuffix, defaultDescription, favicon, webIconAssets, defaultSocialImage, socialImageAlt, socialAccount, logo, siteLogoAssets, logoAlt, generatesCanonicalURLs, generatesSitemap, generatesRobotsTXT, allowsSearchIndexing, customCodeEnabled, headCode, bodyStartCode, bodyEndCode, analyticsCode, generatesCacheBustingLinks, defaultPageExtension, previewServerPort, minifiesGeneratedOutput, cleansObsoleteExportFiles, publishingDestination, publishingHost, publishingPort, publishingUsername, publishingRemotePath, publishingS3Bucket, publishingS3Region, publishingDestinations, defaultPublishingDestinationID, pages, pageFolders, framework, frameworkSourceID, projectFrameworkValues, frameworkStates, globalPartLibrary, projectTemplateLibrary, assetLibrary, partPackages
     }
 
     init(from decoder: Decoder) throws {
@@ -483,6 +531,8 @@ nonisolated struct Site: Codable, Equatable, Identifiable, Sendable {
         favicon = try container.decode(String.self, forKey: .favicon)
         webIconAssets = try container.decodeIfPresent([ProjectAsset].self, forKey: .webIconAssets) ?? []
         defaultSocialImage = try container.decode(String.self, forKey: .defaultSocialImage)
+        socialImageAlt = try container.decodeIfPresent(String.self, forKey: .socialImageAlt) ?? ""
+        socialAccount = try container.decodeIfPresent(String.self, forKey: .socialAccount) ?? ""
         logo = try container.decodeIfPresent(String.self, forKey: .logo) ?? ""
         siteLogoAssets = try container.decodeIfPresent([ProjectAsset].self, forKey: .siteLogoAssets) ?? []
         logoAlt = try container.decodeIfPresent(String.self, forKey: .logoAlt) ?? ""

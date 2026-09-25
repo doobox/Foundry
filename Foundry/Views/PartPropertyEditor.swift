@@ -224,7 +224,7 @@ struct PartPropertyEditor: View {
                 indicator: responsiveIndicator
             )
         case .choice(let choices):
-            if definition.selectPresentation == .segmented {
+            if definition.presentation == .segmented {
                 InspectorRow(title: definition.label, indicator: responsiveIndicator) {
                     InspectorSegmentedControl(
                         selection: stringBinding(as: .choice),
@@ -443,7 +443,12 @@ struct PartPropertyEditor: View {
         case .divider:
             DividerPartControl()
         case .toggle:
-            TogglePartControl(label: definition.label, indicator: responsiveIndicator, isOn: booleanBinding)
+            TogglePartControl(
+                label: definition.label,
+                indicator: responsiveIndicator,
+                isOn: booleanBinding,
+                usesSwitch: definition.presentation == .switch
+            )
         case .image:
             ImagePartControl(
                 label: definition.label,

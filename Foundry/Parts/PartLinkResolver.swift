@@ -41,7 +41,7 @@ nonisolated enum PartLinkResolver {
         case .url(let value), .plainText(let value): path = value
         case .page(let id):
             path = pages.first(where: { $0.id == id }).map {
-                PageRouteResolver.path(for: $0, pages: pages, folders: folders)
+                StaticSiteRenderer.urlPath(for: $0, pages: pages, folders: folders)
             } ?? ""
         case .resource(let id):
             path = assets.first(where: { $0.id == id }).map {

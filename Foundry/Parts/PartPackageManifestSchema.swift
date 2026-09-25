@@ -27,12 +27,12 @@ nonisolated enum PartPackageManifestSchema {
 
     private static let partKeys: Set<String> = [
         "minimumAPIVersion", "id", "title", "description", "author", "version", "group",
-        "tags", "showsInPartLibrary", "allowedParents", "inspector", "templates", "assets", "helpURL", "missingPart",
+        "tags", "showsInPartLibrary", "allowedParents", "inspector", "templates", "assets", "helpURL",
         "requiresPHP", "libraries"
     ]
     private static let propertyKeys: Set<String> = [
         "id", "label", "title", "body", "systemImage", "defaults", "responsive", "subtitle", "buttonText", "units", "tooltip", "linked",
-        "type", "font", "showsFamily", "showsWeight", "showsStyle", "minimum", "maximum", "step", "options", "frameworkValues", "allowsCustom", "opacity", "outputFormat",
+        "type", "font", "showsFamily", "showsWeight", "showsStyle", "showsSize", "minimum", "maximum", "step", "options", "frameworkValues", "allowsCustom", "opacity", "outputFormat",
         "customColor", "count", "ticks", "showsValueField", "trueValue", "falseValue",
         "buttonIcon", "activeButtonText", "activeButtonIcon", "selectionMode", "fontSize", "argument1", "argument2", "operation", "round", "absoluteURL", "presentation", "visibleWhen", "valueAvailability", "alt", "focalPoint", "renditions", "accepts", "pickerItems", "initial", "containment"
     ]
@@ -41,7 +41,6 @@ nonisolated enum PartPackageManifestSchema {
     private static let templateKeys: Set<String> = ["html", "editorCSS", "files", "htmlContributions"]
     private static let templateFileKeys: Set<String> = ["path", "scope", "placement", "closure"]
     private static let htmlContributionKeys: Set<String> = ["placement", "template"]
-    private static let missingPartKeys: Set<String> = ["message", "preview"]
     private static let libraryKeys: Set<String> = ["id", "majorVersion"]
     private static let assetKeys: Set<String> = ["path", "scope"]
     private static let renditionKeys: Set<String> = ["id", "maximumDimension"]
@@ -80,6 +79,7 @@ nonisolated enum PartPackageManifestSchema {
                     entry,
                     location: location,
                     seenNames: &seenSectionNames,
+                    seenKinds: &seenControlGroupKinds,
                     groupedKinds: knownControlGroupKinds,
                     into: &diagnostics
                 )
@@ -173,18 +173,6 @@ nonisolated enum PartPackageManifestSchema {
                 }
             }
         }
-        if let missingPart = dictionary["missingPart"] as? [String: Any] {
-            unknownKeys(
-                in: missingPart,
-                allowed: missingPartKeys,
-                location: "manifest.json:missingPart",
-                into: &diagnostics
-            )
-            optionalString("message", in: missingPart, location: "manifest.json:missingPart", into: &diagnostics)
-            optionalString("preview", in: missingPart, location: "manifest.json:missingPart", into: &diagnostics)
-        } else if dictionary["missingPart"] != nil {
-            appendTypeError(key: "missingPart", expected: "a dictionary", location: "manifest.json", into: &diagnostics)
-        }
         validateDictionaryArray(dictionary["libraries"], key: "libraries", parent: "manifest.json", into: &diagnostics)
         dictionaries(in: dictionary["libraries"]).enumerated().forEach { index, library in
             let location = "manifest.json:libraries[\(index)]"
@@ -228,15 +216,15 @@ nonisolated enum PartPackageManifestSchema {
         }
     }
 
-    /// Validates one `controls` entry that is a plain Standard/Framework
-    /// property (i.e. its `type` didn't match a Grouped-control kind).
     /// An `inspector` entry without a `type` declares a named section: its
     /// `section` key names it, `systemImage` sets the disclosure-header icon,
-    /// and the nested `controls` all belong to it.
+    /// and the nested `controls` — plain controls and Grouped-control
+    /// references alike — all belong to it.
     private static func validateControlSection(
         _ entry: [String: Any],
         location: String,
         seenNames: inout Set<String>,
+        seenKinds: inout Set<String>,
         groupedKinds: Set<String>,
         into diagnostics: inout [PartPackageDiagnostic]
     ) {
@@ -262,7 +250,7 @@ nonisolated enum PartPackageManifestSchema {
         validateDictionaryArray(rawControls, key: "controls", parent: location, into: &diagnostics)
         dictionaries(in: rawControls).enumerated().forEach { index, control in
             let controlLocation = "\(location).controls[\(index)]"
-            guard let type = control["type"] as? String else {
+            if control["type"] == nil {
                 diagnostics.append(.init(
                     severity: .error,
                     location: controlLocation,
@@ -270,12 +258,26 @@ nonisolated enum PartPackageManifestSchema {
                 ))
                 return
             }
-            if groupedKinds.contains(type) {
+            guard let type = control["type"] as? String else {
+                validateStandardOrFrameworkControl(control, location: controlLocation, into: &diagnostics)
+                return
+            }
+            if type == PartPackageControlGroup.Kind.advanced.rawValue {
                 diagnostics.append(.init(
                     severity: .error,
                     location: controlLocation,
-                    message: "The grouped control '\(type)' carries its own section — declare it at the top level of the inspector."
+                    message: "The advanced group is Foundry's own Advanced section — declare it at the top level of the inspector."
                 ))
+                return
+            }
+            if groupedKinds.contains(type) {
+                validateGroupedControlReference(
+                    control,
+                    type: type,
+                    location: controlLocation,
+                    seenKinds: &seenKinds,
+                    into: &diagnostics
+                )
                 return
             }
             validateStandardOrFrameworkControl(control, location: controlLocation, into: &diagnostics)
@@ -302,11 +304,16 @@ nonisolated enum PartPackageManifestSchema {
                     message: "Select supports only declared options; remove \(key)."))
             }
             if let presentation = property["presentation"] as? String,
-               PartPackageControl.SelectPresentation(rawValue: presentation) == nil {
-                diagnostics.append(.init(severity: .error, location: "\(location).presentation", message: "Unknown select presentation '\(presentation)'."))
+               !["menu", "segmented"].contains(presentation) {
+                diagnostics.append(.init(severity: .error, location: "\(location).presentation", message: "A select presentation must be menu or segmented."))
+            }
+        } else if property["type"] as? String == PartPackageControl.Kind.toggle.rawValue {
+            if let presentation = property["presentation"] as? String,
+               !["checkbox", "switch"].contains(presentation) {
+                diagnostics.append(.init(severity: .error, location: "\(location).presentation", message: "A toggle presentation must be checkbox or switch."))
             }
         } else if property["presentation"] != nil {
-            diagnostics.append(.init(severity: .error, location: "\(location).presentation", message: "presentation is available only for select controls."))
+            diagnostics.append(.init(severity: .error, location: "\(location).presentation", message: "presentation is available only for select and toggle controls."))
         }
         if property["type"] as? String == PartPackageControl.Kind.frameworkColor.rawValue,
            property["count"] != nil {
@@ -536,14 +543,15 @@ nonisolated enum PartPackageManifestSchema {
             }
         }
         if type == .frameworkFont {
-            for key in ["showsFamily", "showsWeight", "showsStyle"] {
+            for key in ["showsFamily", "showsWeight", "showsStyle", "showsSize"] {
                 optionalBoolean(key, in: property, location: location, into: &diagnostics)
             }
             if let fields = property["default"] as? [String: Any] {
-                unknownKeys(in: fields, allowed: ["family", "weight", "style"], location: "\(location).default", into: &diagnostics)
+                unknownKeys(in: fields, allowed: ["family", "weight", "style", "size"], location: "\(location).default", into: &diagnostics)
                 requireString("family", in: fields, location: "\(location).default", into: &diagnostics)
                 optionalInteger("weight", in: fields, location: "\(location).default", into: &diagnostics)
                 if fields["style"] != nil { requireString("style", in: fields, location: "\(location).default", into: &diagnostics) }
+                if fields["size"] != nil { requireString("size", in: fields, location: "\(location).default", into: &diagnostics) }
             }
             for key in ["count", "frameworkValues", "options", "allowsCustom"] where property[key] != nil {
                 diagnostics.append(.init(severity: .error, location: "\(location).\(key)", message: "A frameworkFont control does not accept \(key)."))
@@ -582,7 +590,7 @@ nonisolated enum PartPackageManifestSchema {
             diagnostics.append(.init(severity: .error, location: "\(location).font", message: "font is only supported by fontWeight and fontStyle controls."))
         }
         if type != .frameworkFont {
-            for key in ["showsFamily", "showsWeight", "showsStyle"] where property[key] != nil {
+            for key in ["showsFamily", "showsWeight", "showsStyle", "showsSize"] where property[key] != nil {
                 if type == .frameworkBorder && key == "showsStyle" { continue }
                 diagnostics.append(.init(severity: .error, location: "\(location).\(key)", message: "\(key) requires a frameworkFont control."))
             }

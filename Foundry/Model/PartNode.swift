@@ -158,7 +158,6 @@ nonisolated struct PartNode: Codable, Equatable, Identifiable, Sendable {
                 MissingPartSnapshot(
                     name: $0.manifest.name,
                     category: $0.manifest.category,
-                    previewHTML: $0.manifest.missingPart?.preview,
                     helpURL: $0.manifest.helpURL
                 )
             }
@@ -197,11 +196,11 @@ nonisolated struct PartNode: Codable, Equatable, Identifiable, Sendable {
         if let value = properties.first(where: { $0.key == key })?.value {
             return value
         }
-        return type.definition.properties.first(where: { $0.key == key })?.defaultValue ?? .string("")
+        return type.definition.property(for: key)?.defaultValue ?? .string("")
     }
 
     func propertyValue(_ key: PartProperty.Key, at breakpoint: ResponsiveBreakpoint, screens: ScreenTokens = .standard) -> PartProperty.Value {
-        let definition = type.definition.properties.first { $0.key == key }
+        let definition = type.definition.property(for: key)
         for candidate in breakpoint.inheritedBreakpoints where candidate.minimumWidth(in: screens) != nil {
             if let value = responsiveOverrides?.first(where: {
                 $0.breakpoint == candidate && $0.key == key
@@ -228,7 +227,7 @@ nonisolated struct PartNode: Codable, Equatable, Identifiable, Sendable {
         at breakpoint: ResponsiveBreakpoint,
         screens: ScreenTokens = .standard
     ) -> ResponsiveBreakpoint {
-        let definition = type.definition.properties.first { $0.key == key }
+        let definition = type.definition.property(for: key)
         for candidate in breakpoint.inheritedBreakpoints where candidate.minimumWidth(in: screens) != nil {
             if responsiveOverrides?.contains(where: { $0.breakpoint == candidate && $0.key == key }) == true {
                 return candidate
@@ -243,9 +242,25 @@ nonisolated struct PartNode: Codable, Equatable, Identifiable, Sendable {
 
     func resolved(at breakpoint: ResponsiveBreakpoint, screens: ScreenTokens = .standard) -> PartNode {
         guard breakpoint != .mobile else { return self }
+        // Only keys that carry breakpoint data can differ from the stored
+        // base value; every other key would resolve to itself, and writing
+        // all of them dominates page-render profiles.
+        let definition = type.definition
+        var keys: [PartProperty.Key] = []
+        var seen: Set<PartProperty.Key> = []
+        for property in definition.properties where !property.breakpointDefaults.isEmpty {
+            if seen.insert(property.key).inserted { keys.append(property.key) }
+        }
+        for override in responsiveOverrides ?? [] where definition.property(for: override.key) != nil {
+            if seen.insert(override.key).inserted { keys.append(override.key) }
+        }
+        for value in responsiveDefaults ?? [] where definition.property(for: value.key) != nil {
+            if seen.insert(value.key).inserted { keys.append(value.key) }
+        }
+        guard !keys.isEmpty else { return self }
         var copy = self
-        for definition in type.definition.properties {
-            copy.setProperty(definition.key, value: propertyValue(definition.key, at: breakpoint, screens: screens))
+        for key in keys {
+            copy.setProperty(key, value: propertyValue(key, at: breakpoint, screens: screens))
         }
         return copy
     }

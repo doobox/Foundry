@@ -50,7 +50,7 @@ struct ReusablePartLibraryTests {
     func renameAndDeleteManageBundles() throws {
         let library = temporaryLibrary()
         let (document, _) = documentWithAsset()
-        let definition = ReusablePartDefinition(name: "Footer", root: PartNode.make(.section))
+        let definition = ReusablePartDefinition(name: "Footer", root: PartNode.make(.container))
         library.save(definition: definition, assetContents: document.assetContents)
 
         library.rename(id: definition.id, to: "Site Footer")
@@ -124,7 +124,7 @@ struct ReusablePartLibraryTests {
         let library = temporaryLibrary()
         let (document, _) = documentWithAsset()
         let hero = ReusablePartDefinition(name: "Hero", root: PartNode.make(.container))
-        let footer = ReusablePartDefinition(name: "Footer", root: PartNode.make(.section))
+        let footer = ReusablePartDefinition(name: "Footer", root: PartNode.make(.container))
         library.save(definition: hero, assetContents: document.assetContents)
         library.save(definition: footer, assetContents: document.assetContents)
         let rootURL = library.bundleURL(forID: footer.id).deletingLastPathComponent()

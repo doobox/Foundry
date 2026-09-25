@@ -37,7 +37,9 @@ struct StaticSiteRendererTests {
         )
 
         #expect(exportedCSS.contains("html,body{min-height:100%}"))
-        #expect(exportedCSS.contains("body{margin:0;background:"))
+        // svh, not a percentage: body's min-height must not depend on the
+        // html height chain, or flex-grow parts have no space to fill.
+        #expect(exportedCSS.contains("body{margin:0;min-height:100svh;background:"))
         #expect(exportedCSS.contains("display:flex;flex-direction:column;align-items:stretch"))
         #expect(exportedCSS.contains("*,*::before,*::after{box-sizing:border-box;border-width:0;border-style:solid;border-color:currentColor}"))
         #expect(exportedCSS.contains("--foundry-color-brand:"))
@@ -62,7 +64,11 @@ struct StaticSiteRendererTests {
     @Test
     func responsiveOverridesExportAsMediaQueriesWithoutCanvasMetadata() throws {
         var site = TestSiteFixtures.populatedSite()
-        let partID = try #require(site.pages.first?.parts.first?.id)
+        // Container roots no longer carry the sizing max-width; a Flex
+        // exercises the shared responsive control instead.
+        let stack = PartNode.make(.flex)
+        site.pages[0].parts.insert(stack, at: 0)
+        let partID = stack.id
         site.updatePart(id: partID) {
             $0.setResponsiveProperty(
                 .maxWidth,
@@ -252,6 +258,74 @@ struct StaticSiteRendererTests {
     }
 
     @Test
+    func sitewideSocialTagsEmitAutomatically() throws {
+        var site = Site.starter()
+        site.name = "Doobox"
+        site.publicURL = "https://example.com"
+        site.language = "en-GB"
+        site.defaultSocialImage = "https://example.com/share.png"
+        site.socialImageAlt = "The Doobox logo on a blue field"
+        site.socialAccount = "@doobox"
+        var about = Page(title: "About", slug: "about")
+        about.language = "fr"
+        site.pages.append(about)
+
+        let bundle = StaticSiteRenderer().render(site: site)
+        let html = try #require(bundle.file(at: "about/index.html")?.contents)
+
+        #expect(html.contains("<meta property=\"og:site_name\" content=\"Doobox\">"))
+        #expect(html.contains("<meta property=\"og:type\" content=\"website\">"))
+        // The page's language override wins and hyphens become underscores.
+        #expect(html.contains("<meta property=\"og:locale\" content=\"fr\">"))
+        #expect(html.contains("<meta property=\"og:url\" content=\"https://example.com/about/\">"))
+        #expect(html.contains("<meta property=\"og:image:alt\" content=\"The Doobox logo on a blue field\">"))
+        #expect(html.contains("<meta name=\"twitter:card\" content=\"summary_large_image\">"))
+        #expect(html.contains("<meta name=\"twitter:site\" content=\"@doobox\">"))
+        let home = try #require(bundle.file(at: "index.html")?.contents)
+        #expect(home.contains("<meta property=\"og:locale\" content=\"en_GB\">"))
+
+        // Without any social image the card falls back to summary, and a
+        // page-provided image drops the site-wide alt text.
+        var plain = Site.starter()
+        plain.pages[0].metadata.socialImage = "https://example.com/custom.png"
+        plain.socialImageAlt = "Never emitted for page images"
+        let plainHTML = try #require(StaticSiteRenderer().render(site: plain).file(at: "index.html")?.contents)
+        #expect(plainHTML.contains("<meta name=\"twitter:card\" content=\"summary_large_image\">"))
+        #expect(!plainHTML.contains("og:image:alt"))
+        #expect(!plainHTML.contains("twitter:site"))
+        var bare = Site.starter()
+        bare.socialAccount = "doobox"
+        let bareHTML = try #require(StaticSiteRenderer().render(site: bare).file(at: "index.html")?.contents)
+        #expect(bareHTML.contains("<meta name=\"twitter:card\" content=\"summary\">"))
+    }
+
+    @Test
+    func perPageSearchExclusionEmitsNoindexAndLeavesTheSitemap() throws {
+        var site = Site.starter()
+        site.publicURL = "https://example.com"
+        var hidden = Page(title: "Thanks", slug: "thanks")
+        hidden.includeInSearch = false
+        site.pages.append(hidden)
+
+        let bundle = StaticSiteRenderer().render(site: site)
+        let hiddenHTML = try #require(bundle.file(at: "thanks/index.html")?.contents)
+        let home = try #require(bundle.file(at: "index.html")?.contents)
+        let sitemap = try #require(bundle.file(at: "sitemap.xml")?.contents)
+
+        #expect(hiddenHTML.contains("<meta name=\"robots\" content=\"noindex\">"))
+        #expect(!home.contains("noindex"))
+        #expect(home.contains("<meta name=\"generator\" content=\"Foundry\">"))
+        #expect(!sitemap.contains("thanks"))
+        #expect(sitemap.contains("<loc>https://example.com/</loc>"))
+
+        // The site-wide switch still outranks the page's own setting.
+        site.allowsSearchIndexing = false
+        let locked = StaticSiteRenderer().render(site: site)
+        let lockedHome = try #require(locked.file(at: "index.html")?.contents)
+        #expect(lockedHome.contains("<meta name=\"robots\" content=\"noindex, nofollow\">"))
+    }
+
+    @Test
     func siteIdentityProvidesPageMetadataFallbacks() throws {
         var site = Site.starter()
         site.titleSuffix = " — Example"
@@ -286,6 +360,62 @@ struct StaticSiteRendererTests {
         #expect(sitemap.contains("<loc>https://example.com/about/</loc>"))
         #expect(robots.contains("Allow: /"))
         #expect(robots.contains("Sitemap: https://example.com/sitemap.xml"))
+    }
+
+    @Test
+    func folderAndFilenameOverridesControlOutputLinksLanguageAndSitemap() throws {
+        var site = Site.starter()
+        site.publicURL = "https://example.com"
+        site.language = "en"
+        var menu = Page(title: "Menu", slug: "menu")
+        menu.folderOverride = ""
+        menu.filenameOverride = "menu"
+        menu.includeInSitemap = false
+        var archive = Page(title: "Archive", slug: "archive")
+        archive.folderOverride = "photos/2026"
+        archive.language = "fr"
+        site.pages.append(contentsOf: [menu, archive])
+
+        let bundle = StaticSiteRenderer().render(site: site)
+
+        // The overrides place the files; the derived locations don't exist.
+        let menuHTML = try #require(bundle.file(at: "menu.html")?.contents)
+        let archiveHTML = try #require(bundle.file(at: "photos/2026/index.html")?.contents)
+        #expect(bundle.file(at: "menu/index.html") == nil)
+        #expect(bundle.file(at: "archive/index.html") == nil)
+
+        // Pretty URLs stand for index files; custom filenames stay visible.
+        #expect(StaticSiteRenderer.urlPath(for: menu, pages: site.pages, folders: site.pageFolders) == "/menu.html")
+        #expect(StaticSiteRenderer.urlPath(for: archive, pages: site.pages, folders: site.pageFolders) == "/photos/2026/")
+        let link = PartLinkResolver.resolve(
+            .init(destination: .page(menu.id)), pages: site.pages, folders: site.pageFolders,
+            assets: [], assetLibrary: nil, publicURL: "", absoluteURL: false
+        )
+        #expect(link.href == "/menu.html")
+
+        // Canonical URLs, sitemap membership, and the page language follow.
+        #expect(menuHTML.contains("rel=\"canonical\" href=\"https://example.com/menu.html\""))
+        #expect(archiveHTML.contains("<html lang=\"fr\">"))
+        #expect(menuHTML.contains("<html lang=\"en\">"))
+        let sitemap = try #require(bundle.file(at: "sitemap.xml")?.contents)
+        #expect(sitemap.contains("<loc>https://example.com/photos/2026/</loc>"))
+        #expect(!sitemap.contains("menu.html"))
+    }
+
+    @Test
+    func filenameOverrideExtensionYieldsToPHPRequirements() throws {
+        var page = Page(title: "Contact", slug: "contact")
+        page.filenameOverride = "contact.php"
+        #expect(StaticSiteRenderer.filename(for: page) == "contact.php")
+        page.filenameOverride = "contact"
+        page.preferredExtension = .php
+        #expect(StaticSiteRenderer.filename(for: page) == "contact.php")
+        page.preferredExtension = nil
+        #expect(StaticSiteRenderer.filename(for: page) == "contact.html")
+        // The home page ignores filename overrides entirely.
+        var home = Page(title: "Home", slug: "index")
+        home.filenameOverride = "welcome.html"
+        #expect(StaticSiteRenderer.filename(for: home) == "index.html")
     }
 
     @Test

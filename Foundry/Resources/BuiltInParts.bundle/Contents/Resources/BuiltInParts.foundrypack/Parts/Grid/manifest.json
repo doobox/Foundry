@@ -12,17 +12,18 @@
             "base": "count"
           },
           "id": "gridMode",
-          "label": "Grid Template Columns",
+          "label": "Columns",
           "options": [
             {
-              "title": "Repeat Column Count",
+              "title": "Fixed Count",
               "value": "count"
             },
             {
-              "title": "Auto Fit Minimum Width",
+              "title": "Fit to Width",
               "value": "auto"
             }
           ],
+          "presentation": "segmented",
           "responsive": true,
           "type": "select"
         },
@@ -49,7 +50,7 @@
             "base": 240
           },
           "id": "minimumColumnWidth",
-          "label": "Minimum Column Width",
+          "label": "Minimum Width",
           "maximum": 2000,
           "minimum": 40,
           "responsive": true,
@@ -67,7 +68,7 @@
             "base": "md"
           },
           "id": "frameworkGap",
-          "label": "Column Gap",
+          "label": "Gap",
           "responsive": true,
           "type": "frameworkSpacing"
         },
@@ -85,7 +86,7 @@
             "base": "auto"
           },
           "id": "rowSizing",
-          "label": "Grid Auto Rows",
+          "label": "Row Height",
           "options": [
             {
               "title": "Fit content",
@@ -96,6 +97,7 @@
               "value": "equal"
             }
           ],
+          "presentation": "segmented",
           "responsive": true,
           "type": "select"
         },
@@ -104,7 +106,7 @@
             "base": "stretch"
           },
           "id": "alignItems",
-          "label": "Align Items",
+          "label": "Align",
           "options": [
             {
               "title": "Stretch",
@@ -131,7 +133,7 @@
             "base": "stretch"
           },
           "id": "justifyItems",
-          "label": "Justify Items",
+          "label": "Align Horizontally",
           "options": [
             {
               "title": "Stretch",
@@ -152,28 +154,28 @@
           ],
           "responsive": true,
           "type": "select"
+        },
+        {
+          "accepts": [
+            "*"
+          ],
+          "id": "content",
+          "label": "Items",
+          "pickerItems": [
+            "foundry.layout.grid-item"
+          ],
+          "tooltip": "Grid Items carry per-item Span Columns and Span Rows controls. Any part can also be dropped in directly.",
+          "type": "childPicker"
         }
       ],
       "section": "Layout",
       "systemImage": "rectangle.3.group"
     },
     {
-      "type": "sizing"
-    },
-    {
-      "type": "layoutItem"
-    },
-    {
-      "type": "spacing"
-    },
-    {
-      "type": "borders"
-    },
-    {
-      "type": "effects"
-    },
-    {
       "controls": [
+        {
+          "type": "sizing"
+        },
         {
           "defaults": {
             "base": "visible"
@@ -199,14 +201,53 @@
           "type": "select"
         }
       ],
-      "section": "Advanced",
-      "systemImage": "gearshape"
+      "section": "Sizing",
+      "systemImage": "arrow.up.left.and.arrow.down.right"
     },
     {
-      "type": "background"
+      "controls": [
+        {
+          "type": "spacing"
+        }
+      ],
+      "section": "Spacing",
+      "systemImage": "arrow.up.and.down.and.arrow.left.and.right"
     },
     {
-      "type": "reveal"
+      "controls": [
+        {
+          "type": "background"
+        }
+      ],
+      "section": "Background",
+      "systemImage": "paintbrush.fill"
+    },
+    {
+      "controls": [
+        {
+          "type": "borders"
+        }
+      ],
+      "section": "Borders",
+      "systemImage": "square.dashed"
+    },
+    {
+      "controls": [
+        {
+          "type": "effects"
+        }
+      ],
+      "section": "Effects",
+      "systemImage": "sparkles"
+    },
+    {
+      "controls": [
+        {
+          "type": "reveal"
+        }
+      ],
+      "section": "Reveal",
+      "systemImage": "sparkles.rectangle.stack"
     }
   ],
   "minimumAPIVersion": 1,
@@ -226,5 +267,5 @@
     "html": "part.html"
   },
   "title": "Grid",
-  "version": "2.0.0"
+  "version": "2.2.0"
 }

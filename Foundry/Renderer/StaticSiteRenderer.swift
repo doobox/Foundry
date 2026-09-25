@@ -2,9 +2,18 @@ import Foundation
 
 nonisolated struct StaticSiteRenderer: SiteRendering {
     let environment: PartTemplateEnvironment
+    private let navigationValuesCache = PartTemplateValuesCache()
 
     init(environment: PartTemplateEnvironment = .published) {
         self.environment = environment
+    }
+
+    /// Navigation values walk the whole site; the export path builds a
+    /// template context per part instance, so they are memoized per page.
+    private func navigationValues(for page: Page, in site: Site) -> [String: PartPackageValue] {
+        navigationValuesCache.values(for: page.id) {
+            PartNavigationTemplateValues.values(site: site, currentPage: page)
+        }
     }
 
     func render(site: Site) -> SiteExportBundle {
@@ -170,15 +179,48 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
         }
     }
 
+    /// The page's exported file extension: a PHP-requiring part forces `php`;
+    /// then an extension the author typed into the filename override applies;
+    /// otherwise the extension stamped on the page at creation stands.
+    static func fileExtension(for page: Page) -> String {
+        if requiresPHP(page) { return "php" }
+        if let declared = page.filenameOverride.map({ ($0 as NSString).pathExtension }),
+           ["html", "php"].contains(declared) {
+            return declared
+        }
+        return page.preferredExtension == .php ? "php" : "html"
+    }
+
+    /// The exported file's name: the author's filename override when present,
+    /// completed with the effective extension; `index` otherwise. The home
+    /// page is always the root `index` file.
+    static func filename(for page: Page) -> String {
+        var base = "index"
+        if page.slug != "index", let override = page.filenameOverride {
+            let stripped = (override as NSString).deletingPathExtension
+            if !stripped.isEmpty { base = stripped }
+        }
+        return "\(base).\(fileExtension(for: page))"
+    }
+
+    /// The page's site-relative address the way links write it: the directory
+    /// alone for `index` files (pretty URLs), the visible filename otherwise.
+    static func urlPath(for page: Page, pages: [Page], folders: [PageFolder]) -> String {
+        let segments = PageRouteResolver.pathSegments(for: page, pages: pages, folders: folders)
+        let directory = segments.isEmpty ? "/" : "/" + segments.joined(separator: "/") + "/"
+        let file = filename(for: page)
+        return file.hasPrefix("index.") ? directory : directory + file
+    }
+
     static func outputPath(for page: Page, in site: Site) -> String {
-        let pageExtension = requiresPHP(page) || page.preferredExtension == .php ? "php" : "html"
-        guard page.slug != "index" else { return "index.\(pageExtension)" }
         let directory = PageRouteResolver.pathSegments(
             for: page,
             pages: site.pages,
             folders: site.pageFolders
         ).joined(separator: "/")
-        return joinedPath(directory, "index.\(pageExtension)")
+        return directory.isEmpty
+            ? filename(for: page)
+            : directory + "/" + filename(for: page)
     }
 
     static func customExportPath(for asset: ProjectAsset, in site: Site) -> String? {
@@ -208,7 +250,7 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
         let customBodyStartCode = site.customCodeEnabled ? site.bodyStartCode : ""
         let customBodyEndCode = site.customCodeEnabled ? site.bodyEndCode : ""
         let analyticsCode = site.customCodeEnabled ? site.analyticsCode : ""
-        let documentLanguage = language.trimmingCharacters(in: .whitespacesAndNewlines)
+        let documentLanguage = (page.language ?? language).trimmingCharacters(in: .whitespacesAndNewlines)
         // Conditional pieces that render nothing must not leave blank lines
         // in the document, so assemble from non-empty lines instead of
         // interpolating everything.
@@ -258,7 +300,7 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
                     instanceID: node.id,
                     packageIdentifier: package.manifest.identifier,
                     properties: packageProperties(node, framework: framework, assetPrefix: assetPrefix, assets: assets, site: site),
-                    templateValues: PartNavigationTemplateValues.values(site: site, currentPage: page),
+                    templateValues: navigationValues(for: page, in: site),
                     slots: [:],
                     assetBasePath: packageAssetPrefix,
                     assetPaths: templateAssetPaths(for: package, pageAssetPrefix: packageAssetPrefix, siteAssetPrefix: assetPrefix),
@@ -282,7 +324,7 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
                     instanceID: UUID(uuid: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)),
                     packageIdentifier: package.manifest.identifier,
                     properties: [:],
-                    templateValues: PartNavigationTemplateValues.values(site: site, currentPage: page),
+                    templateValues: navigationValues(for: page, in: site),
                     slots: [:],
                     assetBasePath: packageAssetPrefix,
                     assetPaths: templateAssetPaths(for: package, pageAssetPrefix: packageAssetPrefix, siteAssetPrefix: assetPrefix),
@@ -310,7 +352,7 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
             guard !source.isEmpty else { return nil }
             return PartTemplateRenderer.render(
                 source,
-                context: .init(instanceID: node.id, packageIdentifier: package.manifest.identifier, properties: packageProperties(node, framework: framework, assetPrefix: assetPrefix, assets: assets, site: site), templateValues: PartNavigationTemplateValues.values(site: site, currentPage: page), slots: [:], assetBasePath: packageAssetPrefix, assetPaths: templateAssetPaths(for: package, pageAssetPrefix: packageAssetPrefix, siteAssetPrefix: assetPrefix), siteBaseURL: siteBaseURL(for: site), pageURL: pageURL(for: page, in: site), siteRootPath: siteRootPath(for: assetPrefix), siteAssetsPath: assetPrefix, environment: environment)
+                context: .init(instanceID: node.id, packageIdentifier: package.manifest.identifier, properties: packageProperties(node, framework: framework, assetPrefix: assetPrefix, assets: assets, site: site), templateValues: navigationValues(for: page, in: site), slots: [:], assetBasePath: packageAssetPrefix, assetPaths: templateAssetPaths(for: package, pageAssetPrefix: packageAssetPrefix, siteAssetPrefix: assetPrefix), siteBaseURL: siteBaseURL(for: site), pageURL: pageURL(for: page, in: site), siteRootPath: siteRootPath(for: assetPrefix), siteAssetsPath: assetPrefix, environment: environment)
             )
         }
         var seenPackages: Set<String> = []
@@ -319,7 +361,7 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
                   seenPackages.insert(package.manifest.identifier).inserted else { return nil }
             let source = package.pageJavaScript
             guard !source.isEmpty else { return nil }
-            return PartTemplateRenderer.render(source, context: .init(instanceID: UUID(uuid: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)), packageIdentifier: package.manifest.identifier, properties: [:], templateValues: PartNavigationTemplateValues.values(site: site, currentPage: page), slots: [:], assetBasePath: packageAssetPrefix, assetPaths: templateAssetPaths(for: package, pageAssetPrefix: packageAssetPrefix, siteAssetPrefix: assetPrefix), siteBaseURL: siteBaseURL(for: site), pageURL: pageURL(for: page, in: site), siteRootPath: siteRootPath(for: assetPrefix), siteAssetsPath: assetPrefix, environment: environment))
+            return PartTemplateRenderer.render(source, context: .init(instanceID: UUID(uuid: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)), packageIdentifier: package.manifest.identifier, properties: [:], templateValues: navigationValues(for: page, in: site), slots: [:], assetBasePath: packageAssetPrefix, assetPaths: templateAssetPaths(for: package, pageAssetPrefix: packageAssetPrefix, siteAssetPrefix: assetPrefix), siteBaseURL: siteBaseURL(for: site), pageURL: pageURL(for: page, in: site), siteRootPath: siteRootPath(for: assetPrefix), siteAssetsPath: assetPrefix, environment: environment))
         }
         let source = (instanceScripts + sharedScripts).joined(separator: "\n")
         return source
@@ -336,7 +378,7 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
                 instanceID: UUID(uuid: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)),
                 packageIdentifier: package.manifest.identifier,
                 properties: [:],
-                templateValues: PartNavigationTemplateValues.values(site: site, currentPage: page),
+                templateValues: navigationValues(for: page, in: site),
                 slots: [:],
                 assetBasePath: packageAssetPrefix,
                 assetPaths: templateAssetPaths(for: package, pageAssetPrefix: packageAssetPrefix, siteAssetPrefix: assetPrefix),
@@ -366,15 +408,28 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
 
         let socialTitle = page.metadata.socialTitle.isEmpty ? browserTitle : page.metadata.socialTitle
         tags.append("<meta property=\"og:title\" content=\"\(escapeAttribute(socialTitle))\">")
+        if !site.name.isEmpty {
+            tags.append("<meta property=\"og:site_name\" content=\"\(escapeAttribute(site.name))\">")
+        }
+        tags.append("<meta property=\"og:type\" content=\"website\">")
+        let languageTag = (page.language ?? site.language).trimmingCharacters(in: .whitespacesAndNewlines)
+        if !languageTag.isEmpty {
+            let locale = languageTag.replacingOccurrences(of: "-", with: "_")
+            tags.append("<meta property=\"og:locale\" content=\"\(escapeAttribute(locale))\">")
+        }
 
+        tags.append("<meta name=\"generator\" content=\"Foundry\">")
         if !site.allowsSearchIndexing {
             tags.append("<meta name=\"robots\" content=\"noindex, nofollow\">")
+        } else if !page.includeInSearch {
+            tags.append("<meta name=\"robots\" content=\"noindex\">")
         }
 
         if site.generatesCanonicalURLs,
            let baseURL = validPublicURL(site.publicURL) {
             let canonicalURL = absoluteURL(for: page, in: site, baseURL: baseURL)
             tags.append("<link rel=\"canonical\" href=\"\(escapeAttribute(canonicalURL))\">")
+            tags.append("<meta property=\"og:url\" content=\"\(escapeAttribute(canonicalURL))\">")
         }
 
         let socialDescription = page.metadata.socialDescription.isEmpty
@@ -384,11 +439,21 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
             tags.append("<meta property=\"og:description\" content=\"\(escapeAttribute(socialDescription))\">")
         }
         let socialImage = page.metadata.socialImage.isEmpty ? site.defaultSocialImage : page.metadata.socialImage
+        var sharesImage = false
         if !socialImage.isEmpty {
             let source = exportSource(socialImage, assetPrefix: assetPrefix, assets: assets, site: site)
             if !source.isEmpty {
                 tags.append("<meta property=\"og:image\" content=\"\(escapeAttribute(source))\">")
+                sharesImage = true
+                // The site-wide alt describes the site-wide image only.
+                if page.metadata.socialImage.isEmpty, !site.socialImageAlt.isEmpty {
+                    tags.append("<meta property=\"og:image:alt\" content=\"\(escapeAttribute(site.socialImageAlt))\">")
+                }
             }
+        }
+        tags.append("<meta name=\"twitter:card\" content=\"\(sharesImage ? "summary_large_image" : "summary")\">")
+        if !site.socialAccount.isEmpty {
+            tags.append("<meta name=\"twitter:site\" content=\"\(escapeAttribute(site.socialAccount))\">")
         }
         tags.append(contentsOf: webIconPlan.markup(
             rootPrefix: siteRootPrefix(from: assetPrefix)
@@ -411,17 +476,13 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
     }
 
     private func absoluteURL(for page: Page, in site: Site, baseURL: String) -> String {
-        guard page.slug != "index" else { return baseURL + "/" }
-        let path = PageRouteResolver.pathSegments(
-            for: page,
-            pages: site.pages,
-            folders: site.pageFolders
-        ).joined(separator: "/")
-        return baseURL + "/" + path + "/"
+        baseURL + Self.urlPath(for: page, pages: site.pages, folders: site.pageFolders)
     }
 
     private func sitemap(for site: Site, baseURL: String) -> String {
-        let entries = site.pages.map { page in
+        // Noindexed pages stay out of the sitemap: inviting crawlers to a
+        // page that refuses indexing draws search-console warnings.
+        let entries = site.pages.filter { $0.includeInSitemap && $0.includeInSearch }.map { page in
             "  <url><loc>\(escape(absoluteURL(for: page, in: site, baseURL: baseURL)))</loc></url>"
         }.joined(separator: "\n")
         return """
@@ -490,7 +551,7 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
                     instanceID: node.id,
                     packageIdentifier: package.manifest.identifier,
                     properties: properties,
-                    templateValues: PartNavigationTemplateValues.values(site: site, currentPage: page),
+                    templateValues: navigationValues(for: page, in: site),
                     slots: slots,
                     dropZones: dropZones,
                     partClass: partClass(node) + " " +
@@ -719,7 +780,7 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
                                 assets: assets,
                                 site: site
                             ),
-                            templateValues: PartNavigationTemplateValues.values(site: site, currentPage: page),
+                            templateValues: navigationValues(for: page, in: site),
                             slots: [:],
                             partClass: partClass(resolved),
                             assetBasePath: packageAssetPrefix,
@@ -774,7 +835,7 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
                         assets: assets,
                         site: site
                     ),
-                    templateValues: PartNavigationTemplateValues.values(site: site, currentPage: page),
+                    templateValues: navigationValues(for: page, in: site),
                     slots: [:],
                     partClass: partClass(node),
                     assetBasePath: packageAssetPrefix,
@@ -800,7 +861,7 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
                     instanceID: UUID(uuid: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)),
                     packageIdentifier: package.manifest.identifier,
                     properties: [:],
-                    templateValues: PartNavigationTemplateValues.values(site: site, currentPage: page),
+                    templateValues: navigationValues(for: page, in: site),
                     slots: [:],
                     assetBasePath: packageAssetPrefix,
                     assetPaths: templateAssetPaths(for: package, pageAssetPrefix: packageAssetPrefix, siteAssetPrefix: assetPrefix),
@@ -870,8 +931,15 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
         assets: ProjectAssetContents,
         site: Site
     ) -> [String: PartPackageValue] {
-        var values: [String: PartPackageValue] = Dictionary(uniqueKeysWithValues: node.type.definition.properties.map { definition in
-            let value = node.propertyValue(definition.key)
+        // One definition fetch, one stored-value index and one manifest
+        // property expansion for the whole pass; repeating any of them per
+        // key dominates page-render profiles.
+        let partDefinition = node.type.definition
+        let definitions = partDefinition.properties
+        let manifestProperties = partDefinition.package?.manifest.resolvedProperties ?? []
+        let stored = Dictionary(node.properties.map { ($0.key, $0.value) }, uniquingKeysWith: { first, _ in first })
+        var values: [String: PartPackageValue] = Dictionary(uniqueKeysWithValues: definitions.map { definition in
+            let value = stored[definition.key] ?? definition.defaultValue
             if case .frameworkBorderWidth(let width) = value {
                 return (definition.key.rawValue, PartPackageFrameworkBorderWidthControl.resolved(width, framework: framework))
             }
@@ -930,7 +998,7 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
             }
             return (definition.key.rawValue, packageValue(value))
         })
-        for definition in node.type.definition.properties {
+        for definition in definitions {
             if definition.control.isFrameworkSpacing,
                case .object(let fields) = values[definition.key.rawValue] {
                 for (field, value) in fields {
@@ -966,7 +1034,7 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
                     includesOpacity: opacity,
                     to: &values
                 )
-                if let format = node.type.definition.package?.manifest.resolvedProperties
+                if let format = manifestProperties
                     .first(where: { $0.id == definition.key.rawValue })?.control.outputFormat,
                    let light, let dark {
                     values[definition.key.rawValue] = .string(site.appearanceMode.colour(
@@ -976,8 +1044,8 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
                 }
             }
         }
-        if let package = node.type.definition.package {
-            for property in package.manifest.resolvedProperties where property.control.type == .image {
+        if let package = partDefinition.package {
+            for property in manifestProperties where property.control.type == .image {
                 let key = PartProperty.Key(rawValue: property.id)
                 guard case .url(let source) = node.propertyValue(key) else { continue }
                 let metadata = source.foundryAssetID.flatMap { assets.asset($0)?.imageMetadata }
@@ -1014,7 +1082,7 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
                     values[property.id + suffix + ".href"] = .string(href)
                 }
             }
-            for property in package.manifest.resolvedProperties where property.control.type == .video {
+            for property in manifestProperties where property.control.type == .video {
                 let key = PartProperty.Key(rawValue: property.id)
                 guard case .url(let source) = node.propertyValue(key) else { continue }
                 let asset = source.foundryAssetID.flatMap { assets.asset($0) }
@@ -1033,7 +1101,7 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
                 )
             }
         }
-        for definition in node.type.definition.properties {
+        for definition in definitions {
             guard case .link(let absoluteURL) = definition.control,
                   case .link(let link) = node.propertyValue(definition.key) else { continue }
             let resolved = PartLinkResolver.resolve(
@@ -1047,14 +1115,14 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
         }
         let resolved = PartPackageDerivedValueResolver.resolve(
             values,
-            properties: node.type.definition.package?.manifest.resolvedProperties ?? []
+            properties: manifestProperties
         )
-        guard let properties = node.type.definition.package?.manifest.resolvedProperties else {
+        guard partDefinition.package != nil else {
             return resolved
         }
         return PartPackageVisibilityEvaluator.availableTemplateValues(
             resolved,
-            properties: properties,
+            properties: manifestProperties,
             for: node,
             screens: framework.screens
         )
@@ -1180,7 +1248,6 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
         assets: ProjectAssetContents,
         site: Site
     ) -> String {
-        if let preview = node.missingPackageSnapshot?.previewHTML { return preview }
         return node.children.map {
             render(
                 $0,

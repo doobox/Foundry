@@ -1,0 +1,313 @@
+{
+  "allowedParents": [
+    "foundry.layout.flex",
+    "foundry.layout.flex-item",
+    "foundry.layout.grid-item",
+    "foundry.layout.container"
+  ],
+  "assets": [],
+  "author": "Foundry",
+  "description": "A box that lives inside a Flex — it grows, shrinks and aligns against its siblings, and stacks its own content with Flexbox.",
+  "group": "Layout",
+  "id": "foundry.layout.flex-item",
+  "inspector": [
+    {
+      "controls": [
+        {
+          "defaults": {
+            "base": 1
+          },
+          "id": "flexGrow",
+          "label": "Grow",
+          "maximum": 10,
+          "minimum": 0,
+          "responsive": true,
+          "step": 1,
+          "tooltip": "Share of the parent's leftover space. Zero keeps the natural size.",
+          "type": "number"
+        },
+        {
+          "defaults": {
+            "base": 1
+          },
+          "id": "flexShrink",
+          "label": "Shrink",
+          "maximum": 10,
+          "minimum": 0,
+          "responsive": true,
+          "step": 1,
+          "tooltip": "Allow this item to give up space when the parent overflows. Zero prevents shrinking.",
+          "type": "number"
+        },
+        {
+          "defaults": {
+            "base": "auto"
+          },
+          "id": "alignSelf",
+          "label": "Align Self",
+          "options": [
+            {
+              "title": "Follow parent",
+              "value": "auto"
+            },
+            {
+              "title": "Stretch",
+              "value": "stretch"
+            },
+            {
+              "title": "Start",
+              "value": "flex-start"
+            },
+            {
+              "title": "Centre",
+              "value": "center"
+            },
+            {
+              "title": "End",
+              "value": "flex-end"
+            },
+            {
+              "title": "Baseline",
+              "value": "baseline"
+            }
+          ],
+          "responsive": true,
+          "tooltip": "Overrides the parent's Align for this item only.",
+          "type": "select"
+        }
+      ],
+      "section": "Flex item",
+      "systemImage": "square.on.square"
+    },
+    {
+      "controls": [
+        {
+          "defaults": {
+            "base": "column"
+          },
+          "id": "direction",
+          "label": "Direction",
+          "options": [
+            {
+              "title": "Column",
+              "value": "column"
+            },
+            {
+              "title": "Row",
+              "value": "row"
+            },
+            {
+              "title": "Column Reverse",
+              "value": "column-reverse"
+            },
+            {
+              "title": "Row Reverse",
+              "value": "row-reverse"
+            }
+          ],
+          "responsive": true,
+          "type": "select"
+        },
+        {
+          "defaults": {
+            "base": "nowrap"
+          },
+          "id": "wrap",
+          "label": "Wrap",
+          "options": [
+            {
+              "title": "No Wrap",
+              "value": "nowrap"
+            },
+            {
+              "title": "Wrap",
+              "value": "wrap"
+            },
+            {
+              "title": "Wrap Reverse",
+              "value": "wrap-reverse"
+            }
+          ],
+          "responsive": true,
+          "type": "select"
+        },
+        {
+          "defaults": {
+            "base": "flex-start"
+          },
+          "id": "justifyContent",
+          "label": "Distribute",
+          "options": [
+            {
+              "title": "Start",
+              "value": "flex-start"
+            },
+            {
+              "title": "Centre",
+              "value": "center"
+            },
+            {
+              "title": "End",
+              "value": "flex-end"
+            },
+            {
+              "title": "Space between",
+              "value": "space-between"
+            },
+            {
+              "title": "Space around",
+              "value": "space-around"
+            },
+            {
+              "title": "Space evenly",
+              "value": "space-evenly"
+            }
+          ],
+          "responsive": true,
+          "tooltip": "Distribute this item's own children along its direction.",
+          "type": "select"
+        },
+        {
+          "defaults": {
+            "base": "stretch"
+          },
+          "id": "alignItems",
+          "label": "Align",
+          "options": [
+            {
+              "title": "Stretch",
+              "value": "stretch"
+            },
+            {
+              "title": "Start",
+              "value": "flex-start"
+            },
+            {
+              "title": "Centre",
+              "value": "center"
+            },
+            {
+              "title": "End",
+              "value": "flex-end"
+            },
+            {
+              "title": "Baseline",
+              "value": "baseline"
+            }
+          ],
+          "responsive": true,
+          "tooltip": "Controls child alignment on the cross axis.",
+          "type": "select"
+        },
+        {
+          "defaults": {
+            "base": "md"
+          },
+          "id": "frameworkGap",
+          "label": "Gap",
+          "responsive": true,
+          "type": "frameworkSpacing"
+        }
+      ],
+      "section": "Layout",
+      "systemImage": "rectangle.3.group"
+    },
+    {
+      "controls": [
+        {
+          "type": "sizing"
+        },
+        {
+          "defaults": {
+            "base": "visible"
+          },
+          "id": "overflow",
+          "label": "Overflow",
+          "options": [
+            {
+              "title": "Visible",
+              "value": "visible"
+            },
+            {
+              "title": "Clip",
+              "value": "hidden"
+            },
+            {
+              "title": "Scroll when needed",
+              "value": "auto"
+            }
+          ],
+          "responsive": true,
+          "tooltip": "Clipping can hide shadows or focus outlines.",
+          "type": "select"
+        }
+      ],
+      "section": "Sizing",
+      "systemImage": "arrow.up.left.and.arrow.down.right"
+    },
+    {
+      "controls": [
+        {
+          "type": "spacing"
+        }
+      ],
+      "section": "Spacing",
+      "systemImage": "arrow.up.and.down.and.arrow.left.and.right"
+    },
+    {
+      "controls": [
+        {
+          "type": "background"
+        }
+      ],
+      "section": "Background",
+      "systemImage": "paintbrush.fill"
+    },
+    {
+      "controls": [
+        {
+          "type": "borders"
+        }
+      ],
+      "section": "Borders",
+      "systemImage": "square.dashed"
+    },
+    {
+      "controls": [
+        {
+          "type": "effects"
+        }
+      ],
+      "section": "Effects",
+      "systemImage": "sparkles"
+    },
+    {
+      "controls": [
+        {
+          "type": "reveal"
+        }
+      ],
+      "section": "Reveal",
+      "systemImage": "sparkles.rectangle.stack"
+    }
+  ],
+  "minimumAPIVersion": 1,
+  "showsInPartLibrary": false,
+  "tags": [
+    "Foundry",
+    "built-in",
+    "layout",
+    "flex"
+  ],
+  "templates": {
+    "files": [
+      {
+        "path": "part.css",
+        "scope": "instance"
+      }
+    ],
+    "html": "part.html"
+  },
+  "title": "Flex Item",
+  "version": "1.0.0"
+}

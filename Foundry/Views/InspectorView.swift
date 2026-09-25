@@ -113,10 +113,28 @@ struct InspectorView: View {
                       let libraryPartType {
                 PartLibraryInspector(type: libraryPartType)
             } else {
-                Form {
-                    inspectorFormContent
+                if let page {
+                    // Hand-rolled labelled form: bordered boxes and native
+                    // controls read as editable at a glance, unlike the inset
+                    // grouped style where every row looks like plain text.
+                    Form {
+                        PageInspector(
+                            page: page,
+                            pages: pages,
+                            folders: folders,
+                            publicURL: publicURL,
+                            assets: assets,
+                            assetContents: assetContents,
+                            editor: editor
+                        )
+                    }
+                    .formStyle(.grouped)
+                } else {
+                    Form {
+                        inspectorFormContent
+                    }
+                    .formStyle(.grouped)
                 }
-                .formStyle(.grouped)
             }
         }
     }
@@ -165,8 +183,6 @@ struct InspectorView: View {
             PageFolderInspector(folder: folder, folders: folders, editor: editor)
         } else if let asset {
             PageAssetInspector(asset: asset, content: assetContents[asset.id], folders: folders)
-        } else if let page {
-            PageInspector(page: page, pages: pages, folders: folders, editor: editor)
         } else {
             ContentUnavailableView(
                 "No Selection",
@@ -183,44 +199,42 @@ private struct PartLibraryInspector: View {
 
     var body: some View {
         let package = type.definition.package
-        ScrollView {
-            LazyVStack(spacing: 14) {
-                InspectorCard {
-                    PartLibraryInspectorHeader(
-                        type: type,
-                        description: type.libraryDescription,
-                        isDevelopmentPack: package?.isDevelopmentPack == true
-                    )
-                }
+        Form {
+            Section {
+                PartLibraryInspectorHeader(
+                    type: type,
+                    description: type.libraryDescription,
+                    isDevelopmentPack: package?.isDevelopmentPack == true
+                )
+            }
 
-                InspectorCard(title: "Part") {
-                    PartLibraryInspectorMetadata(
-                        identifier: type.rawValue,
-                        developer: package?.manifest.author,
-                        version: package.flatMap(displayVersion),
-                        category: type.definition.category.rawValue,
-                        helpURL: package?.manifest.helpURL
-                    )
-                }
+            Section("Part") {
+                PartLibraryInspectorMetadata(
+                    identifier: type.rawValue,
+                    developer: package?.manifest.author,
+                    version: package.flatMap(displayVersion),
+                    category: type.definition.category.rawValue,
+                    helpURL: package?.manifest.helpURL
+                )
+            }
 
-                if let tags = package?.manifest.tags, !tags.isEmpty {
-                    InspectorCard(title: "Tags") {
-                        PartLibraryInspectorTags(tags: tags)
-                    }
-                }
-
-                if let updateSourceURL = package?.updateSourceURL {
-                    InspectorCard(title: "Updates") {
-                        PartLibraryUpdateControls(sourceURL: updateSourceURL)
-                    }
-                }
-
-                if enablesDeveloperTools, let package, !package.isBuiltIn {
-                    PartPackConversionControls(package: package)
+            if let tags = package?.manifest.tags, !tags.isEmpty {
+                Section("Tags") {
+                    PartLibraryInspectorTags(tags: tags)
                 }
             }
-            .padding(16)
+
+            if let updateSourceURL = package?.updateSourceURL {
+                Section("Updates") {
+                    PartLibraryUpdateControls(sourceURL: updateSourceURL)
+                }
+            }
+
+            if enablesDeveloperTools, let package, !package.isBuiltIn {
+                PartPackConversionControls(package: package)
+            }
         }
+        .formStyle(.grouped)
         .controlSize(.small)
         .font(.callout)
     }
@@ -241,7 +255,7 @@ private struct PartPackConversionControls: View {
     @State private var errorMessage: String?
 
     var body: some View {
-        InspectorCard(title: conversionTitle) {
+        Section(conversionTitle) {
             Button("Click to Convert", systemImage: "arrow.triangle.2.circlepath") {
                 convert()
             }
@@ -368,20 +382,28 @@ private struct PartLibraryInspectorMetadata: View {
     let helpURL: URL?
 
     var body: some View {
-        LabeledContent("Developer", value: normalizedDeveloper)
-        LabeledContent("Version", value: version ?? "—")
-        LabeledContent("Category", value: category)
-        LabeledContent("Identifier") {
+        row("Developer") { Text(normalizedDeveloper) }
+        row("Version") { Text(version ?? "—") }
+        row("Category") { Text(category) }
+        row("Identifier") {
             Text(identifier)
-                .font(.caption.monospaced())
-                .foregroundStyle(.secondary)
+                .monospaced()
                 .textSelection(.enabled)
         }
         if let helpURL {
-            LabeledContent("Help") {
+            row("Help") {
                 Link("Open Documentation", destination: helpURL)
                     .help(helpURL.absoluteString)
             }
+        }
+    }
+
+    private func row(_ label: String, @ViewBuilder value: () -> some View) -> some View {
+        LabeledContent {
+            value()
+        } label: {
+            Text("\(label):")
+                .foregroundStyle(.secondary)
         }
     }
 
@@ -595,7 +617,7 @@ private struct PageFolderInspector: View {
                 )
             )
             TextField(
-                "Slug",
+                "URL Name",
                 text: Binding(
                     get: { folder.slug },
                     set: { editor.setPageFolderSlug(id: folder.id, slug: $0) }
@@ -627,81 +649,355 @@ private struct PageFolderInspector: View {
     }
 }
 
+/// A text field that commits on Return or focus loss, then snaps its text to
+/// the normalized value the editor actually stored — so typing a path like
+/// photos/2026 isn't fought character-by-character by normalization.
+private struct DeferredTextField: View {
+    let label: String
+    let prompt: String
+    let value: String
+    let commit: (String) -> String
+    @State private var text = ""
+    @FocusState private var isFocused: Bool
+
+    var body: some View {
+        TextField(label, text: $text, prompt: Text(prompt))
+            .focused($isFocused)
+            .onAppear { text = value }
+            .onChange(of: value) { _, newValue in
+                if !isFocused { text = newValue }
+            }
+            .onSubmit { text = commit(text) }
+            .onChange(of: isFocused) { _, focused in
+                if !focused { text = commit(text) }
+            }
+    }
+}
+
 private struct PageInspector: View {
     @Environment(\.canvasAppearance) private var appearance
+    @Environment(\.openURL) private var openURL
     let page: Page
     let pages: [Page]
     let folders: [PageFolder]
+    /// Passed in rather than read off the editor so the view re-renders when
+    /// the Project Settings address changes.
+    let publicURL: String
+    let assets: [ProjectAsset]
+    let assetContents: ProjectAssetContents
     let editor: ProjectEditor
+    // Mirrors page.language for the picker: "" inherits, a curated code
+    // selects directly, and the custom sentinel reveals the tag field.
+    @State private var languageSelection = ""
+    @State private var customLanguage = ""
 
     var body: some View {
-        Section("Page") {
-            TextField(
-                "Title",
-                text: Binding(
-                    get: { page.title },
-                    set: { editor.renamePage(id: page.id, title: $0) }
-                )
-            )
-            TextField(
-                "Slug",
-                text: Binding(
-                    get: { page.slug },
-                    set: { editor.setPageSlug(id: page.id, slug: $0) }
-                )
-            )
-            .disabled(page.slug == "index")
-            LabeledContent("Path", value: exportPath)
-            LabeledContent("Export File", value: exportFilePath)
-            Toggle(
-                "Include in Navigation",
-                isOn: Binding(
-                    get: { page.includeInNavigation },
-                    set: { editor.setPageIncludedInNavigation(id: page.id, included: $0) }
-                )
-            )
-            Text("Slugs use lowercase letters, numbers, and hyphens. Duplicate slugs receive a numeric suffix.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
+        Section{
+            labelledField("Browser Title", text: metadataBinding(\.browserTitle), prompt: page.title)
         }
+        .textFieldStyle(.roundedBorder)
 
-        Section("Appearance") {
-            Grid(horizontalSpacing: 8) {
-                FrameworkColorPartControl(
-                    label: "Background", choices: framework.colorChoices, allowsCustom: true, framework: framework,
-                    source: backgroundSource, shade: backgroundShade, customColor: backgroundCustomColour,
-                    allowsOpacity: false,
-                    indicator: .init(isVisible: false, isOverridden: false, breakpointName: "", toggle: {}),
-                    resetToFramework: { editor.setPageBackground(id: page.id, value: nil) },
-                    canResetToFramework: page.backgroundOverride != nil)
+
+        Section {
+            VStack(spacing: 12) {
+                labelledField(
+                    "Page Title",
+                    text: Binding(
+                        get: { page.title },
+                        set: { editor.renamePage(id: page.id, title: $0) }
+                    )
+                )
+
+                labelledField(
+                    "Search Description",
+                    text: metadataBinding(\.description),
+                    prompt: "A short description of the page — ideally about 155 characters",
+                    lines: 3...6,
+                    limit: 155
+                )
             }
-            .controlSize(.small)
+            .listRowSeparator(.hidden)
+        }
+        .textFieldStyle(.roundedBorder)
+
+
+        Section {
+            VStack(spacing: 12) {
+                VStack(alignment: .leading) {
+                    Text("Published URL").font(.callout)
+                    HStack{
+                        TextField("", text: .constant(""), prompt: Text(publicURL + urlPath))
+                            .allowsHitTesting(false)
+                            .focusable(false)
+                            .labelsHidden()
+
+                        Button("Open Page", systemImage: "link") {
+                            if let liveURL {
+                                openURL(liveURL)
+                            }
+                        }
+                        .labelStyle(.iconOnly)
+                        .buttonStyle(.plain)
+                        .controlSize(.small)
+                        .contentShape(.rect)
+                        .disabled(liveURL == nil)
+                        .help(liveURL?.absoluteString ?? "Set the website address in Project Settings to open the live page")
+                    }
+                }
+                
+                Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: 10, verticalSpacing: 15) {
+                    GridRow {
+                        Text("Folder").font(.callout)
+                        DeferredTextField(
+                            label: "Folder",
+                            prompt: isHome ? "/" : derivedFolderPlaceholder,
+                            value: page.folderOverride ?? ""
+                        ) { editor.setPageFolderOverride(id: page.id, value: $0) ?? "" }
+                            .labelsHidden()
+                            .disabled(isHome)
+                    }
+                    GridRow {
+                        Text("Filename").font(.callout)
+                        DeferredTextField(
+                            label: "Filename",
+                            prompt: defaultFilenamePlaceholder,
+                            value: page.filenameOverride ?? ""
+                        ) { editor.setPageFilename(id: page.id, value: $0) ?? "" }
+                            .labelsHidden()
+                            .disabled(isHome)
+                    }
+                }
+            }
+            .listRowSeparator(.hidden)
+        }
+        .textFieldStyle(.roundedBorder)
+
+
+        Section {
+            VStack(spacing: 12) {
+                Toggle(
+                    "Include in Navigation",
+                    isOn: Binding(
+                        get: { page.includeInNavigation },
+                        set: { editor.setPageIncludedInNavigation(id: page.id, included: $0) }
+                    )
+                )
+                Toggle(
+                    "Include in Search",
+                    isOn: Binding(
+                        get: { page.includeInSearch },
+                        set: { editor.setPageIncludedInSearch(id: page.id, included: $0) }
+                    )
+                )
+                Toggle(
+                    "Include in Sitemap",
+                    isOn: Binding(
+                        get: { page.includeInSitemap },
+                        set: { editor.setPageIncludedInSitemap(id: page.id, included: $0) }
+                    )
+                )
+            }
+            .listRowSeparator(.hidden)
+        }
+        .textFieldStyle(.roundedBorder)
+
+
+        Section {
+            VStack(spacing: 12) {
+                VStack(alignment: .leading) {
+                    Text("Page Background").font(.callout)
+                    FrameworkColorControlContent(
+                        label: "Background",
+                        choices: framework.colorChoices,
+                        allowsCustom: true,
+                        framework: framework,
+                        source: backgroundSource,
+                        shade: backgroundShade,
+                        customColor: backgroundCustomColour,
+                        allowsOpacity: false,
+                        resetToFramework: { editor.setPageBackground(id: page.id, value: nil) },
+                        canResetToFramework: page.backgroundOverride != nil
+                    )
+                }
+            }
+            .listRowSeparator(.hidden)
+        }
+        .textFieldStyle(.roundedBorder)
+
+
+        Section {
+            Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: 10, verticalSpacing: 15) {
+                GridRow {
+                    Text("Language").font(.callout)
+                    VStack(alignment: .leading, spacing: 8) {
+                        Picker("Language", selection: Binding(
+                            get: { languageSelection },
+                            set: { code in
+                                languageSelection = code
+                                if code == Self.customLanguageCode {
+                                    editor.setPageLanguage(id: page.id, language: customLanguage.isEmpty ? nil : customLanguage)
+                                } else {
+                                    editor.setPageLanguage(id: page.id, language: code.isEmpty ? nil : code)
+                                }
+                            }
+                        )) {
+                            Text("Inherit Site Language").tag("")
+                            Divider()
+                            ForEach(SiteLanguageOption.common) { language in
+                                Text("\(language.name) — \(language.code)").tag(language.code)
+                            }
+                            Divider()
+                            Text("Custom…").tag(Self.customLanguageCode)
+                        }
+                        .labelsHidden()
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        if languageSelection == Self.customLanguageCode {
+                            TextField(
+                                "Language Tag",
+                                text: Binding(
+                                    get: { customLanguage },
+                                    set: { value in
+                                        customLanguage = value
+                                        editor.setPageLanguage(id: page.id, language: value.isEmpty ? nil : value)
+                                    }
+                                ),
+                                prompt: Text("e.g. cy or zh-Hant-TW").foregroundStyle(.secondary)
+                            )
+                            .labelsHidden()
+                            if !customLanguage.isEmpty, !SiteLanguageOption.isValidTag(customLanguage) {
+                                Text("Enter a valid language tag, such as en, en-GB, or zh-Hant.")
+                                    .font(.caption)
+                                    .foregroundStyle(.red)
+                            }
+                        }
+                    }
+                }
+            }
+            .listRowSeparator(.hidden)
+            .onChange(of: page.id, initial: true) { _, _ in
+                syncLanguageState()
+            }
+            .onChange(of: page.language) { _, _ in
+                syncLanguageState()
+            }
         }
 
-        Section("Search") {
-            metadataField("Browser Title", keyPath: \.browserTitle)
-            TextField(
-                "Description",
-                text: metadataBinding(\.description),
-                axis: .vertical
-            )
-            .lineLimit(3...6)
+        Section {
+            VStack(spacing: 12) {
+                labelledField("Social Title", text: metadataBinding(\.socialTitle), prompt: "Uses the browser title")
+                labelledField("Social Description", text: metadataBinding(\.socialDescription), prompt: "Uses the search description", lines: 3...6, limit: 200)
+                VStack(alignment: .leading, spacing: 5) {
+                    Text("Social Image").font(.callout)
+                    SiteLogoImageWell(
+                        selection: metadataBinding(\.socialImage),
+                        assets: imageAssets,
+                        assetContents: assetContents,
+                        imageName: "Social Image",
+                        importImage: importSocialImage
+                    )
+                    Text("Shown when this page is shared; leave empty to use the site-wide social image. Use a landscape image — 1200 × 630 pixels is the usual sharing size.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .listRowSeparator(.hidden)
         }
+        .textFieldStyle(.roundedBorder)
+    }
 
-        Section("Social Sharing") {
-            metadataField("Title", keyPath: \.socialTitle)
-            TextField(
-                "Description",
-                text: metadataBinding(\.socialDescription),
-                axis: .vertical
-            )
-            .lineLimit(3...6)
-            metadataField("Image URL", keyPath: \.socialImage)
+    private var imageAssets: [ProjectAsset] {
+        assets
+            .filter { $0.mediaType.hasPrefix("image/") }
+            .sorted { $0.filename.localizedStandardCompare($1.filename) == .orderedAscending }
+    }
+
+    private func importSocialImage(_ data: Data, filename: String, mediaType: String) {
+        let undoManager = editor.undoManager
+        undoManager?.beginUndoGrouping()
+        let id = editor.document.importAsset(
+            data: data,
+            filename: filename,
+            mediaType: mediaType,
+            undoManager: undoManager
+        )
+        metadataBinding(\.socialImage).wrappedValue = "foundry-asset:\(id.uuidString)"
+        undoManager?.endUndoGrouping()
+        undoManager?.setActionName("Set Social Image")
+    }
+
+    /// An Elements-style labelled input: the label sits above a full-width
+    /// bordered field.
+    private func labelledField(
+        _ label: String,
+        text: Binding<String>,
+        prompt: String? = nil,
+        lines: ClosedRange<Int>? = nil,
+        limit: Int? = nil
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(alignment: .firstTextBaseline) {
+                Text(label)
+                    .font(.callout)
+                if let limit {
+                    Spacer()
+                    let count = text.wrappedValue.count
+                    Text("\(count)/\(limit)")
+                        .font(.caption.monospacedDigit())
+                        .foregroundStyle(count > limit ? Color.red : count > limit - 20 ? Color.orange : Color.secondary)
+                        .help("Search engines and link previews usually truncate after about \(limit) characters.")
+                }
+            }
+            TextField(label, text: text, prompt: prompt.map(Text.init), axis: lines == nil ? .horizontal : .vertical)
+                .labelsHidden()
+                .lineLimit(lines ?? 1...1)
         }
     }
 
-    private var exportPath: String {
-        PageRouteResolver.path(for: page, pages: pages, folders: folders)
+    private var isHome: Bool { page.slug == "index" }
+
+    private var urlPath: String {
+        StaticSiteRenderer.urlPath(for: page, pages: pages, folders: folders)
+    }
+
+    /// The page's live address: the site's public URL joined with this page's
+    /// path. Nil while Project Settings has no complete http(s) address, so
+    /// the link button can disable itself.
+    private var liveURL: URL? {
+        guard let url = URL(string: publicURL + urlPath),
+              let scheme = url.scheme?.lowercased(),
+              scheme == "http" || scheme == "https",
+              url.host() != nil else { return nil }
+        return url
+    }
+
+    /// The folder the page tree would publish to, shown while no override is set.
+    private var derivedFolderPlaceholder: String {
+        var derived = page
+        derived.folderOverride = nil
+        let segments = PageRouteResolver.pathSegments(for: derived, pages: pages, folders: folders)
+        return segments.isEmpty ? "/" : segments.joined(separator: "/")
+    }
+
+    private var defaultFilenamePlaceholder: String {
+        var derived = page
+        derived.filenameOverride = nil
+        return StaticSiteRenderer.filename(for: derived)
+    }
+
+    private static let customLanguageCode = "__custom__"
+
+    private func syncLanguageState() {
+        let value = page.language ?? ""
+        if value.isEmpty {
+            languageSelection = ""
+            customLanguage = ""
+        } else if SiteLanguageOption.common.contains(where: { $0.code == value }) {
+            languageSelection = value
+            customLanguage = ""
+        } else {
+            languageSelection = Self.customLanguageCode
+            customLanguage = value
+        }
     }
 
     private var framework: Framework { editor.document.site.framework }
@@ -734,18 +1030,6 @@ private struct PageInspector: View {
             if appearance == .light { value.customColor = hex } else { value.darkCustomColor = hex }
             editor.setPageBackground(id: page.id, value: value)
         })
-    }
-
-    private var exportFilePath: String {
-        let fileExtension = StaticSiteRenderer.requiresPHP(page) ? "php" : "html"
-        return exportPath + "index.\(fileExtension)"
-    }
-
-    private func metadataField(
-        _ title: String,
-        keyPath: WritableKeyPath<PageMetadata, String>
-    ) -> some View {
-        TextField(title, text: metadataBinding(keyPath))
     }
 
     private func metadataBinding(
@@ -799,7 +1083,7 @@ private struct PartInspector: View {
     }
 
     private var advancedSection: PartPropertySection {
-        PartPropertySection(rawValue: PartPackageControlGroup.Kind.advanced.groupName)
+        PartPropertySection(rawValue: "Advanced")
     }
 
     /// The Inspector never starts fully collapsed: whenever a part arrives
@@ -820,14 +1104,14 @@ private struct PartInspector: View {
     }
 
     var body: some View {
+        // Deliberately not a Form: the control groups size their label column
+        // through onGeometryChange, which feedback-loops against a List-backed
+        // Form's row measurement and beachballs. A plain scroll view keeps
+        // the geometry stable.
         ScrollView {
             LazyVStack(spacing: 0) {
-                InspectorCard {
-                    partIdentityHeader
-                }
-                // The identity card wears the same inset as the Part Info
-                // header card; the sections below stay edge-to-edge.
-                .padding(EdgeInsets(top: 16, leading: 16, bottom: 14, trailing: 16))
+                partIdentityHeader
+                    .padding(EdgeInsets(top: 16, leading: 16, bottom: 14, trailing: 16))
 
                 ForEach(inspectorGroups, id: \.rawValue) { group in
                     Divider()
@@ -1506,30 +1790,6 @@ private struct PartInspectorGroup: View {
             breakpoint: breakpoint,
             importMedia: importMedia
         )
-    }
-}
-
-private struct InspectorCard<Content: View>: View {
-    let title: String?
-    @ViewBuilder let content: Content
-
-    init(title: String? = nil, @ViewBuilder content: () -> Content) {
-        self.title = title
-        self.content = content()
-    }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            if let title {
-                Text(title)
-                    .font(.headline)
-                    .foregroundStyle(.primary)
-            }
-            content
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(14)
-        .background(Color.primary.opacity(0.045), in: RoundedRectangle(cornerRadius: 12))
     }
 }
 

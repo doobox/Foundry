@@ -98,18 +98,30 @@
       "systemImage": "paintpalette"
     },
     {
-      "defaultOverrides": {
-        "frameworkMargin": {
-          "bottom": "md",
-          "left": "none",
-          "right": "none",
-          "top": "none"
+      "controls": [
+        {
+          "defaultOverrides": {
+            "frameworkMargin": {
+              "bottom": "md",
+              "left": "none",
+              "right": "none",
+              "top": "none"
+            }
+          },
+          "type": "spacing"
         }
-      },
-      "type": "spacing"
+      ],
+      "section": "Spacing",
+      "systemImage": "arrow.up.and.down.and.arrow.left.and.right"
     },
     {
-      "type": "reveal"
+      "controls": [
+        {
+          "type": "reveal"
+        }
+      ],
+      "section": "Reveal",
+      "systemImage": "sparkles.rectangle.stack"
     },
     {
       "section": "Content",
@@ -132,5 +144,5 @@
     "html": "part.html"
   },
   "title": "Heading",
-  "version": "1.0.0"
+  "version": "1.1.0"
 }

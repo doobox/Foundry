@@ -9,11 +9,11 @@ Always ask Gary for a supplied tile image when creating a built-in framework. Do
 The Foundry application and its browsable developer documentation are separate sibling Git repositories:
 
 - This repository: `Mac/Foundry/Foundry` (`doobox/Foundry`)
-- Documentation repository: `Mac/Foundry Developer API` (`doobox/foundry-developer-api`)
+- Documentation repository: `Mac/Foundry Docs` (`doobox/foundry-docs`) — user guide in `guide/`, part developer API in `developer/`
 
 Do not look for or reconstruct a `docs` directory in this repository. The historical in-repository docs were removed after the separate documentation repository was created.
 
-When asked to open, preview, serve, edit, or update the API docs, use the current working tree of the sibling `Foundry Developer API` repository, including its uncommitted changes. Start it with:
+When asked to open, preview, serve, edit, or update the API docs, use the current working tree of the sibling `Foundry Docs` repository, including its uncommitted changes. Start it with:
 
 ```sh
 ./scripts/serve-docs

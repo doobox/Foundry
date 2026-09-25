@@ -93,13 +93,13 @@ struct StructureOutlineView: NSViewRepresentable {
         }
 
         func reload(page: Page, selectedIDs: Set<UUID>) {
-            let signature = ["page:\(page.id.uuidString):\(page.title)"]
+            let signature = ["page:\(page.id.uuidString):\(page.title):\(page.slug)"]
                 + flattenedSignature(page.parts, parentID: nil)
             if signature != displayedSignature {
                 let expandedIDs = parent.expandedItemIDs.union(expandedItemIDs())
                 displayedSignature = signature
                 itemsByID.removeAll(keepingCapacity: true)
-                pageRoot = PageRootItem(id: page.id, title: page.title)
+                pageRoot = PageRootItem(id: page.id, title: page.title, isHome: page.slug == "index")
                 roots = page.parts.map { makeItem($0) }
                 outlineView?.reloadData()
                 isRestoringExpansion = true
@@ -157,10 +157,10 @@ struct StructureOutlineView: NSViewRepresentable {
                 cell.textField?.identifier = nil
                 cell.textField?.isEditable = false
                 cell.imageView?.image = NSImage(
-                    systemSymbolName: "doc",
-                    accessibilityDescription: "Page"
+                    systemSymbolName: pageRoot.isHome ? "house" : "doc",
+                    accessibilityDescription: pageRoot.isHome ? "Home page" : "Page"
                 )
-                cell.imageView?.setAccessibilityLabel("Page: \(pageRoot.title)")
+                cell.imageView?.setAccessibilityLabel("\(pageRoot.isHome ? "Home page" : "Page"): \(pageRoot.title)")
                 cell.globalIndicator.isHidden = true
                 cell.warningIndicator.isHidden = true
                 cell.unavailableDropZoneLabel.isHidden = true
@@ -1101,10 +1101,12 @@ private final class Item: NSObject {
 private final class PageRootItem: NSObject {
     let id: UUID
     let title: String
+    let isHome: Bool
 
-    init(id: UUID, title: String) {
+    init(id: UUID, title: String, isHome: Bool) {
         self.id = id
         self.title = title
+        self.isHome = isHome
     }
 }
 

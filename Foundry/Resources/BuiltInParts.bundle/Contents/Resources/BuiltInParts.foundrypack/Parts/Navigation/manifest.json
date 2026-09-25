@@ -13,6 +13,7 @@
           },
           "id": "showBrand",
           "label": "Show Brand",
+          "presentation": "switch",
           "tooltip": "Shows the brand name and optional logo, linking to the home page.",
           "type": "toggle"
         },
@@ -88,8 +89,49 @@
           },
           "id": "showDropdowns",
           "label": "Dropdown Menus",
+          "presentation": "switch",
           "tooltip": "Shows child pages in a dropdown under their parent.",
           "type": "toggle"
+        },
+        {
+          "defaults": {
+            "base": false
+          },
+          "id": "dropdownsOnHover",
+          "label": "Open on Hover",
+          "presentation": "switch",
+          "tooltip": "Opens dropdowns when the pointer hovers their link. Touch screens keep the tap button.",
+          "type": "toggle",
+          "visibleWhen": {
+            "id": "showDropdowns",
+            "value": true
+          }
+        }
+      ],
+      "section": "Menu",
+      "systemImage": "list.bullet"
+    },
+    {
+      "controls": [
+        {
+          "defaults": {
+            "base": "contained"
+          },
+          "id": "contentWidth",
+          "label": "Content Width",
+          "options": [
+            {
+              "title": "Contained",
+              "value": "contained"
+            },
+            {
+              "title": "Full Width",
+              "value": "full"
+            }
+          ],
+          "presentation": "segmented",
+          "tooltip": "Contained keeps the bar's content inside the site's content width; Full Width lets it reach the part's edges.",
+          "type": "select"
         },
         {
           "defaults": {
@@ -111,8 +153,73 @@
               "value": "end"
             }
           ],
+          "presentation": "segmented",
           "responsive": true,
           "type": "select"
+        },
+        {
+          "defaults": {
+            "base": "normal"
+          },
+          "id": "itemSpacing",
+          "label": "Link Spacing",
+          "options": [
+            {
+              "title": "Compact",
+              "value": "compact"
+            },
+            {
+              "title": "Normal",
+              "value": "normal"
+            },
+            {
+              "title": "Relaxed",
+              "value": "relaxed"
+            }
+          ],
+          "presentation": "segmented",
+          "responsive": true,
+          "type": "select"
+        }
+      ],
+      "section": "Layout",
+      "systemImage": "rectangle.3.group"
+    },
+    {
+      "controls": [
+        {
+          "defaults": {
+            "base": "plain"
+          },
+          "id": "linkStyle",
+          "label": "Link Style",
+          "options": [
+            {
+              "title": "Plain",
+              "value": "plain"
+            },
+            {
+              "title": "Pills",
+              "value": "pills"
+            },
+            {
+              "title": "Underline",
+              "value": "underline"
+            }
+          ],
+          "presentation": "segmented",
+          "tooltip": "Pills fill the current page's link; Underline draws a bar under hovered and current links.",
+          "type": "select"
+        },
+        {
+          "defaults": {
+            "base": false
+          },
+          "id": "uppercaseLinks",
+          "label": "Capitalise Links",
+          "presentation": "switch",
+          "tooltip": "Shows menu links in spaced capitals.",
+          "type": "toggle"
         },
         {
           "defaults": {
@@ -153,8 +260,8 @@
           "type": "frameworkColor"
         }
       ],
-      "section": "Menu",
-      "systemImage": "list.bullet"
+      "section": "Links",
+      "systemImage": "character"
     },
     {
       "controls": [
@@ -195,6 +302,7 @@
           },
           "id": "sticky",
           "label": "Pin to Top",
+          "presentation": "switch",
           "tooltip": "Keeps the navigation visible while the page scrolls.",
           "type": "toggle"
         }
@@ -203,24 +311,48 @@
       "systemImage": "pin"
     },
     {
-      "defaultOverrides": {
-        "frameworkPadding": {
-          "bottom": "2xs",
-          "left": "sm",
-          "right": "sm",
-          "top": "2xs"
+      "controls": [
+        {
+          "defaultOverrides": {
+            "frameworkPadding": {
+              "bottom": "2xs",
+              "left": "none",
+              "right": "none",
+              "top": "2xs"
+            }
+          },
+          "type": "spacing"
         }
-      },
-      "type": "spacing"
+      ],
+      "section": "Spacing",
+      "systemImage": "arrow.up.and.down.and.arrow.left.and.right"
     },
     {
-      "type": "borders"
+      "controls": [
+        {
+          "type": "borders"
+        }
+      ],
+      "section": "Borders",
+      "systemImage": "square.dashed"
     },
     {
-      "type": "effects"
+      "controls": [
+        {
+          "type": "effects"
+        }
+      ],
+      "section": "Effects",
+      "systemImage": "sparkles"
     },
     {
-      "type": "background"
+      "controls": [
+        {
+          "type": "background"
+        }
+      ],
+      "section": "Background",
+      "systemImage": "paintbrush.fill"
     }
   ],
   "minimumAPIVersion": 1,
@@ -246,5 +378,5 @@
     "html": "part.html"
   },
   "title": "Navigation",
-  "version": "1.0.0"
+  "version": "1.1.0"
 }

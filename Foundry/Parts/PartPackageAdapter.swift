@@ -218,7 +218,7 @@ nonisolated enum PartPackageAdapter {
                 allowsCustomFrameworkValue: property.control.allowsCustom == true,
                 dateMinimum: property.control.minimumDate.flatMap(PartDateValue.init).map(\.date),
                 dateMaximum: property.control.maximumDate.flatMap(PartDateValue.init).map(\.date),
-                selectPresentation: property.control.presentation
+                presentation: property.control.presentation
             )]
         }
         if property.control.type == .frameworkColor { return frameworkColorProperties(for: property) }
@@ -251,7 +251,7 @@ nonisolated enum PartPackageAdapter {
                 && property.control.frameworkValueSource != .fontFamilies,
             dateMinimum: property.control.minimumDate.flatMap(PartDateValue.init).map(\.date),
             dateMaximum: property.control.maximumDate.flatMap(PartDateValue.init).map(\.date),
-            selectPresentation: property.control.presentation
+            presentation: property.control.presentation
         )]
     }
 

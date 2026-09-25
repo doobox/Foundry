@@ -11,7 +11,7 @@
     font-family: var(--foundry-font-body);
     font-size: {{ control.fontSize }};
     line-height: {{ control.fontSize.lineHeight }};
-    padding: {{ if control.spacingEnabled }}{{ control.frameworkPadding }}{{ else }}var(--foundry-space-2xs) var(--foundry-space-sm){{ endif }};
+    padding: {{ if control.spacingEnabled }}{{ control.frameworkPadding }}{{ else }}var(--foundry-space-2xs) 0{{ endif }};
     margin: {{ if control.spacingEnabled }}{{ control.frameworkMargin }}{{ else }}0{{ endif }};
     border-width: {{ if control.borderEnabled }}{{ control.frameworkBorder.width }}{{ else }}0{{ endif }};
     border-style: {{ control.frameworkBorder.style }};
@@ -26,6 +26,13 @@
     align-items: center;
     gap: var(--foundry-space-sm);
     width: 100%;
+    /* The bar owns the horizontal gutter so link and brand text lines up
+       with a default Container's content at every width. */
+    padding-inline: var(--foundry-space-sm);
+    {{ if control.contentWidth == "contained" }}
+    max-width: var(--foundry-container-width);
+    margin-inline: auto;
+    {{ endif }}
 }
 :instance .fd-navigation__brand {
     display: inline-flex;
@@ -45,7 +52,7 @@
 :instance .fd-navigation__menu {
     display: flex;
     align-items: center;
-    gap: var(--foundry-space-3xs);
+    gap: {{ if control.itemSpacing == "compact" }}0{{ elseif control.itemSpacing == "relaxed" }}var(--foundry-space-xs){{ else }}var(--foundry-space-3xs){{ endif }};
     list-style: none;
     margin: 0;
     padding: 0;
@@ -81,6 +88,51 @@
     color: {{ control.activeColor }};
     font-weight: 600;
 }
+{{ if control.uppercaseLinks }}
+:instance .fd-navigation__link {
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+{{ endif }}
+{{ if control.linkStyle == "pills" }}
+:instance .fd-navigation__link:hover {
+    background: color-mix(in srgb, {{ control.activeColor }} 12%, transparent);
+}
+:instance .fd-navigation__link.is-current,
+:instance .fd-navigation__link.is-ancestor {
+    background: {{ control.activeColor }};
+    color: var(--foundry-color-surface);
+}
+{{ endif }}
+{{ if control.linkStyle == "underline" }}
+:instance .fd-navigation__link {
+    position: relative;
+    border-radius: 0;
+}
+:instance .fd-navigation__link::after {
+    content: "";
+    position: absolute;
+    inset-inline: var(--foundry-space-xs);
+    bottom: 0;
+    height: 2px;
+    background: {{ control.activeColor }};
+    transform: scaleX(0);
+    transition: transform var(--foundry-motion-fast) var(--foundry-motion-ease);
+}
+:instance .fd-navigation__link:hover::after,
+:instance .fd-navigation__link.is-current::after,
+:instance .fd-navigation__link.is-ancestor::after {
+    transform: scaleX(1);
+}
+{{ endif }}
+{{ if control.dropdownsOnHover }}
+@media (hover: hover) and (min-width: {{ control.collapseAt }}px) {
+    :instance .fd-navigation__item--parent:hover > .fd-navigation__dropdown,
+    :instance .fd-navigation__item--parent:focus-within > .fd-navigation__dropdown {
+        display: flex;
+    }
+}
+{{ endif }}
 :instance .fd-navigation__disclosure {
     display: inline-flex;
     align-items: center;
@@ -202,6 +254,7 @@
 
 @media (prefers-reduced-motion: reduce) {
     :instance .fd-navigation__link,
+    :instance .fd-navigation__link::after,
     :instance .fd-navigation__toggle span,
     :instance .fd-navigation__disclosure svg {
         transition: none;

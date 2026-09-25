@@ -1,0 +1,16 @@
+:instance {
+    display: block;
+    color: inherit;
+    font: inherit;
+    line-height: inherit;
+    font-family: {{ control.font.family }};
+    font-weight: {{ control.font.weight }};
+    font-style: {{ control.font.style }};
+    font-size: {{ control.font.size }};
+    line-height: {{ control.font.size.lineHeight }};
+    color: {{ control.textColour }};
+}
+
+:instance .copy-nowrap {
+    white-space: nowrap;
+}

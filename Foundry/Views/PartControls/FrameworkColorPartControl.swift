@@ -1,7 +1,6 @@
 import SwiftUI
 
 struct FrameworkColorPartControl: View {
-    @Environment(\.canvasAppearance) private var appearance
     let label: String
     let choices: [PartPropertyChoice]
     let allowsCustom: Bool
@@ -11,6 +10,42 @@ struct FrameworkColorPartControl: View {
     @Binding var customColor: Color
     let allowsOpacity: Bool
     let indicator: InspectorRowIndicator
+    var resetToFramework: (() -> Void)? = nil
+    var canResetToFramework = false
+
+    var body: some View {
+        InspectorRow(title: label, indicator: indicator) {
+            FrameworkColorControlContent(
+                label: label,
+                choices: choices,
+                allowsCustom: allowsCustom,
+                framework: framework,
+                source: $source,
+                shade: $shade,
+                customColor: $customColor,
+                allowsOpacity: allowsOpacity,
+                resetToFramework: resetToFramework,
+                canResetToFramework: canResetToFramework
+            )
+            .controlSize(.small)
+        }
+    }
+}
+
+/// The colour control's working parts — shade strip, default-shade star,
+/// optional reset, palette picker, and custom toggle — free of Inspector row
+/// chrome, so surfaces like Page Info can present them inside their own form
+/// styling. `label` names the control for accessibility only.
+struct FrameworkColorControlContent: View {
+    @Environment(\.canvasAppearance) private var appearance
+    let label: String
+    let choices: [PartPropertyChoice]
+    let allowsCustom: Bool
+    let framework: Framework
+    @Binding var source: String
+    @Binding var shade: ColourShade
+    @Binding var customColor: Color
+    let allowsOpacity: Bool
     var resetToFramework: (() -> Void)? = nil
     var canResetToFramework = false
     @State private var showsPalettes = false
@@ -30,8 +65,6 @@ struct FrameworkColorPartControl: View {
     }
 
     var body: some View {
-        Group {
-            InspectorRow(title: label, indicator: indicator) {
                 HStack(spacing: 6) {
                     if isCustom {
                         InspectorColorWell(color: $customColor, supportsAlpha: allowsOpacity)
@@ -124,11 +157,7 @@ struct FrameworkColorPartControl: View {
                         }
                     }
                 }
-                .controlSize(.small)
-            }
-        }
     }
-
 }
 
 struct InspectorPaletteSwatchStyle: ButtonStyle {

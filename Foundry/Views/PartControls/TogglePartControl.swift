@@ -4,10 +4,18 @@ struct TogglePartControl: View {
     let label: String
     let indicator: InspectorRowIndicator?
     @Binding var isOn: Bool
+    var usesSwitch = false
 
     var body: some View {
         InspectorRow(title: label, indicator: indicator) {
-            Toggle("", isOn: $isOn).labelsHidden()
+            if usesSwitch {
+                Toggle("", isOn: $isOn)
+                    .labelsHidden()
+                    .toggleStyle(.switch)
+                    .controlSize(.mini)
+            } else {
+                Toggle("", isOn: $isOn).labelsHidden()
+            }
         }
     }
 }

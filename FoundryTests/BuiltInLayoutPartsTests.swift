@@ -6,7 +6,7 @@ import WebKit
 @Suite("Built-in layout parts", .serialized)
 @MainActor
 struct BuiltInLayoutPartsTests {
-    private let names = ["Section", "Container", "Stack", "Grid"]
+    private let names = ["Container", "Flex", "Grid"]
 
     private func package(_ name: String) throws -> LoadedPartPackage {
         let root = URL(fileURLWithPath: #filePath)
@@ -18,22 +18,93 @@ struct BuiltInLayoutPartsTests {
     @Test func allLayoutsValidateAndShareInspectorGroups() throws {
         for name in names {
             let loaded = try package(name)
-            #expect(loaded.hasDropZone)
+            // Container keeps a plain drop zone; Flex and Grid declare their
+            // child area as a childPicker slot so the inspector offers an
+            // Add Item button for the matching item part.
+            #expect(loaded.hasDropZone || !loaded.manifest.slots.isEmpty)
             let properties = loaded.manifest.resolvedProperties
             // Layouts share every value-producing group; the advanced group
             // (author-set ID/classes/attributes) is a per-part product choice
-            // and no built-in opts in.
-            #expect(Set(loaded.manifest.controlGroups.map(\.type)) == Set(PartPackageControlGroup.Kind.allCases).subtracting([.advanced]))
+            // and no built-in opts in. In-parent behaviour lives on the Flex
+            // Item and Grid Item parts, so no layout carries the layoutItem
+            // group. Container swaps the sizing group for its own section
+            // semantics: an always-full-width root with a Contained/Full
+            // content width and the group's height controls.
+            let expectedKinds = Set(PartPackageControlGroup.Kind.allCases)
+                .subtracting(name == "Container" ? [.advanced, .layoutItem, .sizing] : [.advanced, .layoutItem])
+            #expect(Set(loaded.manifest.controlGroups.map(\.type)) == expectedKinds)
             #expect(Set(loaded.manifest.controlGroups.map(\.type)).count == loaded.manifest.controlGroups.count)
-            for (id, group) in [("widthMode", "Sizing"), ("frameworkPadding", "Spacing"),
+            let widthControl = name == "Container" ? "contentWidth" : "widthMode"
+            for (id, group) in [(widthControl, "Sizing"), ("frameworkPadding", "Spacing"),
                                 ("frameworkMargin", "Spacing"), ("backgroundColor", "Background"),
-                                ("frameworkRadius", "Borders"), ("flexGrow", "Layout item")] {
+                                ("frameworkRadius", "Borders")] {
                 #expect(properties.first { $0.id == id }?.group == group)
             }
+            #expect(properties.first { $0.id == "heightMode" }?.group == "Sizing")
             #expect(properties.first { $0.id == "frameworkPadding" }?.visibleWhen?.id == "spacingEnabled")
             #expect(properties.first { $0.id == "frameworkMargin" }?.visibleWhen?.id == "spacingEnabled")
             #expect(Set(properties.map(\.id)).count == properties.count)
         }
+    }
+
+    @Test func flexAndGridOfferTheirItemPartsThroughAddItemSlots() throws {
+        for (name, itemIdentifier) in [("Flex", "foundry.layout.flex-item"), ("Grid", "foundry.layout.grid-item")] {
+            let slot = try #require(try package(name).manifest.slots.first)
+            #expect(slot.id == "content")
+            #expect(slot.pickerItems == [itemIdentifier])
+            // The picker offers only the item part, but the area stays open
+            // so any part can still be dropped in directly.
+            #expect(slot.accepts == ["*"])
+            #expect(slot.acceptsPart(.paragraph))
+            #expect(slot.offersInPicker(PartType(rawValue: itemIdentifier)))
+            #expect(!slot.offersInPicker(.paragraph))
+        }
+    }
+
+    @Test func itemPartsAreHiddenHelpersPinnedToTheirParents() throws {
+        for (folder, identifier) in [("FlexItem", "foundry.layout.flex-item"), ("GridItem", "foundry.layout.grid-item")] {
+            let loaded = try package(folder)
+            #expect(loaded.manifest.identifier == identifier)
+            #expect(loaded.manifest.version == "1.0.0")
+            // Items arrive through the parent's Add Item button, never the
+            // part library, and refuse parents they are meaningless in.
+            #expect(!loaded.manifest.showsInPartLibrary)
+            #expect(loaded.hasDropZone)
+            #expect(!loaded.manifest.permits(parent: .paragraph))
+        }
+        let flexItem = try package("FlexItem").manifest
+        #expect(flexItem.permits(parent: .flex))
+        #expect(flexItem.permits(parent: .flexItem))
+        #expect(flexItem.permits(parent: .gridItem))
+        #expect(flexItem.permits(parent: .container))
+        #expect(!flexItem.permits(parent: .grid))
+        let gridItem = try package("GridItem").manifest
+        #expect(gridItem.permits(parent: .grid))
+        #expect(!gridItem.permits(parent: .flex))
+        #expect(!gridItem.permits(parent: .container))
+    }
+
+    @Test func itemPartsEmitAlwaysOnInParentCSS() throws {
+        // No enable toggle: being an item is the part's whole job, so the
+        // in-parent properties render unconditionally.
+        let flexItem = try css("FlexItem", values: [
+            "flexGrow": .number(2), "flexShrink": .number(0), "alignSelf": .string("center")
+        ])
+        #expect(flexItem.contains("flex-grow: 2"))
+        #expect(flexItem.contains("flex-shrink: 0"))
+        #expect(flexItem.contains("align-self: center;"))
+        #expect(flexItem.contains("display: flex;"))
+        #expect(!flexItem.contains("grid-column"))
+        #expect(!flexItem.contains("{{"))
+
+        let gridItem = try css("GridItem", values: [
+            "columnSpan": .number(3), "rowSpan": .number(2)
+        ])
+        #expect(gridItem.contains("grid-column: span 3;"))
+        #expect(gridItem.contains("grid-row: span 2;"))
+        #expect(gridItem.contains("display: flex;"))
+        #expect(!gridItem.contains("flex-grow"))
+        #expect(!gridItem.contains("{{"))
     }
 
     @Test func navigationPartRendersMenuDropdownsAndCurrentState() async throws {
@@ -116,7 +187,9 @@ struct BuiltInLayoutPartsTests {
             "alignItems": .string("stretch"), "alignContent": .string("normal"), "verticalAlignment": .string("start"),
             "constrainContent": .boolean(true), "innerMaxWidth": .number(1120),
             "columnCount": .number(2), "proportions": .string("equal"), "gridMode": .string("count"),
-            "rowSizing": .string("auto"), "justifyItems": .string("stretch"), "minimumColumnWidth": .number(240)
+            "rowSizing": .string("auto"), "justifyItems": .string("stretch"), "minimumColumnWidth": .number(240),
+            "contentWidth": .string("contained"), "customContentWidth": .number(800),
+            "contentAlignment": .string("flex-start"), "contentJustify": .string("stretch"), "contentGap": .string("0px")
         ]
         values.merge(overrides) { _, new in new }
         return PartTemplateRenderer.render(loaded.css, context: PartTemplateContext(
@@ -125,22 +198,26 @@ struct BuiltInLayoutPartsTests {
         ))
     }
 
+    @Test func fillRemainingSpaceGrowsIntoTheBodyColumn() throws {
+        // The body is a min-height flex column, so filling leftover viewport
+        // space is a flex-grow on the part root — and it must outrank the
+        // layout-item group's flex-grow reset.
+        for name in names {
+            let output = try css(name, values: ["heightMode": .string("fill")])
+            #expect(output.contains("flex: 1 1 auto;"))
+            #expect(!output.contains("height: 100svh"))
+        }
+    }
+
     @Test func disabledSpacingAndSizingProduceExplicitResets() throws {
         for name in names {
             let output = try css(name, values: ["spacingEnabled": .boolean(false)])
             #expect(output.contains("padding: 0;"))
             #expect(output.contains("margin: 0;"))
             #expect(output.contains("height: auto;"))
-            #expect(output.contains("grid-column: auto;"))
             #expect(!output.contains("{{"))
             #expect(output.range(of: #":\s*;"#, options: .regularExpression) == nil)
         }
-    }
-
-    @Test func sectionSeparatesContentConstraintFromBackground() throws {
-        #expect(try css("Section").contains("max-width: 1120px;"))
-        #expect(try css("Section", values: ["constrainContent": .boolean(false)]).contains("max-width: none;"))
-        #expect(try package("Section").htmlTemplate.contains("foundry-section-content"))
     }
 
     @Test func backgroundGroupRendersEveryGradientType() throws {
@@ -157,7 +234,7 @@ struct BuiltInLayoutPartsTests {
         for type in ["linear", "radial", "conic"] {
             var values = common
             values["backgroundGradientType"] = .string(type)
-            let loaded = try package("Section")
+            let loaded = try package("Container")
             let output = PartTemplateRenderer.render(
                 loaded.manifest.controlGroupCSS,
                 context: PartTemplateContext(
@@ -173,7 +250,7 @@ struct BuiltInLayoutPartsTests {
     }
 
     @Test func backgroundGroupRetainsStaticBackgroundWhileEditingAndRenderingHover() throws {
-        let loaded = try package("Section")
+        let loaded = try package("Container")
         let values: [String: PartPackageValue] = [
             "backgroundMode": .string("hover"),
             "backgroundStyle": .string("color"),
@@ -208,19 +285,41 @@ struct BuiltInLayoutPartsTests {
     @Test func bundledLayoutsRenderThroughTheCanvasPipeline() async throws {
         await PartPackageCatalog.shared.waitUntilLoaded()
         for name in names {
-            let identifier = name == "Stack" ? "flex" : name.lowercased()
-            let type = PartType(rawValue: "foundry.layout.\(identifier)")
-            #expect(type.definition.package?.manifest.version == "2.0.0")
+            let type = PartType(rawValue: "foundry.layout.\(name.lowercased())")
+            #expect(type.definition.package?.manifest.version == (name == "Container" ? "2.3.0" : "2.2.0"))
             var node = PartNode.make(type)
             node.children = [.make(.paragraph)]
             let page = Page(title: "Layout", slug: "index", parts: [node])
             for breakpoint in [ResponsiveBreakpoint.mobile, .medium, .large] {
                 let html = HTMLPageRenderer().render(page: page, language: "en", framework: .standard, assets: [:], breakpoint: breakpoint)
-                #expect(html.contains("foundry-\(identifier)"))
+                #expect(html.contains("foundry-\(name.lowercased())"))
                 #expect(!html.contains("{{ control."))
                 #expect(html.contains("padding:"))
             }
         }
+    }
+
+    @Test func itemPartsRenderInsideTheirParentsThroughTheCanvasPipeline() async throws {
+        await PartPackageCatalog.shared.waitUntilLoaded()
+        var gridItem = PartNode.make(.gridItem)
+        gridItem.setProperty(.init(rawValue: "columnSpan"), value: .number(2))
+        gridItem.children = [.make(.heading)]
+        var grid = PartNode.make(.grid)
+        grid.children = [gridItem, .make(.gridItem)]
+
+        var flexItem = PartNode.make(.flexItem)
+        flexItem.setProperty(.init(rawValue: "flexGrow"), value: .number(3))
+        flexItem.children = [.make(.paragraph)]
+        var flex = PartNode.make(.flex)
+        flex.children = [flexItem]
+
+        let page = Page(title: "Items", slug: "index", parts: [grid, flex])
+        let html = HTMLPageRenderer().render(page: page, language: "en", framework: .standard, assets: [:], breakpoint: .large)
+        #expect(html.contains("foundry-grid-item"))
+        #expect(html.contains("grid-column: span 2;"))
+        #expect(html.contains("foundry-flex-item"))
+        #expect(html.contains("flex-grow: 3"))
+        #expect(!html.contains("{{ control."))
     }
 
     @Test(.timeLimit(.minutes(1))) func webKitMeasuresResponsiveGrid() async throws {

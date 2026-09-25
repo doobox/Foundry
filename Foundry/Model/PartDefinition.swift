@@ -30,6 +30,10 @@ nonisolated struct PartDefinition: Sendable {
     let renderKind: PartRenderKind
     let properties: [PartPropertyDefinition]
     let package: LoadedPartPackage?
+    // Per-key index: rendering resolves every property of every part
+    // instance by key, and scanning `properties` each time dominates
+    // page-render profiles on layout-heavy trees.
+    private let propertyIndicesByKey: [PartProperty.Key: Int]
 
     init(
         type: PartType,
@@ -49,14 +53,29 @@ nonisolated struct PartDefinition: Sendable {
         self.renderKind = renderKind
         self.properties = properties
         self.package = package
+        propertyIndicesByKey = Dictionary(
+            properties.enumerated().map { ($1.key, $0) },
+            uniquingKeysWith: { first, _ in first }
+        )
     }
 
-    /// The SF Symbol for an Inspector section's disclosure header: Grouped
-    /// controls and the manifest's `groups` array supply icons; everything else
-    /// wears the generic fallback.
+    func property(for key: PartProperty.Key) -> PartPropertyDefinition? {
+        propertyIndicesByKey[key].map { properties[$0] }
+    }
+
+    /// The SF Symbol for an Inspector section's disclosure header: named
+    /// sections supply icons through their `systemImage`, the native Advanced
+    /// section wears its fixed gear, and everything else takes the generic
+    /// fallback.
     func systemImage(for section: PartPropertySection) -> String {
-        package?.manifest.resolvedGroupIcons[section.rawValue]
-            ?? PartPropertySection.genericSystemImage
+        if let icon = package?.manifest.resolvedGroupIcons[section.rawValue] {
+            return icon
+        }
+        if section.rawValue == "Advanced",
+           package?.manifest.controlGroups.contains(where: { $0.type == .advanced }) == true {
+            return "gearshape"
+        }
+        return PartPropertySection.genericSystemImage
     }
 }
 
@@ -114,7 +133,7 @@ nonisolated struct PartPropertyDefinition: Identifiable, Sendable {
     let supportsImageFocalPoint: Bool
     let dateMinimum: Date?
     let dateMaximum: Date?
-    let selectPresentation: PartPackageControl.SelectPresentation?
+    let presentation: PartPackageControl.ControlPresentation?
 
     var id: PartProperty.Key { key }
 
@@ -133,7 +152,7 @@ nonisolated struct PartPropertyDefinition: Identifiable, Sendable {
         supportsImageFocalPoint: Bool = false,
         dateMinimum: Date? = nil,
         dateMaximum: Date? = nil,
-        selectPresentation: PartPackageControl.SelectPresentation? = nil
+        presentation: PartPackageControl.ControlPresentation? = nil
     ) {
         self.key = key
         self.label = label
@@ -149,7 +168,7 @@ nonisolated struct PartPropertyDefinition: Identifiable, Sendable {
         self.supportsImageFocalPoint = supportsImageFocalPoint
         self.dateMinimum = dateMinimum
         self.dateMaximum = dateMaximum
-        self.selectPresentation = selectPresentation
+        self.presentation = presentation
     }
 
     private static let builtInResponsiveKeys: Set<PartProperty.Key> = [

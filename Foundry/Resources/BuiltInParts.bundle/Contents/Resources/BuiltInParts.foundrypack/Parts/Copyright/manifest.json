@@ -1,0 +1,113 @@
+{
+  "author": "Foundry",
+  "description": "Displays copyright information that automatically stays in sync with the current year.",
+  "group": "Content",
+  "id": "foundry.content.copyright",
+  "inspector": [
+    {
+      "controls": [
+        {
+          "defaults": {
+            "base": "©"
+          },
+          "id": "format",
+          "label": "Copyright Mark",
+          "options": [
+            {
+              "title": "©",
+              "value": "©"
+            },
+            {
+              "title": "Copyright",
+              "value": "Copyright"
+            },
+            {
+              "title": "Copr.",
+              "value": "Copr."
+            }
+          ],
+          "type": "select"
+        },
+        {
+          "defaults": {
+            "base": "Your Company"
+          },
+          "id": "holder",
+          "label": "Rights holder",
+          "type": "text"
+        },
+        {
+          "defaults": {
+            "base": 2020
+          },
+          "id": "start",
+          "label": "First Published",
+          "maximum": 5000,
+          "minimum": 1900,
+          "type": "number"
+        },
+        {
+          "defaults": {
+            "base": "All rights reserved."
+          },
+          "id": "append",
+          "label": "Append",
+          "type": "text"
+        }
+      ],
+      "section": "Copyright Settings",
+      "systemImage": "c.circle"
+    },
+    {
+      "controls": [
+        {
+          "defaults": {
+            "base": "body"
+          },
+          "id": "font",
+          "responsive": true,
+          "showsSize": true,
+          "showsStyle": true,
+          "showsWeight": true,
+          "type": "frameworkFont"
+        },
+        {
+          "defaults": {
+            "base": {
+              "palette": "text"
+            }
+          },
+          "id": "textColour",
+          "label": "Colour",
+          "type": "frameworkColor"
+        }
+      ],
+      "section": "Typography",
+      "systemImage": "textformat"
+    },
+    {
+      "type": "advanced"
+    }
+  ],
+  "minimumAPIVersion": 1,
+  "tags": [
+    "copyright",
+    "footer",
+    "year"
+  ],
+  "templates": {
+    "editorCSS": "editor.css",
+    "files": [
+      {
+        "path": "part.css"
+      },
+      {
+        "path": "part.js",
+        "scope": "instance"
+      }
+    ],
+    "html": "part.html"
+  },
+  "title": "Copyright",
+  "version": "1.1.0"
+}

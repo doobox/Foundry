@@ -8,10 +8,11 @@ struct PartPackageTests {
         URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent().deletingLastPathComponent()
             .deletingLastPathComponent().deletingLastPathComponent()
-            .appending(path: "Foundry Developer API", directoryHint: .isDirectory)
+            .appending(path: "Foundry Docs", directoryHint: .isDirectory)
+            .appending(path: "developer", directoryHint: .isDirectory)
     }
 
-    @Test(.enabled(if: FileManager.default.fileExists(atPath: developerDocsURL.appending(path: "AGENTS.md").path)))
+    @Test(.enabled(if: FileManager.default.fileExists(atPath: developerDocsURL.appending(path: "index.md").path)))
     @MainActor func developerDocumentationQuickExamplesLoad() throws {
         // Read the current sibling working tree, not copied or stale fixtures.
         let pages = try FileManager.default.contentsOfDirectory(at: Self.developerDocsURL, includingPropertiesForKeys: nil)
@@ -48,7 +49,7 @@ struct PartPackageTests {
         #expect(checked == 39, "Expected every documented control and control group's Quick example; update this count when adding a reference page.")
     }
 
-    @Test(.enabled(if: FileManager.default.fileExists(atPath: developerDocsURL.appending(path: "AGENTS.md").path)))
+    @Test(.enabled(if: FileManager.default.fileExists(atPath: developerDocsURL.appending(path: "index.md").path)))
     @MainActor func developerDocumentationCompleteExamplesLoad() throws {
         let pages = try FileManager.default.contentsOfDirectory(at: Self.developerDocsURL, includingPropertiesForKeys: nil)
             .filter { $0.pathExtension == "md" }.sorted { $0.lastPathComponent < $1.lastPathComponent }
@@ -780,6 +781,30 @@ struct PartPackageTests {
         }
     }
 
+    @Test func togglePresentationChoosesCheckboxOrSwitch() throws {
+        func item(_ extra: String) -> String {
+            "{\"type\" : \"toggle\", \"id\" : \"flag\", \"label\" : \"Flag\"\(extra), \"defaults\" : {\"base\" : true}, \"responsive\" : false}"
+        }
+        for valid in ["checkbox", "switch"] {
+            let data = Data(manifest(withInspectorEntries: item(", \"presentation\" : \"\(valid)\"")).utf8)
+            #expect(try PartPackageManifestSchema.diagnostics(for: data).isEmpty)
+        }
+        let decoded = try JSONDecoder().decode(
+            PartPackageManifest.self,
+            from: Data(manifest(withInspectorEntries: item(", \"presentation\" : \"switch\"")).utf8)
+        )
+        #expect(decoded.resolvedProperties.first?.control.presentation == .switch)
+
+        let invalid = Data(manifest(withInspectorEntries: item(", \"presentation\" : \"slider\"")).utf8)
+        #expect(try PartPackageManifestSchema.diagnostics(for: invalid).contains {
+            $0.message == "A toggle presentation must be checkbox or switch."
+        })
+        let text = "{\"type\" : \"text\", \"id\" : \"t\", \"label\" : \"T\", \"presentation\" : \"switch\", \"defaults\" : {\"base\" : \"x\"}, \"responsive\" : false}"
+        #expect(try PartPackageManifestSchema.diagnostics(for: Data(manifest(withInspectorEntries: text).utf8)).contains {
+            $0.message == "presentation is available only for select and toggle controls."
+        })
+    }
+
     @Test @MainActor func frameworkFontSizeControlResolvesSizeAndLineHeightVariables() throws {
         let item = """
         {"type" : "frameworkFontSize", "id" : "size",
@@ -888,7 +913,9 @@ struct PartPackageTests {
             "\"showsFamily\" : false",
             "\"defaults\" : {\"base\" : {\"family\" : \"body\", \"weight\" : 500}}",
             "\"showsWeight\" : true, \"defaults\" : {\"base\" : {\"family\" : \"body\", \"weight\" : 1001}}",
-            "\"showsStyle\" : true, \"defaults\" : {\"base\" : {\"family\" : \"body\", \"style\" : \"bold\"}}"
+            "\"showsStyle\" : true, \"defaults\" : {\"base\" : {\"family\" : \"body\", \"style\" : \"bold\"}}",
+            "\"defaults\" : {\"base\" : {\"family\" : \"body\", \"size\" : \"xl\"}}",
+            "\"showsSize\" : true, \"defaults\" : {\"base\" : {\"family\" : \"body\", \"size\" : \"huge\"}}"
         ] {
             let defaultJSON = extra.contains("\"defaults\"") ? "" : ", \"defaults\" : {\"base\" : \"body\"}"
             let item = "{\"type\" : \"frameworkFont\", \"id\" : \"font\"\(defaultJSON), \(extra)}"
@@ -899,6 +926,29 @@ struct PartPackageTests {
             let item = "{\"type\" : \"\(kind)\", \"id\" : \"font\", \"defaults\" : {\"base\" : \"normal\"}}"
             #expect(try PartPackageManifestSchema.diagnostics(for: Data(manifest(withInspectorEntries: item).utf8)).contains { $0.message.contains("Use one frameworkFont") })
         }
+    }
+
+    @Test @MainActor func fontShowsSizeAddsAThemeFontSizeRow() throws {
+        let item = """
+        {"type" : "frameworkFont", "id" : "font", "showsSize" : true, "responsive" : true,
+        "defaults" : {"base" : {"family" : "body", "size" : "xl"}}}
+        """
+        let url = try makePackage(manifest: manifest(withInspectorEntries: item),
+            template: "<p {{ part.attributes }} style=\"font-size: {{ control.font.size }}; line-height: {{ control.font.size.lineHeight }}\">{{ childArea(\"content\") }}</p>")
+        defer { try? FileManager.default.removeItem(at: url) }
+        let package = try PartPackageLoader.load(from: url)
+        let definitions = PartPackageAdapter.definition(from: package).properties
+        #expect(definitions.contains { $0.key.rawValue == "font.size" && $0.isInspectorVisible && $0.isResponsive })
+        PartRegistry.register(package)
+        defer { PartRegistry.unregisterPackage(identifier: package.manifest.identifier) }
+        let node = PartNode(type: PartType(rawValue: package.manifest.identifier))
+        let site = Site(name: "Font Sizes", pages: [Page(title: "Home", slug: "index", parts: [node])])
+        let canvas = HTMLPageRenderer(site: site).render(page: site.pages[0], framework: site.framework)
+        #expect(canvas.contains("font-size: var(--foundry-font-size-xl)"))
+        #expect(canvas.contains("line-height: var(--foundry-font-size-xl-line-height)"))
+        let exported = try #require(StaticSiteRenderer().render(site: site).file(at: "index.html")?.contents)
+        #expect(exported.contains("font-size: var(--foundry-font-size-xl)"))
+        #expect(exported.contains("line-height: var(--foundry-font-size-xl-line-height)"))
     }
 
     @Test @MainActor func fixedFamilyCanExposeOnlyWeight() throws {
@@ -1485,10 +1535,10 @@ struct PartPackageTests {
             #expect(!definition.systemImage.isEmpty)
             #expect(!definition.controls.isEmpty)
             #expect(Set(definition.controls.map(\.id)).count == definition.controls.count)
-            #expect(definition.controls.allSatisfy { $0.group == definition.name })
+            // Sectioning is the manifest's job: expanded controls stay in
+            // Settings until a section wrapper claims them.
+            #expect(definition.controls.allSatisfy { $0.group == "Settings" })
         }
-        #expect(PartPackageControlGroup.Kind.advanced.groupName == "Advanced")
-        #expect(PartPackageControlGroup.Kind.advanced.groupSystemImage == "gearshape")
         let advanced = try? JSONDecoder().decode(
             PartPackageControlGroup.self,
             from: Data(#"{"type" : "advanced"}"#.utf8)
@@ -4891,19 +4941,10 @@ struct PartPackageTests {
         })
         #expect(Set(builtIns.compactMap { $0.package?.manifest.identifier }).count == builtIns.count)
         #expect(PartType.image.definition.package?.manifest.identifier == PartType.image.rawValue)
-        #expect(PartType.section.definition.package?.manifest.identifier == PartType.section.rawValue)
-        let imageSlider = try #require(builtIns.first {
-            $0.type.rawValue == "foundry.media.imageslider"
-        })
-        #expect(imageSlider.package?.loopMaximums["slideCount"] == 8)
-        #expect(imageSlider.properties.filter {
-            if case .image = $0.control { return true }
-            return false
-        }.map(\.key.rawValue) == (1...8).map { "slide-\($0)" })
-        #expect(PartType.section.definition.allowsChildren)
-        #expect(!PartType.section.definition.properties.contains { $0.key.rawValue == "contentWidth" })
-        #expect(PartType.section.definition.properties.contains { $0.key.rawValue == "frameworkPadding" })
-        #expect(PartType.section.definition.properties.contains { $0.key.rawValue == "frameworkMargin" })
+        #expect(PartType.container.definition.package?.manifest.identifier == PartType.container.rawValue)
+        #expect(PartType.container.definition.allowsChildren)
+        #expect(PartType.container.definition.properties.contains { $0.key.rawValue == "frameworkPadding" })
+        #expect(PartType.container.definition.properties.contains { $0.key.rawValue == "frameworkMargin" })
         #expect(PartType.image.definition.properties.contains { $0.key == .source && $0.isInspectorVisible })
         #expect(PartType.image.definition.properties.contains {
             $0.key.rawValue == "maxWidth" && $0.defaultValue == .number(1200) && $0.isResponsive
@@ -5749,22 +5790,30 @@ struct PartPackageTests {
                     "type" : "toggle",
                     "defaults" : {"base" : true},
                     "responsive" : false
-                }
+                },
+                {"type" : "spacing"}
             ]
         },
         {"section" : "Content", "systemImage" : "doc.text"},
-        {"type" : "spacing"}
+        {"type" : "reveal"}
         """
         let valid = Data(manifest(withInspectorEntries: controls).utf8)
         #expect(try PartPackageManifestSchema.diagnostics(for: valid).isEmpty)
         let decoded = try JSONDecoder().decode(PartPackageManifest.self, from: valid)
         #expect(decoded.controlSections.map(\.name) == ["Gallery", "Content"])
+        #expect(decoded.controlGroups.map(\.type) == [.spacing, .reveal])
         #expect(decoded.resolvedProperties.first { $0.id == "galleryStyle" }?.group == "Gallery")
+        // A grouped control inside a section belongs to that section…
+        #expect(decoded.resolvedProperties.first { $0.id == "frameworkPadding" }?.group == "Gallery")
+        // …and a bare one lands in Settings like any other loose control.
+        #expect(decoded.resolvedProperties.first { $0.id == "revealEnabled" }?.group == "Settings")
         #expect(decoded.resolvedGroupIcons["Gallery"] == "photo.stack")
         // An icon-only wrapper gives the implicit Content section its icon.
         #expect(decoded.resolvedGroupIcons["Content"] == "doc.text")
-        // Grouped controls carry their standard section icon with no declaration.
-        #expect(decoded.resolvedGroupIcons["Spacing"] == "arrow.up.and.down.and.arrow.left.and.right")
+        // Sectioning is entirely the developer's: grouped controls provide no
+        // automatic section or icon anywhere.
+        #expect(decoded.resolvedGroupIcons["Spacing"] == nil)
+        #expect(decoded.resolvedGroupIcons["Reveal"] == nil)
         // Undeclared sections fall back at presentation time, not in the manifest.
         #expect(decoded.resolvedGroupIcons["Settings"] == nil)
         // Sections round-trip as wrappers: no per-control section keys survive encoding.
@@ -5786,8 +5835,10 @@ struct PartPackageTests {
              "Duplicate section 'Gallery'. Declare each section once and list its controls inside it."),
             ("{\"section\" : \"Gallery\", \"icon\" : \"star\"}",
              "Unknown key 'icon'. Check the spelling or remove it."),
-            ("{\"section\" : \"Gallery\", \"controls\" : [{\"type\" : \"spacing\"}]}",
-             "The grouped control 'spacing' carries its own section — declare it at the top level of the inspector."),
+            ("{\"section\" : \"Gallery\", \"controls\" : [{\"type\" : \"advanced\"}]}",
+             "The advanced group is Foundry's own Advanced section — declare it at the top level of the inspector."),
+            ("{\"type\" : \"spacing\"}, {\"section\" : \"Gallery\", \"controls\" : [{\"type\" : \"spacing\"}]}",
+             "Control group 'spacing' is declared more than once."),
             ("{\"section\" : \"Gallery\", \"controls\" : [{\"section\" : \"Inner\"}]}",
              "Sections cannot nest inside sections; every entry here must be a control with a type.")
         ]

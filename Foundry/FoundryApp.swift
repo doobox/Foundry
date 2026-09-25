@@ -151,8 +151,12 @@ private struct HelpMenuCommands: Commands {
         CommandGroup(replacing: .help) {
             // macOS menu items render title-only by default; titleAndIcon
             // opts the symbol back in.
-            Button("Foundry Developer Documentation", systemImage: "book.pages") {
-                NSWorkspace.shared.open(URL(string: "https://doobox.github.io/foundry-developer-api/")!)
+            Button("Foundry User Guide", systemImage: "book.pages") {
+                NSWorkspace.shared.open(URL(string: "https://doobox.github.io/foundry-docs/guide/")!)
+            }
+            .labelStyle(.titleAndIcon)
+            Button("Foundry Developer Documentation", systemImage: "chevron.left.forwardslash.chevron.right") {
+                NSWorkspace.shared.open(URL(string: "https://doobox.github.io/foundry-docs/developer/")!)
             }
             .labelStyle(.titleAndIcon)
         }

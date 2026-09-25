@@ -84,13 +84,13 @@ struct CanvasDragDropTests {
     func canvasRendersExplicitDropZonesForEmptyTargets() {
         let emptyPage = Page(title: "Empty", slug: "empty", parts: [])
         let container = PartNode.make(.container)
-        let section = PartNode.make(.section)
+        let flex = PartNode.make(.flex)
         let grid = PartNode.make(.grid)
         let paragraph = PartNode.make(.paragraph)
         let partPage = Page(
             title: "Drop zones",
             slug: "drop-zones",
-            parts: [container, section, grid, paragraph]
+            parts: [container, flex, grid, paragraph]
         )
         let renderer = HTMLPageRenderer()
 
@@ -99,7 +99,7 @@ struct CanvasDragDropTests {
 
         #expect(emptyHTML.contains("data-foundry-root-drop-zone"))
         #expect(partHTML.contains("data-foundry-empty-parent=\"\(container.id.uuidString)\""))
-        #expect(partHTML.contains("data-foundry-empty-parent=\"\(section.id.uuidString)\""))
+        #expect(partHTML.contains("data-foundry-empty-parent=\"\(flex.id.uuidString)\""))
         #expect(partHTML.contains("data-foundry-empty-parent=\"\(grid.id.uuidString)\""))
         #expect(partHTML.contains("data-foundry-adjacent-target=\"\(paragraph.id.uuidString)\""))
     }
@@ -156,7 +156,7 @@ struct CanvasInsertionEditingTests {
 
         let insideID = try #require(editor.insertPart(type: .image, on: page.id, placement: .inside(container.id)))
         let afterID = try #require(editor.insertPart(type: .divider, on: page.id, placement: .after(leaf.id)))
-        let rootID = try #require(editor.insertPart(type: .section, on: page.id, placement: .end))
+        let rootID = try #require(editor.insertPart(type: .grid, on: page.id, placement: .end))
         let updated = document.site.pages[0]
 
         #expect(updated.parts[0].children.node(withID: insideID) != nil)

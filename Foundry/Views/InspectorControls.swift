@@ -2,7 +2,7 @@ import AppKit
 import SwiftUI
 
 enum InspectorMetrics {
-    static let minimumLabelWidth: CGFloat = 100
+    static let minimumLabelWidth: CGFloat = 90
     static let maximumLabelWidth: CGFloat = 125
     static let standardInspectorWidth: CGFloat = 380
     static let expandedInspectorWidth: CGFloat = 494

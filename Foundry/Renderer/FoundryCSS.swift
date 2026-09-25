@@ -72,7 +72,7 @@ nonisolated enum FoundryCSS {
         *,*::before,*::after{box-sizing:border-box;border-width:0;border-style:solid;border-color:currentColor}
         html{-webkit-text-size-adjust:100%}
         html,body{min-height:100%}
-        body{margin:0;background:var(--foundry-color-page);color:var(--foundry-color-text);font-family:var(--foundry-font-body);font-size:var(--foundry-font-size-base);line-height:var(--foundry-font-size-base-line-height);accent-color:var(--foundry-color-accent);overflow-wrap:break-word;display:flex;flex-direction:column;align-items:stretch}
+        body{margin:0;min-height:100svh;background:var(--foundry-color-page);color:var(--foundry-color-text);font-family:var(--foundry-font-body);font-size:var(--foundry-font-size-base);line-height:var(--foundry-font-size-base-line-height);accent-color:var(--foundry-color-accent);overflow-wrap:break-word;display:flex;flex-direction:column;align-items:stretch}
         h1,h2,h3,h4,h5,h6,p,figure,dl,dd{margin:0}
         ul,ol,menu{margin:0;padding-inline-start:var(--foundry-space-lg)}
         fieldset{margin:0;padding:0}
