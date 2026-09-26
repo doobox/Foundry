@@ -106,6 +106,7 @@ struct CanvasView: View {
                                             operation: renderedPage.operation,
                                             assets: assets,
                                             packages: canvasPackages(for: page),
+                                            appearance: appearance,
                                             assetRevision: assetRevision,
                                             selectedPartIDs: selectedPartIDs,
                                             primarySelectedPartID: primarySelectedPartID,

@@ -3,6 +3,10 @@
   "author": "Foundry",
   "description": "Arranges child parts side by side or stacked with CSS Flexbox — direction, wrapping, distribution and alignment.",
   "group": "Layout",
+  "icon": {
+    "symbol": "rectangle.split.3x1",
+    "tint": "blue"
+  },
   "id": "foundry.layout.flex",
   "inspector": [
     {

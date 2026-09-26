@@ -2,7 +2,7 @@ import Foundation
 
 /// One entry of a manifest's `inspector` array: a single Standard/Framework
 /// property, a reference to a prebuilt Grouped control (`background`,
-/// `spacing`, `sizing`, `borders`, `effects`, `layoutItem`, `reveal`) that
+/// `spacing`, `sizing`, `borders`, `effects`, `layout`, `reveal`) that
 /// expands into several properties at this exact position, or a named section
 /// that carries its own controls. Entries with a `type` are controls; entries
 /// without one are sections. Sectioning is entirely the developer's: controls
@@ -115,6 +115,27 @@ nonisolated struct PartPackageControlSection: Codable, Equatable, Sendable {
     }
 }
 
+/// A part's library artwork: one square mono glyph — an SVG stencil or an
+/// SF Symbol — plus a system tint. The tile fills with the tint behind a
+/// white glyph; the structure tree paints the glyph in the tint directly.
+nonisolated struct PartPackageIcon: Codable, Equatable, Sendable {
+    let file: String?
+    let symbol: String?
+    let tint: String?
+
+    /// The declared tint resolved against the supported tokens. Unknown
+    /// tokens render as gray; validation reports them separately.
+    var resolvedTint: PartIconTint {
+        tint.flatMap(PartIconTint.init(rawValue:)) ?? .gray
+    }
+}
+
+/// The supported icon tints, mirroring the macOS system colours so both
+/// appearances come for free.
+nonisolated enum PartIconTint: String, Codable, CaseIterable, Sendable {
+    case red, orange, yellow, green, mint, teal, cyan, blue, indigo, purple, pink, brown, gray
+}
+
 nonisolated struct PartPackageManifest: Codable, Equatable, Sendable {
     let minimumAPIVersion: Int
     let identifier: String
@@ -126,6 +147,7 @@ nonisolated struct PartPackageManifest: Codable, Equatable, Sendable {
     let tags: [String]
     let showsInPartLibrary: Bool
     let allowedParents: [String]
+    let icon: PartPackageIcon?
     let controlsEntries: [PartPackageControlsEntry]
     let render: PartPackageRender
     let assets: [PartPackageAsset]
@@ -145,6 +167,7 @@ nonisolated struct PartPackageManifest: Codable, Equatable, Sendable {
         case tags
         case showsInPartLibrary
         case allowedParents
+        case icon
         case controlsEntries = "inspector"
         case render = "templates"
         case assets
@@ -166,6 +189,7 @@ nonisolated struct PartPackageManifest: Codable, Equatable, Sendable {
         tags = try container.decodeIfPresent([String].self, forKey: .tags) ?? []
         showsInPartLibrary = try container.decodeIfPresent(Bool.self, forKey: .showsInPartLibrary) ?? true
         allowedParents = try container.decodeIfPresent([String].self, forKey: .allowedParents) ?? []
+        icon = try container.decodeIfPresent(PartPackageIcon.self, forKey: .icon)
         controlsEntries = try container.decodeIfPresent([PartPackageControlsEntry].self, forKey: .controlsEntries) ?? []
         render = try container.decode(PartPackageRender.self, forKey: .render)
         assets = try container.decodeIfPresent([PartPackageAsset].self, forKey: .assets) ?? []
@@ -190,6 +214,7 @@ nonisolated struct PartPackageManifest: Codable, Equatable, Sendable {
         try container.encode(tags, forKey: .tags)
         try container.encode(showsInPartLibrary, forKey: .showsInPartLibrary)
         try container.encode(allowedParents, forKey: .allowedParents)
+        try container.encodeIfPresent(icon, forKey: .icon)
         try container.encode(controlsEntries, forKey: .controlsEntries)
         try container.encode(render, forKey: .render)
         try container.encode(assets, forKey: .assets)
@@ -317,7 +342,8 @@ nonisolated struct PartPackageControlGroup: Codable, Equatable, Sendable {
         case sizing
         case borders
         case effects
-        case layoutItem
+        case flexbox
+        case layout
         case reveal
         /// The opt-in HTML identity section (ID, classes, custom attributes).
         /// Unlike the other kinds it carries native Inspector fields bound to
@@ -349,17 +375,23 @@ nonisolated struct PartPackageControlGroup: Codable, Equatable, Sendable {
     /// different starting padding) without hand-declaring the whole group.
     /// Only meaningful for the non-`background` kinds.
     let defaultOverrides: [String: PartPackageValue]
+    /// Gates the whole group behind one of the part's own controls, e.g. a
+    /// flexbox group shown only while a layout select reads "flex". Folded
+    /// into every expanded control's own condition.
+    let visibleWhen: PartPackageVisibilityCondition?
 
     init(
         type: Kind,
         styles: [BackgroundStyle] = BackgroundStyle.allCases,
         states: [BackgroundState] = BackgroundState.allCases,
-        defaultOverrides: [String: PartPackageValue] = [:]
+        defaultOverrides: [String: PartPackageValue] = [:],
+        visibleWhen: PartPackageVisibilityCondition? = nil
     ) {
         self.type = type
         self.styles = styles
         self.states = states
         self.defaultOverrides = defaultOverrides
+        self.visibleWhen = visibleWhen
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -367,6 +399,7 @@ nonisolated struct PartPackageControlGroup: Codable, Equatable, Sendable {
         case styles
         case states
         case defaultOverrides
+        case visibleWhen
     }
 
     init(from decoder: Decoder) throws {
@@ -377,6 +410,7 @@ nonisolated struct PartPackageControlGroup: Codable, Equatable, Sendable {
         states = try container.decodeIfPresent([BackgroundState].self, forKey: .states)
             ?? BackgroundState.allCases
         defaultOverrides = try container.decodeIfPresent([String: PartPackageValue].self, forKey: .defaultOverrides) ?? [:]
+        visibleWhen = try container.decodeIfPresent(PartPackageVisibilityCondition.self, forKey: .visibleWhen)
     }
 
     var properties: [PartPackageProperty] {
@@ -385,11 +419,14 @@ nonisolated struct PartPackageControlGroup: Codable, Equatable, Sendable {
         let base = type == .background
             ? configuredBackgroundProperties(definition.controls)
             : definition.controls
-        guard !defaultOverrides.isEmpty else { return base }
         return base.map { property in
-            guard let override = defaultOverrides[property.id] else { return property }
             var property = property
-            property.defaultValue = override
+            if let override = defaultOverrides[property.id] {
+                property.defaultValue = override
+            }
+            if let visibleWhen {
+                property.visibleWhen = property.visibleWhen.map { .init(all: [visibleWhen, $0]) } ?? visibleWhen
+            }
             return property
         }
     }
@@ -446,7 +483,7 @@ nonisolated struct PartPackageControlGroup: Codable, Equatable, Sendable {
         switch type {
         case .background:
             backgroundCSS
-        case .spacing, .sizing, .borders, .effects, .layoutItem, .reveal, .advanced:
+        case .spacing, .sizing, .borders, .effects, .flexbox, .layout, .reveal, .advanced:
             ""
         }
     }
@@ -468,7 +505,7 @@ nonisolated struct PartPackageControlGroup: Codable, Equatable, Sendable {
                 template: fragments.joined(separator: "\n"),
                 target: .controlGroupBackground
             )]
-        case .spacing, .sizing, .borders, .effects, .layoutItem, .reveal, .advanced:
+        case .spacing, .sizing, .borders, .effects, .flexbox, .layout, .reveal, .advanced:
             return []
         }
     }
@@ -734,8 +771,15 @@ nonisolated struct PartPackageProperty: Codable, Equatable, Identifiable, Sendab
     let activeButtonTexts: [String]
     let activeButtonIcons: [String]
     let units: [String]
+    /// The CSS a framework-spacing control emits for its `none` token. CSS
+    /// spells "no constraint" differently per property — `0` for a minimum,
+    /// `none` for a maximum — so the control carries its own answer and
+    /// templates can interpolate it unconditionally.
+    let noneValue: String?
     let tooltip: String?
-    let visibleWhen: PartPackageVisibilityCondition?
+    /// `var`: a grouped-control reference's own `visibleWhen` folds into each
+    /// expanded control during manifest expansion.
+    var visibleWhen: PartPackageVisibilityCondition?
     let valueAvailability: ValueAvailability
     let alt: String
     let focalPoint: Bool
@@ -759,6 +803,7 @@ nonisolated struct PartPackageProperty: Codable, Equatable, Identifiable, Sendab
         case activeButtonText
         case activeButtonIcon
         case units
+        case noneValue
         case tooltip
         case visibleWhen
         case valueAvailability
@@ -781,7 +826,8 @@ nonisolated struct PartPackageProperty: Codable, Equatable, Identifiable, Sendab
         visibleWhen: PartPackageVisibilityCondition? = nil,
         valueAvailability: ValueAvailability = .always,
         tooltip: String? = nil,
-        units: [String] = [""]
+        units: [String] = [""],
+        noneValue: String? = nil
     ) {
         self.id = id
         self.label = label
@@ -799,6 +845,7 @@ nonisolated struct PartPackageProperty: Codable, Equatable, Identifiable, Sendab
         activeButtonTexts = []
         activeButtonIcons = []
         self.units = units
+        self.noneValue = noneValue
         self.tooltip = tooltip
         self.visibleWhen = visibleWhen
         self.valueAvailability = valueAvailability
@@ -817,6 +864,7 @@ nonisolated struct PartPackageProperty: Codable, Equatable, Identifiable, Sendab
         group = "Settings"
         control = try PartPackageControl(from: decoder)
         tooltip = try container.decodeIfPresent(String.self, forKey: .tooltip)
+        noneValue = try container.decodeIfPresent(String.self, forKey: .noneValue)
         visibleWhen = try container.decodeIfPresent(PartPackageVisibilityCondition.self, forKey: .visibleWhen)
         valueAvailability = try container.decodeIfPresent(ValueAvailability.self, forKey: .valueAvailability) ?? .always
         alt = try container.decodeIfPresent(String.self, forKey: .alt) ?? ""
@@ -928,6 +976,7 @@ nonisolated struct PartPackageProperty: Codable, Equatable, Identifiable, Sendab
             if let value = activeButtonIcons.first, !value.isEmpty { try container.encode(value, forKey: .activeButtonIcon) }
         }
         try container.encodeIfPresent(tooltip, forKey: .tooltip)
+        try container.encodeIfPresent(noneValue, forKey: .noneValue)
         try container.encodeIfPresent(visibleWhen, forKey: .visibleWhen)
         if valueAvailability != .always {
             try container.encode(valueAvailability, forKey: .valueAvailability)

@@ -1115,19 +1115,28 @@ struct ContentView: View {
         case .importImageAsset:
             guard let propertyKey = message.propertyKey,
                   let partID = message.partID,
-                  let part = page.parts.node(withID: partID),
-                  part.type.definition.properties.contains(where: {
-                      if $0.key == propertyKey, case .image = $0.control { return true }
-                      if case .video = $0.control {
-                          return PartVideoTemplateValues.posterPropertyKey(for: $0.key.rawValue) == propertyKey
-                      }
-                      return false
-                  }) else { return }
+                  let part = page.parts.node(withID: partID) else { return }
+            // A video property takes the movie itself; an image property — or
+            // a manifest video control's poster companion — takes an image.
+            let targetsVideo = part.type.definition.properties.contains(where: {
+                if case .video = $0.control { return $0.key == propertyKey }
+                return false
+            })
+            let targetsImage = part.type.definition.properties.contains(where: {
+                if $0.key == propertyKey, case .image = $0.control { return true }
+                if case .video = $0.control {
+                    return PartVideoTemplateValues.posterPropertyKey(for: $0.key.rawValue) == propertyKey
+                }
+                return false
+            })
+            guard targetsVideo || targetsImage else { return }
+            let expectedType: UTType = targetsVideo ? .movie : .image
+            let byteLimit = targetsVideo ? 100_000_000 : 25_000_000
             undoManager?.beginUndoGrouping()
             let asset: ProjectAsset
             if let assetID = message.assetID {
                 guard let existingAsset = document.site.assets.first(where: {
-                    $0.id == assetID && UTType(mimeType: $0.mediaType)?.conforms(to: .image) == true
+                    $0.id == assetID && UTType(mimeType: $0.mediaType)?.conforms(to: expectedType) == true
                 }) else {
                     undoManager?.endUndoGrouping()
                     return
@@ -1137,10 +1146,10 @@ struct ContentView: View {
                 guard let filename = message.assetFilename,
                       let mediaType = message.assetMediaType,
                       let type = imageType(filename: filename, mediaType: mediaType),
-                      type.conforms(to: .image),
+                      type.conforms(to: expectedType),
                       let encoded = message.assetData,
                       let data = Data(base64Encoded: encoded),
-                      data.count <= 25_000_000 else {
+                      data.count <= byteLimit else {
                     undoManager?.endUndoGrouping()
                     return
                 }
@@ -1165,33 +1174,53 @@ struct ContentView: View {
                 defaultLeafValue: .url("")
             )
             undoManager?.endUndoGrouping()
-            undoManager?.setActionName("Import Image")
+            undoManager?.setActionName(targetsVideo ? "Import Video" : "Import Image")
+            if targetsVideo, asset.videoMetadata == nil,
+               let videoData = document.assetContents[asset.id]?.data {
+                // The canvas shows the generated poster frame, so analyse the
+                // movie now rather than waiting for an inspector visit.
+                let analysedID = asset.id
+                let analysedFilename = asset.filename
+                Task {
+                    guard let result = await VideoPosterGenerator.metadata(
+                        for: videoData,
+                        filename: analysedFilename
+                    ) else { return }
+                    document.setVideoMetadata(id: analysedID, result: result)
+                }
+            }
             selectedPartID = partID
             selectedPrimitive = nil
             workspaceLayout.activate(.structure)
         case .insertImagePart:
+            // One insert message serves both media kinds: the dropped file
+            // decides whether an Image or a Video part is created.
             guard let placement = validatedPlacement(message.placement, on: page) else { return }
             let asset: ProjectAsset
+            let isVideo: Bool
             undoManager?.beginUndoGrouping()
             if let assetID = message.assetID {
-                guard let existingAsset = document.site.assets.first(where: {
-                    $0.id == assetID && UTType(mimeType: $0.mediaType)?.conforms(to: .image) == true
+                guard let existingAsset = document.site.assets.first(where: { candidate in
+                    guard candidate.id == assetID, let type = UTType(mimeType: candidate.mediaType) else { return false }
+                    return type.conforms(to: .image) || type.conforms(to: .movie)
                 }) else {
                     undoManager?.endUndoGrouping()
                     return
                 }
                 asset = existingAsset
+                isVideo = UTType(mimeType: existingAsset.mediaType)?.conforms(to: .movie) == true
             } else {
                 guard let filename = message.assetFilename,
                       let mediaType = message.assetMediaType,
                       let type = imageType(filename: filename, mediaType: mediaType),
-                      type.conforms(to: .image),
+                      type.conforms(to: .image) || type.conforms(to: .movie),
                       let encoded = message.assetData,
                       let data = Data(base64Encoded: encoded),
-                      data.count <= 25_000_000 else {
+                      data.count <= (type.conforms(to: .movie) ? 100_000_000 : 25_000_000) else {
                     undoManager?.endUndoGrouping()
                     return
                 }
+                isVideo = type.conforms(to: .movie)
                 let assetID = document.importAsset(
                     data: data,
                     filename: filename,
@@ -1205,20 +1234,34 @@ struct ContentView: View {
                 }
                 asset = importedAsset
             }
-            guard let partID = editor.insertPart(type: .image, on: page.id, placement: placement) else {
+            let partType: PartType = isVideo ? .video : .image
+            guard let partID = editor.insertPart(type: partType, on: page.id, placement: placement) else {
                 undoManager?.endUndoGrouping()
                 return
             }
-            guard let imageProperty = PartType.image.definition.properties.first(where: {
-                      if case .image = $0.control { return true }
+            guard let mediaProperty = partType.definition.properties.first(where: {
+                      if case .image = $0.control { return !isVideo }
+                      if case .video = $0.control { return isVideo }
                       return false
                   }) else {
                 undoManager?.endUndoGrouping()
                 return
             }
-            editor.setProperty(id: partID, key: imageProperty.key, value: .url(asset.reference))
+            editor.setProperty(id: partID, key: mediaProperty.key, value: .url(asset.reference))
             undoManager?.endUndoGrouping()
-            undoManager?.setActionName("Add Image")
+            undoManager?.setActionName(isVideo ? "Add Video" : "Add Image")
+            if isVideo, asset.videoMetadata == nil,
+               let videoData = document.assetContents[asset.id]?.data {
+                let analysedID = asset.id
+                let analysedFilename = asset.filename
+                Task {
+                    guard let result = await VideoPosterGenerator.metadata(
+                        for: videoData,
+                        filename: analysedFilename
+                    ) else { return }
+                    document.setVideoMetadata(id: analysedID, result: result)
+                }
+            }
             selectedPartIDs = [partID]
             selectedPartID = partID
             workspaceLayout.activate(.structure)
@@ -1256,6 +1299,7 @@ struct ContentView: View {
                   let definition = part.type.definition.properties.first(where: {
                       guard $0.key == imageProperty else { return false }
                       if case .image = $0.control { return true }
+                      if case .video = $0.control { return true }
                       return false
                   }) else { return }
             undoManager?.beginUndoGrouping()
@@ -1307,6 +1351,7 @@ struct ContentView: View {
               let definition = part.type.definition.properties.first(where: {
                   guard $0.key == imageProperty else { return false }
                   if case .image = $0.control { return true }
+                  if case .video = $0.control { return true }
                   return false
               }) else { return false }
         let currentValue = part.propertyValue(imageProperty).value(at: imagePropertyPath)

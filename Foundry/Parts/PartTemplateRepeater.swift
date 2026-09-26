@@ -8,6 +8,7 @@ nonisolated enum PartTemplateLoop {
         case text
         case html
         case image
+        case video
     }
 
     struct PrimitiveDeclaration: Sendable {
@@ -106,6 +107,10 @@ nonisolated enum PartTemplateLoop {
                 result = replacePrimitives(in: result, expression: imageExpression) { name, _ in
                     state.declarations.append(.init(kind: .image, key: name, defaultValue: nil, isRepeated: depth > 0))
                     return token(name: "__foundry_image", key: name, value: nil, isRepeated: depth > 0)
+                }
+                result = replacePrimitives(in: result, expression: videoExpression) { name, _ in
+                    state.declarations.append(.init(kind: .video, key: name, defaultValue: nil, isRepeated: depth > 0))
+                    return token(name: "__foundry_video", key: name, value: nil, isRepeated: depth > 0)
                 }
                 return .text(result)
             case .loop(let source, let children):
@@ -418,7 +423,7 @@ nonisolated enum PartTemplateLoop {
 
     private static func token(name: String, key: String, value: String?, isRepeated: Bool) -> String {
         let encoded = value.map { Data($0.utf8).base64EncodedString() } ?? "~"
-        let defaultMarker = name == "__foundry_image" ? "" : " default=\"\(encoded)\""
+        let defaultMarker = name == "__foundry_image" || name == "__foundry_video" ? "" : " default=\"\(encoded)\""
         let repeatedMarker = isRepeated ? " repeated=\"true\"" : ""
         return "{{ \(name) key=\"\(key)\"\(defaultMarker)\(repeatedMarker) }}"
     }
@@ -430,6 +435,7 @@ nonisolated enum PartTemplateLoop {
 
     private static let directiveExpression = try! NSRegularExpression(pattern: #"\{\{\s*(loop\s+([^{}]+?)|endloop)\s*\}\}"#)
     private static let imageExpression = try! NSRegularExpression(pattern: #"\{\{\s*image\(\s*\"([A-Za-z][A-Za-z0-9_-]*)\"\s*\)\s*\}\}"#)
+    private static let videoExpression = try! NSRegularExpression(pattern: #"\{\{\s*video\(\s*\"([A-Za-z][A-Za-z0-9_-]*)\"\s*\)\s*\}\}"#)
     private static let textExpression = try! NSRegularExpression(pattern: #"\{\{\s*text\(\s*\"([A-Za-z][A-Za-z0-9_-]*)\"\s*(?:,\s*default\s*:\s*\"((?:\\.|[^\"\\])*)\"\s*)?\)\s*\}\}"#)
     private static let htmlExpression = try! NSRegularExpression(pattern: #"\{\{\s*html\(\s*\"([A-Za-z][A-Za-z0-9_-]*)\"\s*(?:,\s*default\s*:\s*\"((?:\\.|[^\"\\])*)\"\s*)?\)\s*\}\}"#)
 

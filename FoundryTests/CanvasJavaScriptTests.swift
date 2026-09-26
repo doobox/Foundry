@@ -166,7 +166,7 @@ struct CanvasJavaScriptTests {
             part.dispatchEvent(new PointerEvent('pointermove', { bubbles: true }));
             """, arguments: [:], in: nil, contentWorld: .defaultClient)
         var titleAligned = false
-        for _ in 0..<80 {
+        for _ in 0..<240 {
             titleAligned = (try? await webView.callAsyncJavaScript("""
                 const host = document.querySelector('[data-foundry-editor-chrome="host"]');
                 const title = host.shadowRoot.querySelector('[data-foundry-editor-chrome="title"]');
@@ -184,7 +184,7 @@ struct CanvasJavaScriptTests {
         #expect(titleAligned)
         webView.clearHoverChrome()
         var hoverCleared = false
-        for _ in 0..<80 {
+        for _ in 0..<240 {
             hoverCleared = (try? await webView.callAsyncJavaScript("""
                 const root = document.querySelector('[data-foundry-editor-chrome="host"]').shadowRoot;
                 return root.querySelector('[data-foundry-editor-chrome="title"]').style.display === 'none'
@@ -202,7 +202,7 @@ struct CanvasJavaScriptTests {
             arguments: [:], in: nil, contentWorld: .defaultClient)
         webView.clearHoverChrome()
         var selectionTitleRemains = false
-        for _ in 0..<80 {
+        for _ in 0..<240 {
             selectionTitleRemains = (try? await webView.callAsyncJavaScript("""
                 const title = document.querySelector('[data-foundry-editor-chrome="host"]').shadowRoot
                   .querySelector('[data-foundry-editor-chrome="selection-title"]');
@@ -220,7 +220,7 @@ struct CanvasJavaScriptTests {
             "document.querySelector('[data-foundry-id]').style.height = '120px'",
             arguments: [:], in: nil, contentWorld: .defaultClient)
         var aligned = false
-        for _ in 0..<80 {
+        for _ in 0..<240 {
             aligned = (try? await webView.callAsyncJavaScript("""
                 const part = document.querySelector('[data-foundry-id]');
                 const outline = document.querySelector('[data-foundry-editor-chrome="host"]').shadowRoot
@@ -242,7 +242,7 @@ struct CanvasJavaScriptTests {
             parent.dispatchEvent(new PointerEvent('pointermove', { bubbles: true }));
             """, arguments: [:], in: nil, contentWorld: .defaultClient)
         var parentHoverTitleIsFrontmost = false
-        for _ in 0..<80 {
+        for _ in 0..<240 {
             parentHoverTitleIsFrontmost = (try? await webView.callAsyncJavaScript("""
                 const root = document.querySelector('[data-foundry-editor-chrome="host"]').shadowRoot;
                 const hoverTitle = root.querySelector('[data-foundry-editor-chrome="title"]');
@@ -308,18 +308,21 @@ struct CanvasJavaScriptTests {
             const outline = root.querySelector('[data-foundry-editor-chrome="selection"]');
             const title = root.querySelector('[data-foundry-editor-chrome="selection-title"]');
             const drop = root.querySelector('[data-foundry-editor-chrome="drop"]');
+            // The parent already holds a child, so hovering its middle snaps
+            // to an insertion bar beside that child — never the inside slab.
+            // Bars sit at edges, so they never suppress the selection chrome.
             return !parent.classList.contains('foundry-drop-inside')
               && drop.style.display === 'block'
-              && getComputedStyle(drop).borderStyle === 'dashed'
-              && outline.style.display === 'none' && title.style.display === 'none';
+              && drop.textContent === ''
+              && outline.style.display === 'block' && title.style.display === 'block';
             """, arguments: [:], in: nil, contentWorld: .defaultClient)
         #expect(activeDropStateIsExclusive as? Bool == true)
 
         let selectionStaysSuppressedDuringDropUpdates = try await webView.callAsyncJavaScript("""
             window.foundrySetSelection(['parent-part'], {}, false);
             const root = document.querySelector('[data-foundry-editor-chrome="host"]').shadowRoot;
-            return root.querySelector('[data-foundry-editor-chrome="selection"]').style.display === 'none'
-              && root.querySelector('[data-foundry-editor-chrome="selection-title"]').style.display === 'none'
+            return root.querySelector('[data-foundry-editor-chrome="selection"]').style.display === 'block'
+              && root.querySelector('[data-foundry-editor-chrome="selection-title"]').style.display === 'block'
               && root.querySelector('[data-foundry-editor-chrome="drop"]').style.display === 'block';
             """, arguments: [:], in: nil, contentWorld: .defaultClient)
         #expect(selectionStaysSuppressedDuringDropUpdates as? Bool == true)

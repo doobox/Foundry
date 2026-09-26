@@ -1,0 +1,95 @@
+{
+  "assets": [],
+  "author": "Foundry",
+  "description": "Displays a responsive project video.",
+  "group": "Media",
+  "icon": {
+    "symbol": "video",
+    "tint": "mint"
+  },
+  "id": "foundry.media.video",
+  "inspector": [
+    {
+      "controls": [
+        {
+          "defaults": {
+            "base": ""
+          },
+          "id": "source",
+          "label": "Video",
+          "type": "video"
+        }
+      ],
+      "section": "Content",
+      "systemImage": "doc.text"
+    },
+    {
+      "controls": [
+        {
+          "defaults": {
+            "base": 1200
+          },
+          "id": "maxWidth",
+          "label": "Max Width",
+          "maximum": 2400,
+          "minimum": 100,
+          "responsive": true,
+          "step": 10,
+          "type": "number",
+          "units": "px"
+        },
+        {
+          "defaults": {
+            "base": "center"
+          },
+          "id": "alignment",
+          "label": "Alignment",
+          "options": [
+            {
+              "title": "Start",
+              "value": "start"
+            },
+            {
+              "title": "Centre",
+              "value": "center"
+            },
+            {
+              "title": "End",
+              "value": "end"
+            }
+          ],
+          "responsive": true,
+          "type": "select"
+        }
+      ],
+      "section": "Sizing",
+      "systemImage": "arrow.up.left.and.arrow.down.right"
+    },
+    {
+      "controls": [
+        {
+          "type": "reveal"
+        }
+      ],
+      "section": "Reveal",
+      "systemImage": "sparkles.rectangle.stack"
+    }
+  ],
+  "minimumAPIVersion": 1,
+  "tags": [
+    "Foundry",
+    "built-in"
+  ],
+  "templates": {
+    "editorCSS": "editor.css",
+    "files": [
+      {
+        "path": "part.css",
+        "scope": "instance"
+      }
+    ],
+    "html": "part.html"
+  },
+  "title": "Video",
+  "version": "1.0.0"
+}

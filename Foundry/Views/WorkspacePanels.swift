@@ -1678,105 +1678,40 @@ private struct PartLibraryTile: View {
     }
 }
 
-/// A part's artwork on the Parts panel's 3:2 landscape tile; `size` is the
-/// tile height. Packs ship an optional `tile.svg` for this slot; without
-/// one the square `icon.svg` fits in the centre — any aspect ratio fits
-/// without cropping, and the tile's own backing means transparent artwork
-/// still reads as a deliberate shape.
-struct PartLibraryIcon: View {
-    @Environment(\.colorScheme) private var colorScheme
-    @State private var loadedIcon: NSImage?
-    let type: PartType
-    let size: CGFloat
-    var symbolColor: Color = .accentColor
-
-    private var artworkURL: URL? {
-        guard let package = type.definition.package else { return nil }
-        return package.tileURL(forDarkAppearance: colorScheme == .dark)
-            ?? package.iconURL(forDarkAppearance: colorScheme == .dark)
-    }
+/// One tinted tile behind a white stencil glyph — the shared rendering for
+/// every part-icon surface except the structure tree. The composed image
+/// gives SVG stencils and SF Symbols identical geometry on the tile.
+private struct PartIconTile: View {
+    let specification: PartIconSpecification
+    let width: CGFloat
+    let height: CGFloat
 
     var body: some View {
-        Group {
-            if let image = displayedIcon {
-                Image(nsImage: image)
-                    .resizable()
-                    .scaledToFit()
-            } else {
-                Image(systemName: type.systemImage)
-                    .font(.system(size: size * 0.5, weight: .medium))
-                    .foregroundStyle(symbolColor)
-            }
-        }
-        .frame(width: size * 1.5, height: size)
-        .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: size * 0.16))
-        .clipShape(RoundedRectangle(cornerRadius: size * 0.16))
-        .accessibilityHidden(true)
-        .task(id: artworkURL) {
-            guard let url = artworkURL else {
-                loadedIcon = nil
-                return
-            }
-            if let cached = PartIconLoader.cachedIcon(at: url) {
-                loadedIcon = cached.image
-                return
-            }
-            loadedIcon = await PartIconLoader.shared.icon(at: url)?.image
-        }
+        Image(nsImage: specification.tileImage(size: NSSize(width: width, height: height)))
+            .resizable()
+            .frame(width: width, height: height)
+            .accessibilityHidden(true)
     }
+}
 
-    private var displayedIcon: NSImage? {
-        loadedIcon ?? artworkURL.flatMap {
-            PartIconLoader.cachedIcon(at: $0)?.image
-        }
+/// A part's artwork on the Parts panel's 3:2 landscape tile; `size` is the
+/// tile height.
+struct PartLibraryIcon: View {
+    let type: PartType
+    let size: CGFloat
+
+    var body: some View {
+        PartIconTile(specification: type.iconSpecification, width: size * 1.5, height: size)
     }
 }
 
 /// The part's square 1:1 icon — inspectors and other non-panel contexts.
 struct PartSquareIcon: View {
-    @Environment(\.colorScheme) private var colorScheme
-    @State private var loadedIcon: NSImage?
     let type: PartType
     let size: CGFloat
-    var symbolColor: Color = .accentColor
-
-    private var artworkURL: URL? {
-        type.definition.package?.iconURL(forDarkAppearance: colorScheme == .dark)
-    }
 
     var body: some View {
-        Group {
-            if let image = displayedIcon {
-                Image(nsImage: image)
-                    .resizable()
-                    .scaledToFit()
-            } else {
-                Image(systemName: type.systemImage)
-                    .font(.system(size: size * 0.5, weight: .medium))
-                    .foregroundStyle(symbolColor)
-            }
-        }
-        .frame(width: size, height: size)
-        .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: size * 0.16))
-        .clipShape(RoundedRectangle(cornerRadius: size * 0.16))
-        .accessibilityHidden(true)
-        .task(id: artworkURL) {
-            guard let url = artworkURL else {
-                loadedIcon = nil
-                return
-            }
-            if let cached = PartIconLoader.cachedIcon(at: url) {
-                loadedIcon = cached.image
-                return
-            }
-            loadedIcon = await PartIconLoader.shared.icon(at: url)?.image
-        }
-    }
-
-    private var displayedIcon: NSImage? {
-        loadedIcon ?? artworkURL.flatMap {
-            PartIconLoader.cachedIcon(at: $0)?.image
-        }
+        PartIconTile(specification: type.iconSpecification, width: size, height: size)
     }
 }
 

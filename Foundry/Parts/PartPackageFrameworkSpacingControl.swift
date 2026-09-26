@@ -51,7 +51,7 @@ nonisolated enum PartPackageFrameworkSpacingControl<Policy: FrameworkSpacingPoli
         zero.amount = 0
         zero.unit = allowedUnits.first ?? Policy.units[0]
         var result = FrameworkSpacingValue<Policy>()
-        result.set(zero, for: .top)
+        result.setAll(zero)
         return result
     }
 
@@ -61,7 +61,9 @@ nonisolated enum PartPackageFrameworkSpacingControl<Policy: FrameworkSpacingPoli
     ) -> FrameworkSpacingValue<Policy>? {
         var result = FrameworkSpacingValue<Policy>()
         if let shared = edgeDefault(raw) {
-            result.set(shared, for: .top)
+            // A uniform default fills every edge but never activates links;
+            // link state stays at the policy's default.
+            result.setAll(shared)
             return result
         }
         guard case .object(let fields) = raw,
@@ -71,7 +73,7 @@ nonisolated enum PartPackageFrameworkSpacingControl<Policy: FrameworkSpacingPoli
             guard let rawEdge = fields[edge.key], let value = edgeDefault(rawEdge) else { return nil }
             result.set(value, for: edge)
         }
-        if result.allEqual { result.linkAll() }
+        if result.allEqual, Policy.linksByDefault { result.linkAll() }
         return result
     }
 

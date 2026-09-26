@@ -106,15 +106,18 @@ struct CornersControl<TopLeft: View, TopRight: View, BottomLeft: View, BottomRig
             }
         }
         .buttonStyle(.plain)
-        .animation(.easeInOut(duration: 0.15), value: isHoveringLink)
-        .animation(.easeInOut(duration: 0.15), value: linked)
+        .animation(.easeInOut(duration: 0.075), value: isHoveringLink)
+        .animation(.easeInOut(duration: 0.075), value: linked)
         .accessibilityLabel("Corner link")
         .accessibilityValue(linked ? "Linked" : "Unlinked")
     }
 
     private func segment(_ axis: CornersLinkAxis) -> some View {
-        let color: Color = (linked || isHoveringLink) ? .accentColor : .secondary.opacity(0.5)
-        let isDashed = !linked || isHoveringLink
+        // Hover previews the state a click would produce: an active link dims
+        // to the unlinked grey dash, an inactive one solidifies in accent.
+        let previewsLinked = isHoveringLink ? !linked : linked
+        let color: Color = previewsLinked ? .accentColor : .secondary.opacity(0.5)
+        let isDashed = !previewsLinked
 
         return CornersLinkShape(axis: axis)
             .stroke(color, style: StrokeStyle(lineWidth: 2, lineCap: .square, dash: isDashed ? [8, 5] : []))

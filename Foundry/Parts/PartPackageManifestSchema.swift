@@ -27,11 +27,12 @@ nonisolated enum PartPackageManifestSchema {
 
     private static let partKeys: Set<String> = [
         "minimumAPIVersion", "id", "title", "description", "author", "version", "group",
-        "tags", "showsInPartLibrary", "allowedParents", "inspector", "templates", "assets", "helpURL",
+        "tags", "showsInPartLibrary", "allowedParents", "icon", "inspector", "templates", "assets", "helpURL",
         "requiresPHP", "libraries"
     ]
+    private static let iconKeys: Set<String> = ["file", "symbol", "tint"]
     private static let propertyKeys: Set<String> = [
-        "id", "label", "title", "body", "systemImage", "defaults", "responsive", "subtitle", "buttonText", "units", "tooltip", "linked",
+        "id", "label", "title", "body", "systemImage", "defaults", "responsive", "subtitle", "buttonText", "units", "noneValue", "tooltip", "linked",
         "type", "font", "showsFamily", "showsWeight", "showsStyle", "showsSize", "minimum", "maximum", "step", "options", "frameworkValues", "allowsCustom", "opacity", "outputFormat",
         "customColor", "count", "ticks", "showsValueField", "trueValue", "falseValue",
         "buttonIcon", "activeButtonText", "activeButtonIcon", "selectionMode", "fontSize", "argument1", "argument2", "operation", "round", "absoluteURL", "presentation", "visibleWhen", "valueAvailability", "alt", "focalPoint", "renditions", "accepts", "pickerItems", "initial", "containment"
@@ -44,7 +45,7 @@ nonisolated enum PartPackageManifestSchema {
     private static let libraryKeys: Set<String> = ["id", "majorVersion"]
     private static let assetKeys: Set<String> = ["path", "scope"]
     private static let renditionKeys: Set<String> = ["id", "maximumDimension"]
-    private static let controlGroupKeys: Set<String> = ["type", "styles", "states", "defaultOverrides"]
+    private static let controlGroupKeys: Set<String> = ["type", "styles", "states", "defaultOverrides", "visibleWhen"]
     private static let sectionKeys: Set<String> = ["section", "systemImage", "controls"]
 
     static func inspect(_ data: Data) throws -> String {
@@ -199,6 +200,40 @@ nonisolated enum PartPackageManifestSchema {
         optionalBoolean("showsInPartLibrary", in: dictionary, location: "manifest.json", into: &diagnostics)
         optionalStringArray("tags", in: dictionary, location: "manifest.json", into: &diagnostics)
         optionalStringArray("allowedParents", in: dictionary, location: "manifest.json", into: &diagnostics)
+        if let iconValue = dictionary["icon"] {
+            if let icon = iconValue as? [String: Any] {
+                for key in icon.keys.sorted() where !iconKeys.contains(key) {
+                    diagnostics.append(.init(
+                        severity: .error,
+                        location: "manifest.json:icon",
+                        message: "Unknown key '\(key)'. Supported keys: file, symbol, tint."
+                    ))
+                }
+                optionalString("file", in: icon, location: "manifest.json:icon", into: &diagnostics)
+                optionalString("symbol", in: icon, location: "manifest.json:icon", into: &diagnostics)
+                optionalString("tint", in: icon, location: "manifest.json:icon", into: &diagnostics)
+                if let tint = icon["tint"] as? String, PartIconTint(rawValue: tint) == nil {
+                    diagnostics.append(.init(
+                        severity: .error,
+                        location: "manifest.json:icon",
+                        message: "Unknown tint '\(tint)'. Use one of: \(PartIconTint.allCases.map(\.rawValue).joined(separator: ", "))."
+                    ))
+                }
+                if icon["file"] is String, icon["symbol"] is String {
+                    diagnostics.append(.init(
+                        severity: .warning,
+                        location: "manifest.json:icon",
+                        message: "Both file and symbol are declared; the file is used and the symbol is its fallback."
+                    ))
+                }
+            } else {
+                diagnostics.append(.init(
+                    severity: .error,
+                    location: "manifest.json:icon",
+                    message: "icon must be a dictionary with file, symbol, or tint keys."
+                ))
+            }
+        }
         if let identifiers = dictionary["allowedParents"] as? [String] {
             for (index, identifier) in identifiers.enumerated() where partIdentifierExpression.firstMatch(
                 in: identifier,
@@ -371,7 +406,7 @@ nonisolated enum PartPackageManifestSchema {
 
     /// Validates one `controls` entry that references a prebuilt Grouped
     /// control (`background`, `spacing`, `sizing`, `borders`, `effects`,
-    /// `layoutItem`) — a `type` plus, for `background` only, `styles`/
+    /// `layout`) — a `type` plus, for `background` only, `styles`/
     /// `states`, plus the generic `defaultOverrides`.
     private static func validateGroupedControlReference(
         _ controlGroup: [String: Any],
@@ -400,6 +435,13 @@ nonisolated enum PartPackageManifestSchema {
         }
         optionalStringArray("styles", in: controlGroup, location: location, into: &diagnostics)
         optionalStringArray("states", in: controlGroup, location: location, into: &diagnostics)
+        if let visibleWhen = controlGroup["visibleWhen"] as? [String: Any] {
+            unknownKeys(in: visibleWhen, allowed: visibleWhenKeys, location: "\(location).visibleWhen", into: &diagnostics)
+            validateVisibility(visibleWhen, location: "\(location).visibleWhen", into: &diagnostics)
+        }
+        if let visibleWhen = controlGroup["visibleWhen"], !(visibleWhen is [String: Any]) {
+            appendTypeError(key: "visibleWhen", expected: "a dictionary", location: location, into: &diagnostics)
+        }
         if type == PartPackageControlGroup.Kind.background.rawValue {
             validateControlGroupValues(
                 controlGroup["styles"],
@@ -522,8 +564,19 @@ nonisolated enum PartPackageManifestSchema {
             return
         }
         if (type == .frameworkSpacing || type == .frameworkPadding || type == .frameworkMargin || type == .frameworkRadius) {
-            let allowed: Set<String> = ["type", "id", "label", "subtitle", "default", "responsive", "tooltip", "visibleWhen", "valueAvailability"]
+            var allowed: Set<String> = ["type", "id", "label", "subtitle", "default", "responsive", "tooltip", "visibleWhen", "valueAvailability"]
+            // Only the single-value control renders one declaration, so only
+            // it can name the CSS its `none` token emits.
+            if type == .frameworkSpacing { allowed.insert("noneValue") }
             unknownKeys(in: property, allowed: allowed, location: location, into: &diagnostics)
+            if type != .frameworkSpacing, property["noneValue"] != nil {
+                diagnostics.append(.init(
+                    severity: .error,
+                    location: "\(location).noneValue",
+                    message: "Only a frameworkSpacing control accepts noneValue."
+                ))
+            }
+            optionalString("noneValue", in: property, location: location, into: &diagnostics)
         }
         if type == .edges || type == .corners {
             let allowed: Set<String> = ["type", "id", "label", "subtitle", "default", "responsive", "tooltip", "visibleWhen", "valueAvailability", "units", "linked"]

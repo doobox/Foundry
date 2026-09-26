@@ -70,21 +70,15 @@ struct StaticSiteRendererTests {
         site.pages[0].parts.insert(stack, at: 0)
         let partID = stack.id
         site.updatePart(id: partID) {
-            $0.setResponsiveProperty(
-                .maxWidth,
-                value: .number(800),
-                at: .mobile
-            )
-            $0.setResponsiveProperty(
-                .maxWidth,
-                value: .number(900),
-                at: .medium
-            )
-            $0.setResponsiveProperty(
-                .maxWidth,
-                value: .number(1000),
-                at: .large
-            )
+            for (amount, breakpoint) in [(800.0, ResponsiveBreakpoint.mobile), (900, .medium), (1000, .large)] {
+                $0.setResponsiveProperty(
+                    .maxWidth,
+                    value: .frameworkSpacing(.init(
+                        selection: .init(token: "none", isCustom: true, amount: amount, unit: "px")
+                    )),
+                    at: breakpoint
+                )
+            }
         }
 
         let bundle = StaticSiteRenderer().render(site: site)
@@ -94,9 +88,9 @@ struct StaticSiteRendererTests {
         #expect(css.contains("@media(min-width:768px)"))
         #expect(css.contains("@media(min-width:1024px)"))
         #expect(!css.contains("@media(max-width:"))
-        #expect(css.contains("max-width: min(100%, 800px)"))
-        #expect(css.contains("max-width: min(100%, 900px)"))
-        #expect(css.contains("max-width: min(100%, 1000px)"))
+        #expect(css.contains("max-width: min(100%, 800.0px)"))
+        #expect(css.contains("max-width: min(100%, 900.0px)"))
+        #expect(css.contains("max-width: min(100%, 1000.0px)"))
         #expect(html.contains("data-foundry-id=\"\(partID.uuidString)\""))
         #expect(!html.contains("data-foundry-part-type"))
     }

@@ -66,7 +66,7 @@ struct FrameworkSpacingPartControl<Policy: FrameworkSpacingPolicy>: View {
 
     private var modeToggleAction: (() -> Void)? {
         guard allowsFrameworkTokens else { return nil }
-        return { value.setUsesFrameworkTokens(value.value(for: .top).isCustom, framework: framework) }
+        return { value.setUsesFrameworkTokens(value.value(for: .top).isCustom) }
     }
 
     private func edgeInput(_ edge: Edge) -> some View {

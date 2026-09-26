@@ -470,6 +470,10 @@ struct PagesOutlineView: NSViewRepresentable {
             if item.isImageAsset {
                 pasteboardItem.setString("foundry-image-asset:\(item.id.uuidString)", forType: .string)
             }
+            if item.isVideoAsset {
+                pasteboardItem.setString("foundry-video-asset:\(item.id.uuidString)", forType: .string)
+                pasteboardItem.setString(item.id.uuidString, forType: .videoAsset)
+            }
             return pasteboardItem
         }
 
@@ -563,6 +567,7 @@ struct PagesOutlineView: NSViewRepresentable {
                     PageOutlineItem(
                         kind: .asset($0.1.id), title: $0.1.filename, order: $0.1.exportOrder,
                         isImageAsset: $0.1.mediaType.hasPrefix("image/"),
+                        isVideoAsset: $0.1.mediaType.hasPrefix("video/"),
                         publishingChange: parent.publishingChanges[$0.1.id]
                     )
                 }
@@ -735,6 +740,7 @@ private final class PageOutlineItem: NSObject {
     let isHome: Bool
     let isTopLevelPage: Bool
     let isImageAsset: Bool
+    let isVideoAsset: Bool
     var publishingChange: PublishingChange?
     var children: [PageOutlineItem] = []
     var id: UUID { kind.id }
@@ -768,6 +774,7 @@ private final class PageOutlineItem: NSObject {
         isHome: Bool = false,
         isTopLevelPage: Bool = false,
         isImageAsset: Bool = false,
+        isVideoAsset: Bool = false,
         publishingChange: PublishingChange? = nil
     ) {
         self.kind = kind
@@ -776,6 +783,7 @@ private final class PageOutlineItem: NSObject {
         self.isHome = isHome
         self.isTopLevelPage = isTopLevelPage
         self.isImageAsset = isImageAsset
+        self.isVideoAsset = isVideoAsset
         self.publishingChange = publishingChange
     }
 

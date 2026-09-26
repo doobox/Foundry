@@ -9,6 +9,10 @@
   "author": "Foundry",
   "description": "A box that lives inside a Flex — it grows, shrinks and aligns against its siblings, and stacks its own content with Flexbox.",
   "group": "Layout",
+  "icon": {
+    "symbol": "rectangle.portrait",
+    "tint": "blue"
+  },
   "id": "foundry.layout.flex-item",
   "inspector": [
     {
@@ -292,7 +296,6 @@
     }
   ],
   "minimumAPIVersion": 1,
-  "showsInPartLibrary": false,
   "tags": [
     "Foundry",
     "built-in",

@@ -3,6 +3,10 @@
   "author": "Foundry",
   "description": "Responsive two-dimensional layouts with fixed or automatic columns.",
   "group": "Layout",
+  "icon": {
+    "symbol": "app.grid.2x2",
+    "tint": "blue"
+  },
   "id": "foundry.layout.grid",
   "inspector": [
     {

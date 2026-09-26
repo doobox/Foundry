@@ -4,6 +4,7 @@ nonisolated protocol FrameworkSpacingPolicy: Sendable {
     static var allowsAutoAndNegative: Bool { get }
     static var label: String { get }
     static var isRadius: Bool { get }
+    static var linksByDefault: Bool { get }
     static var units: [String] { get }
     static var frameworkUnit: String { get }
     static var tokens: [String] { get }
@@ -17,6 +18,9 @@ nonisolated struct FrameworkEdgeChoice: Identifiable {
 }
 nonisolated extension FrameworkSpacingPolicy {
     static var isRadius: Bool { false }
+    // Uniform values are the norm for radii and border widths; padding and
+    // margin are directional, so they start with every edge independent.
+    static var linksByDefault: Bool { true }
     static var units: [String] { ["px", "rem", "em", "%"] }
     static var frameworkUnit: String { "rem" }
     static var tokens: [String] { ["none", "3xs", "2xs", "xs", "sm", "md", "lg", "xl", "2xl", "3xl", "4xl"] + (allowsAutoAndNegative ? ["auto"] : []) }
@@ -64,10 +68,12 @@ nonisolated enum RadiusPolicy: FrameworkSpacingPolicy {
 nonisolated enum PaddingPolicy: FrameworkSpacingPolicy {
     static let allowsAutoAndNegative = false
     static let label = "Padding"
+    static let linksByDefault = false
 }
 nonisolated enum MarginPolicy: FrameworkSpacingPolicy {
     static let allowsAutoAndNegative = true
     static let label = "Margin"
+    static let linksByDefault = false
 }
 typealias FrameworkBorderWidthValue = FrameworkSpacingValue<BorderWidthPolicy>
 typealias FrameworkRadiusValue = FrameworkSpacingValue<RadiusPolicy>
@@ -80,7 +86,7 @@ nonisolated struct FrameworkSpacingValue<Policy: FrameworkSpacingPolicy>: Codabl
         var token = "sm"
         var isCustom = false
         var amount = 0.0
-        var unit = Policy.frameworkUnit
+        var unit = "px"
     }
 
     enum Edge: String, CaseIterable, Identifiable {
@@ -100,12 +106,11 @@ nonisolated struct FrameworkSpacingValue<Policy: FrameworkSpacingPolicy>: Codabl
         }
     }
 
-    /// Top and bottom share a value. Independent of `horizontalLinked` — both can be
-    /// true at once (all four edges then move together, since each pair is tied and
-    /// setting any edge propagates through both pairs), or either can be toggled off
-    /// on its own without disturbing the other axis.
-    private(set) var verticalLinked = true
-    private(set) var horizontalLinked = true
+    /// Top and bottom share a value, left and right share a value — always as
+    /// independent pairs. Even with both links on, edges only follow their own
+    /// axis; corners are the exception, where one nominal "link" ties all four.
+    private(set) var verticalLinked = Policy.linksByDefault
+    private(set) var horizontalLinked = Policy.linksByDefault
     private(set) var values = Array(repeating: EdgeValue(), count: 4)
 
     init() {}
@@ -146,12 +151,15 @@ nonisolated struct FrameworkSpacingValue<Policy: FrameworkSpacingPolicy>: Codabl
     var allEqual: Bool { values.dropFirst().allSatisfy { $0 == values[0] } }
 
     mutating func set(_ value: EdgeValue, for edge: Edge) {
-        if verticalLinked && horizontalLinked {
-            values = Array(repeating: value, count: 4)
-            return
+        for target in group(containing: edge) {
+            values[target.index] = value
         }
-        values[Edge.allCases.firstIndex(of: edge)!] = value
-        if isPairLinked(edge) { values[Edge.allCases.firstIndex(of: edge.partner)!] = value }
+    }
+
+    /// Sets every edge to one value without consulting link state — used when
+    /// seeding uniform defaults; the link flags keep their policy defaults.
+    mutating func setAll(_ value: EdgeValue) {
+        values = Array(repeating: value, count: 4)
     }
 
     func isPairLinked(_ edge: Edge) -> Bool {
@@ -169,10 +177,9 @@ nonisolated struct FrameworkSpacingValue<Policy: FrameworkSpacingPolicy>: Codabl
         values = Array(repeating: value(for: .top), count: 4)
     }
 
-    /// Toggles the vertical (top/bottom) or horizontal (left/right) pair. Turning a
-    /// pair on syncs its group to that axis's first edge's value — and if *both*
-    /// pairs end up linked, the group is all four edges, so completing the second
-    /// link cascades that edge's value across everything, not just its own pair.
+    /// Toggles the vertical (top/bottom) or horizontal (left/right) pair.
+    /// Turning a pair on syncs it to that axis's first edge's value; the other
+    /// axis is never disturbed.
     mutating func togglePair(using edge: Edge) {
         if edge.isVertical {
             verticalLinked.toggle()
@@ -191,56 +198,22 @@ nonisolated struct FrameworkSpacingValue<Policy: FrameworkSpacingPolicy>: Codabl
     }
 
     private func group(containing edge: Edge) -> [Edge] {
-        if verticalLinked && horizontalLinked { return Edge.allCases }
+        // Corners are one nominal link across all four; edges stay pairwise
+        // even when both axis links are on.
+        if Policy.isRadius, verticalLinked, horizontalLinked { return Edge.allCases }
         return edge.isVertical
             ? (verticalLinked ? [.top, .bottom] : [edge])
             : (horizontalLinked ? [.left, .right] : [edge])
     }
 
-    /// Switches every edge between a framework token and a raw custom amount at once —
-    /// mode is a single control-wide toggle now, not a per-edge escape hatch, so all
-    /// four edges always move together. Going custom→framework snaps each edge to the
-    /// nearest token; going framework→custom carries the selected token's own amount.
-    mutating func setUsesFrameworkTokens(_ usesFrameworkTokens: Bool, framework: Framework) {
-        let choices = Policy.choices(in: framework)
-        for edge in Edge.allCases {
-            var edgeValue = value(for: edge)
-            if usesFrameworkTokens {
-                edgeValue.token = Self.nearestToken(toAmount: edgeValue.amount, unit: edgeValue.unit, choices: choices)
-                edgeValue.isCustom = false
-            } else {
-                if let choice = choices.first(where: { $0.id == edgeValue.token }) {
-                    edgeValue.amount = choice.amount
-                    edgeValue.unit = Policy.frameworkUnit
-                } else if edgeValue.token == "none" {
-                    edgeValue.amount = 0
-                    edgeValue.unit = Policy.frameworkUnit
-                }
-                edgeValue.isCustom = true
-            }
-            values[edge.index] = edgeValue
+    /// Switches every edge between framework tokens and raw custom lengths —
+    /// mode is a single control-wide toggle, so all four edges move together.
+    /// Each mode keeps its own last state: the custom amount/unit (0px until
+    /// the user types) and the selected token both survive round trips
+    /// untouched; nothing is converted or snapped.
+    mutating func setUsesFrameworkTokens(_ usesFrameworkTokens: Bool) {
+        for index in values.indices {
+            values[index].isCustom = !usesFrameworkTokens
         }
-    }
-
-    /// A rough px⇄rem/em conversion (assuming a 16px root) purely so "nearest token"
-    /// lands somewhere sensible when switching into framework mode — not exact CSS math.
-    private static func frameworkEquivalentAmount(_ amount: Double, unit: String) -> Double {
-        switch (unit, Policy.frameworkUnit) {
-        case (Policy.frameworkUnit, _): amount
-        case ("px", "rem"), ("px", "em"): amount / 16
-        case ("rem", "px"), ("em", "px"): amount * 16
-        default: amount
-        }
-    }
-
-    private static func nearestToken(toAmount amount: Double, unit: String, choices: [FrameworkEdgeChoice]) -> String {
-        let target = frameworkEquivalentAmount(amount, unit: unit)
-        var bestID = "none"
-        var bestDelta = abs(target)
-        for choice in choices where abs(choice.amount - target) < bestDelta {
-            bestDelta = abs(choice.amount - target)
-            bestID = choice.id
-        }
-        return bestID
     }
 }

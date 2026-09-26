@@ -9,16 +9,19 @@ struct FrameworkPaddingTests {
         var value = FrameworkSingleSpacingValue()
         #expect(value.selection.token == "sm")
         #expect(!value.selection.isCustom)
-        value.setUsesFrameworkTokens(false, framework: .standard)
+        value.setUsesFrameworkTokens(false)
         #expect(value.selection.isCustom)
-        // Custom starts with the selected token's own amount: SM is 4 × 0.25rem.
-        #expect(value.selection.amount == 1)
-        #expect(value.selection.unit == "rem")
+        // Each mode keeps its own state: custom starts untouched at 0px.
+        #expect(value.selection.amount == 0)
+        #expect(value.selection.unit == "px")
         value.selection.amount = 1.6
-        value.setUsesFrameworkTokens(true, framework: .standard)
+        value.setUsesFrameworkTokens(true)
         #expect(!value.selection.isCustom)
-        // 1.6rem snaps to the nearest framework value: MD at 1.5rem.
-        #expect(value.selection.token == "md")
+        // Nothing snaps: the token survives the round trip untouched…
+        #expect(value.selection.token == "sm")
+        value.setUsesFrameworkTokens(false)
+        // …and so does the custom amount.
+        #expect(value.selection.amount == 1.6)
     }
 
     @Test func defaultsAndResolution() throws {
@@ -94,50 +97,57 @@ struct FrameworkPaddingTests {
         #expect(state.value(for: .bottom) == padding)
     }
 
-    @Test func togglingTheSecondPairCascadesToAllFourEdges() {
+    @Test func togglingTheSecondPairLeavesTheOtherPairUntouched() {
         var state = FrameworkPaddingValue()
-        state.unlinkAll()
         state.togglePair(using: .top)
         var customTop = state.value(for: .top)
         customTop.token = "xl"
         state.set(customTop, for: .top)
         state.togglePair(using: .right)
         #expect(state.verticalLinked && state.horizontalLinked)
-        // Completing the second link while the first is already on means every
-        // edge is now tied together — the toggle cascades its axis's leading
-        // edge (left, for horizontal) across all four, not just its own pair,
-        // discarding the vertical pair's custom value in the process.
-        #expect(state.values.allSatisfy { $0.token == "sm" })
+        // Pairs stay independent even with both links on: the horizontal link
+        // syncs left/right only, and the vertical pair keeps its value.
+        #expect(state.value(for: .top).token == "xl")
+        #expect(state.value(for: .bottom).token == "xl")
+        #expect(state.value(for: .left).token == "sm")
+        #expect(state.value(for: .right).token == "sm")
     }
 
-    @Test func togglingTheSecondPairCascadesToAllFourEdgesHorizontalFirst() {
+    @Test func togglingTheSecondPairLeavesTheOtherPairUntouchedHorizontalFirst() {
         var state = FrameworkPaddingValue()
-        state.unlinkAll()
         state.togglePair(using: .left)
         var customLeft = state.value(for: .left)
         customLeft.token = "xl"
         state.set(customLeft, for: .left)
         state.togglePair(using: .bottom)
         #expect(state.verticalLinked && state.horizontalLinked)
-        #expect(state.values.allSatisfy { $0.token == "sm" })
+        #expect(state.value(for: .left).token == "xl")
+        #expect(state.value(for: .right).token == "xl")
+        #expect(state.value(for: .top).token == "sm")
+        #expect(state.value(for: .bottom).token == "sm")
     }
 
-    @Test func unlinkingOnePairFromAllRetainsOtherPair() {
+    @Test func defaultsStartUnlinkedAndTogglingLinksOneAxis() {
         var state = FrameworkPaddingValue()
-        state.togglePair(using: .bottom)
         #expect(!state.isPairLinked(.top))
-        #expect(state.isPairLinked(.left))
-        #expect(state.allEqual)
+        #expect(!state.isPairLinked(.left))
+        state.togglePair(using: .bottom)
+        #expect(state.isPairLinked(.top))
+        #expect(!state.isPairLinked(.left))
     }
 
-    @Test func linkedEditsUpdateEveryEdge() {
+    @Test func pairLinkedEditsUpdateOnlyTheirAxis() {
         var state = FrameworkPaddingValue()
+        state.togglePair(using: .top)
+        state.togglePair(using: .left)
         var padding = state.value(for: .top)
         padding.token = "lg"
         state.set(padding, for: .top)
-        #expect(state.values.allSatisfy { $0.token == "lg" })
+        #expect(state.value(for: .bottom).token == "lg")
+        #expect(state.value(for: .left).token == "sm")
+        #expect(state.value(for: .right).token == "sm")
         state.unlinkAll()
-        #expect(state.values.allSatisfy { $0.token == "lg" })
+        #expect(state.value(for: .bottom).token == "lg")
     }
 
     @Test func linkAllUsesTop() {

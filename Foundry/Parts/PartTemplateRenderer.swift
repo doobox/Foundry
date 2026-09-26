@@ -134,6 +134,20 @@ nonisolated struct PartImagePrimitive: Codable, Equatable, Sendable {
     let isRepeated: Bool
 }
 
+nonisolated struct PartVideoPrimitive: Codable, Equatable, Sendable {
+    let key: String
+    let isRepeated: Bool
+}
+
+/// Inline SVG glyphs for the canvas drop zones — a rounded square framing a
+/// down arrow for part areas, a photo mark for image wells, and a camera for
+/// video wells. Filled with `currentColor` so the zone's label colour applies.
+nonisolated enum FoundryDropZoneGlyphs {
+    static let part = #"<svg viewBox="0 0 147 147" width="22" height="22" fill="currentColor"><path fill-rule="evenodd" d="M43.629,146.562C29.456,146.562 18.484,142.625 11.21,135.352C3.838,128.046 -0,117.071 -0,102.933L-0,43.629C-0,29.491 3.873,18.48 11.21,11.21C18.413,4.008 29.456,0 43.629,0L103.036,0C117.209,0 128.082,3.905 135.387,11.21C142.827,18.516 146.665,29.491 146.665,43.629L146.665,102.933C146.665,117.071 142.792,128.082 135.387,135.352C128.185,142.554 117.209,146.562 103.036,146.562L43.629,146.562ZM43.629,135.491L103.036,135.491C113.642,135.491 121.932,132.503 127.269,127.269C132.741,121.797 135.594,113.674 135.594,102.933L135.594,43.629C135.594,32.888 132.741,24.765 127.269,19.293C121.864,13.992 113.642,11.07 103.036,11.07L43.629,11.07C32.955,11.07 24.698,14.059 19.36,19.293C13.924,24.765 11.07,32.888 11.07,43.629L11.07,102.933C11.07,113.674 13.924,121.797 19.36,127.269C24.765,132.57 32.955,135.491 43.629,135.491Z"/><path d="M68.262,98.329L67.932,86.478L67.932,38.195C67.932,35.342 70.377,32.862 73.4,32.862C76.32,32.862 78.868,35.342 78.868,38.195L78.868,86.478L78.487,98.346L83.674,92.885L96.98,78.905C97.896,77.817 99.392,77.239 100.717,77.239C103.499,77.239 105.709,79.313 105.709,82.131C105.709,83.591 105.165,84.678 104.078,85.765L77.372,111.764C76.015,113.121 74.757,113.597 73.4,113.597C72.007,113.597 70.75,113.121 69.428,111.764L42.584,85.765C41.599,84.678 40.988,83.591 40.988,82.131C40.988,79.313 43.059,77.239 45.98,77.239C47.27,77.239 48.765,77.817 49.785,78.905L63.055,92.885L68.262,98.329Z"/></svg>"#
+    static let image = #"<svg viewBox="0 0 147 147" width="22" height="22" fill="currentColor"><g transform="translate(-9.091185 -0.438)"><path fill-rule="evenodd" d="M52.72,147C38.547,147 27.575,143.063 20.302,135.79C12.929,128.484 9.091,117.509 9.091,103.371L9.091,44.067C9.091,29.929 12.964,18.918 20.302,11.648C27.504,4.446 38.547,0.438 52.72,0.438L112.127,0.438C126.3,0.438 137.173,4.343 144.478,11.648C151.918,18.954 155.756,29.929 155.756,44.067L155.756,103.371C155.756,117.509 151.883,128.52 144.478,135.79C137.276,142.992 126.3,147 112.127,147L52.72,147ZM52.72,135.929L112.127,135.929C122.733,135.929 131.023,132.941 136.36,127.707C141.832,122.235 144.685,114.112 144.685,103.371L144.685,44.067C144.685,33.326 141.832,25.203 136.36,19.731C130.955,14.429 122.733,11.508 112.127,11.508L52.72,11.508C42.046,11.508 33.789,14.497 28.452,19.731C23.015,25.203 20.162,33.326 20.162,44.067L20.162,103.371C20.162,114.112 23.015,122.235 28.452,127.707C33.856,133.008 42.046,135.929 52.72,135.929ZM30.162,98.861L36.146,93.384C39.44,90.328 42.831,88.816 46.511,88.816C50.497,88.816 54.061,90.431 57.458,93.487L72.564,107.297L109.117,74.624C112.964,71.22 116.872,69.57 121.443,69.57C125.95,69.57 130.132,71.323 133.844,74.727L134.685,75.51L134.685,103.371C134.685,110.885 133.154,116.725 129.35,120.574C125.558,124.269 119.584,125.929 112.127,125.929L52.72,125.929C45.241,125.929 39.349,124.33 35.533,120.645C31.704,116.758 30.162,110.906 30.162,103.371L30.162,98.861ZM59.536,74.562C49.036,74.562 40.493,66.018 40.493,55.518C40.493,45.121 49.036,36.475 59.536,36.475C69.933,36.475 78.476,45.121 78.476,55.518C78.476,66.018 69.933,74.562 59.536,74.562Z"/></g></svg>"#
+    static let video = #"<svg viewBox="0 0 147 147" width="22" height="22" fill="currentColor"><g transform="translate(-9.091185 -0.438)"><path fill-rule="evenodd" d="M52.72,147C38.547,147 27.575,143.063 20.302,135.79C12.929,128.484 9.091,117.509 9.091,103.371L9.091,44.067C9.091,29.929 12.964,18.918 20.302,11.648C27.504,4.446 38.547,0.438 52.72,0.438L112.127,0.438C126.3,0.438 137.173,4.343 144.478,11.648C151.918,18.954 155.756,29.929 155.756,44.067L155.756,103.371C155.756,117.509 151.883,128.52 144.478,135.79C137.276,142.992 126.3,147 112.127,147L52.72,147ZM52.72,135.929L112.127,135.929C122.733,135.929 131.023,132.941 136.36,127.707C141.832,122.235 144.685,114.112 144.685,103.371L144.685,44.067C144.685,33.326 141.832,25.203 136.36,19.731C130.955,14.429 122.733,11.508 112.127,11.508L52.72,11.508C42.046,11.508 33.789,14.497 28.452,19.731C23.015,25.203 20.162,33.326 20.162,44.067L20.162,103.371C20.162,114.112 23.015,122.235 28.452,127.707C33.856,133.008 42.046,135.929 52.72,135.929ZM49.179,106.225C41.111,106.225 36.382,101.596 36.382,93.599L36.382,54.515C36.382,46.451 41.313,41.889 49.179,41.889L92.062,41.889C100.126,41.889 104.552,46.451 104.552,54.515L104.552,93.599C104.552,101.596 99.856,106.225 91.791,106.225L49.179,106.225ZM108.94,85.11L108.94,62.968L124.322,50.031C125.66,48.934 127.233,48.146 128.674,48.146C131.544,48.146 133.493,50.262 133.493,53.447L133.493,94.599C133.493,97.851 131.544,99.968 128.674,99.968C127.233,99.968 125.728,99.18 124.322,98.015L108.94,85.11Z"/></g></svg>"#
+}
+
 nonisolated enum PartTemplateRenderer {
     private static let dropZoneExpression = try! NSRegularExpression(
         pattern: #"^\s*dropZone\(\s*\"([A-Za-z][A-Za-z0-9_-]*)\"\s*\)\s*$"#
@@ -156,6 +170,7 @@ nonisolated enum PartTemplateRenderer {
     private static let loremParagraph = "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum."
     private static let templateExpression = try! NSRegularExpression(pattern: #"\{\{\s*([^{}]+?)\s*\}\}"#)
     private static let imageExpression = try! NSRegularExpression(pattern: #"\{\{\s*image\(\s*\"[A-Za-z][A-Za-z0-9_-]*\"\s*\)\s*\}\}"#)
+    private static let videoExpression = try! NSRegularExpression(pattern: #"\{\{\s*video\(\s*\"[A-Za-z][A-Za-z0-9_-]*\"\s*\)\s*\}\}"#)
     private static let filterCallExpression = try! NSRegularExpression(pattern: #"^([A-Za-z][A-Za-z0-9_-]*)\(\s*(.*?)\s*\)$"#)
     private static let outputEncodingFilters: Set<String> = [
         "escapeHTML", "escapeHTMLAttribute", "encodeURL", "encodeURIComponent", "encodeJSON"
@@ -165,6 +180,7 @@ nonisolated enum PartTemplateRenderer {
     private static let keyedTextExpression = try! NSRegularExpression(pattern: #"\{\{\s*__foundry_text\s+key=\"([^\"]+)\"\s+default=\"([^\"]*)\"(?:\s+repeated=\"(true)\"\s+path=\"([0-9,]+)\")?\s*\}\}"#)
     private static let keyedHTMLExpression = try! NSRegularExpression(pattern: #"\{\{\s*__foundry_html\s+key=\"([^\"]+)\"\s+default=\"([^\"]*)\"(?:\s+repeated=\"(true)\"\s+path=\"([0-9,]+)\")?\s*\}\}"#)
     private static let keyedImageExpression = try! NSRegularExpression(pattern: #"\{\{\s*__foundry_image\s+key=\"([^\"]+)\"(?:\s+repeated=\"(true)\"\s+path=\"([0-9,]+)\")?\s*\}\}"#)
+    private static let keyedVideoExpression = try! NSRegularExpression(pattern: #"\{\{\s*__foundry_video\s+key=\"([^\"]+)\"(?:\s+repeated=\"(true)\"\s+path=\"([0-9,]+)\")?\s*\}\}"#)
     private static let controlledImageElementExpression = try! NSRegularExpression(
         pattern: #"<img\b([^>]*?)\bsrc\s*=\s*([\"'])\{\{\s*control\.([A-Za-z][A-Za-z0-9_-]*)(\.rendition\.[A-Za-z][A-Za-z0-9_-]*(?:\.href)?|\.href)?\s*\}\}\2([^>]*)>"#,
         options: [.caseInsensitive]
@@ -183,6 +199,7 @@ nonisolated enum PartTemplateRenderer {
         var result = renderControlledImageElements(in: expanded, context: context)
         result = renderText(in: result, context: context)
         result = renderImage(in: result, context: context)
+        result = renderVideo(in: result, context: context)
         result = renderConditions(in: result, context: context)
         let matches = templateExpression.matches(in: result, range: NSRange(result.startIndex..., in: result)).reversed()
         for match in matches {
@@ -214,6 +231,10 @@ nonisolated enum PartTemplateRenderer {
         imageExpression.firstMatch(in: template, range: NSRange(template.startIndex..., in: template)) != nil
     }
 
+    static func hasVideoPrimitive(in template: String) -> Bool {
+        videoExpression.firstMatch(in: template, range: NSRange(template.startIndex..., in: template)) != nil
+    }
+
     static func htmlPrimitives(in template: String) -> [PartHTMLPrimitive] {
         htmlPrimitives(in: template, loopMaximums: [:])
     }
@@ -228,6 +249,13 @@ nonisolated enum PartTemplateRenderer {
     static func imagePrimitives(in template: String) -> [PartImagePrimitive] {
         (try? PartTemplateLoop.declarations(in: template))?.compactMap {
             guard case .image = $0.kind else { return nil }
+            return .init(key: $0.key, isRepeated: $0.isRepeated)
+        } ?? []
+    }
+
+    static func videoPrimitives(in template: String) -> [PartVideoPrimitive] {
+        (try? PartTemplateLoop.declarations(in: template))?.compactMap {
+            guard case .video = $0.kind else { return nil }
             return .init(key: $0.key, isRepeated: $0.isRepeated)
         } ?? []
     }
@@ -297,6 +325,28 @@ nonisolated enum PartTemplateRenderer {
         return result
     }
 
+    private static func renderVideo(in template: String, context: PartTemplateContext) -> String {
+        var result = template
+        let keyedMatches = keyedVideoExpression.matches(in: result, range: NSRange(result.startIndex..., in: result)).reversed()
+        for match in keyedMatches {
+            guard let range = Range(match.range(at: 0), in: result),
+                  let keyRange = Range(match.range(at: 1), in: result) else { continue }
+            let key = String(result[keyRange])
+            let path = indexPath(match, group: 3, in: result)
+            result.replaceSubrange(
+                range,
+                with: renderedVideo(
+                    source: stringValue(value(context.allProperties[key], at: path)) ?? "",
+                    key: key,
+                    marksSelectablePrimitive: !path.isEmpty,
+                    indexPath: path,
+                    context: context
+                )
+            )
+        }
+        return result
+    }
+
     private static func renderControlledImageElements(
         in template: String,
         context: PartTemplateContext
@@ -324,7 +374,7 @@ nonisolated enum PartTemplateRenderer {
                     let attributes = addingCSSClass("foundry-image-drop-zone", to: before + after)
                     result.replaceSubrange(
                         wholeRange,
-                        with: "<span\(attributes) data-foundry-image-drop-zone data-foundry-image-property=\"\(escapeAttribute(key))\">Drop image here</span>"
+                        with: "<span\(attributes) data-foundry-image-drop-zone data-foundry-image-property=\"\(escapeAttribute(key))\"><span class=\"foundry-drop-label\">\(FoundryDropZoneGlyphs.image)</span></span>"
                     )
                 } else {
                     result.removeSubrange(wholeRange)
@@ -408,10 +458,39 @@ nonisolated enum PartTemplateRenderer {
             ? " data-foundry-property-path=\"\(indexPath.map(String.init).joined(separator: ","))\""
             : ""
         if resolvedSource.isEmpty && context.enablesEditorMarkup {
-            return "<span class=\"foundry-image-drop-zone\" data-foundry-image-drop-zone\(propertyAttribute)\(primitiveAttribute)\(pathAttribute)>Drop image here</span>"
+            return "<span class=\"foundry-image-drop-zone\" data-foundry-image-drop-zone\(propertyAttribute)\(primitiveAttribute)\(pathAttribute)><span class=\"foundry-drop-label\">\(FoundryDropZoneGlyphs.image)</span></span>"
         }
         let editorAttribute = context.enablesEditorMarkup ? " data-foundry-image-drop-zone\(propertyAttribute)" : ""
         return "<img class=\"fd-image\"\(editorAttribute)\(primitiveAttribute)\(pathAttribute) src=\"\(escapeAttribute(resolvedSource))\" alt=\"\">"
+    }
+
+    private static func renderedVideo(
+        source: String,
+        key: String,
+        marksSelectablePrimitive: Bool,
+        indexPath: [Int],
+        context: PartTemplateContext
+    ) -> String {
+        let resolvedSource = context.assetPaths[source] ?? source
+        let propertyAttribute = context.enablesEditorMarkup ? " data-foundry-video-property=\"\(escapeAttribute(key))\"" : ""
+        let primitiveAttribute = context.enablesEditorMarkup && marksSelectablePrimitive
+            ? " data-foundry-primitive-property=\"\(escapeAttribute(key))\""
+            : ""
+        let pathAttribute = context.enablesEditorMarkup && !indexPath.isEmpty
+            ? " data-foundry-property-path=\"\(indexPath.map(String.init).joined(separator: ","))\""
+            : ""
+        if resolvedSource.isEmpty && context.enablesEditorMarkup {
+            return "<span class=\"foundry-video-drop-zone\" data-foundry-video-drop-zone\(propertyAttribute)\(primitiveAttribute)\(pathAttribute)><span class=\"foundry-drop-label\">\(FoundryDropZoneGlyphs.video)</span></span>"
+        }
+        if context.enablesEditorMarkup {
+            // On the canvas the movie itself is never loaded; the element shows
+            // the generated poster frame and doubles as the replacement target.
+            let poster = context.allProperties[key + ".poster"]?.stringValue ?? ""
+            let posterAttribute = poster.isEmpty ? "" : " poster=\"\(escapeAttribute(poster))\""
+            return "<video class=\"fd-video\" data-foundry-video-drop-zone\(propertyAttribute)\(primitiveAttribute)\(pathAttribute)\(posterAttribute) controls playsinline></video>"
+        }
+        if resolvedSource.isEmpty { return "" }
+        return "<video class=\"fd-video\" src=\"\(escapeAttribute(resolvedSource))\" controls playsinline></video>"
     }
 
     private static func addInlineEditingAttribute(

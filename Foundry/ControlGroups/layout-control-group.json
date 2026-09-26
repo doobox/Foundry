@@ -1,0 +1,232 @@
+{
+  "controls": [
+    {
+      "defaults": {
+        "base": "none"
+      },
+      "id": "position",
+      "label": "Position",
+      "options": [
+        {
+          "title": "None",
+          "value": "none"
+        },
+        {
+          "title": "Static",
+          "value": "static"
+        },
+        {
+          "title": "Relative",
+          "value": "relative"
+        },
+        {
+          "title": "Absolute",
+          "value": "absolute"
+        },
+        {
+          "title": "Fixed",
+          "value": "fixed"
+        },
+        {
+          "title": "Sticky",
+          "value": "sticky"
+        }
+      ],
+      "responsive": true,
+      "type": "select"
+    },
+    {
+      "defaults": {
+        "base": "none"
+      },
+      "id": "zIndexMode",
+      "label": "Z-Index",
+      "options": [
+        {
+          "title": "None",
+          "value": "none"
+        },
+        {
+          "title": "Auto",
+          "value": "auto"
+        },
+        {
+          "title": "Custom",
+          "value": "custom"
+        }
+      ],
+      "presentation": "segmented",
+      "responsive": true,
+      "type": "select"
+    },
+    {
+      "defaults": {
+        "base": 0
+      },
+      "id": "zIndex",
+      "label": "Value",
+      "maximum": 9999,
+      "minimum": -9999,
+      "responsive": true,
+      "step": 1,
+      "type": "number",
+      "valueAvailability": "whenVisible",
+      "visibleWhen": {
+        "id": "zIndexMode",
+        "value": "custom"
+      }
+    },
+    {
+      "defaults": {
+        "base": "none"
+      },
+      "id": "offsets",
+      "label": "Offsets",
+      "options": [
+        {
+          "title": "None",
+          "value": "none"
+        },
+        {
+          "title": "Uniform",
+          "value": "uniform"
+        },
+        {
+          "title": "Individual",
+          "value": "individual"
+        }
+      ],
+      "presentation": "segmented",
+      "responsive": true,
+      "type": "select"
+    },
+    {
+      "defaults": {
+        "base": "none"
+      },
+      "id": "offset",
+      "label": "Offset",
+      "responsive": true,
+      "type": "frameworkSpacing",
+      "valueAvailability": "whenVisible",
+      "visibleWhen": {
+        "id": "offsets",
+        "value": "uniform"
+      }
+    },
+    {
+      "defaults": {
+        "base": {
+          "unit": "px",
+          "value": 0
+        }
+      },
+      "id": "offsetEdges",
+      "label": "Offset",
+      "responsive": true,
+      "type": "edges",
+      "units": [
+        "px",
+        "%",
+        "rem",
+        "em"
+      ],
+      "valueAvailability": "whenVisible",
+      "visibleWhen": {
+        "id": "offsets",
+        "value": "individual"
+      }
+    },
+    {
+      "defaults": {
+        "base": false
+      },
+      "id": "hidden",
+      "label": "Hidden",
+      "presentation": "switch",
+      "responsive": true,
+      "type": "toggle"
+    },
+    {
+      "defaults": {
+        "base": "default"
+      },
+      "id": "visibility",
+      "label": "Visibility",
+      "options": [
+        {
+          "title": "Default",
+          "value": "default"
+        },
+        {
+          "title": "Visible",
+          "value": "visible"
+        },
+        {
+          "title": "Hidden",
+          "value": "hidden"
+        }
+      ],
+      "responsive": true,
+      "type": "select"
+    },
+    {
+      "defaults": {
+        "base": "none"
+      },
+      "id": "overflow",
+      "label": "Overflow",
+      "options": [
+        {
+          "title": "None",
+          "value": "none"
+        },
+        {
+          "title": "Visible",
+          "value": "visible"
+        },
+        {
+          "title": "Hidden",
+          "value": "hidden"
+        },
+        {
+          "title": "Scroll",
+          "value": "scroll"
+        },
+        {
+          "title": "Auto",
+          "value": "auto"
+        }
+      ],
+      "responsive": true,
+      "type": "select"
+    },
+    {
+      "defaults": {
+        "base": "none"
+      },
+      "id": "isolation",
+      "label": "Isolation",
+      "options": [
+        {
+          "title": "None",
+          "value": "none"
+        },
+        {
+          "title": "Isolate",
+          "value": "isolate"
+        },
+        {
+          "title": "Auto",
+          "value": "auto"
+        }
+      ],
+      "presentation": "segmented",
+      "responsive": true,
+      "type": "select"
+    }
+  ],
+  "name": "Layout",
+  "systemImage": "square.on.square",
+  "type": "layout"
+}

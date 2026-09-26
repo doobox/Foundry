@@ -9,9 +9,15 @@ struct BuiltInLayoutPartsTests {
     private let names = ["Container", "Flex", "Grid"]
 
     private func package(_ name: String) throws -> LoadedPartPackage {
-        let root = URL(fileURLWithPath: #filePath)
+        // The bundled container is a .foundrypack in releases but may be
+        // renamed to .foundrydevpack while working on the built-in parts.
+        let resources = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent().deletingLastPathComponent()
-            .appending(path: "Foundry/Resources/BuiltInParts.bundle/Contents/Resources/BuiltInParts.foundrypack/Parts/\(name)")
+            .appending(path: "Foundry/Resources/BuiltInParts.bundle/Contents/Resources")
+        let container = ["foundrypack", "foundrydevpack"]
+            .map { resources.appending(path: "BuiltInParts.\($0)", directoryHint: .isDirectory) }
+            .first { FileManager.default.fileExists(atPath: $0.path) }
+        let root = try #require(container).appending(path: "Parts/\(name)")
         return try PartPackageLoader.load(from: root)
     }
 
@@ -25,13 +31,13 @@ struct BuiltInLayoutPartsTests {
             let properties = loaded.manifest.resolvedProperties
             // Layouts share every value-producing group; the advanced group
             // (author-set ID/classes/attributes) is a per-part product choice
-            // and no built-in opts in. In-parent behaviour lives on the Flex
-            // Item and Grid Item parts, so no layout carries the layoutItem
-            // group. Container swaps the sizing group for its own section
-            // semantics: an always-full-width root with a Contained/Full
-            // content width and the group's height controls.
+            // and no built-in opts in. The layout group (position, z-index,
+            // offsets, display) is opt-in per part and none of the built-in
+            // layouts wire its values yet. Container swaps the sizing group
+            // for its own section semantics: an always-full-width root with a
+            // Contained/Full content width and the group's height controls.
             let expectedKinds = Set(PartPackageControlGroup.Kind.allCases)
-                .subtracting(name == "Container" ? [.advanced, .layoutItem, .sizing] : [.advanced, .layoutItem])
+                .subtracting(name == "Container" ? [.advanced, .flexbox, .layout, .sizing] : [.advanced, .flexbox, .layout])
             #expect(Set(loaded.manifest.controlGroups.map(\.type)) == expectedKinds)
             #expect(Set(loaded.manifest.controlGroups.map(\.type)).count == loaded.manifest.controlGroups.count)
             let widthControl = name == "Container" ? "contentWidth" : "widthMode"
@@ -66,9 +72,8 @@ struct BuiltInLayoutPartsTests {
             let loaded = try package(folder)
             #expect(loaded.manifest.identifier == identifier)
             #expect(loaded.manifest.version == "1.0.0")
-            // Items arrive through the parent's Add Item button, never the
-            // part library, and refuse parents they are meaningless in.
-            #expect(!loaded.manifest.showsInPartLibrary)
+            // Items arrive through the parent's Add Item button or the part
+            // library, and refuse parents they are meaningless in.
             #expect(loaded.hasDropZone)
             #expect(!loaded.manifest.permits(parent: .paragraph))
         }
@@ -176,8 +181,10 @@ struct BuiltInLayoutPartsTests {
     private func css(_ name: String, values overrides: [String: PartPackageValue] = [:]) throws -> String {
         let loaded = try package(name)
         var values: [String: PartPackageValue] = [
-            "widthMode": .string("full"), "customWidth": .number(320), "maxWidth": .number(0),
-            "minimumHeight": .number(0), "heightMode": .string("auto"), "customHeight": .number(400),
+            "widthMode": .string("full"), "customWidth": .number(320),
+            "minWidth": .string("0"), "maxWidth": .string("none"), "maxWidth.value": .number(0),
+            "minHeight": .string("0"), "maxHeight": .string("none"),
+            "heightMode": .string("auto"), "customHeight": .number(400),
             "spacingEnabled": .boolean(true), "frameworkPadding": .string("16px"), "frameworkMargin": .string("0"),
             "overflow": .string("visible"), "itemEnabled": .boolean(false), "showsBackground": .boolean(false),
             "frameworkBorder.width": .string("0"), "frameworkBorder.style": .string("solid"),

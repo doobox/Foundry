@@ -3,6 +3,10 @@
   "author": "Foundry",
   "description": "A full-width section. Backgrounds span its whole width while content stays inside the site's content width by default.",
   "group": "Layout",
+  "icon": {
+    "symbol": "rectangle.inset.filled",
+    "tint": "indigo"
+  },
   "id": "foundry.layout.container",
   "inspector": [
     {

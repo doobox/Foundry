@@ -53,7 +53,7 @@ struct CanvasBridgeTests {
     @Test
     func canvasDefinesDistinctPartReconciliationAndReloadOperations() {
         let id = UUID()
-        let subtree = RenderedPartSubtree(partID: id, html: "<div></div>", instanceCSS: "")
+        let subtree = RenderedPartSubtree(partID: id, html: "<div></div>", instanceStyles: [:])
         let operations: [CanvasWebOperation] = [
             .part(subtree, revision: 4),
             .reconcilePage(html: "page", revision: 5),
@@ -321,8 +321,8 @@ struct CanvasBridgeTests {
         let fullPage = renderer.render(page: page, framework: .standard)
 
         #expect(fullPage.contains(subtree.html))
-        if !subtree.instanceCSS.isEmpty {
-            #expect(fullPage.contains(subtree.instanceCSS))
+        for css in subtree.instanceStyles.values {
+            #expect(fullPage.contains(css))
         }
     }
 
@@ -347,8 +347,44 @@ struct CanvasBridgeTests {
         #expect(subtree.html.contains("data-foundry-id=\"\(child.id.uuidString)\""))
         #expect(subtree.html.contains("data-foundry-parent=\"\(container.id.uuidString)\""))
         #expect(fullPage.contains(subtree.html))
-        if !subtree.instanceCSS.isEmpty {
-            #expect(fullPage.contains(subtree.instanceCSS))
+        for css in subtree.instanceStyles.values {
+            #expect(fullPage.contains(css))
+        }
+        // Styles are keyed per instance so the canvas gives every part its
+        // own <style>: a parent's patch updating a descendant's element in
+        // place can never shadow the descendant's own later patches.
+        #expect(subtree.instanceStyles[container.id.uuidString]?.contains(container.id.uuidString) == true)
+        #expect(subtree.instanceStyles[child.id.uuidString]?.contains(child.id.uuidString) == true)
+    }
+
+    @Test @MainActor
+    func subtreePatchesCarryFreshPerInstanceStylesForNestedLayouts() async throws {
+        await PartPackageCatalog.shared.waitUntilLoaded()
+        var grid = PartNode.make(.grid)
+        grid.children = (0..<3).map { _ in PartNode.make(.gridItem) }
+        var container = PartNode.make(.container)
+        container.children = [grid]
+        var page = Page(title: "Home", slug: "index", parts: [container])
+        let renderer = HTMLPageRenderer()
+
+        // Patch the container first — its subtree styles include the grid.
+        let containerPatch = try #require(renderer.renderSubtree(
+            partID: container.id, page: page, framework: .standard, assets: [:], breakpoint: .large
+        ))
+        #expect(containerPatch.instanceStyles[grid.id.uuidString]?.contains("justify-items: stretch") == true)
+
+        // A later grid edit must surface in the grid's own style entry, which
+        // the canvas updates in place regardless of earlier parent patches.
+        grid.setProperty(.init(rawValue: "justifyItems"), value: .choice("center"))
+        container.children = [grid]
+        page.parts = [container]
+        let gridPatch = try #require(renderer.renderSubtree(
+            partID: grid.id, page: page, framework: .standard, assets: [:], breakpoint: .large
+        ))
+        #expect(gridPatch.partID == grid.id)
+        #expect(gridPatch.instanceStyles[grid.id.uuidString]?.contains("justify-items: center") == true)
+        for item in grid.children {
+            #expect(gridPatch.instanceStyles[item.id.uuidString]?.isEmpty == false)
         }
     }
 
@@ -397,6 +433,20 @@ struct CanvasBridgeTests {
     }
 
     @Test @MainActor
+    func pageRenderKeepsEveryInstanceStyleInItsOwnPatchableElement() {
+        // A patch replaces <style data-foundry-instance-style="id"> by key. If
+        // the page render bundled instance CSS into the shared sheet instead,
+        // a patch could only append — leaving declarations the part no longer
+        // emits (a dropped max-width, say) live in the original block.
+        let flex = PartNode.make(.flex)
+        let page = Page(title: "Styles", slug: "styles", parts: [flex])
+
+        let html = HTMLPageRenderer().render(page: page, framework: .standard)
+
+        #expect(html.contains("<style data-foundry-instance-style=\"\(flex.id.uuidString)\">"))
+    }
+
+    @Test @MainActor
     func emptyImageRendersAsAnExplicitDropTarget() {
         var image = PartNode.make(.image)
         image.setProperty(.source, value: .url(""))
@@ -404,7 +454,7 @@ struct CanvasBridgeTests {
 
         let html = HTMLPageRenderer().render(page: page, framework: .standard)
 
-        #expect(html.contains("Drop image here"))
+        #expect(html.contains("data-foundry-image-drop-zone"))
         #expect(html.contains("data-foundry-id=\"\(image.id.uuidString)\""))
     }
 

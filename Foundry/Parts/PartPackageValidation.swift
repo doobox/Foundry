@@ -108,7 +108,7 @@ nonisolated enum PartPackageValidator {
             }
         }
 
-        let declaredFiles = ["icon.svg", manifest.render.html, manifest.render.editorCSS]
+        let declaredFiles = [manifest.icon?.file, manifest.render.html, manifest.render.editorCSS]
             .compactMap { $0 }
             .filter { !$0.isEmpty } + manifest.assets.map(\.path) + manifest.render.files.map(\.path)
         for path in declaredFiles {
@@ -118,14 +118,30 @@ nonisolated enum PartPackageValidator {
                 diagnostics.append(.init(severity: .error, location: path, message: "The declared package file does not exist."))
             }
         }
-        for iconName in ["icon.svg", "icon-dark.svg", "tile.svg", "tile-dark.svg"] {
-            let iconURL = rootURL.appending(path: iconName)
+        if let iconFile = manifest.icon?.file, isSafeRelativePath(iconFile) {
+            let iconURL = rootURL.appending(path: iconFile)
             if let byteCount = try? iconURL.resourceValues(forKeys: [.fileSizeKey]).fileSize,
                byteCount > maximumIconByteCount {
                 diagnostics.append(.init(
                     severity: .error,
-                    location: iconName,
+                    location: iconFile,
                     message: "Part icons cannot exceed 64 KiB."
+                ))
+            }
+            if !iconFile.lowercased().hasSuffix(".svg") {
+                diagnostics.append(.init(
+                    severity: .error,
+                    location: iconFile,
+                    message: "Icon glyphs must be SVG files."
+                ))
+            } else if let source = try? String(contentsOf: iconURL, encoding: .utf8),
+                      source.contains("Gradient") || source.contains("<image")
+                        || source.matches(#"fill\s*=\s*[\"'](?!none|currentColor)"#)
+                        || source.matches(#"fill\s*:\s*(?!none|currentColor)"#) {
+                diagnostics.append(.init(
+                    severity: .warning,
+                    location: iconFile,
+                    message: "Icon glyphs render as a single-colour stencil; this file's own colours, gradients, or images are ignored. Draw with fill=\"currentColor\"."
                 ))
             }
         }
@@ -232,7 +248,7 @@ nonisolated enum PartPackageValidator {
                 continue
             }
             if template.matches(#"\{\{\s*(?:id|instance\.|part\.|control\.|slot\.)"#) ||
-                template.matches(#"\{\{\s*(?:text|html|image|dropZone|childArea)\s*\("#) ||
+                template.matches(#"\{\{\s*(?:text|html|image|video|dropZone|childArea)\s*\("#) ||
                 template.matches(#"\{\{\s*(?:slot\s+id|text(?:\s*=|\s*\}\})|html(?:\s*=|\s*\}\})|image(?:\s+[^}]+)?\s*\}\})"#) {
                 diagnostics.append(.init(
                     severity: .error,
@@ -388,7 +404,7 @@ nonisolated enum PartPackageValidator {
         }
         let primitiveDeclarations = (try? PartTemplateLoop.declarations(in: template)) ?? []
         let primitiveNames = primitiveDeclarations.map(\.key)
-        let primitiveCandidateCount = template.matchCount(#"\{\{\s*(?:text|html|image)\b[^}]*\}\}"#)
+        let primitiveCandidateCount = template.matchCount(#"\{\{\s*(?:text|html|image|video)\b[^}]*\}\}"#)
         if primitiveCandidateCount != primitiveNames.count {
             diagnostics.append(.init(
                 severity: .error,
@@ -650,8 +666,8 @@ nonisolated enum PartPackageValidator {
             if source.hasPrefix("if ") || source.hasPrefix("elseif ") || source == "else" || source == "endif" ||
                 source.hasPrefix("loop ") || source == "endloop" || source.hasPrefix("loop.") ||
                 source.hasPrefix("slot ") || source.hasPrefix("text(") || source.hasPrefix("html(") ||
-                source.hasPrefix("image(") || source.hasPrefix("dropZone(") || source.hasPrefix("childArea(") || source.hasPrefix("asset(") ||
-                ["text", "html", "image", "instance.id", "package.id", "site.baseURL", "page.url", "path.siteRoot", "path.siteAssets", "part.class", "part.attributes", "controlGroup.background", "dropZone", "childArea", "asset"].contains(source) {
+                source.hasPrefix("image(") || source.hasPrefix("video(") || source.hasPrefix("dropZone(") || source.hasPrefix("childArea(") || source.hasPrefix("asset(") ||
+                ["text", "html", "image", "video", "instance.id", "package.id", "site.baseURL", "page.url", "path.siteRoot", "path.siteAssets", "part.class", "part.attributes", "controlGroup.background", "dropZone", "childArea", "asset"].contains(source) {
                 continue
             }
             if loopAliases.contains(where: { source == $0 || source.hasPrefix($0 + ".") }) { continue }
@@ -680,7 +696,7 @@ nonisolated enum PartPackageValidator {
 
         let supportedMacroNames: Set<String> = [
             "id", "instance", "package", "site", "page", "path", "part", "control", "controlGroup", "asset", "slot", "dropZone", "childArea",
-            "if", "elseif", "else", "endif", "loop", "endloop", "text", "html", "image", "canvas", "preview", "published", "navigation", "pages", "assets"
+            "if", "elseif", "else", "endif", "loop", "endloop", "text", "html", "image", "video", "canvas", "preview", "published", "navigation", "pages", "assets"
         ]
         for reference in template.references(matching: #"\{\{\s*([A-Za-z]+)(?:\.|\s|\}\})"#)
             where !supportedMacroNames.contains(reference.value) && !loopAliases.contains(reference.value) {

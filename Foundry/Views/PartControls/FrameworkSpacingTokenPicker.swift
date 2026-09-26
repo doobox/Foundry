@@ -7,7 +7,7 @@ struct FrameworkSpacingTokenPicker<Policy: FrameworkSpacingPolicy>: View {
 
     var body: some View {
         Picker(title, selection: selectionBinding) {
-            Text("None - 0").tag("none")
+            Text("None").tag("none")
 
             if Policy.allowsAutoAndNegative {
                 Text("Auto").tag("auto")

@@ -3,6 +3,10 @@
   "author": "Foundry",
   "description": "Adds editable custom HTML to the page.",
   "group": "Content",
+  "icon": {
+    "symbol": "chevron.left.forwardslash.chevron.right",
+    "tint": "teal"
+  },
   "id": "foundry.content.html",
   "inspector": [
     {
@@ -33,5 +37,5 @@
     "html": "part.html"
   },
   "title": "HTML",
-  "version": "1.1.0"
+  "version": "1.2.0"
 }

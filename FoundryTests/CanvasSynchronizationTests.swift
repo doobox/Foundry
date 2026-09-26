@@ -43,7 +43,7 @@ struct CanvasSynchronizationTests {
             handleContextMenuAction: { _, _, _, _ in }, requestFullReconciliation: { requests += 1 })
         let web = WKWebView(frame: .zero)
         for revision in 1...3 {
-            coordinator.apply(.part(.init(partID: UUID(), html: "<div></div>", instanceCSS: ""), revision: UInt64(revision)), in: web)
+            coordinator.apply(.part(.init(partID: UUID(), html: "<div></div>", instanceStyles: [:]), revision: UInt64(revision)), in: web)
         }
         for _ in 0..<100 {
             if requests == 3 { break }

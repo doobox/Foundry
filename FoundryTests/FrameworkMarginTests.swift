@@ -20,8 +20,9 @@ struct FrameworkMarginTests {
         #expect(amounts["right"] == nil)
         #expect(units["right"] == .string(""))
         #expect(PartPackageFrameworkPaddingControl.defaultValue(.string("auto")) == nil)
-        #expect(PartPackageFrameworkMarginControl.defaultValue(.string("auto")).map { $0.verticalLinked && $0.horizontalLinked } == true)
-        #expect(PartPackageFrameworkMarginControl.defaultValue(.string("none")).map { $0.verticalLinked && $0.horizontalLinked } == true)
+        // Uniform defaults fill every edge but never activate the links.
+        #expect(PartPackageFrameworkMarginControl.defaultValue(.string("auto")).map { !$0.verticalLinked && !$0.horizontalLinked } == true)
+        #expect(PartPackageFrameworkMarginControl.defaultValue(.string("none")).map { !$0.verticalLinked && !$0.horizontalLinked } == true)
         #expect(PartPackageFrameworkMarginControl.defaultValue(.object(["value": .number(1), "unit": .string("vh")])) == nil)
     }
     @Test func linkingAutoUsesFirstEdge() throws {

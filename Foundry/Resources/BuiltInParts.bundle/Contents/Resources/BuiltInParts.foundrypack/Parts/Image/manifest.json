@@ -3,6 +3,10 @@
   "author": "Foundry",
   "description": "Displays a responsive project image.",
   "group": "Media",
+  "icon": {
+    "symbol": "photo",
+    "tint": "green"
+  },
   "id": "foundry.media.image",
   "inspector": [
     {

@@ -266,7 +266,8 @@ nonisolated enum FrameworkBundleStore {
     static func builtInFrameworks(bundle: Bundle = .main) -> [SavedFramework] {
         guard let bundleURL = bundle.url(forResource: "BuiltInParts", withExtension: "bundle"),
               let contentBundle = Bundle(url: bundleURL),
-              let packURL = contentBundle.url(forResource: "BuiltInParts", withExtension: "foundrypack"),
+              let packURL = contentBundle.url(forResource: "BuiltInParts", withExtension: "foundrypack")
+                ?? contentBundle.url(forResource: "BuiltInParts", withExtension: "foundrydevpack"),
               let pack = try? FoundryPackLoader.load(from: packURL) else {
             preconditionFailure("The built-in framework bundle is missing.")
         }

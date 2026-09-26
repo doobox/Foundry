@@ -226,10 +226,16 @@ struct AssetsOutlineView: NSViewRepresentable {
             pasteboardItem.setString("foundry-asset-node:\(item.id.uuidString)", forType: .assetNode)
             if case .asset(let asset) = item.node {
                 let isImage = asset.mediaType.hasPrefix("image/")
-                let prefix = isImage ? "foundry-image-asset:" : "foundry-asset:"
+                let isVideo = asset.mediaType.hasPrefix("video/")
+                let prefix = isImage
+                    ? "foundry-image-asset:"
+                    : isVideo ? "foundry-video-asset:" : "foundry-asset:"
                 pasteboardItem.setString(prefix + asset.id.uuidString, forType: .string)
                 if isImage {
                     pasteboardItem.setString(asset.id.uuidString, forType: .imageAsset)
+                }
+                if isVideo {
+                    pasteboardItem.setString(asset.id.uuidString, forType: .videoAsset)
                 }
                 if let content = parent.assetContents[asset.id],
                    let fileURL = temporaryDragFile(for: content) {
@@ -476,6 +482,7 @@ private final class AssetOutlineItem: NSObject {
 extension NSPasteboard.PasteboardType {
     static let assetNode = NSPasteboard.PasteboardType("uk.co.garysimpson.foundry.asset-node")
     static let imageAsset = NSPasteboard.PasteboardType("uk.co.garysimpson.foundry.image-asset")
+    static let videoAsset = NSPasteboard.PasteboardType("uk.co.garysimpson.foundry.video-asset")
 }
 
 

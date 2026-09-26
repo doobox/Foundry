@@ -33,7 +33,7 @@ nonisolated enum PartPackageValidationCache {
             ([manifest.render.html, manifest.render.editorCSS].compactMap { $0 })
                 + manifest.render.files.map(\.path)
         )
-        let declaredPaths = Set(["icon.svg"] + Array(contentPaths) + manifest.assets.map(\.path))
+        let declaredPaths = Set((manifest.icon?.file.map { [$0] } ?? []) + Array(contentPaths) + manifest.assets.map(\.path))
 
         for path in declaredPaths.sorted() {
             update(&hasher, with: "\npath:\(path)\n")

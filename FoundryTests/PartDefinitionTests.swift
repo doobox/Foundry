@@ -170,7 +170,9 @@ struct PartDefinitionTests {
         container.setProperty(.init(rawValue: "frameworkRadius"), value: .frameworkRadius(PartPackageFrameworkRadiusControl.defaultValue(.object(["value": .number(28), "unit": .string("px")]))!))
         // Container roots are always full width; a Flex carries the shared
         // sizing group's max-width control.
-        stack.setProperty(.maxWidth, value: .number(920))
+        stack.setProperty(.maxWidth, value: .frameworkSpacing(.init(
+            selection: .init(token: "none", isCustom: true, amount: 920, unit: "px")
+        )))
         text.setProperty(.init(rawValue: "typeface"), value: .choice("heading"))
         text.setProperty(.init(rawValue: "textSize"), value: .packageFontSize(.init(
             source: "xl",
@@ -185,7 +187,7 @@ struct PartDefinitionTests {
         #expect(html.contains("border-width: 2.0px"))
         #expect(html.contains("border-color: #ABCDEF"))
         #expect(html.contains("border-radius: 28.0px"))
-        #expect(html.contains("920px"))
+        #expect(html.contains("max-width: min(100%, 920.0px)"))
         // Paragraph now uses the dedicated font control, not the removed select extension.
         #expect(PartType.paragraph.definition.package!.css.contains("font-family: {{ control.font.family }}"))
         #expect(PartType.paragraph.definition.package!.css.contains("font-weight: {{ control.font.weight }}"))

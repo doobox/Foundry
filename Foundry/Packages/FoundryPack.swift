@@ -104,11 +104,15 @@ nonisolated enum FoundryPackLoader {
         )
     }
 
-    /// The pack of built-in content shipped inside the app bundle.
+    /// The pack of built-in content shipped inside the app bundle. Releases
+    /// carry a `.foundrypack`; renaming it to `.foundrydevpack` in the app
+    /// sources is a supported way to work on the built-in parts with the
+    /// development-pack treatment, so both extensions resolve.
     static func builtInPackURL() -> URL? {
         guard let bundleURL = Bundle.main.url(forResource: "BuiltInParts", withExtension: "bundle"),
               let partBundle = Bundle(url: bundleURL) else { return nil }
         let containerURL = partBundle.url(forResource: "BuiltInParts", withExtension: "foundrypack")
+            ?? partBundle.url(forResource: "BuiltInParts", withExtension: "foundrydevpack")
             ?? partBundle.resourceURL?.appending(path: "BuiltInParts.foundrypack", directoryHint: .isDirectory)
         return containerURL?.standardizedFileURL
     }

@@ -1,4 +1,6 @@
 :instance {
+    box-sizing: border-box;
+    width: 100%;
     display: block;
     color: inherit;
     font: inherit;

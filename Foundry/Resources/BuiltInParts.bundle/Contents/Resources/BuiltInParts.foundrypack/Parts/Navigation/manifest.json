@@ -3,6 +3,10 @@
   "author": "Foundry",
   "description": "The site menu. Lists pages marked Include in Navigation, highlights the current page, shows child pages in dropdowns, and collapses to a menu button on small screens.",
   "group": "Navigation",
+  "icon": {
+    "symbol": "list.bullet",
+    "tint": "cyan"
+  },
   "id": "foundry.layout.navigation",
   "inspector": [
     {

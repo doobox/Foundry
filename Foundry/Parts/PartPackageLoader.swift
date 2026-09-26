@@ -106,32 +106,21 @@ nonisolated struct LoadedPartPackage: Sendable {
         .init(identifier: manifest.identifier)
     }
 
-    /// The square 1:1 light-appearance icon — Structure rows, inspectors,
-    /// the canvas. Appearance-aware callers use `iconURL(forDarkAppearance:)`.
-    var iconURL: URL {
-        resourceRootURL.appending(path: "icon.svg")
-    }
-
-    /// The square icon for the given appearance. Icons ship as a light/dark
-    /// pair — `icon.svg` and `icon-dark.svg`; either appearance falls back
-    /// to the other's file rather than to nothing.
-    func iconURL(forDarkAppearance isDark: Bool) -> URL? {
-        let names = isDark ? ["icon-dark.svg", "icon.svg"] : ["icon.svg", "icon-dark.svg"]
-        return names
-            .map { resourceRootURL.appending(path: $0) }
-            .first { FileManager.default.fileExists(atPath: $0.path) }
-    }
-
-    /// The Parts panel's 3:2 tile artwork for the given appearance. Tiles
-    /// ship as a light/dark pair — `tile.svg` and `tile-dark.svg` — and are
-    /// optional as a pair: the panel fits the square icon onto the tile when
-    /// a part doesn't ship them. Either appearance falls back to the other's
-    /// file rather than to nothing.
-    func tileURL(forDarkAppearance isDark: Bool) -> URL? {
-        let names = isDark ? ["tile-dark.svg", "tile.svg"] : ["tile.svg", "tile-dark.svg"]
-        return names
-            .map { resourceRootURL.appending(path: $0) }
-            .first { FileManager.default.fileExists(atPath: $0.path) }
+    /// The resolved icon recipe: one mono glyph — the manifest's SVG stencil
+    /// when it exists, else its SF Symbol, else the generic part mark — plus
+    /// a system tint. Appearance never enters: system tints adapt themselves.
+    var iconSpecification: PartIconSpecification {
+        let tint = manifest.icon?.resolvedTint ?? .gray
+        if let file = manifest.icon?.file {
+            let url = resourceRootURL.appending(path: file)
+            if FileManager.default.fileExists(atPath: url.path) {
+                return .init(glyph: .svg(url), tint: tint)
+            }
+        }
+        if let symbol = manifest.icon?.symbol, !symbol.isEmpty {
+            return .init(glyph: .symbol(symbol), tint: tint)
+        }
+        return .init(glyph: .symbol(PartDefinition.genericSystemImage), tint: tint)
     }
 
     var isDevelopmentPack: Bool {
@@ -187,21 +176,45 @@ nonisolated struct LoadedPartPackage: Sendable {
     }
 }
 
+/// A ready-to-render icon: which mono glyph to stencil and which system
+/// tint to paint with. Tiles fill with the tint behind a white glyph; the
+/// structure tree paints the glyph in the tint directly.
+nonisolated struct PartIconSpecification: Equatable, Hashable, Sendable {
+    enum Glyph: Equatable, Hashable, Sendable {
+        case svg(URL)
+        case symbol(String)
+    }
+
+    let glyph: Glyph
+    let tint: PartIconTint
+
+    /// Stable identity for row-reuse fingerprints and view invalidation.
+    var cacheKey: String {
+        switch glyph {
+        case .svg(let url): "svg:\(url.path):\(tint.rawValue)"
+        case .symbol(let name): "symbol:\(name):\(tint.rawValue)"
+        }
+    }
+}
+
 nonisolated struct PartPreparedPrimitives: Codable, Equatable, Sendable {
     let text: [PartTextPrimitive]
     let html: [PartHTMLPrimitive]
     let images: [PartImagePrimitive]
+    let videos: [PartVideoPrimitive]
     let dropZoneNames: [String]?
 
     init(
         text: [PartTextPrimitive],
         html: [PartHTMLPrimitive],
         images: [PartImagePrimitive],
+        videos: [PartVideoPrimitive] = [],
         dropZoneNames: [String]? = nil
     ) {
         self.text = text
         self.html = html
         self.images = images
+        self.videos = videos
         self.dropZoneNames = dropZoneNames
     }
 
@@ -209,6 +222,7 @@ nonisolated struct PartPreparedPrimitives: Codable, Equatable, Sendable {
         text = PartTemplateRenderer.textPrimitives(in: template, loopMaximums: loopMaximums)
         html = PartTemplateRenderer.htmlPrimitives(in: template, loopMaximums: loopMaximums)
         images = PartTemplateRenderer.imagePrimitives(in: template)
+        videos = PartTemplateRenderer.videoPrimitives(in: template)
         dropZoneNames = PartTemplateRenderer.dropZoneNames(in: template)
     }
 }

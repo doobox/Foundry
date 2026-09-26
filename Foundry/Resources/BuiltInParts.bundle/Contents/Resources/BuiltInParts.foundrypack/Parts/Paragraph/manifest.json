@@ -3,6 +3,10 @@
   "author": "Foundry",
   "description": "Adds a paragraph of body text to the page.",
   "group": "Content",
+  "icon": {
+    "symbol": "text.alignleft",
+    "tint": "orange"
+  },
   "id": "foundry.content.paragraph",
   "inspector": [
     {
@@ -133,5 +137,5 @@
     "html": "part.html"
   },
   "title": "Paragraph",
-  "version": "1.1.0"
+  "version": "1.2.0"
 }

@@ -158,9 +158,7 @@ final class PartPackageCatalog {
     private func apply(_ outcome: PartPackageLoadOutcome, allowsReplacement: Bool) {
         let url = outcome.url
         Task {
-            await PartIconLoader.shared.removeIcon(
-                at: url.appending(path: "Resources/icon.svg")
-            )
+            await PartIconLoader.shared.removeIcons(underRoot: url)
         }
         if let package = outcome.package {
             if !allowsReplacement,
@@ -377,18 +375,15 @@ private struct PartCatalogSnapshot: Sendable {
         ) -> Void
     ) async -> PartCatalogSnapshot {
         var urls: [URL] = []
-        if let bundleURL = Bundle.main.url(forResource: "BuiltInParts", withExtension: "bundle"),
-           let partBundle = Bundle(url: bundleURL),
-           let resourcesURL = partBundle.resourceURL {
-            let containerURL = partBundle.url(
-                forResource: "BuiltInParts",
-                withExtension: "foundrypack"
-            ) ?? resourcesURL.appending(
-                path: "BuiltInParts.foundrypack",
-                directoryHint: .isDirectory
-            )
-            if let pack = try? FoundryPackLoader.load(from: containerURL) {
-                urls.append(contentsOf: pack.partURLs)
+        // The bundled built-ins normally ship as a release pack; a developer
+        // working on them may rename the container to .foundrydevpack, which
+        // additionally makes it a watched development root.
+        var builtInDevelopmentRoot: URL?
+        if let containerURL = FoundryPackLoader.builtInPackURL(),
+           let pack = try? FoundryPackLoader.load(from: containerURL) {
+            urls.append(contentsOf: pack.partURLs)
+            if containerURL.pathExtension.lowercased() == "foundrydevpack" {
+                builtInDevelopmentRoot = containerURL.standardizedFileURL
             }
         }
 
@@ -396,9 +391,10 @@ private struct PartCatalogSnapshot: Sendable {
         let installedPackURLs = installedRoot.map { FoundryPackLoader.packURLs(in: $0) } ?? []
         let installedPacks = installedPackURLs.compactMap { try? FoundryPackLoader.load(from: $0) }
         urls.append(contentsOf: installedPacks.flatMap(\.partURLs))
-        let developmentRoots = Set(installedPackURLs.compactMap { url in
+        var developmentRoots = Set(installedPackURLs.compactMap { url in
             url.pathExtension.lowercased() == "foundrydevpack" ? url.standardizedFileURL : nil
         })
+        if let builtInDevelopmentRoot { developmentRoots.insert(builtInDevelopmentRoot) }
 
         let standardizedURLs = urls.map(\.standardizedFileURL)
         await progress(.loading, 0, standardizedURLs.count)

@@ -88,30 +88,57 @@ nonisolated struct HTMLPageRenderer: PageRendering {
               outline: none !important;
             }
             .foundry-drag-source { opacity: 0.4 !important; }
+            
             .foundry-empty-drop-zone {
-              display: grid; place-items: center; min-height: 64px; padding: 16px;
-              border: 2px dashed color-mix(in srgb, var(--foundry-editor-chrome) 42%, transparent) !important;
-              border-radius: 6px; color: color-mix(in srgb, var(--foundry-color-text) 58%, transparent);
-              background: color-mix(in srgb, var(--foundry-color-surface) 72%, transparent);
-              font: 600 13px system-ui; text-align: center;
+              position: relative;
+              overflow: hidden;
+
+              display: grid;
+              place-items: center;
+              box-sizing: border-box;
+
+              width: 100%;
+              align-self: stretch;
+              justify-self: stretch;
+              min-height: 64px;
+              padding: 16px;
+
+              background: #e9e9e9;
+              border: 1px solid #cdcdcd !important;
+              border-radius: 4px;
+
+              font: 400 12px system-ui;
+              text-align: center;
             }
+
+            .foundry-drop-label {
+              color: #898989;
+            }
+            .foundry-drop-label svg { display: block; }
             .foundry-empty-page { min-height: 100vh; }
             .foundry-contentless-drop-zone { min-height: 32px; padding: 6px 12px; }
             .foundry-grid > .foundry-empty-drop-zone { grid-column: 1 / -1; }
-            [data-foundry-global].foundry-empty-drop-zone {
-              border-color: color-mix(in srgb, var(--foundry-editor-chrome) 42%, transparent) !important;
-            }
             [data-foundry-global].foundry-editing { outline-color: var(--foundry-editor-chrome) !important; }
             body { background: \(page.backgroundColour(framework: framework, appearance: appearance)); }
-            .foundry-image-drop-zone {
-              display: grid; width: 100%; min-height: 64px; padding: 16px; place-items: center;
-              border: 2px dashed color-mix(in srgb, var(--foundry-editor-chrome) 42%, transparent) !important;
-              border-radius: 6px; color: color-mix(in srgb, var(--foundry-color-text) 58%, transparent);
-              background: color-mix(in srgb, var(--foundry-color-surface) 72%, transparent);
-              font: 600 13px system-ui; text-align: center;
+            .foundry-image-drop-zone, .foundry-video-drop-zone {
+              /* The zone span inherits the replaced media element's own
+                 classes so part CSS keeps positioning it — which means part
+                 rules like .fd-image { display: block } can reach it. The
+                 centring is chrome and must win. */
+              position: relative; overflow: hidden;
+              display: grid !important; place-items: center !important;
+              box-sizing: border-box;
+              width: 100%; min-height: 64px; padding: 16px;
+              background: #e9e9e9;
+              border: 1px solid #cdcdcd !important;
+              border-radius: 4px;
+              font: 400 12px system-ui; text-align: center;
             }
             .unavailable { padding: 16px; border: 2px dashed #C33; color: #922; background: #FFF5F5; }
             \(FoundryWebLibraryRegistry.canvasCSS(for: PartArtifactPlan(page: page).packages))
+          </style>
+        \(instanceStyleElements(for: page, framework: framework, assets: assets, breakpoint: breakpoint))
+          <style>
             \(packageStyles(for: page, framework: framework, assets: assets, breakpoint: breakpoint))
           </style>
         \(analyticsCode)
@@ -143,12 +170,15 @@ nonisolated struct HTMLPageRenderer: PageRendering {
                 parentSlot: target.parentSlot,
                 parentDropZoneSlotID: target.parentDropZoneSlotID
             ),
-            instanceCSS: partStyles(
-                for: flattened(target.node),
-                page: page,
-                framework: framework,
-                assets: assets,
-                breakpoint: breakpoint
+            instanceStyles: Dictionary(
+                instanceStyles(
+                    for: flattened(target.node),
+                    page: page,
+                    framework: framework,
+                    assets: assets,
+                    breakpoint: breakpoint
+                ).map { ($0.partID.uuidString, $0.css) },
+                uniquingKeysWith: { first, _ in first }
             )
         )
     }
@@ -315,7 +345,7 @@ nonisolated struct HTMLPageRenderer: PageRendering {
                 let html = children.map {
                     render($0, page: page, framework: framework, assets: assets, globalDefinitionID: globalDefinitionID, breakpoint: breakpoint, parentPartID: node.id, parentSlot: slot)
                 }.joined()
-                return (slot.id, html.isEmpty ? "<div class=\"foundry-empty-drop-zone\" data-foundry-empty-parent=\"\(node.id.uuidString)\" data-foundry-slot-id=\"\(escapeAttribute(slot.id))\">Drop part here</div>" : html)
+                return (slot.id, html.isEmpty ? "<div class=\"foundry-empty-drop-zone\" data-foundry-empty-parent=\"\(node.id.uuidString)\" data-foundry-slot-id=\"\(escapeAttribute(slot.id))\"><span class=\"foundry-drop-label\">\(FoundryDropZoneGlyphs.part)</span></div>" : html)
             })
             let dropZones = Dictionary(uniqueKeysWithValues: package.dropZoneNames.enumerated().map { index, name in
                 let slotID = package.dropZoneSlotID(for: name)
@@ -324,7 +354,7 @@ nonisolated struct HTMLPageRenderer: PageRendering {
                     render($0, page: page, framework: framework, assets: assets, globalDefinitionID: globalDefinitionID, breakpoint: breakpoint, parentPartID: node.id, parentDropZoneSlotID: slotID)
                 }.joined()
                 let output = html.isEmpty
-                    ? "<div class=\"foundry-empty-drop-zone\" data-foundry-empty-parent=\"\(node.id.uuidString)\" data-foundry-slot-id=\"\(escapeAttribute(slotID))\">Drop part here</div>"
+                    ? "<div class=\"foundry-empty-drop-zone\" data-foundry-empty-parent=\"\(node.id.uuidString)\" data-foundry-slot-id=\"\(escapeAttribute(slotID))\"><span class=\"foundry-drop-label\">\(FoundryDropZoneGlyphs.part)</span></div>"
                     : html
                 return (name, output)
             })
@@ -391,14 +421,6 @@ nonisolated struct HTMLPageRenderer: PageRendering {
         assets: ProjectAssetContents,
         breakpoint: ResponsiveBreakpoint
     ) -> String {
-        let nodes = page.parts.flatMap(flattened)
-        let partStyles = partStyles(
-            for: nodes,
-            page: page,
-            framework: framework,
-            assets: assets,
-            breakpoint: breakpoint
-        )
         var seenPackages: Set<String> = []
         let pageStyles = page.parts.flatMap(flattened).compactMap { node -> String? in
             guard let package = node.type.definition.package,
@@ -419,47 +441,77 @@ nonisolated struct HTMLPageRenderer: PageRendering {
                 )
             )
         }.joined(separator: "\n")
-        return [partStyles, pageStyles].filter { !$0.isEmpty }.joined(separator: "\n")
+        return pageStyles
     }
 
-    private func partStyles(
+    /// One `<style>` per part instance, keyed by part ID. Subtree patches
+    /// replace these elements by key, so a declaration a part no longer emits
+    /// disappears — bundling them into the shared sheet would leave the
+    /// original rules in place for a patch to fight with.
+    private func instanceStyleElements(
+        for page: Page,
+        framework: Framework,
+        assets: ProjectAssetContents,
+        breakpoint: ResponsiveBreakpoint
+    ) -> String {
+        instanceStyles(
+            for: page.parts.flatMap(flattened),
+            page: page,
+            framework: framework,
+            assets: assets,
+            breakpoint: breakpoint
+        ).map { instance in
+            """
+              <style data-foundry-instance-style="\(instance.partID.uuidString)">
+                \(instance.css)
+              </style>
+            """
+        }.joined(separator: "\n")
+    }
+
+    /// One scoped stylesheet per part instance. The patch path stores each
+    /// under its own `<style>` element in the canvas: a patched parent must
+    /// never leave a trailing copy of a descendant's rules that would shadow
+    /// the descendant's own later patches.
+    private func instanceStyles(
         for nodes: [PartNode],
         page: Page,
         framework: Framework,
         assets: ProjectAssetContents,
         breakpoint: ResponsiveBreakpoint
-    ) -> String {
-        let instanceStyles = nodes.compactMap { sourceNode in
+    ) -> [(partID: UUID, css: String)] {
+        nodes.compactMap { sourceNode in
             let node = sourceNode.resolved(at: breakpoint, screens: framework.screens)
-            guard let package = node.type.definition.package else { return nil }
-            let css = PartTemplateRenderer.render(
-                [package.css, package.editorCSS, package.manifest.controlGroupCSS]
-                    .filter { !$0.isEmpty }
-                    .joined(separator: "\n"),
-                context: .init(
-                    instanceID: node.id,
-                    packageIdentifier: package.manifest.identifier,
-                    properties: packageProperties(node, framework: framework, assets: assets),
-                    templateValues: templateValues(for: page, framework: framework),
-                    slots: [:],
-                    assetBasePath: canvasAssetBasePath(for: package),
-                    assetPaths: canvasAssetPaths(for: package),
-                    environment: .canvas,
-                    loopMaximums: package.loopMaximums
+            var pieces: [String] = []
+            if let package = node.type.definition.package {
+                let css = PartTemplateRenderer.render(
+                    [package.css, package.editorCSS, package.manifest.controlGroupCSS]
+                        .filter { !$0.isEmpty }
+                        .joined(separator: "\n"),
+                    context: .init(
+                        instanceID: node.id,
+                        packageIdentifier: package.manifest.identifier,
+                        properties: packageProperties(node, framework: framework, assets: assets),
+                        templateValues: templateValues(for: page, framework: framework),
+                        slots: [:],
+                        assetBasePath: canvasAssetBasePath(for: package),
+                        assetPaths: canvasAssetPaths(for: package),
+                        environment: .canvas,
+                        loopMaximums: package.loopMaximums
+                    )
                 )
-            )
-            return PartTemplateRenderer.scopedCSS(
-                css,
-                packageIdentifier: package.manifest.identifier,
-                instanceID: node.id
-            )
-        }.joined(separator: "\n")
-        let htmlStyles = nodes.map {
-            PartArtifactPlan.htmlArtifact(for: $0.resolved(at: breakpoint, screens: framework.screens), suffix: "CSS")
+                let scoped = PartTemplateRenderer.scopedCSS(
+                    css,
+                    packageIdentifier: package.manifest.identifier,
+                    instanceID: node.id
+                )
+                if !scoped.isEmpty { pieces.append(scoped) }
+            }
+            let artifact = PartArtifactPlan.htmlArtifact(for: node, suffix: "CSS")
+            if !artifact.isEmpty { pieces.append(artifact) }
+            guard !pieces.isEmpty else { return nil }
+            return (sourceNode.id, pieces.joined(separator: "\n"))
         }
-            .filter { !$0.isEmpty }
-            .joined(separator: "\n")
-        return [instanceStyles, htmlStyles].filter { !$0.isEmpty }.joined(separator: "\n")
     }
 
     private func subtreeTarget(
@@ -548,7 +600,11 @@ nonisolated struct HTMLPageRenderer: PageRendering {
                 return (definition.key.rawValue, PartPackageFrameworkMarginControl.resolved(margin, framework: framework))
             }
             if case .frameworkSpacing(let spacing) = value {
-                return (definition.key.rawValue, PartPackageSingleSpacingControl.resolved(spacing, framework: framework))
+                return (definition.key.rawValue, PartPackageSingleSpacingControl.resolved(
+                    spacing,
+                    framework: framework,
+                    noneValue: manifestProperties.first { $0.id == definition.key.rawValue }?.noneValue
+                ))
             }
             if case .frameworkPadding(let padding) = value {
                 return (definition.key.rawValue, PartPackageFrameworkPaddingControl.resolved(padding, framework: framework))
@@ -685,7 +741,22 @@ nonisolated struct HTMLPageRenderer: PageRendering {
                     asset: asset,
                     playback: PartVideoTemplateValues.playbackOptions(propertyID: property.id, node: node),
                     enablesEditorMarkup: true,
+                    hasSelection: !source.isEmpty,
                     into: &values
+                )
+            }
+            // Implicit video primitives have no manifest property, so the
+            // canvas poster frame is supplied directly from asset metadata.
+            let manifestVideoIDs = Set(
+                manifestProperties.filter { $0.control.type == .video }.map(\.id)
+            )
+            for definition in definitions {
+                guard case .video = definition.control,
+                      !manifestVideoIDs.contains(definition.key.rawValue),
+                      case .url(let source) = node.propertyValue(definition.key) else { continue }
+                let asset = source.foundryAssetID.flatMap { assets.asset($0) }
+                values[definition.key.rawValue + ".poster"] = .string(
+                    asset?.videoMetadata?.posterDataURL ?? ""
                 )
             }
         }
@@ -753,7 +824,7 @@ nonisolated struct HTMLPageRenderer: PageRendering {
     }
 
     private var rootDropZone: String {
-        "<div class=\"foundry-empty-drop-zone foundry-empty-page\" data-foundry-root-drop-zone>Drop part here</div>"
+        "<div class=\"foundry-empty-drop-zone foundry-empty-page\" data-foundry-root-drop-zone><span class=\"foundry-drop-label\">\(FoundryDropZoneGlyphs.part)</span></div>"
     }
 
     private func canvasSource(_ source: String, assets: ProjectAssetContents) -> String {

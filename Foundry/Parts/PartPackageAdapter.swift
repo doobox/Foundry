@@ -39,6 +39,14 @@ nonisolated enum PartPackageAdapter {
                 isResponsive: false, isInspectorVisible: false
             )
         }
+        let implicitVideoProperties = package.preparedPrimitives.videos.map { primitive in
+            PartPropertyDefinition(
+                key: .init(rawValue: primitive.key), label: "Video", section: .content,
+                control: .video,
+                defaultValue: primitive.isRepeated ? .array([]) : .url(""),
+                isResponsive: false, isInspectorVisible: false
+            )
+        }
         return PartDefinition(
             type: PartType(rawValue: manifest.identifier),
             displayName: manifest.name,
@@ -46,7 +54,7 @@ nonisolated enum PartPackageAdapter {
             category: PartCategory(rawValue: PartPackageGroup.resolve(manifest.category).rawValue),
             allowsChildren: package.hasDropZone || !manifest.slots.isEmpty,
             renderKind: .package,
-            properties: manifest.resolvedProperties.filter { $0.control.type != .childPicker }.flatMap(propertyDefinitions) + implicitTextProperties + implicitHTMLProperties + implicitHTMLArtifactProperties + implicitImageProperties,
+            properties: manifest.resolvedProperties.filter { $0.control.type != .childPicker }.flatMap(propertyDefinitions) + implicitTextProperties + implicitHTMLProperties + implicitHTMLArtifactProperties + implicitImageProperties + implicitVideoProperties,
             package: package
         )
     }

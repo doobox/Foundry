@@ -259,7 +259,7 @@ struct PartPropertyEditor: View {
 
                     FrameworkModeToggle(usesFrameworkTokens: !singleSpacingSelection.isCustom) {
                         var value = FrameworkSingleSpacingValue(selection: singleSpacingSelection)
-                        value.setUsesFrameworkTokens(singleSpacingSelection.isCustom, framework: framework)
+                        value.setUsesFrameworkTokens(singleSpacingSelection.isCustom)
                         setProperty(.frameworkSpacing(value))
                     }
                 }

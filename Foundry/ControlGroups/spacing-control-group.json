@@ -2,25 +2,13 @@
   "controls": [
     {
       "defaults": {
-        "base": true
+        "base": false
       },
       "id": "spacingEnabled",
       "label": "Enable",
+      "presentation": "switch",
       "responsive": true,
       "type": "toggle"
-    },
-    {
-      "defaults": {
-        "base": "none"
-      },
-      "id": "frameworkPadding",
-      "label": "Padding",
-      "responsive": true,
-      "type": "frameworkPadding",
-      "visibleWhen": {
-        "id": "spacingEnabled",
-        "value": true
-      }
     },
     {
       "defaults": {
@@ -30,6 +18,19 @@
       "label": "Margin",
       "responsive": true,
       "type": "frameworkMargin",
+      "visibleWhen": {
+        "id": "spacingEnabled",
+        "value": true
+      }
+    },
+    {
+      "defaults": {
+        "base": "none"
+      },
+      "id": "frameworkPadding",
+      "label": "Padding",
+      "responsive": true,
+      "type": "frameworkPadding",
       "visibleWhen": {
         "id": "spacingEnabled",
         "value": true

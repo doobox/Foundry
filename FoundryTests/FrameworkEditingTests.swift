@@ -504,7 +504,7 @@ struct FrameworkEditingTests {
         let reference = "custom:\(id.uuidString.lowercased())"
 
         var padding = FrameworkPaddingValue()
-        padding.set(.init(token: reference), for: .top)
+        padding.setAll(.init(token: reference))
         var part = PartNode.make(.container)
         part.setProperty(.init(rawValue: "framePadding"), value: .frameworkPadding(padding))
         part.setProperty(.init(rawValue: "gap"), value: .frameworkSpacing(.init(selection: .init(token: reference))))
@@ -563,7 +563,7 @@ struct FrameworkEditingTests {
         #expect(css.contains(".fd-z-mega-modal{z-index:var(\(zIndex.cssVariable(prefix: "z-index")))}"))
 
         var border = FrameworkBorderWidthValue()
-        border.set(.init(token: width.reference), for: .top)
+        border.setAll(.init(token: width.reference))
         var part = PartNode.make(.container)
         part.setProperty(.init(rawValue: "edge"), value: .frameworkBorderWidth(border))
         document.site.pages[0].parts = [part]

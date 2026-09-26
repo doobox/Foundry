@@ -46,7 +46,7 @@ struct PartPackageTests {
             }
             checked += 1
         }
-        #expect(checked == 39, "Expected every documented control and control group's Quick example; update this count when adding a reference page.")
+        #expect(checked == 40, "Expected every documented control and control group's Quick example; update this count when adding a reference page.")
     }
 
     @Test(.enabled(if: FileManager.default.fileExists(atPath: developerDocsURL.appending(path: "index.md").path)))
@@ -290,7 +290,8 @@ struct PartPackageTests {
         guard case .frameworkMargin(let inset) = node.propertyValue(.init(rawValue: "inset")) else {
             Issue.record("Expected margin-backed storage"); return
         }
-        #expect(inset.verticalLinked && inset.horizontalLinked)
+        // Uniform defaults fill every edge without activating the links.
+        #expect(!inset.verticalLinked && !inset.horizontalLinked)
         #expect(inset.values.allSatisfy { $0.isCustom && $0.amount == 10 && $0.unit == "px" })
         guard case .frameworkRadius(let round) = node.propertyValue(.init(rawValue: "round")) else {
             Issue.record("Expected radius-backed storage"); return
@@ -1165,10 +1166,9 @@ struct PartPackageTests {
             from: repositoryURL.appending(path: "DevelopmentFixtures/AppearanceToggle.foundrydevpack/Parts/AppearanceToggle"))
         try appearancePackage.preparePayload()
         #expect(appearancePackage.manifest.identifier == "dev.foundry.appearance-toggle")
-        #expect(FileManager.default.fileExists(atPath: appearancePackage.iconURL.path))
         #expect(PartPackageValidator.validate(
             appearancePackage.manifest,
-            rootURL: appearancePackage.iconURL.deletingLastPathComponent()
+            rootURL: appearancePackage.resourceRootURL
         ).filter { $0.severity == .error }.isEmpty)
         let fixtureURL = repositoryURL.appending(
             path: "DevelopmentFixtures/BrokenPart.foundrydevpack",
@@ -1499,11 +1499,12 @@ struct PartPackageTests {
     @Test
     func sharedPropertyControlGroupsInjectPropertiesWithoutCSSOrHTML() throws {
         for (kind, expectedIDs) in [
-            ("spacing", ["spacingEnabled", "frameworkPadding", "frameworkMargin"]),
-            ("sizing", ["widthMode", "customWidth", "maxWidth", "minimumHeight", "heightMode", "customHeight"]),
+            ("spacing", ["spacingEnabled", "frameworkMargin", "frameworkPadding"]),
+            ("sizing", ["widthMode", "customWidth", "heightMode", "customHeight", "minWidth", "maxWidth", "minHeight", "maxHeight"]),
             ("borders", ["borderEnabled", "frameworkBorder", "frameworkBorderColour", "frameworkRadius"]),
             ("effects", ["effectsEnabled", "frameworkShadow", "opacity"]),
-            ("layoutItem", ["itemEnabled", "flexGrow", "flexShrink", "alignSelf", "columnSpan", "rowSpan"])
+            ("layout", ["position", "zIndexMode", "zIndex", "offsets", "offset", "offsetEdges", "hidden", "visibility", "overflow", "isolation"]),
+            ("flexbox", ["direction", "wrap", "columnGap", "rowGap", "alignItems", "alignContent", "justifyContent"])
         ] {
             let json = """
             {
@@ -1522,6 +1523,45 @@ struct PartPackageTests {
             #expect(manifest.htmlContributions.isEmpty)
             #expect(try PartPackageManifestSchema.diagnostics(for: data).isEmpty)
         }
+    }
+
+    @Test
+    func groupReferenceVisibleWhenGatesEveryExpandedControl() throws {
+        let json = """
+        {
+        "minimumAPIVersion" : 1,
+        "id" : "com.example.gated-groups",
+        "title" : "Gated Groups",
+        "version" : "1.0.0",
+        "inspector" : [
+            {"type" : "select", "id" : "layout", "label" : "Layout",
+             "options" : [{"value" : "block", "title" : "Block"}, {"value" : "flex", "title" : "Flex"}],
+             "defaults" : {"base" : "block"}},
+            {"type" : "flexbox", "visibleWhen" : {"id" : "layout", "value" : "flex"},
+             "defaultOverrides" : {"wrap" : "wrap"}},
+            {"type" : "spacing", "visibleWhen" : {"id" : "layout", "value" : "flex"}}
+        ],
+        "templates" : {"html" : "part.html"}
+        }
+        """
+        let data = Data(json.utf8)
+        #expect(try PartPackageManifestSchema.diagnostics(for: data).isEmpty)
+        let manifest = try JSONDecoder().decode(PartPackageManifest.self, from: data)
+
+        // Every flexbox control inherits the reference's gate verbatim…
+        let direction = try #require(manifest.resolvedProperties.first { $0.id == "direction" })
+        #expect(direction.visibleWhen == .init(id: "layout", value: .string("flex")))
+        let wrap = try #require(manifest.resolvedProperties.first { $0.id == "wrap" })
+        #expect(wrap.defaultValue == .string("wrap"))
+        #expect(wrap.visibleWhen == .init(id: "layout", value: .string("flex")))
+
+        // …and a control with its own condition combines both: the padding
+        // field needs the gate AND its group's enable toggle.
+        let padding = try #require(manifest.resolvedProperties.first { $0.id == "frameworkPadding" })
+        #expect(padding.visibleWhen == .init(all: [
+            .init(id: "layout", value: .string("flex")),
+            .init(id: "spacingEnabled", value: .boolean(true))
+        ]))
     }
 
     @Test
@@ -1567,7 +1607,7 @@ struct PartPackageTests {
         let manifest = try JSONDecoder().decode(PartPackageManifest.self, from: data)
         #expect(manifest.resolvedProperties.first { $0.id == "frameworkPadding" }?.defaultValue == .object(["left": .string("sm")]))
         #expect(manifest.resolvedProperties.first { $0.id == "frameworkMargin" }?.defaultValue == .string("none"))
-        #expect(manifest.resolvedProperties.first { $0.id == "spacingEnabled" }?.defaultValue == .boolean(true))
+        #expect(manifest.resolvedProperties.first { $0.id == "spacingEnabled" }?.defaultValue == .boolean(false))
         #expect(try PartPackageManifestSchema.diagnostics(for: data).isEmpty)
     }
 
@@ -1741,7 +1781,7 @@ struct PartPackageTests {
             #"{{ control.film }}|{{ control.film.href }}|{{ control.film.poster }}|{{ control.film.autoplay }}|{{ control.film.muted }}|{{ control.film.controls }}|{{ control.film.loop }}|{{ control.film.startAt }}|{{ control.film.filename }}|{{ control.film.extension }}|{{ control.film.mimeType }}|{{ control.film.byteCount }}|{{ control.film.width }}|{{ control.film.height }}|{{ control.film.duration }}"#,
             context: .init(instanceID: UUID(), packageIdentifier: decodedManifest.identifier, properties: values, slots: [:])
         )
-        #expect(rendered == #"<video src="assets/demo.mp4" poster="data:image/jpeg;base64,frame" controls playsinline></video>|assets/demo.mp4|data:image/jpeg;base64,frame|never|false|true|false|0|Demo Film.mp4|mp4|video/mp4|42000|1920|1080|12.5"#)
+        #expect(rendered == #"<video class="fd-video" src="assets/demo.mp4" poster="data:image/jpeg;base64,frame" controls playsinline></video>|assets/demo.mp4|data:image/jpeg;base64,frame|never|false|true|false|0|Demo Film.mp4|mp4|video/mp4|42000|1920|1080|12.5"#)
 
         PartVideoTemplateValues.insert(
             propertyID: "film",
@@ -1755,7 +1795,7 @@ struct PartPackageTests {
             "{{ control.film }}",
             context: .init(instanceID: UUID(), packageIdentifier: decodedManifest.identifier, properties: values, slots: [:])
         )
-        #expect(configured == #"<video src="assets/demo.mp4#t=4.5" poster="poster.jpg" autoplay muted loop playsinline></video>"#)
+        #expect(configured == #"<video class="fd-video" src="assets/demo.mp4#t=4.5" poster="poster.jpg" autoplay muted loop playsinline></video>"#)
 
         PartRegistry.register(package)
         defer { PartRegistry.unregisterPackage(identifier: package.manifest.identifier) }
@@ -1770,7 +1810,7 @@ struct PartPackageTests {
             assets: assets,
             breakpoint: .extraLarge
         )
-        #expect(canvasHTML.contains(#"<video poster="data:image/jpeg;base64,ZnJhbWU=" controls data-foundry-image-drop-zone data-foundry-image-property="__foundry_video_poster_film" playsinline></video>"#))
+        #expect(canvasHTML.contains(#"<video class="fd-video" poster="data:image/jpeg;base64,ZnJhbWU=" controls data-foundry-image-drop-zone data-foundry-image-property="__foundry_video_poster_film" data-foundry-video-drop-zone data-foundry-video-property="film" playsinline></video>"#))
         #expect(!canvasHTML.contains(asset.id.uuidString))
 
         var site = Site.starter()
@@ -1779,7 +1819,7 @@ struct PartPackageTests {
         let exported = StaticSiteRenderer().render(site: site, assets: assets)
         let posterPath = "assets/foundry-video-posters/\(asset.id.uuidString.lowercased()).jpg"
         #expect(exported.file(at: posterPath) == nil)
-        #expect(exported.file(at: "index.html")?.contents.contains(#"<video src="assets/"#) == true)
+        #expect(exported.file(at: "index.html")?.contents.contains(#"<video class="fd-video" src="assets/"#) == true)
         #expect(exported.file(at: "index.html")?.contents.contains("poster=") == false)
         #expect(exported.file(at: "index.html")?.contents.contains("data-foundry-image-drop-zone") == false)
         #expect(exported.file(at: "index.html")?.contents.contains("data:image/jpeg") == false)
@@ -3219,6 +3259,43 @@ struct PartPackageTests {
         let exported = PartTemplateRenderer.render(template, context: exportContext)
         #expect(exported.contains("class=\"fd-image\""))
         #expect(exported.contains("src=\"assets/hero &amp; wide.jpg\""))
+    }
+
+    @Test
+    func namedVideoPrimitiveRendersItsDeclaredProperty() {
+        let template = "<figure {{ part.attributes }}>{{ video(\"film\") }}</figure>"
+        let emptyEditorContext = PartTemplateContext(
+            instanceID: UUID(), packageIdentifier: "com.example.video",
+            properties: [:], slots: [:], partAttributes: "data-editor=\"true\"",
+            enablesEditorMarkup: true
+        )
+        let filledEditorContext = PartTemplateContext(
+            instanceID: UUID(), packageIdentifier: "com.example.video",
+            properties: [
+                "film": .string("foundry-asset:00000000-0000-0000-0000-000000000000"),
+                "film.poster": .string("data:image/jpeg;base64,abc")
+            ],
+            slots: [:], enablesEditorMarkup: true
+        )
+        let exportContext = PartTemplateContext(
+            instanceID: UUID(), packageIdentifier: "com.example.video",
+            properties: ["film": .string("assets/launch & day.mp4")], slots: [:]
+        )
+
+        #expect(PartTemplateRenderer.hasVideoPrimitive(in: template))
+        #expect(PartTemplateRenderer.videoPrimitives(in: template) == [.init(key: "film", isRepeated: false)])
+        let emptyEditor = PartTemplateRenderer.render(template, context: emptyEditorContext)
+        #expect(emptyEditor.contains("data-foundry-video-drop-zone"))
+        #expect(emptyEditor.contains("data-foundry-video-property=\"film\""))
+        let filledEditor = PartTemplateRenderer.render(template, context: filledEditorContext)
+        #expect(filledEditor.contains("<video class=\"fd-video\""))
+        #expect(filledEditor.contains("poster=\"data:image/jpeg;base64,abc\""))
+        #expect(!filledEditor.contains("src="))
+        let exported = PartTemplateRenderer.render(template, context: exportContext)
+        #expect(exported.contains("<video class=\"fd-video\""))
+        #expect(exported.contains("src=\"assets/launch &amp; day.mp4\""))
+        #expect(exported.contains(" controls playsinline"))
+        #expect(!exported.contains("data-foundry-video-drop-zone"))
     }
 
     @Test
@@ -5909,19 +5986,23 @@ struct PartPackageTests {
 
     @Test
     func partIconCannotExceedMaximumFileSize() throws {
+        let iconManifest = validManifest.replacingOccurrences(
+            of: "\"title\" : \"Card\",",
+            with: "\"title\" : \"Card\",\n    \"icon\" : {\"file\" : \"icon.svg\", \"tint\" : \"blue\"},"
+        )
         let oversizedIcon = "<svg>" + String(
             repeating: " ",
             count: PartPackageValidator.maximumIconByteCount
         ) + "</svg>"
         let packageURL = try makePackage(
-            manifest: validManifest,
+            manifest: iconManifest,
             template: "<div {{ part.attributes }}>{{ childArea(\"content\") }}</div>",
             additionalFiles: ["icon.svg": oversizedIcon]
         )
         defer { try? FileManager.default.removeItem(at: packageURL) }
         let manifest = try JSONDecoder().decode(
             PartPackageManifest.self,
-            from: Data(validManifest.utf8)
+            from: Data(iconManifest.utf8)
         )
         let diagnostics = PartPackageValidator.validate(
             manifest,

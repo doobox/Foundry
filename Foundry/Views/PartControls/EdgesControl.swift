@@ -38,16 +38,16 @@ struct EdgesControl<Top: View, Right: View, Bottom: View, Left: View>: View {
                 .onTapGesture { resetFocus(in: focusNamespace) }
 
             VStack(spacing: 0) {
-                field(active: verticalLinked) { top() }
+                field { top() }
                 Spacer(minLength: 0)
-                field(active: verticalLinked) { bottom() }
+                field { bottom() }
             }
             .frame(height: verticalExtent)
 
             HStack(spacing: 0) {
-                field(active: horizontalLinked) { left() }
+                field { left() }
                 Spacer(minLength: 0)
-                field(active: horizontalLinked) { right() }
+                field { right() }
             }
             .frame(maxWidth: .infinity)
 
@@ -83,15 +83,12 @@ struct EdgesControl<Top: View, Right: View, Bottom: View, Left: View>: View {
         }
     }
 
+    // The wells are the bare controls — linked state is the link lines' job,
+    // so the fields carry no chrome of their own.
     @ViewBuilder
-    private func field<Content: View>(active: Bool, @ViewBuilder content: () -> Content) -> some View {
+    private func field<Content: View>(@ViewBuilder content: () -> Content) -> some View {
         content()
             .padding(2)
-            .background {
-                RoundedRectangle(cornerRadius: 7, style: .continuous)
-                    .strokeBorder(active ? Color.accentColor : Color.secondary.opacity(0.5), lineWidth: 2)
-            }
-            .animation(.easeInOut(duration: 0.15), value: active)
             .frame(width: fieldWidth)
     }
 
@@ -99,7 +96,7 @@ struct EdgesControl<Top: View, Right: View, Bottom: View, Left: View>: View {
     /// geometry, so the link line drawn alongside it lines up with the real gap.
     @ViewBuilder
     private func placeholder<Content: View>(@ViewBuilder content: () -> Content) -> some View {
-        field(active: false, content: content)
+        field(content: content)
             .hidden()
             .allowsHitTesting(false)
             .accessibilityHidden(true)
@@ -110,8 +107,11 @@ struct EdgesControl<Top: View, Right: View, Bottom: View, Left: View>: View {
         let isLinked = axis == .vertical ? verticalLinked : horizontalLinked
         let action = axis == .vertical ? toggleVerticalLink : toggleHorizontalLink
         let isHovering = hoverTarget == target
-        let color: Color = (isLinked || isHovering) ? .accentColor : .secondary.opacity(0.5)
-        let isDashed = !isLinked || isHovering
+        // Hover previews the state a click would produce: an active link dims
+        // to the unlinked grey dash, an inactive one solidifies in accent.
+        let previewsLinked = isHovering ? !isLinked : isLinked
+        let color: Color = previewsLinked ? .accentColor : .secondary.opacity(0.5)
+        let isDashed = !previewsLinked
 
         return Button {
             resetFocus(in: focusNamespace)
@@ -128,8 +128,8 @@ struct EdgesControl<Top: View, Right: View, Bottom: View, Left: View>: View {
         }
         .buttonStyle(.plain)
         .onHover { hoverTarget = $0 ? target : nil }
-        .animation(.easeInOut(duration: 0.15), value: hoverTarget)
-        .animation(.easeInOut(duration: 0.15), value: isLinked)
+        .animation(.easeInOut(duration: 0.075), value: hoverTarget)
+        .animation(.easeInOut(duration: 0.075), value: isLinked)
         .accessibilityLabel(axis == .vertical ? "Top–bottom link" : "Left–right link")
         .accessibilityValue(isLinked ? "Linked" : "Unlinked")
     }

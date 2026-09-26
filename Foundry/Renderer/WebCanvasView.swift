@@ -230,6 +230,7 @@ struct WebCanvasView: NSViewRepresentable {
     let operation: CanvasWebOperation
     let assets: ProjectAssetContents
     let packages: [String: LoadedPartPackage]
+    let appearance: SiteAppearance
     let assetRevision: UInt64
     let selectedPartIDs: Set<UUID>
     let primarySelectedPartID: UUID?
@@ -299,6 +300,10 @@ struct WebCanvasView: NSViewRepresentable {
 
     func updateNSView(_ webView: WKWebView, context: Context) {
         webView.isInspectable = enablesWebInspector
+        // Follow the canvas appearance toggle in the web view itself so
+        // prefers-color-scheme agrees with the document's colour scheme —
+        // light-dark() and media queries must never disagree in the editor.
+        webView.appearance = NSAppearance(named: appearance == .dark ? .darkAqua : .aqua)
         context.coordinator.assetSchemeHandler.update(packages: packages)
         if context.coordinator.assetRevision != assetRevision {
             context.coordinator.assetSchemeHandler.update(assets: assets)
@@ -642,6 +647,14 @@ struct WebCanvasView: NSViewRepresentable {
             });
           };
 
+          // Mirrors FoundryDropZoneGlyphs so the accepting overlay shows the
+          // same symbol as the resting zone, slightly darkened.
+          const dropGlyphs = {
+            part: '<svg viewBox="0 0 147 147" width="22" height="22" fill="currentColor"><path fill-rule="evenodd" d="M43.629,146.562C29.456,146.562 18.484,142.625 11.21,135.352C3.838,128.046 -0,117.071 -0,102.933L-0,43.629C-0,29.491 3.873,18.48 11.21,11.21C18.413,4.008 29.456,0 43.629,0L103.036,0C117.209,0 128.082,3.905 135.387,11.21C142.827,18.516 146.665,29.491 146.665,43.629L146.665,102.933C146.665,117.071 142.792,128.082 135.387,135.352C128.185,142.554 117.209,146.562 103.036,146.562L43.629,146.562ZM43.629,135.491L103.036,135.491C113.642,135.491 121.932,132.503 127.269,127.269C132.741,121.797 135.594,113.674 135.594,102.933L135.594,43.629C135.594,32.888 132.741,24.765 127.269,19.293C121.864,13.992 113.642,11.07 103.036,11.07L43.629,11.07C32.955,11.07 24.698,14.059 19.36,19.293C13.924,24.765 11.07,32.888 11.07,43.629L11.07,102.933C11.07,113.674 13.924,121.797 19.36,127.269C24.765,132.57 32.955,135.491 43.629,135.491Z"/><path d="M68.262,98.329L67.932,86.478L67.932,38.195C67.932,35.342 70.377,32.862 73.4,32.862C76.32,32.862 78.868,35.342 78.868,38.195L78.868,86.478L78.487,98.346L83.674,92.885L96.98,78.905C97.896,77.817 99.392,77.239 100.717,77.239C103.499,77.239 105.709,79.313 105.709,82.131C105.709,83.591 105.165,84.678 104.078,85.765L77.372,111.764C76.015,113.121 74.757,113.597 73.4,113.597C72.007,113.597 70.75,113.121 69.428,111.764L42.584,85.765C41.599,84.678 40.988,83.591 40.988,82.131C40.988,79.313 43.059,77.239 45.98,77.239C47.27,77.239 48.765,77.817 49.785,78.905L63.055,92.885L68.262,98.329Z"/></svg>',
+            image: '<svg viewBox="0 0 147 147" width="22" height="22" fill="currentColor"><g transform="translate(-9.091185 -0.438)"><path fill-rule="evenodd" d="M52.72,147C38.547,147 27.575,143.063 20.302,135.79C12.929,128.484 9.091,117.509 9.091,103.371L9.091,44.067C9.091,29.929 12.964,18.918 20.302,11.648C27.504,4.446 38.547,0.438 52.72,0.438L112.127,0.438C126.3,0.438 137.173,4.343 144.478,11.648C151.918,18.954 155.756,29.929 155.756,44.067L155.756,103.371C155.756,117.509 151.883,128.52 144.478,135.79C137.276,142.992 126.3,147 112.127,147L52.72,147ZM52.72,135.929L112.127,135.929C122.733,135.929 131.023,132.941 136.36,127.707C141.832,122.235 144.685,114.112 144.685,103.371L144.685,44.067C144.685,33.326 141.832,25.203 136.36,19.731C130.955,14.429 122.733,11.508 112.127,11.508L52.72,11.508C42.046,11.508 33.789,14.497 28.452,19.731C23.015,25.203 20.162,33.326 20.162,44.067L20.162,103.371C20.162,114.112 23.015,122.235 28.452,127.707C33.856,133.008 42.046,135.929 52.72,135.929ZM30.162,98.861L36.146,93.384C39.44,90.328 42.831,88.816 46.511,88.816C50.497,88.816 54.061,90.431 57.458,93.487L72.564,107.297L109.117,74.624C112.964,71.22 116.872,69.57 121.443,69.57C125.95,69.57 130.132,71.323 133.844,74.727L134.685,75.51L134.685,103.371C134.685,110.885 133.154,116.725 129.35,120.574C125.558,124.269 119.584,125.929 112.127,125.929L52.72,125.929C45.241,125.929 39.349,124.33 35.533,120.645C31.704,116.758 30.162,110.906 30.162,103.371L30.162,98.861ZM59.536,74.562C49.036,74.562 40.493,66.018 40.493,55.518C40.493,45.121 49.036,36.475 59.536,36.475C69.933,36.475 78.476,45.121 78.476,55.518C78.476,66.018 69.933,74.562 59.536,74.562Z"/></g></svg>',
+            video: '<svg viewBox="0 0 147 147" width="22" height="22" fill="currentColor"><g transform="translate(-9.091185 -0.438)"><path fill-rule="evenodd" d="M52.72,147C38.547,147 27.575,143.063 20.302,135.79C12.929,128.484 9.091,117.509 9.091,103.371L9.091,44.067C9.091,29.929 12.964,18.918 20.302,11.648C27.504,4.446 38.547,0.438 52.72,0.438L112.127,0.438C126.3,0.438 137.173,4.343 144.478,11.648C151.918,18.954 155.756,29.929 155.756,44.067L155.756,103.371C155.756,117.509 151.883,128.52 144.478,135.79C137.276,142.992 126.3,147 112.127,147L52.72,147ZM52.72,135.929L112.127,135.929C122.733,135.929 131.023,132.941 136.36,127.707C141.832,122.235 144.685,114.112 144.685,103.371L144.685,44.067C144.685,33.326 141.832,25.203 136.36,19.731C130.955,14.429 122.733,11.508 112.127,11.508L52.72,11.508C42.046,11.508 33.789,14.497 28.452,19.731C23.015,25.203 20.162,33.326 20.162,44.067L20.162,103.371C20.162,114.112 23.015,122.235 28.452,127.707C33.856,133.008 42.046,135.929 52.72,135.929ZM49.179,106.225C41.111,106.225 36.382,101.596 36.382,93.599L36.382,54.515C36.382,46.451 41.313,41.889 49.179,41.889L92.062,41.889C100.126,41.889 104.552,46.451 104.552,54.515L104.552,93.599C104.552,101.596 99.856,106.225 91.791,106.225L49.179,106.225ZM108.94,85.11L108.94,62.968L124.322,50.031C125.66,48.934 127.233,48.146 128.674,48.146C131.544,48.146 133.493,50.262 133.493,53.447L133.493,94.599C133.493,97.851 131.544,99.968 128.674,99.968C127.233,99.968 125.728,99.18 124.322,98.015L108.94,85.11Z"/></g></svg>'
+          };
+
           const updateDropChrome = () => {
             const candidate = activeDropChrome;
             const target = candidate?.element;
@@ -658,6 +671,11 @@ struct WebCanvasView: NSViewRepresentable {
             const color = partChromeColor(target);
             dropChrome.style.setProperty('background', 'transparent', 'important');
             dropChrome.style.setProperty('border', '0', 'important');
+            dropChrome.style.setProperty('box-shadow', 'none', 'important');
+            // The overlay is reused between states; the inside indicator's
+            // backdrop lift must not linger on the insertion bars.
+            dropChrome.style.setProperty('backdrop-filter', 'none', 'important');
+            dropChrome.style.setProperty('-webkit-backdrop-filter', 'none', 'important');
             if (candidate.kind === 'before' || candidate.kind === 'after') {
               if (candidate.axis === 'inline') {
                 const flow = insertionFlow(target);
@@ -676,17 +694,28 @@ struct WebCanvasView: NSViewRepresentable {
                 dropChrome.style.setProperty('height', '4px', 'important');
               }
               dropChrome.style.setProperty('background', color, 'important');
+              dropChrome.style.setProperty('border-radius', '0', 'important');
+              dropChrome.textContent = '';
             } else {
-              const compactZone = target.matches('[data-foundry-empty-parent], [data-foundry-image-drop-zone], [data-foundry-root-drop-zone]');
-              const inset = compactZone ? 4 : 8;
-              dropChrome.style.setProperty('left', rect.left + inset + 'px', 'important');
-              dropChrome.style.setProperty('top', rect.top + inset + 'px', 'important');
-              dropChrome.style.setProperty('width', Math.max(0, rect.width - inset * 2) + 'px', 'important');
-              dropChrome.style.setProperty('height', Math.max(0, rect.height - inset * 2) + 'px', 'important');
-              dropChrome.style.setProperty('border', '4px dashed ' + color, 'important');
+              // The inside indicator sits 1px inside the target — within an
+              // empty zone's hairline border — and carries its own label,
+              // styled to match the resting zones.
+              dropChrome.style.setProperty('left', rect.left + 1 + 'px', 'important');
+              dropChrome.style.setProperty('top', rect.top + 1 + 'px', 'important');
+              dropChrome.style.setProperty('width', Math.max(0, rect.width - 2) + 'px', 'important');
+              dropChrome.style.setProperty('height', Math.max(0, rect.height - 2) + 'px', 'important');
+              dropChrome.style.setProperty('background', '#ffffff', 'important');
+              dropChrome.style.setProperty('border-radius', '3px', 'important');
+              dropChrome.style.setProperty('place-items', 'center', 'important');
+              dropChrome.style.setProperty('color', '#6e6e6e', 'important');
+              dropChrome.innerHTML = target.matches('[data-foundry-image-drop-zone]')
+                ? dropGlyphs.image
+                : target.matches('[data-foundry-video-drop-zone]')
+                  ? dropGlyphs.video
+                  : dropGlyphs.part;
             }
-            dropChrome.style.setProperty('border-radius', '0', 'important');
-            dropChrome.style.setProperty('display', 'block', 'important');
+            const isBar = candidate.kind === 'before' || candidate.kind === 'after';
+            dropChrome.style.setProperty('display', isBar ? 'block' : 'grid', 'important');
           };
 
           const updateHoverChrome = () => {
@@ -887,8 +916,87 @@ struct WebCanvasView: NSViewRepresentable {
           };
 
           const intendedPlacement = event => {
+            // A populated container never shows the inside slab: hovering its
+            // gaps or padding snaps to an insertion line beside the nearest
+            // child, so the slab is reserved for genuinely empty targets.
+            const insertionAmongChildren = container => {
+              // Direct part-children only: a child's nearest part ancestor is
+              // the container itself — or none at all when the container is
+              // the page body rather than a part.
+              const owner = container.matches(selector) ? container : null;
+              const children = Array.from(container.querySelectorAll(selector))
+                .filter(child => (child.parentElement?.closest(selector) || null) === owner);
+              if (!children.length) return null;
+              const pointerX = Number.isFinite(event.clientX) ? event.clientX : 0;
+              const pointerY = Number.isFinite(event.clientY) ? event.clientY : 0;
+              let best = children[0];
+              let bestDistance = Infinity;
+              for (const child of children) {
+                const childRect = child.getBoundingClientRect();
+                const dx = Math.max(childRect.left - pointerX, 0, pointerX - childRect.right);
+                const dy = Math.max(childRect.top - pointerY, 0, pointerY - childRect.bottom);
+                const distance = Math.hypot(dx, dy);
+                if (distance < bestDistance) { bestDistance = distance; best = child; }
+              }
+              const flow = insertionFlow(best);
+              const bestRect = best.getBoundingClientRect();
+              const firstHalf = flow.axis === 'inline'
+                ? pointerX < (bestRect.left + bestRect.right) / 2
+                : pointerY < (bestRect.top + bestRect.bottom) / 2;
+              const before = flow.reversed ? !firstHalf : firstHalf;
+              return {
+                kind: before ? 'before' : 'after',
+                axis: flow.axis,
+                targetID: best.dataset.foundryId,
+                element: best
+              };
+            };
+            // Sibling-insertion bands along the flow axis: the outer 25%
+            // (at least 18px) of a part means before/after it. Returns null
+            // in the middle so callers can fall through to inside/half-split.
+            // maxBand caps the band for targets whose interior is itself the
+            // visible drop affordance.
+            const edgePlacement = (element, maxBand) => {
+              const rect = element.getBoundingClientRect();
+              const flow = insertionFlow(element);
+              const cap = maxBand || Infinity;
+              if (flow.axis === 'inline') {
+                const distanceFromStart = flow.reversed
+                  ? rect.right - event.clientX
+                  : event.clientX - rect.left;
+                const distanceFromEnd = flow.reversed
+                  ? event.clientX - rect.left
+                  : rect.right - event.clientX;
+                const edgeTargetWidth = Math.min(Math.max(rect.width * 0.25, 18), rect.width / 2, cap);
+                if (distanceFromStart <= edgeTargetWidth) {
+                  return { kind: 'before', axis: 'inline', targetID: element.dataset.foundryId, element };
+                }
+                if (distanceFromEnd <= edgeTargetWidth) {
+                  return { kind: 'after', axis: 'inline', targetID: element.dataset.foundryId, element };
+                }
+                return null;
+              }
+              const distanceFromTop = event.clientY - rect.top;
+              const distanceFromBottom = rect.bottom - event.clientY;
+              const edgeTargetHeight = Math.min(Math.max(rect.height * 0.25, 18), rect.height / 2, cap);
+              if (distanceFromTop <= edgeTargetHeight) {
+                return { kind: 'before', axis: 'block', targetID: element.dataset.foundryId, element };
+              }
+              if (distanceFromBottom <= edgeTargetHeight) {
+                return { kind: 'after', axis: 'block', targetID: element.dataset.foundryId, element };
+              }
+              return null;
+            };
             const emptyParent = event.target.closest('[data-foundry-empty-parent]');
             if (emptyParent) {
+              // The zone fills its host part, so without edge bands an empty
+              // container as last sibling would swallow every hover as
+              // "inside" and you could never drop after it. But the slab is
+              // the visible target here, so the bands stay a thin sliver —
+              // anywhere the cursor reads as "in the zone" drops inside.
+              const host = emptyParent.closest(selector);
+              const banded = host ? edgePlacement(host, 8) : null;
+              if (banded) return banded;
               return {
                 kind: 'inside',
                 targetID: emptyParent.dataset.foundryEmptyParent,
@@ -909,26 +1017,24 @@ struct WebCanvasView: NSViewRepresentable {
               };
             }
             const element = event.target.closest(selector);
-            if (!element) return { kind: 'end' };
+            if (!element) {
+              // Bare page area around the content: snap to the nearest
+              // top-level part so the drop shows an insertion bar instead of
+              // silently appending with no indicator.
+              return insertionAmongChildren(document.body) || { kind: 'end' };
+            }
+            const banded = edgePlacement(element);
+            if (banded) return banded;
+            if (element.dataset.foundryAcceptsChildren === 'true') {
+              return insertionAmongChildren(element)
+                || { kind: 'inside', targetID: element.dataset.foundryId, element };
+            }
             const rect = element.getBoundingClientRect();
             const flow = insertionFlow(element);
             if (flow.axis === 'inline') {
               const distanceFromStart = flow.reversed
                 ? rect.right - event.clientX
                 : event.clientX - rect.left;
-              const distanceFromEnd = flow.reversed
-                ? event.clientX - rect.left
-                : rect.right - event.clientX;
-              const edgeTargetWidth = Math.min(Math.max(rect.width * 0.25, 18), rect.width / 2);
-              if (distanceFromStart <= edgeTargetWidth) {
-                return { kind: 'before', axis: 'inline', targetID: element.dataset.foundryId, element };
-              }
-              if (distanceFromEnd <= edgeTargetWidth) {
-                return { kind: 'after', axis: 'inline', targetID: element.dataset.foundryId, element };
-              }
-              if (element.dataset.foundryAcceptsChildren === 'true') {
-                return { kind: 'inside', targetID: element.dataset.foundryId, element };
-              }
               return {
                 kind: distanceFromStart < rect.width / 2 ? 'before' : 'after',
                 axis: 'inline',
@@ -936,26 +1042,8 @@ struct WebCanvasView: NSViewRepresentable {
                 element
               };
             }
-            const distanceFromTop = event.clientY - rect.top;
-            const distanceFromBottom = rect.bottom - event.clientY;
-            if (distanceFromTop <= 18) {
-              return { kind: 'before', axis: 'block', targetID: element.dataset.foundryId, element };
-            }
-            if (distanceFromBottom <= 18) {
-              return { kind: 'after', axis: 'block', targetID: element.dataset.foundryId, element };
-            }
-            const edgeTargetHeight = Math.min(Math.max(rect.height * 0.25, 18), rect.height / 2);
-            if (distanceFromTop <= edgeTargetHeight) {
-              return { kind: 'before', axis: 'block', targetID: element.dataset.foundryId, element };
-            }
-            if (distanceFromTop >= rect.height - edgeTargetHeight) {
-              return { kind: 'after', axis: 'block', targetID: element.dataset.foundryId, element };
-            }
-            if (element.dataset.foundryAcceptsChildren === 'true') {
-              return { kind: 'inside', targetID: element.dataset.foundryId, element };
-            }
             return {
-              kind: distanceFromTop < rect.height / 2 ? 'before' : 'after',
+              kind: event.clientY - rect.top < rect.height / 2 ? 'before' : 'after',
               axis: 'block',
               targetID: element.dataset.foundryId,
               element
@@ -1163,7 +1251,7 @@ struct WebCanvasView: NSViewRepresentable {
           };
 
           let latestFoundryRevision = 0;
-          window.foundryReplacePart = (partID, html, css, revision) => {
+          window.foundryReplacePart = (partID, html, styles, revision) => {
             if (!Number.isSafeInteger(revision) || revision < latestFoundryRevision) return false;
             const current = document.querySelector('[data-foundry-id="' + CSS.escape(partID) + '"]');
             if (!current) return false;
@@ -1172,18 +1260,23 @@ struct WebCanvasView: NSViewRepresentable {
             const replacement = template.content.firstElementChild;
             if (!replacement || template.content.childElementCount !== 1 || replacement.dataset.foundryId !== partID) return false;
             current.replaceWith(replacement);
-            const styleSelector = 'style[data-foundry-instance-style="' + CSS.escape(partID) + '"]';
-            let style = document.head.querySelector(styleSelector);
-            if (css) {
-              if (!style) {
-                style = document.createElement('style');
-                style.dataset.foundryInstanceStyle = partID;
-                document.head.appendChild(style);
+            // One <style> per instance: a parent's patch must update each
+            // descendant's own element rather than bundling their rules, or
+            // the bundle would shadow the descendant's later patches.
+            Object.entries(styles || {}).forEach(([styleID, css]) => {
+              const styleSelector = 'style[data-foundry-instance-style="' + CSS.escape(styleID) + '"]';
+              let style = document.head.querySelector(styleSelector);
+              if (css) {
+                if (!style) {
+                  style = document.createElement('style');
+                  style.dataset.foundryInstanceStyle = styleID;
+                  document.head.appendChild(style);
+                }
+                style.textContent = css;
+              } else {
+                style?.remove();
               }
-              style.textContent = css;
-            } else {
-              style?.remove();
-            }
+            });
             latestFoundryRevision = revision;
             installPartDragHandlers();
             observeChromeGeometry();
@@ -1255,6 +1348,20 @@ struct WebCanvasView: NSViewRepresentable {
             return true;
           };
 
+          // Image wells and video wells share one drop pipeline. A zone may
+          // carry both markers — a filled video element takes an image as its
+          // poster and a movie as its replacement — so the dropped file's
+          // kind picks the property key.
+          const mediaZoneAt = target => {
+            const zone = target.closest('[data-foundry-image-drop-zone], [data-foundry-video-drop-zone]');
+            if (!zone) return null;
+            return {
+              zone,
+              imageKey: zone.matches('[data-foundry-image-drop-zone]') ? zone.dataset.foundryImageProperty : undefined,
+              videoKey: zone.matches('[data-foundry-video-drop-zone]') ? zone.dataset.foundryVideoProperty : undefined
+            };
+          };
+
           document.addEventListener('dragover', event => {
             isDragging = true;
             clearDrop();
@@ -1262,10 +1369,10 @@ struct WebCanvasView: NSViewRepresentable {
             hoverChrome.style.setProperty('display', 'none', 'important');
             if (event.dataTransfer.types.includes('Files')) {
               event.preventDefault();
-              const imageZone = event.target.closest('[data-foundry-image-drop-zone]');
-              const image = imageZone?.closest(selector);
-              if (image) {
-                showDropChrome({ kind: 'inside', targetID: image.dataset.foundryId, element: imageZone });
+              const media = mediaZoneAt(event.target);
+              const mediaPart = media?.zone.closest(selector);
+              if (mediaPart) {
+                showDropChrome({ kind: 'inside', targetID: mediaPart.dataset.foundryId, element: media.zone });
               } else {
                 placement = intendedPlacement(event);
                 showDropChrome(placement);
@@ -1284,12 +1391,16 @@ struct WebCanvasView: NSViewRepresentable {
             const draggedValue = event.dataTransfer.getData('text/plain');
             const carriesImageAsset = event.dataTransfer.types.includes('uk.co.garysimpson.foundry.image-asset')
               || draggedValue.startsWith('foundry-image-asset:');
-            const imageZone = carriesImageAsset
+            const carriesVideoAsset = event.dataTransfer.types.includes('uk.co.garysimpson.foundry.video-asset')
+              || draggedValue.startsWith('foundry-video-asset:');
+            const mediaZone = carriesImageAsset
               ? event.target.closest('[data-foundry-image-drop-zone]')
-              : null;
-            const image = imageZone?.closest(selector);
-            if (image) {
-              showDropChrome({ kind: 'inside', targetID: image.dataset.foundryId, element: imageZone });
+              : carriesVideoAsset
+                ? event.target.closest('[data-foundry-video-drop-zone]')
+                : null;
+            const mediaPart = mediaZone?.closest(selector);
+            if (mediaPart) {
+              showDropChrome({ kind: 'inside', targetID: mediaPart.dataset.foundryId, element: mediaZone });
               event.dataTransfer.dropEffect = 'copy';
               return;
             }
@@ -1320,23 +1431,39 @@ struct WebCanvasView: NSViewRepresentable {
             clearDragSources();
             const file = event.dataTransfer.files[0];
             if (file) {
-              const imageZone = event.target.closest('[data-foundry-image-drop-zone]');
-              const image = imageZone?.closest(selector);
+              const media = mediaZoneAt(event.target);
+              const mediaPart = media?.zone.closest(selector);
               const target = placement || intendedPlacement(event);
               clearDrop();
               const isImage = file.type.startsWith('image/') || /\\.(?:avif|gif|heic|heif|jpe?g|png|svg|webp)$/i.test(file.name);
-              if (!isImage || file.size > 25000000) return;
+              const isVideo = file.type.startsWith('video/') || /\\.(?:m4v|mov|mp4|webm)$/i.test(file.name);
+              let mediaPropertyKey = null;
+              if (media && mediaPart) {
+                if (isVideo && media.videoKey) {
+                  if (file.size > 100000000) return;
+                  mediaPropertyKey = media.videoKey;
+                } else if (isImage && media.imageKey) {
+                  if (file.size > 25000000) return;
+                  mediaPropertyKey = media.imageKey;
+                } else {
+                  return;
+                }
+              } else if (isVideo) {
+                if (file.size > 100000000) return;
+              } else if (!isImage || file.size > 25000000) {
+                return;
+              }
               const internalAssetMatch = file.name.match(/^foundry-asset-([0-9a-f-]{36})--/i);
               if (internalAssetMatch) {
                 const message = {
                   version: 1,
-                  event: image ? 'importImageAsset' : 'insertImagePart',
+                  event: mediaPropertyKey ? 'importImageAsset' : 'insertImagePart',
                   assetID: internalAssetMatch[1]
                 };
-                if (image) {
-                  message.partID = image.dataset.foundryId;
-                  message.propertyKey = imageZone.dataset.foundryImageProperty;
-                  message.propertyPath = propertyPath(imageZone);
+                if (mediaPropertyKey) {
+                  message.partID = mediaPart.dataset.foundryId;
+                  message.propertyKey = mediaPropertyKey;
+                  message.propertyPath = propertyPath(media.zone);
                 } else {
                   message.placement = { kind: target.kind, targetID: target.targetID, slotID: target.slotID };
                 }
@@ -1348,15 +1475,15 @@ struct WebCanvasView: NSViewRepresentable {
                 const encoded = String(reader.result).split(',', 2)[1];
                 const message = {
                   version: 1,
-                  event: image ? 'importImageAsset' : 'insertImagePart',
+                  event: mediaPropertyKey ? 'importImageAsset' : 'insertImagePart',
                   assetFilename: file.name,
                   assetMediaType: file.type || 'application/octet-stream',
                   assetData: encoded
                 };
-                if (image) {
-                  message.partID = image.dataset.foundryId;
-                  message.propertyKey = imageZone.dataset.foundryImageProperty;
-                  message.propertyPath = propertyPath(imageZone);
+                if (mediaPropertyKey) {
+                  message.partID = mediaPart.dataset.foundryId;
+                  message.propertyKey = mediaPropertyKey;
+                  message.propertyPath = propertyPath(media.zone);
                 } else {
                   message.placement = { kind: target.kind, targetID: target.targetID, slotID: target.slotID };
                 }
@@ -1397,6 +1524,19 @@ struct WebCanvasView: NSViewRepresentable {
                 message.partID = image.dataset.foundryId;
                 message.propertyKey = imageZone.dataset.foundryImageProperty;
                 message.propertyPath = propertyPath(imageZone);
+              }
+            } else if (value.startsWith('foundry-video-asset:')) {
+              message.assetID = value.substring('foundry-video-asset:'.length);
+              const videoZone = event.target.closest('[data-foundry-video-drop-zone]');
+              const videoPart = videoZone?.closest(selector);
+              if (videoPart) {
+                message.event = 'importImageAsset';
+                delete message.placement;
+                message.partID = videoPart.dataset.foundryId;
+                message.propertyKey = videoZone.dataset.foundryVideoProperty;
+                message.propertyPath = propertyPath(videoZone);
+              } else {
+                message.event = 'insertImagePart';
               }
             } else {
               return;
@@ -1504,8 +1644,8 @@ struct WebCanvasView: NSViewRepresentable {
               && (!clickedPrimitive || clickedEditable === clickedPrimitive);
             const overrideOwner = part.closest('[data-foundry-global-override="true"]');
             const globalTarget = overrideOwner || (part.dataset.foundryGlobal ? part : null);
-            const clickedImageZone = event.target.closest('[data-foundry-image-drop-zone]');
-            const imageZone = clickedImageZone?.closest(selector) === part ? clickedImageZone : null;
+            const clickedMediaZone = event.target.closest('[data-foundry-image-drop-zone], [data-foundry-video-drop-zone]');
+            const imageZone = clickedMediaZone?.closest(selector) === part ? clickedMediaZone : null;
             window.webkit.messageHandlers.foundryCanvas.postMessage({
               version: 1,
               event: 'contextMenu',
@@ -1525,8 +1665,10 @@ struct WebCanvasView: NSViewRepresentable {
               globalTargetID: selectionCount === 1 ? globalTarget?.dataset.foundryId : undefined,
               isGlobalLinked: Boolean(globalTarget && !overrideOwner && selectionCount === 1),
               isGlobalRoot: Boolean(selectionCount === 1 && part.dataset.foundryGlobalRoot === 'true'),
-              hasImage: selectionCount === 1 && imageZone?.tagName === 'IMG',
-              imageProperty: selectionCount === 1 ? imageZone?.dataset.foundryImageProperty : undefined,
+              hasImage: selectionCount === 1 && (imageZone?.tagName === 'IMG' || imageZone?.tagName === 'VIDEO'),
+              imageProperty: selectionCount === 1
+                ? (imageZone?.dataset.foundryImageProperty || imageZone?.dataset.foundryVideoProperty)
+                : undefined,
               imagePropertyPath: selectionCount === 1 ? propertyPath(imageZone) : [],
               preservesSelection: preservesSelection
             });
@@ -1806,30 +1948,12 @@ struct WebCanvasView: NSViewRepresentable {
             let version = request["partVersion"] as? String ?? ""
             let subtitle = version.isEmpty ? author : "\(author)  v\(version)"
             let typeID = request["partTypeID"] as? String
-            let appearance = webView?.effectiveAppearance ?? NSApp.effectiveAppearance
-            let isDark = appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
-            let iconURL = typeID
-                .map(PartType.init(rawValue:))?
-                .definition.package?
-                .iconURL(forDarkAppearance: isDark)
-            let icon = PartIconImageView(image: NSImage(size: NSSize(width: 36, height: 36)))
+            let iconSpecification = typeID.map(PartType.init(rawValue:))?.iconSpecification
+                ?? .init(glyph: .symbol(PartDefinition.genericSystemImage), tint: .gray)
+            let icon = NSImageView(image: iconSpecification.tileImage(size: NSSize(width: 36, height: 36)))
             icon.imageScaling = .scaleProportionallyUpOrDown
-            icon.wantsLayer = true
-            icon.layer?.cornerRadius = 36 * 0.16
-            icon.layer?.masksToBounds = true
-            icon.updateBackgroundColor()
             icon.setAccessibilityLabel(title)
             icon.translatesAutoresizingMaskIntoConstraints = false
-            if let iconURL {
-                if let cached = PartIconLoader.cachedIcon(at: iconURL) {
-                    icon.image = cached.image
-                } else {
-                    Task { [weak icon] in
-                        guard let image = await PartIconLoader.shared.icon(at: iconURL)?.image else { return }
-                        icon?.image = image
-                    }
-                }
-            }
 
             let titleField = NSTextField(labelWithString: title)
             titleField.font = .systemFont(ofSize: 15, weight: .semibold)
@@ -1936,11 +2060,11 @@ struct WebCanvasView: NSViewRepresentable {
                     return
                 }
                 let didPatch = (try? await webView.callAsyncJavaScript(
-                    "return window.foundryReplacePart?.(partID, html, css, revision) === true",
+                    "return window.foundryReplacePart?.(partID, html, styles, revision) === true",
                     arguments: [
                         "partID": subtree.partID.uuidString,
                         "html": subtree.html,
-                        "css": subtree.instanceCSS,
+                        "styles": subtree.instanceStyles,
                         "revision": revision
                     ],
                     in: nil,

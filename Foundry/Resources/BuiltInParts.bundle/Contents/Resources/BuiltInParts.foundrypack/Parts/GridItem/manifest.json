@@ -6,6 +6,10 @@
   "author": "Foundry",
   "description": "A box that lives inside a Grid — it spans columns and rows of its parent, and stacks its own content with Flexbox.",
   "group": "Layout",
+  "icon": {
+    "symbol": "square",
+    "tint": "purple"
+  },
   "id": "foundry.layout.grid-item",
   "inspector": [
     {
@@ -252,7 +256,6 @@
     }
   ],
   "minimumAPIVersion": 1,
-  "showsInPartLibrary": false,
   "tags": [
     "Foundry",
     "built-in",

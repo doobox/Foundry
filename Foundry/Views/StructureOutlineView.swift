@@ -172,9 +172,12 @@ struct StructureOutlineView: NSViewRepresentable {
             cell.textField?.identifier = NSUserInterfaceItemIdentifier(item.id.uuidString)
             cell.textField?.isEditable = true
             cell.textField?.delegate = self
-            cell.imageView?.image = partIcon(for: item.part)
-            // Match the square icon backing used in the other non-panel contexts.
-            (cell.imageView as? PartIconImageView)?.updateBackgroundColor()
+            // Tree rows paint the glyph in the part's tint with no backing;
+            // the tint-filled tile treatment is reserved for larger surfaces.
+            let iconSpecification = item.part.type.iconSpecification
+            cell.imageView?.image = iconSpecification.resolvedGlyphImage()
+            cell.imageView?.contentTintColor = iconSpecification.tint.nsColor
+            (cell.imageView as? PartIconImageView)?.tileTint = nil
             cell.imageView?.setAccessibilityLabel(name)
             let isLinkedToGlobal = globalContext(for: item)?.isLinked == true
             let isGlobalRoot = item.part.reusableDefinitionID != nil
@@ -203,19 +206,6 @@ struct StructureOutlineView: NSViewRepresentable {
                 cell.warningIndicator.toolTip = nil
             }
             return cell
-        }
-
-        private func partIcon(for part: PartNode) -> NSImage? {
-            let appearance = outlineView?.effectiveAppearance ?? NSApp.effectiveAppearance
-            let isDark = appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
-            if let iconURL = part.type.definition.package?.iconURL(forDarkAppearance: isDark),
-               let icon = NSImage(contentsOf: iconURL) {
-                return icon
-            }
-            return NSImage(
-                systemSymbolName: part.type.systemImage,
-                accessibilityDescription: part.name
-            )
         }
 
         func menuNeedsUpdate(_ menu: NSMenu) {
@@ -354,12 +344,9 @@ struct StructureOutlineView: NSViewRepresentable {
             let author = package?.manifest.author ?? "Foundry"
             let version = package?.manifest.version ?? ""
             let subtitle = version.isEmpty ? author : "\(author)  v\(version)"
-            let icon = PartIconImageView(image: partIcon(for: item.part) ?? NSImage())
+            let iconSpecification = item.part.type.iconSpecification
+            let icon = NSImageView(image: iconSpecification.tileImage(size: NSSize(width: 36, height: 36)))
             icon.imageScaling = .scaleProportionallyUpOrDown
-            icon.wantsLayer = true
-            icon.layer?.cornerRadius = 36 * 0.16
-            icon.layer?.masksToBounds = true
-            icon.updateBackgroundColor()
             icon.setAccessibilityLabel(title)
             icon.translatesAutoresizingMaskIntoConstraints = false
 
@@ -1037,7 +1024,7 @@ struct StructureOutlineView: NSViewRepresentable {
         private func flattenedSignature(_ parts: [PartNode], parentID: UUID?) -> [String] {
             parts.flatMap {
                 [
-                    "\($0.id.uuidString):\(parentID?.uuidString ?? "root"):\($0.slotID ?? "default"):\(displayName(for: $0)):\($0.type.rawValue):\($0.type.systemImage):\($0.type.definition.package?.iconURL.path ?? "system"):\($0.type.definition.package?.dropZoneNames.joined(separator: ",") ?? "none"):\($0.reusableDefinitionID?.uuidString ?? "local"):\($0.overridesGlobalDefinition == true)"
+                    "\($0.id.uuidString):\(parentID?.uuidString ?? "root"):\($0.slotID ?? "default"):\(displayName(for: $0)):\($0.type.rawValue):\($0.type.systemImage):\($0.type.iconSpecification.cacheKey):\($0.type.definition.package?.dropZoneNames.joined(separator: ",") ?? "none"):\($0.reusableDefinitionID?.uuidString ?? "local"):\($0.overridesGlobalDefinition == true)"
                 ] + flattenedSignature($0.children, parentID: $0.id)
             }
         }

@@ -3,6 +3,10 @@
   "author": "Foundry",
   "description": "Adds an editable semantic heading.",
   "group": "Content",
+  "icon": {
+    "symbol": "textformat",
+    "tint": "orange"
+  },
   "id": "foundry.content.heading",
   "inspector": [
     {
@@ -144,5 +148,5 @@
     "html": "part.html"
   },
   "title": "Heading",
-  "version": "1.1.0"
+  "version": "1.2.0"
 }

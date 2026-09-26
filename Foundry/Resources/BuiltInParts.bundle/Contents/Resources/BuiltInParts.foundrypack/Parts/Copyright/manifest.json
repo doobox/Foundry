@@ -2,6 +2,10 @@
   "author": "Foundry",
   "description": "Displays copyright information that automatically stays in sync with the current year.",
   "group": "Content",
+  "icon": {
+    "symbol": "c.circle",
+    "tint": "gray"
+  },
   "id": "foundry.content.copyright",
   "inspector": [
     {
@@ -109,5 +113,5 @@
     "html": "part.html"
   },
   "title": "Copyright",
-  "version": "1.1.0"
+  "version": "1.2.0"
 }

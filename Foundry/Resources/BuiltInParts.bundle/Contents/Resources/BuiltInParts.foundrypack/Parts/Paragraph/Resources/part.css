@@ -1,4 +1,6 @@
 :instance {
+    box-sizing: border-box;
+    width: 100%;
     font-family: {{ control.font.family }};
     font-weight: {{ control.font.weight }};
     font-style: {{ control.font.style }};

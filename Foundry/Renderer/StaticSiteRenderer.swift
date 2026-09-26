@@ -950,7 +950,11 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
                 return (definition.key.rawValue, PartPackageFrameworkMarginControl.resolved(margin, framework: framework))
             }
             if case .frameworkSpacing(let spacing) = value {
-                return (definition.key.rawValue, PartPackageSingleSpacingControl.resolved(spacing, framework: framework))
+                return (definition.key.rawValue, PartPackageSingleSpacingControl.resolved(
+                    spacing,
+                    framework: framework,
+                    noneValue: manifestProperties.first { $0.id == definition.key.rawValue }?.noneValue
+                ))
             }
             if case .frameworkPadding(let padding) = value {
                 return (definition.key.rawValue, PartPackageFrameworkPaddingControl.resolved(padding, framework: framework))

@@ -3,7 +3,10 @@ import Foundation
 nonisolated struct RenderedPartSubtree: Equatable, Sendable {
     let partID: UUID
     let html: String
-    let instanceCSS: String
+    /// Scoped CSS per part instance in the subtree, keyed by instance ID.
+    /// Each instance owns exactly one `<style>` in the canvas, so patches to
+    /// nested parts can never shadow one another's later updates.
+    let instanceStyles: [String: String]
 }
 
 nonisolated protocol PageRendering: Sendable {

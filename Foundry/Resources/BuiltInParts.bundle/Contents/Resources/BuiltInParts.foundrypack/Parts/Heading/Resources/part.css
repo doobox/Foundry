@@ -1,4 +1,6 @@
 :instance {
+    box-sizing: border-box;
+    width: 100%;
     {{ if control.sizeEnabled }}
     font-size: {{ control.fontSize }};
     line-height: {{ control.fontSize.lineHeight }};

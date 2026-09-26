@@ -3,6 +3,10 @@
   "author": "Foundry",
   "description": "Adds a visual rule between groups of content.",
   "group": "Content",
+  "icon": {
+    "symbol": "minus",
+    "tint": "gray"
+  },
   "id": "foundry.content.divider",
   "inspector": [
     {
