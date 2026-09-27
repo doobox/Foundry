@@ -142,9 +142,10 @@ struct CanvasSceneTests {
             let breakpoint: ResponsiveBreakpoint = step == 5 ? .large : .mobile
             guard case .scene(let update) = try render(breakpoint) else { Issue.record("Unexpected full refresh"); return }
             let applied = try await web.callAsyncJavaScript(
-                "return window.foundryApplyScene(html, styles, removed, roots, revision, styleOrder)",
+                "return window.foundryApplyScene(html, styles, removed, roots, revision, styleMoves, childMoves)",
                 arguments: ["html": update.html, "styles": update.styles, "removed": update.removed,
-                    "roots": update.roots as Any? ?? NSNull(), "revision": step, "styleOrder": update.styleOrder],
+                    "roots": update.roots as Any? ?? NSNull(), "revision": step,
+                    "styleMoves": update.styleMoves, "childMoves": update.childMoves],
                 in: nil, contentWorld: .defaultClient)
             try #require(applied as? Bool == true)
             let fresh = HTMLPageRenderer().render(page: page, language: "en", framework: .standard,

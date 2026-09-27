@@ -1253,13 +1253,25 @@ struct WebCanvasView: NSViewRepresentable {
 
           let latestFoundryRevision = 0;
           let retainedParts = null;
-          window.foundryApplyScene = (html, styles, removed, roots, revision, styleOrder = []) => {
+          let retainedStyles = null;
+          window.foundryApplyScene = (html, styles, removed, roots, revision, styleMoves = [], childMoves = {}) => {
             if (!Number.isSafeInteger(revision) || revision < latestFoundryRevision) return false;
             if (!retainedParts) {
               retainedParts = new Map();
               for (const part of document.querySelectorAll(selector)) {
                 if (retainedParts.has(part.dataset.foundryId)) { retainedParts = null; return false; }
                 retainedParts.set(part.dataset.foundryId, part);
+              }
+            }
+            // Instance stylesheets are addressed by identifier on every
+            // transaction. Keep them in a map so a page of any size costs one
+            // lookup per sheet the edit actually touches.
+            if (!retainedStyles) {
+              retainedStyles = new Map();
+              for (const style of document.head.querySelectorAll('style[data-foundry-instance-style]')) {
+                const styleID = style.dataset.foundryInstanceStyle;
+                if (retainedStyles.has(styleID)) { retainedStyles = null; return false; }
+                retainedStyles.set(styleID, style);
               }
             }
             const replacements = new Map();
@@ -1296,6 +1308,28 @@ struct WebCanvasView: NSViewRepresentable {
               visiting.delete(id); visited.add(id); return true;
             };
             for (const id of replacements.keys()) if (!acyclic(id)) return false;
+            // A child placement needs both the child and the sibling it anchors
+            // against to survive this transaction.
+            for (const moves of Object.values(childMoves)) {
+              for (const [childID, position, anchorID] of moves) {
+                if (position !== 'before' && position !== 'after') return false;
+                if (childID === anchorID) return false;
+                if (!available(childID) || !available(anchorID)) return false;
+              }
+            }
+            // A stylesheet instruction is only meaningful if both the sheet and
+            // its anchor survive this transaction.
+            const styleBoundary = document.head.querySelector('[data-foundry-shared-styles]');
+            const styledAfter = id => {
+              if (removed.includes(id)) return false;
+              if (Object.prototype.hasOwnProperty.call(styles, id)) return styles[id] !== '';
+              return retainedStyles.has(id);
+            };
+            if (styleMoves.length > 0 && !styleBoundary) return false;
+            for (const [id, anchorID] of styleMoves) {
+              if (!styledAfter(id)) return false;
+              if (anchorID !== '' && !styledAfter(anchorID)) return false;
+            }
             let start, end;
             if (roots !== null) {
               for (const node of document.body.childNodes) {
@@ -1319,7 +1353,8 @@ struct WebCanvasView: NSViewRepresentable {
               if (current) chromeResizeObserver.unobserve(current);
               current?.remove();
               retainedParts.delete(id);
-              document.head.querySelector('style[data-foundry-instance-style="' + CSS.escape(id) + '"]')?.remove();
+              retainedStyles.get(id)?.remove();
+              retainedStyles.delete(id);
             }
             if (roots !== null) {
               const fragment = document.createDocumentFragment();
@@ -1327,24 +1362,39 @@ struct WebCanvasView: NSViewRepresentable {
               while (start.nextSibling && start.nextSibling !== end) start.nextSibling.remove();
               end.before(fragment);
             }
+            // Re-seat only the children whose position changed. Their elements
+            // and everything beneath them stay exactly where they are.
+            for (const moves of Object.values(childMoves)) {
+              for (const [childID, position, anchorID] of moves) {
+                const child = retainedParts.get(childID);
+                const anchor = retainedParts.get(anchorID);
+                if (!child || !anchor) continue;
+                if (position === 'before') anchor.before(child);
+                else anchor.after(child);
+              }
+            }
             for (const [id, css] of Object.entries(styles)) {
-              let style = document.head.querySelector('style[data-foundry-instance-style="' + CSS.escape(id) + '"]');
-              if (!css) { style?.remove(); continue; }
+              let style = retainedStyles.get(id);
+              if (!css) { style?.remove(); retainedStyles.delete(id); continue; }
               if (!style) {
                 style = document.createElement('style');
                 style.dataset.foundryInstanceStyle = id;
-                document.head.appendChild(style);
+                // Instance sheets all live ahead of the shared boundary; the
+                // move instructions below settle the exact position.
+                if (styleBoundary) styleBoundary.before(style);
+                else document.head.appendChild(style);
+                retainedStyles.set(id, style);
               }
               style.textContent = css;
             }
-            const styleBoundary = document.head.querySelector('[data-foundry-shared-styles]');
-            if (styleBoundary) {
-              // CSS source order is observable, including package-scoped :host
-              // rules and custom HTML CSS. Keep it identical to a fresh render.
-              for (const id of styleOrder) {
-                const style = document.head.querySelector('style[data-foundry-instance-style="' + CSS.escape(id) + '"]');
-                if (style) styleBoundary.before(style);
-              }
+            // CSS source order is observable, including package-scoped :host
+            // rules and custom HTML CSS. Keep it identical to a fresh render —
+            // by moving only the sheets whose position actually changed.
+            for (const [id, anchorID] of styleMoves) {
+              const style = retainedStyles.get(id);
+              if (!style) continue;
+              const anchor = anchorID === '' ? styleBoundary : retainedStyles.get(anchorID);
+              anchor?.before(style);
             }
             latestFoundryRevision = revision;
             installPartDragHandlers(Array.from(replacements.values()));
@@ -1364,6 +1414,7 @@ struct WebCanvasView: NSViewRepresentable {
             if (!replacement || template.content.childElementCount !== 1 || replacement.dataset.foundryId !== partID) return false;
             current.replaceWith(replacement);
             retainedParts = null;
+            retainedStyles = null;
             // One <style> per instance: a parent's patch must update each
             // descendant's own element rather than bundling their rules, or
             // the bundle would shadow the descendant's later patches.
@@ -1396,6 +1447,7 @@ struct WebCanvasView: NSViewRepresentable {
             if (!Number.isSafeInteger(revision) || revision < latestFoundryRevision) return false;
             const replacement = new DOMParser().parseFromString(html, 'text/html');
             retainedParts = null;
+            retainedStyles = null;
             replacement.querySelectorAll(selector).forEach(element => { element.draggable = true; });
 
             const currentHeadNodes = Array.from(document.head.childNodes);
@@ -2158,10 +2210,11 @@ struct WebCanvasView: NSViewRepresentable {
             Task { [weak self, weak webView] in
                 guard let self, let webView else { return }
                 let applied = (try? await webView.callAsyncJavaScript(
-                    "return window.foundryApplyScene?.(html, styles, removed, roots, revision, styleOrder) === true",
+                    "return window.foundryApplyScene?.(html, styles, removed, roots, revision, styleMoves, childMoves) === true",
                     arguments: ["html": update.html, "styles": update.styles,
                         "removed": update.removed, "roots": update.roots as Any? ?? NSNull(),
-                        "styleOrder": update.styleOrder, "revision": revision],
+                        "styleMoves": update.styleMoves, "childMoves": update.childMoves,
+                        "revision": revision],
                     in: nil, contentWorld: .defaultClient)) as? Bool == true
                 self.isPatchingHTML = false
                 guard applied else {

@@ -25,6 +25,17 @@ nonisolated struct HTMLPageRenderer: PageRendering {
         return copy
     }
 
+    /// A renderer whose shell renders share one cache session. Instance CSS and
+    /// resolved properties are keyed on a part's own values, so a part keeps
+    /// them when only the tree around it changed — which is exactly what an
+    /// insertion does to the parent it lands in.
+    func preparedForShells(environment: CanvasRenderCache.Environment, liveIDs: Set<UUID>) -> Self {
+        guard let artifactCache else { return self }
+        var copy = self
+        copy.cacheSession = artifactCache.session(environment: environment, liveIDs: liveIDs)
+        return copy
+    }
+
     private func cachedText(_ kind: CanvasRenderCache.Kind, key: CanvasRenderCache.Key, compute: () -> String) -> String {
         guard let cacheSession else { return compute() }
         if case .text(let text) = cacheSession.value(kind, key: key, compute: { .text(compute()) }) { return text }
@@ -392,7 +403,6 @@ nonisolated struct HTMLPageRenderer: PageRendering {
     func renderShell(_ input: CanvasSceneInput, page: Page, framework: Framework,
                      assets: ProjectAssetContents) -> CanvasSceneArtifact {
         var renderer = self
-        renderer.cacheSession = nil
         renderer.shellRootID = input.node.id
         let html = renderer.render(input.node, page: page, framework: framework, assets: assets,
             globalDefinitionID: input.globalID, breakpoint: .mobile, parentPartID: input.parentID,

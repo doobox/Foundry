@@ -32,6 +32,21 @@ extension ProjectEditor {
         return inserted ? part.id : nil
     }
 
+    /// Reports an insertion as structural so the canvas can re-seat the parts
+    /// it already has. Only sound when the edit stays within one owner and
+    /// synchronising shared globals will not rewrite instances elsewhere —
+    /// either of those makes it an ordinary page change.
+    private func structureImpact(
+        _ sharedInsertion: SharedGlobalStructureMove,
+        on page: Page,
+        at placements: [PartPlacement]
+    ) -> ProjectMutationImpact {
+        guard sharedInsertion.authoritativeInstances.isEmpty else { return .page }
+        let owners = Set(placements.map { page.parts.parentID(for: $0) })
+        guard owners.count == 1, let ownerID = owners.first else { return .page }
+        return .partStructure(ownerID: ownerID)
+    }
+
     @discardableResult
     func duplicatePart(id: UUID, on pageID: UUID) -> UUID? {
         guard let page = document.site.pages.first(where: { $0.id == pageID }),
@@ -41,7 +56,8 @@ extension ProjectEditor {
         let duplicate = source.duplicated()
         let sharedInsertion = document.site.sharedGlobalInsertion(on: page, at: .after(id))
         var inserted = false
-        mutate(actionName: "Duplicate Part") { site in
+        mutate(actionName: "Duplicate Part",
+               impact: structureImpact(sharedInsertion, on: page, at: [.after(id)])) { site in
             guard let index = site.pages.firstIndex(where: { $0.id == pageID }) else {
                 return
             }
@@ -66,7 +82,8 @@ extension ProjectEditor {
             at: pairs.map { .after($0.0) }
         ) else { return [] }
         var insertedIDs: [UUID] = []
-        mutate(actionName: pairs.count == 1 ? "Duplicate Part" : "Duplicate Parts") { site in
+        mutate(actionName: pairs.count == 1 ? "Duplicate Part" : "Duplicate Parts",
+               impact: structureImpact(sharedInsertion, on: page, at: pairs.map { .after($0.0) })) { site in
             guard let index = site.pages.firstIndex(where: { $0.id == pageID }) else { return }
             for (sourceID, duplicate) in pairs.reversed() {
                 if site.pages[index].parts.insert(duplicate, at: .after(sourceID)) {
@@ -90,7 +107,8 @@ extension ProjectEditor {
         guard let page = document.site.pages.first(where: { $0.id == pageID }) else { return nil }
         let sharedInsertion = document.site.sharedGlobalInsertion(on: page, at: placement)
         var inserted = false
-        mutate(actionName: "Paste Part") { site in
+        mutate(actionName: "Paste Part",
+               impact: structureImpact(sharedInsertion, on: page, at: [placement])) { site in
             guard let index = site.pages.firstIndex(where: { $0.id == pageID }) else {
                 return
             }
@@ -113,7 +131,8 @@ extension ProjectEditor {
         let duplicates = sources.map { $0.duplicated() }
         let sharedInsertion = document.site.sharedGlobalInsertion(on: page, at: placement)
         var insertedIDs: [UUID] = []
-        mutate(actionName: duplicates.count == 1 ? "Paste Part" : "Paste Parts") { site in
+        mutate(actionName: duplicates.count == 1 ? "Paste Part" : "Paste Parts",
+               impact: structureImpact(sharedInsertion, on: page, at: [placement])) { site in
             guard let index = site.pages.firstIndex(where: { $0.id == pageID }) else { return }
             var nextPlacement = placement
             for duplicate in duplicates {

@@ -89,8 +89,13 @@ struct ContentView: View {
     @AppStorage(AppPreferenceKey.automaticallyChecksPartUpdates)
     private var automaticallyChecksPartUpdates = false
 
+    /// One cache for the document's lifetime. Without it every canvas render
+    /// re-resolved each part's properties and CSS from scratch.
+    @State private var canvasRenderCache = CanvasRenderCache()
+
     private var renderer: any PageRendering {
-        HTMLPageRenderer(site: document.site, appearance: canvasAppearance, packageRevision: partCatalog.revision)
+        HTMLPageRenderer(site: document.site, appearance: canvasAppearance,
+                         artifactCache: canvasRenderCache, packageRevision: partCatalog.revision)
     }
 
     var body: some View {
