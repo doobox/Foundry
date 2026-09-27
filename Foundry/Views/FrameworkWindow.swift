@@ -74,11 +74,6 @@ struct FrameworkWindowContent: View {
                 }
             }
             .listStyle(.sidebar)
-            .scrollContentBackground(.hidden)
-            .background {
-                SidebarMaterialBackground()
-                    .ignoresSafeArea()
-            }
             .navigationSplitViewColumnWidth(min: 180, ideal: 210, max: 240)
         } detail: {
             switch selectedSection {

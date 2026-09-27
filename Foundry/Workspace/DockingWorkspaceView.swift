@@ -2167,7 +2167,9 @@ private struct FixedCanvasColumn<Content: View>: View {
             }
             .padding(.horizontal, 10)
             .frame(height: 36)
-            .background(.bar)
+            .background(
+                Color(.windowBackgroundColor)
+            )
             Divider()
             GeometryReader { proxy in
                 content()
@@ -2175,7 +2177,7 @@ private struct FixedCanvasColumn<Content: View>: View {
             }
             .frame(minWidth: 0, maxWidth: .infinity, maxHeight: .infinity)
         }
-        //.background(Color(nsColor: .windowBackgroundColor))
+
         .overlay(alignment: .leading) {
             SideDockTarget(title: "Dock Left", isTargeted: leadingTargeted)
                 .dropDestination(for: WorkspacePanelDragPayload.self) { values, _ in
@@ -2251,14 +2253,14 @@ private struct WorkspaceColumnView<PanelContent: View>: View {
         } isTargeted: {
             consolidationTargeted = $0
         }
-        .background {
-            if usesSidebarMaterial {
-                SidebarMaterialBackground()
-                    .ignoresSafeArea()
-            } else {
-                Color(.windowBackgroundColor)
-            }
-        }
+//        .background {
+//            // The sidebar dock is an AppKit sidebar split item, which already
+//            // carries the system's vibrant material. Painting nothing there
+//            // lets it through.
+//            if !usesSidebarMaterial {
+//                Color(.clear)
+//            }
+//        }
         .overlay {
             if consolidationTargeted,
                !leadingTargeted,
@@ -2356,7 +2358,7 @@ private struct WorkspaceColumnView<PanelContent: View>: View {
             // The sidebar dock's tab bar stays clear so the sidebar material
             // behind the whole column shows through.
             if !usesSidebarMaterial {
-                Rectangle().fill(.bar)
+                Color(.windowBackgroundColor)
             }
         }
         .dropDestination(for: WorkspacePanelDragPayload.self) { values, _ in
