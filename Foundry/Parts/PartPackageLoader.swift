@@ -15,6 +15,7 @@ nonisolated struct LoadedPartPackage: Sendable {
     static let dropZoneSlotPrefix = "__foundry_drop_zone:"
 
     let manifest: PartPackageManifest
+    let renderDefinition: PartPackageRenderDefinition
     let rootURL: URL
     let updateSourceURL: URL?
     let preparedPrimitives: PartPreparedPrimitives
@@ -71,6 +72,7 @@ nonisolated struct LoadedPartPackage: Sendable {
         imageMetadata: [String: PartImageMetadata]
     ) {
         self.manifest = manifest
+        renderDefinition = .init(manifest: manifest)
         self.rootURL = rootURL
         self.updateSourceURL = updateSourceURL
         preparedPrimitives = PartPreparedPrimitives(template: htmlTemplate, loopMaximums: Self.loopMaximums(for: manifest))
@@ -96,6 +98,7 @@ nonisolated struct LoadedPartPackage: Sendable {
         preparedPrimitives: PartPreparedPrimitives
     ) {
         self.manifest = manifest
+        renderDefinition = .init(manifest: manifest)
         self.rootURL = rootURL
         self.updateSourceURL = updateSourceURL
         self.preparedPrimitives = preparedPrimitives
@@ -154,7 +157,7 @@ nonisolated struct LoadedPartPackage: Sendable {
     }
 
     var loopMaximums: [String: Int] {
-        Self.loopMaximums(for: manifest)
+        renderDefinition.loopMaximums
     }
 
     private static func loopMaximums(for manifest: PartPackageManifest) -> [String: Int] {

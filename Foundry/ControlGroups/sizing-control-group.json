@@ -12,7 +12,7 @@
           "value": "auto"
         },
         {
-          "title": "Full",
+          "title": "Fill parent",
           "value": "full"
         },
         {
@@ -20,11 +20,11 @@
           "value": "fit"
         },
         {
-          "title": "Screen",
+          "title": "Viewport",
           "value": "screen"
         },
         {
-          "title": "Breakpoint",
+          "title": "Framework container",
           "value": "breakpoint"
         },
         {
@@ -59,6 +59,7 @@
       },
       "id": "heightMode",
       "label": "Height",
+      "tooltip": "Fill remaining space grows along the parent's flex direction: vertically in a column, horizontally in a row. It has no effect outside a flex layout.",
       "options": [
         {
           "title": "Fit content",
@@ -69,7 +70,7 @@
           "value": "fill"
         },
         {
-          "title": "Viewport height",
+          "title": "At least viewport height",
           "value": "viewport"
         },
         {
@@ -117,7 +118,7 @@
       "label": "Max width",
       "noneValue": "none",
       "responsive": true,
-      "tooltip": "None removes the limit.",
+      "tooltip": "Limits the chosen width without enlarging it. None removes this additional limit; the width mode still applies.",
       "type": "frameworkSpacing"
     },
     {

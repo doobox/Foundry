@@ -72,7 +72,7 @@ struct StaticSiteRendererTests {
         site.updatePart(id: partID) {
             for (amount, breakpoint) in [(800.0, ResponsiveBreakpoint.mobile), (900, .medium), (1000, .large)] {
                 $0.setResponsiveProperty(
-                    .maxWidth,
+                    .init(rawValue: "sizing.maxWidth"),
                     value: .frameworkSpacing(.init(
                         selection: .init(token: "none", isCustom: true, amount: amount, unit: "px")
                     )),

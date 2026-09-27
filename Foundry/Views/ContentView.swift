@@ -89,7 +89,9 @@ struct ContentView: View {
     @AppStorage(AppPreferenceKey.automaticallyChecksPartUpdates)
     private var automaticallyChecksPartUpdates = false
 
-    private var renderer: any PageRendering { HTMLPageRenderer(site: document.site, appearance: canvasAppearance) }
+    private var renderer: any PageRendering {
+        HTMLPageRenderer(site: document.site, appearance: canvasAppearance, packageRevision: partCatalog.revision)
+    }
 
     var body: some View {
         let _ = partCatalog.revision
@@ -542,8 +544,9 @@ struct ContentView: View {
             let localDirectory = site.publishingDestination == .local
                 ? site.defaultPublishingDestinationID.flatMap { PublishingDestinationStore.url(for: site.id, destinationID: $0) }
                 : nil
-            let result = await Task.detached {
+            let renderTask = Task.detached(priority: .utility) {
                 let bundle = StaticSiteRenderer().render(site: site, assets: assets)
+                guard !Task.isCancelled else { return [UUID: PublishingChange]() }
                 let previous = manifests.manifest(
                     for: site,
                     destinationID: site.defaultPublishingDestinationID,
@@ -559,7 +562,12 @@ struct ContentView: View {
                     changes[asset.id] = changesByPath[path]
                 }
                 return changes
-            }.value
+            }
+            let result = await withTaskCancellationHandler {
+                await renderTask.value
+            } onCancel: {
+                renderTask.cancel()
+            }
             guard !Task.isCancelled else { return }
             publishingChangesByTreeItem = result
         }
@@ -570,10 +578,11 @@ struct ContentView: View {
             schedulePublishingChangeRefresh()
             return
         }
-        if impact != .package {
-            markPublishingChangesDirty(for: impact)
-        }
-        schedulePublishingChangeRefresh()
+        // Editing records dirtiness; it must not export the entire site after
+        // every gesture just to recompute status badges. Exact file comparison
+        // still runs when opening/configuring publishing and after publishing.
+        publishingChangeTask?.cancel()
+        markPublishingChangesDirty(for: impact)
         schedulePreviewRefresh()
     }
 

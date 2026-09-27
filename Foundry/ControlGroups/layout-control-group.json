@@ -200,30 +200,6 @@
       ],
       "responsive": true,
       "type": "select"
-    },
-    {
-      "defaults": {
-        "base": "none"
-      },
-      "id": "isolation",
-      "label": "Isolation",
-      "options": [
-        {
-          "title": "None",
-          "value": "none"
-        },
-        {
-          "title": "Isolate",
-          "value": "isolate"
-        },
-        {
-          "title": "Auto",
-          "value": "auto"
-        }
-      ],
-      "presentation": "segmented",
-      "responsive": true,
-      "type": "select"
     }
   ],
   "name": "Layout",

@@ -1,6 +1,6 @@
 import Foundation
 
-nonisolated struct PartInspectorControlGroup: Identifiable {
+nonisolated struct PartInspectorControlGroup: Identifiable, Sendable {
     let id: PartProperty.Key
     var properties: [PartPropertyDefinition]
 
@@ -30,6 +30,8 @@ nonisolated struct PartDefinition: Sendable {
     let renderKind: PartRenderKind
     let properties: [PartPropertyDefinition]
     let package: LoadedPartPackage?
+    /// Unified manifest order, including controls represented by child slots.
+    let inspectorRows: [PartInspectorRow]
     // Per-key index: rendering resolves every property of every part
     // instance by key, and scanning `properties` each time dominates
     // page-render profiles on layout-heavy trees.
@@ -43,7 +45,8 @@ nonisolated struct PartDefinition: Sendable {
         allowsChildren: Bool,
         renderKind: PartRenderKind,
         properties: [PartPropertyDefinition],
-        package: LoadedPartPackage? = nil
+        package: LoadedPartPackage? = nil,
+        inspectorRows: [PartInspectorRow]? = nil
     ) {
         self.type = type
         self.displayName = displayName
@@ -53,6 +56,7 @@ nonisolated struct PartDefinition: Sendable {
         self.renderKind = renderKind
         self.properties = properties
         self.package = package
+        self.inspectorRows = inspectorRows ?? PartInspectorControlGroup.groups(for: properties).map(PartInspectorRow.controls)
         propertyIndicesByKey = Dictionary(
             properties.enumerated().map { ($1.key, $0) },
             uniquingKeysWith: { first, _ in first }

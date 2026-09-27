@@ -181,6 +181,10 @@ nonisolated enum PartTemplateRenderer {
     private static let keyedHTMLExpression = try! NSRegularExpression(pattern: #"\{\{\s*__foundry_html\s+key=\"([^\"]+)\"\s+default=\"([^\"]*)\"(?:\s+repeated=\"(true)\"\s+path=\"([0-9,]+)\")?\s*\}\}"#)
     private static let keyedImageExpression = try! NSRegularExpression(pattern: #"\{\{\s*__foundry_image\s+key=\"([^\"]+)\"(?:\s+repeated=\"(true)\"\s+path=\"([0-9,]+)\")?\s*\}\}"#)
     private static let keyedVideoExpression = try! NSRegularExpression(pattern: #"\{\{\s*__foundry_video\s+key=\"([^\"]+)\"(?:\s+repeated=\"(true)\"\s+path=\"([0-9,]+)\")?\s*\}\}"#)
+    private static let controlledVideoElementExpression = try! NSRegularExpression(
+        pattern: #"<video\b([^>]*?)\bsrc\s*=\s*([\"'])\{\{\s*control\.([A-Za-z][A-Za-z0-9_-]*)(\.source|\.href)?\s*\}\}\2([^>]*)>(.*?)</video\s*>"#,
+        options: [.caseInsensitive, .dotMatchesLineSeparators]
+    )
     private static let controlledImageElementExpression = try! NSRegularExpression(
         pattern: #"<img\b([^>]*?)\bsrc\s*=\s*([\"'])\{\{\s*control\.([A-Za-z][A-Za-z0-9_-]*)(\.rendition\.[A-Za-z][A-Za-z0-9_-]*(?:\.href)?|\.href)?\s*\}\}\2([^>]*)>"#,
         options: [.caseInsensitive]
@@ -197,6 +201,7 @@ nonisolated enum PartTemplateRenderer {
             environment: context.environment
         ).template) ?? template
         var result = renderControlledImageElements(in: expanded, context: context)
+        result = renderControlledVideoElements(in: result, context: context)
         result = renderText(in: result, context: context)
         result = renderImage(in: result, context: context)
         result = renderVideo(in: result, context: context)
@@ -342,6 +347,60 @@ nonisolated enum PartTemplateRenderer {
                     indexPath: path,
                     context: context
                 )
+            )
+        }
+        return result
+    }
+
+    /// Rewrites a part's own `<video src="{{ control.film }}">`: an unset
+    /// video becomes a drop well, and the canvas keeps the poster but never
+    /// the source, so the editor never streams a movie.
+    private static func renderControlledVideoElements(
+        in template: String,
+        context: PartTemplateContext
+    ) -> String {
+        var result = template
+        let matches = controlledVideoElementExpression.matches(
+            in: result,
+            range: NSRange(result.startIndex..., in: result)
+        )
+        for match in matches.reversed() {
+            guard let wholeRange = Range(match.range(at: 0), in: result),
+                  let beforeRange = Range(match.range(at: 1), in: result),
+                  let keyRange = Range(match.range(at: 3), in: result),
+                  let afterRange = Range(match.range(at: 5), in: result),
+                  let innerRange = Range(match.range(at: 6), in: result) else { continue }
+            let key = String(result[keyRange])
+            let before = String(result[beforeRange])
+            let after = String(result[afterRange])
+            let inner = String(result[innerRange])
+            let isSelected = !(stringValue(context.allProperties[key]) ?? "").isEmpty
+            if !isSelected {
+                if context.enablesEditorMarkup {
+                    let attributes = addingCSSClass("foundry-video-drop-zone", to: before + after)
+                    result.replaceSubrange(
+                        wholeRange,
+                        with: "<span\(attributes) data-foundry-video-drop-zone data-foundry-video-property=\"\(escapeAttribute(key))\"><span class=\"foundry-drop-label\">\(FoundryDropZoneGlyphs.video)</span></span>"
+                    )
+                } else {
+                    result.removeSubrange(wholeRange)
+                }
+                continue
+            }
+            if context.enablesEditorMarkup {
+                // No src on the canvas: the author's poster attribute stands in.
+                result.replaceSubrange(
+                    wholeRange,
+                    with: "<video\(before)\(after) data-foundry-video-drop-zone data-foundry-video-property=\"\(escapeAttribute(key))\">\(inner)</video>"
+                )
+                continue
+            }
+            let source = stringValue(context.allProperties[key + ".source"])
+                ?? stringValue(context.allProperties[key]) ?? ""
+            let resolvedSource = context.assetPaths[source] ?? source
+            result.replaceSubrange(
+                wholeRange,
+                with: "<video\(before)src=\"\(escapeAttribute(resolvedSource))\"\(after)>\(inner)</video>"
             )
         }
         return result
@@ -653,12 +712,9 @@ nonisolated enum PartTemplateRenderer {
             return escapeAttribute(context.partClass)
         }
         if key == "part.attributes" { return context.partAttributes }
-        if key == "controlGroup.background" {
-            return #"data-foundry-control-group-background="\#(context.instanceID.uuidString)""#
-        }
         guard key.hasPrefix("control.") else { return "" }
         let reference = String(key.dropFirst("control.".count))
-        if !reference.contains("."), !reference.contains("["),
+        if !reference.contains("["),
            case .string(let element)? = context.allProperties[reference + ".element"] {
             return element
         }
@@ -675,6 +731,15 @@ nonisolated enum PartTemplateRenderer {
         }
         if reference.hasSuffix(".attributes"), case .string(let attributes) = value {
             return attributes
+        }
+        // A control group's composed values are finished CSS declarations and
+        // markup, so they reach the template unescaped: escaping would turn
+        // `url("…")` into `url(&quot;…&quot;)` and the background video element
+        // into visible text. The resolvers escape the paths they compose them
+        // from.
+        if context.allProperties["__foundry_raw." + reference] == .boolean(true),
+           case .string(let composed) = value {
+            return composed
         }
         switch value {
         case .string(let value):

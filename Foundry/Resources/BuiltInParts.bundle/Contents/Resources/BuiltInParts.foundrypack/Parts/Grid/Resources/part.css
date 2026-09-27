@@ -1,53 +1,13 @@
 :instance {
+    position: relative;
+    isolation: isolate;
     box-sizing: border-box;
     min-width: 0;
-    /* The rail comes first so a mode's own cap, and then the author's Max
-       width, each override it in turn. */
-    max-width: 100%;
-    /* Auto and stretch fill the parent while respecting this box's margins;
-       100% ignores them and overflows. */
-    width: auto;
-    {{ if control.widthMode == "full" }}
-    width: -webkit-fill-available;
-    width: -moz-available;
-    width: stretch;
-    {{ endif }}
-    {{ if control.widthMode == "fit" }}width: fit-content;{{ endif }}
-    {{ if control.widthMode == "screen" }}width: 100svw;{{ endif }}
-    {{ if control.widthMode == "breakpoint" }}
-    width: -webkit-fill-available;
-    width: -moz-available;
-    width: stretch;
-    max-width: min(100%, var(--foundry-container-width));
-    {{ endif }}
-    {{ if control.widthMode == "custom" }}
-    width: -webkit-fill-available;
-    width: -moz-available;
-    width: stretch;
-    max-width: min(100%, {{ control.customWidth }}px);
-    {{ endif }}
-    height: auto;
-    {{ if control.heightMode == "custom" }}height: {{ control.customHeight }}px;{{ endif }}
-    {{ if control.heightMode == "viewport" }}min-height: 100svh;{{ endif }}
-    min-width: {{ control.minWidth }};
-    {{ if control.maxWidth.value > 0 }}max-width: min(100%, {{ control.maxWidth }});{{ endif }}
-    {{ if control.heightMode != "viewport" }}min-height: {{ control.minHeight }};{{ endif }}
-    max-height: {{ control.maxHeight }};
-    padding: {{ if control.spacingEnabled }}{{ control.frameworkPadding }}{{ else }}0{{ endif }};
-    margin: {{ if control.spacingEnabled }}{{ control.frameworkMargin }}{{ else }}0{{ endif }};
-    overflow: {{ control.overflow }};
-    border-width: {{ if control.borderEnabled }}{{ control.frameworkBorder.width }}{{ else }}0{{ endif }};
-    border-style: {{ control.frameworkBorder.style }};
-    border-color: {{ control.frameworkBorderColour }};
-    border-radius: {{ if control.borderEnabled }}{{ control.frameworkRadius }}{{ else }}0{{ endif }};
-    box-shadow: {{ if control.effectsEnabled }}{{ control.frameworkShadow }}{{ else }}none{{ endif }};
-    opacity: 1;
-    {{ if control.effectsEnabled }}opacity: calc({{ control.opacity }} / 100);{{ endif }}
-    {{ if control.heightMode == "fill" }}
-    /* Grows into the viewport space left by siblings; the body is a
-       min-height column, so this needs no height of its own. */
-    flex: 1 1 auto;
-    {{ endif }}
+    {{ control.sizing.css }}
+    {{ control.spacing.css }}
+    {{ control.borders.css }}
+    {{ control.effects.css }}
+    {{ control.layout.css }}
 }
 :instance > * { min-width: 0; }
 :instance {
@@ -60,3 +20,9 @@
     justify-items: {{ control.justifyItems }};
 }
 :instance > .foundry-empty-drop-zone { grid-column: 1 / -1; }
+
+/* The Background group hands over a finished block of declarations; the hover
+   layer mirrors the static one unless hover is switched on, so no conditionals
+   are needed. */
+:instance { {{ control.background.css }} }
+:instance:hover { {{ control.background.hover.css }} }

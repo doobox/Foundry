@@ -1,3 +1,5 @@
-<div class="foundry-flex {{ part.class }}" {{ part.attributes }} {{ controlGroup.background }}>
-    {{ childArea("content") }}
+<div class="foundry-flex {{ part.class }}" {{ part.attributes }}>
+    {{ control.background.video }}
+    {{ if control.destination }}<a class="foundry-flex__link" href="{{ control.destination }}" target="{{ control.destination.target }}" {{ control.destination.attributes }} aria-label="{{ control.linkLabel }}"></a>{{ endif }}
+    {{ dropZone("content") }}
 </div>

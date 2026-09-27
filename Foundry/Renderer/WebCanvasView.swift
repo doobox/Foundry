@@ -166,13 +166,14 @@ struct CanvasUpdateRevisionGate {
 }
 
 nonisolated enum CanvasWebOperation: Equatable, Sendable {
+    case scene(CanvasSceneUpdate, revision: UInt64)
     case part(RenderedPartSubtree, revision: UInt64)
     case reconcilePage(html: String, revision: UInt64)
     case reloadDocument(html: String, revision: UInt64)
 
     var revision: UInt64 {
         switch self {
-        case .part(_, let revision), .reconcilePage(_, let revision), .reloadDocument(_, let revision):
+        case .part(_, let revision), .scene(_, let revision), .reconcilePage(_, let revision), .reloadDocument(_, let revision):
             revision
         }
     }
@@ -1192,8 +1193,8 @@ struct WebCanvasView: NSViewRepresentable {
           }, true);
 
           const dragHandlerElements = new WeakSet();
-          const installPartDragHandlers = () => {
-            document.querySelectorAll(selector).forEach(element => {
+          const installPartDragHandlers = (elements = document.querySelectorAll(selector)) => {
+            elements.forEach(element => {
               if (dragHandlerElements.has(element)) return;
               dragHandlerElements.add(element);
               element.draggable = true;
@@ -1251,6 +1252,108 @@ struct WebCanvasView: NSViewRepresentable {
           };
 
           let latestFoundryRevision = 0;
+          let retainedParts = null;
+          window.foundryApplyScene = (html, styles, removed, roots, revision, styleOrder = []) => {
+            if (!Number.isSafeInteger(revision) || revision < latestFoundryRevision) return false;
+            if (!retainedParts) {
+              retainedParts = new Map();
+              for (const part of document.querySelectorAll(selector)) {
+                if (retainedParts.has(part.dataset.foundryId)) { retainedParts = null; return false; }
+                retainedParts.set(part.dataset.foundryId, part);
+              }
+            }
+            const replacements = new Map();
+            const references = new Map();
+            // Validate the entire transaction before touching the live document.
+            for (const [id, source] of Object.entries(html)) {
+              const template = document.createElement('template');
+              template.innerHTML = source.trim();
+              const element = template.content.firstElementChild;
+              if (!element || template.content.childElementCount !== 1 || element.dataset.foundryId !== id) return false;
+              const walker = document.createTreeWalker(element, NodeFilter.SHOW_COMMENT);
+              const refs = [];
+              while (walker.nextNode()) {
+                const comment = walker.currentNode;
+                if (comment.data.startsWith('foundry-child:')) refs.push([comment, comment.data.slice(14)]);
+              }
+              replacements.set(id, element);
+              references.set(id, refs);
+            }
+            const available = id => !removed.includes(id) && (replacements.has(id) || retainedParts.has(id));
+            const owners = new Set();
+            for (const refs of references.values()) {
+              for (const [, id] of refs) {
+                if (!available(id) || owners.has(id)) return false;
+                owners.add(id);
+              }
+            }
+            const visiting = new Set(), visited = new Set();
+            const acyclic = id => {
+              if (visiting.has(id)) return false;
+              if (visited.has(id)) return true;
+              visiting.add(id);
+              for (const [, child] of references.get(id) || []) if (!acyclic(child)) return false;
+              visiting.delete(id); visited.add(id); return true;
+            };
+            for (const id of replacements.keys()) if (!acyclic(id)) return false;
+            let start, end;
+            if (roots !== null) {
+              for (const node of document.body.childNodes) {
+                if (node.nodeType === Node.COMMENT_NODE && node.data === 'foundry-roots-start') start = node;
+                if (node.nodeType === Node.COMMENT_NODE && node.data === 'foundry-roots-end') end = node;
+              }
+              if (!start || !end || roots.some(id => !available(id))) return false;
+            }
+            for (const [id, element] of replacements) {
+              const current = retainedParts.get(id);
+              if (current) chromeResizeObserver.unobserve(current);
+              current?.replaceWith(element);
+              retainedParts.set(id, element);
+              chromeResizeObserver.observe(element);
+            }
+            for (const refs of references.values()) {
+              for (const [comment, id] of refs) comment.replaceWith(retainedParts.get(id));
+            }
+            for (const id of removed) {
+              const current = retainedParts.get(id);
+              if (current) chromeResizeObserver.unobserve(current);
+              current?.remove();
+              retainedParts.delete(id);
+              document.head.querySelector('style[data-foundry-instance-style="' + CSS.escape(id) + '"]')?.remove();
+            }
+            if (roots !== null) {
+              const fragment = document.createDocumentFragment();
+              roots.forEach(id => fragment.appendChild(retainedParts.get(id)));
+              while (start.nextSibling && start.nextSibling !== end) start.nextSibling.remove();
+              end.before(fragment);
+            }
+            for (const [id, css] of Object.entries(styles)) {
+              let style = document.head.querySelector('style[data-foundry-instance-style="' + CSS.escape(id) + '"]');
+              if (!css) { style?.remove(); continue; }
+              if (!style) {
+                style = document.createElement('style');
+                style.dataset.foundryInstanceStyle = id;
+                document.head.appendChild(style);
+              }
+              style.textContent = css;
+            }
+            const styleBoundary = document.head.querySelector('[data-foundry-shared-styles]');
+            if (styleBoundary) {
+              // CSS source order is observable, including package-scoped :host
+              // rules and custom HTML CSS. Keep it identical to a fresh render.
+              for (const id of styleOrder) {
+                const style = document.head.querySelector('style[data-foundry-instance-style="' + CSS.escape(id) + '"]');
+                if (style) styleBoundary.before(style);
+              }
+            }
+            latestFoundryRevision = revision;
+            installPartDragHandlers(Array.from(replacements.values()));
+            hoveredPart = null; hoveredPrimitive = null;
+            window.foundrySetEditorOptions(editorOptions);
+            window.foundrySetSelection(selectedPartIDs, selectedPrimitiveSelection, false);
+            scheduleChromeTitleUpdate();
+            return true;
+          };
           window.foundryReplacePart = (partID, html, styles, revision) => {
             if (!Number.isSafeInteger(revision) || revision < latestFoundryRevision) return false;
             const current = document.querySelector('[data-foundry-id="' + CSS.escape(partID) + '"]');
@@ -1260,6 +1363,7 @@ struct WebCanvasView: NSViewRepresentable {
             const replacement = template.content.firstElementChild;
             if (!replacement || template.content.childElementCount !== 1 || replacement.dataset.foundryId !== partID) return false;
             current.replaceWith(replacement);
+            retainedParts = null;
             // One <style> per instance: a parent's patch must update each
             // descendant's own element rather than bundling their rules, or
             // the bundle would shadow the descendant's later patches.
@@ -1291,6 +1395,7 @@ struct WebCanvasView: NSViewRepresentable {
           window.foundryReplaceDocument = (html, revision = latestFoundryRevision) => {
             if (!Number.isSafeInteger(revision) || revision < latestFoundryRevision) return false;
             const replacement = new DOMParser().parseFromString(html, 'text/html');
+            retainedParts = null;
             replacement.querySelectorAll(selector).forEach(element => { element.draggable = true; });
 
             const currentHeadNodes = Array.from(document.head.childNodes);
@@ -1300,13 +1405,15 @@ struct WebCanvasView: NSViewRepresentable {
               if (!current) {
                 document.head.appendChild(document.importNode(node, true));
               } else if (current.nodeName === 'STYLE' && node.nodeName === 'STYLE') {
+                syncAttributes(current, node);
                 if (current.textContent !== node.textContent) current.textContent = node.textContent;
-              } else if (current.outerHTML !== node.outerHTML && current.textContent !== node.textContent) {
+              } else if (!current.isEqualNode(node)) {
                 current.replaceWith(document.importNode(node, true));
               }
             });
             currentHeadNodes.slice(replacementHeadNodes.length).forEach(node => node.remove());
 
+            syncAttributes(document.documentElement, replacement.documentElement);
             syncAttributes(document.body, replacement.body);
             // Part patches cannot reconcile moves, removals or reordering:
             // replacing a parent can leave the child's former DOM node behind.
@@ -1332,7 +1439,7 @@ struct WebCanvasView: NSViewRepresentable {
                 changedIDs.add(partID);
               });
 
-              if (changedIDs.size === 0 && document.body.innerHTML !== replacement.body.innerHTML) {
+              if (document.body.innerHTML !== replacement.body.innerHTML) {
                 const bodyNodes = Array.from(replacement.body.childNodes).map(node => document.importNode(node, true));
                 document.body.replaceChildren(...bodyNodes);
               }
@@ -2029,6 +2136,8 @@ struct WebCanvasView: NSViewRepresentable {
 
         func apply(_ operation: CanvasWebOperation, in webView: WKWebView) {
             switch operation {
+            case .scene(let update, let revision):
+                applyScene(update, revision: revision, in: webView)
             case .part(let subtree, let revision):
                 patchPart(subtree, revision: revision, in: webView)
             case .reconcilePage(let html, let revision):
@@ -2036,6 +2145,35 @@ struct WebCanvasView: NSViewRepresentable {
             case .reloadDocument(let html, let revision):
                 guard revisionGate.request(revision) else { return }
                 captureScrollPositionThenLoad(html, revision: revision, in: webView)
+            }
+        }
+
+        private func applyScene(_ update: CanvasSceneUpdate, revision: UInt64, in webView: WKWebView) {
+            guard revisionGate.request(revision) else { return }
+            guard !isLoadingHTML, !isCapturingScrollPosition, !isPatchingHTML, loadedHTML != nil else {
+                Task { @MainActor [weak self] in self?.requestFullReconciliation() }
+                return
+            }
+            isPatchingHTML = true
+            Task { [weak self, weak webView] in
+                guard let self, let webView else { return }
+                let applied = (try? await webView.callAsyncJavaScript(
+                    "return window.foundryApplyScene?.(html, styles, removed, roots, revision, styleOrder) === true",
+                    arguments: ["html": update.html, "styles": update.styles,
+                        "removed": update.removed, "roots": update.roots as Any? ?? NSNull(),
+                        "styleOrder": update.styleOrder, "revision": revision],
+                    in: nil, contentWorld: .defaultClient)) as? Bool == true
+                self.isPatchingHTML = false
+                guard applied else {
+                    self.requestFullReconciliation()
+                    self.processPendingUpdate(in: webView)
+                    return
+                }
+                if self.revisionGate.apply(revision) {
+                    self.didApplyRevision(revision)
+                    self.applyCanvasState()
+                }
+                self.processPendingUpdate(in: webView)
             }
         }
 

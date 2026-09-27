@@ -26,6 +26,7 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
         // generator with a disk sink instead of retaining the complete bundle.
         do {
             try generate(site: site, assets: assets) { files.append($0) }
+            try Task.checkCancellation()
         } catch {
             return SiteExportBundle(files: [], errors: [error.localizedDescription])
         }
@@ -291,6 +292,7 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
     private func packagePHP(for page: Page, framework: Framework, assetPrefix: String, packageAssetPrefix: String, assets: ProjectAssetContents, site: Site) -> String {
         let nodes = page.parts.flatMap(\.flattened)
         let instancePHP = nodes.compactMap { node -> String? in
+            guard !Task.isCancelled else { return nil }
             guard let package = node.type.definition.package else { return nil }
             let source = package.instancePHP
             guard !source.isEmpty else { return nil }
@@ -342,11 +344,12 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
     private func pageScripts(for page: Page, framework: Framework, assetPrefix: String, packageAssetPrefix: String, assets: ProjectAssetContents, site: Site) -> String {
         let nodes = page.parts.flatMap(\.flattened)
         let instanceScripts = nodes.compactMap { node -> String? in
+            guard !Task.isCancelled else { return nil }
             guard let package = node.type.definition.package else { return nil }
             let source = [
                 package.instanceJavaScript,
                 PartArtifactPlan.htmlArtifact(for: node, suffix: "JavaScript"),
-                package.manifest.controlGroupJavaScript
+                package.renderDefinition.controlGroupJavaScript
             ]
                 .filter { !$0.isEmpty }.joined(separator: "\n")
             guard !source.isEmpty else { return nil }
@@ -502,6 +505,7 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
     }
 
     private func render(_ node: PartNode, page: Page, framework: Framework, assetPrefix: String, packageAssetPrefix: String, assets: ProjectAssetContents, site: Site, parentPartID: UUID? = nil) -> String {
+        guard !Task.isCancelled else { return "" }
         switch node.type.definition.renderKind {
         case .package:
             guard let package = node.type.definition.package else {
@@ -526,9 +530,9 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
                     site: site
                 )
             }
-            let slots = Dictionary(uniqueKeysWithValues: package.manifest.slots.map { slot in
+            let slots = Dictionary(uniqueKeysWithValues: package.renderDefinition.slots.map { slot in
                 let children = node.children.filter {
-                    ($0.slotID ?? (package.hasDropZone ? nil : package.manifest.slots.first?.id)) == slot.id
+                    ($0.slotID ?? (package.hasDropZone ? nil : package.renderDefinition.slots.first?.id)) == slot.id
                 }
                 return (slot.id, children.map { render($0, page: page, framework: framework, assetPrefix: assetPrefix, packageAssetPrefix: packageAssetPrefix, assets: assets, site: site, parentPartID: node.id) }.joined())
             })
@@ -580,7 +584,7 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
             let rendered = PartTemplateRenderer.render(package.htmlTemplate, context: templateContext)
             let decorated = PartPackageHTMLContributionRenderer.decorate(
                 rendered,
-                contributions: package.manifest.htmlContributions,
+                contributions: package.renderDefinition.htmlContributions,
                 context: templateContext
             )
             if package.htmlTemplate.contains("{{ part.attributes }}") ||
@@ -761,13 +765,14 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
         return ResponsiveBreakpoint.allCases.dropFirst().compactMap { breakpoint in
             guard let minimumWidth = breakpoint.minimumWidth(in: site.framework.screens) else { return nil }
             let rules = nodes.compactMap { node -> String? in
+                guard !Task.isCancelled else { return nil }
                 guard node.responsiveOverrides?.contains(where: { $0.breakpoint == breakpoint }) == true
                     || node.responsiveDefaults?.contains(where: { $0.breakpoint == breakpoint }) == true
                     || node.type.definition.properties.contains(where: { $0.breakpointDefaults[breakpoint] != nil }) else { return nil }
                 let resolved = node.resolved(at: breakpoint, screens: site.framework.screens)
                 if let package = resolved.type.definition.package {
                     let css = PartTemplateRenderer.render(
-                        [package.css, package.manifest.controlGroupCSS]
+                        [package.css, package.renderDefinition.controlGroupCSS]
                             .filter { !$0.isEmpty }
                             .joined(separator: "\n"),
                         context: .init(
@@ -820,9 +825,10 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
     ) -> String {
         let nodes = PartArtifactPlan(page: page).nodes
         let instanceStyles = nodes.compactMap { node in
+            guard !Task.isCancelled else { return nil as String? }
             guard let package = node.type.definition.package else { return nil }
             let css = PartTemplateRenderer.render(
-                [package.css, PartArtifactPlan.htmlArtifact(for: node, suffix: "CSS"), package.manifest.controlGroupCSS]
+                [package.css, PartArtifactPlan.htmlArtifact(for: node, suffix: "CSS"), package.renderDefinition.controlGroupCSS]
                     .filter { !$0.isEmpty }
                     .joined(separator: "\n"),
                 context: .init(
@@ -936,7 +942,7 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
         // key dominates page-render profiles.
         let partDefinition = node.type.definition
         let definitions = partDefinition.properties
-        let manifestProperties = partDefinition.package?.manifest.resolvedProperties ?? []
+        let manifestProperties = partDefinition.package?.renderDefinition.properties ?? []
         let stored = Dictionary(node.properties.map { ($0.key, $0.value) }, uniquingKeysWith: { first, _ in first })
         var values: [String: PartPackageValue] = Dictionary(uniqueKeysWithValues: definitions.map { definition in
             let value = stored[definition.key] ?? definition.defaultValue
@@ -1117,6 +1123,12 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
             values[definition.key.rawValue + ".target"] = .string(resolved.target)
             values[definition.key.rawValue + ".attributes"] = .string(resolved.attributes)
         }
+        PartPackageBackgroundResolver.resolve(
+            &values,
+            properties: manifestProperties,
+            enablesEditorMarkup: false
+        )
+        PartPackageControlGroupCSSResolver.resolve(&values, properties: manifestProperties)
         let resolved = PartPackageDerivedValueResolver.resolve(
             values,
             properties: manifestProperties
@@ -1159,7 +1171,7 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
         for page in site.pages {
             for node in page.parts.flatMap(\.flattened) {
                 guard let package = node.type.definition.package else { continue }
-                for property in package.manifest.resolvedProperties where property.control.type == .image {
+                for property in package.renderDefinition.properties where property.control.type == .image {
                     guard case .url(let source) = node.propertyValue(.init(rawValue: property.id)),
                           let assetID = source.foundryAssetID else { continue }
                     for rendition in property.renditions {

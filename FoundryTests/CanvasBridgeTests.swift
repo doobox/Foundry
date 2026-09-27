@@ -361,7 +361,7 @@ struct CanvasBridgeTests {
     func subtreePatchesCarryFreshPerInstanceStylesForNestedLayouts() async throws {
         await PartPackageCatalog.shared.waitUntilLoaded()
         var grid = PartNode.make(.grid)
-        grid.children = (0..<3).map { _ in PartNode.make(.gridItem) }
+        grid.children = (0..<3).map { _ in PartNode.make(.paragraph) }
         var container = PartNode.make(.container)
         container.children = [grid]
         var page = Page(title: "Home", slug: "index", parts: [container])

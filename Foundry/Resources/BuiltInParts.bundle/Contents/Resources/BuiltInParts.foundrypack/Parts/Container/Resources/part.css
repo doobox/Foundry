@@ -1,4 +1,6 @@
 :instance {
+    position: relative;
+    isolation: isolate;
     box-sizing: border-box;
     /* A flex column so the content box can grow into min-height-driven
        heights (Fill viewport), where a percentage height cannot resolve. */
@@ -6,38 +8,27 @@
     flex-direction: column;
     min-width: 0;
     width: 100%;
-    min-height: {{ control.minimumHeight }}px;
-    height: auto;
-    {{ if control.heightMode == "custom" }}height: {{ control.customHeight }}px;{{ endif }}
-    {{ if control.heightMode == "viewport" }}min-height: max({{ control.minimumHeight }}px, 100svh);{{ endif }}
-    padding: {{ if control.spacingEnabled }}{{ control.frameworkPadding }}{{ else }}0{{ endif }};
-    margin: {{ if control.spacingEnabled }}{{ control.frameworkMargin }}{{ else }}0{{ endif }};
-    overflow: {{ control.overflow }};
-    border-width: {{ if control.borderEnabled }}{{ control.frameworkBorder.width }}{{ else }}0{{ endif }};
-    border-style: {{ control.frameworkBorder.style }};
-    border-color: {{ control.frameworkBorderColour }};
-    border-radius: {{ if control.borderEnabled }}{{ control.frameworkRadius }}{{ else }}0{{ endif }};
-    box-shadow: {{ if control.effectsEnabled }}{{ control.frameworkShadow }}{{ else }}none{{ endif }};
-    opacity: 1;
-    {{ if control.effectsEnabled }}opacity: calc({{ control.opacity }} / 100);{{ endif }}
-    {{ if control.heightMode == "fill" }}
-    /* Grows into the viewport space left by siblings; the body is a
-       min-height column, so this needs no height of its own. */
-    flex: 1 1 auto;
-    {{ endif }}
+    {{ control.sizing.css }}
+    {{ control.spacing.css }}
+    {{ control.borders.css }}
+    {{ control.effects.css }}
+    {{ control.layout.css }}
 }
 :instance > .fd-container__content {
     box-sizing: border-box;
     width: 100%;
     min-width: 0;
     flex: 1 1 auto;
-    /* The content box is a flex column so Align, Align Horizontally and Gap
-       always work; stretch keeps block-like child widths. */
+    /* Children stack vertically; root Sizing supplies any extra height. */
     display: flex;
     flex-direction: column;
     justify-content: {{ control.contentAlignment }};
     align-items: {{ control.contentJustify }};
     gap: {{ control.contentGap }};
+    /* Reset narrower-breakpoint constraints when switching to Full Width. */
+    max-width: none;
+    margin-inline: 0;
+    padding-inline: 0;
     {{ if control.contentWidth == "contained" }}
     max-width: var(--foundry-container-width);
     margin-inline: auto;
@@ -50,4 +41,10 @@
     padding-inline: var(--foundry-space-sm);
     {{ endif }}
 }
-:instance .fd-container__content > * { min-width: 0; }
+:instance > .fd-container__content > * { min-width: 0; }
+
+/* The Background group hands over a finished block of declarations; the hover
+   layer mirrors the static one unless hover is switched on, so no conditionals
+   are needed. */
+:instance { {{ control.background.css }} }
+:instance:hover { {{ control.background.hover.css }} }

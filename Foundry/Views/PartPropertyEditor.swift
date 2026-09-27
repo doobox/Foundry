@@ -224,17 +224,18 @@ struct PartPropertyEditor: View {
                 indicator: responsiveIndicator
             )
         case .choice(let choices):
+            let availableChoices = choicesForCurrentContext(choices)
             if definition.presentation == .segmented {
                 InspectorRow(title: definition.label, indicator: responsiveIndicator) {
                     InspectorSegmentedControl(
                         selection: stringBinding(as: .choice),
-                        segments: segmentedOptions(for: choices)
+                        segments: segmentedOptions(for: availableChoices)
                     )
                 }
             } else {
                 SelectPartControl(
                     label: definition.label,
-                    options: choices.map {
+                    options: availableChoices.map {
                         .init(title: $0.label, value: $0.value, separatorBefore: $0.separatorBefore)
                     },
                     indicator: responsiveIndicator,
@@ -765,8 +766,36 @@ struct PartPropertyEditor: View {
     private func stringBinding(as kind: StringValueKind) -> Binding<String> {
         Binding(
             get: { displayPart.property(definition.key) },
-            set: { setProperty(kind.value($0)) }
+            set: { newValue in
+                if definition.key.rawValue == "backgroundMode", newValue == "hover" {
+                    replaceVideoBackgroundStyleForHover()
+                }
+                setProperty(kind.value(newValue))
+            }
         )
+    }
+
+    /// The Background group shares its Normal style property between Static
+    /// and Hover modes. Video is valid only in Static mode, so its segment is
+    /// removed dynamically when the top-level Type is Hover.
+    private func choicesForCurrentContext(
+        _ choices: [PartPropertyChoice]
+    ) -> [PartPropertyChoice] {
+        guard definition.key.rawValue == "backgroundStyle",
+              displayPart.property(.init(rawValue: "backgroundMode")) == "hover" else {
+            return choices
+        }
+        return choices.filter { $0.value != "video" }
+    }
+
+    private func replaceVideoBackgroundStyleForHover() {
+        let styleKey = PartProperty.Key(rawValue: "backgroundStyle")
+        guard displayPart.property(styleKey) == "video",
+              case .choice(let choices)? = part.type.definition.property(for: styleKey)?.control,
+              let fallback = choices.first(where: { $0.value != "video" })?.value else {
+            return
+        }
+        setProperty(.choice(fallback), key: styleKey)
     }
 
     private func folderPathName(_ folder: PageFolder) -> String {

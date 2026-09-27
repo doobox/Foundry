@@ -95,7 +95,8 @@
     {
       "controls": [
         {
-          "type": "reveal"
+          "type": "reveal",
+          "id": "reveal"
         }
       ],
       "section": "Reveal",

@@ -15,6 +15,7 @@ nonisolated enum AppPreferenceKey {
     static let automaticallyChecksPartUpdates = "parts.updates.automatic"
     static let partLibraryIconSize = "parts.library.iconSize"
     static let partLibraryArrangement = "parts.library.arrangement"
+    static let partLibrarySource = "parts.library.source"
     static let validatesPartsOnLoad = "parts.validation.onLoad"
     static let partValidationMode = "parts.validation.mode"
 }

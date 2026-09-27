@@ -158,18 +158,6 @@
           ],
           "responsive": true,
           "type": "select"
-        },
-        {
-          "accepts": [
-            "*"
-          ],
-          "id": "content",
-          "label": "Items",
-          "pickerItems": [
-            "foundry.layout.grid-item"
-          ],
-          "tooltip": "Grid Items carry per-item Span Columns and Span Rows controls. Any part can also be dropped in directly.",
-          "type": "childPicker"
         }
       ],
       "section": "Layout",
@@ -178,31 +166,8 @@
     {
       "controls": [
         {
-          "type": "sizing"
-        },
-        {
-          "defaults": {
-            "base": "visible"
-          },
-          "id": "overflow",
-          "label": "Overflow",
-          "options": [
-            {
-              "title": "Visible",
-              "value": "visible"
-            },
-            {
-              "title": "Clip",
-              "value": "hidden"
-            },
-            {
-              "title": "Scroll when needed",
-              "value": "auto"
-            }
-          ],
-          "responsive": true,
-          "tooltip": "Clipping can hide shadows or focus outlines.",
-          "type": "select"
+          "type": "sizing",
+          "id": "sizing"
         }
       ],
       "section": "Sizing",
@@ -211,7 +176,26 @@
     {
       "controls": [
         {
-          "type": "spacing"
+          "allowedOptions": {
+            "position": [
+              "relative",
+              "absolute",
+              "fixed",
+              "sticky"
+            ]
+          },
+          "id": "layout",
+          "type": "layout"
+        }
+      ],
+      "section": "Position",
+      "systemImage": "square.on.square"
+    },
+    {
+      "controls": [
+        {
+          "type": "spacing",
+          "id": "spacing"
         }
       ],
       "section": "Spacing",
@@ -220,7 +204,8 @@
     {
       "controls": [
         {
-          "type": "background"
+          "type": "background",
+          "id": "background"
         }
       ],
       "section": "Background",
@@ -229,7 +214,8 @@
     {
       "controls": [
         {
-          "type": "borders"
+          "type": "borders",
+          "id": "borders"
         }
       ],
       "section": "Borders",
@@ -238,7 +224,8 @@
     {
       "controls": [
         {
-          "type": "effects"
+          "type": "effects",
+          "id": "effects"
         }
       ],
       "section": "Effects",
@@ -247,7 +234,8 @@
     {
       "controls": [
         {
-          "type": "reveal"
+          "type": "reveal",
+          "id": "reveal"
         }
       ],
       "section": "Reveal",
@@ -259,7 +247,7 @@
     "Foundry",
     "built-in",
     "layout",
-    "flex"
+    "grid"
   ],
   "templates": {
     "files": [
@@ -271,5 +259,5 @@
     "html": "part.html"
   },
   "title": "Grid",
-  "version": "2.2.0"
+  "version": "2.3.0"
 }

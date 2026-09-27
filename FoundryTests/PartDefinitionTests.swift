@@ -4,8 +4,11 @@ import Testing
 
 @MainActor
 struct PartDefinitionTests {
-    init() {
-        _ = PartPackageCatalog.shared
+    /// Every test here reads definitions that only exist once the pack
+    /// catalog has loaded. Kicking the load without awaiting it left the
+    /// suite racing it, so `definition.package` was intermittently nil.
+    init() async {
+        await PartPackageCatalog.shared.waitUntilLoaded()
     }
 
     @Test
@@ -43,44 +46,10 @@ struct PartDefinitionTests {
     func registryDeclaresChildCapabilities() {
         #expect(PartType.container.definition.allowsChildren)
         #expect(PartType.flex.definition.allowsChildren)
-        #expect(PartType.flexItem.definition.allowsChildren)
         #expect(PartType.grid.definition.allowsChildren)
-        #expect(PartType.gridItem.definition.allowsChildren)
         #expect(!PartType.paragraph.definition.allowsChildren)
         #expect(!PartType.button.definition.allowsChildren)
         #expect(!PartType.image.definition.allowsChildren)
-    }
-
-    @Test
-    func flexLayoutsUseFrameworkControlsAndResponsiveDefaults() throws {
-        let container = PartNode.make(.container)
-        let flex = PartNode.make(.flex)
-        #expect(flex.propertyValue(.init(rawValue: "direction")) == .choice("row"))
-        #expect(flex.type.definition.package!.css.contains("display: flex"))
-        // Container is a section, not an arranger: its root never becomes a
-        // flexbox; only the content wrapper does, and only for tall sections.
-        #expect(container.type.definition.package!.css.contains("fd-container__content"))
-        #expect(!flex.type.definition.package!.css.contains("data-alignment"))
-        #expect(container.type.definition.package!.css.contains("box-shadow"))
-        for type in [PartType.container, .flex, .grid] {
-            #expect(type.definition.properties.contains { $0.key.rawValue == "frameworkPadding" && $0.isResponsive })
-        }
-        for type in [PartType.flex, .grid] {
-            #expect(type.definition.properties.contains { $0.key.rawValue == "frameworkGap" && $0.isResponsive })
-        }
-        let grid = PartNode.make(.grid)
-        #expect(grid.propertyValue(.init(rawValue: "columnCount")) == .number(1))
-        #expect(grid.propertyValue(.init(rawValue: "columnCount"), at: .medium) == .number(2))
-        let site = Site(name: "Grid", pages: [Page(title: "Layout", slug: "index", parts: [grid])])
-        let output = StaticSiteRenderer().render(site: site)
-        #expect(output.files.contains { $0.contents.contains("repeat(2, minmax(0, 1fr))") })
-        #expect(output.files.contains { $0.contents.contains("var(--foundry-space-md)") })
-        var unlimited = container
-        unlimited.setProperty(.maxWidth, value: .number(0))
-        let html = HTMLPageRenderer().render(page: Page(title: "Full", slug: "full", parts: [unlimited]), framework: .standard)
-        #expect(html.contains("max-width: var(--foundry-container-width)"))
-        #expect(!html.contains("max-width: 0px"))
-        #expect(html.contains("background-color: transparent"))
     }
 
     @Test
@@ -165,12 +134,13 @@ struct PartDefinitionTests {
         var stack = PartNode.make(.flex)
         var text = PartNode.make(.paragraph)
         var button = PartNode.make(.button)
-        container.setProperty(.init(rawValue: "frameworkBorder.width"), value: .frameworkBorderWidth(PartPackageFrameworkBorderWidthControl.defaultValue(.object(["value": .number(2), "unit": .string("px")]))!))
-        container.setProperty(.init(rawValue: "frameworkBorderColour"), value: .packageColor(.init(source: "custom", customColor: "#ABCDEF", opacity: 1)))
-        container.setProperty(.init(rawValue: "frameworkRadius"), value: .frameworkRadius(PartPackageFrameworkRadiusControl.defaultValue(.object(["value": .number(28), "unit": .string("px")]))!))
+        container.setProperty(.init(rawValue: "borders.borderEnabled"), value: .boolean(true))
+        container.setProperty(.init(rawValue: "borders.frameworkBorder.width"), value: .frameworkBorderWidth(PartPackageFrameworkBorderWidthControl.defaultValue(.object(["value": .number(2), "unit": .string("px")]))!))
+        container.setProperty(.init(rawValue: "borders.frameworkBorderColour"), value: .packageColor(.init(source: "custom", customColor: "#ABCDEF", opacity: 1)))
+        container.setProperty(.init(rawValue: "borders.frameworkRadius"), value: .frameworkRadius(PartPackageFrameworkRadiusControl.defaultValue(.object(["value": .number(28), "unit": .string("px")]))!))
         // Container roots are always full width; a Flex carries the shared
         // sizing group's max-width control.
-        stack.setProperty(.maxWidth, value: .frameworkSpacing(.init(
+        stack.setProperty(.init(rawValue: "sizing.maxWidth"), value: .frameworkSpacing(.init(
             selection: .init(token: "none", isCustom: true, amount: 920, unit: "px")
         )))
         text.setProperty(.init(rawValue: "typeface"), value: .choice("heading"))

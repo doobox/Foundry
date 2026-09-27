@@ -11,8 +11,12 @@ extension ProjectEditor {
         guard let page = document.site.pages.first(where: { $0.id == pageID }) else { return nil }
         let part = PartNode.make(type, framework: document.site.framework)
         let sharedInsertion = document.site.sharedGlobalInsertion(on: page, at: placement)
+        let ownerID = page.parts.parentID(for: placement)
+        let impact: ProjectMutationImpact = sharedInsertion.authoritativeInstances.isEmpty
+            ? .partStructure(ownerID: ownerID)
+            : .page
         var inserted = false
-        mutate(actionName: "Add \(type.displayName)") { site in
+        mutate(actionName: "Add \(type.displayName)", impact: impact) { site in
             guard let index = site.pages.firstIndex(where: { $0.id == pageID }) else { return }
             inserted = site.pages[index].parts.insert(part, at: placement)
             if inserted {

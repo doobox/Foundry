@@ -104,7 +104,7 @@
     {
       "controls": [
         {
-          "defaultOverrides": {
+          "defaults": {
             "frameworkMargin": {
               "bottom": "md",
               "left": "none",
@@ -112,7 +112,8 @@
               "top": "none"
             }
           },
-          "type": "spacing"
+          "type": "spacing",
+          "id": "spacing"
         }
       ],
       "section": "Spacing",
@@ -121,7 +122,8 @@
     {
       "controls": [
         {
-          "type": "reveal"
+          "type": "reveal",
+          "id": "reveal"
         }
       ],
       "section": "Reveal",

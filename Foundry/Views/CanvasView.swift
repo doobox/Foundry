@@ -73,6 +73,7 @@ struct CanvasView: View {
     @State private var reconciliationRequest: UInt64 = 0
     @State private var renderedRequest: CanvasRenderRequestID?
     @State private var acknowledgedRenderRevision: UInt64 = 0
+    @State private var renderedScene: CanvasScene?
     private let resizeEdgeHitTargetWidth = 12.0
     private let canvasHorizontalPadding = 24.0
     private let minimumViewportWidth = 320.0
@@ -189,7 +190,7 @@ struct CanvasView: View {
         }
         .background(canvasBackgroundStyle)
         .navigationTitle(page?.title ?? "Canvas")
-        .task(id: renderRequestID) {
+        .task(id: CanvasRenderTrigger(request: renderRequestID, acknowledgedRevision: acknowledgedRenderRevision)) {
             await renderCurrentPage()
         }
     }
@@ -224,6 +225,9 @@ struct CanvasView: View {
             renderedPage = nil
             return
         }
+        guard requestID.shouldRender(after: renderedRequest,
+            submittedRevision: renderedPage?.operation.revision,
+            acknowledgedRevision: acknowledgedRenderRevision) else { return }
         renderRevision &+= 1
         let revision = renderRevision
         let requiresInitialPage = renderedPage?.pageID != page.id
@@ -241,11 +245,31 @@ struct CanvasView: View {
                                        acknowledgedRevision: acknowledgedRenderRevision),
             previousBreakpoint: renderedBreakpoint
         )
-        let operation = await Task.detached(priority: .userInitiated) {
-            snapshot.render()
-        }.value
-        guard !Task.isCancelled, requestID == renderRequestID, revision == renderRevision else { return }
-        renderedPage = .init(pageID: page.id, operation: operation.withRevision(revision))
+        let baseline = !requestID.forcesReconciliation
+            && renderedPage?.operation.revision == acknowledgedRenderRevision ? renderedScene : nil
+        let sceneRenderer = renderer as? HTMLPageRenderer
+        let consecutiveImpact = requestID.canPatch(after: renderedRequest,
+            submittedRevision: renderedPage?.operation.revision,
+            acknowledgedRevision: acknowledgedRenderRevision) ? mutationEvent.impact : nil
+        let renderTask = Task.detached(priority: .userInitiated) { () -> (CanvasScene?, CanvasRenderResult)? in
+            if let sceneRenderer {
+                guard let update = try? CanvasScene.render(renderer: sceneRenderer, page: page,
+                    language: snapshot.language, framework: snapshot.framework, assets: snapshot.assets,
+                    breakpoint: snapshot.breakpoint, packageRevision: requestID.partPackageRevision,
+                    previous: baseline, consecutiveImpact: consecutiveImpact) else { return nil }
+                return (update.scene, update.result)
+            }
+            return (nil, snapshot.render())
+        }
+        let operation = await withTaskCancellationHandler {
+            await renderTask.value
+        } onCancel: {
+            renderTask.cancel()
+        }
+        guard !Task.isCancelled, requestID == renderRequestID, revision == renderRevision,
+              let (scene, result) = operation else { return }
+        renderedScene = scene
+        renderedPage = .init(pageID: page.id, operation: result.withRevision(revision))
         renderedAppearance = appearance
         renderedBreakpoint = requestID.breakpoint
         renderedRequest = requestID
@@ -355,6 +379,12 @@ struct CanvasRenderRequestID: Hashable {
     let appearance: SiteAppearance
     var reconciliationRequest: UInt64 = 0
 
+    func shouldRender(after previous: Self?, submittedRevision: UInt64?, acknowledgedRevision: UInt64) -> Bool {
+        guard let submittedRevision else { return true }
+        guard self != previous else { return false }
+        return submittedRevision == acknowledgedRevision || forcesReconciliation
+    }
+
     // A part patch is a delta, not a complete snapshot. It is only safe when
     // the immediately preceding mutation has reached WebKit successfully.
     func canPatch(after previous: Self?, submittedRevision: UInt64?, acknowledgedRevision: UInt64) -> Bool {
@@ -390,8 +420,7 @@ nonisolated struct CanvasRenderSnapshot: Sendable {
     func render() -> CanvasRenderResult {
         if !forcesReconciliation,
            previousBreakpoint == nil || previousBreakpoint == breakpoint,
-           case .partProperty(let partID, let propertyKey) = impact,
-           allowsPartPatch(partID: partID, propertyKey: propertyKey),
+           let partID = patchablePartID,
            let subtree = renderer.renderSubtree(
                partID: partID,
                page: page,
@@ -409,6 +438,39 @@ nonisolated struct CanvasRenderSnapshot: Sendable {
             breakpoint: breakpoint
         )
         return .page(html)
+    }
+
+    private var patchablePartID: UUID? {
+        switch impact {
+        case .partProperty(let partID, let propertyKey):
+            return allowsPartPatch(partID: partID, propertyKey: propertyKey) ? partID : nil
+        case .partStructure(let ownerID):
+            // An existing owner is a stable replacement boundary for insertions.
+            // Root changes have no enclosing part and require page reconciliation.
+            guard let ownerID, allowsStructurePatch(ownerID: ownerID) else { return nil }
+            return ownerID
+        default:
+            return nil
+        }
+    }
+
+    private func allowsStructurePatch(ownerID: UUID) -> Bool {
+        guard let path = partPath(to: ownerID, in: page.parts),
+              path.allSatisfy({ $0.reusableDefinitionID == nil }),
+              let owner = path.last else { return false }
+        return flattened(owner).allSatisfy { node in
+            guard let package = node.type.definition.package else { return true }
+            return package.pageCSS.isEmpty
+                && package.siteCSS.isEmpty
+                && package.placedHTML.isEmpty
+                && package.instanceJavaScript.isEmpty
+                && package.pageJavaScript.isEmpty
+                && package.manifest.assets.isEmpty
+        }
+    }
+
+    private func flattened(_ node: PartNode) -> [PartNode] {
+        [node] + node.children.flatMap(flattened)
     }
 
     private func allowsPartPatch(partID: UUID, propertyKey: PartProperty.Key) -> Bool {
@@ -445,11 +507,13 @@ nonisolated struct CanvasRenderSnapshot: Sendable {
 nonisolated enum CanvasRenderResult: Equatable, Sendable {
     case part(RenderedPartSubtree)
     case page(String)
+    case scene(CanvasSceneUpdate)
 
     func withRevision(_ revision: UInt64) -> CanvasWebOperation {
         switch self {
         case .part(let subtree): .part(subtree, revision: revision)
         case .page(let html): .reconcilePage(html: html, revision: revision)
+        case .scene(let update): .scene(update, revision: revision)
         }
     }
 }

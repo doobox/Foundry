@@ -1,4 +1,5 @@
 :instance {
+    isolation: isolate;
     box-sizing: border-box;
     display: block;
     width: 100%;
@@ -11,15 +12,15 @@
     font-family: var(--foundry-font-body);
     font-size: {{ control.fontSize }};
     line-height: {{ control.fontSize.lineHeight }};
-    padding: {{ if control.spacingEnabled }}{{ control.frameworkPadding }}{{ else }}var(--foundry-space-2xs) 0{{ endif }};
-    margin: {{ if control.spacingEnabled }}{{ control.frameworkMargin }}{{ else }}0{{ endif }};
-    border-width: {{ if control.borderEnabled }}{{ control.frameworkBorder.width }}{{ else }}0{{ endif }};
-    border-style: {{ control.frameworkBorder.style }};
-    border-color: {{ control.frameworkBorderColour }};
-    border-radius: {{ if control.borderEnabled }}{{ control.frameworkRadius }}{{ else }}0{{ endif }};
-    box-shadow: {{ if control.effectsEnabled }}{{ control.frameworkShadow }}{{ else }}none{{ endif }};
+    padding: {{ if control.spacing.spacingEnabled }}{{ control.spacing.frameworkPadding }}{{ else }}var(--foundry-space-2xs) 0{{ endif }};
+    margin: {{ if control.spacing.spacingEnabled }}{{ control.spacing.frameworkMargin }}{{ else }}0{{ endif }};
+    border-width: {{ if control.borders.borderEnabled }}{{ control.borders.frameworkBorder.width }}{{ else }}0{{ endif }};
+    border-style: {{ control.borders.frameworkBorder.style }};
+    border-color: {{ control.borders.frameworkBorderColour }};
+    border-radius: {{ if control.borders.borderEnabled }}{{ control.borders.frameworkRadius }}{{ else }}0{{ endif }};
+    box-shadow: {{ if control.effects.effectsEnabled }}{{ control.effects.frameworkShadow }}{{ else }}none{{ endif }};
     opacity: 1;
-    {{ if control.effectsEnabled }}opacity: calc({{ control.opacity }} / 100);{{ endif }}
+    {{ if control.effects.effectsEnabled }}opacity: calc({{ control.effects.opacity }} / 100);{{ endif }}
 }
 :instance .fd-navigation__bar {
     display: flex;
@@ -260,3 +261,9 @@
         transition: none;
     }
 }
+
+/* The Background group hands over a finished block of declarations; the hover
+   layer mirrors the static one unless hover is switched on, so no conditionals
+   are needed. */
+:instance { {{ control.background.css }} }
+:instance:hover { {{ control.background.hover.css }} }

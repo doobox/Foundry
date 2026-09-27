@@ -45,7 +45,9 @@ nonisolated enum PartPackageManifestSchema {
     private static let libraryKeys: Set<String> = ["id", "majorVersion"]
     private static let assetKeys: Set<String> = ["path", "scope"]
     private static let renditionKeys: Set<String> = ["id", "maximumDimension"]
-    private static let controlGroupKeys: Set<String> = ["type", "styles", "states", "defaultOverrides", "visibleWhen"]
+    private static let controlGroupKeys: Set<String> = [
+        "type", "id", "targetSelector", "backgroundTypes", "supportsHover", "defaults", "visibleWhen", "excludeControls", "allowedOptions"
+    ]
     private static let sectionKeys: Set<String> = ["section", "systemImage", "controls"]
 
     static func inspect(_ data: Data) throws -> String {
@@ -406,8 +408,7 @@ nonisolated enum PartPackageManifestSchema {
 
     /// Validates one `controls` entry that references a prebuilt Grouped
     /// control (`background`, `spacing`, `sizing`, `borders`, `effects`,
-    /// `layout`) — a `type` plus, for `background` only, `styles`/
-    /// `states`, plus the generic `defaultOverrides`.
+    /// `layout`), with shared configuration and type-specific capabilities.
     private static func validateGroupedControlReference(
         _ controlGroup: [String: Any],
         type: String,
@@ -416,11 +417,12 @@ nonisolated enum PartPackageManifestSchema {
         into diagnostics: inout [PartPackageDiagnostic]
     ) {
         unknownKeys(in: controlGroup, allowed: controlGroupKeys, location: location, into: &diagnostics)
-        if !seenKinds.insert(type).inserted {
+        let namespace = controlGroup["id"] as? String ?? type
+        if !seenKinds.insert(namespace).inserted {
             diagnostics.append(.init(
                 severity: .error,
                 location: "\(location).type",
-                message: "Control group '\(type)' is declared more than once."
+                message: "Control group '\(namespace)' is declared more than once."
             ))
         }
         if type == PartPackageControlGroup.Kind.advanced.rawValue {
@@ -433,8 +435,30 @@ nonisolated enum PartPackageManifestSchema {
             }
             return
         }
-        optionalStringArray("styles", in: controlGroup, location: location, into: &diagnostics)
-        optionalStringArray("states", in: controlGroup, location: location, into: &diagnostics)
+        if let rawID = controlGroup["id"] {
+            if let id = rawID as? String,
+               id.range(of: #"^[A-Za-z][A-Za-z0-9_-]*$"#, options: .regularExpression) != nil {
+                // Namespace is shared across all group types.
+            } else {
+                diagnostics.append(.init(severity: .error, location: location + ".id", message: "Group id must start with a letter and contain only letters, numbers, underscores, or hyphens."))
+            }
+        } else {
+            diagnostics.append(.init(severity: .error, location: location + ".id", message: "Control group '\(type)' requires an id. Use a unique name for each instance."))
+        }
+        if let targetSelector = controlGroup["targetSelector"] {
+            if type != "reveal" {
+                diagnostics.append(.init(severity: .error, location: location + ".targetSelector", message: "targetSelector is available only on Reveal groups; place other groups through their template output."))
+            } else if let selector = targetSelector as? String,
+                      !selector.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+                      !selector.contains("{{"), !selector.contains("}}") {
+                // CSS selector syntax is checked by the browser against the
+                // rendered part. Manifest targets are literal, not templates.
+            } else {
+                diagnostics.append(.init(severity: .error, location: location + ".targetSelector", message: "Reveal targetSelector must be a non-empty literal CSS selector, without template expressions."))
+            }
+        }
+        optionalStringArray("backgroundTypes", in: controlGroup, location: location, into: &diagnostics)
+        optionalBoolean("supportsHover", in: controlGroup, location: location, into: &diagnostics)
         if let visibleWhen = controlGroup["visibleWhen"] as? [String: Any] {
             unknownKeys(in: visibleWhen, allowed: visibleWhenKeys, location: "\(location).visibleWhen", into: &diagnostics)
             validateVisibility(visibleWhen, location: "\(location).visibleWhen", into: &diagnostics)
@@ -444,25 +468,162 @@ nonisolated enum PartPackageManifestSchema {
         }
         if type == PartPackageControlGroup.Kind.background.rawValue {
             validateControlGroupValues(
-                controlGroup["styles"],
-                key: "styles",
+                controlGroup["backgroundTypes"],
+                key: "backgroundTypes",
                 permitted: Set(PartPackageControlGroup.BackgroundStyle.allCases.map(\.rawValue)),
                 location: location,
                 into: &diagnostics
             )
-            validateControlGroupValues(
-                controlGroup["states"],
-                key: "states",
-                permitted: Set(PartPackageControlGroup.BackgroundState.allCases.map(\.rawValue)),
-                location: location,
-                into: &diagnostics
-            )
-            if let states = controlGroup["states"] as? [String],
-               !states.contains(PartPackageControlGroup.BackgroundState.staticState.rawValue) {
+        }
+        if type != "background" {
+            for key in ["backgroundTypes", "supportsHover"] where controlGroup[key] != nil {
+                diagnostics.append(.init(severity: .error, location: location + "." + key, message: "\(key) is available only on Background groups."))
+            }
+        }
+        validateControlGroupSubsetting(controlGroup, type: type, location: location, into: &diagnostics)
+    }
+
+    /// Checks `excludeControls` and `allowedOptions` against the controls the group
+    /// actually generates, so a typo is a build error rather than a control
+    /// that silently stays put.
+    private static func validateControlGroupSubsetting(
+        _ controlGroup: [String: Any],
+        type: String,
+        location: String,
+        into diagnostics: inout [PartPackageDiagnostic]
+    ) {
+        guard controlGroup["excludeControls"] != nil || controlGroup["allowedOptions"] != nil || controlGroup["defaults"] != nil,
+              let kind = PartPackageControlGroup.Kind(rawValue: type) else { return }
+        // Generated before subsetting, so every declared name is checkable
+        // against the group's full vocabulary.
+        // An unusable backgroundTypes array is already reported on its own
+        // key; fall back to the full vocabulary rather than pile confusing
+        // "no such control" errors on top of it.
+        let backgroundTypes = (controlGroup["backgroundTypes"] as? [String])?
+            .compactMap(PartPackageControlGroup.BackgroundStyle.init(rawValue:)) ?? []
+        let generated = PartPackageControlGroup(
+            type: kind,
+            id: kind.rawValue,
+            backgroundTypes: backgroundTypes.isEmpty ? PartPackageControlGroup.BackgroundStyle.allCases : backgroundTypes,
+            supportsHover: controlGroup["supportsHover"] as? Bool ?? true
+        ).properties.map { original in
+            var property = original
+            property.id = original.controlGroupSource?.localID ?? original.id
+            property.visibleWhen = original.visibleWhen?.removingPrefix(kind.rawValue + ".")
+            return property
+        }
+        let identifiers = Set(generated.map(\.id))
+        if let rawDefaults = controlGroup["defaults"] {
+            if let defaults = rawDefaults as? [String: Any] {
+                for key in defaults.keys.sorted() where !identifiers.contains(key) {
+                    diagnostics.append(.init(severity: .error, location: location + ".defaults." + key, message: "defaults must use a local generated control ID; '\(key)' is not generated by this group."))
+                }
+            } else {
+                appendTypeError(key: "defaults", expected: "a dictionary", location: location, into: &diagnostics)
+            }
+        }
+
+        if let excludeControls = controlGroup["excludeControls"] {
+            optionalStringArray("excludeControls", in: controlGroup, location: location, into: &diagnostics)
+            if let excludeControls = excludeControls as? [String] {
+                if excludeControls.isEmpty {
+                    diagnostics.append(.init(
+                        severity: .error,
+                        location: "\(location).excludeControls",
+                        message: "excludeControls must name at least one control, or be removed."
+                    ))
+                }
+                var seen: Set<String> = []
+                for id in excludeControls {
+                    if !seen.insert(id).inserted {
+                        diagnostics.append(.init(
+                            severity: .error,
+                            location: "\(location).excludeControls",
+                            message: "Duplicate excludeControls value '\(id)'."
+                        ))
+                    }
+                    if !identifiers.contains(id) {
+                        diagnostics.append(.init(
+                            severity: .error,
+                            location: "\(location).excludeControls",
+                            message: "The \(type) group generates no control called '\(id)'."
+                        ))
+                    }
+                }
+                if Set(excludeControls) == identifiers {
+                    diagnostics.append(.init(
+                        severity: .error,
+                        location: "\(location).excludeControls",
+                        message: "excludeControls removes every control the \(type) group generates; remove the group instead."
+                    ))
+                }
+            }
+        }
+
+        guard let raw = controlGroup["allowedOptions"] else { return }
+        guard let overrides = raw as? [String: Any] else {
+            appendTypeError(key: "allowedOptions", expected: "a dictionary", location: location, into: &diagnostics)
+            return
+        }
+        for (id, value) in overrides.sorted(by: { $0.key < $1.key }) {
+            let overrideLocation = "\(location).allowedOptions.\(id)"
+            guard let property = generated.first(where: { $0.id == id }) else {
                 diagnostics.append(.init(
                     severity: .error,
-                    location: "\(location).states",
-                    message: "states must include 'static'; hover augments the static background."
+                    location: overrideLocation,
+                    message: "The \(type) group generates no control called '\(id)'."
+                ))
+                continue
+            }
+            guard let permitted = property.control.options?.map(\.value), !permitted.isEmpty else {
+                diagnostics.append(.init(
+                    severity: .error,
+                    location: overrideLocation,
+                    message: "'\(id)' has no options to narrow; allowedOptions applies to selects only."
+                ))
+                continue
+            }
+            guard let values = value as? [String] else {
+                appendTypeError(key: id, expected: "an array of strings", location: "\(location).allowedOptions", into: &diagnostics)
+                continue
+            }
+            if values.isEmpty {
+                diagnostics.append(.init(
+                    severity: .error,
+                    location: overrideLocation,
+                    message: "allowedOptions must list at least one value."
+                ))
+            }
+            var seen: Set<String> = []
+            for option in values {
+                if !seen.insert(option).inserted {
+                    diagnostics.append(.init(
+                        severity: .error,
+                        location: overrideLocation,
+                        message: "Duplicate allowedOptions value '\(option)'."
+                    ))
+                }
+                if !permitted.contains(option) {
+                    diagnostics.append(.init(
+                        severity: .error,
+                        location: overrideLocation,
+                        message: "'\(option)' is not an option of '\(id)'. Available: \(permitted.joined(separator: ", "))."
+                    ))
+                }
+            }
+            if let override = (controlGroup["defaults"] as? [String: Any])?[id] as? String,
+               !values.contains(override) {
+                diagnostics.append(.init(
+                    severity: .error,
+                    location: "\(location).defaults.\(id)",
+                    message: "The default '\(override)' is not one of the narrowed options for '\(id)'."
+                ))
+            }
+            if let excludeControls = controlGroup["excludeControls"] as? [String], excludeControls.contains(id) {
+                diagnostics.append(.init(
+                    severity: .error,
+                    location: overrideLocation,
+                    message: "'\(id)' is omitted; narrowing its options has no effect."
                 ))
             }
         }
@@ -653,7 +814,7 @@ nonisolated enum PartPackageManifestSchema {
         }
         if type == .childPicker {
             let supportedKeys: Set<String> = [
-                "type", "id", "label", "tooltip", "visibleWhen",
+                "type", "id", "label", "tooltip", "visibleWhen", "buttonText", "buttonIcon",
                 "accepts", "pickerItems", "initial", "minimum", "maximum", "containment"
             ]
             for key in property.keys where !supportedKeys.contains(key) {
@@ -669,6 +830,14 @@ nonisolated enum PartPackageManifestSchema {
             optionalStringArray("accepts", in: property, location: location, into: &diagnostics)
             optionalStringArray("pickerItems", in: property, location: location, into: &diagnostics)
             optionalStringArray("initial", in: property, location: location, into: &diagnostics)
+            for key in ["buttonText", "buttonIcon"] {
+                optionalString(key, in: property, location: location, into: &diagnostics)
+                if let value = property[key] as? String,
+                   value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    diagnostics.append(.init(severity: .error, location: "\(location):\(key)",
+                        message: "\(key) must not be empty. Omit it to use the default."))
+                }
+            }
             if let pickerItems = property["pickerItems"] as? [String], pickerItems.isEmpty {
                 diagnostics.append(.init(
                     severity: .error,

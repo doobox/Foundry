@@ -363,67 +363,111 @@ nonisolated struct PartPackageControlGroup: Codable, Equatable, Sendable {
         }
     }
 
-    enum BackgroundState: String, Codable, CaseIterable, Hashable, Sendable {
-        case staticState = "static"
-        case hover
-    }
-
     let type: Kind
-    let styles: [BackgroundStyle]
-    let states: [BackgroundState]
+    let id: String?
+    /// Reveal-only descendant selector. Nil deliberately targets the part root.
+    let target: String?
+    var namespace: String { id ?? "" }
+    let backgroundTypes: [BackgroundStyle]
+    let supportsHover: Bool
     /// Lets a part adjust a shared group's injected defaults (e.g. a
     /// different starting padding) without hand-declaring the whole group.
-    /// Only meaningful for the non-`background` kinds.
-    let defaultOverrides: [String: PartPackageValue]
+    let defaults: [String: PartPackageValue]
     /// Gates the whole group behind one of the part's own controls, e.g. a
     /// flexbox group shown only while a layout select reads "flex". Folded
     /// into every expanded control's own condition.
     let visibleWhen: PartPackageVisibilityCondition?
+    /// Generated controls this part does not want at all — a choice its own
+    /// markup could not honour, or a capability it deliberately withholds.
+    /// Controls that exist only to configure an omitted one go too.
+    let excludeControls: [String]
+    /// Narrows a generated select to the listed values, in the listed order.
+    /// The first value becomes the control's default unless the original
+    /// default survives the narrowing.
+    let allowedOptions: [String: [String]]
 
     init(
         type: Kind,
-        styles: [BackgroundStyle] = BackgroundStyle.allCases,
-        states: [BackgroundState] = BackgroundState.allCases,
-        defaultOverrides: [String: PartPackageValue] = [:],
-        visibleWhen: PartPackageVisibilityCondition? = nil
+        id: String?,
+        target: String? = nil,
+        backgroundTypes: [BackgroundStyle] = BackgroundStyle.allCases,
+        supportsHover: Bool = true,
+        defaults: [String: PartPackageValue] = [:],
+        visibleWhen: PartPackageVisibilityCondition? = nil,
+        excludeControls: [String] = [],
+        allowedOptions: [String: [String]] = [:]
     ) {
         self.type = type
-        self.styles = styles
-        self.states = states
-        self.defaultOverrides = defaultOverrides
+        self.id = id
+        self.target = target
+        self.backgroundTypes = backgroundTypes
+        self.supportsHover = supportsHover
+        self.defaults = defaults
         self.visibleWhen = visibleWhen
+        self.excludeControls = excludeControls
+        self.allowedOptions = allowedOptions
     }
 
     private enum CodingKeys: String, CodingKey {
         case type
-        case styles
-        case states
-        case defaultOverrides
+        case id
+        case target = "targetSelector"
+        case backgroundTypes
+        case supportsHover
+        case defaults
         case visibleWhen
+        case excludeControls
+        case allowedOptions
     }
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         type = try container.decode(Kind.self, forKey: .type)
-        styles = try container.decodeIfPresent([BackgroundStyle].self, forKey: .styles)
+        id = type == .advanced ? nil : try container.decode(String.self, forKey: .id)
+        if let id, id.range(of: #"^[A-Za-z][A-Za-z0-9_-]*$"#, options: .regularExpression) == nil {
+            throw DecodingError.dataCorruptedError(forKey: .id, in: container, debugDescription: "Group id must start with a letter and contain only letters, numbers, underscores, or hyphens.")
+        }
+        target = try container.decodeIfPresent(String.self, forKey: .target)
+        backgroundTypes = try container.decodeIfPresent([BackgroundStyle].self, forKey: .backgroundTypes)
             ?? BackgroundStyle.allCases
-        states = try container.decodeIfPresent([BackgroundState].self, forKey: .states)
-            ?? BackgroundState.allCases
-        defaultOverrides = try container.decodeIfPresent([String: PartPackageValue].self, forKey: .defaultOverrides) ?? [:]
+        supportsHover = try container.decodeIfPresent(Bool.self, forKey: .supportsHover) ?? true
+        defaults = try container.decodeIfPresent([String: PartPackageValue].self, forKey: .defaults) ?? [:]
         visibleWhen = try container.decodeIfPresent(PartPackageVisibilityCondition.self, forKey: .visibleWhen)
+        excludeControls = try container.decodeIfPresent([String].self, forKey: .excludeControls) ?? []
+        allowedOptions = try container.decodeIfPresent([String: [String]].self, forKey: .allowedOptions) ?? [:]
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(type, forKey: .type)
+        guard type != .advanced else { return }
+        try container.encodeIfPresent(id, forKey: .id)
+        try container.encodeIfPresent(target, forKey: .target)
+        if type == .background {
+            try container.encode(backgroundTypes, forKey: .backgroundTypes)
+            try container.encode(supportsHover, forKey: .supportsHover)
+        }
+        if !defaults.isEmpty { try container.encode(defaults, forKey: .defaults) }
+        try container.encodeIfPresent(visibleWhen, forKey: .visibleWhen)
+        if !excludeControls.isEmpty { try container.encode(excludeControls, forKey: .excludeControls) }
+        if !allowedOptions.isEmpty { try container.encode(allowedOptions, forKey: .allowedOptions) }
     }
 
     var properties: [PartPackageProperty] {
-        guard type != .advanced else { return [] }
+        guard type != .advanced, let id else { return [] }
         let definition = BuiltInControlGroupRegistry.definition(for: type)
         let base = type == .background
             ? configuredBackgroundProperties(definition.controls)
             : definition.controls
-        return base.map { property in
+        return omitting(narrowedOptions(base)).map { property in
             var property = property
-            if let override = defaultOverrides[property.id] {
+            let localID = property.id
+            if let override = defaults[property.id] {
                 property.defaultValue = override
             }
+            property.id = id + "." + localID
+            property.visibleWhen = property.visibleWhen?.prefixed(with: id)
+            property.controlGroupSource = .init(type: type, namespace: namespace, localID: localID)
             if let visibleWhen {
                 property.visibleWhen = property.visibleWhen.map { .init(all: [visibleWhen, $0]) } ?? visibleWhen
             }
@@ -431,11 +475,68 @@ nonisolated struct PartPackageControlGroup: Codable, Equatable, Sendable {
         }
     }
 
+    /// Narrows the named selects to the listed values, in the listed order.
+    /// A default the narrowing removed moves to the first listed value, the
+    /// way the Background group's `backgroundTypes` sets its initial style.
+    private func narrowedOptions(_ properties: [PartPackageProperty]) -> [PartPackageProperty] {
+        guard !allowedOptions.isEmpty else { return properties }
+        return properties.map { original in
+            guard let permitted = allowedOptions[original.id],
+                  let options = original.control.options else { return original }
+            var property = original
+            property.control.options = permitted.compactMap { value in
+                options.first { $0.value == value }
+            }
+            if case .string(let current) = property.defaultValue, !permitted.contains(current) {
+                property.defaultValue = .string(permitted.first ?? current)
+            }
+            return property
+        }
+    }
+
+    /// Drops the omitted controls, then anything left whose visibility depends
+    /// on one of them: a control that configures a capability the part removed
+    /// has nothing left to configure.
+    private func omitting(_ properties: [PartPackageProperty]) -> [PartPackageProperty] {
+        guard !excludeControls.isEmpty else { return properties }
+        var remaining = properties.filter { !excludeControls.contains($0.id) }
+        var present = Set(remaining.map(\.id))
+        var removedDependent = true
+        while removedDependent {
+            removedDependent = false
+            remaining = remaining.filter { property in
+                let references = Self.referencedIDs(in: property.visibleWhen)
+                guard !references.isSubset(of: present) else { return true }
+                removedDependent = true
+                return false
+            }
+            present = Set(remaining.map(\.id))
+        }
+        return remaining
+    }
+
+    /// The sibling control IDs a condition reads, ignoring the group-level
+    /// condition's reference to one of the part's own controls — this runs
+    /// before that condition is folded in.
+    static func referencedIDs(in condition: PartPackageVisibilityCondition?) -> Set<String> {
+        guard let condition else { return [] }
+        if let all = condition.all {
+            return all.reduce(into: Set()) { $0.formUnion(referencedIDs(in: $1)) }
+        }
+        if let any = condition.any {
+            return any.reduce(into: Set()) { $0.formUnion(referencedIDs(in: $1)) }
+        }
+        // An indexed reference such as `edges[0]` names the control before it.
+        guard let id = condition.id else { return [] }
+        return [String(id.prefix { $0 != "[" })]
+    }
+
     private func configuredBackgroundProperties(
         _ properties: [PartPackageProperty]
     ) -> [PartPackageProperty] {
-        let includesHover = states.contains(.hover)
-        let styleValues = Set(styles.map(\.templateValue))
+        let styleValues = Set(backgroundTypes.map(\.templateValue))
+        let hoverStyleValues = styleValues.subtracting(["video"])
+        let includesHover = supportsHover && !hoverStyleValues.isEmpty
 
         return properties.compactMap { original in
             if !includesHover, original.id.hasPrefix("backgroundHover") {
@@ -456,11 +557,14 @@ nonisolated struct PartPackageControlGroup: Codable, Equatable, Sendable {
                 property.control.options = property.control.options?.filter {
                     styleValues.contains($0.value)
                 }
-                property.defaultValue = .string(styles.first?.templateValue ?? "color")
+                property.defaultValue = .string(backgroundTypes.first?.templateValue ?? "color")
             case "backgroundHoverStyle":
                 property.control.options = property.control.options?.filter {
-                    $0.value == "none" || styleValues.contains($0.value)
+                    hoverStyleValues.contains($0.value)
                 }
+                property.defaultValue = .string(
+                    backgroundTypes.map(\.templateValue).first(where: hoverStyleValues.contains) ?? "color"
+                )
             default:
                 break
             }
@@ -479,48 +583,41 @@ nonisolated struct PartPackageControlGroup: Codable, Equatable, Sendable {
         return nil
     }
 
-    var css: String {
-        switch type {
-        case .background:
-            backgroundCSS
-        case .spacing, .sizing, .borders, .effects, .flexbox, .layout, .reveal, .advanced:
-            ""
-        }
-    }
+    /// CSS placement belongs to the part template, including Flexbox childCSS.
+    var css: String { "" }
 
-    var htmlContributions: [PartPackageHTMLContribution] {
-        switch type {
-        case .background:
-            guard styles.contains(.video) else { return [] }
-            var fragments = [
-                #"{{ if control.backgroundMode != "none" }}{{ if control.backgroundStyle == "video" }}{{ if canvas }}{{ if control.backgroundVideo.poster != "" }}<img class="foundry-background-video" src="{{ control.backgroundVideo.poster | escapeHTMLAttribute }}" alt="" aria-hidden="true">{{ endif }}{{ else }}{{ if control.backgroundVideo != "" }}<video class="foundry-background-video" src="{{ control.backgroundVideo.href | escapeHTMLAttribute }}" poster="{{ control.backgroundVideo.poster | escapeHTMLAttribute }}" autoplay muted loop playsinline aria-hidden="true"></video>{{ endif }}{{ endif }}{{ endif }}{{ endif }}"#
-            ]
-            if states.contains(.hover) {
-                fragments.append(
-                    #"{{ if control.backgroundMode != "none" }}{{ if control.backgroundHoverStyle == "video" }}{{ if canvas }}{{ if control.backgroundHoverVideo.poster != "" }}<img class="foundry-background-video foundry-background-video--hover" src="{{ control.backgroundHoverVideo.poster | escapeHTMLAttribute }}" alt="" aria-hidden="true">{{ endif }}{{ else }}{{ if control.backgroundHoverVideo != "" }}<video class="foundry-background-video foundry-background-video--hover" src="{{ control.backgroundHoverVideo.href | escapeHTMLAttribute }}" poster="{{ control.backgroundHoverVideo.poster | escapeHTMLAttribute }}" autoplay muted loop playsinline aria-hidden="true"></video>{{ endif }}{{ endif }}{{ endif }}{{ endif }}"#
-                )
-            }
-            return [.init(
-                placement: .afterOpeningTag,
-                template: fragments.joined(separator: "\n"),
-                target: .controlGroupBackground
-            )]
-        case .spacing, .sizing, .borders, .effects, .flexbox, .layout, .reveal, .advanced:
-            return []
-        }
-    }
+    /// Control groups hand over values; none of them inject markup.
+    var htmlContributions: [PartPackageHTMLContribution] { [] }
 
     var javaScript: String {
-        guard type == .reveal else { return "" }
-        return #"""
+        guard type == .reveal, let id else { return "" }
+        let script = #"""
         (() => {
             const root = document.querySelector('[data-foundry-id="{{ instance.id }}"]');
             if (!root || typeof gsap === "undefined" || typeof ScrollTrigger === "undefined") return;
             root._foundryRevealContext?.revert();
-            const targets = {{ if control.revealStagger > 0 }}Array.from(root.children){{ else }}[root]{{ endif }};
             if (!{{ control.revealEnabled }} || window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
                 return;
             }
+            const selector = __FOUNDRY_REVEAL_TARGET__;
+            let target = root;
+            if (selector !== null) {
+                let matches;
+                try {
+                    matches = Array.from(root.querySelectorAll(selector)).filter(
+                        element => element.closest('[data-foundry-id]') === root
+                    );
+                } catch {
+                    console.warn("Foundry Reveal: invalid target selector", selector, root);
+                    return;
+                }
+                if (matches.length !== 1) {
+                    console.warn("Foundry Reveal: target must match exactly one element owned by this part", selector, root);
+                    return;
+                }
+                target = matches[0];
+            }
+            const targets = {{ if control.revealStagger > 0 }}Array.from(target.children){{ else }}[target]{{ endif }};
             gsap.registerPlugin(ScrollTrigger);
             const from = { autoAlpha: 0 };
             const distance = {{ control.revealDistance }};
@@ -540,7 +637,7 @@ nonisolated struct PartPackageControlGroup: Codable, Equatable, Sendable {
                     stagger: {{ control.revealStagger }} / 1000,
                     ease: "{{ control.revealEase }}",
                     scrollTrigger: {
-                        trigger: root,
+                        trigger: target,
                         start: "top {{ control.revealTrigger }}%",
                         once: {{ control.revealOnce }},
                         toggleActions: {{ if control.revealOnce }}"play none none none"{{ else }}"play none none reverse"{{ endif }}
@@ -549,58 +646,19 @@ nonisolated struct PartPackageControlGroup: Codable, Equatable, Sendable {
             }, root);
         })();
         """#
+        // JSON quoting prevents selectors becoming executable JavaScript. Escape
+        // '<' too because the same source can appear inside an HTML script tag.
+        let selector = target.map { value in
+            String(decoding: try! JSONEncoder().encode(value), as: UTF8.self)
+                .replacingOccurrences(of: "<", with: #"\u003c"#)
+                .replacingOccurrences(of: "\u{2028}", with: #"\u2028"#)
+                .replacingOccurrences(of: "\u{2029}", with: #"\u2029"#)
+        } ?? "null"
+        return script.replacingOccurrences(of: "control.reveal", with: "control.\(id).reveal")
+            .replacingOccurrences(of: "root._foundryRevealContext", with: "root[\"_foundryReveal_\(id)\"]")
+            .replacingOccurrences(of: "__FOUNDRY_REVEAL_TARGET__", with: selector)
     }
 
-    private var backgroundCSS: String {
-        let includesHover = states.contains(.hover)
-        var base = ["background-color: transparent;", "background-image: none;"]
-        if styles.contains(.colour) {
-            base.append(#"{{ if control.backgroundMode != "none" }}{{ if control.backgroundStyle == "color" }}background-color: {{ control.backgroundColor }};{{ endif }}{{ endif }}"#)
-        }
-        if styles.contains(.image) {
-            base.append(#"{{ if control.backgroundMode != "none" }}{{ if control.backgroundStyle == "image" }}background-image: url("{{ control.backgroundImage }}"); background-position: {{ control.backgroundPosition }}; background-size: {{ control.backgroundSize }}; background-repeat: {{ control.backgroundRepeat }};{{ endif }}{{ endif }}"#)
-        }
-        if styles.contains(.gradient) {
-            base.append(#"{{ if control.backgroundMode != "none" }}{{ if control.backgroundStyle == "gradient" }}{{ if control.backgroundGradientType == "linear" }}background-image: linear-gradient({{ control.backgroundGradientDirection }}, {{ control.backgroundGradientFrom }} {{ control.backgroundGradientFromPosition }}%, {{ control.backgroundGradientTo }} {{ control.backgroundGradientToPosition }}%);{{ elseif control.backgroundGradientType == "radial" }}background-image: radial-gradient({{ control.backgroundGradientFrom }} {{ control.backgroundGradientFromPosition }}%, {{ control.backgroundGradientTo }} {{ control.backgroundGradientToPosition }}%);{{ else }}background-image: conic-gradient({{ control.backgroundGradientFrom }} {{ control.backgroundGradientFromPosition }}%, {{ control.backgroundGradientTo }} {{ control.backgroundGradientToPosition }}%);{{ endif }}{{ endif }}{{ endif }}"#)
-        }
-        if styles.contains(.video) {
-            base.append(#"{{ if control.backgroundMode != "none" }}{{ if control.backgroundStyle == "video" }}position: relative; isolation: isolate; overflow: hidden;{{ if control.backgroundVideoAspectRatio }}aspect-ratio: 16 / 9;{{ endif }}{{ endif }}{{ endif }}"#)
-            if includesHover {
-                base.append(#"{{ if control.backgroundMode != "none" }}{{ if control.backgroundHoverStyle == "video" }}position: relative; isolation: isolate; overflow: hidden;{{ if control.backgroundHoverVideoAspectRatio }}aspect-ratio: 16 / 9;{{ endif }}{{ endif }}{{ endif }}"#)
-            }
-        }
-        let target = #"[data-foundry-control-group-background="{{ instance.id }}"]"#
-        var output = target + " {\n    " + base.joined(separator: "\n    ") + "\n}"
-        if includesHover {
-            var hover: [String] = []
-            if styles.contains(.colour) {
-                hover.append(#"{{ if control.backgroundMode != "none" }}{{ if control.backgroundHoverStyle == "color" }}background-color: {{ control.backgroundHoverColor }}; background-image: none;{{ endif }}{{ endif }}"#)
-            }
-            if styles.contains(.image) {
-                hover.append(#"{{ if control.backgroundMode != "none" }}{{ if control.backgroundHoverStyle == "image" }}background-color: transparent; background-image: url("{{ control.backgroundHoverImage }}"); background-position: {{ control.backgroundHoverPosition }}; background-size: {{ control.backgroundHoverSize }}; background-repeat: {{ control.backgroundHoverRepeat }};{{ endif }}{{ endif }}"#)
-            }
-            if styles.contains(.gradient) {
-                hover.append(#"{{ if control.backgroundMode != "none" }}{{ if control.backgroundHoverStyle == "gradient" }}background-color: transparent;{{ if control.backgroundHoverGradientType == "linear" }}background-image: linear-gradient({{ control.backgroundHoverGradientDirection }}, {{ control.backgroundHoverGradientFrom }} {{ control.backgroundHoverGradientFromPosition }}%, {{ control.backgroundHoverGradientTo }} {{ control.backgroundHoverGradientToPosition }}%);{{ elseif control.backgroundHoverGradientType == "radial" }}background-image: radial-gradient({{ control.backgroundHoverGradientFrom }} {{ control.backgroundHoverGradientFromPosition }}%, {{ control.backgroundHoverGradientTo }} {{ control.backgroundHoverGradientToPosition }}%);{{ else }}background-image: conic-gradient({{ control.backgroundHoverGradientFrom }} {{ control.backgroundHoverGradientFromPosition }}%, {{ control.backgroundHoverGradientTo }} {{ control.backgroundHoverGradientToPosition }}%);{{ endif }}{{ endif }}{{ endif }}"#)
-            }
-            if styles.contains(.video) {
-                hover.append(#"{{ if control.backgroundMode != "none" }}{{ if control.backgroundHoverStyle == "video" }}background-color: transparent; background-image: none;{{ endif }}{{ endif }}"#)
-            }
-            output += "\n" + target + ":hover {\n    " + hover.joined(separator: "\n    ") + "\n}"
-        }
-        if styles.contains(.video) {
-            // Video helper rules only exist on instances that actually use a
-            // video background — plain colour sections carry none of this.
-            let usesVideo = includesHover
-                ? #"{{ if control.backgroundStyle == "video" || control.backgroundHoverStyle == "video" }}"#
-                : #"{{ if control.backgroundStyle == "video" }}"#
-            output += "\n" + usesVideo + target + " > .foundry-background-video { position: absolute; inset: 0; z-index: -1; width: 100%; height: 100%; object-fit: cover; pointer-events: none; }{{ endif }}"
-            if includesHover {
-                output += "\n" + #"{{ if control.backgroundHoverStyle == "video" }}"# + target + " > .foundry-background-video--hover { opacity: 0; }"
-                output += "\n" + target + ":hover > .foundry-background-video--hover { opacity: 1; }{{ endif }}"
-            }
-        }
-        return output
-    }
 }
 
 nonisolated enum PartPackageHTMLContributionRenderer {
@@ -634,10 +692,6 @@ nonisolated enum PartPackageHTMLContributionRenderer {
         switch target {
         case .root:
             return html.firstIndex(of: ">")
-        case .controlGroupBackground:
-            let attribute = #"data-foundry-control-group-background="\#(context.instanceID.uuidString)""#
-            guard let attributeRange = html.range(of: attribute) else { return nil }
-            return html[attributeRange.upperBound...].firstIndex(of: ">")
         }
     }
 }
@@ -650,7 +704,6 @@ nonisolated struct PartPackageHTMLContribution: Codable, Equatable, Sendable {
 
     enum Target: Equatable, Sendable {
         case root
-        case controlGroupBackground
     }
 
     let placement: Placement
@@ -700,6 +753,8 @@ nonisolated struct PartPackageSlot: Equatable, Identifiable, Sendable {
 
     let id: String
     let title: String
+    let buttonText: String
+    let buttonIcon: String
     let accepts: [String]
     let pickerItems: [String]
     let initial: [String]
@@ -721,10 +776,14 @@ nonisolated struct PartPackageSlot: Equatable, Identifiable, Sendable {
         containment: Containment = .open,
         group: String = "Settings",
         tooltip: String? = nil,
-        visibleWhen: PartPackageVisibilityCondition? = nil
+        visibleWhen: PartPackageVisibilityCondition? = nil,
+        buttonText: String = "Add Child",
+        buttonIcon: String = "plus.app"
     ) {
         self.id = id
         self.title = title
+        self.buttonText = buttonText
+        self.buttonIcon = buttonIcon
         self.accepts = accepts
         self.pickerItems = pickerItems
         self.initial = initial
@@ -747,12 +806,19 @@ nonisolated struct PartPackageImageRendition: Codable, Equatable, Identifiable, 
 }
 
 nonisolated struct PartPackageProperty: Codable, Equatable, Identifiable, Sendable {
+    struct ControlGroupSource: Equatable, Sendable {
+        let type: PartPackageControlGroup.Kind
+        let namespace: String
+        let localID: String
+    }
+    // Expansion-only identity, never inferred from IDs or encoded as a custom control key.
+    var controlGroupSource: ControlGroupSource? = nil
     enum ValueAvailability: String, Codable, CaseIterable, Sendable {
         case always
         case whenVisible
     }
 
-    let id: String
+    var id: String
     let label: String
     let noteTitle: String?
     let noteBody: String
@@ -1011,13 +1077,27 @@ nonisolated struct PartPackageProperty: Codable, Equatable, Identifiable, Sendab
             containment: containment,
             group: group,
             tooltip: tooltip,
-            visibleWhen: visibleWhen
+            visibleWhen: visibleWhen,
+            buttonText: buttonTexts.first ?? "Add Child",
+            buttonIcon: buttonIcons.first ?? "plus.app"
         )
     }
 }
 
 
 nonisolated struct PartPackageVisibilityCondition: Codable, Equatable, Sendable {
+    func removingPrefix(_ prefix: String) -> Self {
+        if let all { return .init(all: all.map { $0.removingPrefix(prefix) }) }
+        if let any { return .init(any: any.map { $0.removingPrefix(prefix) }) }
+        guard let id, id.hasPrefix(prefix) else { return self }
+        return .init(id: String(id.dropFirst(prefix.count)), operation: operation, value: value)
+    }
+    func prefixed(with namespace: String) -> Self {
+        if let all { return .init(all: all.map { $0.prefixed(with: namespace) }) }
+        if let any { return .init(any: any.map { $0.prefixed(with: namespace) }) }
+        guard let id else { return self }
+        return .init(id: namespace + "." + id, operation: operation, value: value)
+    }
     let id: String?
     let operation: String
     let value: PartPackageValue?

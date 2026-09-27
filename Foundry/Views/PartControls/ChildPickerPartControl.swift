@@ -2,50 +2,37 @@ import SwiftUI
 
 struct ChildPickerPartControl: View {
     let label: String
+    var buttonText: String = "Add Child"
+    var buttonIcon: String = "plus.app"
     let options: [PartType]
-    let childCount: Int
-    let maximum: Int?
+    let action: ChildPickerAction
     let help: String?
-    @Binding var selection: PartType?
-    let add: () -> Void
+    let add: (PartType) -> Void
+    @State private var showsChoices = false
 
-    private var effectiveSelection: PartType? {
-        selection ?? options.first
-    }
-
-    private var pickerSelection: Binding<PartType?> {
-        Binding(
-            get: { effectiveSelection },
-            set: { selection = $0 }
-        )
-    }
-
-    private var canAdd: Bool {
-        selection != nil && (maximum.map { childCount < $0 } ?? true)
+    private var disabledReason: String? {
+        switch action {
+        case .unavailable: "No installed parts are available for this control."
+        case .limitReached: "Maximum number of children reached."
+        case .add, .choose: nil
+        }
     }
 
     var body: some View {
         InspectorRow(title: label, alignment: .top) {
-            if options.isEmpty {
-                Text("No installed parts are available for this control.")
-                    .foregroundStyle(.secondary)
-            } else {
-                VStack(alignment: .leading, spacing: 8) {
-                    Picker("Part", selection: pickerSelection) {
-                        ForEach(options) { type in
-                            Text(type.displayName).tag(Optional(type))
-                        }
-                    }
-                    .labelsHidden()
-                    .buttonSizing(.flexible)
-                    .accessibilityLabel("Part to add to \(label)")
+            VStack(alignment: .leading, spacing: 8) {
+                Button(action: activate) {
+                    Label(buttonText, systemImage: buttonIcon)
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(!action.isEnabled)
+                .help(disabledReason ?? help ?? "")
+                .popover(isPresented: $showsChoices) {
+                    ChildPickerPopover(label: label, options: options, add: choose)
+                }
 
-                    Button(action: add) {
-                        Label("Add", systemImage: "plus")
-                    }
-                    .disabled(!canAdd)
-
-                    Text(maximum.map { "\(childCount) of \($0)" } ?? "\(childCount) added")
+                if let disabledReason {
+                    Text(disabledReason)
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -53,21 +40,34 @@ struct ChildPickerPartControl: View {
         }
         .controlSize(.small)
         .help(help ?? "")
+        .onChange(of: action) { _, updated in
+            if updated != .choose { showsChoices = false }
+        }
+    }
+
+    private func activate() {
+        switch action {
+        case .add(let type): add(type)
+        case .choose: showsChoices = true
+        case .unavailable, .limitReached: break
+        }
+    }
+
+    private func choose(_ type: PartType) {
+        showsChoices = false
+        guard action.isEnabled, options.contains(type) else { return }
+        add(type)
     }
 }
 
 #Preview {
-    @Previewable @State var selection: PartType? = .paragraph
-
     PartControlPreview {
         ChildPickerPartControl(
             label: "Cards",
             options: [.paragraph, .heading],
-            childCount: 3,
-            maximum: 12,
+            action: .choose,
             help: "Add another card.",
-            selection: $selection,
-            add: {}
+            add: { _ in }
         )
     }
 }

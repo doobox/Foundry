@@ -4,277 +4,130 @@
   "description": "Arranges child parts side by side or stacked with CSS Flexbox — direction, wrapping, distribution and alignment.",
   "group": "Layout",
   "icon": {
-    "symbol": "rectangle.split.3x1",
+    "symbol": "square.dashed",
     "tint": "blue"
   },
   "id": "foundry.layout.flex",
   "inspector": [
     {
+      "section": "Flexbox",
+      "systemImage": "square.dashed",
       "controls": [
         {
           "defaults": {
-            "base": "row"
+            "direction": "row",
+            "wrap": "wrap"
           },
-          "id": "direction",
-          "label": "Direction",
-          "options": [
-            {
-              "title": "Column",
-              "value": "column"
-            },
-            {
-              "title": "Row",
-              "value": "row"
-            },
-            {
-              "title": "Column Reverse",
-              "value": "column-reverse"
-            },
-            {
-              "title": "Row Reverse",
-              "value": "row-reverse"
-            }
-          ],
-          "responsive": true,
-          "type": "select"
-        },
-        {
-          "defaults": {
-            "base": "wrap"
-          },
-          "id": "wrap",
-          "label": "Wrap",
-          "options": [
-            {
-              "title": "No Wrap",
-              "value": "nowrap"
-            },
-            {
-              "title": "Wrap",
-              "value": "wrap"
-            },
-            {
-              "title": "Wrap Reverse",
-              "value": "wrap-reverse"
-            }
-          ],
-          "responsive": true,
-          "type": "select"
-        },
-        {
-          "defaults": {
-            "base": "flex-start"
-          },
-          "id": "justifyContent",
-          "label": "Distribute",
-          "options": [
-            {
-              "title": "Start",
-              "value": "flex-start"
-            },
-            {
-              "title": "Centre",
-              "value": "center"
-            },
-            {
-              "title": "End",
-              "value": "flex-end"
-            },
-            {
-              "title": "Space between",
-              "value": "space-between"
-            },
-            {
-              "title": "Space around",
-              "value": "space-around"
-            },
-            {
-              "title": "Space evenly",
-              "value": "space-evenly"
-            }
-          ],
-          "responsive": true,
-          "tooltip": "Distribute children along the stack's direction.",
-          "type": "select"
-        },
-        {
-          "defaults": {
-            "base": "stretch"
-          },
-          "id": "alignItems",
-          "label": "Align",
-          "options": [
-            {
-              "title": "Stretch",
-              "value": "stretch"
-            },
-            {
-              "title": "Start",
-              "value": "flex-start"
-            },
-            {
-              "title": "Centre",
-              "value": "center"
-            },
-            {
-              "title": "End",
-              "value": "flex-end"
-            },
-            {
-              "title": "Baseline",
-              "value": "baseline"
-            }
-          ],
-          "responsive": true,
-          "tooltip": "Controls child alignment on the cross axis.",
-          "type": "select"
-        },
-        {
-          "defaults": {
-            "base": "normal"
-          },
-          "id": "alignContent",
-          "label": "Align Rows",
-          "options": [
-            {
-              "title": "Normal",
-              "value": "normal"
-            },
-            {
-              "title": "Stretch",
-              "value": "stretch"
-            },
-            {
-              "title": "Start",
-              "value": "flex-start"
-            },
-            {
-              "title": "Centre",
-              "value": "center"
-            },
-            {
-              "title": "End",
-              "value": "flex-end"
-            },
-            {
-              "title": "Space Between",
-              "value": "space-between"
-            },
-            {
-              "title": "Space Around",
-              "value": "space-around"
-            },
-            {
-              "title": "Space Evenly",
-              "value": "space-evenly"
-            }
-          ],
-          "responsive": true,
-          "tooltip": "Controls distribution between flex lines when Flex Wrap creates multiple lines.",
-          "type": "select"
-        },
-        {
-          "defaults": {
-            "base": "md"
-          },
-          "id": "frameworkGap",
-          "label": "Gap",
-          "responsive": true,
-          "type": "frameworkSpacing"
-        },
-        {
-          "accepts": [
-            "*"
-          ],
-          "id": "content",
-          "label": "Items",
-          "pickerItems": [
-            "foundry.layout.flex-item"
-          ],
-          "tooltip": "Flex Items carry per-item Grow, Shrink and Align Self controls. Any part can also be dropped in directly.",
-          "type": "childPicker"
+          "type": "flexbox",
+          "id": "flexbox"
         }
-      ],
-      "section": "Layout",
-      "systemImage": "rectangle.3.group"
+      ]
     },
     {
-      "controls": [
-        {
-          "type": "sizing"
-        },
-        {
-          "defaults": {
-            "base": "visible"
-          },
-          "id": "overflow",
-          "label": "Overflow",
-          "options": [
-            {
-              "title": "Visible",
-              "value": "visible"
-            },
-            {
-              "title": "Clip",
-              "value": "hidden"
-            },
-            {
-              "title": "Scroll when needed",
-              "value": "auto"
-            }
-          ],
-          "responsive": true,
-          "tooltip": "Clipping can hide shadows or focus outlines.",
-          "type": "select"
-        }
-      ],
-      "section": "Sizing",
-      "systemImage": "arrow.up.left.and.arrow.down.right"
-    },
-    {
-      "controls": [
-        {
-          "type": "spacing"
-        }
-      ],
       "section": "Spacing",
-      "systemImage": "arrow.up.and.down.and.arrow.left.and.right"
-    },
-    {
+      "systemImage": "arrow.up.and.down.and.arrow.left.and.right",
       "controls": [
         {
-          "type": "background"
+          "type": "spacing",
+          "id": "spacing"
         }
-      ],
+      ]
+    },
+    {
+      "section": "Layout",
+      "systemImage": "square.on.square",
+      "controls": [
+        {
+          "type": "layout",
+          "allowedOptions": {
+            "position": [
+              "relative",
+              "absolute",
+              "fixed",
+              "sticky"
+            ]
+          },
+          "id": "layout"
+        }
+      ]
+    },
+    {
+      "section": "Sizing",
+      "systemImage": "arrow.up.left.and.arrow.down.right",
+      "controls": [
+        {
+          "type": "sizing",
+          "id": "sizing"
+        }
+      ]
+    },
+    {
       "section": "Background",
-      "systemImage": "paintbrush.fill"
-    },
-    {
+      "systemImage": "paintbrush.fill",
       "controls": [
         {
-          "type": "borders"
+          "type": "background",
+          "id": "background"
         }
-      ],
+      ]
+    },
+    {
       "section": "Borders",
-      "systemImage": "square.dashed"
-    },
-    {
+      "systemImage": "square.dashed",
       "controls": [
         {
-          "type": "effects"
+          "type": "borders",
+          "id": "borders"
         }
-      ],
+      ]
+    },
+    {
       "section": "Effects",
-      "systemImage": "sparkles"
+      "systemImage": "sparkles",
+      "controls": [
+        {
+          "type": "effects",
+          "id": "effects"
+        }
+      ]
+    },
+    {
+      "section": "Reveal",
+      "systemImage": "sparkles.rectangle.stack",
+      "controls": [
+        {
+          "type": "reveal",
+          "id": "reveal"
+        }
+      ]
     },
     {
       "controls": [
         {
-          "type": "reveal"
+          "defaults": {
+            "base": ""
+          },
+          "id": "destination",
+          "label": "Destination",
+          "tooltip": "Makes the whole part clickable. Buttons and links inside keep their own destinations.",
+          "type": "link"
+        },
+        {
+          "defaults": {
+            "base": ""
+          },
+          "id": "linkLabel",
+          "label": "Accessible name",
+          "tooltip": "Describes the destination for screen readers, which cannot see the part's contents.",
+          "type": "text",
+          "visibleWhen": {
+            "id": "destination",
+            "operation": "isNotEmpty"
+          }
         }
       ],
-      "section": "Reveal",
-      "systemImage": "sparkles.rectangle.stack"
+      "section": "Link",
+      "systemImage": "link"
     }
   ],
   "minimumAPIVersion": 1,
@@ -294,5 +147,5 @@
     "html": "part.html"
   },
   "title": "Flex",
-  "version": "2.2.0"
+  "version": "1.1.0"
 }

@@ -87,9 +87,13 @@ nonisolated enum PartPackageValidator {
         }
 
         validateUnique(manifest.resolvedProperties.map(\.id), kind: "property", into: &diagnostics)
+        let namespaces = Set(manifest.controlGroups.compactMap(\.id))
+        for property in manifest.resolvedProperties where namespaces.contains(property.id) {
+            diagnostics.append(.init(severity: .error, location: "manifest.json:inspector.\(property.id)", message: "Control ID '\(property.id)' conflicts with a control group namespace."))
+        }
         validateUnique(manifest.slots.map(\.id), kind: "slot", into: &diagnostics)
         for property in manifest.resolvedProperties {
-            validate(property.id, expression: propertyExpression, location: "manifest.json:inspector.\(property.id)", message: "Property IDs must start with a letter and contain only letters, numbers, underscores, or hyphens.", into: &diagnostics)
+            validate(property.controlGroupSource?.localID ?? property.id, expression: propertyExpression, location: "manifest.json:inspector.\(property.id)", message: "Property IDs must start with a letter and contain only letters, numbers, underscores, or hyphens.", into: &diagnostics)
             validate(property, into: &diagnostics)
             validateVisibility(property, properties: manifest.resolvedProperties, into: &diagnostics)
             if let font = property.control.font,
@@ -293,7 +297,19 @@ nonisolated enum PartPackageValidator {
         manifest: PartPackageManifest,
         into diagnostics: inout [PartPackageDiagnostic]
     ) {
-        let propertyIDs = Set(manifest.resolvedProperties.filter { $0.control.type != .divider }.map(\.id))
+        var propertyIDs = Set(manifest.resolvedProperties.filter { $0.control.type != .divider }.map(\.id))
+        let namedGroupNamespaces = Set(manifest.controlGroups.compactMap(\.id))
+        for namespace in PartPackageControlGroupCSSResolver.composedNamespaces(for: manifest.resolvedProperties) {
+            propertyIDs.insert(namespace + ".css")
+        }
+        for group in manifest.controlGroups where group.type == .background {
+            for field in ["css", "color", "image", "position", "size", "repeat", "video", "hover"] {
+                propertyIDs.insert(group.namespace + "." + field)
+            }
+        }
+        for group in manifest.controlGroups where group.type == .flexbox {
+            propertyIDs.insert(group.namespace + ".childCSS")
+        }
         let childPickerIDs = Set(manifest.slots.map(\.id))
 
         if requiresEditorAttributes {
@@ -334,29 +350,6 @@ nonisolated enum PartPackageValidator {
                     message: "The part root cannot declare an id."
                 ))
             }
-        }
-
-        let backgroundMacroReferences = template.references(
-            matching: #"\{\{\s*(controlGroup\.background)\s*\}\}"#
-        )
-        let backgroundAttributeReferences = template.references(
-            matching: #"(?s)<[^>]*\{\{\s*(controlGroup\.background)\s*\}\}[^>]*>"#
-        )
-        let declaresBackgroundGroup = manifest.controlGroups.contains { $0.type == .background }
-        if requiresEditorAttributes,
-           declaresBackgroundGroup,
-           backgroundMacroReferences.count != 1 || backgroundAttributeReferences.count != 1 {
-            diagnostics.append(.init(
-                severity: .error,
-                location: templateLocation,
-                message: "A part declaring the Background control group must include exactly one {{ controlGroup.background }} macro as an attribute of the element that receives the background."
-            ))
-        } else if (!requiresEditorAttributes || !declaresBackgroundGroup), !backgroundMacroReferences.isEmpty {
-            diagnostics.append(.init(
-                severity: .error,
-                location: templateLocation,
-                message: "{{ controlGroup.background }} is available only once in the primary HTML template of a part that declares the Background control group."
-            ))
         }
 
         let supportedFilters: Set<String> = [
@@ -641,7 +634,7 @@ nonisolated enum PartPackageValidator {
             do {
                 let expression = try PartTemplateExpression.parse(condition)
                 try PartTemplateExpression.validate(expression)
-                for propertyID in Set(PartTemplateExpression.references(in: expression)) where !propertyIDs.contains(propertyID) {
+                for propertyID in Set(PartTemplateExpression.references(in: expression, groupNamespaces: namedGroupNamespaces)) where !propertyIDs.contains(propertyID) {
                     diagnostics.append(templateDiagnostic(
                         templateLocation,
                         template: template,
@@ -667,7 +660,7 @@ nonisolated enum PartPackageValidator {
                 source.hasPrefix("loop ") || source == "endloop" || source.hasPrefix("loop.") ||
                 source.hasPrefix("slot ") || source.hasPrefix("text(") || source.hasPrefix("html(") ||
                 source.hasPrefix("image(") || source.hasPrefix("video(") || source.hasPrefix("dropZone(") || source.hasPrefix("childArea(") || source.hasPrefix("asset(") ||
-                ["text", "html", "image", "video", "instance.id", "package.id", "site.baseURL", "page.url", "path.siteRoot", "path.siteAssets", "part.class", "part.attributes", "controlGroup.background", "dropZone", "childArea", "asset"].contains(source) {
+                ["text", "html", "image", "video", "instance.id", "package.id", "site.baseURL", "page.url", "path.siteRoot", "path.siteAssets", "part.class", "part.attributes", "dropZone", "childArea", "asset"].contains(source) {
                 continue
             }
             if loopAliases.contains(where: { source == $0 || source.hasPrefix($0 + ".") }) { continue }
@@ -676,7 +669,7 @@ nonisolated enum PartPackageValidator {
             do {
                 let expression = try PartTemplateExpression.parse(expressionSource)
                 try PartTemplateExpression.validate(expression)
-                for propertyID in Set(PartTemplateExpression.references(in: expression)) where !propertyIDs.contains(propertyID) {
+                for propertyID in Set(PartTemplateExpression.references(in: expression, groupNamespaces: namedGroupNamespaces)) where !propertyIDs.contains(propertyID) {
                     diagnostics.append(templateDiagnostic(
                         templateLocation,
                         template: template,
@@ -695,7 +688,7 @@ nonisolated enum PartPackageValidator {
         }
 
         let supportedMacroNames: Set<String> = [
-            "id", "instance", "package", "site", "page", "path", "part", "control", "controlGroup", "asset", "slot", "dropZone", "childArea",
+            "id", "instance", "package", "site", "page", "path", "part", "control", "asset", "slot", "dropZone", "childArea",
             "if", "elseif", "else", "endif", "loop", "endloop", "text", "html", "image", "video", "canvas", "preview", "published", "navigation", "pages", "assets"
         ]
         for reference in template.references(matching: #"\{\{\s*([A-Za-z]+)(?:\.|\s|\}\})"#)
@@ -1313,7 +1306,7 @@ nonisolated enum PartPackageValidator {
             diagnostics.append(.init(severity: .error, location: location, message: "visibleWhen requires an id, all, or any expression."))
             return
         }
-        let expression = try! NSRegularExpression(pattern: #"^([A-Za-z][A-Za-z0-9_-]*)(?:\[([0-9]+)\])?$"#)
+        let expression = try! NSRegularExpression(pattern: #"^([A-Za-z][A-Za-z0-9_-]*(?:\.[A-Za-z][A-Za-z0-9_-]*)?)(?:\[([0-9]+)\])?$"#)
         guard let match = expression.firstMatch(in: id, range: NSRange(id.startIndex..., in: id)),
               let keyRange = Range(match.range(at: 1), in: id) else {
             diagnostics.append(.init(severity: .error, location: location, message: "visibleWhen id must reference a control, optionally followed by a zero-based array index."))

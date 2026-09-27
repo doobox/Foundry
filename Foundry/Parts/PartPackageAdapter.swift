@@ -3,6 +3,16 @@ import Foundation
 nonisolated enum PartPackageAdapter {
     static func definition(from package: LoadedPartPackage) -> PartDefinition {
         let manifest = package.manifest
+        // Expand each declaration once. Child pickers retain their actual place
+        // in this list instead of being extracted and sorted back in by the UI.
+        let inspectorRows = manifest.resolvedProperties.flatMap { property -> [PartInspectorRow] in
+            if let slot = property.childSlot { return [.childPicker(slot)] }
+            return PartInspectorControlGroup.groups(for: propertyDefinitions(property)).map(PartInspectorRow.controls)
+        }
+        let declaredProperties = inspectorRows.flatMap { row -> [PartPropertyDefinition] in
+            if case .controls(let group) = row { return group.properties }
+            return []
+        }
         let implicitTextProperties = package.preparedPrimitives.text.map { primitive in
             PartPropertyDefinition(
                 key: .init(rawValue: primitive.key), label: "Text", section: .content,
@@ -54,8 +64,9 @@ nonisolated enum PartPackageAdapter {
             category: PartCategory(rawValue: PartPackageGroup.resolve(manifest.category).rawValue),
             allowsChildren: package.hasDropZone || !manifest.slots.isEmpty,
             renderKind: .package,
-            properties: manifest.resolvedProperties.filter { $0.control.type != .childPicker }.flatMap(propertyDefinitions) + implicitTextProperties + implicitHTMLProperties + implicitHTMLArtifactProperties + implicitImageProperties + implicitVideoProperties,
-            package: package
+            properties: declaredProperties + implicitTextProperties + implicitHTMLProperties + implicitHTMLArtifactProperties + implicitImageProperties + implicitVideoProperties,
+            package: package,
+            inspectorRows: inspectorRows
         )
     }
 

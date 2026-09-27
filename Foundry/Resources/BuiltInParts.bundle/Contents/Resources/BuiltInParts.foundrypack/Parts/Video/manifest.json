@@ -5,7 +5,7 @@
   "group": "Media",
   "icon": {
     "symbol": "video",
-    "tint": "mint"
+    "tint": "red"
   },
   "id": "foundry.media.video",
   "inspector": [
@@ -68,7 +68,8 @@
     {
       "controls": [
         {
-          "type": "reveal"
+          "type": "reveal",
+          "id": "reveal"
         }
       ],
       "section": "Reveal",

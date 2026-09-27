@@ -78,6 +78,8 @@ nonisolated enum FoundryCSS {
         fieldset{margin:0;padding:0}
         legend{padding:0}
         img,picture,video,canvas,svg{display:block;max-width:100%}
+        .foundry-background-layer{position:absolute;inset:0;z-index:-1;overflow:hidden;border-radius:inherit;pointer-events:none}
+        .foundry-background-layer>.foundry-background-video{position:absolute;inset:0;width:100%;height:100%;max-width:none;object-fit:cover;pointer-events:none}
         input,button,textarea,select{font:inherit;color:inherit;margin:0}
         ::placeholder{color:var(--foundry-color-muted);opacity:1}
         b,strong{font-weight:bolder}

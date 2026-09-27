@@ -50,6 +50,34 @@ struct PartPackageTests {
     }
 
     @Test(.enabled(if: FileManager.default.fileExists(atPath: developerDocsURL.appending(path: "index.md").path)))
+    @MainActor func developerDocumentationControlGroupPropertyExamplesLoad() throws {
+        let pages = try FileManager.default.contentsOfDirectory(at: Self.developerDocsURL, includingPropertiesForKeys: nil)
+            .filter { $0.lastPathComponent.hasSuffix("-control-group.md") }
+            .sorted { $0.lastPathComponent < $1.lastPathComponent }
+        let expression = try NSRegularExpression(pattern: #"(?s)```json\s*\n(.*?)```"#)
+        #expect(pages.count == 9)
+        for page in pages {
+            let source = try String(contentsOf: page, encoding: .utf8)
+            let matches = expression.matches(in: source, range: NSRange(source.startIndex..., in: source))
+            #expect(matches.isEmpty == false, "Missing examples in \(page.lastPathComponent)")
+            for (index, match) in matches.enumerated() {
+                let range = try #require(Range(match.range(at: 1), in: source))
+                let url = try makePackage(
+                    manifest: manifest(withInspectorEntries: String(source[range])),
+                    template: "<section class=\"{{ part.class }}\" {{ part.attributes }}>{{ childArea(\"content\") }}</section>"
+                )
+                defer { try? FileManager.default.removeItem(at: url) }
+                do {
+                    let package = try PartPackageLoader.load(from: url)
+                    try package.preparePayload()
+                } catch {
+                    Issue.record("\(page.lastPathComponent), JSON example \(index + 1): \(error.localizedDescription)")
+                }
+            }
+        }
+    }
+
+    @Test(.enabled(if: FileManager.default.fileExists(atPath: developerDocsURL.appending(path: "index.md").path)))
     @MainActor func developerDocumentationCompleteExamplesLoad() throws {
         let pages = try FileManager.default.contentsOfDirectory(at: Self.developerDocsURL, includingPropertiesForKeys: nil)
             .filter { $0.pathExtension == "md" }.sorted { $0.lastPathComponent < $1.lastPathComponent }
@@ -735,6 +763,43 @@ struct PartPackageTests {
         }
     }
 
+    @Test(arguments: [0, 1, 2])
+    func childPickersKeepTheirDeclaredInspectorPosition(_ position: Int) throws {
+        var controls = [
+            #"{"type":"text","id":"before","defaults":{"base":""}}"#,
+            #"{"type":"frameworkFont","id":"font","defaults":{"base":"body"},"showsWeight":true,"showsStyle":true}"#
+        ]
+        controls.insert(#"{"type":"childPicker","id":"items","pickerItems":["com.example.child"]}"#, at: position)
+        let entries = """
+        {"section":"Only Children","controls":[
+            {"type":"childPicker","id":"first","pickerItems":["com.example.child"]}
+        ]},
+        {"section":"Mixed","controls":[\(controls.joined(separator: ","))]}
+        """
+        let url = try makePackage(manifest: manifest(withInspectorEntries: entries),
+            template: "<div {{ part.attributes }}>{{ childArea(\"first\") }}{{ childArea(\"items\") }}{{ childArea(\"content\") }}</div>")
+        defer { try? FileManager.default.removeItem(at: url) }
+        let package = try PartPackageLoader.load(from: url)
+        let definition = PartPackageAdapter.definition(from: package)
+        let rows = definition.inspectorRows
+        var expected = ["property:before", "property:font"]
+        expected.insert("slot:items", at: position)
+        #expect(rows.filter { $0.section.rawValue == "Mixed" }.map(\.id) == expected)
+        #expect(rows.first?.section.rawValue == "Only Children")
+        let font = try #require(rows.first { $0.id == "property:font" })
+        #expect(font.membershipIDs == ["property:font", "property:font.weight", "property:font.style"])
+
+        // Hidden controls are filtered in place; remaining generated rows
+        // still occupy their original place rather than moving below the picker.
+        let filtered = rows.compactMap { $0.filtered(
+            properties: { $0.key.rawValue != "font" },
+            childPickers: { $0.id != "first" }) }
+        #expect(filtered.filter { $0.section.rawValue == "Mixed" }.map(\.id)
+            == expected.map { $0 == "property:font" ? "property:font.weight" : $0 })
+        let noPickers = rows.compactMap { $0.filtered(properties: { _ in true }, childPickers: { _ in false }) }
+        #expect(noPickers.map(\.id) == ["property:before", "property:font"])
+    }
+
     @Test func generatedFontRowsShareOneInspectorGrid() throws {
         let item = """
         {"type" : "frameworkFont", "id" : "font",
@@ -1319,25 +1384,41 @@ struct PartPackageTests {
         "id" : "com.example.background-group",
         "title" : "Background Group",
         "version" : "1.0.0",
-        "inspector" : [{"type" : "background"}],
+        "inspector" : [{"type" : "background", "id": "background"}],
         "templates" : {"html" : "part.html"}
         }
         """
 
         let data = Data(json.utf8)
         let manifest = try JSONDecoder().decode(PartPackageManifest.self, from: data)
-        #expect(manifest.controlGroups == [.init(type: .background)])
-        #expect(manifest.resolvedProperties.first?.id == "backgroundMode")
+        #expect(manifest.controlGroups == [.init(type: .background, id: "background")])
+        #expect(manifest.resolvedProperties.first?.id == "background.backgroundMode")
         #expect(manifest.resolvedProperties.first?.defaultValue == .string("none"))
-        #expect(manifest.resolvedProperties.contains { $0.id == "backgroundImage" && $0.control.type == .image })
-        #expect(manifest.resolvedProperties.contains { $0.id == "backgroundGradientFrom" && $0.control.type == .frameworkColor })
-        #expect(manifest.resolvedProperties.contains { $0.id == "backgroundVideo" && $0.control.type == .video })
-        #expect(manifest.controlGroupCSS.contains(#"[data-foundry-control-group-background="{{ instance.id }}"]:hover"#))
+        #expect(manifest.resolvedProperties.contains { $0.id == "background.backgroundImage" && $0.control.type == .image })
+        #expect(manifest.resolvedProperties.contains { $0.id == "background.backgroundGradientFrom" && $0.control.type == .frameworkColor })
+        #expect(manifest.resolvedProperties.contains { $0.id == "background.backgroundVideo" && $0.control.type == .video })
+        let videoLoop = try #require(manifest.resolvedProperties.first { $0.id == "background.backgroundVideoLoop" })
+        #expect(videoLoop.defaultValue == .boolean(true))
+        #expect(manifest.resolvedProperties.contains { $0.id == "background.backgroundVideoPingPong" } == false)
+        let staticStyle = try #require(manifest.resolvedProperties.first { $0.id == "background.backgroundStyle" })
+        #expect(staticStyle.control.options?.map(\.value) == ["color", "image", "gradient", "video"])
+        let hoverStyle = try #require(manifest.resolvedProperties.first { $0.id == "background.backgroundHoverStyle" })
+        #expect(hoverStyle.control.options?.map(\.value) == ["color", "image", "gradient"])
+        #expect(hoverStyle.defaultValue == .string("color"))
+        #expect(!manifest.resolvedProperties.contains { $0.id.hasPrefix("backgroundHoverVideo") })
+        #expect(!manifest.resolvedProperties.contains { $0.id == "backgroundVideoAspectRatio" })
+        let video = try #require(manifest.resolvedProperties.first { $0.id == "background.backgroundVideo" })
+        #expect(video.visibleWhen == .init(all: [
+            .init(id: "background.backgroundMode", value: .string("static")),
+            .init(id: "background.backgroundStyle", value: .string("video"))
+        ]))
+        #expect(manifest.controlGroupCSS.isEmpty)
+        #expect(manifest.htmlContributions.isEmpty)
         #expect(try PartPackageManifestSchema.diagnostics(for: data).isEmpty)
     }
 
     @Test
-    func backgroundControlGroupCanSelectStylesAndStates() throws {
+    func backgroundControlGroupCanSelectTypesAndDisableHover() throws {
         let json = """
         {
         "minimumAPIVersion" : 1,
@@ -1345,9 +1426,9 @@ struct PartPackageTests {
         "title" : "Selective Background Group",
         "version" : "1.0.0",
         "inspector" : [{
-            "type" : "background",
-            "styles" : ["colour", "image"],
-            "states" : ["static"]
+            "type" : "background", "id": "background",
+            "backgroundTypes" : ["colour", "image"],
+            "supportsHover": false
         }],
         "templates" : {"html" : "part.html"}
         }
@@ -1356,28 +1437,30 @@ struct PartPackageTests {
         let data = Data(json.utf8)
         let manifest = try JSONDecoder().decode(PartPackageManifest.self, from: data)
         #expect(manifest.controlGroups == [
-            .init(type: .background, styles: [.colour, .image], states: [.staticState])
+            .init(type: .background, id: "background", backgroundTypes: [.colour, .image], supportsHover: false)
         ])
         let identifiers = Set(manifest.resolvedProperties.map(\.id))
-        #expect(identifiers.contains("backgroundColor"))
-        #expect(identifiers.contains("backgroundImage"))
-        #expect(!identifiers.contains("backgroundGradientType"))
-        #expect(!identifiers.contains("backgroundVideo"))
-        #expect(!identifiers.contains("backgroundHoverStyle"))
-        let mode = try #require(manifest.resolvedProperties.first { $0.id == "backgroundMode" })
+        #expect(identifiers.contains("background.backgroundColor"))
+        #expect(identifiers.contains("background.backgroundImage"))
+        #expect(!identifiers.contains("background.backgroundGradientType"))
+        #expect(!identifiers.contains("background.backgroundVideo"))
+        #expect(!identifiers.contains("background.backgroundVideoLoop"))
+        #expect(!identifiers.contains("background.backgroundVideoPingPong"))
+        #expect(!identifiers.contains("background.backgroundHoverStyle"))
+        let mode = try #require(manifest.resolvedProperties.first { $0.id == "background.backgroundMode" })
         #expect(mode.control.options?.map(\.value) == ["none", "static"])
-        let style = try #require(manifest.resolvedProperties.first { $0.id == "backgroundStyle" })
+        let style = try #require(manifest.resolvedProperties.first { $0.id == "background.backgroundStyle" })
         #expect(style.control.options?.map(\.value) == ["color", "image"])
         #expect(style.defaultValue == .string("color"))
         #expect(!manifest.controlGroupCSS.contains(#"[data-foundry-control-group-background="{{ instance.id }}"]:hover"#))
         #expect(!manifest.controlGroupCSS.contains("backgroundGradient"))
-        #expect(!manifest.controlGroupCSS.contains("backgroundVideo"))
+        #expect(!manifest.controlGroupCSS.contains("background.backgroundVideo"))
         #expect(manifest.htmlContributions.isEmpty)
         #expect(try PartPackageManifestSchema.diagnostics(for: data).isEmpty)
     }
 
     @Test
-    func backgroundControlGroupValidatesSelectedStylesAndStates() throws {
+    func backgroundControlGroupValidatesTypesAndHoverSupport() throws {
         let json = """
         {
         "minimumAPIVersion" : 1,
@@ -1385,9 +1468,9 @@ struct PartPackageTests {
         "title" : "Invalid Background Group",
         "version" : "1.0.0",
         "inspector" : [{
-            "type" : "background",
-            "styles" : [],
-            "states" : ["hover", "hover"]
+            "type" : "background", "id": "background",
+            "backgroundTypes" : [],
+            "supportsHover" : "yes"
         }],
         "templates" : {"html" : "part.html"}
         }
@@ -1395,105 +1478,581 @@ struct PartPackageTests {
 
         let diagnostics = try PartPackageManifestSchema.diagnostics(for: Data(json.utf8))
         let messages = diagnostics.map(\.message)
-        #expect(messages.contains("styles must contain at least one value."))
-        #expect(messages.contains("Duplicate states value 'hover'."))
-        #expect(messages.contains("states must include 'static'; hover augments the static background."))
+        #expect(messages.contains("backgroundTypes must contain at least one value."))
+        #expect(diagnostics.contains { $0.message == "supportsHover must be a Boolean." && $0.severity == .error })
+    }
+
+    @Test(arguments: [
+        #""states":["static"]"#, #""styles":["colour"]"#,
+        #""defaultOverrides":{}"#, #""optionOverrides":{}"#,
+        #""omit":["backgroundRepeat"]"#, #""target":".content""#
+    ])
+    func controlGroupsRejectOldConfigurationNames(_ setting: String) throws {
+        let entry = #"{"type":"background","id":"surface",\#(setting)}"#
+        let diagnostics = try PartPackageManifestSchema.diagnostics(for: Data(manifest(withInspectorEntries: entry).utf8))
+        #expect(diagnostics.contains { $0.severity == .error && $0.message.contains("Unknown key") })
+    }
+
+    @Test(arguments: [#""supportsHover":false"#, #""backgroundTypes":["colour"]"#])
+    func backgroundCapabilitiesAreRejectedOnOtherGroups(_ setting: String) throws {
+        let entry = #"{"type":"sizing","id":"size",\#(setting)}"#
+        let diagnostics = try PartPackageManifestSchema.diagnostics(for: Data(manifest(withInspectorEntries: entry).utf8))
+        #expect(diagnostics.contains { $0.severity == .error && $0.message.contains("only on Background") })
     }
 
     @Test
-    func backgroundControlGroupDecoratesVideoHTML() throws {
-        let json = """
-        {
-        "minimumAPIVersion" : 1,
-        "id" : "com.example.background-video",
-        "title" : "Background Video",
-        "version" : "1.0.0",
-        "inspector" : [{"type" : "background"}],
-        "templates" : {"html" : "part.html"}
-        }
-        """
-        let manifest = try JSONDecoder().decode(PartPackageManifest.self, from: Data(json.utf8))
-        let properties: [String: PartPackageValue] = [
-            "backgroundMode": .string("hover"),
-            "backgroundStyle": .string("color"),
-            "backgroundHoverStyle": .string("video"),
-            "backgroundHoverVideo": .string(#"assets/film&trailer.mp4"#),
-            "backgroundHoverVideo.href": .string(#"assets/film&trailer.mp4"#),
-            "backgroundHoverVideo.poster": .string("data:image/jpeg;base64,poster-frame")
-        ]
-        let instanceID = UUID()
-        let context = PartTemplateContext(
-            instanceID: instanceID,
-            packageIdentifier: manifest.identifier,
-            properties: properties,
-            slots: [:]
-        )
-        let html = PartTemplateRenderer.render(
-            #"<section class="example" {{ controlGroup.background }}><p>Content</p></section>"#,
-            context: context
-        )
-        let rendered = PartPackageHTMLContributionRenderer.decorate(
-            html,
-            contributions: manifest.htmlContributions,
-            context: context
-        )
-
-        #expect(rendered.contains(#"class="foundry-background-video foundry-background-video--hover""#))
-        #expect(rendered.contains(#"src="assets/film&amp;trailer.mp4""#))
-        #expect(rendered.contains(#"poster="data:image/jpeg;base64,poster-frame""#))
-        #expect(rendered.contains("autoplay muted loop playsinline"))
-        #expect(rendered.hasPrefix(#"<section class="example" data-foundry-control-group-background="\#(instanceID.uuidString)">"#))
-        #expect(rendered.contains(">\n<video class=\"foundry-background-video foundry-background-video--hover\""))
-
-        let canvasContext = PartTemplateContext(
-            instanceID: instanceID,
-            packageIdentifier: manifest.identifier,
-            properties: properties,
-            slots: [:],
-            environment: .canvas
-        )
-        let canvasHTML = PartTemplateRenderer.render(
-            #"<section class="example" {{ controlGroup.background }}><p>Content</p></section>"#,
-            context: canvasContext
-        )
-        let canvasRendered = PartPackageHTMLContributionRenderer.decorate(
-            canvasHTML,
-            contributions: manifest.htmlContributions,
-            context: canvasContext
-        )
-        #expect(canvasRendered.contains(#"<img class="foundry-background-video foundry-background-video--hover""#))
-        #expect(canvasRendered.contains(#"src="data:image/jpeg;base64,poster-frame""#))
-        #expect(!canvasRendered.contains("<video"))
-        #expect(!canvasRendered.contains("assets/film&amp;trailer.mp4"))
-        #expect(!canvasRendered.contains("autoplay"))
+    func simpleGroupConfigurationRoundTrips() throws {
+        let data = Data(#"{"type":"background","id":"surface","backgroundTypes":["colour","image"],"supportsHover":false,"defaults":{"backgroundMode":"static"},"excludeControls":["backgroundRepeat"],"allowedOptions":{"backgroundSize":["cover","contain"]}}"#.utf8)
+        let group = try JSONDecoder().decode(PartPackageControlGroup.self, from: data)
+        let encoded = try JSONEncoder().encode(group)
+        #expect(try JSONDecoder().decode(PartPackageControlGroup.self, from: encoded) == group)
+        let keys = try #require(JSONSerialization.jsonObject(with: encoded) as? [String: Any])
+        #expect(Set(keys.keys) == ["type", "id", "backgroundTypes", "supportsHover", "defaults", "excludeControls", "allowedOptions"])
+        #expect(group.supportsHover == false)
+        #expect(group.properties.first { $0.id == "surface.backgroundMode" }?.defaultValue == .string("static"))
+        #expect(group.properties.contains { $0.id == "surface.backgroundRepeat" } == false)
+        #expect(group.properties.first { $0.id == "surface.backgroundSize" }?.control.options?.map(\.value) == ["cover", "contain"])
     }
 
     @Test
-    func backgroundControlGroupRequiresExactlyOnePlacementMacro() throws {
+    func backgroundGroupResolvesFinishedValuesForEveryLayer() throws {
         let json = """
         {
         "minimumAPIVersion" : 1,
-        "id" : "com.example.background-placement",
-        "title" : "Background Placement",
+        "id" : "com.example.background-values",
+        "title" : "Background Values",
         "version" : "1.0.0",
-        "inspector" : [{"type" : "background"}],
+        "inspector" : [{"type" : "background", "id": "background"}],
         "templates" : {"html" : "part.html"}
         }
         """
         let manifest = try JSONDecoder().decode(PartPackageManifest.self, from: Data(json.utf8))
 
-        for template in [
-            #"<section class="sample {{ part.class }}" {{ part.attributes }}></section>"#,
-            #"<section class="sample {{ part.class }}" {{ part.attributes }} {{ controlGroup.background }}><div {{ controlGroup.background }}></div></section>"#
-        ] {
-            let packageURL = try makePackage(manifest: json, template: template)
-            defer { try? FileManager.default.removeItem(at: packageURL) }
-            let diagnostics = PartPackageValidator.validate(
-                manifest,
-                rootURL: packageURL.appending(path: "Resources", directoryHint: .isDirectory)
+        func resolved(
+            _ values: [String: PartPackageValue],
+            enablesEditorMarkup: Bool = false
+        ) -> [String: PartPackageValue] {
+            var values = values
+            PartPackageBackgroundResolver.resolve(
+                &values,
+                properties: manifest.resolvedProperties,
+                enablesEditorMarkup: enablesEditorMarkup
             )
-            #expect(diagnostics.contains { $0.message.contains("exactly one {{ controlGroup.background }}") })
+            return values
         }
+
+        // An untouched background contributes nothing, and hover mirrors it so
+        // a template's :hover block is a safe no-op.
+        let untouched = resolved(["background.backgroundMode": .string("none")])
+        #expect(untouched["background.color"] == .string("transparent"))
+        #expect(untouched["background.image"] == .string("none"))
+        #expect(untouched["background.video"] == .string(""))
+        #expect(untouched["background.hover.color"] == .string("transparent"))
+
+        let colour = resolved([
+            "background.backgroundMode": .string("static"),
+            "background.backgroundStyle": .string("color"),
+            "background.backgroundColor": .string("#112233")
+        ])
+        #expect(colour["background.color"] == .string("#112233"))
+        #expect(colour["background.hover.color"] == .string("#112233"))
+
+        for (type, expected) in [
+            ("linear", "linear-gradient(to bottom, #112233 0%, #AABBCC 100%)"),
+            ("radial", "radial-gradient(#112233 0%, #AABBCC 100%)"),
+            ("conic", "conic-gradient(#112233 0%, #AABBCC 100%)")
+        ] {
+            let gradient = resolved([
+                "background.backgroundMode": .string("static"),
+                "background.backgroundStyle": .string("gradient"),
+                "background.backgroundGradientType": .string(type),
+                "background.backgroundGradientDirection": .string("to bottom"),
+                "background.backgroundGradientFrom": .string("#112233"),
+                "background.backgroundGradientFromPosition": .number(0),
+                "background.backgroundGradientTo": .string("#AABBCC"),
+                "background.backgroundGradientToPosition": .number(100)
+            ])
+            #expect(gradient["background.image"] == .string(expected))
+            #expect(gradient["background.color"] == .string("transparent"))
+        }
+
+        let image = resolved([
+            "background.backgroundMode": .string("static"),
+            "background.backgroundStyle": .string("image"),
+            "background.backgroundImage": .string("assets/hero.jpg"),
+            "background.backgroundPosition": .string("top"),
+            "background.backgroundSize": .string("contain"),
+            "background.backgroundRepeat": .string("repeat-x")
+        ])
+        #expect(image["background.image"] == .string(#"url("assets/hero.jpg")"#))
+        #expect(image["background.position"] == .string("top"))
+        #expect(image["background.size"] == .string("contain"))
+        #expect(image["background.repeat"] == .string("repeat-x"))
+        // One value carries the whole layer so a part needs a single
+        // interpolation to adopt the group.
+        #expect(image["background.css"] == .string(
+            #"background-color: transparent; background-image: url("assets/hero.jpg"); "#
+                + "background-position: top; background-size: contain; background-repeat: repeat-x;"
+        ))
+
+        // A static video supplies its element; the canvas shows the poster
+        // rather than loading the movie. Video is deliberately unavailable as
+        // a hover style.
+        let videoValues: [String: PartPackageValue] = [
+            "background.backgroundMode": .string("static"),
+            "background.backgroundStyle": .string("video"),
+            "background.backgroundVideo.href": .string(#"assets/film&trailer.mp4"#),
+            "background.backgroundVideo.poster": .string("data:image/jpeg;base64,poster-frame")
+        ]
+        let published = resolved(videoValues)
+        let publishedVideo = published["background.video"]?.stringValue ?? ""
+        #expect(publishedVideo.contains(#"class="foundry-background-video""#))
+        #expect(publishedVideo.contains(#"src="assets/film&amp;trailer.mp4""#))
+        #expect(publishedVideo.contains(#"poster="data:image/jpeg;base64,poster-frame""#))
+        #expect(publishedVideo.contains("autoplay muted loop playsinline"))
+        #expect(published["background.videoCSS"] == nil)
+        #expect(publishedVideo.hasPrefix(#"<div class="foundry-background-layer" aria-hidden="true">"#))
+        #expect(publishedVideo.hasSuffix("</video></div>"))
+        let publishedCSS = published["background.css"]?.stringValue ?? ""
+        #expect(publishedCSS.contains("position: relative") == false)
+        #expect(publishedCSS.contains("isolation:") == false)
+        #expect(publishedCSS.contains("overflow:") == false)
+        #expect(published["background.hover.video"] == .string(""))
+        #expect(published["background.hover.videoCSS"] == nil)
+
+        #expect(publishedVideo.contains("<script") == false)
+        #expect(publishedVideo.contains("data-foundry-ping-pong") == false)
+        let singlePlay = resolved(videoValues.merging([
+            "background.backgroundVideoLoop": .boolean(false)
+        ]) { _, replacement in replacement })
+        let singlePlayVideo = singlePlay["background.video"]?.stringValue ?? ""
+        #expect(singlePlayVideo.contains(" loop ") == false)
+        #expect(singlePlayVideo.contains("<script") == false)
+
+        let canvas = resolved(videoValues, enablesEditorMarkup: true)
+        let canvasVideo = canvas["background.video"]?.stringValue ?? ""
+        #expect(canvasVideo.contains(#"<img class="foundry-background-video""#))
+        #expect(canvasVideo.contains(#"src="data:image/jpeg;base64,poster-frame""#))
+        #expect(!canvasVideo.contains("<video"))
+        #expect(!canvasVideo.contains("autoplay"))
+    }
+
+    @Test
+    func flexboxGroupComposesItsContainerDeclarations() throws {
+        let json = """
+        {
+        "minimumAPIVersion" : 1,
+        "id" : "com.example.flexbox-values",
+        "title" : "Flexbox Values",
+        "version" : "1.0.0",
+        "inspector" : [{"type" : "flexbox", "id": "flexbox"}],
+        "templates" : {"html" : "part.html"}
+        }
+        """
+        let manifest = try JSONDecoder().decode(PartPackageManifest.self, from: Data(json.utf8))
+
+        // Untouched values fall back to the group's own defaults, so a
+        // template needs no conditionals.
+        var untouched: [String: PartPackageValue] = [:]
+        PartPackageControlGroupCSSResolver.resolve(&untouched, properties: manifest.resolvedProperties)
+        #expect(untouched["flexbox.css"] == .string(
+            "display: flex; flex-direction: column; flex-wrap: nowrap; "
+                + "column-gap: 0; row-gap: 0; align-items: flex-start; "
+                + "align-content: flex-start; justify-content: flex-start;"
+        ))
+
+        var values: [String: PartPackageValue] = [
+            "flexbox.direction": .string("row"),
+            "flexbox.wrap": .string("wrap"),
+            "flexbox.columnGap": .string("var(--foundry-space-md)"),
+            "flexbox.rowGap": .string("24px"),
+            "flexbox.alignItems": .string("stretch"),
+            "flexbox.alignContent": .string("space-between"),
+            "flexbox.justifyContent": .string("center")
+        ]
+        PartPackageControlGroupCSSResolver.resolve(&values, properties: manifest.resolvedProperties)
+        #expect(values["flexbox.css"] == .string(
+            "display: flex; flex-direction: row; flex-wrap: wrap; "
+                + "column-gap: var(--foundry-space-md); row-gap: 24px; align-items: stretch; "
+                + "align-content: space-between; justify-content: center;"
+        ))
+
+        let rendered = PartTemplateRenderer.render(
+            ":instance { {{ control.flexbox.css }} }",
+            context: PartTemplateContext(
+                instanceID: UUID(),
+                packageIdentifier: manifest.identifier,
+                properties: values,
+                slots: [:]
+            )
+        )
+        let composed = values["flexbox.css"]?.stringValue ?? ""
+        #expect(rendered == ":instance { \(composed) }")
+
+        // A part without the group keeps the namespace clear.
+        var unrelated: [String: PartPackageValue] = ["flexbox.direction": .string("row")]
+        PartPackageControlGroupCSSResolver.resolve(&unrelated, properties: [])
+        #expect(unrelated["flexbox.css"] == nil)
+    }
+
+    /// Every group that maps onto a set of declarations composes them, so the
+    /// details a part would otherwise hand-write — the enabled toggles'
+    /// explicit resets, opacity's conversion out of percent, Layout's
+    /// "emit nothing" sentinels — live in one place.
+    @Test
+    func everyStylingGroupComposesItsDeclarations() throws {
+        func composed(_ kind: String, values: [String: PartPackageValue]) throws -> String? {
+            let json = """
+            {
+            "minimumAPIVersion" : 1,
+            "id" : "com.example.\(kind)-css",
+            "title" : "\(kind) CSS",
+            "version" : "1.0.0",
+            "inspector" : [{"type" : "\(kind)", "id" : "\(kind)"}],
+            "templates" : {"html" : "part.html"}
+            }
+            """
+            let manifest = try JSONDecoder().decode(PartPackageManifest.self, from: Data(json.utf8))
+            var values = Dictionary(uniqueKeysWithValues: values.map { (kind + "." + $0.key, $0.value) })
+            PartPackageControlGroupCSSResolver.resolve(&values, properties: manifest.resolvedProperties)
+            return values["\(kind).css"]?.stringValue
+        }
+
+        // Disabled spacing writes explicit zeros, so switching it off at one
+        // breakpoint resets what a narrower one set.
+        #expect(try composed("spacing", values: [
+            "spacingEnabled": .boolean(true),
+            "frameworkPadding": .string("var(--foundry-space-md)"),
+            "frameworkMargin": .string("0 auto")
+        ]) == "padding: var(--foundry-space-md); margin: 0 auto;")
+        #expect(try composed("spacing", values: [
+            "spacingEnabled": .boolean(false),
+            "frameworkPadding": .string("var(--foundry-space-md)"),
+            "frameworkMargin": .string("0 auto")
+        ]) == "padding: 0; margin: 0;")
+
+        // Style and colour survive being disabled; a zero width is what stops
+        // the border drawing.
+        #expect(try composed("borders", values: [
+            "borderEnabled": .boolean(true),
+            "frameworkBorder.width": .string("var(--foundry-border-width-sm)"),
+            "frameworkBorder.style": .string("dashed"),
+            "frameworkBorderColour": .string("#112233"),
+            "frameworkRadius": .string("var(--foundry-border-radius-md)")
+        ]) == "border-width: var(--foundry-border-width-sm); border-style: dashed; "
+            + "border-color: #112233; border-radius: var(--foundry-border-radius-md);")
+        #expect(try composed("borders", values: [
+            "borderEnabled": .boolean(false),
+            "frameworkBorder.width": .string("var(--foundry-border-width-sm)"),
+            "frameworkBorder.style": .string("dashed"),
+            "frameworkBorderColour": .string("#112233"),
+            "frameworkRadius": .string("var(--foundry-border-radius-md)")
+        ]) == "border-width: 0; border-style: dashed; border-color: #112233; border-radius: 0;")
+
+        // The percentage becomes a CSS fraction here rather than in a calc()
+        // in every part.
+        #expect(try composed("effects", values: [
+            "effectsEnabled": .boolean(true),
+            "frameworkShadow": .string("var(--foundry-shadow-lg)"),
+            "opacity": .number(85)
+        ]) == "box-shadow: var(--foundry-shadow-lg); opacity: 0.85;")
+        #expect(try composed("effects", values: [
+            "effectsEnabled": .boolean(false),
+            "frameworkShadow": .string("var(--foundry-shadow-lg)"),
+            "opacity": .number(85)
+        ]) == "box-shadow: none; opacity: 1;")
+
+        // An untouched Layout group contributes nothing at all.
+        // Isolation belongs to the part stylesheet, never Layout output.
+        #expect(try composed("layout", values: ["isolation": .string("isolate")]) == "")
+        #expect(try composed("layout", values: [
+            "position": .string("none"), "zIndexMode": .string("none"),
+            "offsets": .string("none"), "hidden": .boolean(false),
+            "visibility": .string("default"), "overflow": .string("none")
+        ]) == "")
+        #expect(try composed("layout", values: [
+            "position": .string("sticky"), "zIndexMode": .string("custom"), "zIndex": .number(3),
+            "offsets": .string("uniform"), "offset": .string("var(--foundry-space-sm)"),
+            "hidden": .boolean(true), "visibility": .string("hidden"),
+            "overflow": .string("auto")
+        ]) == "position: sticky; z-index: 3; inset: var(--foundry-space-sm); "
+            + "display: none; visibility: hidden; overflow: auto;")
+
+        // Reveal and Advanced style nothing, so they compose nothing.
+        #expect(try composed("reveal", values: ["revealEnabled": .boolean(true)]) == nil)
+        #expect(try composed("advanced", values: [:]) == nil)
+
+        // Sizing's filling modes use the `stretch` family rather than a
+        // percentage, so a part carrying horizontal margins cannot overflow
+        // its parent. The rail leads and each cap overrides it in turn.
+        let fills = "width: -webkit-fill-available; width: -moz-available; width: stretch;"
+        #expect(try composed("sizing", values: [
+            "widthMode": .string("auto"), "heightMode": .string("auto"),
+            "minWidth": .string("0"), "maxWidth": .string("none"),
+            "minHeight": .string("0"), "maxHeight": .string("none")
+        ]) == "max-width: 100%; width: auto; flex-grow: 0; height: auto; min-width: 0; min-height: 0; max-height: none;")
+        #expect(try composed("sizing", values: [
+            "widthMode": .string("full"), "heightMode": .string("fill"),
+            "minWidth": .string("0"), "maxWidth": .string("none"),
+            "minHeight": .string("0"), "maxHeight": .string("none")
+        ]) == "max-width: 100%; \(fills) flex-grow: 1; height: auto; min-width: 0; min-height: 0; max-height: none;")
+        #expect(try composed("sizing", values: [
+            "widthMode": .string("custom"), "customWidth": .number(640),
+            "heightMode": .string("custom"), "customHeight": .number(400),
+            "minWidth": .string("0"), "maxWidth": .string("none"),
+            "minHeight": .string("0"), "maxHeight": .string("none")
+        ]) == "max-width: 100%; \(fills) max-width: min(100%, 640px); flex-grow: 0; height: 400px; "
+            + "min-width: 0; min-height: 0; max-height: none;")
+        #expect(try composed("sizing", values: [
+            "widthMode": .string("breakpoint"), "heightMode": .string("viewport"),
+            "minWidth": .string("0"), "maxWidth": .string("none"),
+            "minHeight": .string("var(--foundry-space-xl)"), "maxHeight": .string("none")
+        ]) == "max-width: 100%; \(fills) max-width: min(100%, var(--foundry-container-width)); "
+            + "flex-grow: 0; height: auto; min-height: max(100svh, var(--foundry-space-xl)); min-width: 0; max-height: none;")
+        // Screen escapes the rail; an author's maximum still caps it, and
+        // wins over both because it is written last.
+        #expect(try composed("sizing", values: [
+            "widthMode": .string("screen"), "heightMode": .string("auto"),
+            "minWidth": .string("0"), "maxWidth": .string("var(--foundry-space-4xl)"),
+            "minHeight": .string("0"), "maxHeight": .string("48rem")
+        ]) == "max-width: 100%; width: 100svw; max-width: none; flex-grow: 0; height: auto; min-width: 0; "
+            + "max-width: min(100%, var(--foundry-space-4xl)); min-height: 0; max-height: 48rem;")
+        #expect(try composed("sizing", values: [
+            "widthMode": .string("fit"), "heightMode": .string("auto"),
+            "minWidth": .string("0"), "maxWidth": .string("none"),
+            "minHeight": .string("0"), "maxHeight": .string("none")
+        ]) == "max-width: 100%; width: fit-content; flex-grow: 0; height: auto; min-width: 0; min-height: 0; max-height: none;")
+    }
+
+    /// Custom controls with familiar IDs must not implicitly acquire group output.
+    @Test
+    func handDeclaredControlsDoNotComposeGroupCSS() throws {
+        let controls = """
+        {"type":"select","id":"direction","label":"Direction","responsive":true,
+         "options":[{"value":"column","title":"Column"},{"value":"row","title":"Row"}],
+         "defaults":{"base":"column"}},
+        {"type":"select","id":"wrap","label":"Wrap","responsive":true,
+         "options":[{"value":"nowrap","title":"No wrap"},{"value":"wrap","title":"Wrap"}],
+         "defaults":{"base":"nowrap"}},
+        {"type":"frameworkSpacing","id":"columnGap","label":"H gap","responsive":true,"defaults":{"base":"md"}},
+        {"type":"frameworkSpacing","id":"rowGap","label":"V gap","responsive":true,"defaults":{"base":"md"}},
+        {"type":"select","id":"alignItems","label":"Align","responsive":true,
+         "options":[{"value":"stretch","title":"Stretch"},{"value":"center","title":"Centre"}],
+         "defaults":{"base":"stretch"}},
+        {"type":"select","id":"alignContent","label":"Align content","responsive":true,
+         "options":[{"value":"flex-start","title":"Start"}],"defaults":{"base":"flex-start"}},
+        {"type":"select","id":"justifyContent","label":"Justify","responsive":true,
+         "options":[{"value":"center","title":"Centre"}],"defaults":{"base":"center"}}
+        """
+        let json = """
+        {
+        "minimumAPIVersion" : 1,
+        "id" : "com.example.hand-declared-flexbox",
+        "title" : "Hand Declared",
+        "version" : "1.0.0",
+        "inspector" : [{"section" : "Layout", "controls" : [\(controls)]}],
+        "templates" : {"html" : "part.html", "files" : [{"path" : "part.css", "scope" : "instance"}]}
+        }
+        """
+        let data = Data(json.utf8)
+        let manifest = try JSONDecoder().decode(PartPackageManifest.self, from: data)
+        #expect(try PartPackageManifestSchema.diagnostics(for: data).isEmpty)
+        // No group was referenced, so none of the group-owned CSS is generated.
+        #expect(manifest.controlGroups.isEmpty)
+        #expect(manifest.controlGroupCSS.isEmpty)
+
+        // No explicit group identity means no composed namespace.
+        #expect(PartPackageControlGroupCSSResolver.composedNamespaces(for: manifest.resolvedProperties)
+            .isEmpty)
+        var values: [String: PartPackageValue] = [
+            "direction": .string("row"), "wrap": .string("wrap"),
+            "columnGap": .string("16px"), "rowGap": .string("8px"),
+            "alignItems": .string("stretch"), "alignContent": .string("flex-start"),
+            "justifyContent": .string("center")
+        ]
+        PartPackageControlGroupCSSResolver.resolve(&values, properties: manifest.resolvedProperties)
+        #expect(values["flexbox.css"] == nil)
+
+        // Template validation rejects the undeclared group's output.
+        let packageURL = try makePackage(
+            manifest: json,
+            template: #"<div class="{{ part.class }}" {{ part.attributes }}>{{ dropZone("content") }}</div>"#,
+            additionalFiles: ["part.css": ":instance { {{ control.flexbox.css }} }"]
+        )
+        defer { try? FileManager.default.removeItem(at: packageURL) }
+        #expect(throws: PartPackageLoadingError.self) {
+            let package = try PartPackageLoader.load(from: packageURL)
+            try package.preparePayload()
+        }
+
+        // A group the part has none of composes nothing, so its namespace
+        // stays unknown and a template referencing it is still an error.
+        #expect(!PartPackageControlGroupCSSResolver
+            .composedNamespaces(for: manifest.resolvedProperties).contains("spacing"))
+    }
+
+    @Test @MainActor
+    func namedSizingGroupsRemainIndependentThroughSaveAndRender() throws {
+        let entries = #"{"type":"sizing","id":"sectionSize","excludeControls":["widthMode","minWidth","maxWidth"],"defaults":{"customHeight":500}}, {"type":"sizing","id":"contentSize","allowedOptions":{"widthMode":["full","custom"]},"defaults":{"widthMode":"custom","customWidth":400}}"#
+        let url = try makePackage(manifest: manifest(withInspectorEntries: entries),
+            template: #"<section class="{{ part.class }}" {{ part.attributes }}><div class="content">{{ childArea("content") }}</div></section>"#,
+            additionalFiles: ["part.css": ":instance { {{ control.sectionSize.css }} } :instance > .content { {{ control.contentSize.css }} }"])
+        defer { try? FileManager.default.removeItem(at: url) }
+        let package = try PartPackageLoader.load(from: url)
+        try package.preparePayload()
+        PartRegistry.register(package)
+        defer { PartRegistry.unregisterPackage(identifier: package.manifest.identifier) }
+        let roundTrip = try JSONDecoder().decode(PartPackageManifest.self, from: JSONEncoder().encode(package.manifest))
+        #expect(roundTrip.resolvedProperties == package.manifest.resolvedProperties)
+        #expect(roundTrip.resolvedProperties.contains { $0.id == "sectionSize.widthMode" } == false)
+        var node = PartNode(type: .init(rawValue: package.manifest.identifier))
+        let contentWidth = PartProperty.Key(rawValue: "contentSize.customWidth")
+        node.setResponsiveProperty(contentWidth, value: .number(640), at: .medium)
+        let restored = try JSONDecoder().decode(PartNode.self, from: JSONEncoder().encode(node))
+        #expect(restored.propertyValue(contentWidth, at: .medium) == .number(640))
+        let custom = try #require(roundTrip.resolvedProperties.first { $0.id == "contentSize.customWidth" })
+        #expect(PartPackageVisibilityEvaluator.isVisible(custom.visibleWhen, for: restored, at: .mobile))
+        let site = Site(name: "Named sizing", pages: [Page(title: "Home", slug: "index", parts: [restored])])
+        let export = StaticSiteRenderer().render(site: site)
+        #expect(export.files.contains { $0.contents.contains("max-width: min(100%, 400px)") })
+        #expect(export.files.contains { $0.contents.contains("max-width: min(100%, 640px)") })
+        let canvas = HTMLPageRenderer(site: site)
+        #expect(canvas.render(page: site.pages[0], language: "en", framework: site.framework, assets: [:], breakpoint: .mobile).contains("max-width: min(100%, 400px)"))
+        #expect(canvas.render(page: site.pages[0], language: "en", framework: site.framework, assets: [:], breakpoint: .medium).contains("max-width: min(100%, 640px)"))
+    }
+
+    @Test(arguments: PartPackageControlGroup.Kind.allCases)
+    func groupsDoNotExposeStyleStateAndRejectRemovedOption(_ kind: PartPackageControlGroup.Kind) throws {
+        let entry = kind == .advanced ? "{\"type\":\"advanced\"}" : "{\"type\":\"\(kind.rawValue)\",\"id\":\"panel\"}";
+        let data = Data(manifest(withInspectorEntries: entry).utf8)
+        let decoded = try JSONDecoder().decode(PartPackageManifest.self, from: data)
+        #expect(decoded.resolvedProperties.contains { $0.id == "panel.state" } == false)
+        let removed = entry.dropLast() + ",\"stateControl\":true}"
+        let diagnostics = try PartPackageManifestSchema.diagnostics(for: Data(manifest(withInspectorEntries: String(removed)).utf8))
+        #expect(diagnostics.contains { $0.location.contains("stateControl") || $0.message.contains("stateControl") })
+    }
+
+    @Test
+    func namedBackgroundOutputIsComposedAndEscapedOnce() throws {
+        let decoded = try JSONDecoder().decode(PartPackageManifest.self, from: Data(manifest(withInspectorEntries: #"{"type":"background","id":"surface"},{"type":"background","id":"other"}"#).utf8))
+        var values: [String: PartPackageValue] = ["surface.backgroundMode": .string("static"), "surface.backgroundStyle": .string("video"), "surface.backgroundVideo.href": .string("movie&clip.mp4"), "other.backgroundMode": .string("none")]
+        PartPackageBackgroundResolver.resolve(&values, properties: decoded.resolvedProperties, enablesEditorMarkup: false)
+        let output = PartTemplateRenderer.render("{{ control.surface.video }}", context: .init(instanceID: UUID(), packageIdentifier: decoded.identifier, properties: values, slots: [:]))
+        #expect(output.contains("<video"))
+        #expect(output.contains("movie&amp;clip.mp4"))
+        #expect(output.contains("&amp;amp;") == false)
+        #expect(values["other.video"] == .string(""))
+        #expect(values["background.video"] == nil)
+    }
+
+    @Test(arguments: [
+        #"{"type":"sizing","id":"same"},{"type":"spacing","id":"same"}"#,
+        #"{"type":"sizing","id":"bad.id"}"#,
+        #"{"type":"advanced","id":"identity"}"#,
+        #"{"type":"reveal", "id": "reveal","stateControl":true}"#,
+        #"{"type":"sizing","id":"panel","defaults":{"panel.customWidth":400}}"#
+    ])
+    func invalidGroupNamespacesAndStatesAreRejected(entries: String) throws {
+        #expect(try PartPackageManifestSchema.diagnostics(for: Data(manifest(withInspectorEntries: entries).utf8)).isEmpty == false)
+    }
+
+    @Test
+    func namedGroupRejectsOmittedTemplateControlAndNamespaceCollision() throws {
+        for (entries, template) in [
+            (#"{"type":"sizing","id":"panel","excludeControls":["widthMode"]}"#, "{{ control.panel.widthMode }}"),
+            (#"{"type":"sizing","id":"panel"},{"type":"number","id":"panel","defaults":{"base":1}}"#, "")
+        ] {
+            let url = try makePackage(manifest: manifest(withInspectorEntries: entries), template: "<section class=\"{{ part.class }}\" {{ part.attributes }}>\(template){{ childArea(\"content\") }}</section>")
+            defer { try? FileManager.default.removeItem(at: url) }
+            do {
+                let package = try PartPackageLoader.load(from: url)
+                try package.preparePayload()
+                Issue.record("Expected a namespace or omitted-control validation error")
+            } catch PartPackageLoadingError.invalid(let diagnostics) {
+                #expect(diagnostics.contains { $0.message.contains("Unknown property 'panel.widthMode'") || $0.message.contains("conflicts with a control group namespace") })
+            }
+        }
+    }
+
+    /// `omit` narrows the composed block too, rather than leaving it
+    /// referencing controls the part removed.
+    @Test
+    func composedGroupCSSFollowsOmittedControls() throws {
+        let json = """
+        {
+        "minimumAPIVersion" : 1,
+        "id" : "com.example.omitted-css",
+        "title" : "Omitted CSS",
+        "version" : "1.0.0",
+        "inspector" : [
+            {"type" : "spacing", "id": "spacing", "excludeControls" : ["frameworkMargin"]},
+            {"type" : "effects", "id": "effects", "excludeControls" : ["frameworkShadow"]}
+        ],
+        "templates" : {"html" : "part.html"}
+        }
+        """
+        let data = Data(json.utf8)
+        let manifest = try JSONDecoder().decode(PartPackageManifest.self, from: data)
+        var values: [String: PartPackageValue] = [
+            "spacing.spacingEnabled": .boolean(true),
+            "spacing.frameworkPadding": .string("12px"),
+            "effects.effectsEnabled": .boolean(true),
+            "effects.opacity": .number(50)
+        ]
+        PartPackageControlGroupCSSResolver.resolve(&values, properties: manifest.resolvedProperties)
+        #expect(values["spacing.css"] == .string("padding: 12px;"))
+        #expect(values["effects.css"] == .string("opacity: 0.5;"))
+        #expect(try PartPackageManifestSchema.diagnostics(for: data).isEmpty)
+    }
+
+    /// The group's values are finished CSS and markup, so they reach a
+    /// template verbatim: HTML-escaping them turned `url("…")` into
+    /// `url(&quot;…&quot;)` and the video element into visible text.
+    @Test
+    func backgroundGroupValuesReachTemplatesUnescaped() throws {
+        let json = """
+        {
+        "minimumAPIVersion" : 1,
+        "id" : "com.example.background-escaping",
+        "title" : "Background Escaping",
+        "version" : "1.0.0",
+        "inspector" : [{"type" : "background", "id": "background"}],
+        "templates" : {"html" : "part.html"}
+        }
+        """
+        let manifest = try JSONDecoder().decode(PartPackageManifest.self, from: Data(json.utf8))
+
+        func rendered(_ template: String, values: [String: PartPackageValue]) -> String {
+            var values = values
+            PartPackageBackgroundResolver.resolve(
+                &values,
+                properties: manifest.resolvedProperties,
+                enablesEditorMarkup: false
+            )
+            return PartTemplateRenderer.render(template, context: PartTemplateContext(
+                instanceID: UUID(),
+                packageIdentifier: manifest.identifier,
+                properties: values,
+                slots: [:]
+            ))
+        }
+
+        let css = rendered(":instance { {{ control.background.css }} }", values: [
+            "background.backgroundMode": .string("static"),
+            "background.backgroundStyle": .string("image"),
+            "background.backgroundImage": .string("foundry-asset:B0A1C2D3")
+        ])
+        #expect(css.contains(#"background-image: url("foundry-asset:B0A1C2D3");"#))
+        #expect(!css.contains("&quot;"))
+
+        let html = rendered("<div>{{ control.background.video }}</div>", values: [
+            "background.backgroundMode": .string("static"),
+            "background.backgroundStyle": .string("video"),
+            "background.backgroundVideo.href": .string("assets/film.mp4"),
+            "background.backgroundVideo.poster": .string("assets/film.jpg")
+        ])
+        #expect(html.contains(#"<video class="foundry-background-video" src="assets/film.mp4""#))
+        #expect(!html.contains("&lt;"))
     }
 
     @Test
@@ -1503,7 +2062,7 @@ struct PartPackageTests {
             ("sizing", ["widthMode", "customWidth", "heightMode", "customHeight", "minWidth", "maxWidth", "minHeight", "maxHeight"]),
             ("borders", ["borderEnabled", "frameworkBorder", "frameworkBorderColour", "frameworkRadius"]),
             ("effects", ["effectsEnabled", "frameworkShadow", "opacity"]),
-            ("layout", ["position", "zIndexMode", "zIndex", "offsets", "offset", "offsetEdges", "hidden", "visibility", "overflow", "isolation"]),
+            ("layout", ["position", "zIndexMode", "zIndex", "offsets", "offset", "offsetEdges", "hidden", "visibility", "overflow"]),
             ("flexbox", ["direction", "wrap", "columnGap", "rowGap", "alignItems", "alignContent", "justifyContent"])
         ] {
             let json = """
@@ -1512,17 +2071,50 @@ struct PartPackageTests {
             "id" : "com.example.\(kind)-group",
             "title" : "\(kind) Group",
             "version" : "1.0.0",
-            "inspector" : [{"type" : "\(kind)"}],
+            "inspector" : [{"type" : "\(kind)", "id": "\(kind)"}],
             "templates" : {"html" : "part.html"}
             }
             """
             let data = Data(json.utf8)
             let manifest = try JSONDecoder().decode(PartPackageManifest.self, from: data)
-            #expect(manifest.resolvedProperties.map(\.id) == expectedIDs)
+            #expect(manifest.resolvedProperties.map(\.id) == expectedIDs.map { kind + "." + $0 })
             #expect(manifest.controlGroupCSS.isEmpty)
             #expect(manifest.htmlContributions.isEmpty)
             #expect(try PartPackageManifestSchema.diagnostics(for: data).isEmpty)
         }
+    }
+
+    @Test
+    func flexboxChildCSSCanTargetAnInnerContainer() throws {
+        let json = """
+        {
+        "minimumAPIVersion" : 1,
+        "id" : "com.example.flexbox-child-rule",
+        "title" : "Flexbox Child Rule",
+        "version" : "1.0.0",
+        "inspector" : [{"type" : "flexbox", "id": "flexbox"}],
+        "templates" : {"html" : "part.html"}
+        }
+        """
+        let manifest = try JSONDecoder().decode(PartPackageManifest.self, from: Data(json.utf8))
+        let instanceID = UUID()
+        var values: [String: PartPackageValue] = [:]
+        PartPackageControlGroupCSSResolver.resolve(&values, properties: manifest.resolvedProperties)
+        #expect(manifest.controlGroupCSS.isEmpty)
+        #expect(values["flexbox.childCSS"] == .string("min-width: 0;"))
+        let css = PartTemplateRenderer.render(
+            ":instance > .content > * { {{ control.flexbox.childCSS }} }",
+            context: .init(instanceID: instanceID, packageIdentifier: manifest.identifier, properties: values, slots: [:])
+        )
+        let scoped = PartTemplateRenderer.scopedCSS(
+            css,
+            packageIdentifier: manifest.identifier,
+            instanceID: instanceID
+        )
+        #expect(scoped == "[data-foundry-id=\"\(instanceID.uuidString)\"] > .content > * { min-width: 0; }")
+        let url = try makePackage(manifest: json, template: "<section {{ part.attributes }}><div class=\"content\"></div></section>", additionalFiles: ["part.css": ":instance > .content > * { {{ control.flexbox.childCSS }} }"])
+        defer { try? FileManager.default.removeItem(at: url) }
+        try PartPackageLoader.load(from: url).preparePayload()
     }
 
     @Test
@@ -1537,9 +2129,9 @@ struct PartPackageTests {
             {"type" : "select", "id" : "layout", "label" : "Layout",
              "options" : [{"value" : "block", "title" : "Block"}, {"value" : "flex", "title" : "Flex"}],
              "defaults" : {"base" : "block"}},
-            {"type" : "flexbox", "visibleWhen" : {"id" : "layout", "value" : "flex"},
-             "defaultOverrides" : {"wrap" : "wrap"}},
-            {"type" : "spacing", "visibleWhen" : {"id" : "layout", "value" : "flex"}}
+            {"type" : "flexbox", "id": "flexbox", "visibleWhen" : {"id" : "layout", "value" : "flex"},
+             "defaults" : {"wrap" : "wrap"}},
+            {"type" : "spacing", "id": "spacing", "visibleWhen" : {"id" : "layout", "value" : "flex"}}
         ],
         "templates" : {"html" : "part.html"}
         }
@@ -1549,18 +2141,18 @@ struct PartPackageTests {
         let manifest = try JSONDecoder().decode(PartPackageManifest.self, from: data)
 
         // Every flexbox control inherits the reference's gate verbatim…
-        let direction = try #require(manifest.resolvedProperties.first { $0.id == "direction" })
+        let direction = try #require(manifest.resolvedProperties.first { $0.id == "flexbox.direction" })
         #expect(direction.visibleWhen == .init(id: "layout", value: .string("flex")))
-        let wrap = try #require(manifest.resolvedProperties.first { $0.id == "wrap" })
+        let wrap = try #require(manifest.resolvedProperties.first { $0.id == "flexbox.wrap" })
         #expect(wrap.defaultValue == .string("wrap"))
         #expect(wrap.visibleWhen == .init(id: "layout", value: .string("flex")))
 
         // …and a control with its own condition combines both: the padding
         // field needs the gate AND its group's enable toggle.
-        let padding = try #require(manifest.resolvedProperties.first { $0.id == "frameworkPadding" })
+        let padding = try #require(manifest.resolvedProperties.first { $0.id == "spacing.frameworkPadding" })
         #expect(padding.visibleWhen == .init(all: [
             .init(id: "layout", value: .string("flex")),
-            .init(id: "spacingEnabled", value: .boolean(true))
+            .init(id: "spacing.spacingEnabled", value: .boolean(true))
         ]))
     }
 
@@ -1595,8 +2187,8 @@ struct PartPackageTests {
         "title" : "Spacing Override Group",
         "version" : "1.0.0",
         "inspector" : [{
-            "type" : "spacing",
-            "defaultOverrides" : {
+            "type" : "spacing", "id": "spacing",
+            "defaults" : {
                 "frameworkPadding" : {"left" : "sm"}
             }
         }],
@@ -1605,10 +2197,129 @@ struct PartPackageTests {
         """
         let data = Data(json.utf8)
         let manifest = try JSONDecoder().decode(PartPackageManifest.self, from: data)
-        #expect(manifest.resolvedProperties.first { $0.id == "frameworkPadding" }?.defaultValue == .object(["left": .string("sm")]))
-        #expect(manifest.resolvedProperties.first { $0.id == "frameworkMargin" }?.defaultValue == .string("none"))
-        #expect(manifest.resolvedProperties.first { $0.id == "spacingEnabled" }?.defaultValue == .boolean(false))
+        #expect(manifest.resolvedProperties.first { $0.id == "spacing.frameworkPadding" }?.defaultValue == .object(["left": .string("sm")]))
+        #expect(manifest.resolvedProperties.first { $0.id == "spacing.frameworkMargin" }?.defaultValue == .string("none"))
+        #expect(manifest.resolvedProperties.first { $0.id == "spacing.spacingEnabled" }?.defaultValue == .boolean(false))
         #expect(try PartPackageManifestSchema.diagnostics(for: data).isEmpty)
+    }
+
+    @Test
+    func controlGroupsCanOmitControlsAndNarrowTheirOptions() throws {
+        let json = """
+        {
+        "minimumAPIVersion" : 1,
+        "id" : "com.example.narrowed-layout-group",
+        "title" : "Narrowed Layout Group",
+        "version" : "1.0.0",
+        "inspector" : [{
+            "type" : "layout", "id": "layout",
+            "excludeControls" : ["offsets"],
+            "allowedOptions" : {
+                "position" : ["relative", "sticky", "absolute"]
+            }
+        }],
+        "templates" : {"html" : "part.html"}
+        }
+        """
+        let data = Data(json.utf8)
+        let manifest = try JSONDecoder().decode(PartPackageManifest.self, from: data)
+        let identifiers = Set(manifest.resolvedProperties.map(\.id))
+        #expect(identifiers.contains("layout.isolation") == false)
+        // `offset` and `offsetEdges` exist only to configure `offsets`.
+        #expect(!identifiers.contains("layout.offsets"))
+        #expect(!identifiers.contains("layout.offset"))
+        #expect(!identifiers.contains("layout.offsetEdges"))
+        #expect(identifiers.contains("layout.position"))
+        #expect(identifiers.contains("layout.overflow"))
+
+        let position = try #require(manifest.resolvedProperties.first { $0.id == "layout.position" })
+        #expect(position.control.options?.map(\.value) == ["relative", "sticky", "absolute"])
+        // `none` was the default and the narrowing removed it, so the first
+        // listed value takes over.
+        #expect(position.defaultValue == .string("relative"))
+        #expect(try PartPackageManifestSchema.diagnostics(for: data).isEmpty)
+
+        // A narrowing that keeps the original default leaves it alone.
+        let keepsDefault = """
+        {
+        "minimumAPIVersion" : 1,
+        "id" : "com.example.kept-default-group",
+        "title" : "Kept Default Group",
+        "version" : "1.0.0",
+        "inspector" : [{
+            "type" : "layout", "id": "layout",
+            "allowedOptions" : {"position" : ["sticky", "none"]}
+        }],
+        "templates" : {"html" : "part.html"}
+        }
+        """
+        let kept = try JSONDecoder().decode(PartPackageManifest.self, from: Data(keepsDefault.utf8))
+        #expect(kept.resolvedProperties.first { $0.id == "layout.position" }?.defaultValue == .string("none"))
+        #expect(try PartPackageManifestSchema.diagnostics(for: Data(keepsDefault.utf8)).isEmpty)
+
+        // Omitting a control whose visibility nothing depends on removes just it.
+        let omitsOne = """
+        {
+        "minimumAPIVersion" : 1,
+        "id" : "com.example.omit-one-group",
+        "title" : "Omit One Group",
+        "version" : "1.0.0",
+        "inspector" : [{"type" : "flexbox", "id": "flexbox", "excludeControls" : ["alignContent"]}],
+        "templates" : {"html" : "part.html"}
+        }
+        """
+        let flexbox = try JSONDecoder().decode(PartPackageManifest.self, from: Data(omitsOne.utf8))
+        let flexboxIDs = Set(flexbox.resolvedProperties.map(\.id))
+        #expect(!flexboxIDs.contains("flexbox.alignContent"))
+        #expect(flexboxIDs.isSuperset(of: ["flexbox.direction", "flexbox.wrap", "flexbox.columnGap", "flexbox.rowGap", "flexbox.alignItems", "flexbox.justifyContent"]))
+        #expect(try PartPackageManifestSchema.diagnostics(for: Data(omitsOne.utf8)).isEmpty)
+    }
+
+    @Test
+    func controlGroupSubsettingIsValidatedAgainstTheGroupsVocabulary() throws {
+        func messages(_ entry: String) throws -> [String] {
+            let json = """
+            {
+            "minimumAPIVersion" : 1,
+            "id" : "com.example.invalid-subset-group",
+            "title" : "Invalid Subset Group",
+            "version" : "1.0.0",
+            "inspector" : [\(entry)],
+            "templates" : {"html" : "part.html"}
+            }
+            """
+            return try PartPackageManifestSchema.diagnostics(for: Data(json.utf8)).map(\.message)
+        }
+
+        #expect(try messages(#"{"type" : "layout", "id": "layout", "excludeControls" : ["positon"]}"#)
+            .contains("The layout group generates no control called 'positon'."))
+        #expect(try messages(#"{"type" : "layout", "id": "layout", "excludeControls" : ["position", "position"]}"#)
+            .contains("Duplicate excludeControls value 'position'."))
+        #expect(try messages(#"{"type" : "layout", "id": "layout", "excludeControls" : []}"#)
+            .contains("excludeControls must name at least one control, or be removed."))
+        #expect(try messages(#"{"type" : "effects", "id": "effects", "excludeControls" : ["effectsEnabled", "frameworkShadow", "opacity"]}"#)
+            .contains("excludeControls removes every control the effects group generates; remove the group instead."))
+        #expect(try messages(#"{"type" : "layout", "id": "layout", "allowedOptions" : {"position" : ["relative", "statik"]}}"#)
+            .contains { $0.hasPrefix("'statik' is not an option of 'position'.") })
+        #expect(try messages(#"{"type" : "layout", "id": "layout", "allowedOptions" : {"zIndex" : ["1"]}}"#)
+            .contains("'zIndex' has no options to narrow; allowedOptions applies to selects only."))
+        #expect(try messages(#"{"type" : "layout", "id": "layout", "allowedOptions" : {"position" : []}}"#)
+            .contains("allowedOptions must list at least one value."))
+        #expect(try messages(#"""
+            {"type" : "layout", "id": "layout", "excludeControls" : ["position"], "allowedOptions" : {"position" : ["relative"]}}
+            """#).contains("'position' is omitted; narrowing its options has no effect."))
+        #expect(try messages(#"""
+            {
+                "type" : "layout", "id": "layout",
+                "allowedOptions" : {"position" : ["relative", "sticky"]},
+                "defaults" : {"position" : "absolute"}
+            }
+            """#).contains("The default 'absolute' is not one of the narrowed options for 'position'."))
+        // Background's own filters compose with the generic ones.
+        #expect(try messages(#"{"type" : "background", "id": "background", "backgroundTypes" : ["colour"], "excludeControls" : ["backgroundImage"]}"#)
+            .contains("The background group generates no control called 'backgroundImage'."))
+        #expect(try messages(#"{"type" : "advanced", "excludeControls" : ["position"]}"#)
+            .contains("The advanced group has no options; remove excludeControls."))
     }
 
     @Test
@@ -1631,7 +2342,7 @@ struct PartPackageTests {
     }
 
     @Test
-    func duplicateControlGroupTypeIsRejected() throws {
+    func duplicateControlGroupIDIsRejected() throws {
         let json = """
         {
         "minimumAPIVersion" : 1,
@@ -1639,14 +2350,29 @@ struct PartPackageTests {
         "title" : "Duplicate Group",
         "version" : "1.0.0",
         "inspector" : [
-            {"type" : "spacing"},
-            {"type" : "spacing"}
+            {"type" : "spacing", "id": "spacing"},
+            {"type" : "spacing", "id": "spacing"}
         ],
         "templates" : {"html" : "part.html"}
         }
         """
         let diagnostics = try PartPackageManifestSchema.diagnostics(for: Data(json.utf8))
         #expect(diagnostics.contains { $0.message.contains("declared more than once") })
+    }
+
+    @Test
+    func controlGroupsRequireExplicitIDsExceptAdvanced() throws {
+        for kind in PartPackageControlGroup.Kind.allCases where kind != .advanced {
+            let json = manifest(withInspectorEntries: "{\"type\":\"\(kind.rawValue)\"}")
+            let data = Data(json.utf8)
+            #expect(try !PartPackageManifestSchema.diagnostics(for: data).isEmpty)
+            #expect(throws: DecodingError.self) {
+                try JSONDecoder().decode(PartPackageManifest.self, from: data)
+            }
+        }
+        let advanced = Data(manifest(withInspectorEntries: #"{"type":"advanced"}"#).utf8)
+        #expect(try PartPackageManifestSchema.diagnostics(for: advanced).isEmpty)
+        _ = try JSONDecoder().decode(PartPackageManifest.self, from: advanced)
     }
 
     @Test
@@ -1664,7 +2390,7 @@ struct PartPackageTests {
                 "type" : "toggle",
                 "defaults" : {"base" : true}
             },
-            {"type" : "borders"},
+            {"type" : "borders", "id": "borders"},
             {
                 "id" : "after",
                 "label" : "After",
@@ -1679,7 +2405,7 @@ struct PartPackageTests {
         let manifest = try JSONDecoder().decode(PartPackageManifest.self, from: data)
 
         #expect(manifest.resolvedProperties.map(\.id) == [
-            "before", "borderEnabled", "frameworkBorder", "frameworkBorderColour", "frameworkRadius", "after"
+            "before", "borders.borderEnabled", "borders.frameworkBorder", "borders.frameworkBorderColour", "borders.frameworkRadius", "after"
         ])
         #expect(try PartPackageManifestSchema.diagnostics(for: data).isEmpty)
     }
@@ -1692,7 +2418,7 @@ struct PartPackageTests {
         "id" : "com.example.legacy-control-groups-key",
         "title" : "Legacy Control Groups Key",
         "version" : "1.0.0",
-        "controlGroups" : [{"type" : "background"}],
+        "controlGroups" : [{"type" : "background", "id": "background"}],
         "templates" : {"html" : "part.html"}
         }
         """
@@ -1731,7 +2457,7 @@ struct PartPackageTests {
         #expect(responsiveDiagnostics.contains { $0.message == "A video control does not support responsive." })
         let packageURL = try makePackage(
             manifest: manifest(withInspectorEntries: control),
-            template: #"<section class="sample {{ part.class }}" {{ part.attributes }}>{{ control.film }}{{ childArea("content") }}</section>"#
+            template: #"<section class="sample {{ part.class }}" {{ part.attributes }}><video class="fd-video" src="{{ control.film }}" poster="{{ control.film.poster }}" {{ control.film.attributes }}></video>{{ childArea("content") }}</section>"#
         )
         defer { try? FileManager.default.removeItem(at: packageURL) }
         let package = try PartPackageLoader.load(from: packageURL)
@@ -1778,10 +2504,10 @@ struct PartPackageTests {
             into: &values
         )
         let rendered = PartTemplateRenderer.render(
-            #"{{ control.film }}|{{ control.film.href }}|{{ control.film.poster }}|{{ control.film.autoplay }}|{{ control.film.muted }}|{{ control.film.controls }}|{{ control.film.loop }}|{{ control.film.startAt }}|{{ control.film.filename }}|{{ control.film.extension }}|{{ control.film.mimeType }}|{{ control.film.byteCount }}|{{ control.film.width }}|{{ control.film.height }}|{{ control.film.duration }}"#,
+            #"{{ control.film.source }}|{{ control.film.attributes }}|{{ control.film.href }}|{{ control.film.poster }}|{{ control.film.autoplay }}|{{ control.film.muted }}|{{ control.film.controls }}|{{ control.film.loop }}|{{ control.film.startAt }}|{{ control.film.filename }}|{{ control.film.extension }}|{{ control.film.mimeType }}|{{ control.film.byteCount }}|{{ control.film.width }}|{{ control.film.height }}|{{ control.film.duration }}"#,
             context: .init(instanceID: UUID(), packageIdentifier: decodedManifest.identifier, properties: values, slots: [:])
         )
-        #expect(rendered == #"<video class="fd-video" src="assets/demo.mp4" poster="data:image/jpeg;base64,frame" controls playsinline></video>|assets/demo.mp4|data:image/jpeg;base64,frame|never|false|true|false|0|Demo Film.mp4|mp4|video/mp4|42000|1920|1080|12.5"#)
+        #expect(rendered == #"assets/demo.mp4|controls playsinline|assets/demo.mp4|data:image/jpeg;base64,frame|never|false|true|false|0|Demo Film.mp4|mp4|video/mp4|42000|1920|1080|12.5"#)
 
         PartVideoTemplateValues.insert(
             propertyID: "film",
@@ -1792,10 +2518,11 @@ struct PartPackageTests {
             into: &values
         )
         let configured = PartTemplateRenderer.render(
-            "{{ control.film }}",
+            "{{ control.film.source }}|{{ control.film.attributes }}",
             context: .init(instanceID: UUID(), packageIdentifier: decodedManifest.identifier, properties: values, slots: [:])
         )
-        #expect(configured == #"<video class="fd-video" src="assets/demo.mp4#t=4.5" poster="poster.jpg" autoplay muted loop playsinline></video>"#)
+        // Start At rides on the source as a media fragment.
+        #expect(configured == #"assets/demo.mp4#t=4.5|autoplay muted loop playsinline"#)
 
         PartRegistry.register(package)
         defer { PartRegistry.unregisterPackage(identifier: package.manifest.identifier) }
@@ -1810,7 +2537,11 @@ struct PartPackageTests {
             assets: assets,
             breakpoint: .extraLarge
         )
-        #expect(canvasHTML.contains(#"<video class="fd-video" poster="data:image/jpeg;base64,ZnJhbWU=" controls data-foundry-image-drop-zone data-foundry-image-property="__foundry_video_poster_film" data-foundry-video-drop-zone data-foundry-video-property="film" playsinline></video>"#))
+        // The canvas keeps the poster and the drop target but never a source,
+        // so the editor never streams the movie.
+        #expect(canvasHTML.contains(#"poster="data:image/jpeg;base64,ZnJhbWU=""#))
+        #expect(canvasHTML.contains(#"data-foundry-video-property="film""#))
+        #expect(!canvasHTML.contains(#"<video class="fd-video" src="#))
         #expect(!canvasHTML.contains(asset.id.uuidString))
 
         var site = Site.starter()
@@ -1820,8 +2551,7 @@ struct PartPackageTests {
         let posterPath = "assets/foundry-video-posters/\(asset.id.uuidString.lowercased()).jpg"
         #expect(exported.file(at: posterPath) == nil)
         #expect(exported.file(at: "index.html")?.contents.contains(#"<video class="fd-video" src="assets/"#) == true)
-        #expect(exported.file(at: "index.html")?.contents.contains("poster=") == false)
-        #expect(exported.file(at: "index.html")?.contents.contains("data-foundry-image-drop-zone") == false)
+        #expect(exported.file(at: "index.html")?.contents.contains("data-foundry-video-drop-zone") == false)
         #expect(exported.file(at: "index.html")?.contents.contains("data:image/jpeg") == false)
 
         let posterAsset = ProjectAsset(
@@ -1858,7 +2588,7 @@ struct PartPackageTests {
         "id" : "com.example.background-group",
         "title" : "Background Group",
         "version" : "1.0.0",
-        "inspector" : [{"type" : "background"}],
+        "inspector" : [{"type" : "background", "id": "background"}],
         "templates" : {"html" : "part.html"}
         }
         """
@@ -4874,19 +5604,30 @@ struct PartPackageTests {
         #expect(lockedManifest.slots.first?.containment == .locked)
     }
 
-    @Test
-    func childPickerAddPresentationIsOwnedByFoundry() throws {
+    @Test(arguments: ["", #", "buttonText": "Add Card""#, #", "buttonIcon": "square.stack""#,
+                      #", "buttonText": "Add Card", "buttonIcon": "square.stack""#])
+    func childPickerButtonPresentationLoadsAndRoundTrips(_ presentation: String) throws {
         let manifest = validManifest.replacingOccurrences(
             of: "\"accepts\" : [\"*\"]",
-            with: "\"accepts\" : [\"*\"], \"buttonText\" : \"Add Card\""
+            with: "\"accepts\" : [\"*\"]" + presentation
         )
-
         let diagnostics = try PartPackageManifestSchema.diagnostics(for: Data(manifest.utf8))
+        #expect(diagnostics.filter { $0.severity == .error }.isEmpty)
+        let decoded = try JSONDecoder().decode(PartPackageManifest.self, from: Data(manifest.utf8))
+        let slot = try #require(decoded.slots.first)
+        #expect(slot.buttonText == (presentation.contains("buttonText") ? "Add Card" : "Add Child"))
+        #expect(slot.buttonIcon == (presentation.contains("buttonIcon") ? "square.stack" : "plus.app"))
+        let encoded = try JSONEncoder().encode(decoded)
+        let roundTripped = try JSONDecoder().decode(PartPackageManifest.self, from: encoded)
+        #expect(roundTripped.slots == decoded.slots)
+    }
 
-        #expect(diagnostics.contains {
-            $0.location.contains("buttonText")
-                && $0.message == "A childPicker control does not support buttonText."
-        })
+    @Test(arguments: ["buttonText", "buttonIcon"], ["42", "true", "[]", "{}", "\"\"", "\"   \""])
+    func childPickerButtonPresentationRejectsInvalidValues(_ key: String, _ value: String) throws {
+        let manifest = validManifest.replacingOccurrences(of: "\"accepts\" : [\"*\"]",
+            with: "\"accepts\" : [\"*\"], \"\(key)\": \(value)")
+        let diagnostics = try PartPackageManifestSchema.diagnostics(for: Data(manifest.utf8))
+        #expect(diagnostics.contains { $0.severity == .error && $0.location.contains(key) })
     }
 
     @Test
@@ -5020,8 +5761,16 @@ struct PartPackageTests {
         #expect(PartType.image.definition.package?.manifest.identifier == PartType.image.rawValue)
         #expect(PartType.container.definition.package?.manifest.identifier == PartType.container.rawValue)
         #expect(PartType.container.definition.allowsChildren)
-        #expect(PartType.container.definition.properties.contains { $0.key.rawValue == "frameworkPadding" })
-        #expect(PartType.container.definition.properties.contains { $0.key.rawValue == "frameworkMargin" })
+        #expect(PartType.container.definition.properties.contains { $0.key.rawValue == "spacing.frameworkPadding" })
+        #expect(PartType.container.definition.properties.contains { $0.key.rawValue == "spacing.frameworkMargin" })
+        #expect(PartType.container.definition.properties.contains { $0.key.rawValue == "sizing.heightMode" })
+        #expect(PartType.container.definition.properties.contains { $0.key.rawValue == "layout.position" })
+        #expect(!PartType.container.definition.properties.contains { $0.key.rawValue == "minimumHeight" })
+        #expect(PartType.flex.definition.properties.contains { $0.key.rawValue == "borders.frameworkBorder.width" })
+        #expect(PartType.flex.definition.properties.contains { $0.key.rawValue == "effects.opacity" })
+        #expect(PartType.flex.definition.properties.contains { $0.key.rawValue == "reveal.revealEffect" })
+        #expect(PartType.grid.definition.properties.contains { $0.key.rawValue == "layout.overflow" })
+        #expect(!PartType.grid.definition.properties.contains { $0.key.rawValue == "overflow" })
         #expect(PartType.image.definition.properties.contains { $0.key == .source && $0.isInspectorVisible })
         #expect(PartType.image.definition.properties.contains {
             $0.key.rawValue == "maxWidth" && $0.defaultValue == .number(1200) && $0.isResponsive
@@ -5034,6 +5783,15 @@ struct PartPackageTests {
         let html = try #require(catalog.packages["foundry.content.html"])
         let htmlDefinition = PartPackageAdapter.definition(from: html)
         #expect(htmlDefinition.properties.contains { $0.key.rawValue == "content" && !$0.isInspectorVisible })
+
+        let container = PartNode.make(.container)
+        let page = Page(title: "Layout", slug: "index", parts: [container])
+        let rendered = HTMLPageRenderer().render(
+            page: page,
+            framework: Framework.standard
+        )
+        #expect(rendered.contains("<section"))
+        #expect(rendered.contains("fd-container__content"))
     }
 
     @Test @MainActor
@@ -5640,7 +6398,7 @@ struct PartPackageTests {
             "id" : "alpine",
             "majorVersion" : 3
         }],
-        "inspector" : [{"type" : "reveal"}],
+        "inspector" : [{"type" : "reveal", "id": "reveal"}],
         "templates" : {"html" : "part.html"}
         }
         """
@@ -5868,11 +6626,11 @@ struct PartPackageTests {
                     "defaults" : {"base" : true},
                     "responsive" : false
                 },
-                {"type" : "spacing"}
+                {"type" : "spacing", "id": "spacing"}
             ]
         },
         {"section" : "Content", "systemImage" : "doc.text"},
-        {"type" : "reveal"}
+        {"type" : "reveal", "id": "reveal"}
         """
         let valid = Data(manifest(withInspectorEntries: controls).utf8)
         #expect(try PartPackageManifestSchema.diagnostics(for: valid).isEmpty)
@@ -5881,9 +6639,9 @@ struct PartPackageTests {
         #expect(decoded.controlGroups.map(\.type) == [.spacing, .reveal])
         #expect(decoded.resolvedProperties.first { $0.id == "galleryStyle" }?.group == "Gallery")
         // A grouped control inside a section belongs to that section…
-        #expect(decoded.resolvedProperties.first { $0.id == "frameworkPadding" }?.group == "Gallery")
+        #expect(decoded.resolvedProperties.first { $0.id == "spacing.frameworkPadding" }?.group == "Gallery")
         // …and a bare one lands in Settings like any other loose control.
-        #expect(decoded.resolvedProperties.first { $0.id == "revealEnabled" }?.group == "Settings")
+        #expect(decoded.resolvedProperties.first { $0.id == "reveal.revealEnabled" }?.group == "Settings")
         #expect(decoded.resolvedGroupIcons["Gallery"] == "photo.stack")
         // An icon-only wrapper gives the implicit Content section its icon.
         #expect(decoded.resolvedGroupIcons["Content"] == "doc.text")
@@ -5914,7 +6672,7 @@ struct PartPackageTests {
              "Unknown key 'icon'. Check the spelling or remove it."),
             ("{\"section\" : \"Gallery\", \"controls\" : [{\"type\" : \"advanced\"}]}",
              "The advanced group is Foundry's own Advanced section — declare it at the top level of the inspector."),
-            ("{\"type\" : \"spacing\"}, {\"section\" : \"Gallery\", \"controls\" : [{\"type\" : \"spacing\"}]}",
+            ("{\"type\" : \"spacing\", \"id\": \"spacing\"}, {\"section\" : \"Gallery\", \"controls\" : [{\"type\" : \"spacing\", \"id\": \"spacing\"}]}",
              "Control group 'spacing' is declared more than once."),
             ("{\"section\" : \"Gallery\", \"controls\" : [{\"section\" : \"Inner\"}]}",
              "Sections cannot nest inside sections; every entry here must be a control with a type.")

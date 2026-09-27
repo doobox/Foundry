@@ -317,7 +317,7 @@
     {
       "controls": [
         {
-          "defaultOverrides": {
+          "defaults": {
             "frameworkPadding": {
               "bottom": "2xs",
               "left": "none",
@@ -325,7 +325,8 @@
               "top": "2xs"
             }
           },
-          "type": "spacing"
+          "type": "spacing",
+          "id": "spacing"
         }
       ],
       "section": "Spacing",
@@ -334,7 +335,8 @@
     {
       "controls": [
         {
-          "type": "borders"
+          "type": "borders",
+          "id": "borders"
         }
       ],
       "section": "Borders",
@@ -343,7 +345,8 @@
     {
       "controls": [
         {
-          "type": "effects"
+          "type": "effects",
+          "id": "effects"
         }
       ],
       "section": "Effects",
@@ -352,7 +355,8 @@
     {
       "controls": [
         {
-          "type": "background"
+          "type": "background",
+          "id": "background"
         }
       ],
       "section": "Background",

@@ -14,6 +14,10 @@ struct CanvasSynchronizationTests {
             assetRevision: 0, partPackageRevision: 1, breakpoint: .mobile,
             forcesReconciliation: false, appearance: .light)
         #expect(next.canPatch(after: previous, submittedRevision: 4, acknowledgedRevision: 4))
+        #expect(next.shouldRender(after: previous, submittedRevision: 4, acknowledgedRevision: 3) == false)
+        #expect(next.shouldRender(after: previous, submittedRevision: 4, acknowledgedRevision: 4))
+        #expect(previous.shouldRender(after: previous, submittedRevision: 4, acknowledgedRevision: 4) == false)
+        #expect(previous.shouldRender(after: previous, submittedRevision: nil, acknowledgedRevision: 4))
         #expect(!next.canPatch(after: previous, submittedRevision: 4, acknowledgedRevision: 3))
         #expect(!next.canPatch(after: nil, submittedRevision: nil, acknowledgedRevision: 0))
         next = CanvasRenderRequestID(pageID: pageID, mutationRevision: 12,
@@ -34,6 +38,45 @@ struct CanvasSynchronizationTests {
         let staleApplied = gate.apply(11)
         #expect(!staleApplied)
         #expect(gate.isCurrent(12))
+    }
+
+    @Test func nestedStructureInsertionRendersOnlyItsOwnerSubtree() throws {
+        let owner = PartNode(type: .container)
+        let page = Page(title: "Home", slug: "index", parts: [owner])
+        let renderer = CanvasRenderSpy(subtree: .init(
+            partID: owner.id,
+            html: "<div data-foundry-id=\"\(owner.id)\"></div>",
+            instanceStyles: [:]
+        ))
+        let snapshot = CanvasRenderSnapshot(
+            renderer: renderer,
+            page: page,
+            language: "en",
+            framework: .standard,
+            assets: [:],
+            breakpoint: .large,
+            impact: .partStructure(ownerID: owner.id),
+            forcesReconciliation: false
+        )
+
+        #expect(snapshot.render() == .part(try #require(renderer.subtree)))
+    }
+
+    @Test func rootStructureInsertionStillRendersTheWholePage() {
+        let page = Page(title: "Home", slug: "index")
+        let renderer = CanvasRenderSpy(subtree: nil)
+        let snapshot = CanvasRenderSnapshot(
+            renderer: renderer,
+            page: page,
+            language: "en",
+            framework: .standard,
+            assets: [:],
+            breakpoint: .large,
+            impact: .partStructure(ownerID: nil),
+            forcesReconciliation: false
+        )
+
+        #expect(snapshot.render() == .page(CanvasRenderSpy.pageHTML))
     }
 
     @Test func partUpdateWithoutLoadedBaselineRequestsFullSnapshot() async {
@@ -100,5 +143,30 @@ struct CanvasSynchronizationTests {
         #expect(Array(result[1...5]) == ["30px", "30px", "100px", "100px", "3px"])
         #expect(result[6] == "0px")
         #expect(result[7].contains("rgb(0, 123, 255)"))
+    }
+}
+
+private struct CanvasRenderSpy: PageRendering {
+    static let pageHTML = "<html><body>full page</body></html>"
+    let subtree: RenderedPartSubtree?
+
+    func render(
+        page: Page,
+        language: String,
+        framework: Framework,
+        assets: ProjectAssetContents,
+        breakpoint: ResponsiveBreakpoint
+    ) -> String {
+        Self.pageHTML
+    }
+
+    func renderSubtree(
+        partID: UUID,
+        page: Page,
+        framework: Framework,
+        assets: ProjectAssetContents,
+        breakpoint: ResponsiveBreakpoint
+    ) -> RenderedPartSubtree? {
+        subtree
     }
 }

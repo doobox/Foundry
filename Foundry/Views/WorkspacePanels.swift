@@ -190,7 +190,10 @@ struct PartLibraryPanel: View {
     @Binding var selectedType: PartType?
     let addToPageEnd: (PartType) -> Void
     @State private var catalog = PartPackageCatalog.shared
-    @State private var partSource = PartLibrarySource.parts
+    @AppStorage(AppPreferenceKey.partLibrarySource)
+    private var partSource = PartLibrarySource.parts
+    @AppStorage(AppPreferenceKey.showsDeveloperPanel)
+    private var enablesDeveloperTools = false
     @AppStorage(AppPreferenceKey.partLibraryIconSize)
     private var iconSizeValue = PartLibraryIconSize.small.rawValue
     @AppStorage(AppPreferenceKey.partLibraryArrangement)
@@ -217,7 +220,7 @@ struct PartLibraryPanel: View {
                 PartCatalogLoadingView()
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
-                if hasDevelopmentParts {
+                if canShowDevelopmentParts {
                     Picker("Part source", selection: $partSource) {
                         ForEach(PartLibrarySource.allCases) { source in
                             Text(source.title).tag(source)
@@ -300,15 +303,15 @@ struct PartLibraryPanel: View {
 
         }
         .onChange(of: catalog.revision, initial: true) {
-            if !hasDevelopmentParts {
-                partSource = .parts
-            }
             if let selectedType, availableTypes.contains(selectedType) {
                 return
             }
             selectedType = availableTypes.first
         }
         .onChange(of: partSource) {
+            selectedType = availableTypes.first
+        }
+        .onChange(of: enablesDeveloperTools) {
             selectedType = availableTypes.first
         }
         .onChange(of: showsHiddenParts) {
@@ -427,8 +430,16 @@ struct PartLibraryPanel: View {
             let isDevelopmentPack = type.definition.package?.isDevelopmentPack == true
             let showsInLibrary = type.definition.package?.manifest.showsInPartLibrary ?? true
             return (showsInLibrary || showsHiddenParts)
-                && (partSource == .development ? isDevelopmentPack : !isDevelopmentPack)
+                && (activePartSource == .development ? isDevelopmentPack : !isDevelopmentPack)
         }
+    }
+
+    private var activePartSource: PartLibrarySource {
+        canShowDevelopmentParts ? partSource : .parts
+    }
+
+    private var canShowDevelopmentParts: Bool {
+        enablesDeveloperTools && hasDevelopmentParts
     }
 
     private var hasDevelopmentParts: Bool {

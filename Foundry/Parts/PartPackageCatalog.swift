@@ -101,14 +101,17 @@ final class PartPackageCatalog {
         completedPackageCount = 0
         totalPackageCount = 0
         loadingTask = Task { [weak self] in
-            let snapshot = await Task.detached(priority: .utility) { [weak self] in
-                await PartCatalogSnapshot.load { [weak self] stage, completed, total in
-                    guard let self, generation == loadGeneration else { return }
-                    loadingStage = stage
-                    completedPackageCount = completed
-                    totalPackageCount = total
-                }
-            }.value
+            // `load` is nonisolated, so awaiting it directly already runs it
+            // off the main actor. Wrapping it in a detached task pinned to
+            // `.utility` only put the work that gates first paint below the
+            // UI that waits for it, and detached tasks ignore the
+            // cancellation above.
+            let snapshot = await PartCatalogSnapshot.load { [weak self] stage, completed, total in
+                guard let self, generation == loadGeneration else { return }
+                loadingStage = stage
+                completedPackageCount = completed
+                totalPackageCount = total
+            }
             guard !Task.isCancelled, let self, generation == loadGeneration else { return }
             loadingStage = .publishing
             publish(snapshot)
@@ -138,7 +141,11 @@ final class PartPackageCatalog {
         reloadGenerations[rootURL] = generation
         Task { [weak self] in
             _ = await initialLoadTask?.value
-            let result = await Task.detached(priority: .utility) {
+            // Detached because the discovery and flush steps are synchronous
+            // and must not run on the main actor — but with no explicit
+            // priority, so a reload the UI is waiting on is not pinned below
+            // it.
+            let result = await Task.detached {
                 let urls = (try? FoundryPackLoader.load(from: rootURL).partURLs) ?? []
                 let outcomes = await PartCatalogSnapshot.loadOutcomes(urls)
                 PartPackagePreparedIndex.flush()

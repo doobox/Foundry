@@ -94,7 +94,7 @@ nonisolated enum PartPackageVisibilityEvaluator {
         }
     }
 
-    private static let referenceExpression = try! NSRegularExpression(pattern: #"^([A-Za-z][A-Za-z0-9_-]*)(?:\[([0-9]+)\])?$"#)
+    private static let referenceExpression = try! NSRegularExpression(pattern: #"^([A-Za-z][A-Za-z0-9_-]*(?:\.[A-Za-z][A-Za-z0-9_-]*)?)(?:\[([0-9]+)\])?$"#)
 
     private static func reference(_ value: String) -> (key: PartProperty.Key, index: Int?)? {
         let expression = referenceExpression

@@ -13,13 +13,13 @@ struct InspectorPaletteTests {
         #expect(PartPackageColorResolver.resolve(value, framework: .standard, opacity: true).contains("18 52 86 / 1"))
         #expect(PartPackageColorResolver.resolve(value, framework: .standard, opacity: true, appearance: .dark).contains("171 205 239 / 0.4"))
         var node = PartNode(type: .container)
-        node.setProperty(.backgroundColor, value: .packageColor(value))
-        node.setProperty(.init(rawValue: "backgroundMode"), value: .choice("static"))
+        node.setProperty(.init(rawValue: "background.backgroundColor"), value: .packageColor(value))
+        node.setProperty(.init(rawValue: "background.backgroundMode"), value: .choice("static"))
         var wide = value
         wide.darkShade = .eleven
-        node.setResponsiveProperty(.backgroundColor, value: .packageColor(wide), at: .large)
-        #expect(node.resolved(at: .mobile).propertyValue(.backgroundColor) == .packageColor(value))
-        #expect(node.resolved(at: .large).propertyValue(.backgroundColor) == .packageColor(wide))
+        node.setResponsiveProperty(.init(rawValue: "background.backgroundColor"), value: .packageColor(wide), at: .large)
+        #expect(node.resolved(at: .mobile).propertyValue(.init(rawValue: "background.backgroundColor")) == .packageColor(value))
+        #expect(node.resolved(at: .large).propertyValue(.init(rawValue: "background.backgroundColor")) == .packageColor(wide))
         #expect(wide.shade == value.shade)
     }
 
@@ -48,8 +48,8 @@ struct InspectorPaletteTests {
         #expect(PartPackageColorResolver.resolve(value, framework: site.framework, opacity: false) == "#123456")
         #expect(PartPackageColorResolver.resolve(value, framework: site.framework, opacity: false, appearance: .dark) == "#ABCDEF")
         var node = PartNode.make(.container)
-        node.setProperty(.backgroundColor, value: .packageColor(value))
-        node.setProperty(.init(rawValue: "backgroundMode"), value: .choice("static"))
+        node.setProperty(.init(rawValue: "background.backgroundColor"), value: .packageColor(value))
+        node.setProperty(.init(rawValue: "background.backgroundMode"), value: .choice("static"))
         let page = Page(title: "Appearance", slug: "index", parts: [node])
         site.pages = [page]
         #expect(HTMLPageRenderer(appearance: .light).render(page: page, framework: site.framework).contains("background-color: #123456"))
@@ -70,10 +70,10 @@ struct InspectorPaletteTests {
         var node = PartNode.make(.container)
         // The built-in container starts with a literal colour. Supply a framework-role
         // declaration and exercise the same initialisation used by make(_:framework:).
-        node.setProperty(.backgroundColor, value: .packageColor(.init(
+        node.setProperty(.init(rawValue: "background.backgroundColor"), value: .packageColor(.init(
             source: "surface", customColor: "#000000", opacity: 1)))
         node.selectInitialColourShades(from: framework)
-        guard case .packageColor(let value) = node.propertyValue(.backgroundColor) else {
+        guard case .packageColor(let value) = node.propertyValue(.init(rawValue: "background.backgroundColor")) else {
             Issue.record("Expected a palette colour"); return
         }
         #expect(value.shade == .three)
@@ -83,7 +83,7 @@ struct InspectorPaletteTests {
         #expect(value.shade != framework.colourPalettes[index].lightDefaultShade)
         var next = node
         next.selectInitialColourShades(from: framework)
-        guard case .packageColor(let nextValue) = next.propertyValue(.backgroundColor) else {
+        guard case .packageColor(let nextValue) = next.propertyValue(.init(rawValue: "background.backgroundColor")) else {
             Issue.record("Expected a palette colour"); return
         }
         #expect(nextValue.shade == .nine)
@@ -98,7 +98,7 @@ struct InspectorPaletteTests {
         try custom.replaceShades(Array(repeating: "#193A5C", count: 11))
         site.framework.colourPalettes.insert(custom, at: 0)
         var node = PartNode.make(.container)
-        node.setProperty(.backgroundColor, value: .packageColor(.init(source: "surface",
+        node.setProperty(.init(rawValue: "background.backgroundColor"), value: .packageColor(.init(source: "surface",
             customColor: "#000000", opacity: 1)))
         let page = Page(title: "Override", slug: "index", parts: [node])
         site.pages = [page]
@@ -143,9 +143,9 @@ struct InspectorPaletteTests {
         try palette.replaceShades(shades)
         site.framework.colourPalettes.append(palette)
         var node = PartNode.make(.container)
-        node.setProperty(.backgroundColor, value: .packageColor(.init(source: palette.id,
+        node.setProperty(.init(rawValue: "background.backgroundColor"), value: .packageColor(.init(source: palette.id,
             customColor: "#000000", opacity: 1, shade: .eight)))
-        node.setProperty(.init(rawValue: "backgroundMode"), value: .choice("static"))
+        node.setProperty(.init(rawValue: "background.backgroundMode"), value: .choice("static"))
         let page = Page(title: "Palette", slug: "index", parts: [node])
         site.pages = [page]
         let html = HTMLPageRenderer().render(page: page, framework: site.framework)

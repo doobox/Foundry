@@ -108,28 +108,42 @@ nonisolated struct PartNode: Codable, Equatable, Identifiable, Sendable {
     }
 
     mutating func selectInitialColourShades(from framework: Framework) {
+        let definition = type.definition
+        let definitionsByKey = Dictionary(
+            definition.properties.map { ($0.key, $0) },
+            uniquingKeysWith: { first, _ in first }
+        )
+        let manifestPropertiesByID = Dictionary(
+            (definition.package?.manifest.resolvedProperties ?? []).map { ($0.id, $0) },
+            uniquingKeysWith: { first, _ in first }
+        )
         var initialDefaults: [ResponsivePropertyOverride] = []
-        for definition in type.definition.properties {
-            for (breakpoint, initialValue) in definition.breakpointDefaults {
+        for propertyDefinition in definition.properties {
+            for (breakpoint, initialValue) in propertyDefinition.breakpointDefaults {
                 var initialValue = initialValue
                 if case .packageColor(var colour) = initialValue,
                    let palette = framework.colourPalettes.resolvedPalette(id: colour.paletteID) {
-                    let declaration = type.definition.package?.manifest.resolvedProperties.first { $0.id == definition.key.rawValue }?.breakpointDefaults[breakpoint.rawValue]
+                    let declaration = manifestPropertiesByID[propertyDefinition.key.rawValue]?
+                        .breakpointDefaults[breakpoint.rawValue]
                     if case .object(let fields) = declaration {
                         if fields["lightShade"] == nil { colour.shade = palette.lightDefaultShade }
                         if fields["darkShade"] == nil { colour.darkShade = palette.darkDefaultShade }
                     }
                     initialValue = .packageColor(colour)
                 }
-                initialDefaults.append(.init(breakpoint: breakpoint, key: definition.key, value: initialValue))
+                initialDefaults.append(.init(
+                    breakpoint: breakpoint,
+                    key: propertyDefinition.key,
+                    value: initialValue
+                ))
             }
         }
         responsiveDefaults = initialDefaults.isEmpty ? nil : initialDefaults
         for index in properties.indices {
             if case .packageColor(var value) = properties[index].value,
                let palette = framework.colourPalettes.resolvedPalette(id: value.paletteID) {
-                if let definition = type.definition.properties.first(where: { $0.key == properties[index].key }),
-                   case .packageColor(_, _, let initialLightShade, let initialDarkShade) = definition.control {
+                if let propertyDefinition = definitionsByKey[properties[index].key],
+                   case .packageColor(_, _, let initialLightShade, let initialDarkShade) = propertyDefinition.control {
                     value.shade = initialLightShade ?? palette.lightDefaultShade
                     value.darkShade = initialDarkShade ?? palette.darkDefaultShade
                 } else {

@@ -102,6 +102,7 @@ struct InspectorView: View {
                     editsSharedDefinition: $editsSharedDefinition,
                     groupExpansion: $partGroupExpansion
                 )
+                .id(part.id)
             } else if selectedParts.isEmpty,
                       page == nil,
                       folder == nil,
@@ -1051,6 +1052,7 @@ private struct PartInspectorExpansion {
 }
 
 private struct PartInspector: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @AppStorage(AppPreferenceKey.inspectorAccordion) private var usesAccordion = true
     @State private var hoversGlobalChildToggle = false
     @State private var hoversExplodeGlobal = false
@@ -1071,6 +1073,13 @@ private struct PartInspector: View {
     let importMedia: (URL, UTType) -> ProjectAsset?
     @Binding var editsSharedDefinition: Bool
     @Binding var groupExpansion: [UUID: PartInspectorExpansion]
+    /// The section a click just opened, cleared once it has been scrolled
+    /// into view.
+    @State private var revealedGroup: PartPropertySection?
+    // Model updates arrive through the workspace's AppKit hosting controller.
+    // Keep displayed membership local so insertions/removals happen in an
+    // explicit SwiftUI animation transaction, like disclosure expansion.
+    @State private var displayedInspectorIDs: [[String]]?
 
     private var expandedGroups: [PartPropertySection] {
         groupExpansion[part.id]?.groups ?? []
@@ -1091,8 +1100,8 @@ private struct PartInspector: View {
     /// its first group opens. Closing every group stays possible within the
     /// current appearance.
     private func openFirstGroupIfAllClosed() {
-        guard expandedGroups.isEmpty, let first = inspectorGroups.first else { return }
-        groupExpansion[part.id] = PartInspectorExpansion(groups: [first])
+        guard expandedGroups.isEmpty, let first = visibleInspectorIDs.first?.first else { return }
+        groupExpansion[part.id] = PartInspectorExpansion(groups: [.init(rawValue: first)])
     }
 
     private func setExpanded(_ expanded: Bool, group: PartPropertySection) {
@@ -1101,6 +1110,9 @@ private struct PartInspector: View {
             groups = usesAccordion ? [group] : groups + [group]
         }
         groupExpansion[part.id] = PartInspectorExpansion(groups: groups)
+        // Opening a section near the bottom would otherwise reveal its
+        // controls below the fold, looking like nothing happened.
+        if expanded { revealedGroup = group }
     }
 
     var body: some View {
@@ -1108,17 +1120,34 @@ private struct PartInspector: View {
         // through onGeometryChange, which feedback-loops against a List-backed
         // Form's row measurement and beachballs. A plain scroll view keeps
         // the geometry stable.
-        ScrollView {
-            LazyVStack(spacing: 0) {
+        let visibleIDs = visibleInspectorIDs
+        let displayedIDs = displayedInspectorIDs ?? visibleIDs
+        let rows = part.type.definition.inspectorRows
+        let displayedSections = displayedIDs.compactMap { ids -> (section: PartPropertySection, rows: [PartInspectorRow])? in
+            guard let name = ids.first else { return nil }
+            let membership = Set(ids.dropFirst())
+            return (.init(rawValue: name), rows.compactMap { row in
+                guard row.section.rawValue == name else { return nil }
+                return row.filtered(
+                    properties: { membership.contains("property:" + $0.id.rawValue) },
+                    childPickers: { membership.contains("slot:" + $0.id) }
+                )
+            })
+        }
+        ScrollViewReader { proxy in
+            ScrollView {
+                // Section heights participate in visibility animations. Keep
+                // neighbouring sections in layout rather than lazily estimated.
+                VStack(spacing: 0) {
                 partIdentityHeader
                     .padding(EdgeInsets(top: 16, leading: 16, bottom: 14, trailing: 16))
 
-                ForEach(inspectorGroups, id: \.rawValue) { group in
+                ForEach(displayedSections, id: \.section.rawValue) { section in
+                    let group = section.section
                     Divider()
                     PartInspectorGroup(
                         group: group,
-                        properties: properties(in: group),
-                        childPickers: selectedParts.count == 1 ? childPickers(in: group) : [],
+                        rows: section.rows,
                         identityFields: declaresAdvanced && group == advancedSection && selectedParts.count == 1
                             ? PartIdentityContext(
                                 anchor: partAnchorBinding,
@@ -1146,17 +1175,40 @@ private struct PartInspector: View {
                         ),
                         usesAccordion: $usesAccordion,
                         openAll: {
-                            groupExpansion[part.id] = PartInspectorExpansion(groups: inspectorGroups)
+                            groupExpansion[part.id] = PartInspectorExpansion(groups: visibleIDs.compactMap { $0.first.map { .init(rawValue: $0) } })
                         },
                         closeAll: {
                             groupExpansion[part.id] = PartInspectorExpansion()
                         }
                     )
+                    .id(group)
+                    .transition(.opacity)
+                }
+                }
+            }
+            .onChange(of: revealedGroup) { _, group in
+                guard let group else { return }
+                // Wait for the disclosure content to enter the layout, then
+                // move its header to the top so the revealed controls are
+                // visibly connected to the section the user clicked.
+                Task { @MainActor in
+                    await Task.yield()
+                    withAnimation(reduceMotion ? nil : .easeOut(duration: 0.2)) {
+                        proxy.scrollTo(group, anchor: .top)
+                    }
+                    revealedGroup = nil
                 }
             }
         }
         .controlSize(.small)
         .font(.callout)
+        .onChange(of: visibleIDs, initial: true) { _, updated in
+            let animation: Animation? = displayedInspectorIDs == nil || reduceMotion
+                ? nil : .easeInOut(duration: 0.15)
+            withAnimation(animation) {
+                displayedInspectorIDs = updated
+            }
+        }
         .onChange(of: usesAccordion, initial: true) { _, enabled in
             if enabled {
                 // Keep the most recently opened group for every remembered part.
@@ -1170,38 +1222,30 @@ private struct PartInspector: View {
         }
     }
 
-    private var inspectorGroups: [PartPropertySection] {
-        var groups: [PartPropertySection] = part.type.definition.properties.reduce(into: []) { groups, property in
-            guard isVisible(property),
-                  !groups.contains(property.section) else { return }
-            groups.append(property.section)
-        }
-        for slot in partSlots where isVisible(slot) {
-            let section = PartPropertySection(rawValue: slot.group)
-            if !groups.contains(section) {
-                groups.append(section)
+    /// Animate membership changes across the whole stack so neighbouring
+    /// sections move too. Ordinary value edits leave this signature unchanged.
+    private var visibleInspectorIDs: [[String]] {
+        var sections: [[String]] = []
+        var indices: [PartPropertySection: Int] = [:]
+        for row in part.type.definition.inspectorRows {
+            guard let visible = row.filtered(
+                properties: { isVisible($0) },
+                childPickers: { selectedParts.count == 1 && isVisible($0) }
+            ) else { continue }
+            let index: Int
+            if let existing = indices[visible.section] {
+                index = existing
+            } else {
+                index = sections.count
+                indices[visible.section] = index
+                sections.append([visible.section.rawValue])
             }
+            sections[index].append(contentsOf: visible.membershipIDs)
         }
-        if declaresAdvanced, !groups.contains(advancedSection) {
-            groups.append(advancedSection)
+        if declaresAdvanced, indices[advancedSection] == nil {
+            sections.append([advancedSection.rawValue])
         }
-        return groups
-    }
-
-    private var partSlots: [PartPackageSlot] {
-        part.type.definition.package?.manifest.slots ?? []
-    }
-
-    private func properties(in section: PartPropertySection) -> [PartPropertyDefinition] {
-        part.type.definition.properties.filter {
-            $0.section == section && isVisible($0)
-        }
-    }
-
-    private func childPickers(in section: PartPropertySection) -> [PartPackageSlot] {
-        partSlots.filter {
-            $0.group == section.rawValue && isVisible($0)
-        }
+        return sections
     }
 
     private func isVisible(_ slot: PartPackageSlot) -> Bool {
@@ -1386,8 +1430,6 @@ private struct PartSlotInspectorCard: View {
     let pageID: UUID
     let editor: ProjectEditor
 
-    @State private var selectedType: PartType?
-
     private var availableTypes: [PartType] {
         PartRegistry.availableTypes
             .filter {
@@ -1400,35 +1442,36 @@ private struct PartSlotInspectorCard: View {
     }
 
     private var children: [PartNode] {
-        let package = part.type.definition.package
+        let definition = part.type.definition
+        let package = definition.package
         let defaultSlotID = package?.dropZoneNames.first.map { package?.dropZoneSlotID(for: $0) ?? "" }
-            ?? package?.manifest.slots.first?.id
+            ?? definition.inspectorRows.lazy.compactMap { row -> String? in
+                if case .childPicker(let slot) = row { return slot.id }
+                return nil
+            }.first
         return part.children.filter { child in
             (child.slotID ?? defaultSlotID) == slot.id
         }
     }
 
     var body: some View {
+        let options = availableTypes
         ChildPickerPartControl(
             label: slot.title,
-            options: availableTypes,
-            childCount: children.count,
-            maximum: slot.maximum,
+            buttonText: slot.buttonText,
+            buttonIcon: slot.buttonIcon,
+            options: options,
+            action: .resolve(options: options, childCount: slot.maximum == nil ? 0 : children.count, maximum: slot.maximum),
             help: slot.tooltip,
-            selection: $selectedType,
-            add: addSelectedType
+            add: addChild
         )
-        .task(id: availableTypes) {
-            if selectedType.map({ !availableTypes.contains($0) }) ?? true {
-                selectedType = availableTypes.first
-            }
-        }
     }
 
-    private func addSelectedType() {
-        guard let selectedType else { return }
+    private func addChild(_ type: PartType) {
+        guard availableTypes.contains(type),
+              slot.maximum.map({ children.count < $0 }) ?? true else { return }
         _ = editor.insertPart(
-            type: selectedType,
+            type: type,
             on: pageID,
             placement: .insideSlot(part.id, slot.id)
         )
@@ -1695,8 +1738,7 @@ private struct PartIdentityContext {
 
 private struct PartInspectorGroup: View {
     let group: PartPropertySection
-    let properties: [PartPropertyDefinition]
-    let childPickers: [PartPackageSlot]
+    let rows: [PartInspectorRow]
     let identityFields: PartIdentityContext?
     let part: PartNode
     let selectedParts: [PartNode]
@@ -1728,7 +1770,7 @@ private struct PartInspectorGroup: View {
                     )
                     .padding(.horizontal, InspectorMetrics.horizontalSectionPadding)
                 }
-                ForEach(PartInspectorControlGroup.groups(for: properties)) { controlGroup in
+                ForEach(rows) { row in
                     InspectorGrid(
                         contentInsets: EdgeInsets(
                             top: 0,
@@ -1737,29 +1779,24 @@ private struct PartInspectorGroup: View {
                             trailing: InspectorMetrics.horizontalSectionPadding
                         )
                     ) {
-                        ForEach(controlGroup.properties) { definition in
-                            propertyEditor(for: definition)
+                        switch row {
+                        case .controls(let controlGroup):
+                            ForEach(controlGroup.properties) { definition in
+                                propertyEditor(for: definition)
+                                    .transition(.opacity)
+                            }
+                        case .childPicker(let slot):
+                            if let pageID = currentPage?.id {
+                                PartSlotInspectorCard(
+                                    slot: slot,
+                                    part: part,
+                                    pageID: pageID,
+                                    editor: editor
+                                )
+                            }
                         }
                     }
-                }
-                if let pageID = currentPage?.id {
-                    ForEach(childPickers) { slot in
-                        InspectorGrid(
-                            contentInsets: EdgeInsets(
-                                top: 0,
-                                leading: InspectorMetrics.horizontalSectionPadding,
-                                bottom: 0,
-                                trailing: InspectorMetrics.horizontalSectionPadding
-                            )
-                        ) {
-                            PartSlotInspectorCard(
-                                slot: slot,
-                                part: part,
-                                pageID: pageID,
-                                editor: editor
-                            )
-                        }
-                    }
+                    .transition(.opacity)
                 }
             }
             .padding(.vertical, InspectorMetrics.verticalSectionPadding)
@@ -1794,6 +1831,7 @@ private struct PartInspectorGroup: View {
 }
 
 private struct PartInspectorDisclosureStyle: DisclosureGroupStyle {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Binding var usesAccordion: Bool
     let openAll: () -> Void
     let closeAll: () -> Void
@@ -1802,7 +1840,7 @@ private struct PartInspectorDisclosureStyle: DisclosureGroupStyle {
     func makeBody(configuration: Configuration) -> some View {
         VStack(spacing: 0) {
             Button {
-                withAnimation(.easeInOut(duration: 0.15)) {
+                withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.15)) {
                     configuration.isExpanded.toggle()
                 }
             } label: {
@@ -1830,8 +1868,12 @@ private struct PartInspectorDisclosureStyle: DisclosureGroupStyle {
                 Toggle("Accordion Mode", isOn: $usesAccordion)
                 if !usesAccordion {
                     Divider()
-                    Button("Open All", action: openAll)
-                    Button("Close All", action: closeAll)
+                    Button("Open All") {
+                        withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.15), openAll)
+                    }
+                    Button("Close All") {
+                        withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.15), closeAll)
+                    }
                 }
             }
             .accessibilityValue(configuration.isExpanded ? "Expanded" : "Collapsed")

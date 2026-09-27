@@ -26,6 +26,31 @@
     },
     {
       "defaults": {
+        "base": "normal"
+      },
+      "id": "backgroundState",
+      "label": "State",
+      "options": [
+        {
+          "title": "Normal",
+          "value": "normal"
+        },
+        {
+          "title": "Hover",
+          "value": "hover"
+        }
+      ],
+      "presentation": "segmented",
+      "responsive": false,
+      "tooltip": "Which state the controls below are editing. Both states keep their own values.",
+      "type": "select",
+      "visibleWhen": {
+        "id": "backgroundMode",
+        "value": "hover"
+      }
+    },
+    {
+      "defaults": {
         "base": "color"
       },
       "id": "backgroundStyle",
@@ -56,8 +81,24 @@
       "responsive": false,
       "type": "select",
       "visibleWhen": {
-        "id": "backgroundMode",
-        "value": "static"
+        "any": [
+          {
+            "id": "backgroundMode",
+            "value": "static"
+          },
+          {
+            "all": [
+              {
+                "id": "backgroundMode",
+                "value": "hover"
+              },
+              {
+                "id": "backgroundState",
+                "value": "normal"
+              }
+            ]
+          }
+        ]
       }
     },
     {
@@ -75,8 +116,24 @@
       "visibleWhen": {
         "all": [
           {
-            "id": "backgroundMode",
-            "value": "static"
+            "any": [
+              {
+                "id": "backgroundMode",
+                "value": "static"
+              },
+              {
+                "all": [
+                  {
+                    "id": "backgroundMode",
+                    "value": "hover"
+                  },
+                  {
+                    "id": "backgroundState",
+                    "value": "normal"
+                  }
+                ]
+              }
+            ]
           },
           {
             "id": "backgroundStyle",
@@ -96,8 +153,24 @@
       "visibleWhen": {
         "all": [
           {
-            "id": "backgroundMode",
-            "value": "static"
+            "any": [
+              {
+                "id": "backgroundMode",
+                "value": "static"
+              },
+              {
+                "all": [
+                  {
+                    "id": "backgroundMode",
+                    "value": "hover"
+                  },
+                  {
+                    "id": "backgroundState",
+                    "value": "normal"
+                  }
+                ]
+              }
+            ]
           },
           {
             "id": "backgroundStyle",
@@ -155,8 +228,24 @@
       "visibleWhen": {
         "all": [
           {
-            "id": "backgroundMode",
-            "value": "static"
+            "any": [
+              {
+                "id": "backgroundMode",
+                "value": "static"
+              },
+              {
+                "all": [
+                  {
+                    "id": "backgroundMode",
+                    "value": "hover"
+                  },
+                  {
+                    "id": "backgroundState",
+                    "value": "normal"
+                  }
+                ]
+              }
+            ]
           },
           {
             "id": "backgroundStyle",
@@ -190,8 +279,24 @@
       "visibleWhen": {
         "all": [
           {
-            "id": "backgroundMode",
-            "value": "static"
+            "any": [
+              {
+                "id": "backgroundMode",
+                "value": "static"
+              },
+              {
+                "all": [
+                  {
+                    "id": "backgroundMode",
+                    "value": "hover"
+                  },
+                  {
+                    "id": "backgroundState",
+                    "value": "normal"
+                  }
+                ]
+              }
+            ]
           },
           {
             "id": "backgroundStyle",
@@ -237,8 +342,24 @@
       "visibleWhen": {
         "all": [
           {
-            "id": "backgroundMode",
-            "value": "static"
+            "any": [
+              {
+                "id": "backgroundMode",
+                "value": "static"
+              },
+              {
+                "all": [
+                  {
+                    "id": "backgroundMode",
+                    "value": "hover"
+                  },
+                  {
+                    "id": "backgroundState",
+                    "value": "normal"
+                  }
+                ]
+              }
+            ]
           },
           {
             "id": "backgroundStyle",
@@ -273,8 +394,24 @@
       "visibleWhen": {
         "all": [
           {
-            "id": "backgroundMode",
-            "value": "static"
+            "any": [
+              {
+                "id": "backgroundMode",
+                "value": "static"
+              },
+              {
+                "all": [
+                  {
+                    "id": "backgroundMode",
+                    "value": "hover"
+                  },
+                  {
+                    "id": "backgroundState",
+                    "value": "normal"
+                  }
+                ]
+              }
+            ]
           },
           {
             "id": "backgroundStyle",
@@ -328,8 +465,24 @@
       "visibleWhen": {
         "all": [
           {
-            "id": "backgroundMode",
-            "value": "static"
+            "any": [
+              {
+                "id": "backgroundMode",
+                "value": "static"
+              },
+              {
+                "all": [
+                  {
+                    "id": "backgroundMode",
+                    "value": "hover"
+                  },
+                  {
+                    "id": "backgroundState",
+                    "value": "normal"
+                  }
+                ]
+              }
+            ]
           },
           {
             "id": "backgroundStyle",
@@ -357,8 +510,24 @@
       "visibleWhen": {
         "all": [
           {
-            "id": "backgroundMode",
-            "value": "static"
+            "any": [
+              {
+                "id": "backgroundMode",
+                "value": "static"
+              },
+              {
+                "all": [
+                  {
+                    "id": "backgroundMode",
+                    "value": "hover"
+                  },
+                  {
+                    "id": "backgroundState",
+                    "value": "normal"
+                  }
+                ]
+              }
+            ]
           },
           {
             "id": "backgroundStyle",
@@ -382,8 +551,24 @@
       "visibleWhen": {
         "all": [
           {
-            "id": "backgroundMode",
-            "value": "static"
+            "any": [
+              {
+                "id": "backgroundMode",
+                "value": "static"
+              },
+              {
+                "all": [
+                  {
+                    "id": "backgroundMode",
+                    "value": "hover"
+                  },
+                  {
+                    "id": "backgroundState",
+                    "value": "normal"
+                  }
+                ]
+              }
+            ]
           },
           {
             "id": "backgroundStyle",
@@ -407,8 +592,24 @@
       "visibleWhen": {
         "all": [
           {
-            "id": "backgroundMode",
-            "value": "static"
+            "any": [
+              {
+                "id": "backgroundMode",
+                "value": "static"
+              },
+              {
+                "all": [
+                  {
+                    "id": "backgroundMode",
+                    "value": "hover"
+                  },
+                  {
+                    "id": "backgroundState",
+                    "value": "normal"
+                  }
+                ]
+              }
+            ]
           },
           {
             "id": "backgroundStyle",
@@ -432,8 +633,24 @@
       "visibleWhen": {
         "all": [
           {
-            "id": "backgroundMode",
-            "value": "static"
+            "any": [
+              {
+                "id": "backgroundMode",
+                "value": "static"
+              },
+              {
+                "all": [
+                  {
+                    "id": "backgroundMode",
+                    "value": "hover"
+                  },
+                  {
+                    "id": "backgroundState",
+                    "value": "normal"
+                  }
+                ]
+              }
+            ]
           },
           {
             "id": "backgroundStyle",
@@ -448,7 +665,7 @@
       },
       "id": "backgroundVideo",
       "label": "Video",
-      "tooltip": "Choose a video from project resources. Background video is muted, loops, and does not capture pointer events.",
+      "tooltip": "Choose a video from project resources. Background video is muted, plays automatically, and does not capture pointer events.",
       "type": "video",
       "visibleWhen": {
         "all": [
@@ -465,11 +682,12 @@
     },
     {
       "defaults": {
-        "base": false
+        "base": true
       },
-      "id": "backgroundVideoAspectRatio",
-      "label": "Force 16:9 aspect ratio",
-      "responsive": true,
+      "id": "backgroundVideoLoop",
+      "label": "Loop",
+      "presentation": "switch",
+      "responsive": false,
       "type": "toggle",
       "visibleWhen": {
         "all": [
@@ -492,10 +710,6 @@
       "label": "Style",
       "options": [
         {
-          "title": "None",
-          "value": "none"
-        },
-        {
           "systemImage": "paintbrush.fill",
           "title": "Colour",
           "value": "color"
@@ -509,19 +723,22 @@
           "systemImage": "circle.lefthalf.filled",
           "title": "Gradient",
           "value": "gradient"
-        },
-        {
-          "systemImage": "video.fill",
-          "title": "Video",
-          "value": "video"
         }
       ],
       "presentation": "segmented",
       "responsive": true,
       "type": "select",
       "visibleWhen": {
-        "id": "backgroundMode",
-        "value": "hover"
+        "all": [
+          {
+            "id": "backgroundMode",
+            "value": "hover"
+          },
+          {
+            "id": "backgroundState",
+            "value": "hover"
+          }
+        ]
       }
     },
     {
@@ -543,6 +760,10 @@
             "value": "hover"
           },
           {
+            "id": "backgroundState",
+            "value": "hover"
+          },
+          {
             "id": "backgroundHoverStyle",
             "value": "color"
           }
@@ -561,6 +782,10 @@
         "all": [
           {
             "id": "backgroundMode",
+            "value": "hover"
+          },
+          {
+            "id": "backgroundState",
             "value": "hover"
           },
           {
@@ -623,6 +848,10 @@
             "value": "hover"
           },
           {
+            "id": "backgroundState",
+            "value": "hover"
+          },
+          {
             "id": "backgroundHoverStyle",
             "value": "image"
           }
@@ -655,6 +884,10 @@
         "all": [
           {
             "id": "backgroundMode",
+            "value": "hover"
+          },
+          {
+            "id": "backgroundState",
             "value": "hover"
           },
           {
@@ -705,6 +938,10 @@
             "value": "hover"
           },
           {
+            "id": "backgroundState",
+            "value": "hover"
+          },
+          {
             "id": "backgroundHoverStyle",
             "value": "image"
           }
@@ -738,6 +975,10 @@
         "all": [
           {
             "id": "backgroundMode",
+            "value": "hover"
+          },
+          {
+            "id": "backgroundState",
             "value": "hover"
           },
           {
@@ -796,6 +1037,10 @@
             "value": "hover"
           },
           {
+            "id": "backgroundState",
+            "value": "hover"
+          },
+          {
             "id": "backgroundHoverStyle",
             "value": "gradient"
           },
@@ -825,6 +1070,10 @@
             "value": "hover"
           },
           {
+            "id": "backgroundState",
+            "value": "hover"
+          },
+          {
             "id": "backgroundHoverStyle",
             "value": "gradient"
           }
@@ -847,6 +1096,10 @@
         "all": [
           {
             "id": "backgroundMode",
+            "value": "hover"
+          },
+          {
+            "id": "backgroundState",
             "value": "hover"
           },
           {
@@ -875,6 +1128,10 @@
             "value": "hover"
           },
           {
+            "id": "backgroundState",
+            "value": "hover"
+          },
+          {
             "id": "backgroundHoverStyle",
             "value": "gradient"
           }
@@ -900,50 +1157,12 @@
             "value": "hover"
           },
           {
+            "id": "backgroundState",
+            "value": "hover"
+          },
+          {
             "id": "backgroundHoverStyle",
             "value": "gradient"
-          }
-        ]
-      }
-    },
-    {
-      "defaults": {
-        "base": ""
-      },
-      "id": "backgroundHoverVideo",
-      "label": "Video",
-      "tooltip": "Choose a video from project resources.",
-      "type": "video",
-      "visibleWhen": {
-        "all": [
-          {
-            "id": "backgroundMode",
-            "value": "hover"
-          },
-          {
-            "id": "backgroundHoverStyle",
-            "value": "video"
-          }
-        ]
-      }
-    },
-    {
-      "defaults": {
-        "base": false
-      },
-      "id": "backgroundHoverVideoAspectRatio",
-      "label": "Force 16:9 aspect ratio",
-      "responsive": true,
-      "type": "toggle",
-      "visibleWhen": {
-        "all": [
-          {
-            "id": "backgroundMode",
-            "value": "hover"
-          },
-          {
-            "id": "backgroundHoverStyle",
-            "value": "video"
           }
         ]
       }

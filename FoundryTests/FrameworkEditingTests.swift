@@ -274,10 +274,10 @@ struct FrameworkEditingTests {
         let value = PartPackageColorValue(source: custom.id, customColor: "#000000",
                                               opacity: 1, shade: .eight)
         var child = PartNode.make(.container)
-        child.setProperty(.backgroundColor, value: .packageColor(value))
+        child.setProperty(.init(rawValue: "background.backgroundColor"), value: .packageColor(value))
         var following = value
         following.shade = .one
-        child.setResponsiveProperty(.backgroundColor, value: .packageColor(following), at: .medium)
+        child.setResponsiveProperty(.init(rawValue: "background.backgroundColor"), value: .packageColor(following), at: .medium)
         var parent = PartNode.make(.container)
         parent.children = [child]
         document.site.pages[0].parts = [parent]
@@ -297,8 +297,8 @@ struct FrameworkEditingTests {
         expectedFollowing.source = original.id
         for node in [document.site.pages[0].parts[0].children[0],
                      document.site.globalParts[0].root] {
-            #expect(node.propertyValue(.backgroundColor) == .packageColor(expected))
-            #expect(node.propertyValue(.backgroundColor, at: .medium) == .packageColor(expectedFollowing))
+            #expect(node.propertyValue(.init(rawValue: "background.backgroundColor")) == .packageColor(expected))
+            #expect(node.propertyValue(.init(rawValue: "background.backgroundColor"), at: .medium) == .packageColor(expectedFollowing))
         }
         let after = document.site
         undo.undo()
@@ -395,7 +395,7 @@ struct FrameworkEditingTests {
         let marginKey = PartProperty.Key(rawValue: "frameworkMargin")
         let margin = try #require(PartPackageFrameworkMarginControl.defaultValue(.string("lg")))
         site.updatePart(id: partID) {
-            $0.setProperty(.backgroundColor, value: .token(.accentColor))
+            $0.setProperty(.init(rawValue: "background.backgroundColor"), value: .token(.accentColor))
             $0.setProperty(marginKey, value: .frameworkMargin(margin))
         }
 
@@ -403,7 +403,7 @@ struct FrameworkEditingTests {
         let decoded = try FoundryDocument.decoder.decode(Site.self, from: data)
         let part = try #require(decoded.part(withID: partID))
 
-        #expect(part.propertyValue(.backgroundColor) == .token(.accentColor))
+        #expect(part.propertyValue(.init(rawValue: "background.backgroundColor")) == .token(.accentColor))
         #expect(part.propertyValue(marginKey) == .frameworkMargin(margin))
     }
 
@@ -413,8 +413,8 @@ struct FrameworkEditingTests {
         var framework = Framework.standard
         framework.colors.accent = "#123ABC"
         var container = PartNode.make(.container)
-        container.setProperty(.init(rawValue: "backgroundMode"), value: .choice("static"))
-        container.setProperty(.backgroundColor, value: .packageColor(.init(
+        container.setProperty(.init(rawValue: "background.backgroundMode"), value: .choice("static"))
+        container.setProperty(.init(rawValue: "background.backgroundColor"), value: .packageColor(.init(
             source: FrameworkColorRole.accent.rawValue,
             customColor: "#000000",
             opacity: 1

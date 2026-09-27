@@ -302,18 +302,11 @@ nonisolated enum PartVideoTemplateValues {
         poster: String,
         asset: ProjectAsset?,
         playback: PlaybackOptions = .standard,
-        enablesEditorMarkup: Bool = false,
-        hasSelection: Bool = false,
         into values: inout [String: PartPackageValue]
     ) {
-        values[propertyID + ".element"] = .string(element(
-            propertyID: propertyID,
-            href: href,
-            poster: poster,
-            playback: playback,
-            enablesEditorMarkup: enablesEditorMarkup,
-            hasSelection: hasSelection
-        ))
+        // The control hands over values; the part writes its own <video>.
+        values[propertyID + ".source"] = .string(source(href: href, startAt: playback.startAt))
+        values[propertyID + ".attributes"] = .string(attributes(playback))
         values[propertyID + ".href"] = .string(href)
         values[propertyID + ".poster"] = .string(poster)
         values[propertyID + ".autoplay"] = .string(playback.autoplay)
@@ -337,35 +330,16 @@ nonisolated enum PartVideoTemplateValues {
         values[propertyID + ".duration"] = asset?.videoMetadata.map { .number($0.duration) } ?? .string("")
     }
 
-    private static func element(
-        propertyID: String,
-        href: String,
-        poster: String,
-        playback: PlaybackOptions,
-        enablesEditorMarkup: Bool,
-        hasSelection: Bool = false
-    ) -> String {
-        if enablesEditorMarkup && !hasSelection && href.isEmpty && poster.isEmpty {
-            // An unfilled video control renders as an explicit drop well on
-            // the canvas, mirroring the image control's empty state.
-            return "<span class=\"foundry-video-drop-zone\" data-foundry-video-drop-zone data-foundry-video-property=\"\(escapeAttribute(propertyID))\"><span class=\"foundry-drop-label\">\(FoundryDropZoneGlyphs.video)</span></span>"
-        }
-        guard !href.isEmpty || !poster.isEmpty || (enablesEditorMarkup && hasSelection) else { return "" }
-        let source = source(href: href, startAt: playback.startAt)
-        let sourceAttribute = source.isEmpty ? "" : " src=\"\(escapeAttribute(source))\""
-        let posterAttribute = poster.isEmpty ? "" : " poster=\"\(escapeAttribute(poster))\""
-        let autoplayAttribute = playback.autoplay == "onLoad" ? " autoplay" : ""
-        let mutedAttribute = playback.muted ? " muted" : ""
-        let controlsAttribute = playback.showsControls ? " controls" : ""
-        let loopAttribute = playback.loops ? " loop" : ""
-        // On the canvas the video element is a double drop target: an image
-        // file replaces the poster (via the image pipeline against the poster
-        // companion key) and a movie file replaces the video itself.
-        let editorAttributes = enablesEditorMarkup
-            ? " data-foundry-image-drop-zone data-foundry-image-property=\"\(escapeAttribute(posterPropertyKey(for: propertyID).rawValue))\""
-              + " data-foundry-video-drop-zone data-foundry-video-property=\"\(escapeAttribute(propertyID))\""
-            : ""
-        return "<video class=\"fd-video\"\(sourceAttribute)\(posterAttribute)\(autoplayAttribute)\(mutedAttribute)\(controlsAttribute)\(loopAttribute)\(editorAttributes) playsinline></video>"
+    /// The playback attributes the Inspector's choices imply, ready to drop
+    /// into a part's own `<video>` tag.
+    private static func attributes(_ playback: PlaybackOptions) -> String {
+        var attributes: [String] = []
+        if playback.autoplay == "onLoad" { attributes.append("autoplay") }
+        if playback.muted { attributes.append("muted") }
+        if playback.loops { attributes.append("loop") }
+        if playback.showsControls { attributes.append("controls") }
+        attributes.append("playsinline")
+        return attributes.joined(separator: " ")
     }
 
     private static func source(href: String, startAt: Double) -> String {

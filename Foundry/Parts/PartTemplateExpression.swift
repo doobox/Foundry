@@ -89,15 +89,17 @@ nonisolated enum PartTemplateExpression {
         return parts
     }
 
-    static func references(in node: Node) -> [String] {
+    static func references(in node: Node, groupNamespaces: Set<String> = []) -> [String] {
         switch node {
         case .variable(let name):
             guard name.hasPrefix("control.") else { return [] }
             let reference = String(name.dropFirst("control.".count))
-            return [String(reference.prefix { $0 != "[" }).split(separator: ".").first.map(String.init) ?? reference]
-        case .unary(_, let value): return references(in: value)
-        case .binary(_, let lhs, let rhs): return references(in: lhs) + references(in: rhs)
-        case .call(_, let arguments): return arguments.flatMap(references)
+            let parts = String(reference.prefix { $0 != "[" }).split(separator: ".")
+            let count = parts.first.map { groupNamespaces.contains(String($0)) } == true ? 2 : 1
+            return [parts.prefix(count).joined(separator: ".")]
+        case .unary(_, let value): return references(in: value, groupNamespaces: groupNamespaces)
+        case .binary(_, let lhs, let rhs): return references(in: lhs, groupNamespaces: groupNamespaces) + references(in: rhs, groupNamespaces: groupNamespaces)
+        case .call(_, let arguments): return arguments.flatMap { references(in: $0, groupNamespaces: groupNamespaces) }
         default: return []
         }
     }
