@@ -1760,7 +1760,10 @@ private struct PartInspectorGroup: View {
 
     var body: some View {
         DisclosureGroup(isExpanded: $isExpanded) {
-            VStack(spacing: InspectorMetrics.controlSpacing) {
+            // Separate controls sit exactly as far apart as the rows of one
+            // multi-part control. Developers who want more separation declare
+            // a spacer or divider where they want it.
+            VStack(spacing: InspectorMetrics.rowSpacing) {
                 if let identityFields {
                     PartIdentityFields(
                         anchor: identityFields.anchor,

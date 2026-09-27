@@ -13,6 +13,21 @@ nonisolated struct PartPackageDiagnostic: Equatable, Sendable {
 
 nonisolated enum PartPackageValidator {
     static let maximumIconByteCount = 64 * 1024
+
+    /// Icons draw as template images, so only their alpha survives and the
+    /// file's own colours are discarded. A solid fill in any colour is fine;
+    /// what matters is anything that makes the alpha partial or derived from
+    /// artwork rather than geometry.
+    static func iconArtworkAltersShape(_ source: String) -> Bool {
+        let patterns = [
+            #"(?i)Gradient"#,                             // linear/radial gradients
+            #"(?i)<(image|pattern|filter)\b"#,           // raster, tiled or filtered artwork
+            #"(?i)opacity\s*[=:]"#,                       // opacity, fill-opacity, stroke-opacity
+            #"(?i)(rgba|hsla)\s*\("#,                     // colours with an alpha channel
+            #"#(?:[0-9A-Fa-f]{4}|[0-9A-Fa-f]{8})\b"#     // #RGBA and #RRGGBBAA
+        ]
+        return patterns.contains { source.matches($0) }
+    }
     private static let maximumTagCount = 5
     private static let identifierExpression = try! NSRegularExpression(
         pattern: #"^[a-z](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?){2,}$"#
@@ -93,7 +108,9 @@ nonisolated enum PartPackageValidator {
         }
         validateUnique(manifest.slots.map(\.id), kind: "slot", into: &diagnostics)
         for property in manifest.resolvedProperties {
-            validate(property.controlGroupSource?.localID ?? property.id, expression: propertyExpression, location: "manifest.json:inspector.\(property.id)", message: "Property IDs must start with a letter and contain only letters, numbers, underscores, or hyphens.", into: &diagnostics)
+            if !property.hasSynthesizedID {
+                validate(property.controlGroupSource?.localID ?? property.id, expression: propertyExpression, location: "manifest.json:inspector.\(property.id)", message: "Property IDs must start with a letter and contain only letters, numbers, underscores, or hyphens.", into: &diagnostics)
+            }
             validate(property, into: &diagnostics)
             validateVisibility(property, properties: manifest.resolvedProperties, into: &diagnostics)
             if let font = property.control.font,
@@ -139,13 +156,11 @@ nonisolated enum PartPackageValidator {
                     message: "Icon glyphs must be SVG files."
                 ))
             } else if let source = try? String(contentsOf: iconURL, encoding: .utf8),
-                      source.contains("Gradient") || source.contains("<image")
-                        || source.matches(#"fill\s*=\s*[\"'](?!none|currentColor)"#)
-                        || source.matches(#"fill\s*:\s*(?!none|currentColor)"#) {
+                      Self.iconArtworkAltersShape(source) {
                 diagnostics.append(.init(
                     severity: .warning,
                     location: iconFile,
-                    message: "Icon glyphs render as a single-colour stencil; this file's own colours, gradients, or images are ignored. Draw with fill=\"currentColor\"."
+                    message: "Icon glyphs are used only as a shape, so any solid colour works. Transparency, gradients, images, patterns and filters change that shape: partly transparent areas turn faint and shaded artwork turns into a flat silhouette."
                 ))
             }
         }
@@ -297,7 +312,8 @@ nonisolated enum PartPackageValidator {
         manifest: PartPackageManifest,
         into diagnostics: inout [PartPackageDiagnostic]
     ) {
-        var propertyIDs = Set(manifest.resolvedProperties.filter { $0.control.type != .divider }.map(\.id))
+        // Dividers and notes carry no value, so a template has nothing to read.
+        var propertyIDs = Set(manifest.resolvedProperties.filter { !$0.control.type.permitsOmittedID }.map(\.id))
         let namedGroupNamespaces = Set(manifest.controlGroups.compactMap(\.id))
         for namespace in PartPackageControlGroupCSSResolver.composedNamespaces(for: manifest.resolvedProperties) {
             propertyIDs.insert(namespace + ".css")
@@ -917,7 +933,7 @@ nonisolated enum PartPackageValidator {
         into diagnostics: inout [PartPackageDiagnostic]
     ) {
         switch property.control.type {
-        case .divider, .note:
+        case .divider, .spacer, .note:
             break
         case .math:
             let operations = Set(["+", "-", "*", "/", "%", "min", "max"])

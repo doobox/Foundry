@@ -35,7 +35,7 @@ nonisolated enum PartPackageManifestSchema {
         "id", "label", "title", "body", "systemImage", "defaults", "responsive", "subtitle", "buttonText", "units", "noneValue", "tooltip", "linked",
         "type", "font", "showsFamily", "showsWeight", "showsStyle", "showsSize", "minimum", "maximum", "step", "options", "frameworkValues", "allowsCustom", "opacity", "outputFormat",
         "customColor", "count", "ticks", "showsValueField", "trueValue", "falseValue",
-        "buttonIcon", "activeButtonText", "activeButtonIcon", "selectionMode", "fontSize", "argument1", "argument2", "operation", "round", "absoluteURL", "presentation", "visibleWhen", "valueAvailability", "alt", "focalPoint", "renditions", "accepts", "pickerItems", "initial", "containment"
+        "buttonIcon", "activeButtonText", "activeButtonIcon", "selectionMode", "fontSize", "argument1", "argument2", "operation", "round", "absoluteURL", "presentation", "visibleWhen", "valueAvailability", "alt", "focalPoint", "renditions", "accepts", "pickerItems", "initial", "containment", "height"
     ]
     private static let visibleWhenKeys: Set<String> = ["id", "operation", "value", "all", "any"]
     private static let optionKeys: Set<String> = ["value", "title", "systemImage"]
@@ -679,7 +679,14 @@ nonisolated enum PartPackageManifestSchema {
     }
 
     private static func validateResolvedProperty(_ property: [String: Any], location: String, into diagnostics: inout [PartPackageDiagnostic]) {
-        requireString("id", in: property, location: location, into: &diagnostics)
+        // Dividers and notes hold no value and nothing can refer to one, so an
+        // id would be bookkeeping the developer gains nothing from.
+        if let typeName = property["type"] as? String,
+           PartPackageControl.Kind(rawValue: typeName)?.permitsOmittedID == true {
+            optionalString("id", in: property, location: location, into: &diagnostics)
+        } else {
+            requireString("id", in: property, location: location, into: &diagnostics)
+        }
         optionalString("tooltip", in: property, location: location, into: &diagnostics)
         optionalString("alt", in: property, location: location, into: &diagnostics)
         optionalBoolean("focalPoint", in: property, location: location, into: &diagnostics)
@@ -918,6 +925,36 @@ nonisolated enum PartPackageManifestSchema {
                 ))
             }
         }
+        if type == .spacer {
+            let supportedKeys: Set<String> = ["type", "id", "height", "visibleWhen"]
+            for key in property.keys where !supportedKeys.contains(key) {
+                diagnostics.append(.init(
+                    severity: .error,
+                    location: "\(location):\(key)",
+                    message: "A spacer control does not support \(key)."
+                ))
+            }
+            if let rawHeight = property["height"] {
+                let range = PartPackageControl.spacerHeightRange
+                if isNumber(rawHeight), let height = (rawHeight as? NSNumber)?.doubleValue {
+                    if !range.contains(height) {
+                        diagnostics.append(.init(
+                            severity: .error,
+                            location: "\(location):height",
+                            message: "A spacer height must be between \(Int(range.lowerBound)) and \(Int(range.upperBound))."
+                        ))
+                    }
+                } else {
+                    appendTypeError(key: "height", expected: "a number", location: location, into: &diagnostics)
+                }
+            }
+        } else if property["height"] != nil {
+            diagnostics.append(.init(
+                severity: .error,
+                location: "\(location):height",
+                message: "height is supported only by spacer controls."
+            ))
+        }
         if type == .note {
             let supportedKeys: Set<String> = ["type", "id", "title", "body", "systemImage", "visibleWhen"]
             for key in property.keys where !supportedKeys.contains(key) {
@@ -1066,7 +1103,7 @@ nonisolated enum PartPackageManifestSchema {
             optionalPartValue(key, in: property, location: location, into: &diagnostics)
         }
 
-        let permitsMissingDefault = type == .divider || type == .image || type == .video || type == .note || type == .math
+        let permitsMissingDefault = type == .divider || type == .spacer || type == .image || type == .video || type == .note || type == .math
         if !permitsMissingDefault && property["default"] == nil {
             appendMissing("default", expected: "value", location: location, into: &diagnostics)
         }

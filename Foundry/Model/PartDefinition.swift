@@ -238,6 +238,7 @@ nonisolated enum PartPropertyControl: Sendable {
     case packageShadow
     case textAlignment
     case divider
+    case spacer(height: Double)
     case toggle
     case image
     case video

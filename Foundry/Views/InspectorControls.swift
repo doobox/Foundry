@@ -8,7 +8,6 @@ enum InspectorMetrics {
     static let expandedInspectorWidth: CGFloat = 494
     static let columnSpacing: CGFloat = 10
     static let rowSpacing: CGFloat = 7
-    static let controlSpacing: CGFloat = 12
     static let horizontalSectionPadding: CGFloat = 14
     static let verticalSectionPadding: CGFloat = 8
 

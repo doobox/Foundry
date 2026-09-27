@@ -46,7 +46,7 @@ struct PartPackageTests {
             }
             checked += 1
         }
-        #expect(checked == 40, "Expected every documented control and control group's Quick example; update this count when adding a reference page.")
+        #expect(checked == 41, "Expected every documented control and control group's Quick example; update this count when adding a reference page.")
     }
 
     @Test(.enabled(if: FileManager.default.fileExists(atPath: developerDocsURL.appending(path: "index.md").path)))
@@ -127,7 +127,7 @@ struct PartPackageTests {
             }
             checked += 1
         }
-        #expect(checked == 26, "Expected all 26 control reference examples.")
+        #expect(checked == 27, "Expected all 27 control reference examples.")
     }
 
     @Test(.enabled(if: FileManager.default.fileExists(atPath: developerDocsURL.appending(path: "quick-start.md").path)))
@@ -5222,6 +5222,109 @@ struct PartPackageTests {
     }
 
     @Test
+    func dividerAndNoteMayOmitTheirIDs() throws {
+        let entries = """
+        { "type" : "divider" },
+        { "type" : "note", "body" : "First" },
+        { "section" : "Layout", "controls" : [
+            { "type" : "divider" },
+            { "type" : "note", "body" : "Second" }
+        ] }
+        """
+        let manifestText = manifest(withInspectorEntries: entries)
+        let schemaDiagnostics = try PartPackageManifestSchema.diagnostics(for: Data(manifestText.utf8))
+        #expect(!schemaDiagnostics.contains { $0.severity == .error }, "\(schemaDiagnostics)")
+
+        let packageURL = try makePackage(
+            manifest: manifestText,
+            template: "<section {{ part.attributes }}>{{ childArea(\"content\") }}</section>"
+        )
+        defer { try? FileManager.default.removeItem(at: packageURL) }
+        let package = try PartPackageLoader.load(from: packageURL)
+        func omittable(_ manifest: PartPackageManifest) -> [PartPackageProperty] {
+            manifest.resolvedProperties.filter { $0.control.type.permitsOmittedID }
+        }
+        let properties = omittable(package.manifest)
+        let allSynthesized = properties.allSatisfy { $0.hasSynthesizedID }
+        #expect(properties.count == 4)
+        #expect(allSynthesized)
+        // Each declaration gets its own id, and loading again yields the same ones.
+        #expect(Set(properties.map(\.id)).count == 4)
+        let reloaded = omittable(try PartPackageLoader.load(from: packageURL).manifest).map(\.id)
+        #expect(reloaded == properties.map(\.id))
+
+        let diagnostics = PartPackageValidator.validate(
+            package.manifest,
+            rootURL: packageURL.appending(path: "Resources", directoryHint: .isDirectory)
+        )
+        #expect(!diagnostics.contains { $0.severity == .error }, "\(diagnostics)")
+    }
+
+    @Test
+    func spacerNeedsNoIDAndDefaultsToTenPoints() throws {
+        let entries = """
+        { "type" : "spacer" },
+        { "type" : "spacer", "height" : 24 }
+        """
+        let manifestText = manifest(withInspectorEntries: entries)
+        let schemaDiagnostics = try PartPackageManifestSchema.diagnostics(for: Data(manifestText.utf8))
+        #expect(!schemaDiagnostics.contains { $0.severity == .error }, "\(schemaDiagnostics)")
+
+        let packageURL = try makePackage(
+            manifest: manifestText,
+            template: "<section {{ part.attributes }}>{{ childArea(\"content\") }}</section>"
+        )
+        defer { try? FileManager.default.removeItem(at: packageURL) }
+        let package = try PartPackageLoader.load(from: packageURL)
+        let heights = PartPackageAdapter.definition(from: package).properties.compactMap { property -> Double? in
+            if case .spacer(let height) = property.control { return height }
+            return nil
+        }
+        #expect(heights == [10, 24])
+        let diagnostics = PartPackageValidator.validate(
+            package.manifest,
+            rootURL: packageURL.appending(path: "Resources", directoryHint: .isDirectory)
+        )
+        #expect(!diagnostics.contains { $0.severity == .error }, "\(diagnostics)")
+    }
+
+    @Test(arguments: [
+        #"{ "type" : "spacer", "height" : 0 }"#,
+        #"{ "type" : "spacer", "height" : 31 }"#,
+        #"{ "type" : "spacer", "height" : "10" }"#,
+        #"{ "type" : "spacer", "height" : true }"#,
+        #"{ "type" : "spacer", "label" : "Gap" }"#,
+        #"{ "id" : "size", "type" : "number", "height" : 10, "defaults" : { "base" : 1 } }"#
+    ])
+    func spacerRejectsInvalidDeclarations(_ entry: String) throws {
+        let diagnostics = try PartPackageManifestSchema.diagnostics(
+            for: Data(manifest(withInspectorEntries: entry).utf8)
+        )
+        #expect(diagnostics.contains { $0.severity == .error }, "No error for \(entry)")
+    }
+
+    @Test
+    func spacerAcceptsItsFullRange() throws {
+        for height in [1, 30] {
+            let diagnostics = try PartPackageManifestSchema.diagnostics(
+                for: Data(manifest(withInspectorEntries: #"{ "type" : "spacer", "height" : \#(height) }"#).utf8)
+            )
+            #expect(!diagnostics.contains { $0.severity == .error }, "height \(height): \(diagnostics)")
+        }
+    }
+
+    @Test
+    func mathStillRequiresAnID() throws {
+        let entries = """
+        { "type" : "math", "argument1" : 1, "argument2" : 2, "operation" : "add" }
+        """
+        let schemaDiagnostics = try PartPackageManifestSchema.diagnostics(
+            for: Data(manifest(withInspectorEntries: entries).utf8)
+        )
+        #expect(schemaDiagnostics.contains { $0.severity == .error && $0.location.hasSuffix(":id") })
+    }
+
+    @Test
     func noteCustomControlUsesDedicatedContentKeys() throws {
         let validItem = """
         {
@@ -6768,6 +6871,38 @@ struct PartPackageTests {
         )
 
         #expect(diagnostics.contains { $0.location == "icon.svg" && $0.message.contains("64 KiB") })
+    }
+
+    /// Icons render as template images: any solid colour works, and only
+    /// artwork that changes the alpha — and so the shape — earns a warning.
+    @Test(arguments: [
+        ##"<svg viewBox="0 0 24 24"><rect width="24" height="24"/></svg>"##,
+        ##"<svg viewBox="0 0 24 24"><rect width="24" height="24" fill="#000000"/></svg>"##,
+        ##"<svg viewBox="0 0 24 24"><rect width="24" height="24" fill="#F00"/></svg>"##,
+        ##"<svg viewBox="0 0 24 24"><rect width="24" height="24" fill="red"/></svg>"##,
+        ##"<svg viewBox="0 0 24 24"><rect width="24" height="24" fill="currentColor"/></svg>"##,
+        ##"<svg viewBox="0 0 24 24"><path d="M1 1h22" fill="none" stroke="#123456"/></svg>"##,
+        ##"<svg viewBox="0 0 24 24"><rect width="24" height="24" style="fill: blue"/></svg>"##
+    ])
+    func solidIconFillsInAnyColourPassWithoutWarning(_ source: String) {
+        #expect(!PartPackageValidator.iconArtworkAltersShape(source), "\(source)")
+    }
+
+    @Test(arguments: [
+        ##"<svg><linearGradient id="g"/><rect fill="url(#g)"/></svg>"##,
+        ##"<svg><radialGradient id="g"/></svg>"##,
+        ##"<svg><image href="photo.png"/></svg>"##,
+        ##"<svg><pattern id="p"/></svg>"##,
+        ##"<svg><filter id="f"/></svg>"##,
+        ##"<svg><rect fill-opacity="0.5"/></svg>"##,
+        ##"<svg><rect opacity="0.5"/></svg>"##,
+        ##"<svg><rect style="stroke-opacity: 0.4"/></svg>"##,
+        ##"<svg><rect fill="rgba(0,0,0,0.5)"/></svg>"##,
+        ##"<svg><rect fill="#00000080"/></svg>"##,
+        ##"<svg><rect fill="#0008"/></svg>"##
+    ])
+    func iconArtworkThatChangesTheShapeWarns(_ source: String) {
+        #expect(PartPackageValidator.iconArtworkAltersShape(source), "\(source)")
     }
 
     @Test

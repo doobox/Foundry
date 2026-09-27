@@ -25,6 +25,8 @@ struct ChildPickerPartControl: View {
                     Label(buttonText, systemImage: buttonIcon)
                 }
                 .buttonStyle(.borderedProminent)
+                .buttonSizing(.flexible)
+                .frame(maxWidth: .infinity)
                 .disabled(!action.isEnabled)
                 .help(disabledReason ?? help ?? "")
                 .popover(isPresented: $showsChoices) {

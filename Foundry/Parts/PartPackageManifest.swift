@@ -924,11 +924,34 @@ nonisolated struct PartPackageProperty: Codable, Equatable, Identifiable, Sendab
         containment = .open
     }
 
+    /// Developer ids must start with a letter, so this prefix can never
+    /// collide with one.
+    static let synthesizedIDPrefix = "__"
+
+    /// Whether Foundry, not the developer, named this control.
+    var hasSynthesizedID: Bool {
+        control.type.permitsOmittedID && id.hasPrefix(Self.synthesizedIDPrefix)
+    }
+
+    /// A stable id from the control's place in the manifest. The coding path
+    /// is unique per declaration — `inspector[3].controls[1]` becomes
+    /// `__divider_3_1` — and the same manifest always yields the same ids.
+    private static func synthesizedID(for type: PartPackageControl.Kind, at codingPath: [any CodingKey]) -> String {
+        let position = codingPath.compactMap { $0.intValue.map(String.init) }.joined(separator: "_")
+        return synthesizedIDPrefix + type.rawValue + (position.isEmpty ? "" : "_" + position)
+    }
+
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        id = try container.decode(String.self, forKey: .id)
         group = "Settings"
         control = try PartPackageControl(from: decoder)
+        if let declared = try container.decodeIfPresent(String.self, forKey: .id) {
+            id = declared
+        } else if control.type.permitsOmittedID {
+            id = Self.synthesizedID(for: control.type, at: decoder.codingPath)
+        } else {
+            id = try container.decode(String.self, forKey: .id)
+        }
         tooltip = try container.decodeIfPresent(String.self, forKey: .tooltip)
         noneValue = try container.decodeIfPresent(String.self, forKey: .noneValue)
         visibleWhen = try container.decodeIfPresent(PartPackageVisibilityCondition.self, forKey: .visibleWhen)
@@ -979,7 +1002,7 @@ nonisolated struct PartPackageProperty: Codable, Equatable, Identifiable, Sendab
             guard defaults["base"] != nil else { throw DecodingError.dataCorruptedError(forKey: .defaultValue, in: container, debugDescription: "defaults.base is required") }
             breakpointDefaults = defaults.filter { $0.key != "base" }
         }
-        if control.type == .divider || control.type == .note || control.type == .image || control.type == .video || control.type == .math || control.type == .childPicker {
+        if control.type == .divider || control.type == .spacer || control.type == .note || control.type == .image || control.type == .video || control.type == .math || control.type == .childPicker {
             defaultValue = defaults?["base"] ?? .string("")
             if control.type == .video {
                 responsive = false
@@ -1016,7 +1039,7 @@ nonisolated struct PartPackageProperty: Codable, Equatable, Identifiable, Sendab
             try container.encode(noteBody, forKey: .body)
             try container.encodeIfPresent(noteSystemImage, forKey: .systemImage)
         }
-        if ![.note, .divider, .math, .childPicker].contains(control.type) {
+        if ![.note, .divider, .spacer, .math, .childPicker].contains(control.type) {
             try container.encode(breakpointDefaults.merging(["base": defaultValue]) { _, base in base }, forKey: .defaultValue)
             if control.type != .video {
                 try container.encode(responsive, forKey: .responsive)
@@ -1205,6 +1228,13 @@ nonisolated struct PartPackageControl: Codable, Equatable, Sendable {
         case math
         case frameworkShadow
         case childPicker
+        case spacer
+
+        /// Controls that hold no value and that nothing can refer to. A
+        /// developer may leave their id out; one is synthesised instead.
+        var permitsOmittedID: Bool {
+            self == .divider || self == .note || self == .spacer
+        }
     }
 
     let type: Kind
@@ -1239,12 +1269,19 @@ nonisolated struct PartPackageControl: Codable, Equatable, Sendable {
     /// Explicit starting link state for edges/corners controls; nil infers it from
     /// whether the declared edge defaults are all equal.
     let linked: Bool?
+    /// Spacer-only: the gap in points.
+    let height: Double?
+
+    /// The spacer's gap when `height` is omitted, and the permitted range.
+    static let defaultSpacerHeight: Double = 10
+    static let spacerHeightRange: ClosedRange<Double> = 1...30
 
     enum CodingKeys: String, CodingKey {
         case type, font, minimum, maximum, step, options, frameworkValues, allowsCustom
         case showsFamily, showsWeight, showsStyle, showsSize
         case opacity, outputFormat, customColor, count, ticks, showsValueField
         case trueValue, falseValue, selectionMode, argument1, argument2, operation, round, absoluteURL, presentation, linked
+        case height
     }
 
     init(
@@ -1290,6 +1327,7 @@ nonisolated struct PartPackageControl: Codable, Equatable, Sendable {
         self.absoluteURL = absoluteURL
         self.presentation = presentation
         linked = nil
+        height = nil
     }
 
     static func select(_ options: [(String, String)], presentation: ControlPresentation? = nil) -> Self {
@@ -1335,6 +1373,7 @@ nonisolated struct PartPackageControl: Codable, Equatable, Sendable {
         absoluteURL = try container.decodeIfPresent(Bool.self, forKey: .absoluteURL)
         presentation = try container.decodeIfPresent(ControlPresentation.self, forKey: .presentation)
         linked = try container.decodeIfPresent(Bool.self, forKey: .linked)
+        height = try container.decodeIfPresent(Double.self, forKey: .height)
     }
 
     func encode(to encoder: Encoder) throws {
@@ -1372,6 +1411,7 @@ nonisolated struct PartPackageControl: Codable, Equatable, Sendable {
         try container.encodeIfPresent(absoluteURL, forKey: .absoluteURL)
         try container.encodeIfPresent(presentation, forKey: .presentation)
         try container.encodeIfPresent(linked, forKey: .linked)
+        try container.encodeIfPresent(height, forKey: .height)
     }
 }
 

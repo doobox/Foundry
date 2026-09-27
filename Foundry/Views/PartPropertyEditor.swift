@@ -443,6 +443,10 @@ struct PartPropertyEditor: View {
             )
         case .divider:
             DividerPartControl()
+        case .spacer(let height):
+            Color.clear
+                .frame(height: height)
+                .accessibilityHidden(true)
         case .toggle:
             TogglePartControl(
                 label: definition.label,

@@ -408,6 +408,7 @@ nonisolated enum PartPackageAdapter {
         case .toggle: .toggle
         case .textAlignment: .textAlignment
         case .divider: .divider
+        case .spacer: .spacer(height: control.height ?? PartPackageControl.defaultSpacerHeight)
         case .slider:
             .slider(
                 range: (control.minimum ?? 0)...(control.maximum ?? 100),
