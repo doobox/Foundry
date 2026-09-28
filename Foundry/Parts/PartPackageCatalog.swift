@@ -321,6 +321,46 @@ final class PartPackageCatalog {
         revision += 1
     }
 
+    // MARK: Controls showcase
+
+    /// Whether the showcase pack is being read in.
+    private(set) var isLoadingControlShowcase = false
+    /// Bumped by every unload so a load that finishes afterwards is dropped.
+    private var controlShowcaseGeneration = 0
+
+    var hasControlShowcase: Bool {
+        packages.values.contains(where: \.isControlShowcase)
+    }
+
+    /// Reads the Controls showcase in on demand. It stays out of the start-up
+    /// load and out of memory until the Developer panel's Controls section
+    /// asks for it, and `unloadControlShowcase()` drops it again.
+    func loadControlShowcase() async {
+        guard !hasControlShowcase, !isLoadingControlShowcase,
+              let rootURL = FoundryPackLoader.builtInShowcasePackURL() else { return }
+        isLoadingControlShowcase = true
+        defer { isLoadingControlShowcase = false }
+        let generation = controlShowcaseGeneration
+        await waitUntilLoaded()
+        let outcomes = await Task.detached {
+            let urls = (try? FoundryPackLoader.load(from: rootURL).partURLs) ?? []
+            return await PartCatalogSnapshot.loadOutcomes(urls)
+        }.value
+        guard generation == controlShowcaseGeneration else { return }
+        for outcome in outcomes {
+            apply(outcome, allowsReplacement: true)
+        }
+    }
+
+    /// Forgets the showcase parts. Callers discard any scratch page showing
+    /// one first, since its part type becomes unavailable.
+    func unloadControlShowcase() {
+        controlShowcaseGeneration &+= 1
+        guard hasControlShowcase, let rootURL = FoundryPackLoader.builtInShowcasePackURL() else { return }
+        unregisterPackages(under: rootURL)
+        Task { await PartIconLoader.shared.removeIcons(underRoot: rootURL) }
+    }
+
     func openDevelopmentPack(at rootURL: URL) {
         let rootURL = rootURL.standardizedFileURL
         ReusablePartLibrary.shared.openDevelopmentPack(at: rootURL)
@@ -385,12 +425,12 @@ private struct PartCatalogSnapshot: Sendable {
         // The bundled built-ins normally ship as a release pack; a developer
         // working on them may rename the container to .foundrydevpack, which
         // additionally makes it a watched development root.
-        var builtInDevelopmentRoots: [URL] = []
-        for containerURL in FoundryPackLoader.builtInPackURLs() {
-            guard let pack = try? FoundryPackLoader.load(from: containerURL) else { continue }
+        var builtInDevelopmentRoot: URL?
+        if let containerURL = FoundryPackLoader.builtInPackURL(),
+           let pack = try? FoundryPackLoader.load(from: containerURL) {
             urls.append(contentsOf: pack.partURLs)
             if containerURL.pathExtension.lowercased() == "foundrydevpack" {
-                builtInDevelopmentRoots.append(containerURL.standardizedFileURL)
+                builtInDevelopmentRoot = containerURL.standardizedFileURL
             }
         }
 
@@ -401,7 +441,7 @@ private struct PartCatalogSnapshot: Sendable {
         var developmentRoots = Set(installedPackURLs.compactMap { url in
             url.pathExtension.lowercased() == "foundrydevpack" ? url.standardizedFileURL : nil
         })
-        developmentRoots.formUnion(builtInDevelopmentRoots)
+        if let builtInDevelopmentRoot { developmentRoots.insert(builtInDevelopmentRoot) }
 
         let standardizedURLs = urls.map(\.standardizedFileURL)
         await progress(.loading, 0, standardizedURLs.count)

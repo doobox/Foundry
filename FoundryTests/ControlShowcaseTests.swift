@@ -4,12 +4,31 @@ import Testing
 
 /// The bundled Controls showcase: one hidden part per control and control
 /// group, each carrying the snippets a developer copies to get started.
+@Suite(.serialized)
 struct ControlShowcaseTests {
     @MainActor
     private func showcasePackages() async -> [LoadedPartPackage] {
         let catalog = PartPackageCatalog.shared
         await catalog.waitUntilLoaded()
+        await catalog.loadControlShowcase()
         return catalog.packages.values.filter(\.isControlShowcase)
+    }
+
+    @Test @MainActor
+    func showcaseLoadsOnDemandAndUnloadsAgain() async throws {
+        let catalog = PartPackageCatalog.shared
+        await catalog.waitUntilLoaded()
+        catalog.unloadControlShowcase()
+        // Nothing at start-up (or after an unload): the pack costs nothing
+        // until the Controls section asks for it.
+        #expect(!catalog.hasControlShowcase)
+        #expect(PartType(rawValue: "foundry.showcase.toggle").definition.renderKind == .unavailable)
+        await catalog.loadControlShowcase()
+        #expect(catalog.hasControlShowcase)
+        #expect(PartType(rawValue: "foundry.showcase.toggle").definition.renderKind == .package)
+        catalog.unloadControlShowcase()
+        #expect(!catalog.hasControlShowcase)
+        #expect(PartType(rawValue: "foundry.showcase.toggle").definition.renderKind == .unavailable)
     }
 
     @Test @MainActor
@@ -81,6 +100,7 @@ struct ControlShowcaseTests {
     @Test @MainActor
     func showingAControlUsesAnInMemoryScratchPage() async throws {
         await PartPackageCatalog.shared.waitUntilLoaded()
+        await PartPackageCatalog.shared.loadControlShowcase()
         let document = FoundryDocument()
         let undoManager = UndoManager()
         let editor = ProjectEditor(document: document, undoManager: undoManager)

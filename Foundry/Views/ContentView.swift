@@ -50,6 +50,9 @@ struct ContentView: View {
     @State private var editsSharedReusableDefinition = false
     @State private var workspaceLayout = WorkspacePresetStore.initialLayoutForNewDocument()
     @State private var detachedPanelWindows = DetachedPanelWindowCoordinator()
+    /// The page the developer was on before opening a Controls showcase, so
+    /// leaving Controls returns there without a second click.
+    @State private var pageBeforeControls: UUID?
     @State private var frameworkWindowID = UUID()
     @State private var siteSettingsWindowID = UUID()
     @State private var exportErrorMessage: String?
@@ -179,11 +182,9 @@ struct ContentView: View {
         }
         .onChange(of: selectedPageID) { _, pageID in
             schedulePreviewRefresh(selectionOnly: true)
-            // Leaving the Controls scratch page for a real one discards it.
-            if let pageID, document.site.pages.contains(where: { $0.id == pageID && !$0.isDeveloperPlayground }) {
-                editor.discardControlPlayground()
-            }
+            pageSelectionDidChange(to: pageID)
         }
+
         .onChange(of: document.site.pages.map(\.id)) { _, pageIDs in
             if let selectedPageID, pageIDs.contains(selectedPageID) {
                 return
@@ -355,8 +356,7 @@ struct ContentView: View {
         case .parts:
             PartLibraryPanel(
                 selectedType: inspectableLibraryPartSelection,
-                addToPageEnd: addPartToPageEnd,
-                showControl: showControlShowcase
+                addToPageEnd: addPartToPageEnd
             )
         case .reusableParts:
             ReusablePartLibraryPanel(
@@ -465,7 +465,11 @@ struct ContentView: View {
                 selectedAssetCollectionItemID = nil
             }
         case .developer:
-            DeveloperPanel()
+            DeveloperPanel(
+                selectedControl: shownControlType,
+                showControl: showControlShowcase,
+                leaveControls: leaveControls
+            )
         case .canvas:
             CanvasView(
                 site: document.site,
@@ -1609,12 +1613,48 @@ struct ContentView: View {
         }
     }
 
-    /// The Controls tab: show the chosen showcase on the playground page and
-    /// select it, so the Inspector shows its controls and the canvas its sheet.
+    /// The Developer panel's Controls tab: show the chosen showcase on the
+    /// scratch page and select it, so the Inspector shows its controls and
+    /// the canvas its sheet.
     private func showControlShowcase(_ type: PartType) {
+        if !document.site.pages.contains(where: \.isDeveloperPlayground) {
+            pageBeforeControls = selectedPage.flatMap { $0.isDeveloperPlayground ? nil : $0.id }
+        }
         guard let shown = editor.showControlShowcase(type: type) else { return }
         selectedPageID = shown.pageID
         selectedPartID = shown.partID
+    }
+
+    /// Choosing a real page by hand also leaves Controls.
+    private func pageSelectionDidChange(to pageID: UUID?) {
+        guard let pageID,
+              document.site.pages.contains(where: { $0.id == pageID && !$0.isDeveloperPlayground }) else { return }
+        editor.discardControlPlayground()
+        pageBeforeControls = nil
+    }
+
+    /// The showcase on the scratch page, for the Controls list's highlight.
+    private var shownControlType: PartType? {
+        document.site.pages.first(where: \.isDeveloperPlayground)?.parts.first?.type
+    }
+
+    /// Leaving the Controls section: the scratch page goes first, because
+    /// its part type disappears with the pack.
+    private func leaveControls() {
+        leaveControlPlayground()
+        partCatalog.unloadControlShowcase()
+    }
+
+    /// Leaving Controls drops the scratch page and goes back to the page the
+    /// developer was on, so they need not find it again.
+    private func leaveControlPlayground() {
+        guard document.site.pages.contains(where: \.isDeveloperPlayground) else { return }
+        let destination = pageBeforeControls.flatMap { id in document.site.authoredPages.first { $0.id == id }?.id }
+            ?? document.site.authoredPages.first?.id
+        pageBeforeControls = nil
+        editor.discardControlPlayground()
+        selectedPartID = nil
+        selectedPageID = destination
     }
 
     private func insertPartFromLibrary(_ type: PartType, _ placement: PartPlacement) -> Bool {

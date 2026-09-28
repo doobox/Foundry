@@ -118,18 +118,14 @@ nonisolated enum FoundryPackLoader {
     }
 
     /// The bundled Controls showcase: one hidden part per control and control
-    /// group, shown only in the Parts panel's Controls tab for developers.
+    /// group. It is not part of the start-up load; the catalog brings it in
+    /// while the Developer panel's Controls section is open.
     static func builtInShowcasePackURL() -> URL? {
         guard let bundleURL = Bundle.main.url(forResource: "BuiltInParts", withExtension: "bundle"),
               let partBundle = Bundle(url: bundleURL) else { return nil }
         let containerURL = partBundle.url(forResource: "ControlShowcase", withExtension: "foundrypack")
             ?? partBundle.url(forResource: "ControlShowcase", withExtension: "foundrydevpack")
         return containerURL?.standardizedFileURL
-    }
-
-    /// Every pack shipped inside the app, built-in parts first.
-    static func builtInPackURLs() -> [URL] {
-        [builtInPackURL(), builtInShowcasePackURL()].compactMap { $0 }
     }
 
     static func installedPacksURL(fileManager: FileManager = .default) throws -> URL {

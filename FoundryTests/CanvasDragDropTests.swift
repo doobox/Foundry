@@ -150,7 +150,10 @@ struct CanvasInsertionEditingTests {
     }
 
     @Test
-    func libraryInsertionSupportsInsideAfterAndRootPlacements() throws {
+    func libraryInsertionSupportsInsideAfterAndRootPlacements() async throws {
+        // Placement inside a container needs its drop zones, which come from
+        // the loaded built-in pack.
+        await PartPackageCatalog.shared.waitUntilLoaded()
         let document = TestSiteFixtures.populatedDocument()
         let editor = ProjectEditor(document: document, undoManager: nil)
         let page = try #require(document.site.pages.first)
@@ -168,7 +171,8 @@ struct CanvasInsertionEditingTests {
     }
 
     @Test
-    func adjacentAndInsidePlacementsNormalizeSlotMembership() {
+    func adjacentAndInsidePlacementsNormalizeSlotMembership() async {
+        await PartPackageCatalog.shared.waitUntilLoaded()
         var target = PartNode.make(.paragraph)
         target.slotID = "secondary"
         var parent = PartNode.make(.container)

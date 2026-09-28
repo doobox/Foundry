@@ -1359,6 +1359,18 @@ private struct PartInspector: View {
             }
 
             Spacer(minLength: 0)
+
+            // A showcase is a demo of one control; its reference page is the
+            // next thing a developer wants, so it sits right by the title.
+            if let package = part.type.definition.package, package.isControlShowcase,
+               let helpURL = package.manifest.helpURL {
+                Link(destination: helpURL) {
+                    Label("API Docs", systemImage: "book")
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .help(helpURL.absoluteString)
+            }
         }
         .padding(.vertical, 2)
     }

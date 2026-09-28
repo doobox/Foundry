@@ -189,8 +189,6 @@ private struct PagesPanelHeader: View {
 struct PartLibraryPanel: View {
     @Binding var selectedType: PartType?
     let addToPageEnd: (PartType) -> Void
-    /// Puts a Controls showcase part on the developer's playground page.
-    let showControl: (PartType) -> Void
     @State private var catalog = PartPackageCatalog.shared
     @AppStorage(AppPreferenceKey.partLibrarySource)
     private var partSource = PartLibrarySource.parts
@@ -222,9 +220,9 @@ struct PartLibraryPanel: View {
                 PartCatalogLoadingView()
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
-                if enablesDeveloperTools {
+                if canShowDevelopmentParts {
                     Picker("Part source", selection: $partSource) {
-                        ForEach(availableSources) { source in
+                        ForEach(PartLibrarySource.allCases) { source in
                             Text(source.title).tag(source)
                         }
                     }
@@ -263,13 +261,7 @@ struct PartLibraryPanel: View {
                                             type: type,
                                             iconSize: iconSize,
                                             isSelected: selectedType == type,
-                                            select: {
-                                                selectedType = type
-                                                // A control is looked at, not
-                                                // dragged: selecting it shows
-                                                // the showcase straight away.
-                                                if activePartSource == .controls { showControl(type) }
-                                            }
+                                            select: { selectedType = type }
                                         )
                                         .draggable(PartDragPayload.library(type).stringValue) {
                                             PartLibraryIcon(type: type, size: 54)
@@ -336,9 +328,6 @@ struct PartLibraryPanel: View {
         if !query.isEmpty {
             types = types.filter { $0.displayName.localizedCaseInsensitiveContains(query) }
         }
-        if activePartSource == .controls {
-            return showcaseSections(for: types)
-        }
         switch arrangement {
         case .group:
             return groupSections(for: types)
@@ -381,21 +370,6 @@ struct PartLibraryPanel: View {
                 title: category.rawValue,
                 types: categoryTypes
             )
-        }
-    }
-
-    /// Showcase parts group by the manifest's `group`, in the order the
-    /// developer reference lists controls, not alphabetically.
-    private func showcaseSections(for types: [PartType]) -> [PartLibrarySection] {
-        let preferredOrder = [
-            "Text & Numbers", "Choices", "Colour", "Framework", "Spacing & Edges",
-            "Media & Links", "Structure", "Presentation", "Control Groups"
-        ]
-        let grouped = Dictionary(grouping: types) { normalizedSectionTitle($0.definition.package?.manifest.category) }
-        let remaining = grouped.keys.filter { !preferredOrder.contains($0) }.sorted()
-        return (preferredOrder + remaining).compactMap { title in
-            guard let groupTypes = grouped[title], !groupTypes.isEmpty else { return nil }
-            return makeSection(id: "showcase-\(title)", title: title, types: groupTypes)
         }
     }
 
@@ -453,10 +427,10 @@ struct PartLibraryPanel: View {
     private var availableTypes: [PartType] {
         PartType.allCases.filter { type in
             let package = type.definition.package
-            // Showcase parts live only in the Controls tab, never among the
-            // parts a page is built from — even with hidden parts shown.
-            if package?.isControlShowcase == true { return activePartSource == .controls }
-            guard activePartSource != .controls else { return false }
+            // Showcase parts belong to the Developer panel's Controls tab,
+            // never among the parts a page is built from — even with hidden
+            // parts shown.
+            guard package?.isControlShowcase != true else { return false }
             let isDevelopmentPack = package?.isDevelopmentPack == true
             let showsInLibrary = package?.manifest.showsInPartLibrary ?? true
             return (showsInLibrary || showsHiddenParts)
@@ -464,15 +438,12 @@ struct PartLibraryPanel: View {
         }
     }
 
-    /// Dev Parts appears only when a development pack is loaded; Controls
-    /// whenever developer tools are on.
-    private var availableSources: [PartLibrarySource] {
-        [.parts] + (hasDevelopmentParts ? [.development] : []) + [.controls]
+    private var activePartSource: PartLibrarySource {
+        canShowDevelopmentParts ? partSource : .parts
     }
 
-    private var activePartSource: PartLibrarySource {
-        guard enablesDeveloperTools, availableSources.contains(partSource) else { return .parts }
-        return partSource
+    private var canShowDevelopmentParts: Bool {
+        enablesDeveloperTools && hasDevelopmentParts
     }
 
     private var hasDevelopmentParts: Bool {
@@ -495,7 +466,6 @@ struct PartLibraryPanel: View {
 nonisolated private enum PartLibrarySource: String, CaseIterable, Identifiable {
     case parts
     case development
-    case controls
 
     var id: String { rawValue }
 
@@ -503,7 +473,6 @@ nonisolated private enum PartLibrarySource: String, CaseIterable, Identifiable {
         switch self {
         case .parts: "Parts"
         case .development: "Dev Parts"
-        case .controls: "Controls"
         }
     }
 }
@@ -631,9 +600,36 @@ nonisolated private enum PartLibraryIconSize: String, CaseIterable, Identifiable
     }
 }
 
+/// The Developer panel's two sections: pack diagnostics, and the Controls
+/// showcase that demonstrates every control on a scratch page.
+nonisolated enum DeveloperPanelTab: String, CaseIterable, Identifiable {
+    case debugger
+    case controls
+
+    var id: String { rawValue }
+
+    var title: LocalizedStringResource {
+        switch self {
+        case .debugger: "Debugger"
+        case .controls: "Controls"
+        }
+    }
+}
+
 struct DeveloperPanel: View {
     @State private var catalog = PartPackageCatalog.shared
     @Environment(\.openWindow) private var openWindow
+    /// Always opens on the Debugger; the choice is not remembered.
+    @State private var tab = DeveloperPanelTab.debugger
+    /// The showcase currently on the scratch page, if any.
+    let selectedControl: PartType?
+    /// Shows a control's showcase on the scratch page.
+    let showControl: (PartType) -> Void
+    /// Drops the scratch page, returns to the page the developer was on and
+    /// unloads the showcase pack. Called when Controls stops being on screen:
+    /// another section chosen, another panel selected in the dock, or the
+    /// panel hidden.
+    let leaveControls: () -> Void
 
     var body: some View {
         let _ = catalog.revision
@@ -661,12 +657,36 @@ struct DeveloperPanel: View {
 
             Divider()
 
-            DeveloperIssuesView(
-                issues: issues,
-                summaryTitle: summaryTitle,
-                summaryDescription: summaryDescription,
-                reload: catalog.reloadAllPacks
-            )
+            Picker("Developer section", selection: $tab) {
+                ForEach(DeveloperPanelTab.allCases) { tab in
+                    Text(tab.title).tag(tab)
+                }
+            }
+            .buttonSizing(.flexible)
+            .pickerStyle(.palette)
+            .controlSize(.small)
+            .labelsHidden()
+            .padding(12)
+
+            Divider()
+
+            switch tab {
+            case .debugger:
+                DeveloperIssuesView(
+                    issues: issues,
+                    summaryTitle: summaryTitle,
+                    summaryDescription: summaryDescription,
+                    reload: catalog.reloadAllPacks
+                )
+            case .controls:
+                ControlShowcaseList(selectedControl: selectedControl, showControl: showControl)
+            }
+        }
+        .onChange(of: tab) { _, tab in
+            if tab != .controls { leaveControls() }
+        }
+        .onDisappear {
+            if tab == .controls { leaveControls() }
         }
     }
 
@@ -707,6 +727,87 @@ struct DeveloperPanel: View {
             parts.append(warningCount == 1 ? "1 warning" : "\(warningCount) warnings")
         }
         return parts.joined(separator: ", ")
+    }
+}
+
+/// Every control and control group, grouped as the developer reference is,
+/// each opening its showcase on the scratch page when clicked.
+private struct ControlShowcaseList: View {
+    let selectedControl: PartType?
+    let showControl: (PartType) -> Void
+    @State private var catalog = PartPackageCatalog.shared
+    @State private var searchText = ""
+
+    private static let groupOrder = [
+        "Text & Numbers", "Choices", "Colour", "Framework", "Spacing & Edges",
+        "Media & Links", "Structure", "Presentation", "Control Groups"
+    ]
+
+    var body: some View {
+        let _ = catalog.revision
+        VStack(spacing: 0) {
+            if !catalog.hasControlShowcase {
+                // The pack is read in only while this section is open.
+                VStack(spacing: 10) {
+                    ProgressView()
+                        .controlSize(.small)
+                    Text(catalog.isLoadingControlShowcase ? "Loading controls…" : "Controls unavailable")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 18) {
+                    ForEach(sections) { section in
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text(section.title)
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(.secondary)
+                            Divider()
+                            ForEach(section.types) { type in
+                                PartLibraryTile(
+                                    type: type,
+                                    iconSize: .list,
+                                    isSelected: selectedControl == type,
+                                    select: { showControl(type) }
+                                )
+                            }
+                        }
+                    }
+                }
+                .padding(10)
+            }
+            .frame(maxHeight: .infinity)
+            .overlay {
+                if !searchText.isEmpty, sections.isEmpty {
+                    ContentUnavailableView.search(text: searchText)
+                        .allowsHitTesting(false)
+                }
+            }
+            Divider()
+            PanelSearchField(prompt: "Search Controls", text: $searchText)
+            }
+        }
+        .task { await catalog.loadControlShowcase() }
+    }
+
+    private var sections: [PartLibrarySection] {
+        let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        let types = PartType.allCases.filter { type in
+            type.definition.package?.isControlShowcase == true
+                && (query.isEmpty || type.displayName.localizedCaseInsensitiveContains(query))
+        }
+        let grouped = Dictionary(grouping: types) { $0.definition.package?.manifest.category ?? "Other" }
+        let remaining = grouped.keys.filter { !Self.groupOrder.contains($0) }.sorted()
+        return (Self.groupOrder + remaining).compactMap { title in
+            guard let groupTypes = grouped[title], !groupTypes.isEmpty else { return nil }
+            return PartLibrarySection(
+                id: "showcase-\(title)",
+                title: title,
+                types: groupTypes.sorted { $0.displayName.localizedStandardCompare($1.displayName) == .orderedAscending }
+            )
+        }
     }
 }
 
