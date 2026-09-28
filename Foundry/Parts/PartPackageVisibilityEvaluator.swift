@@ -120,6 +120,13 @@ nonisolated enum PartPackageVisibilityEvaluator {
         }
         switch value {
         case .link(let link): return link.destination == .none
+        // A framework length left at None is empty, so a part can show a
+        // control only once a limit exists.
+        case .frameworkSpacing(let single): return single.selection.isNone
+        case .frameworkPadding(let edges): return edges.isNone
+        case .frameworkMargin(let edges): return edges.isNone
+        case .frameworkBorderWidth(let edges): return edges.isNone
+        case .frameworkRadius(let edges): return edges.isNone
         default: return false
         }
     }

@@ -4,9 +4,21 @@ import SwiftUI
 struct ImagePartControl: View {
     @Environment(\.inspectorLabelWidth) private var labelWidth
     @State private var isDropTarget = false
+    /// Whether the focal-point marker is showing. Starts on when the image
+    /// already has a focal point away from the centre.
+    @State private var isEditingFocalPoint: Bool?
+    /// Entry for an image that lives on the web.
+    @State private var showsURLEntry = false
+    @State private var enteredURL = ""
+    @State private var isImportingRemoteImage = false
+    @State private var remoteImageError: String?
+    /// A linked image, fetched so the well can show it and place a focal point on it.
+    @State private var remotePreview: NSImage?
 
     let label: String
     let previewImage: NSImage?
+    /// Set when the value links to an image on the web instead of a project asset.
+    let remoteURL: URL?
     let supportsFocalPoint: Bool
     let focalPoint: CGPoint
     let focalPointIndicator: InspectorRowIndicator
@@ -15,6 +27,11 @@ struct ImagePartControl: View {
     let chooseImage: () -> Void
     let clearImage: () -> Void
     let importImage: (URL) -> Bool
+    /// Keeps a web address as the value; the page loads the image from there.
+    let linkImage: (URL) -> Void
+    /// Downloads a web image into the project, returning false when the
+    /// address did not yield an image Foundry can import.
+    let importRemoteImage: (URL) async -> Bool
     let setFocalPoint: (CGPoint) -> Void
 
     var body: some View {
@@ -36,15 +53,49 @@ struct ImagePartControl: View {
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.trailing)
                         .help(label)
-                    Button("Pick", action: chooseImage)
-                        .buttonStyle(.bordered)
-                        .buttonSizing(.flexible)
-                        .frame(maxWidth: .infinity)
+                    // A split button: click picks from the Mac, the menu
+                    // offers an image on the web.
+                    Menu {
+                        Button("From URL…") {
+                            enteredURL = remoteURL?.absoluteString ?? ""
+                            remoteImageError = nil
+                            showsURLEntry = true
+                        }
+                    } label: {
+                        Text("Pick")
+                    } primaryAction: {
+                        chooseImage()
+                    }
+                    .menuStyle(.button)
+                    .buttonStyle(.bordered)
+                    .buttonSizing(.flexible)
+                    .frame(maxWidth: .infinity)
+                    .popover(isPresented: $showsURLEntry, arrowEdge: .trailing) { urlEntry }
                     Button("Clear", action: clearImage)
                         .buttonStyle(.bordered)
                         .buttonSizing(.flexible)
                         .frame(maxWidth: .infinity)
                         .disabled(isClearDisabled)
+                    if supportsFocalPoint {
+                        // A plain toggle's on state is barely visible in the
+                        // bordered style, so on uses the prominent accent fill.
+                        Group {
+                            if showsFocalPoint {
+                                Button("Focal Point") { focalPointToggle.wrappedValue = false }
+                                    .buttonStyle(.borderedProminent)
+                            } else {
+                                Button("Focal Point") { focalPointToggle.wrappedValue = true }
+                                    .buttonStyle(.bordered)
+                            }
+                        }
+                        .buttonSizing(.flexible)
+                        .frame(maxWidth: .infinity)
+                        .disabled(displayedImage == nil)
+                        .help(showsFocalPoint
+                            ? "Turn off the focal point and centre the image"
+                            : "Choose the point the image stays centred on when it is cropped")
+                        .accessibilityAddTraits(showsFocalPoint ? .isSelected : [])
+                    }
                 }
             }
             .frame(width: InspectorMetrics.clampedLabelWidth(labelWidth))
@@ -58,23 +109,121 @@ struct ImagePartControl: View {
         }
     }
 
+    private static let centre = CGPoint(x: 0.5, y: 0.5)
+
+    private var displayedImage: NSImage? {
+        previewImage ?? remotePreview
+    }
+
+    private var enteredWebURL: URL? {
+        Self.webURL(enteredURL.trimmingCharacters(in: .whitespacesAndNewlines))
+    }
+
+    static func webURL(_ string: String) -> URL? {
+        guard let url = URL(string: string), let scheme = url.scheme?.lowercased(),
+              scheme == "http" || scheme == "https", url.host() != nil else { return nil }
+        return url
+    }
+
+    private var urlEntry: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Image on the Web")
+                .font(.headline)
+            TextField("https://example.com/photo.jpg", text: $enteredURL)
+                .textFieldStyle(.roundedBorder)
+                .frame(width: 320)
+                .onSubmit(importEnteredURL)
+            if let remoteImageError {
+                Text(remoteImageError)
+                    .font(.caption)
+                    .foregroundStyle(.red)
+            }
+            HStack {
+                Button("Link") {
+                    guard let url = enteredWebURL else { return }
+                    linkImage(url)
+                    showsURLEntry = false
+                }
+                .buttonStyle(.borderedProminent)
+                .help("Use the image where it is. Visitors load it from that address.")
+                Spacer()
+                if isImportingRemoteImage {
+                    ProgressView().controlSize(.small)
+                }
+                Button("Import Copy", action: importEnteredURL)
+                    .buttonStyle(.borderedProminent)
+                    .help("Download the image into the project")
+            }
+            .disabled(enteredWebURL == nil || isImportingRemoteImage)
+        }
+        .padding()
+    }
+
+    private func importEnteredURL() {
+        guard let url = enteredWebURL, !isImportingRemoteImage else { return }
+        isImportingRemoteImage = true
+        remoteImageError = nil
+        Task {
+            let imported = await importRemoteImage(url)
+            isImportingRemoteImage = false
+            if imported {
+                showsURLEntry = false
+            } else {
+                remoteImageError = "That address did not return an image Foundry can import."
+            }
+        }
+    }
+
+    private var hasCustomFocalPoint: Bool {
+        abs(focalPoint.x - Self.centre.x) > 0.001 || abs(focalPoint.y - Self.centre.y) > 0.001
+    }
+
+    private var showsFocalPoint: Bool {
+        isEditingFocalPoint ?? hasCustomFocalPoint
+    }
+
+    /// On shows the marker; off hides it and returns the image to centre.
+    private var focalPointToggle: Binding<Bool> {
+        Binding(
+            get: { showsFocalPoint },
+            set: { isOn in
+                isEditingFocalPoint = isOn
+                if !isOn, hasCustomFocalPoint {
+                    setFocalPoint(Self.centre)
+                }
+            }
+        )
+    }
+
     private var imageWell: some View {
         ZStack {
             RoundedRectangle(cornerRadius: 6).fill(.background)
-            if let previewImage {
-                Image(nsImage: previewImage)
+            if let displayedImage {
+                Image(nsImage: displayedImage)
                     .resizable()
                     .scaledToFit()
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .padding(6)
-                if supportsFocalPoint {
+                if supportsFocalPoint && showsFocalPoint {
                     ImageFocalPointEditor(
-                        imageSize: previewImage.size,
+                        imageSize: displayedImage.size,
                         focalPoint: focalPoint,
                         onCommit: setFocalPoint
                     )
                     .padding(6)
                 }
+            } else if let remoteURL {
+                VStack(spacing: 4) {
+                    Image(systemName: "link")
+                        .font(.title2)
+                    Text(remoteURL.host() ?? remoteURL.absoluteString)
+                        .font(.caption)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                }
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 8)
+                .help(remoteURL.absoluteString)
             } else {
                 Image(systemName: "photo")
                     .font(.title2)
@@ -87,9 +236,20 @@ struct ImagePartControl: View {
         .frame(height: 120)
         .contentShape(RoundedRectangle(cornerRadius: 6))
         .dropDestination(for: URL.self) { urls, _ in
-            urls.contains(where: importImage)
+            // Files import at once; an image dragged from a browser arrives
+            // as a web address and is downloaded into the project.
+            if urls.contains(where: { $0.isFileURL && importImage($0) }) { return true }
+            guard let url = urls.lazy.compactMap({ Self.webURL($0.absoluteString) }).first else { return false }
+            Task { _ = await importRemoteImage(url) }
+            return true
         } isTargeted: {
             isDropTarget = $0
+        }
+        .task(id: remoteURL) {
+            remotePreview = nil
+            guard let remoteURL, previewImage == nil,
+                  let (data, _) = try? await URLSession.shared.data(from: remoteURL) else { return }
+            remotePreview = NSImage(data: data)
         }
     }
 }
@@ -100,6 +260,7 @@ struct ImagePartControl: View {
         ImagePartControl(
             label: "Image",
             previewImage: NSImage(systemSymbolName: "photo.on.rectangle.angled", accessibilityDescription: nil),
+            remoteURL: nil,
             supportsFocalPoint: true,
             focalPoint: CGPoint(x: 0.5, y: 0.5),
             focalPointIndicator: .preview,
@@ -108,6 +269,8 @@ struct ImagePartControl: View {
             chooseImage: {},
             clearImage: {},
             importImage: { _ in false },
+            linkImage: { _ in },
+            importRemoteImage: { _ in false },
             setFocalPoint: { _ in }
         )
     }

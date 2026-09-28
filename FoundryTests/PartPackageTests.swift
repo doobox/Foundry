@@ -127,7 +127,7 @@ struct PartPackageTests {
             }
             checked += 1
         }
-        #expect(checked == 27, "Expected all 27 control reference examples.")
+        #expect(checked == 28, "Expected all 28 control reference examples.")
     }
 
     @Test(.enabled(if: FileManager.default.fileExists(atPath: developerDocsURL.appending(path: "quick-start.md").path)))
@@ -1590,19 +1590,19 @@ struct PartPackageTests {
             "background.backgroundMode": .string("static"),
             "background.backgroundStyle": .string("image"),
             "background.backgroundImage": .string("assets/hero.jpg"),
-            "background.backgroundPosition": .string("top"),
+            PartPackageAdapter.imageFocalPointKey(for: "background.backgroundImage").rawValue: .array([.number(50), .number(0)]),
             "background.backgroundSize": .string("contain"),
             "background.backgroundRepeat": .string("repeat-x")
         ])
         #expect(image["background.image"] == .string(#"url("assets/hero.jpg")"#))
-        #expect(image["background.position"] == .string("top"))
+        #expect(image["background.position"] == .string("50% 0%"))
         #expect(image["background.size"] == .string("contain"))
         #expect(image["background.repeat"] == .string("repeat-x"))
         // One value carries the whole layer so a part needs a single
         // interpolation to adopt the group.
         #expect(image["background.css"] == .string(
             #"background-color: transparent; background-image: url("assets/hero.jpg"); "#
-                + "background-position: top; background-size: contain; background-repeat: repeat-x;"
+                + "background-position: 50% 0%; background-size: contain; background-repeat: repeat-x;"
         ))
 
         // A static video supplies its element; the canvas shows the poster
@@ -1800,38 +1800,56 @@ struct PartPackageTests {
             "widthMode": .string("auto"), "heightMode": .string("auto"),
             "minWidth": .string("0"), "maxWidth": .string("none"),
             "minHeight": .string("0"), "maxHeight": .string("none")
-        ]) == "max-width: 100%; width: auto; flex-grow: 0; height: auto; min-width: 0; min-height: 0; max-height: none;")
+        ]) == "max-width: 100%; width: auto; flex-grow: 0; height: auto; aspect-ratio: auto; min-width: 0; min-height: 0; max-height: none;")
         #expect(try composed("sizing", values: [
             "widthMode": .string("full"), "heightMode": .string("fill"),
             "minWidth": .string("0"), "maxWidth": .string("none"),
             "minHeight": .string("0"), "maxHeight": .string("none")
-        ]) == "max-width: 100%; \(fills) flex-grow: 1; height: auto; min-width: 0; min-height: 0; max-height: none;")
+        ]) == "max-width: 100%; \(fills) flex-grow: 1; height: auto; aspect-ratio: auto; min-width: 0; min-height: 0; max-height: none;")
         #expect(try composed("sizing", values: [
             "widthMode": .string("custom"), "customWidth": .number(640),
             "heightMode": .string("custom"), "customHeight": .number(400),
             "minWidth": .string("0"), "maxWidth": .string("none"),
             "minHeight": .string("0"), "maxHeight": .string("none")
         ]) == "max-width: 100%; \(fills) max-width: min(100%, 640px); flex-grow: 0; height: 400px; "
-            + "min-width: 0; min-height: 0; max-height: none;")
+            + "aspect-ratio: auto; min-width: 0; min-height: 0; max-height: none;")
         #expect(try composed("sizing", values: [
             "widthMode": .string("breakpoint"), "heightMode": .string("viewport"),
             "minWidth": .string("0"), "maxWidth": .string("none"),
             "minHeight": .string("var(--foundry-space-xl)"), "maxHeight": .string("none")
         ]) == "max-width: 100%; \(fills) max-width: min(100%, var(--foundry-container-width)); "
-            + "flex-grow: 0; height: auto; min-height: max(100svh, var(--foundry-space-xl)); min-width: 0; max-height: none;")
+            + "flex-grow: 0; height: auto; min-height: max(100svh, var(--foundry-space-xl)); aspect-ratio: auto; min-width: 0; max-height: none;")
         // Screen escapes the rail; an author's maximum still caps it, and
         // wins over both because it is written last.
         #expect(try composed("sizing", values: [
             "widthMode": .string("screen"), "heightMode": .string("auto"),
             "minWidth": .string("0"), "maxWidth": .string("var(--foundry-space-4xl)"),
             "minHeight": .string("0"), "maxHeight": .string("48rem")
-        ]) == "max-width: 100%; width: 100svw; max-width: none; flex-grow: 0; height: auto; min-width: 0; "
+        ]) == "max-width: 100%; width: 100svw; max-width: none; flex-grow: 0; height: auto; aspect-ratio: auto; min-width: 0; "
             + "max-width: min(100%, var(--foundry-space-4xl)); min-height: 0; max-height: 48rem;")
         #expect(try composed("sizing", values: [
             "widthMode": .string("fit"), "heightMode": .string("auto"),
             "minWidth": .string("0"), "maxWidth": .string("none"),
             "minHeight": .string("0"), "maxHeight": .string("none")
-        ]) == "max-width: 100%; width: fit-content; flex-grow: 0; height: auto; min-width: 0; min-height: 0; max-height: none;")
+        ]) == "max-width: 100%; width: fit-content; flex-grow: 0; height: auto; aspect-ratio: auto; min-width: 0; min-height: 0; max-height: none;")
+        // A ratio shapes the part only while its height follows the content;
+        // a custom ratio composes its two numbers.
+        #expect(try composed("sizing", values: [
+            "widthMode": .string("auto"), "heightMode": .string("auto"), "aspectRatio": .string("16 / 9"),
+            "minWidth": .string("0"), "maxWidth": .string("none"),
+            "minHeight": .string("0"), "maxHeight": .string("none")
+        ]) == "max-width: 100%; width: auto; flex-grow: 0; height: auto; aspect-ratio: 16 / 9; min-width: 0; min-height: 0; max-height: none;")
+        #expect(try composed("sizing", values: [
+            "widthMode": .string("auto"), "heightMode": .string("auto"), "aspectRatio": .string("custom"),
+            "aspectRatioWidth": .number(5), "aspectRatioHeight": .number(2),
+            "minWidth": .string("0"), "maxWidth": .string("none"),
+            "minHeight": .string("0"), "maxHeight": .string("none")
+        ]) == "max-width: 100%; width: auto; flex-grow: 0; height: auto; aspect-ratio: 5 / 2; min-width: 0; min-height: 0; max-height: none;")
+        #expect(try composed("sizing", values: [
+            "widthMode": .string("auto"), "heightMode": .string("custom"), "customHeight": .number(300), "aspectRatio": .string("16 / 9"),
+            "minWidth": .string("0"), "maxWidth": .string("none"),
+            "minHeight": .string("0"), "maxHeight": .string("none")
+        ]) == "max-width: 100%; width: auto; flex-grow: 0; height: 300px; aspect-ratio: auto; min-width: 0; min-height: 0; max-height: none;")
     }
 
     /// Custom controls with familiar IDs must not implicitly acquire group output.
@@ -2069,7 +2087,7 @@ struct PartPackageTests {
     func sharedPropertyControlGroupsInjectPropertiesWithoutCSSOrHTML() throws {
         for (kind, expectedIDs) in [
             ("spacing", ["spacingEnabled", "frameworkMargin", "frameworkPadding"]),
-            ("sizing", ["widthMode", "customWidth", "heightMode", "customHeight", "minWidth", "maxWidth", "minHeight", "maxHeight"]),
+            ("sizing", ["widthMode", "customWidth", "heightMode", "customHeight", "aspectRatio", "aspectRatioWidth", "aspectRatioHeight", "minWidth", "maxWidth", "minHeight", "maxHeight"]),
             ("borders", ["borderEnabled", "frameworkBorder", "frameworkBorderColour", "frameworkRadius"]),
             ("effects", ["effectsEnabled", "frameworkShadow", "opacity"]),
             ("layout", ["position", "zIndexMode", "zIndex", "offsets", "offset", "offsetEdges", "hidden", "visibility", "overflow"]),

@@ -235,6 +235,30 @@ nonisolated enum PartImageTemplateValues {
         values[propertyID + ".aspectRatio"] = metadata.aspectRatio.map(PartPackageValue.number) ?? .string("")
     }
 
+    /// A rendition's template values. Its pixel size is the source scaled so
+    /// the longest side fits `maximumDimension`, which is what a `srcset`
+    /// width descriptor needs; a source already small enough keeps its size.
+    static func insertRendition(
+        propertyID: String,
+        renditionID: String,
+        href: String,
+        maximumDimension: Int,
+        metadata: PartImageMetadata?,
+        into values: inout [String: PartPackageValue]
+    ) {
+        let key = propertyID + ".rendition." + renditionID
+        values[key] = .string(href)
+        values[key + ".href"] = .string(href)
+        guard let width = metadata?.width, let height = metadata?.height, width > 0, height > 0 else {
+            values[key + ".width"] = .string("")
+            values[key + ".height"] = .string("")
+            return
+        }
+        let scale = min(1, Double(maximumDimension) / Double(max(width, height)))
+        values[key + ".width"] = .number(max(1, (Double(width) * scale).rounded()))
+        values[key + ".height"] = .number(max(1, (Double(height) * scale).rounded()))
+    }
+
     private static func formattedPercentage(_ value: Double) -> String {
         value.formatted(
             .number

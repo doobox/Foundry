@@ -611,8 +611,8 @@ nonisolated struct PartPackageControlGroup: Codable, Equatable, Sendable {
         if propertyID.contains("Video") { return "video" }
         if propertyID == "backgroundColor" || propertyID == "backgroundHoverColor" { return "color" }
         if [
-            "backgroundImage", "backgroundPosition", "backgroundSize", "backgroundRepeat",
-            "backgroundHoverImage", "backgroundHoverPosition", "backgroundHoverSize", "backgroundHoverRepeat"
+            "backgroundImage", "backgroundSize", "backgroundRepeat",
+            "backgroundHoverImage", "backgroundHoverSize", "backgroundHoverRepeat"
         ].contains(propertyID) { return "image" }
         return nil
     }

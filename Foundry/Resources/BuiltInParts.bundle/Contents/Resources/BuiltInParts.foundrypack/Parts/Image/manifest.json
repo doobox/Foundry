@@ -14,7 +14,99 @@
         {
           "id": "source",
           "label": "Image",
-          "type": "image"
+          "type": "image",
+          "focalPoint": true,
+          "renditions": [
+            {
+              "id": "small",
+              "maximumDimension": 480
+            },
+            {
+              "id": "medium",
+              "maximumDimension": 960
+            },
+            {
+              "id": "large",
+              "maximumDimension": 1600
+            }
+          ]
+        },
+        {
+          "defaults": {
+            "base": "cover"
+          },
+          "id": "fit",
+          "label": "Fit",
+          "options": [
+            {
+              "title": "Cover",
+              "value": "cover"
+            },
+            {
+              "title": "Contain",
+              "value": "contain"
+            }
+          ],
+          "responsive": true,
+          "type": "select",
+          "tooltip": "Cover fills the part and crops around the focal point. Contain shows the whole image and leaves space around it. Shown once a height, ratio or height limit gives the part a shape of its own.",
+          "visibleWhen": {
+            "any": [
+              {
+                "id": "sizing.heightMode",
+                "operation": "!=",
+                "value": "auto"
+              },
+              {
+                "id": "sizing.aspectRatio",
+                "operation": "!=",
+                "value": "none"
+              },
+              {
+                "id": "sizing.minHeight",
+                "operation": "isNotEmpty"
+              },
+              {
+                "id": "sizing.maxHeight",
+                "operation": "isNotEmpty"
+              }
+            ]
+          }
+        },
+        {
+          "defaults": {
+            "base": "lazy"
+          },
+          "id": "loading",
+          "label": "Loading",
+          "options": [
+            {
+              "title": "Lazy",
+              "value": "lazy"
+            },
+            {
+              "title": "Immediate",
+              "value": "eager"
+            }
+          ],
+          "type": "select",
+          "tooltip": "Lazy waits until the image is near the viewport. Use Immediate for the first image visitors see."
+        }
+      ],
+      "section": "Content",
+      "systemImage": "doc.text"
+    },
+    {
+      "section": "Sizing",
+      "systemImage": "arrow.up.left.and.arrow.down.right",
+      "controls": [
+        {
+          "type": "sizing",
+          "id": "sizing",
+          "defaults": {
+            "widthMode": "custom",
+            "customWidth": 1200
+          }
         },
         {
           "defaults": {
@@ -38,22 +130,20 @@
           ],
           "responsive": true,
           "type": "select",
-          "tooltip": "Where the image sits when it is narrower than the space it is in."
-        }
-      ],
-      "section": "Content",
-      "systemImage": "doc.text"
-    },
-    {
-      "section": "Sizing",
-      "systemImage": "arrow.up.left.and.arrow.down.right",
-      "controls": [
-        {
-          "type": "sizing",
-          "id": "sizing",
-          "defaults": {
-            "widthMode": "custom",
-            "customWidth": 1200
+          "tooltip": "Where the image sits when it is narrower than the space it is in.",
+          "visibleWhen": {
+            "all": [
+              {
+                "id": "sizing.widthMode",
+                "operation": "!=",
+                "value": "full"
+              },
+              {
+                "id": "sizing.widthMode",
+                "operation": "!=",
+                "value": "screen"
+              }
+            ]
           }
         }
       ]
@@ -179,5 +269,5 @@
     "html": "part.html"
   },
   "title": "Image",
-  "version": "1.1.0"
+  "version": "1.2.0"
 }

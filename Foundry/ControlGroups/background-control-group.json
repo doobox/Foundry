@@ -177,82 +177,8 @@
             "value": "image"
           }
         ]
-      }
-    },
-    {
-      "defaults": {
-        "base": "center"
       },
-      "id": "backgroundPosition",
-      "label": "Position",
-      "options": [
-        {
-          "title": "Centre",
-          "value": "center"
-        },
-        {
-          "title": "Top",
-          "value": "top"
-        },
-        {
-          "title": "Right",
-          "value": "right"
-        },
-        {
-          "title": "Bottom",
-          "value": "bottom"
-        },
-        {
-          "title": "Left",
-          "value": "left"
-        },
-        {
-          "title": "Top left",
-          "value": "left top"
-        },
-        {
-          "title": "Top right",
-          "value": "right top"
-        },
-        {
-          "title": "Bottom left",
-          "value": "left bottom"
-        },
-        {
-          "title": "Bottom right",
-          "value": "right bottom"
-        }
-      ],
-      "responsive": true,
-      "type": "select",
-      "visibleWhen": {
-        "all": [
-          {
-            "any": [
-              {
-                "id": "backgroundMode",
-                "value": "static"
-              },
-              {
-                "all": [
-                  {
-                    "id": "backgroundMode",
-                    "value": "hover"
-                  },
-                  {
-                    "id": "backgroundState",
-                    "value": "normal"
-                  }
-                ]
-              }
-            ]
-          },
-          {
-            "id": "backgroundStyle",
-            "value": "image"
-          }
-        ]
-      }
+      "focalPoint": true
     },
     {
       "defaults": {
@@ -793,70 +719,8 @@
             "value": "image"
           }
         ]
-      }
-    },
-    {
-      "defaults": {
-        "base": "center"
       },
-      "id": "backgroundHoverPosition",
-      "label": "Position",
-      "options": [
-        {
-          "title": "Centre",
-          "value": "center"
-        },
-        {
-          "title": "Top",
-          "value": "top"
-        },
-        {
-          "title": "Right",
-          "value": "right"
-        },
-        {
-          "title": "Bottom",
-          "value": "bottom"
-        },
-        {
-          "title": "Left",
-          "value": "left"
-        },
-        {
-          "title": "Top left",
-          "value": "left top"
-        },
-        {
-          "title": "Top right",
-          "value": "right top"
-        },
-        {
-          "title": "Bottom left",
-          "value": "left bottom"
-        },
-        {
-          "title": "Bottom right",
-          "value": "right bottom"
-        }
-      ],
-      "responsive": true,
-      "type": "select",
-      "visibleWhen": {
-        "all": [
-          {
-            "id": "backgroundMode",
-            "value": "hover"
-          },
-          {
-            "id": "backgroundState",
-            "value": "hover"
-          },
-          {
-            "id": "backgroundHoverStyle",
-            "value": "image"
-          }
-        ]
-      }
+      "focalPoint": true
     },
     {
       "defaults": {

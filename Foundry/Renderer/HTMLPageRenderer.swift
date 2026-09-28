@@ -831,10 +831,16 @@ nonisolated struct HTMLPageRenderer: PageRendering {
                     into: &values
                 )
                 for rendition in property.renditions {
-                    let key = property.id + ".rendition." + rendition.id
-                    let href = values[property.id]?.stringValue ?? ""
-                    values[key] = .string(href)
-                    values[key + ".href"] = .string(href)
+                    // The canvas shows the full-size image, but reports the
+                    // rendition's size so `srcset` descriptors match export.
+                    PartImageTemplateValues.insertRendition(
+                        propertyID: property.id,
+                        renditionID: rendition.id,
+                        href: values[property.id]?.stringValue ?? "",
+                        maximumDimension: rendition.effectiveMaximumDimension,
+                        metadata: metadata,
+                        into: &values
+                    )
                 }
             }
             for property in manifestProperties where property.control.type == .video {

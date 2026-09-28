@@ -1,4 +1,9 @@
+/* A single-item flex column, so the image always takes the part's height
+   rather than its own: a fixed height, an aspect ratio, a minimum or a
+   maximum all reach the image through flex sizing. */
 :instance {
+    display: flex;
+    flex-direction: column;
     margin-block: 0;
     margin-inline: auto;
     {{ if control.alignment == "start" }}margin-inline: 0 auto;{{ endif }}
@@ -6,14 +11,16 @@
     width: 100%;
 }
 
-/* The image fills the part. With an automatic height it keeps its own
-   proportions; with a fixed height it covers the area around its focal point. */
+/* With nothing constraining the part the image keeps its own proportions.
+   Otherwise it grows or shrinks to the part's height and covers the area
+   around its focal point, or sits inside it when Fit says Contain. */
 :instance .fd-image {
     display: block;
     width: 100%;
     max-width: 100%;
-    height: 100%;
-    object-fit: cover;
+    flex: 1 1 auto;
+    min-height: 0;
+    object-fit: {{ control.fit }};
 }
 
 /* Control groups: declared after the part's own rules so they take precedence. */

@@ -107,6 +107,7 @@ nonisolated enum PartPackageValidator {
             diagnostics.append(.init(severity: .error, location: "manifest.json:inspector.\(property.id)", message: "Control ID '\(property.id)' conflicts with a control group namespace."))
         }
         validateUnique(manifest.slots.map(\.id), kind: "slot", into: &diagnostics)
+        validateUnique(manifest.resolvedProperties.map(\.id), kind: "control", into: &diagnostics)
         for property in manifest.resolvedProperties {
             if !property.hasSynthesizedID {
                 validate(property.controlGroupSource?.localID ?? property.id, expression: propertyExpression, location: "manifest.json:inspector.\(property.id)", message: "Property IDs must start with a letter and contain only letters, numbers, underscores, or hyphens.", into: &diagnostics)
@@ -545,18 +546,18 @@ nonisolated enum PartPackageValidator {
                 message: "Loop directives are unbalanced; every loop requires one endloop."
             ))
         } else if loopCount > 0 {
-            let maximums = Dictionary(uniqueKeysWithValues: manifest.resolvedProperties.compactMap { property -> (String, Int)? in
+            let maximums = Dictionary(manifest.resolvedProperties.compactMap { property -> (String, Int)? in
                 guard property.control.type == .number || property.control.type == .slider,
                       let maximum = property.control.maximum,
                       maximum.isFinite,
                       maximum >= 0,
                       maximum <= Double(PartTemplateLoop.maximumIterationCount) else { return nil }
                 return (property.id, Int(maximum.rounded(.down)))
-            })
+            }, uniquingKeysWith: { first, _ in first })
             do {
                 _ = try PartTemplateLoop.expand(
                     template,
-                    properties: Dictionary(uniqueKeysWithValues: manifest.resolvedProperties.map { ($0.id, $0.defaultValue) }),
+                    properties: Dictionary(manifest.resolvedProperties.map { ($0.id, $0.defaultValue) }, uniquingKeysWith: { first, _ in first }),
                     maximums: maximums,
                     usingMaximumCounts: true
                 )
@@ -1384,9 +1385,10 @@ nonisolated enum PartPackageValidator {
         _ properties: [PartPackageProperty],
         into diagnostics: inout [PartPackageDiagnostic]
     ) {
-        let dependencies = Dictionary(uniqueKeysWithValues: properties.map { property in
+        // Duplicate IDs are reported separately; they must not stop validation here.
+        let dependencies = Dictionary(properties.map { property in
             (property.id, visibilityReferences(property.visibleWhen))
-        })
+        }, uniquingKeysWith: { first, _ in first })
         for property in properties {
             var visited = Set<String>()
             func visit(_ value: String) {

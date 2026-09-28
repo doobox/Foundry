@@ -103,6 +103,100 @@
       "defaults": {
         "base": "none"
       },
+      "id": "aspectRatio",
+      "label": "Aspect ratio",
+      "tooltip": "Fixes the shape of the part while its width changes. Available when Height is Fit content.",
+      "options": [
+        {
+          "title": "None",
+          "value": "none"
+        },
+        {
+          "title": "Square 1:1",
+          "value": "1 / 1"
+        },
+        {
+          "title": "4:3",
+          "value": "4 / 3"
+        },
+        {
+          "title": "3:2",
+          "value": "3 / 2"
+        },
+        {
+          "title": "16:9",
+          "value": "16 / 9"
+        },
+        {
+          "title": "21:9",
+          "value": "21 / 9"
+        },
+        {
+          "title": "Custom",
+          "value": "custom"
+        }
+      ],
+      "responsive": true,
+      "type": "select",
+      "visibleWhen": {
+        "id": "heightMode",
+        "value": "auto"
+      }
+    },
+    {
+      "defaults": {
+        "base": 4
+      },
+      "id": "aspectRatioWidth",
+      "label": "Ratio width",
+      "maximum": 1000,
+      "minimum": 1,
+      "responsive": true,
+      "step": 1,
+      "type": "number",
+      "valueAvailability": "whenVisible",
+      "visibleWhen": {
+        "all": [
+          {
+            "id": "heightMode",
+            "value": "auto"
+          },
+          {
+            "id": "aspectRatio",
+            "value": "custom"
+          }
+        ]
+      }
+    },
+    {
+      "defaults": {
+        "base": 3
+      },
+      "id": "aspectRatioHeight",
+      "label": "Ratio height",
+      "maximum": 1000,
+      "minimum": 1,
+      "responsive": true,
+      "step": 1,
+      "type": "number",
+      "valueAvailability": "whenVisible",
+      "visibleWhen": {
+        "all": [
+          {
+            "id": "heightMode",
+            "value": "auto"
+          },
+          {
+            "id": "aspectRatio",
+            "value": "custom"
+          }
+        ]
+      }
+    },
+    {
+      "defaults": {
+        "base": "none"
+      },
       "id": "minWidth",
       "label": "Min width",
       "noneValue": "0",

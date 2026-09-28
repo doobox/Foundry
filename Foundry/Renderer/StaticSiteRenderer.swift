@@ -1073,7 +1073,6 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
                     into: &values
                 )
                 for rendition in property.renditions {
-                    let suffix = ".rendition.\(rendition.id)"
                     let href: String
                     if let assetID = source.foundryAssetID, let asset = assets.asset(assetID),
                        max(asset.pixelWidth ?? 0, asset.pixelHeight ?? 0) > rendition.effectiveMaximumDimension {
@@ -1088,8 +1087,14 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
                     } else {
                         href = values[property.id]?.stringValue ?? ""
                     }
-                    values[property.id + suffix] = .string(href)
-                    values[property.id + suffix + ".href"] = .string(href)
+                    PartImageTemplateValues.insertRendition(
+                        propertyID: property.id,
+                        renditionID: rendition.id,
+                        href: href,
+                        maximumDimension: rendition.effectiveMaximumDimension,
+                        metadata: metadata,
+                        into: &values
+                    )
                 }
             }
             for property in manifestProperties where property.control.type == .video {

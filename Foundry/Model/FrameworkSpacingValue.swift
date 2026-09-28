@@ -87,7 +87,13 @@ nonisolated struct FrameworkSpacingValue<Policy: FrameworkSpacingPolicy>: Codabl
         var isCustom = false
         var amount = 0.0
         var unit = "px"
+
+        /// The framework's None: no length chosen at all.
+        var isNone: Bool { !isCustom && token == "none" }
     }
+
+    /// Every edge is None, so the value contributes no length anywhere.
+    var isNone: Bool { values.allSatisfy(\.isNone) }
 
     enum Edge: String, CaseIterable, Identifiable {
         case top = "Top", bottom = "Bottom", left = "Left", right = "Right"

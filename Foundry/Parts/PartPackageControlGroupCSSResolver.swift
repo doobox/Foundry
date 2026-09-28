@@ -182,6 +182,20 @@ nonisolated enum PartPackageControlGroupCSSResolver {
             }
         }
 
+        // A ratio only shapes a part whose height follows its width. Any
+        // other height mode, or None, writes `auto` so a wider breakpoint's
+        // ratio does not leak into this one.
+        if declared.contains("aspectRatio") {
+            let ratio = string(values["aspectRatio"]) ?? "none"
+            if (heightMode ?? "auto") != "auto" || ratio == "none" {
+                declarations.append("aspect-ratio: auto;")
+            } else if ratio == "custom" {
+                declarations.append("aspect-ratio: \(length(values["aspectRatioWidth"])) / \(length(values["aspectRatioHeight"]));")
+            } else {
+                declarations.append("aspect-ratio: \(ratio);")
+            }
+        }
+
         if declared.contains("minWidth") {
             declarations.append("min-width: \(string(values["minWidth"]) ?? "0");")
         }

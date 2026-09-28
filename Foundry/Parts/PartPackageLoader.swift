@@ -164,15 +164,17 @@ nonisolated struct LoadedPartPackage: Sendable {
         renderDefinition.loopMaximums
     }
 
+    /// Runs while loading, before validation, so a duplicate control ID must
+    /// not trap here; validation reports it and the part is rejected.
     private static func loopMaximums(for manifest: PartPackageManifest) -> [String: Int] {
-        Dictionary(uniqueKeysWithValues: manifest.resolvedProperties.compactMap { property in
+        Dictionary(manifest.resolvedProperties.compactMap { property in
             guard property.control.type == .number || property.control.type == .slider,
                   let maximum = property.control.maximum,
                   maximum.isFinite,
                   maximum >= 0,
                   maximum <= Double(PartTemplateLoop.maximumIterationCount) else { return nil }
             return (property.id, Int(maximum.rounded(.down)))
-        })
+        }, uniquingKeysWith: { first, _ in first })
     }
 
     func declaresJavaScript(in scopes: PartPackageTemplateFile.Scope...) -> Bool {

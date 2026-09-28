@@ -17,6 +17,13 @@ nonisolated enum PartPackageBackgroundResolver {
         for members in PartPackageControlGroupCSSResolver.groups(in: properties).values {
             guard let source = members.first?.controlGroupSource, source.type == .background else { continue }
             var local = PartPackageControlGroupCSSResolver.localValues(values, members: members)
+            // Each image's focal point lives under its own derived key, outside
+            // the group's namespace, so hand it to the layer as a CSS position.
+            for member in members {
+                guard let localID = member.controlGroupSource?.localID,
+                      localID == "backgroundImage" || localID == "backgroundHoverImage" else { continue }
+                local[localID + "FocalPoint"] = .string(focalPosition(values[PartPackageAdapter.imageFocalPointKey(for: member.id).rawValue]))
+            }
             resolveLayerValues(&local, enablesEditorMarkup: enablesEditorMarkup)
             for (key, value) in local where key.hasPrefix("background.") {
                 guard case .string(let output) = value else { continue }
@@ -95,7 +102,7 @@ nonisolated enum PartPackageBackgroundResolver {
         case "image":
             let source = string(values[prefix + "Image"]) ?? ""
             layer.image = source.isEmpty ? "none" : "url(\"\(escapeCSSURL(source))\")"
-            layer.position = string(values[prefix + "Position"]) ?? "center"
+            layer.position = string(values[prefix + "ImageFocalPoint"]) ?? "50% 50%"
             layer.size = string(values[prefix + "Size"]) ?? "cover"
             layer.repeatValue = string(values[prefix + "Repeat"]) ?? "no-repeat"
         case "gradient":
@@ -156,6 +163,18 @@ nonisolated enum PartPackageBackgroundResolver {
 
     private static func percentage(_ value: Double) -> String {
         value.formatted(.number.locale(Locale(identifier: "en_US_POSIX")).precision(.fractionLength(0...3))) + "%"
+    }
+
+    /// A stored focal point, `[x, y]` in percent, as a CSS position. Like
+    /// `object-position`, it lines the same point of image and box up.
+    private static func focalPosition(_ value: PartPackageValue?) -> String {
+        guard case .array(let coordinates)? = value, coordinates.count == 2,
+              case .number(let x) = coordinates[0], case .number(let y) = coordinates[1] else { return "50% 50%" }
+        func percent(_ number: Double) -> String {
+            let clamped = min(max(number, 0), 100)
+            return clamped == clamped.rounded() ? "\(Int(clamped))%" : "\(clamped)%"
+        }
+        return "\(percent(x)) \(percent(y))"
     }
 
     private static func string(_ value: PartPackageValue?) -> String? {

@@ -454,6 +454,7 @@ struct PartPropertyEditor: View {
             ImagePartControl(
                 label: definition.label,
                 previewImage: previewImage,
+                remoteURL: remoteImageURL,
                 supportsFocalPoint: definition.supportsImageFocalPoint,
                 focalPoint: imageFocalPoint,
                 focalPointIndicator: imageFocalPointResponsiveIndicator,
@@ -466,6 +467,8 @@ struct PartPropertyEditor: View {
                     setProperty(.url(asset.reference))
                     return true
                 },
+                linkImage: { setProperty(.url($0.absoluteString)) },
+                importRemoteImage: importRemoteImage,
                 setFocalPoint: setImageFocalPoint
             )
         case .video:
@@ -662,6 +665,44 @@ struct PartPropertyEditor: View {
             get: { displayPart.property(imageAltKey) },
             set: { setProperty(.string($0), key: imageAltKey) }
         )
+    }
+
+    /// The value when it links to an image on the web rather than an asset.
+    private var remoteImageURL: URL? {
+        let source = displayPart.property(definition.key)
+        guard source.foundryAssetID == nil else { return nil }
+        return ImagePartControl.webURL(source)
+    }
+
+    /// Downloads a web image and imports it like a dropped file, so the same
+    /// type check, size limit and de-duplication apply.
+    private func importRemoteImage(_ url: URL) async -> Bool {
+        guard let (data, _) = try? await URLSession.shared.data(from: url),
+              data.count <= 25_000_000,
+              let source = CGImageSourceCreateWithData(data as CFData, nil),
+              let typeIdentifier = CGImageSourceGetType(source),
+              let type = UTType(typeIdentifier as String), type.conforms(to: .image) else { return false }
+        // The import reads the type from the file's extension, so give the
+        // download one that matches its bytes.
+        var filename = url.lastPathComponent
+        if filename.isEmpty || filename == "/" { filename = "image" }
+        if UTType(filenameExtension: (filename as NSString).pathExtension)?.conforms(to: .image) != true,
+           let preferred = type.preferredFilenameExtension {
+            filename = (filename as NSString).deletingPathExtension + "." + preferred
+        }
+        let directory = FileManager.default.temporaryDirectory
+            .appending(path: "foundry-remote-\(UUID().uuidString)", directoryHint: .isDirectory)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let file = directory.appending(path: filename)
+        do {
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+            try data.write(to: file)
+        } catch {
+            return false
+        }
+        guard let asset = importMedia(file, .image) else { return false }
+        setProperty(.url(asset.reference))
+        return true
     }
 
     private func chooseImageFromFinder() {
