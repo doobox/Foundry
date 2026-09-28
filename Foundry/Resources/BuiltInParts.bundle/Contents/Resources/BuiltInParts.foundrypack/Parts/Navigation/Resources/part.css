@@ -267,3 +267,10 @@
    are needed. */
 :instance { {{ control.background.css }} }
 :instance:hover { {{ control.background.hover.css }} }
+
+/* Control groups: declared after the part's own rules so they take precedence. */
+:instance {
+    {{ control.spacing.css }}
+    {{ control.borders.css }}
+    {{ control.effects.css }}
+}

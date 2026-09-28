@@ -30,11 +30,11 @@ nonisolated enum PartPackageManifestSchema {
         "tags", "showsInPartLibrary", "allowedParents", "icon", "inspector", "templates", "assets", "helpURL",
         "requiresPHP", "libraries"
     ]
-    private static let iconKeys: Set<String> = ["file", "symbol", "tint"]
+    private static let iconKeys: Set<String> = ["file", "symbol", "tint", "rendering"]
     private static let propertyKeys: Set<String> = [
         "id", "label", "title", "body", "systemImage", "defaults", "responsive", "subtitle", "buttonText", "units", "noneValue", "tooltip", "linked",
         "type", "font", "showsFamily", "showsWeight", "showsStyle", "showsSize", "minimum", "maximum", "step", "options", "frameworkValues", "allowsCustom", "opacity", "outputFormat",
-        "customColor", "count", "ticks", "showsValueField", "trueValue", "falseValue",
+        "customColor", "count", "ticks", "editableValue", "tickLabels", "valueLabels", "minimumLabel", "maximumLabel", "neutralValue", "trueValue", "falseValue",
         "buttonIcon", "activeButtonText", "activeButtonIcon", "selectionMode", "fontSize", "argument1", "argument2", "operation", "round", "absoluteURL", "presentation", "visibleWhen", "valueAvailability", "alt", "focalPoint", "renditions", "accepts", "pickerItems", "initial", "containment", "height"
     ]
     private static let visibleWhenKeys: Set<String> = ["id", "operation", "value", "all", "any"]
@@ -208,19 +208,14 @@ nonisolated enum PartPackageManifestSchema {
                     diagnostics.append(.init(
                         severity: .error,
                         location: "manifest.json:icon",
-                        message: "Unknown key '\(key)'. Supported keys: file, symbol, tint."
+                        message: "Unknown key '\(key)'. Supported keys: file, symbol, tint, rendering."
                     ))
                 }
                 optionalString("file", in: icon, location: "manifest.json:icon", into: &diagnostics)
                 optionalString("symbol", in: icon, location: "manifest.json:icon", into: &diagnostics)
+                // Unrecognised tint and rendering names fall back quietly; they are not errors.
                 optionalString("tint", in: icon, location: "manifest.json:icon", into: &diagnostics)
-                if let tint = icon["tint"] as? String, PartIconTint(rawValue: tint) == nil {
-                    diagnostics.append(.init(
-                        severity: .error,
-                        location: "manifest.json:icon",
-                        message: "Unknown tint '\(tint)'. Use one of: \(PartIconTint.allCases.map(\.rawValue).joined(separator: ", "))."
-                    ))
-                }
+                optionalString("rendering", in: icon, location: "manifest.json:icon", into: &diagnostics)
                 if icon["file"] is String, icon["symbol"] is String {
                     diagnostics.append(.init(
                         severity: .warning,
@@ -632,6 +627,10 @@ nonisolated enum PartPackageManifestSchema {
     private static func validateProperty(_ property: [String: Any], location: String, into diagnostics: inout [PartPackageDiagnostic]) {
         if property["default"] != nil {
             diagnostics.append(.init(severity: .error, location: location, message: "default is no longer supported; use defaults with a base entry."))
+            return
+        }
+        if property["showsValueField"] != nil {
+            diagnostics.append(.init(severity: .error, location: location, message: "showsValueField is no longer supported; sliders always show their value. Use editableValue: true to make it an editable field."))
             return
         }
         var normalized = property
@@ -1069,10 +1068,11 @@ nonisolated enum PartPackageManifestSchema {
             for key in ["minimum", "maximum"] { optionalNumber(key, in: property, location: location, into: &diagnostics) }
         }
         optionalNumber("step", in: property, location: location, into: &diagnostics)
-        for key in ["allowsCustom", "opacity", "showsValueField", "round", "absoluteURL"] {
+        for key in ["allowsCustom", "opacity", "editableValue", "round", "absoluteURL"] {
             optionalBoolean(key, in: property, location: location, into: &diagnostics)
         }
         optionalInteger("ticks", in: property, location: location, into: &diagnostics)
+        validateSliderOptions(property, type: type, location: location, into: &diagnostics)
         if type == .frameworkColor {
             if let initial = property["default"] as? [String: Any] {
                 unknownKeys(in: initial, allowed: ["palette", "lightShade", "darkShade"], location: "\(location).default", into: &diagnostics)
@@ -1267,6 +1267,52 @@ nonisolated enum PartPackageManifestSchema {
             return
         }
         guard value is String else { appendTypeError(key: key, expected: "a string", location: location, into: &diagnostics); return }
+    }
+
+    private static let sliderOnlyKeys = ["tickLabels", "valueLabels", "minimumLabel", "maximumLabel", "neutralValue"]
+
+    /// The structure of the slider-only keys. Whether their values fall
+    /// inside the slider's range is checked once the manifest is decoded.
+    private static func validateSliderOptions(_ property: [String: Any], type: PartPackageControl.Kind, location: String, into diagnostics: inout [PartPackageDiagnostic]) {
+        guard type == .slider else {
+            for key in sliderOnlyKeys where property[key] != nil {
+                diagnostics.append(.init(severity: .error, location: "\(location).\(key)", message: "Only a slider control accepts \(key)."))
+            }
+            return
+        }
+        for key in ["tickLabels", "valueLabels"] {
+            guard let value = property[key] else { continue }
+            guard let labels = value as? [String: Any] else {
+                appendTypeError(key: key, expected: "a dictionary of value strings to label strings", location: location, into: &diagnostics)
+                continue
+            }
+            for (valueKey, text) in labels {
+                if Double(valueKey) == nil {
+                    diagnostics.append(.init(severity: .error, location: "\(location).\(key)", message: "'\(valueKey)' is not a number. Each \(key) key is a slider value written as a string, such as \"0\" or \"2.5\"."))
+                }
+                if (text as? String)?.isEmpty != false {
+                    diagnostics.append(.init(severity: .error, location: "\(location).\(key)", message: "The label for '\(valueKey)' must be a non-empty string."))
+                }
+            }
+        }
+        for key in ["minimumLabel", "maximumLabel"] {
+            guard let value = property[key] else { continue }
+            guard let label = value as? [String: Any] else {
+                appendTypeError(key: key, expected: "a dictionary with title, systemImage, or both", location: location, into: &diagnostics)
+                continue
+            }
+            unknownKeys(in: label, allowed: ["title", "systemImage"], location: "\(location).\(key)", into: &diagnostics)
+            optionalString("title", in: label, location: "\(location).\(key)", into: &diagnostics)
+            optionalString("systemImage", in: label, location: "\(location).\(key)", into: &diagnostics)
+            let hasContent = ["title", "systemImage"].contains { (label[$0] as? String)?.isEmpty == false }
+            if !hasContent {
+                diagnostics.append(.init(severity: .error, location: "\(location).\(key)", message: "\(key) needs a title, a systemImage, or both."))
+            }
+        }
+        optionalNumber("neutralValue", in: property, location: location, into: &diagnostics)
+        if property["valueLabels"] != nil, isBoolean(property["editableValue"] as Any), property["editableValue"] as? Bool == true {
+            diagnostics.append(.init(severity: .error, location: "\(location).valueLabels", message: "valueLabels replace the read-only value, so they cannot be combined with editableValue: true."))
+        }
     }
 
     private static func optionalString(_ key: String, in dictionary: [String: Any], location: String, into diagnostics: inout [PartPackageDiagnostic]) {

@@ -53,10 +53,11 @@ struct PartPlacementTests {
         let flex = tree[0]
         let movedIntoGrid = tree.moveNode(withID: heading.id, to: .inside(tree[1].id))
 
+        // Both start with three items, so the heading lands after them.
         #expect(movedIntoFlex)
-        #expect(flex.children.first?.id == heading.id)
+        #expect(flex.children.last?.id == heading.id)
         #expect(movedIntoGrid)
-        #expect(tree[1].children.first?.id == heading.id)
+        #expect(tree[1].children.last?.id == heading.id)
     }
 
     @Test

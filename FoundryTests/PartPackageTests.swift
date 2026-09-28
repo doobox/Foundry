@@ -180,8 +180,9 @@ struct PartPackageTests {
         PartRegistry.register(package)
         defer { PartRegistry.unregisterPackage(identifier: package.manifest.identifier) }
         let created = PartNode.make(.init(rawValue: package.manifest.identifier))
-        #expect(created.responsiveDefaults?.isEmpty == false)
-        #expect(created.responsiveOverrides == nil)
+        // Developer breakpoint defaults start out pinned, like user pins.
+        #expect(created.hasResponsiveOverride(.init(rawValue: "pair"), at: .large))
+        #expect(!created.hasResponsiveOverride(.init(rawValue: "pair"), at: .medium))
         let restored = try JSONDecoder().decode(PartNode.self, from: JSONEncoder().encode(created))
         let node = restored.resolved(at: .large)
         #expect(node.propertyValue(.init(rawValue: "pair")) == .array([.number(3), .number(4)]))
@@ -206,12 +207,15 @@ struct PartPackageTests {
         let package = try PartPackageLoader.load(from: url)
         PartRegistry.register(package)
         defer { PartRegistry.unregisterPackage(identifier: package.manifest.identifier) }
-        var node = PartNode(type: .init(rawValue: package.manifest.identifier))
+        var node = PartNode.make(.init(rawValue: package.manifest.identifier))
         let key = PartProperty.Key(rawValue: "gap")
         #expect(node.propertyValue(key, at: .small) == .number(4))
         #expect(node.propertyValue(key, at: .medium) == .number(12))
         #expect(node.propertyValue(key, at: .extraLarge) == .number(24))
-        #expect(!node.hasResponsiveOverride(key, at: .medium))
+        // Each declared breakpoint starts pinned, so its blue dot is already set.
+        #expect(node.hasResponsiveOverride(key, at: .medium))
+        #expect(node.hasResponsiveOverride(key, at: .large))
+        #expect(!node.hasResponsiveOverride(key, at: .small))
         var screens = ScreenTokens.standard
         screens.update(.medium) { $0.isEnabled = false }
         #expect(node.propertyValue(key, at: .medium, screens: screens) == .number(4))
@@ -219,8 +223,7 @@ struct PartPackageTests {
         #expect(node.propertyValue(key, at: .medium) == .number(18))
         #expect(node.propertyValue(key, at: .large) == .number(24))
         #expect(node.propertyValue(key, at: .medium, screens: screens) == .number(4))
-        node.removeResponsiveOverride(key, at: .medium)
-        #expect(node.propertyValue(key, at: .medium) == .number(12))
+        node.setResponsiveProperty(key, value: .number(12), at: .medium)
         let restored = try JSONDecoder().decode(PartNode.self, from: JSONEncoder().encode(node))
         #expect(restored.propertyValue(key, at: .medium) == .number(12))
         var site = Site(name: "Defaults", pages: [Page(title: "Home", slug: "index", parts: [node])])
@@ -232,6 +235,13 @@ struct PartPackageTests {
         let disabledExport = StaticSiteRenderer().render(site: site)
         #expect(!disabledExport.files.contains { $0.contents.contains("gap: 12px") })
         #expect(disabledExport.files.contains { $0.contents.contains("gap: 24px") })
+
+        // Unpinning a developer default is like unpinning any other value:
+        // that breakpoint inherits from the one below it again.
+        node.removeResponsiveOverride(key, at: .medium)
+        #expect(!node.hasResponsiveOverride(key, at: .medium))
+        #expect(node.propertyValue(key, at: .medium) == .number(4))
+        #expect(node.propertyValue(key, at: .large) == .number(24))
     }
 
     @Test @MainActor func editsTargetTheGoverningBreakpointNotTheViewedOne() throws {
@@ -245,11 +255,11 @@ struct PartPackageTests {
         PartRegistry.register(package)
         defer { PartRegistry.unregisterPackage(identifier: package.manifest.identifier) }
 
-        var node = PartNode(type: .init(rawValue: package.manifest.identifier))
+        var node = PartNode.make(.init(rawValue: package.manifest.identifier))
         let key = PartProperty.Key(rawValue: "gap")
 
-        // With no pins, everything below the developer's medium default inherits
-        // the base; medium and above are governed by that declared default.
+        // The developer's medium default starts pinned: everything below it
+        // inherits the base; medium and above are governed by that pin.
         #expect(node.governingBreakpoint(for: key, at: .small) == .mobile)
         #expect(node.governingBreakpoint(for: key, at: .medium) == .medium)
         #expect(node.governingBreakpoint(for: key, at: .extraLarge) == .medium)
@@ -5025,16 +5035,16 @@ struct PartPackageTests {
 
         let package = try PartPackageLoader.load(from: packageURL)
         let property = try #require(PartPackageAdapter.definition(from: package).properties.first)
-        guard case .slider(let range, let step, let ticks, let unit, let showsValueField) = property.control else {
+        guard case .slider(let options) = property.control else {
             Issue.record("Expected a slider control")
             return
         }
 
-        #expect(range == 0...100)
-        #expect(step == 0)
-        #expect(ticks == 11)
-        #expect(unit == "%")
-        #expect(showsValueField)
+        #expect(options.range == 0...100)
+        #expect(options.step == 0)
+        #expect(options.ticks == 11)
+        #expect(options.unit == "%")
+        #expect(!options.editableValue)
     }
 
     @Test
@@ -5095,13 +5105,13 @@ struct PartPackageTests {
     }
 
     @Test
-    func sliderCanHideItsValueField() throws {
+    func sliderCanMakeItsValueEditable() throws {
         let item = """
         {
             "id" : "slider",
             "label" : "Slider",
             "type" : "slider",
-            "showsValueField" : false,
+            "editableValue" : true,
             "defaults" : {"base" : 0},
             "responsive" : false
         }
@@ -5115,12 +5125,19 @@ struct PartPackageTests {
 
         let package = try PartPackageLoader.load(from: packageURL)
         let property = try #require(PartPackageAdapter.definition(from: package).properties.first)
-        guard case .slider(_, _, _, _, let showsValueField) = property.control else {
+        guard case .slider(let options) = property.control else {
             Issue.record("Expected a slider control")
             return
         }
 
-        #expect(!showsValueField)
+        #expect(options.editableValue)
+    }
+
+    @Test
+    func sliderRejectsShowsValueField() throws {
+        let entry = #"{"id":"slider","label":"Slider","type":"slider","showsValueField":true,"defaults":{"base":0},"responsive":false}"#
+        let diagnostics = try PartPackageManifestSchema.diagnostics(for: Data(manifest(withInspectorEntries: entry).utf8))
+        #expect(diagnostics.contains { $0.severity == .error && $0.message.contains("editableValue") })
     }
 
     @Test
@@ -5162,6 +5179,97 @@ struct PartPackageTests {
         #expect(messages.contains("The control step cannot be negative."))
         #expect(messages.contains("Slider ticks must be zero or at least two."))
         #expect(messages.contains("A control unit can contain at most three characters."))
+    }
+
+    @Test
+    func sliderCustomisationsReachTheInspectorOptions() throws {
+        let item = """
+        {
+            "id" : "rows",
+            "label" : "Rows",
+            "type" : "slider",
+            "minimum" : 0,
+            "maximum" : 12,
+            "step" : 1,
+            "ticks" : 3,
+            "tickLabels" : {"0" : "Auto", "12" : "12"},
+            "valueLabels" : {"0" : "Auto"},
+            "minimumLabel" : {"systemImage" : "sun.min", "title" : "Dim"},
+            "maximumLabel" : {"title" : "Bright"},
+            "neutralValue" : 6,
+            "defaults" : {"base" : 0},
+            "responsive" : false
+        }
+        """
+        let packageURL = try makePackage(
+            manifest: manifest(withInspectorEntries: item),
+            template: "<output {{ part.attributes }}>{{ control.rows }}{{ childArea(\"content\") }}</output>"
+        )
+        defer { try? FileManager.default.removeItem(at: packageURL) }
+
+        let package = try PartPackageLoader.load(from: packageURL)
+        let property = try #require(PartPackageAdapter.definition(from: package).properties.first)
+        guard case .slider(let options) = property.control else {
+            Issue.record("Expected a slider control")
+            return
+        }
+
+        #expect(options.tickLabels == [.init(value: 0, text: "Auto"), .init(value: 12, text: "12")])
+        #expect(options.valueLabel(for: 0) == "Auto")
+        #expect(options.valueLabel(for: 1) == nil)
+        #expect(options.minimumLabel == .init(title: "Dim", systemImage: "sun.min"))
+        #expect(options.maximumLabel == .init(title: "Bright", systemImage: nil))
+        #expect(options.neutralValue == 6)
+        // The three even marks and the two labelled values share 0 and 12.
+        #expect(options.tickValues == [0, 6, 12])
+        #expect(options.tickLabel(at: 0) == "Auto")
+        #expect(options.tickLabel(at: 6) == nil)
+    }
+
+    @Test(arguments: [
+        #""tickLabels":{"auto":"Auto"}"#,
+        #""tickLabels":{"0":""}"#,
+        #""valueLabels":["Auto"]"#,
+        #""minimumLabel":{}"#,
+        #""minimumLabel":{"symbol":"sun.min"}"#,
+        #""neutralValue":"0""#,
+        #""valueLabels":{"0":"Auto"},"editableValue":true"#
+    ])
+    func sliderCustomisationsRejectMalformedValues(_ setting: String) throws {
+        let entry = #"{"id":"slider","label":"Slider","type":"slider",\#(setting),"defaults":{"base":0},"responsive":false}"#
+        let diagnostics = try PartPackageManifestSchema.diagnostics(for: Data(manifest(withInspectorEntries: entry).utf8))
+        #expect(diagnostics.contains { $0.severity == .error })
+    }
+
+    @Test
+    func sliderOnlyKeysAreRejectedOnOtherControls() throws {
+        let entry = #"{"id":"size","label":"Size","type":"number","tickLabels":{"0":"None"},"defaults":{"base":0},"responsive":false}"#
+        let diagnostics = try PartPackageManifestSchema.diagnostics(for: Data(manifest(withInspectorEntries: entry).utf8))
+        #expect(diagnostics.contains { $0.message == "Only a slider control accepts tickLabels." })
+    }
+
+    @Test
+    func sliderLabelledValuesMustFallInsideTheRange() throws {
+        let item = """
+        {
+            "id" : "slider",
+            "label" : "Slider",
+            "type" : "slider",
+            "minimum" : 0,
+            "maximum" : 10,
+            "tickLabels" : {"20" : "Far"},
+            "valueLabels" : {"-1" : "Off"},
+            "neutralValue" : 11,
+            "defaults" : {"base" : 0},
+            "responsive" : false
+        }
+        """
+        let manifest = try JSONDecoder().decode(PartPackageManifest.self, from: Data(manifest(withInspectorEntries: item).utf8))
+        let messages = Set(PartPackageValidator.validate(manifest, rootURL: FileManager.default.temporaryDirectory).map(\.message))
+
+        #expect(messages.contains("tickLabels value 20 is outside the slider's range."))
+        #expect(messages.contains("valueLabels value -1 is outside the slider's range."))
+        #expect(messages.contains("The slider's neutralValue is outside its range."))
     }
 
     @Test
@@ -5875,9 +5983,11 @@ struct PartPackageTests {
         #expect(PartType.grid.definition.properties.contains { $0.key.rawValue == "layout.overflow" })
         #expect(!PartType.grid.definition.properties.contains { $0.key.rawValue == "overflow" })
         #expect(PartType.image.definition.properties.contains { $0.key == .source && $0.isInspectorVisible })
+        // Image uses the standard Sizing group, starting at 1200px wide.
         #expect(PartType.image.definition.properties.contains {
-            $0.key.rawValue == "maxWidth" && $0.defaultValue == .number(1200) && $0.isResponsive
+            $0.key.rawValue == "sizing.customWidth" && $0.defaultValue == .number(1200)
         })
+        #expect(!PartType.image.definition.properties.contains { $0.key.rawValue == "maxWidth" })
         #expect(PartType.image.definition.properties.contains {
             $0.key.rawValue == "alignment" && $0.defaultValue == .choice("center") && $0.isResponsive
         })
@@ -6903,6 +7013,34 @@ struct PartPackageTests {
     ])
     func iconArtworkThatChangesTheShapeWarns(_ source: String) {
         #expect(PartPackageValidator.iconArtworkAltersShape(source), "\(source)")
+    }
+
+    @Test
+    func iconTintShadesAndRenderingsResolveWithQuietFallbacks() {
+        let light = PartPackageIcon(file: "icon.svg", tint: "blue.light", rendering: "original")
+        #expect(light.resolvedTint == .blue)
+        #expect(light.resolvedShade == .light)
+        #expect(light.resolvedRendering == .original)
+        #expect(PartPackageIcon(tint: "indigo.dark").resolvedShade == .dark)
+        #expect(PartPackageIcon(tint: "indigo").resolvedShade == .regular)
+        // Unknown names fall back rather than failing.
+        let unknown = PartPackageIcon(tint: "chartreuse.misty", rendering: "sparkly")
+        #expect(unknown.resolvedTint == .gray)
+        #expect(unknown.resolvedShade == .regular)
+        #expect(unknown.resolvedRendering == .monochrome)
+        #expect(PartPackageIcon(tint: "red.misty").resolvedTint == .red)
+    }
+
+    @Test
+    func iconRenderingKeysValidateWithoutErrors() throws {
+        let item = #"{"type":"text","id":"note","defaults":{"base":""}}"#
+        var manifestObject = try #require(JSONSerialization.jsonObject(with: Data(manifest(withInspectorEntries: item).utf8)) as? [String: Any])
+        manifestObject["icon"] = ["symbol": "star", "tint": "purple.light", "rendering": "original"]
+        let diagnostics = try PartPackageManifestSchema.diagnostics(for: JSONSerialization.data(withJSONObject: manifestObject))
+        #expect(diagnostics.filter { $0.location.contains("icon") }.isEmpty)
+        manifestObject["icon"] = ["symbol": "star", "tint": "nope", "rendering": "nope"]
+        let unknown = try PartPackageManifestSchema.diagnostics(for: JSONSerialization.data(withJSONObject: manifestObject))
+        #expect(unknown.filter { $0.location.contains("icon") }.isEmpty)
     }
 
     @Test

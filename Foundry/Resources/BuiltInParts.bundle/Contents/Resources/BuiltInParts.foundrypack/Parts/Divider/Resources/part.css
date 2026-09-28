@@ -5,3 +5,11 @@
     border: 0;
     border-top: {{ control.borderWidth }}px solid {{ control.borderColor }};
 }
+
+/* Control groups: declared after the part's own rules so they take precedence. */
+:instance {
+    {{ control.sizing.css }}
+    {{ control.spacing.css }}
+    {{ control.effects.css }}
+    {{ control.layout.css }}
+}

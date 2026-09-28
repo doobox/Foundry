@@ -148,14 +148,10 @@ struct PartPropertyEditor: View {
                     value: numberBinding
                 )
             }
-        case .slider(let range, let step, let ticks, let unit, let showsValueField):
+        case .slider(let options):
             SliderPartControl(
                 label: definition.label,
-                range: range,
-                step: step,
-                ticks: ticks,
-                unit: unit,
-                showsValueField: showsValueField,
+                options: options,
                 indicator: responsiveIndicator,
                 value: numberBinding
             )
@@ -1374,14 +1370,8 @@ private struct InspectorControlArrayItem: View {
 
     @ViewBuilder
     var body: some View {
-        if case .slider(let range, let step, let ticks, let fallbackUnit, let showsValueField) = element {
-            sliderGrid(
-                range: range,
-                step: step,
-                ticks: ticks,
-                unit: unit.isEmpty ? fallbackUnit : unit,
-                showsValueField: showsValueField
-            )
+        if case .slider(let options) = element {
+            sliderGrid(options: withMemberUnit(options))
             .controlSize(.small)
             .help(help ?? subtitle ?? "")
         } else {
@@ -1396,35 +1386,36 @@ private struct InspectorControlArrayItem: View {
         }
     }
 
-    private func sliderGrid(
-        range: ClosedRange<Double>,
-        step: Double,
-        ticks: Int,
-        unit: String,
-        showsValueField: Bool
-    ) -> some View {
+    /// A control array can give each member its own unit.
+    private func withMemberUnit(_ options: SliderOptions) -> SliderOptions {
+        var options = options
+        if !unit.isEmpty { options.unit = unit }
+        return options
+    }
+
+    private func sliderGrid(options: SliderOptions) -> some View {
         Grid(alignment: .leading, horizontalSpacing: 8, verticalSpacing: 3) {
-            GridRow {
+            GridRow(alignment: .sliderTrack) {
                 InspectorSlider(
                     value: numberBinding,
-                    range: range,
-                    step: step,
-                    tickMarkCount: ticks,
+                    options: options,
                     accessibilityLabel: subtitle ?? "Slider",
                     help: help
                 )
                 .frame(maxWidth: .infinity)
 
-                if showsValueField {
+                if options.editableValue {
                     InspectorNumberField(
                         value: numberBinding,
-                        range: range,
-                        step: step,
+                        range: options.range,
+                        step: options.step,
                         accessibilityLabel: "\(subtitle ?? "Slider") value",
                         help: help
                     )
                     .frame(width: 64)
-                    InspectorUnitLabel(unit: unit)
+                    InspectorUnitLabel(unit: options.unit)
+                } else {
+                    InspectorSliderValueLabel(value: numberBinding.wrappedValue, options: options, unit: options.unit)
                 }
             }
 
@@ -1432,9 +1423,11 @@ private struct InspectorControlArrayItem: View {
                 GridRow {
                     subtitleText(subtitle)
                         .frame(maxWidth: .infinity, alignment: .leading)
-                    if showsValueField {
+                    if options.editableValue {
                         Color.clear.frame(width: 64, height: 0)
                         InspectorUnitLabel(unit: "").hidden()
+                    } else {
+                        Color.clear.frame(width: 0, height: 0)
                     }
                 }
             }
@@ -1477,19 +1470,21 @@ private struct InspectorControlArrayItem: View {
                 InspectorStepper(value: numberBinding, range: range, increment: step, accessibilityLabel: subtitle ?? "Number value")
                 InspectorUnitLabel(unit: self.unit.isEmpty ? unit : self.unit)
             }
-        case .slider(let range, let step, let ticks, let unit, let showsValueField):
-            HStack(spacing: 8) {
-                InspectorSlider(value: numberBinding, range: range, step: step, tickMarkCount: ticks, accessibilityLabel: subtitle ?? "Slider", help: help)
-                if showsValueField {
+        case .slider(let options):
+            HStack(alignment: .sliderTrack, spacing: 8) {
+                InspectorSlider(value: numberBinding, options: options, accessibilityLabel: subtitle ?? "Slider", help: help)
+                if options.editableValue {
                     InspectorNumberField(
                         value: numberBinding,
-                        range: range,
-                        step: step,
+                        range: options.range,
+                        step: options.step,
                         accessibilityLabel: "\(subtitle ?? "Slider") value",
                         help: help
                     )
                     .frame(width: 64)
-                    InspectorUnitLabel(unit: self.unit.isEmpty ? unit : self.unit)
+                    InspectorUnitLabel(unit: self.unit.isEmpty ? options.unit : self.unit)
+                } else {
+                    InspectorSliderValueLabel(value: numberBinding.wrappedValue, options: options, unit: self.unit.isEmpty ? options.unit : self.unit)
                 }
             }
         case .date:

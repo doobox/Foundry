@@ -545,7 +545,7 @@
       "maximum": 100,
       "minimum": 0,
       "responsive": true,
-      "showsValueField": true,
+      "editableValue": true,
       "step": 1,
       "type": "slider",
       "visibleWhen": {
@@ -627,7 +627,7 @@
       "maximum": 100,
       "minimum": 0,
       "responsive": true,
-      "showsValueField": true,
+      "editableValue": true,
       "step": 1,
       "type": "slider",
       "visibleWhen": {
@@ -1089,7 +1089,7 @@
       "maximum": 100,
       "minimum": 0,
       "responsive": true,
-      "showsValueField": true,
+      "editableValue": true,
       "step": 1,
       "type": "slider",
       "visibleWhen": {
@@ -1147,7 +1147,7 @@
       "maximum": 100,
       "minimum": 0,
       "responsive": true,
-      "showsValueField": true,
+      "editableValue": true,
       "step": 1,
       "type": "slider",
       "visibleWhen": {

@@ -5,7 +5,7 @@
   "group": "Content",
   "icon": {
     "symbol": "inset.filled.capsule",
-    "tint": "indigo"
+    "tint": "indigo.dark"
   },
   "id": "foundry.content.button",
   "inspector": [
@@ -93,6 +93,50 @@
       "systemImage": "accessibility"
     },
     {
+      "section": "Content",
+      "systemImage": "doc.text"
+    },
+    {
+      "section": "Sizing",
+      "systemImage": "arrow.up.left.and.arrow.down.right",
+      "controls": [
+        {
+          "type": "sizing",
+          "id": "sizing"
+        }
+      ]
+    },
+    {
+      "section": "Spacing",
+      "systemImage": "arrow.up.and.down.and.arrow.left.and.right",
+      "controls": [
+        {
+          "type": "spacing",
+          "id": "spacing"
+        }
+      ]
+    },
+    {
+      "section": "Effects",
+      "systemImage": "sparkles",
+      "controls": [
+        {
+          "type": "effects",
+          "id": "effects"
+        }
+      ]
+    },
+    {
+      "section": "Layout",
+      "systemImage": "square.on.square",
+      "controls": [
+        {
+          "type": "layout",
+          "id": "layout"
+        }
+      ]
+    },
+    {
       "controls": [
         {
           "type": "reveal",
@@ -103,8 +147,7 @@
       "systemImage": "sparkles.rectangle.stack"
     },
     {
-      "section": "Content",
-      "systemImage": "doc.text"
+      "type": "advanced"
     }
   ],
   "minimumAPIVersion": 1,

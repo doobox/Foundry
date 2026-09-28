@@ -366,7 +366,8 @@ struct PartLibraryPanel: View {
         return (preferredCategories + remainingCategories).compactMap { category in
             let categoryTypes = types.filter { $0.definition.category == category }
             guard !categoryTypes.isEmpty else { return nil }
-            return PartLibrarySection(
+            // makeSection sorts the parts alphabetically, like every other arrangement.
+            return makeSection(
                 id: "group-\(category.rawValue)",
                 title: category.rawValue,
                 types: categoryTypes

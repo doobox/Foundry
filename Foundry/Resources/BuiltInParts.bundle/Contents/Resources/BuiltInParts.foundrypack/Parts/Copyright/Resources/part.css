@@ -16,3 +16,14 @@
 :instance .copy-nowrap {
     white-space: nowrap;
 }
+
+/* Control groups: declared after the part's own rules so they take precedence. */
+:instance {
+    {{ control.sizing.css }}
+    {{ control.spacing.css }}
+    {{ control.borders.css }}
+    {{ control.effects.css }}
+    {{ control.background.css }}
+    {{ control.layout.css }}
+}
+:instance:hover { {{ control.background.hover.css }} }

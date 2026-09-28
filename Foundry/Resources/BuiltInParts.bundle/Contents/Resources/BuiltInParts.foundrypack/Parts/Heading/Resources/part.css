@@ -10,3 +10,14 @@
     padding: {{ if control.spacing.spacingEnabled }}{{ control.spacing.frameworkPadding }}{{ else }}0{{ endif }};
     margin: {{ if control.spacing.spacingEnabled }}{{ control.spacing.frameworkMargin }}{{ else }}0{{ endif }};
 }
+
+/* Control groups: declared after the part's own rules so they take precedence. */
+:instance {
+    {{ control.sizing.css }}
+    {{ control.spacing.css }}
+    {{ control.borders.css }}
+    {{ control.effects.css }}
+    {{ control.background.css }}
+    {{ control.layout.css }}
+}
+:instance:hover { {{ control.background.hover.css }} }

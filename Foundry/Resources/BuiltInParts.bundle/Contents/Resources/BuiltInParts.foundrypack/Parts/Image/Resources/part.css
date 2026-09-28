@@ -4,12 +4,36 @@
     {{ if control.alignment == "start" }}margin-inline: 0 auto;{{ endif }}
     {{ if control.alignment == "end" }}margin-inline: auto 0;{{ endif }}
     width: 100%;
-    max-width: {{ control.maxWidth }}px;
 }
 
+/* The image fills the part. With an automatic height it keeps its own
+   proportions; with a fixed height it covers the area around its focal point. */
 :instance .fd-image {
     display: block;
     width: 100%;
     max-width: 100%;
-    height: auto;
+    height: 100%;
+    object-fit: cover;
 }
+
+/* Control groups: declared after the part's own rules so they take precedence. */
+:instance {
+    {{ control.sizing.css }}
+    {{ control.borders.css }}
+    {{ control.effects.css }}
+    {{ control.background.css }}
+    {{ control.layout.css }}
+    {{ if control.spacing.spacingEnabled }}padding: {{ control.spacing.frameworkPadding }}; margin-top: {{ control.spacing.frameworkMargin.top }}; margin-bottom: {{ control.spacing.frameworkMargin.bottom }};{{ endif }}
+}
+:instance:hover { {{ control.background.hover.css }} }
+
+/* Optional whole-part link overlay. Layout only offers positioned values,
+   so the part is always its containing block. */
+:instance > .foundry-part-link {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+}
+
+/* Corner radius from Borders clips the media inside. */
+:instance { overflow: hidden; }

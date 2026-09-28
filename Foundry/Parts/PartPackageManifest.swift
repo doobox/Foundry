@@ -115,19 +115,53 @@ nonisolated struct PartPackageControlSection: Codable, Equatable, Sendable {
     }
 }
 
-/// A part's library artwork: one square mono glyph — an SVG stencil or an
-/// SF Symbol — plus a system tint. The tile fills with the tint behind a
+/// A part's library artwork: one square glyph — an SVG or an SF Symbol —
+/// plus a system tint. By default the tile fills with the tint behind a
 /// white glyph; the structure tree paints the glyph in the tint directly.
 nonisolated struct PartPackageIcon: Codable, Equatable, Sendable {
     let file: String?
     let symbol: String?
+    /// A system colour name, optionally with a shade: `blue`, `blue.light`.
     let tint: String?
+    let rendering: String?
 
-    /// The declared tint resolved against the supported tokens. Unknown
-    /// tokens render as gray; validation reports them separately.
-    var resolvedTint: PartIconTint {
-        tint.flatMap(PartIconTint.init(rawValue:)) ?? .gray
+    init(file: String? = nil, symbol: String? = nil, tint: String? = nil, rendering: String? = nil) {
+        self.file = file
+        self.symbol = symbol
+        self.tint = tint
+        self.rendering = rendering
     }
+
+    private var tintParts: (colour: Substring, shade: Substring?) {
+        let parts = (tint ?? "").split(separator: ".", maxSplits: 1)
+        return (parts.first ?? "", parts.count > 1 ? parts[1] : nil)
+    }
+
+    /// Unknown colours render as gray rather than failing validation.
+    var resolvedTint: PartIconTint {
+        PartIconTint(rawValue: String(tintParts.colour)) ?? .gray
+    }
+
+    /// Unknown shades use the regular colour.
+    var resolvedShade: PartIconShade {
+        tintParts.shade.flatMap { PartIconShade(rawValue: String($0)) } ?? .regular
+    }
+
+    /// Unknown renderings use the standard white glyph.
+    var resolvedRendering: PartIconRendering {
+        rendering.flatMap(PartIconRendering.init(rawValue:)) ?? .monochrome
+    }
+}
+
+/// A lighter or darker version of an icon tint.
+nonisolated enum PartIconShade: String, Codable, CaseIterable, Sendable {
+    case regular, light, dark
+}
+
+/// How an icon's glyph is drawn. Original applies to SVG files, which then
+/// draw as authored; everything else draws as a white monochrome glyph.
+nonisolated enum PartIconRendering: String, Codable, CaseIterable, Sendable {
+    case monochrome, original
 }
 
 /// The supported icon tints, mirroring the macOS system colours so both
@@ -1256,7 +1290,7 @@ nonisolated struct PartPackageControl: Codable, Equatable, Sendable {
     let customColor: String?
     let count: Int?
     let ticks: Int?
-    let showsValueField: Bool?
+    let editableValue: Bool?
     let trueValue: PartPackageValue?
     let falseValue: PartPackageValue?
     let selectionMode: ButtonSelectionMode?
@@ -1271,6 +1305,15 @@ nonisolated struct PartPackageControl: Codable, Equatable, Sendable {
     let linked: Bool?
     /// Spacer-only: the gap in points.
     let height: Double?
+    /// Slider-only: labelled tick marks, keyed by the value as a string.
+    let tickLabels: [String: String]?
+    /// Slider-only: text shown in place of the read-only value at particular values.
+    let valueLabels: [String: String]?
+    /// Slider-only: what sits at each end of the track.
+    let minimumLabel: PartPackageSliderEndLabel?
+    let maximumLabel: PartPackageSliderEndLabel?
+    /// Slider-only: the value the track fills from, instead of the minimum.
+    let neutralValue: Double?
 
     /// The spacer's gap when `height` is omitted, and the permitted range.
     static let defaultSpacerHeight: Double = 10
@@ -1279,9 +1322,10 @@ nonisolated struct PartPackageControl: Codable, Equatable, Sendable {
     enum CodingKeys: String, CodingKey {
         case type, font, minimum, maximum, step, options, frameworkValues, allowsCustom
         case showsFamily, showsWeight, showsStyle, showsSize
-        case opacity, outputFormat, customColor, count, ticks, showsValueField
+        case opacity, outputFormat, customColor, count, ticks, editableValue
         case trueValue, falseValue, selectionMode, argument1, argument2, operation, round, absoluteURL, presentation, linked
         case height
+        case tickLabels, valueLabels, minimumLabel, maximumLabel, neutralValue
     }
 
     init(
@@ -1292,7 +1336,7 @@ nonisolated struct PartPackageControl: Codable, Equatable, Sendable {
         options: [PartPackageOption]? = nil,
         allowsCustom: Bool? = nil,
         opacity: Bool? = nil,
-        showsValueField: Bool? = nil,
+        editableValue: Bool? = nil,
         absoluteURL: Bool? = nil,
         presentation: ControlPresentation? = nil,
         showsStyle: Bool? = nil
@@ -1316,7 +1360,7 @@ nonisolated struct PartPackageControl: Codable, Equatable, Sendable {
         customColor = nil
         count = nil
         ticks = nil
-        self.showsValueField = showsValueField
+        self.editableValue = editableValue
         trueValue = nil
         falseValue = nil
         selectionMode = nil
@@ -1328,6 +1372,11 @@ nonisolated struct PartPackageControl: Codable, Equatable, Sendable {
         self.presentation = presentation
         linked = nil
         height = nil
+        tickLabels = nil
+        valueLabels = nil
+        minimumLabel = nil
+        maximumLabel = nil
+        neutralValue = nil
     }
 
     static func select(_ options: [(String, String)], presentation: ControlPresentation? = nil) -> Self {
@@ -1362,7 +1411,7 @@ nonisolated struct PartPackageControl: Codable, Equatable, Sendable {
         customColor = try container.decodeIfPresent(String.self, forKey: .customColor)
         count = try container.decodeIfPresent(Int.self, forKey: .count)
         ticks = try container.decodeIfPresent(Int.self, forKey: .ticks)
-        showsValueField = try container.decodeIfPresent(Bool.self, forKey: .showsValueField)
+        editableValue = try container.decodeIfPresent(Bool.self, forKey: .editableValue)
         trueValue = try container.decodeIfPresent(PartPackageValue.self, forKey: .trueValue)
         falseValue = try container.decodeIfPresent(PartPackageValue.self, forKey: .falseValue)
         selectionMode = try container.decodeIfPresent(ButtonSelectionMode.self, forKey: .selectionMode)
@@ -1374,6 +1423,11 @@ nonisolated struct PartPackageControl: Codable, Equatable, Sendable {
         presentation = try container.decodeIfPresent(ControlPresentation.self, forKey: .presentation)
         linked = try container.decodeIfPresent(Bool.self, forKey: .linked)
         height = try container.decodeIfPresent(Double.self, forKey: .height)
+        tickLabels = try container.decodeIfPresent([String: String].self, forKey: .tickLabels)
+        valueLabels = try container.decodeIfPresent([String: String].self, forKey: .valueLabels)
+        minimumLabel = try container.decodeIfPresent(PartPackageSliderEndLabel.self, forKey: .minimumLabel)
+        maximumLabel = try container.decodeIfPresent(PartPackageSliderEndLabel.self, forKey: .maximumLabel)
+        neutralValue = try container.decodeIfPresent(Double.self, forKey: .neutralValue)
     }
 
     func encode(to encoder: Encoder) throws {
@@ -1400,7 +1454,7 @@ nonisolated struct PartPackageControl: Codable, Equatable, Sendable {
         try container.encodeIfPresent(customColor, forKey: .customColor)
         try container.encodeIfPresent(count, forKey: .count)
         try container.encodeIfPresent(ticks, forKey: .ticks)
-        try container.encodeIfPresent(showsValueField, forKey: .showsValueField)
+        try container.encodeIfPresent(editableValue, forKey: .editableValue)
         try container.encodeIfPresent(trueValue, forKey: .trueValue)
         try container.encodeIfPresent(falseValue, forKey: .falseValue)
         try container.encodeIfPresent(selectionMode, forKey: .selectionMode)
@@ -1412,7 +1466,19 @@ nonisolated struct PartPackageControl: Codable, Equatable, Sendable {
         try container.encodeIfPresent(presentation, forKey: .presentation)
         try container.encodeIfPresent(linked, forKey: .linked)
         try container.encodeIfPresent(height, forKey: .height)
+        try container.encodeIfPresent(tickLabels, forKey: .tickLabels)
+        try container.encodeIfPresent(valueLabels, forKey: .valueLabels)
+        try container.encodeIfPresent(minimumLabel, forKey: .minimumLabel)
+        try container.encodeIfPresent(maximumLabel, forKey: .maximumLabel)
+        try container.encodeIfPresent(neutralValue, forKey: .neutralValue)
     }
+}
+
+/// A slider's end label: a symbol, text, or a symbol whose title is read by
+/// VoiceOver and shown as its tooltip.
+nonisolated struct PartPackageSliderEndLabel: Codable, Equatable, Sendable {
+    let title: String?
+    let systemImage: String?
 }
 
 nonisolated enum PartPackageFrameworkValueSource: String, Codable, CaseIterable, Sendable {

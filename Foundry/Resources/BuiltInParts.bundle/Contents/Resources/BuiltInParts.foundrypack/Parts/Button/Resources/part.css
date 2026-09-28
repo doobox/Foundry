@@ -8,3 +8,11 @@
     border-radius: {{ control.cornerRadius }}px;
     padding: 12px 22px;
 }
+
+/* Control groups: declared after the part's own rules so they take precedence. */
+:instance {
+    {{ control.sizing.css }}
+    {{ control.effects.css }}
+    {{ control.layout.css }}
+    padding: {{ if control.spacing.spacingEnabled }}{{ control.spacing.frameworkPadding }}{{ else }}12px 22px{{ endif }}; margin: {{ if control.spacing.spacingEnabled }}{{ control.spacing.frameworkMargin }}{{ else }}0{{ endif }};
+}

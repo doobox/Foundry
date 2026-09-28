@@ -13,3 +13,16 @@
     max-width: 100%;
     height: auto;
 }
+
+/* Control groups: declared after the part's own rules so they take precedence. */
+:instance {
+    {{ control.borders.css }}
+    {{ control.effects.css }}
+    {{ control.background.css }}
+    {{ control.layout.css }}
+    {{ if control.spacing.spacingEnabled }}padding: {{ control.spacing.frameworkPadding }}; margin-top: {{ control.spacing.frameworkMargin.top }}; margin-bottom: {{ control.spacing.frameworkMargin.bottom }};{{ endif }}
+}
+:instance:hover { {{ control.background.hover.css }} }
+
+/* Corner radius from Borders clips the media inside. */
+:instance { overflow: hidden; }

@@ -468,6 +468,8 @@ struct InspectorStepper: NSViewRepresentable {
 
     func makeNSView(context: Context) -> NSStepper {
         let stepper = NSStepper()
+        // NSStepper wraps from maximum to minimum by default; stop at the ends instead.
+        stepper.valueWraps = false
         stepper.controlSize = controlSize.appKitControlSize
         stepper.target = context.coordinator
         stepper.action = #selector(Coordinator.valueChanged(_:))
@@ -503,105 +505,102 @@ struct InspectorStepper: NSViewRepresentable {
     }
 }
 
-struct InspectorSlider: NSViewRepresentable {
+extension VerticalAlignment {
+    private enum SliderTrack: AlignmentID {
+        static func defaultValue(in dimensions: ViewDimensions) -> CGFloat {
+            dimensions[VerticalAlignment.center]
+        }
+    }
+
+    /// The vertical centre of a slider's track, which is not the centre of
+    /// the slider when it has tick labels beneath it. Other views fall back
+    /// to their own centre.
+    static let sliderTrack = VerticalAlignment(SliderTrack.self)
+}
+
+/// The Inspector's slider: SwiftUI's native slider, snapped to the step.
+///
+/// The step is applied here rather than passed to `Slider`, because on macOS
+/// a stepped `Slider` draws a mark at every step, which turns a fine-grained
+/// slider's track into a dotted line. The only marks drawn are the ones in
+/// `options.tickValues`.
+struct InspectorSlider: View {
     @Binding var value: Double
-    let range: ClosedRange<Double>
-    let step: Double
-    let tickMarkCount: Int
-    let isContinuous: Bool
+    let options: SliderOptions
     let accessibilityLabel: String
     let help: String?
-    @Environment(\.isEnabled) private var isEnabled
-    @Environment(\.controlSize) private var controlSize
     @Environment(\.undoManager) private var undoManager
+    @State private var transaction = ContinuousUndoTransaction()
 
-    init(
-        value: Binding<Double>,
-        range: ClosedRange<Double>,
-        step: Double,
-        tickMarkCount: Int = 0,
-        isContinuous: Bool = true,
-        accessibilityLabel: String,
-        help: String? = nil
-    ) {
+    init(value: Binding<Double>, options: SliderOptions, accessibilityLabel: String, help: String? = nil) {
         _value = value
-        self.range = range
-        self.step = step
-        self.tickMarkCount = tickMarkCount
-        self.isContinuous = isContinuous
+        self.options = options
         self.accessibilityLabel = accessibilityLabel
         self.help = help
     }
 
-    func makeCoordinator() -> Coordinator {
-        Coordinator(value: $value, range: range, step: step)
-    }
-
-    func makeNSView(context: Context) -> NSSlider {
-        let slider = ContinuousInspectorSlider(value: value, minValue: range.lowerBound, maxValue: range.upperBound, target: context.coordinator, action: #selector(Coordinator.valueChanged(_:)))
-        slider.beginInteraction = { [weak coordinator = context.coordinator] in
-            coordinator?.transaction.begin()
+    var body: some View {
+        if options.tickLabels.isEmpty {
+            slider
+        } else {
+            // Tick labels make the slider taller than its track. A hidden,
+            // label-free slider pinned to the top marks where the track is,
+            // so neighbouring views can align to it with `.sliderTrack`.
+            ZStack(alignment: .top) {
+                Slider(value: .constant(0))
+                    .labelsHidden()
+                    .hidden()
+                    .alignmentGuide(.sliderTrack) { $0[VerticalAlignment.center] }
+                slider
+            }
         }
-        slider.endInteraction = { [weak coordinator = context.coordinator] in
-            coordinator?.transaction.end()
-        }
-        slider.controlSize = controlSize.appKitControlSize
-        slider.setContentHuggingPriority(.defaultLow, for: .horizontal)
-        slider.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
-        return slider
     }
 
-    func updateNSView(_ slider: NSSlider, context: Context) {
-        slider.controlSize = controlSize.appKitControlSize
-        context.coordinator.value = $value
-        context.coordinator.range = range
-        context.coordinator.step = step
-        context.coordinator.transaction.undoManager = undoManager
-        context.coordinator.isUpdating = true
-        slider.minValue = range.lowerBound
-        slider.maxValue = range.upperBound
-        slider.altIncrementValue = step > 0 ? step : 0
-        slider.numberOfTickMarks = tickMarkCount
-        slider.allowsTickMarkValuesOnly = false
-        slider.isContinuous = isContinuous
-        slider.doubleValue = value
-        slider.isEnabled = isEnabled
-        slider.toolTip = help
-        slider.setAccessibilityLabel(accessibilityLabel)
-        context.coordinator.isUpdating = false
+    private var slider: some View {
+        Slider(
+            value: snappedValue,
+            in: options.range,
+            neutralValue: options.neutralValue,
+            label: { Text(accessibilityLabel) },
+            minimumValueLabel: { endLabel(options.minimumLabel) },
+            maximumValueLabel: { endLabel(options.maximumLabel) },
+            ticks: {
+                SliderTickContentForEach(options.tickValues, id: \.self) { tick in
+                    SliderTick(tick) {
+                        if let text = options.tickLabel(at: tick) {
+                            Text(text)
+                        }
+                    }
+                }
+            },
+            onEditingChanged: { isEditing in
+                // One drag is one undo step.
+                transaction.undoManager = undoManager
+                if isEditing { transaction.begin() } else { transaction.end() }
+            }
+        )
+        .labelsHidden()
+        .help(help ?? "")
     }
 
-    static func dismantleNSView(_ slider: NSSlider, coordinator: Coordinator) {
-        slider.target = nil
-        slider.action = nil
+    private var snappedValue: Binding<Double> {
+        Binding(
+            get: { value },
+            set: { rawValue in
+                let resolved = InspectorSliderValueResolver.resolve(rawValue, range: options.range, step: options.step)
+                if resolved != value { value = resolved }
+            }
+        )
     }
 
-    func sizeThatFits(_ proposal: ProposedViewSize, nsView: NSSlider, context: Context) -> CGSize? {
-        CGSize(width: proposal.width ?? nsView.intrinsicContentSize.width, height: nsView.intrinsicContentSize.height)
-    }
-
-    final class Coordinator: NSObject {
-        var value: Binding<Double>
-        var range: ClosedRange<Double>
-        var step: Double
-        var isUpdating = false
-        let transaction = ContinuousUndoTransaction()
-
-        init(value: Binding<Double>, range: ClosedRange<Double>, step: Double) {
-            self.value = value
-            self.range = range
-            self.step = step
-        }
-
-        @objc func valueChanged(_ sender: NSSlider) {
-            guard !isUpdating else { return }
-            let resolvedValue = InspectorSliderValueResolver.resolve(
-                sender.doubleValue,
-                range: range,
-                step: step
-            )
-            sender.doubleValue = resolvedValue
-            value.wrappedValue = resolvedValue
+    @ViewBuilder
+    private func endLabel(_ label: SliderOptions.EndLabel?) -> some View {
+        if let systemImage = label?.systemImage {
+            Image(systemName: systemImage)
+                .help(label?.title ?? "")
+                .accessibilityLabel(label?.title ?? "")
+        } else if let title = label?.title {
+            Text(title)
         }
     }
 }
@@ -621,18 +620,6 @@ final class ContinuousUndoTransaction {
         guard isActive else { return }
         isActive = false
         undoManager?.endUndoGrouping()
-    }
-}
-
-@MainActor
-private final class ContinuousInspectorSlider: NSSlider {
-    var beginInteraction: () -> Void = {}
-    var endInteraction: () -> Void = {}
-
-    override func mouseDown(with event: NSEvent) {
-        beginInteraction()
-        defer { endInteraction() }
-        super.mouseDown(with: event)
     }
 }
 

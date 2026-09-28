@@ -14,8 +14,8 @@ struct ContainerContentLayoutTests {
         try package.preparePayload()
         let css = PartTemplateRenderer.render(package.css, context: .init(
             instanceID: UUID(), packageIdentifier: package.manifest.identifier,
-            properties: ["contentWidth": .string(width), "customContentWidth": .number(720),
-                         "contentAlignment": .string("center"), "contentJustify": .string("flex-end"),
+            properties: ["contentWidth": .string(width), "contentWidthSpacing": .string("45rem"),
+                         "contentAlignment": .string("center"), "contentJustify": .string("end"),
                          "contentGap": .string("2rem")], slots: [:]
         ))
         let expression = try NSRegularExpression(pattern: #"(?s):instance > \.fd-container__content \{(.*?)\}"#)
@@ -23,6 +23,7 @@ struct ContainerContentLayoutTests {
         let range = try #require(Range(match.range(at: 1), in: css))
         let body = String(css[range]).replacingOccurrences(of: #"(?s)/\*.*?\*/"#, with: "", options: .regularExpression)
         var declarations: [String: String] = [:]
+        // Later declarations win, as in CSS.
         for declaration in body.split(separator: ";") {
             let pair = declaration.split(separator: ":", maxSplits: 1)
             if pair.count == 2 {
@@ -36,26 +37,35 @@ struct ContainerContentLayoutTests {
     func contentControlsHaveOneSectionAndExplicitAxisLabels() throws {
         let manifest = try package().manifest
         let controls = manifest.resolvedProperties.filter { $0.group == "Content Layout" }
-        #expect(controls.map(\.id) == ["contentWidth", "customContentWidth", "contentAlignment", "contentJustify", "contentGap"])
-        #expect(controls.first { $0.id == "contentAlignment" }?.label == "Vertical Alignment")
-        #expect(controls.first { $0.id == "contentJustify" }?.label == "Horizontal Alignment")
-        #expect(controls.first { $0.id == "contentWidth" }?.control.options?.map(\.title) == ["Site Content Width", "Full Width", "Custom"])
+        #expect(controls.filter { $0.control.type != .note && $0.control.type != .divider }.map(\.id)
+            == ["contentWidth", "contentWidthSpacing", "contentAlignment", "contentJustify", "contentGap"])
+        #expect(controls.first { $0.id == "contentAlignment" }?.label == "Vertical")
+        #expect(controls.first { $0.id == "contentJustify" }?.label == "Horizontal")
+        #expect(controls.first { $0.id == "contentWidth" }?.control.options?.map(\.title) == ["Breakpoint", "Full", "Fit Content", "Custom"])
+        #expect(controls.contains { $0.id == "contentHeight" } == false)
         #expect(manifest.controlGroups.contains { $0.type == .flexbox } == false)
         #expect(manifest.controlGroups.contains { $0.type == .layout && $0.id == "layout" })
     }
 
-    @Test(arguments: ["contained", "custom", "full"])
-    func innerContainerAlwaysStacksAndFillsAvailableHeight(_ width: String) throws {
+    @Test(arguments: ["breakpoint", "custom", "full", "auto"])
+    func innerContainerStacksAndPositionsItsContent(_ width: String) throws {
         let css = try innerDeclarations(width: width)
         #expect(css["display"] == "flex")
         #expect(css["flex-direction"] == "column")
-        #expect(css["flex"] == "1 1 auto")
-        #expect(css["justify-content"] == "center")
-        #expect(css["align-items"] == "flex-end")
+        #expect(css["align-self"] == "center")
+        #expect(css["justify-self"] == "end")
         #expect(css["gap"] == "2rem")
+        switch width {
+        case "breakpoint": #expect(css["max-width"] == "var(--foundry-container-width)")
+        case "custom":
+            #expect(css["width"] == "45rem")
+            #expect(css["max-width"] == "100%")
+        case "full": #expect(css["width"] == "100%")
+        default: #expect(css["width"] == "auto")
+        }
     }
 
-    @Test(arguments: ["contained", "custom"])
+    @Test(arguments: ["breakpoint", "custom"])
     func fullWidthResetsAnEarlierBreakpointLimit(_ earlierWidth: String) throws {
         var cascade = try innerDeclarations(width: earlierWidth)
         cascade.merge(try innerDeclarations(width: "full")) { _, wider in wider }

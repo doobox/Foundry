@@ -10,7 +10,7 @@ struct DevLayoutPartsTests {
 
     @Test(.enabled(if: FileManager.default.fileExists(atPath: performanceProject.path)))
     @MainActor func retainedSceneOnSuppliedProject() throws {
-        let packages = try ["Container", "FlexTest", "FlexItem", "Grid", "GridItem"].map(package)
+        let packages = try ["Container", "Flexbox", "FlexItem", "Grid", "GridItem"].map(package)
         for package in packages { PartRegistry.register(package) }
         defer { for package in packages { PartRegistry.unregisterPackage(identifier: package.manifest.identifier) } }
         let wrapper = try FileWrapper(url: Self.performanceProject, options: [])
@@ -50,7 +50,7 @@ struct DevLayoutPartsTests {
 
     @Test(.enabled(if: FileManager.default.fileExists(atPath: performanceProject.path)))
     @MainActor func suppliedProjectRenderTimings() throws {
-        let packages = try ["Container", "FlexTest", "FlexItem", "Grid", "GridItem"].map(package)
+        let packages = try ["Container", "Flexbox", "FlexItem", "Grid", "GridItem"].map(package)
         for package in packages { PartRegistry.register(package) }
         defer { for package in packages { PartRegistry.unregisterPackage(identifier: package.manifest.identifier) } }
         let wrapper = try FileWrapper(url: Self.performanceProject, options: [])
@@ -246,12 +246,12 @@ struct DevLayoutPartsTests {
     }
 
     @Test(.enabled(if: FileManager.default.fileExists(atPath: root.path)),
-          arguments: ["Container", "FlexTest", "Grid", "FlexItem", "GridItem"])
+          arguments: ["Container", "Flexbox", "Grid", "FlexItem", "GridItem"])
     func packagesValidateAndHiddenWins(_ name: String) throws {
         let package = try package(name)
         let diagnostics = PartPackageValidator.validate(package.manifest, rootURL: package.rootURL.appending(path: "Resources"))
         #expect(diagnostics.filter { $0.severity == .error }.isEmpty)
-        if name == "FlexTest" || name == "Grid" {
+        if name == "Flexbox" || name == "Grid" {
             #expect(package.dropZoneNames.isEmpty)
             #expect(package.manifest.slots.map(\.id) == ["content"])
         } else {
@@ -277,26 +277,23 @@ struct DevLayoutPartsTests {
         for id in ["columnSpan", "rowSpan", "columnStart", "rowStart", "gridAlign", "gridJustify"] {
             #expect(properties.contains { $0.id == id } == (mode == "grid"))
         }
-        for id in ["flexGrow", "flexShrink", "flexBasis", "flexAlign"] {
+        for id in ["flexSize", "flexGrow", "flexShrink", "flexBasis", "flexAlign"] {
             #expect(properties.contains { $0.id == id } == (mode == "flex"))
         }
         let rendered = css(package, overrides: [
             "columnSpan": .number(2), "rowSpan": .number(3),
-            "columnStart": .number(0), "rowStart": .number(4), "flexGrow": .number(2),
+            "columnStart": .number(0), "rowStart": .number(4), "flexSize": .string("custom"), "flexGrow": .number(2),
             "flexShrink": .number(0), "flexBasis": .string("12rem"), "contentGap": .string("0px")
         ])
         if mode == "grid" {
             #expect(rendered.contains("grid-column: auto / span 2;"))
             #expect(rendered.contains("grid-row: 4 / span 3;"))
-            #expect(rendered.contains("flex-grow: 2;") == false)
-            #expect(rendered.contains("flex-basis:") == false)
+            #expect(rendered.contains("flex: 2") == false)
         } else {
-            #expect(rendered.contains("flex-grow: 2;"))
-            let growth = try #require(rendered.range(of: "flex-grow: 2;"))
+            // Custom exposes the raw values, written after the sizing group's reset.
+            let growth = try #require(rendered.range(of: "flex: 2 0 12rem;"))
             let sizingReset = try #require(rendered.range(of: "flex-grow: 0;"))
             #expect(growth.lowerBound > sizingReset.lowerBound)
-            #expect(rendered.contains("flex-shrink: 0;"))
-            #expect(rendered.contains("flex-basis: 12rem;"))
             #expect(rendered.contains("grid-column:") == false)
             #expect(rendered.contains("grid-row:") == false)
         }
@@ -311,6 +308,63 @@ struct DevLayoutPartsTests {
             : "repeat(3, minmax(0, 1fr))"))
     }
 
+    @Test(.enabled(if: FileManager.default.fileExists(atPath: root.path)), arguments: ["row", "row dense"])
+    func gridPlacementRendersAutoFlow(_ flow: String) throws {
+        let rendered = css(try package("Grid"), overrides: ["autoFlow": .string(flow)])
+        #expect(rendered.contains("grid-auto-flow: \(flow);"))
+    }
+
+    @Test(.enabled(if: FileManager.default.fileExists(atPath: root.path)),
+          arguments: [("fit", "0 1 auto"), ("fill", "1 1 auto"), ("equal", "1 1 0%")])
+    func flexItemSizePresetsRender(_ preset: String, _ flex: String) throws {
+        let rendered = css(try package("FlexItem"), overrides: ["flexSize": .string(preset)])
+        #expect(rendered.contains("flex: \(flex);"))
+    }
+
+    @Test(.enabled(if: FileManager.default.fileExists(atPath: root.appending(path: "Columns/manifest.json").path)),
+          arguments: ["Columns", "Box"])
+    func simpleLayoutPartsValidate(_ name: String) throws {
+        let package = try package(name)
+        let diagnostics = PartPackageValidator.validate(package.manifest, rootURL: package.rootURL.appending(path: "Resources"))
+        #expect(diagnostics.filter { $0.severity == .error }.isEmpty)
+        #expect(package.dropZoneNames == (name == "Columns" ? ["column1", "column2", "column3", "column4"] : ["content"]))
+        #expect(css(package).contains("{{") == false)
+    }
+
+    @Test(.enabled(if: FileManager.default.fileExists(atPath: root.appending(path: "Columns/manifest.json").path)),
+          arguments: [("33-67", "minmax(0, 1fr) minmax(0, 2fr)", 3), ("thirds", "repeat(3, minmax(0, 1fr))", 4),
+                      ("quarters", "repeat(4, minmax(0, 1fr))", 0)])
+    func columnsLayoutsSetTracksAndHideUnusedColumns(_ layout: String, _ tracks: String, _ firstHidden: Int) throws {
+        let package = try package("Columns")
+        let side = css(package, overrides: ["layout": .string(layout), "stacked": .boolean(false)])
+        #expect(side.contains("grid-template-columns: \(tracks);"))
+        #expect(side.contains("nth-child(n+\(firstHidden))") == (firstHidden > 0))
+        let stacked = css(package, overrides: ["layout": .string(layout), "stacked": .boolean(true)])
+        #expect(stacked.contains("grid-template-columns: minmax(0, 1fr);"))
+        // New Columns stack on phones and sit side by side from tablets up.
+        let stackedDefault = try #require(package.manifest.resolvedProperties.first { $0.id == "stacked" })
+        #expect(stackedDefault.defaultValue == .boolean(true))
+        #expect(stackedDefault.breakpointDefaults["medium"] == .boolean(false))
+    }
+
+    @Test(.enabled(if: FileManager.default.fileExists(atPath: root.appending(path: "Box/manifest.json").path)))
+    func boxStacksItsContentAndStartsPadded() throws {
+        let package = try package("Box")
+        let rendered = css(package)
+        #expect(rendered.contains("flex-direction: column;"))
+        #expect(rendered.contains("position: relative;"))
+        #expect(rendered.contains("align-items: stretch;"))
+        #expect(package.manifest.resolvedProperties.first { $0.id == "spacing.spacingEnabled" }?.defaultValue == .boolean(true))
+    }
+
+    /// Row count 0 is the slider's "Auto" setting: rows size to their content.
+    @Test(.enabled(if: FileManager.default.fileExists(atPath: root.path)), arguments: [0.0, 4.0])
+    func gridRowCountRendersAutoOrFixedRows(_ rowCount: Double) throws {
+        let rendered = css(try package("Grid"), overrides: ["rowCount": .number(rowCount)])
+        #expect(rendered.contains("grid-template-rows: repeat(4, minmax(0, 1fr));") == (rowCount == 4))
+        #expect(rendered.contains("grid-template-rows") == (rowCount > 0))
+    }
+
     @Test(.enabled(if: FileManager.default.fileExists(atPath: root.appending(path: "GridTestItem/manifest.json").path)))
     func temporaryGridChildEnablesPopoverWithoutChangingInitialChildren() throws {
         let dummy = try package("GridTestItem")
@@ -322,15 +376,15 @@ struct DevLayoutPartsTests {
         let grid = try #require(package("Grid").manifest.slots.first)
         #expect(grid.pickerItems.contains(dummy.manifest.identifier))
         #expect(grid.accepts.contains(dummy.manifest.identifier))
-        #expect(grid.initial == ["uk.co.doobox.griditem"])
+        #expect(grid.initial == Array(repeating: "uk.co.doobox.griditem", count: 3))
         #expect(ChildPickerAction.resolve(options: grid.pickerItems.map { PartType(rawValue: $0) }, childCount: 1, maximum: grid.maximum) == .choose)
-        let flex = try #require(package("FlexTest").manifest.slots.first)
+        let flex = try #require(package("Flexbox").manifest.slots.first)
         #expect(ChildPickerAction.resolve(options: flex.pickerItems.map { PartType(rawValue: $0) }, childCount: 1, maximum: flex.maximum) == .add(PartType(rawValue: "uk.co.doobox.flexitem")))
     }
 
     @Test(.enabled(if: FileManager.default.fileExists(atPath: root.path)))
     @MainActor func nestedPartsRenderInCanvasAndExport() throws {
-        let packages = try ["Container", "FlexTest", "Grid", "FlexItem", "GridItem"].map(package)
+        let packages = try ["Container", "Flexbox", "Grid", "FlexItem", "GridItem"].map(package)
         for package in packages { PartRegistry.register(package) }
         defer { for package in packages { PartRegistry.unregisterPackage(identifier: package.manifest.identifier) } }
         var group = PartNode(type: PartType(rawValue: "uk.co.doobox.griditem"))
@@ -347,8 +401,8 @@ struct DevLayoutPartsTests {
         // Child pickers seed the matching hidden item using the existing API.
         let seededGrid = PartNode.make(PartType(rawValue: "uk.co.doobox.grid"))
         let seededFlex = PartNode.make(PartType(rawValue: "uk.co.doobox.flexbox"))
-        #expect(seededGrid.children.map { $0.type.rawValue } == ["uk.co.doobox.griditem"])
-        #expect(seededFlex.children.map { $0.type.rawValue } == ["uk.co.doobox.flexitem"])
+        #expect(seededGrid.children.map { $0.type.rawValue } == Array(repeating: "uk.co.doobox.griditem", count: 3))
+        #expect(seededFlex.children.map { $0.type.rawValue } == Array(repeating: "uk.co.doobox.flexitem", count: 3))
         #expect(seededGrid.children.first?.slotID == "content")
         #expect(seededFlex.children.first?.slotID == "content")
         var tree = [container, seededGrid, seededFlex]
@@ -360,10 +414,10 @@ struct DevLayoutPartsTests {
         #expect(tree.accepts(group, at: .before(flexGroup.id)) == false)
         #expect(tree.moveNode(withID: group.id, to: .insideSlot(flex.id, "content")) == false)
         #expect(tree.moveNode(withID: flexGroup.id, to: .insideSlot(grid.id, "content")) == false)
-        // Ordinary content goes inside an item, not directly into the managed parent.
+        // Ordinary content can go straight into either layout, or inside an item.
         let ordinary = PartNode(type: .paragraph)
-        #expect(tree.accepts(ordinary, at: .insideSlot(grid.id, "content")) == false)
-        #expect(tree.accepts(ordinary, at: .insideSlot(flex.id, "content")) == false)
+        #expect(tree.accepts(ordinary, at: .insideSlot(grid.id, "content")))
+        #expect(tree.accepts(ordinary, at: .insideSlot(flex.id, "content")))
         #expect(tree.accepts(ordinary, at: .inside(group.id)))
         #expect(tree.accepts(ordinary, at: .inside(flexGroup.id)))
         let movedGridItem = tree.moveNode(withID: group.id, to: .insideSlot(seededGrid.id, "content"))
@@ -376,7 +430,7 @@ struct DevLayoutPartsTests {
         let output = exported.files.map(\.contents).joined(separator: "\n")
         for rendered in [canvas, output] {
             #expect(rendered.contains("grid-column: auto / span 2;"))
-            #expect(rendered.contains("flex-basis: auto;"))
+            #expect(rendered.contains("flex: 1 1 auto;"))
             #expect(rendered.contains("gap: 0px;"))
             #expect(rendered.contains("{{") == false)
         }

@@ -371,7 +371,7 @@ struct CanvasBridgeTests {
         let containerPatch = try #require(renderer.renderSubtree(
             partID: container.id, page: page, framework: .standard, assets: [:], breakpoint: .large
         ))
-        #expect(containerPatch.instanceStyles[grid.id.uuidString]?.contains("justify-items: stretch") == true)
+        #expect(containerPatch.instanceStyles[grid.id.uuidString]?.contains("justify-items: normal") == true)
 
         // A later grid edit must surface in the grid's own style entry, which
         // the canvas updates in place regardless of earlier parent patches.

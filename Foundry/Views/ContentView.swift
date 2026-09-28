@@ -2763,7 +2763,6 @@ struct ContentView: View {
     private func assetUsageCount(_ id: UUID, in node: PartNode) -> Int {
         let directValues = node.properties.map(\.value)
             + (node.responsiveOverrides ?? []).map(\.value)
-            + (node.responsiveDefaults ?? []).map(\.value)
         let directCount = directValues.reduce(0) { count, value in
             count + value.assetReferenceCount(to: id)
         }

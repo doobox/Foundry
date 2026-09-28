@@ -12,63 +12,56 @@ struct DevContainerMarkupTests {
     func contentLayoutMatchesReferenceOptionsAndDefaults() throws {
         let package = try PartPackageLoader.load(from: Self.packageURL)
         let properties = package.manifest.resolvedProperties
-        for id in ["contentWidth", "contentHeight"] {
-            let control = try #require(properties.first { $0.id == id })
-            let expected = id == "contentWidth"
-                ? ["Auto", "Full", "Screen", "Breakpoint", "Framework Spacing"]
-                : ["Auto", "Full", "Screen", "Framework Spacing"]
-            #expect(control.control.options?.map(\.title) == expected)
-            #expect(control.defaultValue == .string(id == "contentWidth" ? "breakpoint" : "auto"))
-            let spacing = try #require(properties.first { $0.id == id + "Spacing" })
-            #expect(spacing.control.type == .frameworkSpacing)
-            #expect(spacing.visibleWhen == .init(id: id, value: .string("spacing")))
-        }
+        let width = try #require(properties.first { $0.id == "contentWidth" })
+        #expect(width.control.options?.map(\.title) == ["Breakpoint", "Full", "Fit Content", "Custom"])
+        #expect(width.defaultValue == .string("breakpoint"))
+        let custom = try #require(properties.first { $0.id == "contentWidthSpacing" })
+        #expect(custom.control.type == .frameworkSpacing)
+        #expect(custom.visibleWhen == .init(id: "contentWidth", value: .string("custom")))
+        // Content height was removed: the section's Sizing height covers it.
+        #expect(properties.contains { $0.id == "contentHeight" } == false)
         for id in ["contentAlignment", "contentJustify"] {
             let control = try #require(properties.first { $0.id == id })
-            #expect(control.control.options?.map(\.title) == ["Auto", "Start", "End", "Center", "Stretch"])
+            #expect(control.control.options?.map(\.title) == ["Auto", "Start", "End", "Centre", "Stretch"])
             #expect(control.defaultValue == .string("center"))
         }
         #expect(properties.contains { $0.id == "customContentWidth" } == false)
+        // A new section starts with breathing room from the Spacing group.
+        #expect(properties.first { $0.id == "spacing.spacingEnabled" }?.defaultValue == .boolean(true))
     }
 
     @Test(.enabled(if: FileManager.default.fileExists(atPath: packageURL.path)),
-          arguments: ["auto", "full", "screen", "breakpoint", "spacing"])
-    func eachContentSizeModeRendersAndResetsPreviousConstraints(_ mode: String) throws {
+          arguments: ["auto", "full", "breakpoint", "custom"])
+    func eachContentWidthModeRendersAndResetsPreviousConstraints(_ mode: String) throws {
         let package = try PartPackageLoader.load(from: Self.packageURL)
         try package.preparePayload()
         let css = PartTemplateRenderer.render(package.css, context: .init(
             instanceID: UUID(), packageIdentifier: package.manifest.identifier,
-            properties: ["contentWidth": .string(mode), "contentHeight": .string(mode == "breakpoint" ? "auto" : mode),
-                         "contentWidthSpacing": .string("24rem"), "contentHeightSpacing": .string("18rem"),
+            properties: ["contentWidth": .string(mode), "contentWidthSpacing": .string("24rem"),
                          "contentAlignment": .string("stretch"), "contentJustify": .string("center"),
                          "contentGap": .string("normal")], slots: [:]
         ))
         #expect(css.contains("width: auto;"))
         #expect(css.contains("height: auto;"))
         #expect(css.contains("max-width: none;"))
-        #expect(css.contains("max-height: none;"))
         #expect(css.contains("display: grid;"))
         #expect(css.contains("display: flex;"))
         #expect(css.contains("align-self: stretch;"))
         #expect(css.contains("justify-self: center;"))
         #expect(css.contains("gap: normal;"))
         #expect(css.contains("{{") == false)
+        #expect(css.contains("100vw") == false)
+        #expect(css.contains("100svh") == false)
         switch mode {
         case "full":
             #expect(css.contains("width: 100%;"))
-            #expect(css.contains("height: 100%;"))
-        case "screen":
-            #expect(css.contains("width: 100vw;"))
-            #expect(css.contains("height: 100svh;"))
         case "breakpoint":
             #expect(css.contains("max-width: var(--foundry-container-width);"))
-            #expect(css.contains("max-height: var(--foundry-container-width);") == false)
-        case "spacing":
+        case "custom":
             #expect(css.contains("width: 24rem;"))
-            #expect(css.contains("height: 18rem;"))
+            #expect(css.contains("max-width: 100%;"))
         default:
-            #expect(css.contains("100vw") == false)
-            #expect(css.contains("100svh") == false)
+            #expect(css.contains("width: 100%;") == false)
         }
     }
 

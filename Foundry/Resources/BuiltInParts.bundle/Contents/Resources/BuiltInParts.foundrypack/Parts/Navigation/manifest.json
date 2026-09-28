@@ -335,6 +335,16 @@
     {
       "controls": [
         {
+          "type": "background",
+          "id": "background"
+        }
+      ],
+      "section": "Background",
+      "systemImage": "paintbrush.fill"
+    },
+    {
+      "controls": [
+        {
           "type": "borders",
           "id": "borders"
         }
@@ -353,14 +363,17 @@
       "systemImage": "sparkles"
     },
     {
+      "section": "Reveal",
+      "systemImage": "sparkles.rectangle.stack",
       "controls": [
         {
-          "type": "background",
-          "id": "background"
+          "type": "reveal",
+          "id": "reveal"
         }
-      ],
-      "section": "Background",
-      "systemImage": "paintbrush.fill"
+      ]
+    },
+    {
+      "type": "advanced"
     }
   ],
   "minimumAPIVersion": 1,

@@ -135,14 +135,18 @@ struct InspectorSegmentedButtonControl: View {
             .pickerStyle(.segmented)
             .buttonSizing(.flexible)
             .controlSize(.small)
-            HStack(spacing: 8) {
-                ForEach(values.indices, id: \.self) { index in
-                    Text(subtitles.indices.contains(index) ? subtitles[index] : "")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                        .truncationMode(.tail)
-                        .frame(maxWidth: .infinity)
+            // An empty caption still occupies a full line, which would leave
+            // blank space under every array that declares no subtitles.
+            if subtitles.contains(where: { !$0.isEmpty }) {
+                HStack(spacing: 8) {
+                    ForEach(values.indices, id: \.self) { index in
+                        Text(subtitles.indices.contains(index) ? subtitles[index] : "")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                            .truncationMode(.tail)
+                            .frame(maxWidth: .infinity)
+                    }
                 }
             }
         }

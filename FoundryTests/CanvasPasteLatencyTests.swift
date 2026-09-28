@@ -121,7 +121,7 @@ struct CanvasPasteLatencyTests {
           .enabled(if: FileManager.default.fileExists(atPath: realProject.path)
                     && FileManager.default.fileExists(atPath: devPackRoot.path)))
     func pasteCostOnRealProject() throws {
-        let packages = try ["Container", "FlexTest", "FlexItem", "Grid", "GridItem"].map { name in
+        let packages = try ["Container", "Flexbox", "FlexItem", "Grid", "GridItem"].map { name in
             let package = try PartPackageLoader.load(from: Self.devPackRoot.appending(path: name))
             try package.preparePayload()
             return package

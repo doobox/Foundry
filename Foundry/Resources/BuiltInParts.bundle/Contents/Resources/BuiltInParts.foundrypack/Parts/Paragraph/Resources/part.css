@@ -12,3 +12,14 @@
     text-align: {{ control.textAlignment }};
     text-decoration-line: {{ control.textDecoration }};
 }
+
+/* Control groups: declared after the part's own rules so they take precedence. */
+:instance {
+    {{ control.sizing.css }}
+    {{ control.borders.css }}
+    {{ control.effects.css }}
+    {{ control.background.css }}
+    {{ control.layout.css }}
+    {{ if control.spacing.spacingEnabled }}padding: {{ control.spacing.frameworkPadding }}; margin: {{ control.spacing.frameworkMargin }};{{ endif }}
+}
+:instance:hover { {{ control.background.hover.css }} }

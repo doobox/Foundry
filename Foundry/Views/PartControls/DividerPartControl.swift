@@ -3,7 +3,7 @@ import SwiftUI
 struct DividerPartControl: View {
     var body: some View {
         Divider()
-            .padding(.vertical, 10)
+            .padding(.vertical, 5)
             .accessibilityHidden(true)
     }
 }

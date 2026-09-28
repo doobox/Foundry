@@ -766,9 +766,7 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
             guard let minimumWidth = breakpoint.minimumWidth(in: site.framework.screens) else { return nil }
             let rules = nodes.compactMap { node -> String? in
                 guard !Task.isCancelled else { return nil }
-                guard node.responsiveOverrides?.contains(where: { $0.breakpoint == breakpoint }) == true
-                    || node.responsiveDefaults?.contains(where: { $0.breakpoint == breakpoint }) == true
-                    || node.type.definition.properties.contains(where: { $0.breakpointDefaults[breakpoint] != nil }) else { return nil }
+                guard node.responsiveOverrides?.contains(where: { $0.breakpoint == breakpoint }) == true else { return nil }
                 let resolved = node.resolved(at: breakpoint, screens: site.framework.screens)
                 if let package = resolved.type.definition.package {
                     let css = PartTemplateRenderer.render(
@@ -853,11 +851,13 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
                     environment: environment
                 )
             )
-            return PartTemplateRenderer.scopedCSS(
+            let scoped = PartTemplateRenderer.scopedCSS(
                 css,
                 packageIdentifier: package.manifest.identifier,
                 instanceID: node.id
             )
+            let custom = PartTemplateRenderer.scopedCustomCSS(node.customCSS, instanceID: node.id)
+            return custom.isEmpty ? scoped : scoped + "\n" + custom
         }.joined(separator: "\n")
         let pagePackageStyles = PartArtifactPlan(page: page).packages.compactMap { package -> String? in
             guard !package.pageCSS.isEmpty else { return nil }

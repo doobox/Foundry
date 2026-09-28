@@ -1,50 +1,54 @@
 :instance {
-    position: relative;
-    isolation: isolate;
     box-sizing: border-box;
-    /* A flex column so the content box can grow into min-height-driven
-       heights (Fill viewport), where a percentage height cannot resolve. */
-    display: flex;
-    flex-direction: column;
     min-width: 0;
-    width: 100%;
+    /* Background video needs an isolated host. Layout supplies positioning. */
+    isolation: isolate;
+    /* Position the inner content box within the section. */
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
     {{ control.sizing.css }}
     {{ control.spacing.css }}
     {{ control.borders.css }}
     {{ control.effects.css }}
+    {{ control.background.css }}
     {{ control.layout.css }}
 }
+:instance:hover { {{ control.background.hover.css }} }
+
 :instance > .fd-container__content {
     box-sizing: border-box;
-    width: 100%;
     min-width: 0;
-    flex: 1 1 auto;
-    /* Children stack vertically; root Sizing supplies any extra height. */
+    width: auto;
+    height: auto;
     display: flex;
     flex-direction: column;
-    justify-content: {{ control.contentAlignment }};
-    align-items: {{ control.contentJustify }};
+    align-self: {{ control.contentAlignment }};
+    justify-self: {{ control.contentJustify }};
     gap: {{ control.contentGap }};
-    /* Reset narrower-breakpoint constraints when switching to Full Width. */
+    /* Explicit defaults clear limits inherited from narrower breakpoints. */
     max-width: none;
     margin-inline: 0;
     padding-inline: 0;
-    {{ if control.contentWidth == "contained" }}
+    {{ if control.contentWidth == "full" }}
+    width: 100%;
+    {{ endif }}
+    {{ if control.contentWidth == "breakpoint" }}
+    width: 100%;
     max-width: var(--foundry-container-width);
-    margin-inline: auto;
-    /* The same gutter the Navigation bar uses, so content lines up. */
-    padding-inline: var(--foundry-space-sm);
     {{ endif }}
     {{ if control.contentWidth == "custom" }}
-    max-width: min(100%, {{ control.customContentWidth }}px);
-    margin-inline: auto;
-    padding-inline: var(--foundry-space-sm);
+    width: {{ control.contentWidthSpacing }};
+    max-width: 100%;
     {{ endif }}
 }
+
+/* Scope this to our own drop zone, not nested containers inside child parts. */
 :instance > .fd-container__content > * { min-width: 0; }
 
-/* The Background group hands over a finished block of declarations; the hover
-   layer mirrors the static one unless hover is switched on, so no conditionals
-   are needed. */
-:instance { {{ control.background.css }} }
-:instance:hover { {{ control.background.hover.css }} }
+/* Optional whole-part link overlay. Layout only offers positioned values,
+   so the section is always its containing block. */
+:instance > .fd-container__link {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+}

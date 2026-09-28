@@ -1,29 +1,22 @@
 :instance {
-    position: relative;
-    isolation: isolate;
     box-sizing: border-box;
     min-width: 0;
+    isolation: isolate;
     {{ control.flexbox.css }}
     {{ control.sizing.css }}
     {{ control.spacing.css }}
-    {{ control.background.css }}
     {{ control.borders.css }}
     {{ control.effects.css }}
+    {{ control.background.css }}
     {{ control.layout.css }}
 }
 :instance:hover { {{ control.background.hover.css }} }
-:instance > * { {{ control.flexbox.childCSS }} }
-:instance > .foundry-empty-drop-zone { flex: 1 0 100%; }
+:instance > * { min-width: 0; }
 
+/* Optional whole-part link overlay. Layout only offers positioned values,
+   so the part is always its containing block. */
 :instance > .foundry-flex__link {
     position: absolute;
     inset: 0;
     z-index: 1;
-}
-
-/* Interactive descendants stay above the stretched link, so nested controls
-   retain their own destinations and actions. */
-:instance :is(a, button, input, select, textarea):not(.foundry-flex__link) {
-    position: relative;
-    z-index: 2;
 }

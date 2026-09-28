@@ -325,6 +325,17 @@ struct ProjectEditor {
         }
     }
 
+    func setPartCustomCSS(id: UUID, css: String) {
+        let value = css.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : css
+        if let context = document.site.globalPartContext(containing: id), !context.isOverridden {
+            editSharedReusablePart(partID: id, actionName: "Edit Part CSS") { $0.customCSS = value }
+            return
+        }
+        mutate(actionName: "Edit Part CSS", impact: .partProperty(partID: id, propertyKey: .init(rawValue: "customCSS"))) { site in
+            site.updatePart(id: id) { $0.customCSS = value }
+        }
+    }
+
     func setPartRootAttributes(id: UUID, attributes: [PartHTMLAttribute]) {
         if let context = document.site.globalPartContext(containing: id), !context.isOverridden {
             editSharedReusablePart(partID: id, actionName: "Edit Part Attributes") {

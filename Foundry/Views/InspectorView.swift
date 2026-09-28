@@ -1152,6 +1152,7 @@ private struct PartInspector: View {
                             ? PartIdentityContext(
                                 anchor: partAnchorBinding,
                                 classes: partClassesBinding,
+                                customCSS: partCustomCSSBinding,
                                 attributes: partAttributesBinding,
                                 isDuplicateAnchor: partAnchorIsDuplicate
                             )
@@ -1406,6 +1407,13 @@ private struct PartInspector: View {
         )
     }
 
+    private var partCustomCSSBinding: Binding<String> {
+        Binding(
+            get: { part.customCSS ?? "" },
+            set: { editor.setPartCustomCSS(id: part.id, css: $0) }
+        )
+    }
+
     private var partAttributesBinding: Binding<[PartHTMLAttribute]> {
         Binding(
             get: { part.rootAttributes ?? [] },
@@ -1478,12 +1486,13 @@ private struct PartSlotInspectorCard: View {
     }
 }
 
-/// The opt-in Advanced section's fields: HTML ID, classes, and custom
-/// attributes for the placed part. Shown only when the part's manifest
-/// declares the `advanced` grouped control.
+/// The opt-in Advanced section's fields: HTML ID, classes, custom CSS and
+/// custom attributes for the placed part. Shown only when the part's
+/// manifest declares the `advanced` grouped control.
 private struct PartIdentityFields: View {
     @Binding var anchor: String
     @Binding var classes: String
+    @Binding var customCSS: String
     @Binding var attributes: [PartHTMLAttribute]
     let isDuplicateAnchor: Bool
     @State private var showsAddAttributePopover = false
@@ -1509,6 +1518,20 @@ private struct PartIdentityFields: View {
             InspectorRow(title: "Classes") {
                 TextField("Classes", text: $classes)
                     .frame(maxWidth: .infinity)
+            }
+
+            InspectorRow(title: "CSS", alignment: .top) {
+                TextEditor(text: $customCSS)
+                    .font(.system(.body, design: .monospaced))
+                    .autocorrectionDisabled()
+                    .frame(minHeight: 96)
+                    .padding(4)
+                    .background(.background, in: RoundedRectangle(cornerRadius: 5))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 5)
+                            .stroke(Color.secondary.opacity(0.25), lineWidth: 1)
+                    }
+                    .help("CSS for this part only. Declarations style the part itself, :hover { … } styles it when hovered, and h2 { … } styles elements inside it.")
             }
 
             GridRow {
@@ -1732,6 +1755,7 @@ private struct PartAttributePopover: View {
 private struct PartIdentityContext {
     let anchor: Binding<String>
     let classes: Binding<String>
+    let customCSS: Binding<String>
     let attributes: Binding<[PartHTMLAttribute]>
     let isDuplicateAnchor: Bool
 }
@@ -1768,6 +1792,7 @@ private struct PartInspectorGroup: View {
                     PartIdentityFields(
                         anchor: identityFields.anchor,
                         classes: identityFields.classes,
+                        customCSS: identityFields.customCSS,
                         attributes: identityFields.attributes,
                         isDuplicateAnchor: identityFields.isDuplicateAnchor
                     )

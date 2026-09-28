@@ -1,0 +1,215 @@
+{
+  "assets": [],
+  "author": "Foundry",
+  "description": "Side-by-side columns from a simple preset. Columns stack on small screens.",
+  "group": "Layout",
+  "icon": {
+    "symbol": "rectangle.split.2x1",
+    "tint": "blue"
+  },
+  "id": "foundry.layout.columns",
+  "inspector": [
+    {
+      "section": "Columns",
+      "systemImage": "rectangle.split.2x1",
+      "controls": [
+        {
+          "type": "select",
+          "id": "columnLayout",
+          "label": "Layout",
+          "options": [
+            {
+              "value": "50-50",
+              "title": "50 / 50"
+            },
+            {
+              "value": "33-67",
+              "title": "33 / 67"
+            },
+            {
+              "value": "67-33",
+              "title": "67 / 33"
+            },
+            {
+              "value": "25-75",
+              "title": "25 / 75"
+            },
+            {
+              "value": "75-25",
+              "title": "75 / 25"
+            },
+            {
+              "value": "thirds",
+              "title": "Three Equal"
+            },
+            {
+              "value": "25-50-25",
+              "title": "25 / 50 / 25"
+            },
+            {
+              "value": "quarters",
+              "title": "Four Equal"
+            }
+          ],
+          "defaults": {
+            "base": "50-50"
+          },
+          "tooltip": "The number and widths of the columns. Content in columns a layout does not use is kept, but hidden."
+        },
+        {
+          "type": "toggle",
+          "id": "stacked",
+          "label": "Stacked",
+          "defaults": {
+            "base": true,
+            "medium": false
+          },
+          "responsive": true,
+          "tooltip": "Stacks the columns one above the other. On by default for phones and off from tablets up."
+        },
+        {
+          "type": "toggle",
+          "id": "reversed",
+          "label": "Reverse Order",
+          "defaults": {
+            "base": false
+          },
+          "responsive": true,
+          "tooltip": "Shows the columns in reverse order, each keeping its width. Use it for alternating image-and-text rows, or to show the last column first when stacked. Screen readers still read the columns in their original order."
+        },
+        {
+          "type": "frameworkSpacing",
+          "id": "gap",
+          "label": "Gap",
+          "defaults": {
+            "base": "md"
+          },
+          "responsive": true,
+          "tooltip": "The space between columns, and between stacked columns."
+        },
+        {
+          "type": "select",
+          "id": "align",
+          "label": "Align",
+          "presentation": "segmented",
+          "options": [
+            {
+              "value": "start",
+              "title": "Top"
+            },
+            {
+              "value": "center",
+              "title": "Centre"
+            },
+            {
+              "value": "end",
+              "title": "Bottom"
+            }
+          ],
+          "defaults": {
+            "base": "start"
+          },
+          "responsive": true,
+          "tooltip": "Where shorter columns sit beside taller ones."
+        }
+      ]
+    },
+    {
+      "section": "Sizing",
+      "systemImage": "arrow.up.left.and.arrow.down.right",
+      "controls": [
+        {
+          "type": "sizing",
+          "id": "sizing"
+        }
+      ]
+    },
+    {
+      "section": "Spacing",
+      "systemImage": "arrow.up.and.down.and.arrow.left.and.right",
+      "controls": [
+        {
+          "type": "spacing",
+          "id": "spacing"
+        }
+      ]
+    },
+    {
+      "section": "Background",
+      "systemImage": "paintbrush.fill",
+      "controls": [
+        {
+          "type": "background",
+          "id": "background",
+          "backgroundTypes": [
+            "colour",
+            "gradient",
+            "image"
+          ]
+        }
+      ]
+    },
+    {
+      "section": "Borders",
+      "systemImage": "square.dashed",
+      "controls": [
+        {
+          "type": "borders",
+          "id": "borders"
+        }
+      ]
+    },
+    {
+      "section": "Effects",
+      "systemImage": "sparkles",
+      "controls": [
+        {
+          "type": "effects",
+          "id": "effects"
+        }
+      ]
+    },
+    {
+      "section": "Layout",
+      "systemImage": "square.on.square",
+      "controls": [
+        {
+          "type": "layout",
+          "id": "layout"
+        }
+      ]
+    },
+    {
+      "section": "Reveal",
+      "systemImage": "sparkles.rectangle.stack",
+      "controls": [
+        {
+          "type": "reveal",
+          "id": "reveal"
+        }
+      ]
+    },
+    {
+      "type": "advanced"
+    }
+  ],
+  "minimumAPIVersion": 1,
+  "tags": [
+    "Foundry",
+    "built-in",
+    "layout",
+    "columns",
+    "simple"
+  ],
+  "templates": {
+    "files": [
+      {
+        "path": "part.css",
+        "scope": "instance"
+      }
+    ],
+    "html": "part.html"
+  },
+  "title": "Columns",
+  "version": "1.0.0"
+}

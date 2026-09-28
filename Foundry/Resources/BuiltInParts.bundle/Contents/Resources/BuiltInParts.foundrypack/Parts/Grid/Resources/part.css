@@ -1,28 +1,23 @@
 :instance {
-    position: relative;
-    isolation: isolate;
     box-sizing: border-box;
     min-width: 0;
-    {{ control.sizing.css }}
-    {{ control.spacing.css }}
-    {{ control.borders.css }}
-    {{ control.effects.css }}
-    {{ control.layout.css }}
-}
-:instance > * { min-width: 0; }
-:instance {
+    isolation: isolate;
     display: grid;
     grid-template-columns: {{ if control.gridMode == "auto" }}repeat(auto-fit, minmax(min(100%, {{ control.minimumColumnWidth }}px), 1fr)){{ else }}repeat({{ control.columnCount }}, minmax(0, 1fr)){{ endif }};
+    grid-auto-flow: {{ control.autoFlow }};
     grid-auto-rows: {{ if control.rowSizing == "equal" }}minmax(0, 1fr){{ else }}auto{{ endif }};
+    {{ if control.rowCount > 0 }}grid-template-rows: repeat({{ control.rowCount }}, minmax(0, 1fr));{{ endif }}
     column-gap: {{ control.frameworkGap }};
     row-gap: {{ control.rowGap }};
     align-items: {{ control.alignItems }};
     justify-items: {{ control.justifyItems }};
+    {{ control.sizing.css }}
+    {{ control.spacing.css }}
+    {{ control.borders.css }}
+    {{ control.effects.css }}
+    {{ control.background.css }}
+    {{ control.layout.css }}
 }
-:instance > .foundry-empty-drop-zone { grid-column: 1 / -1; }
-
-/* The Background group hands over a finished block of declarations; the hover
-   layer mirrors the static one unless hover is switched on, so no conditionals
-   are needed. */
-:instance { {{ control.background.css }} }
 :instance:hover { {{ control.background.hover.css }} }
+:instance > * { min-width: 0; }
+:instance > .foundry-empty-drop-zone { grid-column: 1 / -1; }

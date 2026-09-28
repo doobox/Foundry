@@ -1,25 +1,64 @@
 {
   "assets": [],
   "author": "Foundry",
-  "description": "Arranges child parts side by side or stacked with CSS Flexbox — direction, wrapping, distribution and alignment.",
+  "description": "Arrange content in a responsive row or column, with optional wrapping.",
   "group": "Layout",
+  "id": "foundry.layout.flex",
   "icon": {
-    "symbol": "square.dashed",
+    "symbol": "app.dashed",
     "tint": "blue"
   },
-  "id": "foundry.layout.flex",
   "inspector": [
     {
-      "section": "Flexbox",
-      "systemImage": "square.dashed",
+      "section": "Items",
+      "systemImage": "square.stack",
       "controls": [
         {
+          "type": "childPicker",
+          "id": "content",
+          "label": "Items",
+          "pickerItems": [
+            "foundry.layout.flexitem"
+          ],
+          "accepts": [
+            "*"
+          ],
+          "initial": [
+            "foundry.layout.flexitem",
+            "foundry.layout.flexitem",
+            "foundry.layout.flexitem"
+          ],
+          "minimum": 0,
+          "containment": "open",
+          "tooltip": "Drop any part straight into the row. Add a Flex Item when an item needs its own size, background, padding or alignment."
+        }
+      ]
+    },
+    {
+      "section": "Flex",
+      "systemImage": "rectangle.3.group",
+      "controls": [
+        {
+          "type": "flexbox",
+          "id": "flexbox",
           "defaults": {
             "direction": "row",
-            "wrap": "wrap"
+            "wrap": "wrap",
+            "alignItems": "center"
+          }
+        }
+      ]
+    },
+    {
+      "section": "Sizing",
+      "systemImage": "arrow.up.left.and.arrow.down.right",
+      "controls": [
+        {
+          "type": "sizing",
+          "defaults": {
+            "widthMode": "full"
           },
-          "type": "flexbox",
-          "id": "flexbox"
+          "id": "sizing"
         }
       ]
     },
@@ -30,34 +69,6 @@
         {
           "type": "spacing",
           "id": "spacing"
-        }
-      ]
-    },
-    {
-      "section": "Layout",
-      "systemImage": "square.on.square",
-      "controls": [
-        {
-          "type": "layout",
-          "allowedOptions": {
-            "position": [
-              "relative",
-              "absolute",
-              "fixed",
-              "sticky"
-            ]
-          },
-          "id": "layout"
-        }
-      ]
-    },
-    {
-      "section": "Sizing",
-      "systemImage": "arrow.up.left.and.arrow.down.right",
-      "controls": [
-        {
-          "type": "sizing",
-          "id": "sizing"
         }
       ]
     },
@@ -92,6 +103,24 @@
       ]
     },
     {
+      "section": "Layout",
+      "systemImage": "square.on.square",
+      "controls": [
+        {
+          "type": "layout",
+          "allowedOptions": {
+            "position": [
+              "relative",
+              "absolute",
+              "fixed",
+              "sticky"
+            ]
+          },
+          "id": "layout"
+        }
+      ]
+    },
+    {
       "section": "Reveal",
       "systemImage": "sparkles.rectangle.stack",
       "controls": [
@@ -109,7 +138,7 @@
           },
           "id": "destination",
           "label": "Destination",
-          "tooltip": "Makes the whole part clickable. Buttons and links inside keep their own destinations.",
+          "tooltip": "Makes the whole part one link. The overlay also covers links and buttons inside; avoid nesting interactive content when enabled.",
           "type": "link"
         },
         {
@@ -128,6 +157,9 @@
       ],
       "section": "Link",
       "systemImage": "link"
+    },
+    {
+      "type": "advanced"
     }
   ],
   "minimumAPIVersion": 1,
@@ -135,7 +167,9 @@
     "Foundry",
     "built-in",
     "layout",
-    "flex"
+    "flex",
+    "row",
+    "stack"
   ],
   "templates": {
     "files": [
@@ -146,6 +180,6 @@
     ],
     "html": "part.html"
   },
-  "title": "Flex",
-  "version": "1.1.0"
+  "title": "Flexbox",
+  "version": "2.0.0"
 }

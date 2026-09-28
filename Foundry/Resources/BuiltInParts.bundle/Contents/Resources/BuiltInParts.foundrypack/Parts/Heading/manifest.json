@@ -102,6 +102,20 @@
       "systemImage": "paintpalette"
     },
     {
+      "section": "Content",
+      "systemImage": "doc.text"
+    },
+    {
+      "section": "Sizing",
+      "systemImage": "arrow.up.left.and.arrow.down.right",
+      "controls": [
+        {
+          "type": "sizing",
+          "id": "sizing"
+        }
+      ]
+    },
+    {
       "controls": [
         {
           "defaults": {
@@ -120,6 +134,51 @@
       "systemImage": "arrow.up.and.down.and.arrow.left.and.right"
     },
     {
+      "section": "Background",
+      "systemImage": "paintbrush.fill",
+      "controls": [
+        {
+          "type": "background",
+          "id": "background",
+          "backgroundTypes": [
+            "colour",
+            "gradient",
+            "image"
+          ]
+        }
+      ]
+    },
+    {
+      "section": "Borders",
+      "systemImage": "square.dashed",
+      "controls": [
+        {
+          "type": "borders",
+          "id": "borders"
+        }
+      ]
+    },
+    {
+      "section": "Effects",
+      "systemImage": "sparkles",
+      "controls": [
+        {
+          "type": "effects",
+          "id": "effects"
+        }
+      ]
+    },
+    {
+      "section": "Layout",
+      "systemImage": "square.on.square",
+      "controls": [
+        {
+          "type": "layout",
+          "id": "layout"
+        }
+      ]
+    },
+    {
       "controls": [
         {
           "type": "reveal",
@@ -130,8 +189,7 @@
       "systemImage": "sparkles.rectangle.stack"
     },
     {
-      "section": "Content",
-      "systemImage": "doc.text"
+      "type": "advanced"
     }
   ],
   "minimumAPIVersion": 1,

@@ -68,7 +68,6 @@ nonisolated struct CanvasScene: Sendable {
                     guard let oldInput = inputs[id], let old = artifacts[id] else { continue }
                     var own = source.resolved(at: breakpoint, screens: framework.screens)
                     own.responsiveOverrides = nil
-                    own.responsiveDefaults = nil
                     own.children = oldInput.node.children
                     let input = CanvasSceneInput(node: own, globalID: oldInput.globalID,
                         parentID: oldInput.parentID, slot: oldInput.slot, dropZone: oldInput.dropZone)
@@ -159,7 +158,6 @@ nonisolated struct CanvasScene: Sendable {
                     examinedCount += 1
                     var own = source.resolved(at: breakpoint, screens: framework.screens)
                     own.responsiveOverrides = nil
-                    own.responsiveDefaults = nil
                     own.children = source.children.map { child in
                         var identity = PartNode(id: child.id, type: child.type)
                         identity.slotID = child.slotID

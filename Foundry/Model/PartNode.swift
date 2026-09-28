@@ -57,14 +57,16 @@ nonisolated struct PartNode: Codable, Equatable, Identifiable, Sendable {
     var children: [PartNode]
     var reusableDefinitionID: UUID?
     var overridesGlobalDefinition: Bool?
+    /// Values pinned at a breakpoint. A new part starts with its developer's
+    /// breakpoint defaults pinned here, exactly as if the user had pinned them.
     var responsiveOverrides: [ResponsivePropertyOverride]?
-    // Initial developer values are distinct from user overrides and survive saving.
-    var responsiveDefaults: [ResponsivePropertyOverride]?
     var packageLock: PartPackageLock?
     var missingPackageSnapshot: MissingPartSnapshot?
     var slotID: String?
     var anchor: String?
     var customClasses: String?
+    /// Author CSS scoped to this instance; `:instance` means the part itself.
+    var customCSS: String?
     var rootAttributes: [PartHTMLAttribute]?
 
     init(
@@ -81,6 +83,7 @@ nonisolated struct PartNode: Codable, Equatable, Identifiable, Sendable {
         slotID: String? = nil,
         anchor: String? = nil,
         customClasses: String? = nil,
+        customCSS: String? = nil,
         rootAttributes: [PartHTMLAttribute]? = nil
     ) {
         self.id = id
@@ -96,6 +99,7 @@ nonisolated struct PartNode: Codable, Equatable, Identifiable, Sendable {
         self.slotID = slotID
         self.anchor = anchor
         self.customClasses = customClasses
+        self.customCSS = customCSS
         self.rootAttributes = rootAttributes
     }
 
@@ -138,7 +142,7 @@ nonisolated struct PartNode: Codable, Equatable, Identifiable, Sendable {
                 ))
             }
         }
-        responsiveDefaults = initialDefaults.isEmpty ? nil : initialDefaults
+        responsiveOverrides = initialDefaults.isEmpty ? nil : initialDefaults
         for index in properties.indices {
             if case .packageColor(var value) = properties[index].value,
                let palette = framework.colourPalettes.resolvedPalette(id: value.paletteID) {
@@ -214,15 +218,12 @@ nonisolated struct PartNode: Codable, Equatable, Identifiable, Sendable {
     }
 
     func propertyValue(_ key: PartProperty.Key, at breakpoint: ResponsiveBreakpoint, screens: ScreenTokens = .standard) -> PartProperty.Value {
-        let definition = type.definition.property(for: key)
         for candidate in breakpoint.inheritedBreakpoints where candidate.minimumWidth(in: screens) != nil {
             if let value = responsiveOverrides?.first(where: {
                 $0.breakpoint == candidate && $0.key == key
             })?.value {
                 return value
             }
-            if let value = responsiveDefaults?.first(where: { $0.breakpoint == candidate && $0.key == key })?.value { return value }
-            if let value = definition?.breakpointDefaults[candidate] { return value }
         }
         return propertyValue(key)
     }
@@ -233,23 +234,19 @@ nonisolated struct PartNode: Codable, Equatable, Identifiable, Sendable {
 
     /// The breakpoint whose stored value governs `key` when viewed at `breakpoint`,
     /// and therefore the write target for edits: overrides are created only by
-    /// pinning, so an ordinary edit fills whichever pin (or developer breakpoint
-    /// default, or the base) the viewed breakpoint currently inherits from — the
-    /// change shows at every breakpoint that inherits the same value.
+    /// pinning, so an ordinary edit fills whichever pin (including a developer
+    /// default pinned when the part was created) or the base the viewed
+    /// breakpoint currently inherits from — the change shows at every
+    /// breakpoint that inherits the same value.
     func governingBreakpoint(
         for key: PartProperty.Key,
         at breakpoint: ResponsiveBreakpoint,
         screens: ScreenTokens = .standard
     ) -> ResponsiveBreakpoint {
-        let definition = type.definition.property(for: key)
         for candidate in breakpoint.inheritedBreakpoints where candidate.minimumWidth(in: screens) != nil {
             if responsiveOverrides?.contains(where: { $0.breakpoint == candidate && $0.key == key }) == true {
                 return candidate
             }
-            if responsiveDefaults?.contains(where: { $0.breakpoint == candidate && $0.key == key }) == true {
-                return candidate
-            }
-            if definition?.breakpointDefaults[candidate] != nil { return candidate }
         }
         return .mobile
     }
@@ -262,14 +259,8 @@ nonisolated struct PartNode: Codable, Equatable, Identifiable, Sendable {
         let definition = type.definition
         var keys: [PartProperty.Key] = []
         var seen: Set<PartProperty.Key> = []
-        for property in definition.properties where !property.breakpointDefaults.isEmpty {
-            if seen.insert(property.key).inserted { keys.append(property.key) }
-        }
         for override in responsiveOverrides ?? [] where definition.property(for: override.key) != nil {
             if seen.insert(override.key).inserted { keys.append(override.key) }
-        }
-        for value in responsiveDefaults ?? [] where definition.property(for: value.key) != nil {
-            if seen.insert(value.key).inserted { keys.append(value.key) }
         }
         guard !keys.isEmpty else { return self }
         var copy = self

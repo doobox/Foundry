@@ -237,6 +237,7 @@ nonisolated extension PartNode {
             missingPackageSnapshot: missingPackageSnapshot,
             slotID: slotID,
             customClasses: customClasses,
+            customCSS: customCSS,
             rootAttributes: rootAttributes
         )
     }
@@ -266,6 +267,7 @@ nonisolated extension PartNode {
             missingPackageSnapshot: missingPackageSnapshot,
             slotID: slotID,
             customClasses: customClasses,
+            customCSS: customCSS,
             rootAttributes: rootAttributes
         )
     }
@@ -294,6 +296,7 @@ nonisolated extension PartNode {
             slotID: slotID,
             anchor: instance.anchor,
             customClasses: customClasses,
+            customCSS: customCSS,
             rootAttributes: rootAttributes
         )
     }

@@ -275,6 +275,114 @@ nonisolated enum PartTemplateRenderer {
         )
     }
 
+    /// An instance's custom CSS, nested inside its own selector so nothing
+    /// can reach beyond the part: bare declarations style the part, nested
+    /// rules its descendants, and `:instance` becomes `&`. Selectors that
+    /// start with a pseudo-class or pseudo-element attach to their parent, so
+    /// `:hover { … }` means the part when hovered rather than a hovered
+    /// descendant. The doubled selector outranks the part's own rules,
+    /// including later breakpoint rules, so the author's CSS always wins.
+    /// Closing `</style` sequences are escaped so the text can never end the
+    /// surrounding style element.
+    static func scopedCustomCSS(_ css: String?, instanceID: UUID) -> String {
+        let trimmed = (css ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return "" }
+        let selector = "[data-foundry-id=\"\(instanceID.uuidString)\"]"
+        let body = attachingLeadingPseudoSelectors(trimmed.replacingOccurrences(of: ":instance", with: "&"))
+            .replacingOccurrences(of: "</style", with: "<\\/style", options: .caseInsensitive)
+        return "\(selector)\(selector) {\n\(body)\n}"
+    }
+
+    /// Prefixes `&` to every selector in a rule prelude that starts with `:`.
+    /// Only preludes ending in `{` are rules; declarations end in `;`, and
+    /// at-rules such as `@media` are left alone. Comments and strings are
+    /// skipped so their contents are never mistaken for selectors.
+    ///
+    /// Braces are balanced on the way through: a stray `}` would close the
+    /// instance wrapper early and let what follows escape the part, and an
+    /// unclosed `{` would swallow the next instance's styles in a shared
+    /// stylesheet. Unmatched closing braces are dropped and missing ones added.
+    private static func attachingLeadingPseudoSelectors(_ css: String) -> String {
+        let characters = Array(css)
+        var output = ""
+        var segment = ""
+        var index = 0
+        var depth = 0
+        func flushRule() {
+            let prelude = segment.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !prelude.hasPrefix("@") else {
+                output += segment
+                return
+            }
+            var parts: [String] = []
+            var current = ""
+            var depth = 0
+            for character in segment {
+                if character == "(" { depth += 1 }
+                if character == ")" { depth -= 1 }
+                if character == ",", depth == 0 {
+                    parts.append(current)
+                    current = ""
+                } else {
+                    current.append(character)
+                }
+            }
+            parts.append(current)
+            output += parts.map { part in
+                let leading = part.prefix { $0.isWhitespace }
+                let rest = part.dropFirst(leading.count)
+                return rest.hasPrefix(":") ? leading + "&" + rest : part
+            }.joined(separator: ",")
+        }
+        while index < characters.count {
+            let character = characters[index]
+            if character == "/", index + 1 < characters.count, characters[index + 1] == "*" {
+                var end = index + 2
+                while end + 1 < characters.count, !(characters[end] == "*" && characters[end + 1] == "/") { end += 1 }
+                end = min(end + 2, characters.count)
+                segment += String(characters[index..<end])
+                index = end
+                continue
+            }
+            if character == "\"" || character == "'" {
+                var end = index + 1
+                while end < characters.count, characters[end] != character {
+                    if characters[end] == "\\" { end += 1 }
+                    end += 1
+                }
+                end = min(end + 1, characters.count)
+                segment += String(characters[index..<end])
+                index = end
+                continue
+            }
+            switch character {
+            case "{":
+                flushRule()
+                output.append(character)
+                segment = ""
+                depth += 1
+            case "}":
+                output += segment
+                segment = ""
+                if depth > 0 {
+                    output.append(character)
+                    depth -= 1
+                }
+            case ";":
+                output += segment
+                output.append(character)
+                segment = ""
+""
+            default:
+                segment.append(character)
+            }
+            index += 1
+        }
+        output += segment
+        output += String(repeating: "\n}", count: depth)
+        return output
+    }
+
     static func packageClass(for packageIdentifier: String) -> String {
         "foundry-package-" + packageIdentifier.map { character in
             character.isLetter || character.isNumber || character == "-" ? String(character) : "-"

@@ -155,8 +155,10 @@ nonisolated enum PartPackageValidator {
                     location: iconFile,
                     message: "Icon glyphs must be SVG files."
                 ))
-            } else if let source = try? String(contentsOf: iconURL, encoding: .utf8),
+            } else if manifest.icon?.resolvedRendering != .original,
+                      let source = try? String(contentsOf: iconURL, encoding: .utf8),
                       Self.iconArtworkAltersShape(source) {
+                // Original artwork draws as-is, so its colours and shading are intended.
                 diagnostics.append(.init(
                     severity: .warning,
                     location: iconFile,
@@ -984,6 +986,20 @@ nonisolated enum PartPackageValidator {
                     location: location,
                     message: "Slider ticks must be zero or at least two."
                 ))
+            }
+            if property.control.type == .slider {
+                let range = (property.control.minimum ?? 0)...(property.control.maximum ?? 100)
+                let labelledValues = [("tickLabels", property.control.tickLabels), ("valueLabels", property.control.valueLabels)]
+                for (key, labels) in labelledValues {
+                    for valueKey in (labels ?? [:]).keys.sorted() {
+                        if let labelled = Double(valueKey), !range.contains(labelled) {
+                            diagnostics.append(.init(severity: .error, location: location, message: "\(key) value \(valueKey) is outside the slider's range."))
+                        }
+                    }
+                }
+                if let neutralValue = property.control.neutralValue, !range.contains(neutralValue) {
+                    diagnostics.append(.init(severity: .error, location: location, message: "The slider's neutralValue is outside its range."))
+                }
             }
             guard case .number(let value) = defaultValue else {
                 diagnostics.append(.init(severity: .error, location: location, message: "A number control requires a numeric default value."))

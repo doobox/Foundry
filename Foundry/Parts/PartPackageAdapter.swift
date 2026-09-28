@@ -274,6 +274,14 @@ nonisolated enum PartPackageAdapter {
         )]
     }
 
+    /// Manifest keys are value strings; the schema has already rejected any
+    /// that are not numbers.
+    private static func sliderValueLabels(_ labels: [String: String]?) -> [SliderOptions.ValueLabel] {
+        (labels ?? [:])
+            .compactMap { key, text in Double(key).map { SliderOptions.ValueLabel(value: $0, text: text) } }
+            .sorted { $0.value < $1.value }
+    }
+
     static func imageAltKey(for propertyID: String) -> PartProperty.Key {
         .init(rawValue: "__foundry_image_alt_\(propertyID)")
     }
@@ -410,13 +418,18 @@ nonisolated enum PartPackageAdapter {
         case .divider: .divider
         case .spacer: .spacer(height: control.height ?? PartPackageControl.defaultSpacerHeight)
         case .slider:
-            .slider(
+            .slider(SliderOptions(
                 range: (control.minimum ?? 0)...(control.maximum ?? 100),
                 step: control.step ?? 0,
                 ticks: control.ticks ?? 0,
                 unit: unit,
-                showsValueField: control.showsValueField ?? true
-            )
+                editableValue: control.editableValue ?? false,
+                tickLabels: sliderValueLabels(control.tickLabels),
+                valueLabels: sliderValueLabels(control.valueLabels),
+                minimumLabel: control.minimumLabel.map { .init(title: $0.title, systemImage: $0.systemImage) },
+                maximumLabel: control.maximumLabel.map { .init(title: $0.title, systemImage: $0.systemImage) },
+                neutralValue: control.neutralValue
+            ))
         case .date: .date
         case .note: .note(systemImage: nil)
         case .button: .button(icon: nil, text: "Button", activeIcon: nil, activeText: nil)

@@ -114,16 +114,20 @@ nonisolated struct LoadedPartPackage: Sendable {
     /// a system tint. Appearance never enters: system tints adapt themselves.
     var iconSpecification: PartIconSpecification {
         let tint = manifest.icon?.resolvedTint ?? .gray
+        let shade = manifest.icon?.resolvedShade ?? .regular
+        let rendering = manifest.icon?.resolvedRendering ?? .monochrome
         if let file = manifest.icon?.file {
             let url = resourceRootURL.appending(path: file)
             if FileManager.default.fileExists(atPath: url.path) {
-                return .init(glyph: .svg(url), tint: tint)
+                return .init(glyph: .svg(url), tint: tint, shade: shade,
+                             rendering: rendering == .original ? .original : .monochrome)
             }
         }
+        // Symbols always draw monochrome; original rendering is for SVG artwork.
         if let symbol = manifest.icon?.symbol, !symbol.isEmpty {
-            return .init(glyph: .symbol(symbol), tint: tint)
+            return .init(glyph: .symbol(symbol), tint: tint, shade: shade)
         }
-        return .init(glyph: .symbol(PartDefinition.genericSystemImage), tint: tint)
+        return .init(glyph: .symbol(PartDefinition.genericSystemImage), tint: tint, shade: shade)
     }
 
     var isDevelopmentPack: Bool {
@@ -190,12 +194,16 @@ nonisolated struct PartIconSpecification: Equatable, Hashable, Sendable {
 
     let glyph: Glyph
     let tint: PartIconTint
+    var shade: PartIconShade = .regular
+    /// Already matched to the glyph kind by the loader.
+    var rendering: PartIconRendering = .monochrome
 
     /// Stable identity for row-reuse fingerprints and view invalidation.
     var cacheKey: String {
-        switch glyph {
-        case .svg(let url): "svg:\(url.path):\(tint.rawValue)"
-        case .symbol(let name): "symbol:\(name):\(tint.rawValue)"
+        let style = "\(tint.rawValue).\(shade.rawValue):\(rendering.rawValue)"
+        return switch glyph {
+        case .svg(let url): "svg:\(url.path):\(style)"
+        case .symbol(let name): "symbol:\(name):\(style)"
         }
     }
 }

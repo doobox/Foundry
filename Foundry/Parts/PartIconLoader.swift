@@ -39,6 +39,24 @@ extension PartType {
 }
 
 extension PartIconSpecification {
+    /// The tint with its shade applied. Shades blend the system colour with
+    /// white or black as it resolves for each appearance, so they adapt to
+    /// light and dark just as the system colours do.
+    var color: NSColor {
+        let base = tint.nsColor
+        guard shade != .regular else { return base }
+        let shade = shade
+        return NSColor(name: nil) { appearance in
+            var resolved = base
+            appearance.performAsCurrentDrawingAppearance {
+                resolved = base.usingColorSpace(.sRGB) ?? base
+            }
+            return shade == .light
+                ? resolved.blended(withFraction: 0.4, of: .white) ?? resolved
+                : resolved.blended(withFraction: 0.35, of: .black) ?? resolved
+        }
+    }
+
     /// The glyph as a template image, synchronously: SVG stencils come from
     /// the icon cache — loaded and seeded on first use — and symbols come
     /// from the system, with unknown names falling back to the generic mark.
@@ -52,13 +70,39 @@ extension PartIconSpecification {
         }
     }
 
-    /// The complete tile: a tint-filled rounded rectangle behind the glyph
-    /// in white. Both glyph kinds — SVG stencils and SF Symbols — aspect-fit
-    /// the same padded box (20% of the tile height per side), so neither
-    /// type ever renders larger than the other. The drawing handler runs per
-    /// draw, so the system tint follows appearance changes.
+    /// The glyph for a structure-tree row, which has no tile behind it.
+    /// Monochrome glyphs come back as templates for the row to paint in
+    /// `tint` — always the base colour, never a shade, so the tree stays
+    /// consistent. Original artwork shows as authored, so `tint` is nil.
+    func rowImage() -> (image: NSImage?, tint: NSColor?) {
+        let glyph = resolvedGlyphImage()
+        switch rendering {
+        case .monochrome:
+            return (glyph, tint.nsColor)
+        case .original:
+            let original = glyph?.copy() as? NSImage
+            original?.isTemplate = false
+            return (original, nil)
+        }
+    }
+
+    /// The complete tile. Monochrome draws a white glyph on a tint-filled
+    /// rounded rectangle; original SVG artwork fills the tile as drawn, with
+    /// no backdrop. Monochrome glyphs aspect-fit the same padded box (20% of
+    /// the tile height per side), so SVGs and symbols render at the same
+    /// size. The drawing handler runs per draw, so the tint follows
+    /// appearance changes.
     func tileImage(size: NSSize) -> NSImage {
-        let tintColor = tint.nsColor
+        let tintColor = color
+        let rendering = rendering
+        if rendering == .original {
+            let artwork = resolvedGlyphImage()
+            return NSImage(size: size, flipped: false) { rect in
+                guard let artwork, artwork.size.width > 0, artwork.size.height > 0 else { return true }
+                artwork.draw(in: Self.fitted(artwork.size, in: rect), from: .zero, operation: .sourceOver, fraction: 1)
+                return true
+            }
+        }
         let glyphSource: NSImage? = {
             switch glyph {
             case .svg:
@@ -72,7 +116,7 @@ extension PartIconSpecification {
         }()
         // Tint the glyph alone first: filling atop inside the tile would
         // recolour the backdrop as well as the stencil.
-        let whiteGlyph: NSImage? = glyphSource.flatMap { source in
+        let glyphImage: NSImage? = glyphSource.flatMap { source in
             guard source.size.width > 0, source.size.height > 0 else { return nil }
             return NSImage(size: source.size, flipped: false) { rect in
                 source.draw(in: rect, from: .zero, operation: .sourceOver, fraction: 1)
@@ -86,23 +130,24 @@ extension PartIconSpecification {
             NSBezierPath(roundedRect: rect, xRadius: radius, yRadius: radius).addClip()
             tintColor.setFill()
             rect.fill()
-            guard let whiteGlyph else { return true }
+            guard let glyphImage else { return true }
             let inset = rect.height * 0.2
             let box = rect.insetBy(dx: inset, dy: inset)
-            let scale = min(box.width / whiteGlyph.size.width, box.height / whiteGlyph.size.height)
-            let drawSize = NSSize(
-                width: whiteGlyph.size.width * scale,
-                height: whiteGlyph.size.height * scale
-            )
-            let glyphRect = NSRect(
-                x: box.midX - drawSize.width / 2,
-                y: box.midY - drawSize.height / 2,
-                width: drawSize.width,
-                height: drawSize.height
-            )
-            whiteGlyph.draw(in: glyphRect, from: .zero, operation: .sourceOver, fraction: 1)
+            glyphImage.draw(in: Self.fitted(glyphImage.size, in: box), from: .zero, operation: .sourceOver, fraction: 1)
             return true
         }
+    }
+
+    /// `size` scaled to fit `box`, centred.
+    private static func fitted(_ size: NSSize, in box: NSRect) -> NSRect {
+        let scale = min(box.width / size.width, box.height / size.height)
+        let drawSize = NSSize(width: size.width * scale, height: size.height * scale)
+        return NSRect(
+            x: box.midX - drawSize.width / 2,
+            y: box.midY - drawSize.height / 2,
+            width: drawSize.width,
+            height: drawSize.height
+        )
     }
 }
 

@@ -174,9 +174,9 @@ struct StructureOutlineView: NSViewRepresentable {
             cell.textField?.delegate = self
             // Tree rows paint the glyph in the part's tint with no backing;
             // the tint-filled tile treatment is reserved for larger surfaces.
-            let iconSpecification = item.part.type.iconSpecification
-            cell.imageView?.image = iconSpecification.resolvedGlyphImage()
-            cell.imageView?.contentTintColor = iconSpecification.tint.nsColor
+            let rowIcon = item.part.type.iconSpecification.rowImage()
+            cell.imageView?.image = rowIcon.image
+            cell.imageView?.contentTintColor = rowIcon.tint
             (cell.imageView as? PartIconImageView)?.tileTint = nil
             cell.imageView?.setAccessibilityLabel(name)
             let isLinkedToGlobal = globalContext(for: item)?.isLinked == true

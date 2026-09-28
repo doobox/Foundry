@@ -84,8 +84,11 @@ struct CanvasDragDropTests {
     func canvasRendersExplicitDropZonesForEmptyTargets() {
         let emptyPage = Page(title: "Empty", slug: "empty", parts: [])
         let container = PartNode.make(.container)
-        let flex = PartNode.make(.flex)
-        let grid = PartNode.make(.grid)
+        // Flex and Grid start with three items; empty them to get drop zones.
+        var flex = PartNode.make(.flex)
+        flex.children = []
+        var grid = PartNode.make(.grid)
+        grid.children = []
         let paragraph = PartNode.make(.paragraph)
         let partPage = Page(
             title: "Drop zones",

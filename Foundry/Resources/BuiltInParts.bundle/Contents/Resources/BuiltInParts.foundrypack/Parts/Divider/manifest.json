@@ -2,12 +2,12 @@
   "assets": [],
   "author": "Foundry",
   "description": "Adds a visual rule between groups of content.",
-  "group": "Content",
+  "group": "Layout",
   "icon": {
-    "symbol": "minus",
-    "tint": "gray"
+    "file": "line.svg",
+    "tint": "blue"
   },
-  "id": "foundry.content.divider",
+  "id": "foundry.layout.divider",
   "inspector": [
     {
       "controls": [
@@ -43,6 +43,16 @@
       "systemImage": "paintpalette"
     },
     {
+      "section": "Sizing",
+      "systemImage": "arrow.up.left.and.arrow.down.right",
+      "controls": [
+        {
+          "type": "sizing",
+          "id": "sizing"
+        }
+      ]
+    },
+    {
       "controls": [
         {
           "defaults": {
@@ -61,6 +71,26 @@
       "systemImage": "arrow.up.and.down.and.arrow.left.and.right"
     },
     {
+      "section": "Effects",
+      "systemImage": "sparkles",
+      "controls": [
+        {
+          "type": "effects",
+          "id": "effects"
+        }
+      ]
+    },
+    {
+      "section": "Layout",
+      "systemImage": "square.on.square",
+      "controls": [
+        {
+          "type": "layout",
+          "id": "layout"
+        }
+      ]
+    },
+    {
       "controls": [
         {
           "type": "reveal",
@@ -69,6 +99,9 @@
       ],
       "section": "Reveal",
       "systemImage": "sparkles.rectangle.stack"
+    },
+    {
+      "type": "advanced"
     }
   ],
   "minimumAPIVersion": 1,

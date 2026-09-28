@@ -610,6 +610,8 @@ nonisolated struct HTMLPageRenderer: PageRendering {
             }
             let artifact = PartArtifactPlan.htmlArtifact(for: node, suffix: "CSS")
             if !artifact.isEmpty { pieces.append(artifact) }
+            let custom = PartTemplateRenderer.scopedCustomCSS(node.customCSS, instanceID: node.id)
+            if !custom.isEmpty { pieces.append(custom) }
             return pieces.joined(separator: "\n")
             }
             return text.isEmpty ? nil : (sourceNode.id, text)

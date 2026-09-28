@@ -66,6 +66,61 @@
       "systemImage": "arrow.up.left.and.arrow.down.right"
     },
     {
+      "section": "Spacing",
+      "systemImage": "arrow.up.and.down.and.arrow.left.and.right",
+      "controls": [
+        {
+          "type": "spacing",
+          "id": "spacing"
+        }
+      ]
+    },
+    {
+      "section": "Background",
+      "systemImage": "paintbrush.fill",
+      "controls": [
+        {
+          "type": "background",
+          "id": "background",
+          "backgroundTypes": [
+            "colour",
+            "gradient",
+            "image"
+          ]
+        }
+      ]
+    },
+    {
+      "section": "Borders",
+      "systemImage": "square.dashed",
+      "controls": [
+        {
+          "type": "borders",
+          "id": "borders"
+        }
+      ]
+    },
+    {
+      "section": "Effects",
+      "systemImage": "sparkles",
+      "controls": [
+        {
+          "type": "effects",
+          "id": "effects"
+        }
+      ]
+    },
+    {
+      "section": "Layout",
+      "systemImage": "square.on.square",
+      "controls": [
+        {
+          "type": "layout",
+          "id": "layout"
+        }
+      ]
+    },
+    {
       "controls": [
         {
           "type": "reveal",
@@ -74,6 +129,9 @@
       ],
       "section": "Reveal",
       "systemImage": "sparkles.rectangle.stack"
+    },
+    {
+      "type": "advanced"
     }
   ],
   "minimumAPIVersion": 1,

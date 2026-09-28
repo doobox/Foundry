@@ -206,7 +206,7 @@ nonisolated enum PartPropertyControl: Sendable {
     case multilineText
     case link(absoluteURL: Bool)
     case number(range: ClosedRange<Double>, step: Double, unit: String)
-    case slider(range: ClosedRange<Double>, step: Double, ticks: Int, unit: String, showsValueField: Bool)
+    case slider(SliderOptions)
     case date
     case note(systemImage: String?)
     case button(icon: String?, text: String, activeIcon: String?, activeText: String?)
@@ -276,4 +276,54 @@ extension PartPropertyControl {
         default: false
         }
     }
+}
+
+/// Everything a slider control needs to draw itself in the Inspector.
+nonisolated struct SliderOptions: Equatable, Sendable {
+    struct ValueLabel: Equatable, Sendable {
+        let value: Double
+        let text: String
+    }
+
+    struct EndLabel: Equatable, Sendable {
+        let title: String?
+        let systemImage: String?
+    }
+
+    var range: ClosedRange<Double>
+    var step: Double = 0
+    var ticks: Int = 0
+    var unit: String = ""
+    var editableValue: Bool = false
+    var tickLabels: [ValueLabel] = []
+    var valueLabels: [ValueLabel] = []
+    var minimumLabel: EndLabel?
+    var maximumLabel: EndLabel?
+    var neutralValue: Double?
+
+    /// Where marks are drawn: the evenly spaced `ticks` plus every labelled
+    /// value, in order, without duplicates.
+    var tickValues: [Double] {
+        var values = tickLabels.map(\.value)
+        if ticks >= 2 {
+            let interval = (range.upperBound - range.lowerBound) / Double(ticks - 1)
+            values += (0..<ticks).map { range.lowerBound + Double($0) * interval }
+        }
+        return values.sorted().reduce(into: []) { unique, value in
+            if let last = unique.last, abs(last - value) < Self.tolerance { return }
+            unique.append(value)
+        }
+    }
+
+    func tickLabel(at value: Double) -> String? {
+        tickLabels.first { abs($0.value - value) < Self.tolerance }?.text
+    }
+
+    /// The text that replaces the read-only value when the slider rests on
+    /// one of the developer's labelled values.
+    func valueLabel(for value: Double) -> String? {
+        valueLabels.first { abs($0.value - value) < Self.tolerance }?.text
+    }
+
+    private static let tolerance = 0.000_001
 }
