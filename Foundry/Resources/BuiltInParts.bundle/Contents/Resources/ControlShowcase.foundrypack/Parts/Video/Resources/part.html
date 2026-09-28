@@ -1,0 +1,42 @@
+<article class="foundry-showcase {{ part.class }}" {{ part.attributes }}>
+    <p class="fx-kicker">Control · video</p>
+    <h2>Video</h2>
+    <p class="fx-lede">A project video with its playback options built in. The direct value is its URL, empty until one is chosen; a <code>video</code> bound to it becomes a drop well on the canvas.</p>
+
+    <section class="fx-form">
+        <h3>Standard element</h3>
+        <p><code>label</code> and <code>"defaults": {"base": ""}</code>. The element takes <code>src</code>, <code>poster</code> and the ready-made <code>attributes</code> list; the canvas shows the poster and never streams the movie.</p>
+        <div class="fx-demo"><video class="fx-video" src="{{ control.film }}" poster="{{ control.film.poster }}" {{ control.film.attributes }}></video></div>
+        <dl class="fx-values">
+            <dt>control.film</dt><dd>{{ control.film }}</dd>
+            <dt>control.film.source</dt><dd>{{ control.film.source }}</dd>
+            <dt>control.film.href</dt><dd>{{ control.film.href }}</dd>
+            <dt>control.film.poster</dt><dd>{{ control.film.poster }}</dd>
+            <dt>control.film.attributes</dt><dd>{{ control.film.attributes }}</dd>
+            <dt>control.film.filename</dt><dd>{{ control.film.filename }}</dd>
+            <dt>control.film.extension</dt><dd>{{ control.film.extension }}</dd>
+            <dt>control.film.mimeType</dt><dd>{{ control.film.mimeType }}</dd>
+            <dt>control.film.byteCount</dt><dd>{{ control.film.byteCount }}</dd>
+            <dt>control.film.width</dt><dd>{{ control.film.width }}</dd>
+            <dt>control.film.height</dt><dd>{{ control.film.height }}</dd>
+            <dt>control.film.aspectRatio</dt><dd>{{ control.film.aspectRatio }}</dd>
+            <dt>control.film.duration</dt><dd>{{ control.film.duration }}</dd>
+        </dl>
+    </section>
+
+    <section class="fx-form">
+        <h3>Hand-built markup</h3>
+        <p>The playback fields are plain values, so a template can write each attribute itself. <code>source</code> carries the Start At fragment; <code>href</code> is the bare path.</p>
+        <div class="fx-demo"><video class="fx-video" src="{{ control.clip.source }}" poster="{{ control.clip.poster }}" playsinline{{ if control.clip.autoplay == "onLoad" }} autoplay{{ endif }}{{ if control.clip.muted }} muted{{ endif }}{{ if control.clip.controls }} controls{{ endif }}{{ if control.clip.loop }} loop{{ endif }}></video></div>
+        <dl class="fx-values">
+            <dt>control.clip</dt><dd>{{ control.clip }}</dd>
+            <dt>control.clip.source</dt><dd>{{ control.clip.source }}</dd>
+            <dt>control.clip.href</dt><dd>{{ control.clip.href }}</dd>
+            <dt>control.clip.autoplay</dt><dd>{{ control.clip.autoplay }}</dd>
+            <dt>control.clip.muted</dt><dd>{{ control.clip.muted }}</dd>
+            <dt>control.clip.controls</dt><dd>{{ control.clip.controls }}</dd>
+            <dt>control.clip.loop</dt><dd>{{ control.clip.loop }}</dd>
+            <dt>control.clip.startAt</dt><dd>{{ control.clip.startAt }}</dd>
+        </dl>
+    </section>
+</article>

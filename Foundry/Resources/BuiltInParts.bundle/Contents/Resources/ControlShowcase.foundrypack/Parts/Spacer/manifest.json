@@ -1,0 +1,148 @@
+{
+  "assets": [],
+  "author": "Foundry",
+  "description": "Presentation-only vertical space between Inspector controls, at the default height, several set heights, or on a condition.",
+  "group": "Presentation",
+  "helpURL": "https://doobox.github.io/foundry-docs/developer/spacer-control.html",
+  "icon": {
+    "symbol": "arrow.up.and.down",
+    "tint": "gray"
+  },
+  "id": "foundry.showcase.spacer",
+  "inspector": [
+    {
+      "section": "Default height",
+      "systemImage": "arrow.up.and.down",
+      "controls": [
+        {
+          "type": "text",
+          "id": "name",
+          "label": "Name",
+          "defaults": {
+            "base": "Foundry"
+          },
+          "tooltip": "Above a spacer at its default 10 points."
+        },
+        {
+          "type": "spacer"
+        },
+        {
+          "type": "text",
+          "id": "tagline",
+          "label": "Tagline",
+          "defaults": {
+            "base": "Build sites on the Mac"
+          },
+          "tooltip": "Below the default spacer."
+        }
+      ]
+    },
+    {
+      "section": "Heights",
+      "systemImage": "ruler",
+      "controls": [
+        {
+          "type": "toggle",
+          "id": "top",
+          "label": "Top",
+          "defaults": {
+            "base": true
+          },
+          "tooltip": "The first of four toggles; the gaps below grow from 5 to 30 points."
+        },
+        {
+          "type": "spacer",
+          "height": 5
+        },
+        {
+          "type": "toggle",
+          "id": "after5",
+          "label": "5 pt above",
+          "defaults": {
+            "base": true
+          },
+          "tooltip": "height: 5 — the smallest useful gap."
+        },
+        {
+          "type": "spacer",
+          "height": 20
+        },
+        {
+          "type": "toggle",
+          "id": "after20",
+          "label": "20 pt above",
+          "defaults": {
+            "base": false
+          },
+          "tooltip": "height: 20."
+        },
+        {
+          "type": "spacer",
+          "height": 30
+        },
+        {
+          "type": "toggle",
+          "id": "after30",
+          "label": "30 pt above",
+          "defaults": {
+            "base": false
+          },
+          "tooltip": "height: 30 — the maximum."
+        }
+      ]
+    },
+    {
+      "section": "Conditional",
+      "systemImage": "eye",
+      "controls": [
+        {
+          "type": "toggle",
+          "id": "showsGap",
+          "label": "Show gap",
+          "defaults": {
+            "base": true
+          },
+          "tooltip": "Drives the visibleWhen of the spacer below."
+        },
+        {
+          "type": "spacer",
+          "id": "gap",
+          "height": 30,
+          "visibleWhen": {
+            "id": "showsGap",
+            "value": true
+          }
+        },
+        {
+          "type": "text",
+          "id": "footer",
+          "label": "Footer",
+          "defaults": {
+            "base": "Shown either way"
+          },
+          "tooltip": "Stays put; only the 30-point gap named gap comes and goes."
+        }
+      ]
+    },
+    {
+      "type": "advanced"
+    }
+  ],
+  "minimumAPIVersion": 1,
+  "showsInPartLibrary": false,
+  "tags": [
+    "Foundry",
+    "showcase"
+  ],
+  "templates": {
+    "files": [
+      {
+        "path": "part.css",
+        "scope": "instance"
+      }
+    ],
+    "html": "part.html"
+  },
+  "title": "Spacer",
+  "version": "1.0.0"
+}

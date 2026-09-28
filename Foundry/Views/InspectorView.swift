@@ -1142,6 +1142,11 @@ private struct PartInspector: View {
                 partIdentityHeader
                     .padding(EdgeInsets(top: 16, leading: 16, bottom: 14, trailing: 16))
 
+                if selectedParts.count == 1, let snippets = part.type.definition.package?.showcaseSnippets, !snippets.isEmpty {
+                    Divider()
+                    PartShowcaseSnippetsSection(snippets: snippets)
+                }
+
                 ForEach(displayedSections, id: \.section.rawValue) { section in
                     let group = section.section
                     Divider()
@@ -1429,6 +1434,58 @@ private struct PartInspector: View {
     private func anchorCount(_ anchor: String, in node: PartNode) -> Int {
         let matches = node.anchor == anchor
         return (matches ? 1 : 0) + node.children.reduce(0) { $0 + anchorCount(anchor, in: $1) }
+    }
+}
+
+/// The copy-and-go code a Controls showcase part carries: the control's
+/// declaration, its template usage and any CSS, each with a Copy button.
+private struct PartShowcaseSnippetsSection: View {
+    let snippets: [PartShowcaseSnippet]
+    @State private var copiedID: String?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 6) {
+                Image(systemName: "curlybraces")
+                    .foregroundStyle(.secondary)
+                Text("Snippets")
+                    .font(.headline)
+            }
+            Text("Paste these into your own part to start from a working declaration.")
+                .font(.callout)
+                .foregroundStyle(.secondary)
+            ForEach(snippets) { snippet in
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack {
+                        Text(snippet.title)
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                        Button(copiedID == snippet.id ? "Copied" : "Copy") {
+                            NSPasteboard.general.clearContents()
+                            NSPasteboard.general.setString(snippet.text, forType: .string)
+                            copiedID = snippet.id
+                            Task {
+                                try? await Task.sleep(for: .seconds(1.5))
+                                if copiedID == snippet.id { copiedID = nil }
+                            }
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.mini)
+                        .help("Copy \(snippet.title) to the clipboard")
+                    }
+                    ScrollView(.horizontal) {
+                        Text(snippet.text)
+                            .font(.system(.caption, design: .monospaced))
+                            .textSelection(.enabled)
+                            .padding(8)
+                    }
+                    .background(Color(nsColor: .textBackgroundColor).opacity(0.6), in: RoundedRectangle(cornerRadius: 6))
+                    .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color.secondary.opacity(0.25), lineWidth: 1))
+                }
+            }
+        }
+        .padding(EdgeInsets(top: 14, leading: 16, bottom: 14, trailing: 16))
     }
 }
 

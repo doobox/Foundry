@@ -1,0 +1,92 @@
+{
+  "assets": [],
+  "author": "Foundry",
+  "description": "A single-line text field, on its own, per breakpoint, or as a small array.",
+  "group": "Text & Numbers",
+  "helpURL": "https://doobox.github.io/foundry-docs/developer/text-control.html",
+  "icon": {
+    "symbol": "textformat",
+    "tint": "blue"
+  },
+  "id": "foundry.showcase.text",
+  "inspector": [
+    {
+      "section": "Single line",
+      "systemImage": "character.cursor.ibeam",
+      "controls": [
+        {
+          "type": "text",
+          "id": "heading",
+          "label": "Heading",
+          "subtitle": "Shown as the demo heading",
+          "defaults": {
+            "base": "Hello, Foundry"
+          },
+          "tooltip": "The default form: label, subtitle and defaults.base. The value is an HTML-escaped String."
+        }
+      ]
+    },
+    {
+      "section": "Responsive",
+      "systemImage": "rectangle.3.group",
+      "controls": [
+        {
+          "type": "text",
+          "id": "tagline",
+          "label": "Tagline",
+          "responsive": true,
+          "defaults": {
+            "base": "Short and sweet",
+            "medium": "A longer tagline for wider screens"
+          },
+          "tooltip": "responsive: true — a different String per breakpoint; medium starts with its own value."
+        }
+      ]
+    },
+    {
+      "section": "Count",
+      "systemImage": "list.number",
+      "controls": [
+        {
+          "type": "text",
+          "id": "labels",
+          "label": "Labels",
+          "count": 3,
+          "subtitle": [
+            "First",
+            "Second",
+            "Third"
+          ],
+          "defaults": {
+            "base": [
+              "Home",
+              "Work",
+              "Play"
+            ]
+          },
+          "tooltip": "count: 3 — three fields stored as one String array, with a subtitle each."
+        }
+      ]
+    },
+    {
+      "type": "advanced"
+    }
+  ],
+  "minimumAPIVersion": 1,
+  "showsInPartLibrary": false,
+  "tags": [
+    "Foundry",
+    "showcase"
+  ],
+  "templates": {
+    "files": [
+      {
+        "path": "part.css",
+        "scope": "instance"
+      }
+    ],
+    "html": "part.html"
+  },
+  "title": "Text",
+  "version": "1.0.0"
+}

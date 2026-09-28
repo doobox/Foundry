@@ -1,0 +1,128 @@
+{
+  "assets": [],
+  "author": "Foundry",
+  "description": "A number chosen on a track, with ticks, labels, an editable field or a centre-out fill.",
+  "group": "Text & Numbers",
+  "helpURL": "https://doobox.github.io/foundry-docs/developer/slider-control.html",
+  "icon": {
+    "symbol": "slider.horizontal.3",
+    "tint": "blue"
+  },
+  "id": "foundry.showcase.slider",
+  "inspector": [
+    {
+      "section": "Basic",
+      "systemImage": "slider.horizontal.3",
+      "controls": [
+        {
+          "type": "slider",
+          "id": "amount",
+          "label": "Amount",
+          "minimum": 0,
+          "maximum": 100,
+          "step": 1,
+          "units": "%",
+          "defaults": {
+            "base": 40
+          },
+          "tooltip": "minimum, maximum, step and units."
+        }
+      ]
+    },
+    {
+      "section": "Ticks and labels",
+      "systemImage": "ruler",
+      "controls": [
+        {
+          "type": "slider",
+          "id": "columns",
+          "label": "Columns",
+          "minimum": 0,
+          "maximum": 12,
+          "step": 1,
+          "ticks": 12,
+          "tickLabels": {
+            "0": "Auto",
+            "6": "6",
+            "12": "12"
+          },
+          "valueLabels": {
+            "0": "Auto"
+          },
+          "defaults": {
+            "base": 0
+          },
+          "tooltip": "ticks draws marks; tickLabels names some; valueLabels shows Auto at 0."
+        }
+      ]
+    },
+    {
+      "section": "Editable value",
+      "systemImage": "character.cursor.ibeam",
+      "controls": [
+        {
+          "type": "slider",
+          "id": "width",
+          "label": "Width",
+          "minimum": 100,
+          "maximum": 2400,
+          "step": 10,
+          "units": "px",
+          "editableValue": true,
+          "responsive": true,
+          "defaults": {
+            "base": 1200
+          },
+          "tooltip": "editableValue: true — type the number beside the track. Responsive too."
+        }
+      ]
+    },
+    {
+      "section": "Centre out",
+      "systemImage": "arrow.left.and.right",
+      "controls": [
+        {
+          "type": "slider",
+          "id": "offset",
+          "label": "Offset",
+          "minimum": -100,
+          "maximum": 100,
+          "step": 5,
+          "neutralValue": 0,
+          "minimumLabel": {
+            "systemImage": "arrow.left",
+            "title": "Left"
+          },
+          "maximumLabel": {
+            "systemImage": "arrow.right",
+            "title": "Right"
+          },
+          "defaults": {
+            "base": 0
+          },
+          "tooltip": "neutralValue: 0 fills from the centre; minimumLabel and maximumLabel cap the track."
+        }
+      ]
+    },
+    {
+      "type": "advanced"
+    }
+  ],
+  "minimumAPIVersion": 1,
+  "showsInPartLibrary": false,
+  "tags": [
+    "Foundry",
+    "showcase"
+  ],
+  "templates": {
+    "files": [
+      {
+        "path": "part.css",
+        "scope": "instance"
+      }
+    ],
+    "html": "part.html"
+  },
+  "title": "Slider",
+  "version": "1.0.0"
+}

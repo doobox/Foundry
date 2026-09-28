@@ -1,0 +1,18 @@
+{
+    "type" : "select",
+    "id" : "layout",
+    "label" : "Layout",
+    "options" : [
+        {
+            "value" : "block",
+            "title" : "Block"
+        },
+        {
+            "value" : "flex",
+            "title" : "Flex"
+        }
+    ],
+    "defaults" : {
+        "base" : "block"
+    }
+}

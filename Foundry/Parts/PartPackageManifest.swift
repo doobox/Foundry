@@ -1228,7 +1228,7 @@ nonisolated struct PartPackageControl: Codable, Equatable, Sendable {
         case hslaValues
     }
 
-    enum Kind: String, Codable, Sendable {
+    enum Kind: String, Codable, CaseIterable, Sendable {
         case text
         case textArea
         case number

@@ -1,0 +1,71 @@
+{
+  "assets": [],
+  "author": "Foundry",
+  "description": "Positioning, offsets, stacking, visibility and overflow. Untouched controls emit nothing.",
+  "group": "Control Groups",
+  "helpURL": "https://doobox.github.io/foundry-docs/developer/layout-control-group.html",
+  "icon": {
+    "symbol": "square.on.square",
+    "tint": "gray"
+  },
+  "id": "foundry.showcase.layout",
+  "inspector": [
+    {
+      "section": "Layout",
+      "systemImage": "square.on.square",
+      "controls": [
+        {
+          "type": "layout",
+          "id": "layout"
+        }
+      ]
+    },
+    {
+      "section": "Always positioned",
+      "systemImage": "pin",
+      "controls": [
+        {
+          "type": "note",
+          "body": "allowedOptions drops None and Static from Position so the badge always has a containing block (Fixed is left out to keep it inside its stage). excludeControls: [\"zIndexMode\"] removes the z-index controls and their values. defaults starts it Absolute."
+        },
+        {
+          "type": "layout",
+          "id": "badge",
+          "allowedOptions": {
+            "position": [
+              "relative",
+              "absolute",
+              "sticky"
+            ]
+          },
+          "excludeControls": [
+            "zIndexMode"
+          ],
+          "defaults": {
+            "position": "absolute"
+          }
+        }
+      ]
+    },
+    {
+      "type": "advanced"
+    }
+  ],
+  "minimumAPIVersion": 1,
+  "showsInPartLibrary": false,
+  "tags": [
+    "Foundry",
+    "showcase"
+  ],
+  "templates": {
+    "files": [
+      {
+        "path": "part.css",
+        "scope": "instance"
+      }
+    ],
+    "html": "part.html"
+  },
+  "title": "Layout group",
+  "version": "1.0.0"
+}

@@ -1,0 +1,131 @@
+{
+  "assets": [],
+  "author": "Foundry",
+  "description": "Four raw per-edge lengths with your own units and pair linking; no framework tokens.",
+  "group": "Spacing & Edges",
+  "helpURL": "https://doobox.github.io/foundry-docs/developer/edges-control.html",
+  "icon": {
+    "symbol": "square.dashed",
+    "tint": "teal"
+  },
+  "id": "foundry.showcase.edges",
+  "inspector": [
+    {
+      "section": "Shared length",
+      "systemImage": "link",
+      "controls": [
+        {
+          "type": "edges",
+          "id": "inset",
+          "label": "Inset",
+          "defaults": {
+            "base": {
+              "value": 12,
+              "unit": "px"
+            }
+          },
+          "tooltip": "defaults.base as one { value, unit } length for all four edges; both pairs start linked."
+        }
+      ]
+    },
+    {
+      "section": "Per edge",
+      "systemImage": "arrow.up.and.down.and.arrow.left.and.right",
+      "controls": [
+        {
+          "type": "edges",
+          "id": "borderWidth",
+          "label": "Border width",
+          "subtitle": "Starts unlinked",
+          "defaults": {
+            "base": {
+              "top": {
+                "value": 4,
+                "unit": "px"
+              },
+              "right": {
+                "value": 0,
+                "unit": "px"
+              },
+              "bottom": {
+                "value": 4,
+                "unit": "px"
+              },
+              "left": {
+                "value": 12,
+                "unit": "px"
+              }
+            }
+          },
+          "tooltip": "defaults.base as a four-edge dictionary of lengths; differing edges infer unlinked. subtitle beneath the editor."
+        }
+      ]
+    },
+    {
+      "section": "Units and responsive",
+      "systemImage": "ruler",
+      "controls": [
+        {
+          "type": "edges",
+          "id": "cellPadding",
+          "label": "Cell padding",
+          "units": [
+            "rem",
+            "px"
+          ],
+          "responsive": true,
+          "defaults": {
+            "base": {
+              "value": 0.5,
+              "unit": "rem"
+            },
+            "large": {
+              "value": 32,
+              "unit": "px"
+            }
+          },
+          "tooltip": "units restricts the unit menu to rem and px; responsive: true with a pinned large default."
+        }
+      ]
+    },
+    {
+      "section": "Linked",
+      "systemImage": "link.badge.plus",
+      "controls": [
+        {
+          "type": "edges",
+          "id": "bleed",
+          "label": "Bleed",
+          "linked": false,
+          "defaults": {
+            "base": {
+              "value": -8,
+              "unit": "px"
+            }
+          },
+          "tooltip": "linked: false starts equal defaults unlinked; a negative length is permitted."
+        }
+      ]
+    },
+    {
+      "type": "advanced"
+    }
+  ],
+  "minimumAPIVersion": 1,
+  "showsInPartLibrary": false,
+  "tags": [
+    "Foundry",
+    "showcase"
+  ],
+  "templates": {
+    "files": [
+      {
+        "path": "part.css",
+        "scope": "instance"
+      }
+    ],
+    "html": "part.html"
+  },
+  "title": "Edges",
+  "version": "1.0.0"
+}

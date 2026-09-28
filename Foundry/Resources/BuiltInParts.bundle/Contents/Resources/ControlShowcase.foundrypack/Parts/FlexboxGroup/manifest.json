@@ -1,0 +1,71 @@
+{
+  "assets": [],
+  "author": "Foundry",
+  "description": "Arranges an element's immediate children in a row or column, with wrapping, gaps and alignment.",
+  "group": "Control Groups",
+  "helpURL": "https://doobox.github.io/foundry-docs/developer/flexbox-control-group.html",
+  "icon": {
+    "symbol": "rectangle.3.group",
+    "tint": "indigo"
+  },
+  "id": "foundry.showcase.flexbox",
+  "inspector": [
+    {
+      "section": "Flexbox",
+      "systemImage": "rectangle.3.group",
+      "controls": [
+        {
+          "type": "flexbox",
+          "id": "flexbox"
+        }
+      ]
+    },
+    {
+      "section": "Row-first, no reverse",
+      "systemImage": "rectangle.split.3x1",
+      "controls": [
+        {
+          "type": "note",
+          "body": "allowedOptions limits Direction to Row and Column; defaults starts it as a wrapping row; excludeControls: [\"alignContent\"] removes the wrapped-line alignment control and its value."
+        },
+        {
+          "type": "flexbox",
+          "id": "toolbar",
+          "allowedOptions": {
+            "direction": [
+              "row",
+              "column"
+            ]
+          },
+          "defaults": {
+            "direction": "row",
+            "wrap": "wrap"
+          },
+          "excludeControls": [
+            "alignContent"
+          ]
+        }
+      ]
+    },
+    {
+      "type": "advanced"
+    }
+  ],
+  "minimumAPIVersion": 1,
+  "showsInPartLibrary": false,
+  "tags": [
+    "Foundry",
+    "showcase"
+  ],
+  "templates": {
+    "files": [
+      {
+        "path": "part.css",
+        "scope": "instance"
+      }
+    ],
+    "html": "part.html"
+  },
+  "title": "Flexbox group",
+  "version": "1.0.0"
+}

@@ -1,0 +1,49 @@
+<article class="foundry-showcase {{ part.class }}" {{ part.attributes }}>
+    <p class="fx-kicker">Control · date</p>
+    <h2>Date</h2>
+    <p class="fx-lede">A date-only value with no time or timezone. Print it as <code>YYYY-MM-DD</code>, read its calendar parts, or format it for readers.</p>
+
+    <section class="fx-form">
+        <h3>Picker</h3>
+        <p>The default form. Beyond the raw value, <code>year</code>, <code>month</code> and <code>day</code> are numbers, <code>monthName</code> and <code>weekday</code> are English names, and the <code>formatDate</code>, <code>addDays</code> and <code>addMonths</code> filters transform the output only.</p>
+        <div class="fx-demo fx-datecard">
+            <div class="fx-daybox"><span class="fx-month">{{ control.published.monthName }}</span><span class="fx-day">{{ control.published.day }}</span></div>
+            <p class="fx-sentence">Published on {{ control.published.weekday }}, <time datetime="{{ control.published }}">{{ control.published | formatDate("d MMMM yyyy") }}</time>. Review a week later, on <time datetime="{{ control.published | addDays(7) }}">{{ control.published | addDays(7) | formatDate("EEEE d MMMM") }}</time>.</p>
+        </div>
+        <dl class="fx-values">
+            <dt>control.published</dt><dd>{{ control.published }}</dd>
+            <dt>control.published.year</dt><dd>{{ control.published.year }}</dd>
+            <dt>control.published.month</dt><dd>{{ control.published.month }}</dd>
+            <dt>control.published.day</dt><dd>{{ control.published.day }}</dd>
+            <dt>control.published.monthName</dt><dd>{{ control.published.monthName }}</dd>
+            <dt>control.published.weekday</dt><dd>{{ control.published.weekday }}</dd>
+            <dt>control.published | formatDate("d MMMM yyyy")</dt><dd>{{ control.published | formatDate("d MMMM yyyy") }}</dd>
+            <dt>control.published | addDays(7)</dt><dd>{{ control.published | addDays(7) }}</dd>
+            <dt>control.published | addMonths(1) | formatDate("MMM yyyy")</dt><dd>{{ control.published | addMonths(1) | formatDate("MMM yyyy") }}</dd>
+        </dl>
+    </section>
+
+    <section class="fx-form">
+        <h3>Bounds</h3>
+        <p><code>minimum</code> and <code>maximum</code> keep the picker inside 2026. The named numeric values work in expressions, so the bar shows how far through the year the date falls.</p>
+        <div class="fx-demo fx-track"><div class="fx-fill" style="width: {{ control.launch.month / 12 * 100 }}%">{{ control.launch.monthName }}</div></div>
+        <dl class="fx-values">
+            <dt>control.launch</dt><dd>{{ control.launch }}</dd>
+            <dt>control.launch.month / 12 * 100</dt><dd>{{ control.launch.month / 12 * 100 }}</dd>
+            <dt>control.launch.weekday</dt><dd>{{ control.launch.weekday }}</dd>
+        </dl>
+    </section>
+
+    <section class="fx-form">
+        <h3>Count</h3>
+        <p><code>"count": 2</code> stores two dates in one array. Put the zero-based index before a named value: <code>control.schedule[0].weekday</code>.</p>
+        <div class="fx-demo"><p class="fx-range"><time datetime="{{ control.schedule[0] }}">{{ control.schedule[0] | formatDate("EEE d MMM") }}</time> <span class="fx-arrow">→</span> <time datetime="{{ control.schedule[1] }}">{{ control.schedule[1] | formatDate("EEE d MMM yyyy") }}</time></p></div>
+        <dl class="fx-values">
+            <dt>control.schedule[0]</dt><dd>{{ control.schedule[0] }}</dd>
+            <dt>control.schedule[1]</dt><dd>{{ control.schedule[1] }}</dd>
+            <dt>control.schedule[0].weekday</dt><dd>{{ control.schedule[0].weekday }}</dd>
+            <dt>control.schedule[1].day</dt><dd>{{ control.schedule[1].day }}</dd>
+            <dt>control.schedule[1].monthName</dt><dd>{{ control.schedule[1].monthName }}</dd>
+        </dl>
+    </section>
+</article>

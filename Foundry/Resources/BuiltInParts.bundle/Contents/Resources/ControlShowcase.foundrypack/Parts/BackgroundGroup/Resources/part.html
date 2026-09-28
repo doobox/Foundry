@@ -1,0 +1,79 @@
+<article class="foundry-showcase {{ part.class }}" {{ part.attributes }}>
+    <p class="fx-kicker">Control group · background</p>
+    <h2>Background group</h2>
+    <p class="fx-lede">Paints a colour, image, gradient or video behind an element. The group returns declarations; the part chooses the element and, for video, gives it a positioned, isolated host.</p>
+
+    <section class="fx-form">
+        <h3>Background</h3>
+        <p>The full group. Set Type to Static or Hover in the Inspector; the box below is the host, with <code>control.background.video</code> as its first child. Hover it to see the hover state.</p>
+        <div class="fx-demo"><div class="fx-target fx-host">{{ control.background.video }}<span class="fx-caption">Background host — hover me</span></div></div>
+        <dl class="fx-values">
+            <dt>control.background.css</dt><dd>{{ control.background.css }}</dd>
+            <dt>control.background.hover.css</dt><dd>{{ control.background.hover.css }}</dd>
+            <dt>control.background.video</dt><dd>{{ if control.background.video }}A foundry-background-layer element, inserted in the host above{{ endif }}</dd>
+            <dt>control.background.color</dt><dd>{{ control.background.color }}</dd>
+            <dt>control.background.image</dt><dd>{{ control.background.image }}</dd>
+            <dt>control.background.position</dt><dd>{{ control.background.position }}</dd>
+            <dt>control.background.size</dt><dd>{{ control.background.size }}</dd>
+            <dt>control.background.repeat</dt><dd>{{ control.background.repeat }}</dd>
+            <dt>control.background.hover.color</dt><dd>{{ control.background.hover.color }}</dd>
+            <dt>control.background.hover.image</dt><dd>{{ control.background.hover.image }}</dd>
+            <dt>control.background.hover.position</dt><dd>{{ control.background.hover.position }}</dd>
+            <dt>control.background.hover.size</dt><dd>{{ control.background.hover.size }}</dd>
+            <dt>control.background.hover.repeat</dt><dd>{{ control.background.hover.repeat }}</dd>
+            <dt>control.background.backgroundMode</dt><dd>{{ control.background.backgroundMode }}</dd>
+            <dt>control.background.backgroundState</dt><dd>{{ control.background.backgroundState }}</dd>
+            <dt>control.background.backgroundStyle</dt><dd>{{ control.background.backgroundStyle }}</dd>
+            <dt>control.background.backgroundColor</dt><dd>{{ control.background.backgroundColor }}</dd>
+            <dt>control.background.backgroundColor.contrastColor</dt><dd>{{ control.background.backgroundColor.contrastColor }}</dd>
+            <dt>control.background.backgroundImage</dt><dd>{{ control.background.backgroundImage }}</dd>
+            <dt>control.background.backgroundImage.position</dt><dd>{{ control.background.backgroundImage.position }}</dd>
+            <dt>control.background.backgroundImage.width</dt><dd>{{ control.background.backgroundImage.width }}</dd>
+            <dt>control.background.backgroundImage.height</dt><dd>{{ control.background.backgroundImage.height }}</dd>
+            <dt>control.background.backgroundSize</dt><dd>{{ control.background.backgroundSize }}</dd>
+            <dt>control.background.backgroundRepeat</dt><dd>{{ control.background.backgroundRepeat }}</dd>
+            <dt>control.background.backgroundGradientType</dt><dd>{{ control.background.backgroundGradientType }}</dd>
+            <dt>control.background.backgroundGradientDirection</dt><dd>{{ control.background.backgroundGradientDirection }}</dd>
+            <dt>control.background.backgroundGradientFrom</dt><dd>{{ control.background.backgroundGradientFrom }}</dd>
+            <dt>control.background.backgroundGradientFromPosition</dt><dd>{{ control.background.backgroundGradientFromPosition }}</dd>
+            <dt>control.background.backgroundGradientTo</dt><dd>{{ control.background.backgroundGradientTo }}</dd>
+            <dt>control.background.backgroundGradientToPosition</dt><dd>{{ control.background.backgroundGradientToPosition }}</dd>
+            <dt>control.background.backgroundVideo</dt><dd>{{ control.background.backgroundVideo }}</dd>
+            <dt>control.background.backgroundVideo.poster</dt><dd>{{ control.background.backgroundVideo.poster }}</dd>
+            <dt>control.background.backgroundVideo.filename</dt><dd>{{ control.background.backgroundVideo.filename }}</dd>
+            <dt>control.background.backgroundVideo.duration</dt><dd>{{ control.background.backgroundVideo.duration }}</dd>
+            <dt>control.background.backgroundVideoLoop</dt><dd>{{ control.background.backgroundVideoLoop }}</dd>
+            <dt>control.background.backgroundHoverStyle</dt><dd>{{ control.background.backgroundHoverStyle }}</dd>
+            <dt>control.background.backgroundHoverColor</dt><dd>{{ control.background.backgroundHoverColor }}</dd>
+            <dt>control.background.backgroundHoverImage</dt><dd>{{ control.background.backgroundHoverImage }}</dd>
+            <dt>control.background.backgroundHoverSize</dt><dd>{{ control.background.backgroundHoverSize }}</dd>
+            <dt>control.background.backgroundHoverRepeat</dt><dd>{{ control.background.backgroundHoverRepeat }}</dd>
+            <dt>control.background.backgroundHoverGradientType</dt><dd>{{ control.background.backgroundHoverGradientType }}</dd>
+            <dt>control.background.backgroundHoverGradientDirection</dt><dd>{{ control.background.backgroundHoverGradientDirection }}</dd>
+            <dt>control.background.backgroundHoverGradientFrom</dt><dd>{{ control.background.backgroundHoverGradientFrom }}</dd>
+            <dt>control.background.backgroundHoverGradientFromPosition</dt><dd>{{ control.background.backgroundHoverGradientFromPosition }}</dd>
+            <dt>control.background.backgroundHoverGradientTo</dt><dd>{{ control.background.backgroundHoverGradientTo }}</dd>
+            <dt>control.background.backgroundHoverGradientToPosition</dt><dd>{{ control.background.backgroundHoverGradientToPosition }}</dd>
+        </dl>
+    </section>
+
+    <section class="fx-form">
+        <h3>Colour and gradient only</h3>
+        <p><code>"backgroundTypes": ["colour", "gradient"]</code> hides Image and Video; <code>"supportsHover": false</code> removes the Hover type, so one rule is enough. This one starts Static.</p>
+        <div class="fx-demo"><div class="fx-target fx-panel"><span class="fx-caption">Static only</span></div></div>
+        <dl class="fx-values">
+            <dt>control.panel.css</dt><dd>{{ control.panel.css }}</dd>
+            <dt>control.panel.color</dt><dd>{{ control.panel.color }}</dd>
+            <dt>control.panel.image</dt><dd>{{ control.panel.image }}</dd>
+            <dt>control.panel.backgroundMode</dt><dd>{{ control.panel.backgroundMode }}</dd>
+            <dt>control.panel.backgroundStyle</dt><dd>{{ control.panel.backgroundStyle }}</dd>
+            <dt>control.panel.backgroundColor</dt><dd>{{ control.panel.backgroundColor }}</dd>
+            <dt>control.panel.backgroundGradientType</dt><dd>{{ control.panel.backgroundGradientType }}</dd>
+            <dt>control.panel.backgroundGradientDirection</dt><dd>{{ control.panel.backgroundGradientDirection }}</dd>
+            <dt>control.panel.backgroundGradientFrom</dt><dd>{{ control.panel.backgroundGradientFrom }}</dd>
+            <dt>control.panel.backgroundGradientFromPosition</dt><dd>{{ control.panel.backgroundGradientFromPosition }}</dd>
+            <dt>control.panel.backgroundGradientTo</dt><dd>{{ control.panel.backgroundGradientTo }}</dd>
+            <dt>control.panel.backgroundGradientToPosition</dt><dd>{{ control.panel.backgroundGradientToPosition }}</dd>
+        </dl>
+    </section>
+</article>

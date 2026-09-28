@@ -1,0 +1,47 @@
+<article class="foundry-showcase {{ part.class }}" {{ part.attributes }}>
+    <p class="fx-kicker">Control · divider</p>
+    <h2>Divider</h2>
+    <p class="fx-lede">An Inspector-only rule. It stores nothing and has no template value; this sheet prints the controls around it.</p>
+
+    <section class="fx-form">
+        <h3>Plain</h3>
+        <p><code>{"type": "divider"}</code> between a text field and a toggle. Foundry adds 5 points above and below the line on top of the usual spacing.</p>
+        <div class="fx-demo fx-stack">
+            <span class="fx-pill is-on">{{ control.headline }}</span>
+            <hr class="fx-rule">
+            <span class="fx-pill{{ if control.featured }} is-on{{ endif }}">Featured</span>
+        </div>
+        <dl class="fx-values">
+            <dt>control.headline</dt><dd>{{ control.headline }}</dd>
+            <dt>control.featured</dt><dd>{{ control.featured }}</dd>
+        </dl>
+    </section>
+
+    <section class="fx-form">
+        <h3>Named</h3>
+        <p>An optional <code>id</code> — here <code>separator</code> — must be unique in the part. Nothing can refer to it, so it is usually left out.</p>
+        <div class="fx-demo fx-stack">
+            <span class="fx-pill is-on">{{ control.caption }}</span>
+            <hr class="fx-rule">
+            <span class="fx-pill">{{ control.credit }}</span>
+        </div>
+        <dl class="fx-values">
+            <dt>control.caption</dt><dd>{{ control.caption }}</dd>
+            <dt>control.credit</dt><dd>{{ control.credit }}</dd>
+        </dl>
+    </section>
+
+    <section class="fx-form">
+        <h3>Conditional</h3>
+        <p><code>visibleWhen</code> shows the rule only while the toggle is on. Turn it off and the two controls close up in the Inspector.</p>
+        <div class="fx-demo fx-stack">
+            <span class="fx-pill{{ if control.showsRule }} is-on{{ endif }}">Show rule</span>
+            {{ if control.showsRule }}<hr class="fx-rule">{{ endif }}
+            <span class="fx-pill">{{ control.footnote }}</span>
+        </div>
+        <dl class="fx-values">
+            <dt>control.showsRule</dt><dd>{{ control.showsRule }}</dd>
+            <dt>control.footnote</dt><dd>{{ control.footnote }}</dd>
+        </dl>
+    </section>
+</article>

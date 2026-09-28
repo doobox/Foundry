@@ -119,7 +119,7 @@ extension ProjectEditor {
 
     @discardableResult
     func addPage() -> UUID {
-        let title = "Page \(document.site.pages.count + 1)"
+        let title = "Page \(document.site.authoredPages.count + 1)"
         let page = Page(
             title: title,
             slug: uniqueSlug(for: title),
@@ -128,6 +128,44 @@ extension ProjectEditor {
         )
         mutate(actionName: "Add Page") { $0.pages.append(page) }
         return page.id
+    }
+
+    /// Shows a Controls showcase part on the developer's scratch page,
+    /// creating that page the first time and replacing whatever it held, so
+    /// the page only ever shows the control being looked at. The page is
+    /// in-memory only: hidden from Pages, never saved, exported or undone.
+    func showControlShowcase(type: PartType) -> (pageID: UUID, partID: UUID)? {
+        let part = PartNode.make(type, framework: document.site.framework)
+        var pageID = document.site.pages.first(where: \.isDeveloperPlayground)?.id
+        if pageID == nil {
+            let page = Page(
+                title: "Controls",
+                slug: uniqueSlug(for: "controls-playground"),
+                order: childItems(of: .root).count,
+                includeInNavigation: false,
+                preferredExtension: document.site.defaultPageExtension,
+                includeInSearch: false,
+                includeInSitemap: false,
+                isDeveloperPlayground: true
+            )
+            pageID = page.id
+            mutate(actionName: "Add Controls Page") { $0.pages.append(page) }
+        }
+        guard let pageID else { return nil }
+        // No package lock: the showcase is built in, and a lock would be a
+        // real change to the project.
+        mutate(actionName: "Show \(type.displayName)") { site in
+            guard let index = site.pages.firstIndex(where: { $0.id == pageID }) else { return }
+            site.pages[index].parts = [part]
+        }
+        return (pageID, part.id)
+    }
+
+    /// Drops the Controls scratch page once the developer moves on, so it
+    /// never lingers in the model.
+    func discardControlPlayground() {
+        guard document.site.pages.contains(where: \.isDeveloperPlayground) else { return }
+        mutate(actionName: "Close Controls") { $0.pages.removeAll(where: \.isDeveloperPlayground) }
     }
 
     @discardableResult

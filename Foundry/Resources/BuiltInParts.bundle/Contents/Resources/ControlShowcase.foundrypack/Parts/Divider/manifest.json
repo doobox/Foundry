@@ -1,0 +1,120 @@
+{
+  "assets": [],
+  "author": "Foundry",
+  "description": "A presentation-only rule between Inspector controls: plain, named, or shown on a condition.",
+  "group": "Presentation",
+  "helpURL": "https://doobox.github.io/foundry-docs/developer/divider-control.html",
+  "icon": {
+    "symbol": "minus",
+    "tint": "gray"
+  },
+  "id": "foundry.showcase.divider",
+  "inspector": [
+    {
+      "section": "Plain",
+      "systemImage": "minus",
+      "controls": [
+        {
+          "type": "text",
+          "id": "headline",
+          "label": "Headline",
+          "defaults": {
+            "base": "Above the rule"
+          },
+          "tooltip": "A neighbouring control, so the divider has something to separate."
+        },
+        {
+          "type": "divider"
+        },
+        {
+          "type": "toggle",
+          "id": "featured",
+          "label": "Featured",
+          "defaults": {
+            "base": true
+          },
+          "tooltip": "The control below the rule."
+        }
+      ]
+    },
+    {
+      "section": "Named",
+      "systemImage": "tag",
+      "controls": [
+        {
+          "type": "text",
+          "id": "caption",
+          "label": "Caption",
+          "defaults": {
+            "base": "Harbour at dusk"
+          },
+          "tooltip": "Above the named divider."
+        },
+        {
+          "type": "divider",
+          "id": "separator"
+        },
+        {
+          "type": "text",
+          "id": "credit",
+          "label": "Credit",
+          "defaults": {
+            "base": "Photo: A. Author"
+          },
+          "tooltip": "Below the named divider."
+        }
+      ]
+    },
+    {
+      "section": "Conditional",
+      "systemImage": "eye",
+      "controls": [
+        {
+          "type": "toggle",
+          "id": "showsRule",
+          "label": "Show rule",
+          "defaults": {
+            "base": true
+          },
+          "tooltip": "Drives the visibleWhen of the divider below."
+        },
+        {
+          "type": "divider",
+          "visibleWhen": {
+            "id": "showsRule",
+            "value": true
+          }
+        },
+        {
+          "type": "text",
+          "id": "footnote",
+          "label": "Footnote",
+          "defaults": {
+            "base": "Shown either way"
+          },
+          "tooltip": "Stays put; only the rule above it comes and goes."
+        }
+      ]
+    },
+    {
+      "type": "advanced"
+    }
+  ],
+  "minimumAPIVersion": 1,
+  "showsInPartLibrary": false,
+  "tags": [
+    "Foundry",
+    "showcase"
+  ],
+  "templates": {
+    "files": [
+      {
+        "path": "part.css",
+        "scope": "instance"
+      }
+    ],
+    "html": "part.html"
+  },
+  "title": "Divider",
+  "version": "1.0.0"
+}

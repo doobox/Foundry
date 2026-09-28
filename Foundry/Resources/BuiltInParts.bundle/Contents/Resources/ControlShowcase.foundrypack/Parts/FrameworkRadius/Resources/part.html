@@ -1,0 +1,93 @@
+<article class="foundry-showcase {{ part.class }}" {{ part.attributes }}>
+    <p class="fx-kicker">Control · frameworkRadius</p>
+    <h2>Framework Radius</h2>
+    <p class="fx-lede">Four corners from the framework's radius scale. Printed directly it is the <code>border-radius</code> shorthand; each corner, its amount and its unit are also available.</p>
+
+    <section class="fx-form">
+        <h3>Shared token</h3>
+        <p><code>defaults.base</code> as one token gives every corner the same <code>var(--foundry-border-radius-…)</code> reference and starts the ring linked. Framework amounts resolve in <code>px</code>.</p>
+        <div class="fx-demo"><div class="fx-tile fx-tile-shared">Tile</div></div>
+        <dl class="fx-values">
+            <dt>control.radius</dt><dd>{{ control.radius }}</dd>
+            <dt>control.radius.css</dt><dd>{{ control.radius.css }}</dd>
+            <dt>control.radius.topLeft</dt><dd>{{ control.radius.topLeft }}</dd>
+            <dt>control.radius.topRight</dt><dd>{{ control.radius.topRight }}</dd>
+            <dt>control.radius.bottomRight</dt><dd>{{ control.radius.bottomRight }}</dd>
+            <dt>control.radius.bottomLeft</dt><dd>{{ control.radius.bottomLeft }}</dd>
+            <dt>control.radius.values.topLeft</dt><dd>{{ control.radius.values.topLeft }}</dd>
+            <dt>control.radius.values.topRight</dt><dd>{{ control.radius.values.topRight }}</dd>
+            <dt>control.radius.values.bottomRight</dt><dd>{{ control.radius.values.bottomRight }}</dd>
+            <dt>control.radius.values.bottomLeft</dt><dd>{{ control.radius.values.bottomLeft }}</dd>
+            <dt>control.radius.units.topLeft</dt><dd>{{ control.radius.units.topLeft }}</dd>
+            <dt>control.radius.units.topRight</dt><dd>{{ control.radius.units.topRight }}</dd>
+            <dt>control.radius.units.bottomRight</dt><dd>{{ control.radius.units.bottomRight }}</dd>
+            <dt>control.radius.units.bottomLeft</dt><dd>{{ control.radius.units.bottomLeft }}</dd>
+        </dl>
+    </section>
+
+    <section class="fx-form">
+        <h3>Per corner</h3>
+        <p><code>defaults.base</code> as a four-corner dictionary: tokens, <code>none</code> (resolves to <code>0</code>) and a custom <code>{ value, unit }</code> length. Differing corners start unlinked; <code>subtitle</code> sits beneath the editor.</p>
+        <div class="fx-demo"><div class="fx-tile fx-tile-card">Card</div></div>
+        <dl class="fx-values">
+            <dt>control.cardRadius</dt><dd>{{ control.cardRadius }}</dd>
+            <dt>control.cardRadius.css</dt><dd>{{ control.cardRadius.css }}</dd>
+            <dt>control.cardRadius.topLeft</dt><dd>{{ control.cardRadius.topLeft }}</dd>
+            <dt>control.cardRadius.topRight</dt><dd>{{ control.cardRadius.topRight }}</dd>
+            <dt>control.cardRadius.bottomRight</dt><dd>{{ control.cardRadius.bottomRight }}</dd>
+            <dt>control.cardRadius.bottomLeft</dt><dd>{{ control.cardRadius.bottomLeft }}</dd>
+            <dt>control.cardRadius.values.topLeft</dt><dd>{{ control.cardRadius.values.topLeft }}</dd>
+            <dt>control.cardRadius.values.topRight</dt><dd>{{ control.cardRadius.values.topRight }}</dd>
+            <dt>control.cardRadius.values.bottomRight</dt><dd>{{ control.cardRadius.values.bottomRight }}</dd>
+            <dt>control.cardRadius.values.bottomLeft</dt><dd>{{ control.cardRadius.values.bottomLeft }}</dd>
+            <dt>control.cardRadius.units.topLeft</dt><dd>{{ control.cardRadius.units.topLeft }}</dd>
+            <dt>control.cardRadius.units.topRight</dt><dd>{{ control.cardRadius.units.topRight }}</dd>
+            <dt>control.cardRadius.units.bottomRight</dt><dd>{{ control.cardRadius.units.bottomRight }}</dd>
+            <dt>control.cardRadius.units.bottomLeft</dt><dd>{{ control.cardRadius.units.bottomLeft }}</dd>
+        </dl>
+    </section>
+
+    <section class="fx-form">
+        <h3>Full</h3>
+        <p>The <code>full</code> token is a very large framework length, not <code>50%</code>, so a wide element becomes a pill and a square becomes a circle.</p>
+        <div class="fx-demo fx-inline"><span class="fx-pill fx-pill-full">Pill</span><span class="fx-avatar fx-avatar-full"></span></div>
+        <dl class="fx-values">
+            <dt>control.pillRadius</dt><dd>{{ control.pillRadius }}</dd>
+            <dt>control.pillRadius.css</dt><dd>{{ control.pillRadius.css }}</dd>
+            <dt>control.pillRadius.topLeft</dt><dd>{{ control.pillRadius.topLeft }}</dd>
+            <dt>control.pillRadius.topRight</dt><dd>{{ control.pillRadius.topRight }}</dd>
+            <dt>control.pillRadius.bottomRight</dt><dd>{{ control.pillRadius.bottomRight }}</dd>
+            <dt>control.pillRadius.bottomLeft</dt><dd>{{ control.pillRadius.bottomLeft }}</dd>
+            <dt>control.pillRadius.values.topLeft</dt><dd>{{ control.pillRadius.values.topLeft }}</dd>
+            <dt>control.pillRadius.values.topRight</dt><dd>{{ control.pillRadius.values.topRight }}</dd>
+            <dt>control.pillRadius.values.bottomRight</dt><dd>{{ control.pillRadius.values.bottomRight }}</dd>
+            <dt>control.pillRadius.values.bottomLeft</dt><dd>{{ control.pillRadius.values.bottomLeft }}</dd>
+            <dt>control.pillRadius.units.topLeft</dt><dd>{{ control.pillRadius.units.topLeft }}</dd>
+            <dt>control.pillRadius.units.topRight</dt><dd>{{ control.pillRadius.units.topRight }}</dd>
+            <dt>control.pillRadius.units.bottomRight</dt><dd>{{ control.pillRadius.units.bottomRight }}</dd>
+            <dt>control.pillRadius.units.bottomLeft</dt><dd>{{ control.pillRadius.units.bottomLeft }}</dd>
+        </dl>
+    </section>
+
+    <section class="fx-form">
+        <h3>Responsive</h3>
+        <p><code>"responsive": true</code> with a pinned <code>large</code> default. Narrow the canvas to see the base value take over on every corner at once.</p>
+        <div class="fx-demo"><div class="fx-tile fx-tile-media">Media</div></div>
+        <dl class="fx-values">
+            <dt>control.mediaRadius</dt><dd>{{ control.mediaRadius }}</dd>
+            <dt>control.mediaRadius.css</dt><dd>{{ control.mediaRadius.css }}</dd>
+            <dt>control.mediaRadius.topLeft</dt><dd>{{ control.mediaRadius.topLeft }}</dd>
+            <dt>control.mediaRadius.topRight</dt><dd>{{ control.mediaRadius.topRight }}</dd>
+            <dt>control.mediaRadius.bottomRight</dt><dd>{{ control.mediaRadius.bottomRight }}</dd>
+            <dt>control.mediaRadius.bottomLeft</dt><dd>{{ control.mediaRadius.bottomLeft }}</dd>
+            <dt>control.mediaRadius.values.topLeft</dt><dd>{{ control.mediaRadius.values.topLeft }}</dd>
+            <dt>control.mediaRadius.values.topRight</dt><dd>{{ control.mediaRadius.values.topRight }}</dd>
+            <dt>control.mediaRadius.values.bottomRight</dt><dd>{{ control.mediaRadius.values.bottomRight }}</dd>
+            <dt>control.mediaRadius.values.bottomLeft</dt><dd>{{ control.mediaRadius.values.bottomLeft }}</dd>
+            <dt>control.mediaRadius.units.topLeft</dt><dd>{{ control.mediaRadius.units.topLeft }}</dd>
+            <dt>control.mediaRadius.units.topRight</dt><dd>{{ control.mediaRadius.units.topRight }}</dd>
+            <dt>control.mediaRadius.units.bottomRight</dt><dd>{{ control.mediaRadius.units.bottomRight }}</dd>
+            <dt>control.mediaRadius.units.bottomLeft</dt><dd>{{ control.mediaRadius.units.bottomLeft }}</dd>
+        </dl>
+    </section>
+</article>

@@ -1,0 +1,11 @@
+{
+    "type" : "childPicker",
+    "id" : "cards",
+    "label" : "Cards",
+    "buttonText" : "Add Card",
+    "buttonIcon" : "plus.square",
+    "pickerItems" : [
+        "foundry.content.heading",
+        "foundry.content.paragraph"
+    ]
+}

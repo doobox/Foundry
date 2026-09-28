@@ -1,0 +1,2 @@
+:instance { {{ control.flexbox.css }} }
+:instance > * { {{ control.flexbox.childCSS }} }

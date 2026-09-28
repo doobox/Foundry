@@ -1,0 +1,8 @@
+{
+    "type" : "frameworkMargin",
+    "id" : "margin",
+    "label" : "Content margin",
+    "defaults" : {
+        "base" : "sm"
+    }
+}

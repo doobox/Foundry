@@ -1,0 +1,5 @@
+:instance .stage { position: relative; }
+:instance .overlay {
+    position: absolute;
+    inset: {{ control.inset }};
+}

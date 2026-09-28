@@ -5,7 +5,7 @@
   "group": "Content",
   "icon": {
     "symbol": "inset.filled.capsule",
-    "tint": "indigo.dark"
+    "tint": "orange"
   },
   "id": "foundry.content.button",
   "inspector": [

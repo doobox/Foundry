@@ -1,0 +1,11 @@
+{
+    "type" : "corners",
+    "id" : "clipRadius",
+    "label" : "Clip radius",
+    "defaults" : {
+        "base" : {
+            "value" : 0.0,
+            "unit" : "px"
+        }
+    }
+}

@@ -1,0 +1,3 @@
+:instance .card {
+    margin: {{ control.margin }};
+}

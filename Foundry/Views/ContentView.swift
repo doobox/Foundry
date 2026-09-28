@@ -177,8 +177,12 @@ struct ContentView: View {
                 schedulePreviewRefresh()
             }
         }
-        .onChange(of: selectedPageID) { _, _ in
+        .onChange(of: selectedPageID) { _, pageID in
             schedulePreviewRefresh(selectionOnly: true)
+            // Leaving the Controls scratch page for a real one discards it.
+            if let pageID, document.site.pages.contains(where: { $0.id == pageID && !$0.isDeveloperPlayground }) {
+                editor.discardControlPlayground()
+            }
         }
         .onChange(of: document.site.pages.map(\.id)) { _, pageIDs in
             if let selectedPageID, pageIDs.contains(selectedPageID) {
@@ -256,7 +260,7 @@ struct ContentView: View {
             PageTextEditorView(
                 value: request.value,
                 framework: document.site.framework,
-                pages: document.site.pages,
+                pages: document.site.authoredPages,
                 folders: document.site.pageFolders,
                 assets: document.site.assets,
                 publicURL: document.site.publicURL,
@@ -328,7 +332,7 @@ struct ContentView: View {
         switch panel {
         case .pages:
             PagesPanel(
-                pages: document.site.pages,
+                pages: document.site.authoredPages,
                 folders: document.site.pageFolders,
                 assets: document.site.assets,
                 publishingChanges: publishingChangesByTreeItem,
@@ -351,7 +355,8 @@ struct ContentView: View {
         case .parts:
             PartLibraryPanel(
                 selectedType: inspectableLibraryPartSelection,
-                addToPageEnd: addPartToPageEnd
+                addToPageEnd: addPartToPageEnd,
+                showControl: showControlShowcase
             )
         case .reusableParts:
             ReusablePartLibraryPanel(
@@ -498,7 +503,7 @@ struct ContentView: View {
                     assetLibrary: document.site.assetLibrary,
                     assetContents: document.assetContents,
                     folders: document.site.pageFolders,
-                    pages: document.site.pages,
+                    pages: document.site.authoredPages,
                     publicURL: document.site.publicURL,
                     part: selectedPart,
                     selectedParts: selectedParts,
@@ -1602,6 +1607,14 @@ struct ContentView: View {
             await Task.yield()
             guard insertPartFromLibrary(type, .end) else { return }
         }
+    }
+
+    /// The Controls tab: show the chosen showcase on the playground page and
+    /// select it, so the Inspector shows its controls and the canvas its sheet.
+    private func showControlShowcase(_ type: PartType) {
+        guard let shown = editor.showControlShowcase(type: type) else { return }
+        selectedPageID = shown.pageID
+        selectedPartID = shown.partID
     }
 
     private func insertPartFromLibrary(_ type: PartType, _ placement: PartPlacement) -> Bool {

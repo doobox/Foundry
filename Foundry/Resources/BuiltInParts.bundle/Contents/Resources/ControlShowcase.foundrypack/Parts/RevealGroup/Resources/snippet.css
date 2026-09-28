@@ -1,0 +1,3 @@
+/* Reveal needs no CSS: Foundry animates the root (or targetSelector) itself.
+   Its values are there to reflect elsewhere, for example: */
+:instance { transition-duration: {{ control.reveal.revealDuration }}ms; }

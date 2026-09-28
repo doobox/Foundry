@@ -1,0 +1,33 @@
+<article class="foundry-showcase {{ part.class }}" {{ part.attributes }}>
+    <p class="fx-kicker">Control group · advanced</p>
+    <h2>Advanced group</h2>
+    <p class="fx-lede">The only group with no <code>control.…</code> values. Its ID, classes and attributes reach the page through the two root macros every template already carries; its CSS is added to the instance's styles by Foundry.</p>
+
+    <section class="fx-form">
+        <h3>Root macros</h3>
+        <p>This sheet's root is an <code>&lt;article&gt;</code> whose class attribute ends with the <code>part.class</code> macro and whose tag carries the <code>part.attributes</code> macro. Fill in the Advanced section and watch both values change.</p>
+        <div class="fx-demo"><div class="fx-target">Root class list: <code>foundry-showcase</code> plus the classes typed in the Inspector</div></div>
+        <dl class="fx-values">
+            <dt>part.class</dt><dd>{{ part.class }}</dd>
+            <dt>part.attributes</dt><dd>{{ part.attributes }}</dd>
+        </dl>
+    </section>
+
+    <section class="fx-form">
+        <h3>Classes and attributes at work</h3>
+        <p>The part's CSS can key off whatever the author adds to the root. Add the class <code>fx-accent</code> or <code>fx-outline</code>, or the attribute <code>data-theme</code> with the value <code>dark</code>, and this box restyles.</p>
+        <div class="fx-demo"><div class="fx-target fx-reactive">Reacts to <code>.fx-accent</code>, <code>.fx-outline</code> and <code>[data-theme="dark"]</code> on the root</div></div>
+        <dl class="fx-values">
+            <dt>selector</dt><dd>:instance.fx-accent .fx-reactive, :instance.fx-outline .fx-reactive, :instance[data-theme="dark"] .fx-reactive</dd>
+        </dl>
+    </section>
+
+    <section class="fx-form">
+        <h3>Custom CSS</h3>
+        <p>Paste <code>.fx-target { background: gold; }</code> into the CSS field: it lands inside this instance's selector, so only these boxes change. <code>:hover { outline: 2px solid red; }</code> attaches to the root itself.</p>
+        <div class="fx-demo"><div class="fx-target">Style me from the CSS field</div></div>
+        <dl class="fx-values">
+            <dt>template macro</dt><dd>none — Foundry adds the author's CSS to the instance styles itself</dd>
+        </dl>
+    </section>
+</article>

@@ -1,0 +1,66 @@
+{
+  "assets": [],
+  "author": "Foundry",
+  "description": "A colour, image, gradient or video background, with an optional hover state.",
+  "group": "Control Groups",
+  "helpURL": "https://doobox.github.io/foundry-docs/developer/background-control-group.html",
+  "icon": {
+    "symbol": "paintbrush.fill",
+    "tint": "purple"
+  },
+  "id": "foundry.showcase.background",
+  "inspector": [
+    {
+      "section": "Background",
+      "systemImage": "paintbrush.fill",
+      "controls": [
+        {
+          "type": "background",
+          "id": "background"
+        }
+      ]
+    },
+    {
+      "section": "Colour and gradient only",
+      "systemImage": "paintbrush",
+      "controls": [
+        {
+          "type": "note",
+          "body": "backgroundTypes: [\"colour\", \"gradient\"] offers only those two styles, and supportsHover: false removes the Hover type and every hover-only control. defaults starts it at Static."
+        },
+        {
+          "type": "background",
+          "id": "panel",
+          "backgroundTypes": [
+            "colour",
+            "gradient"
+          ],
+          "supportsHover": false,
+          "defaults": {
+            "backgroundMode": "static"
+          }
+        }
+      ]
+    },
+    {
+      "type": "advanced"
+    }
+  ],
+  "minimumAPIVersion": 1,
+  "showsInPartLibrary": false,
+  "tags": [
+    "Foundry",
+    "showcase"
+  ],
+  "templates": {
+    "files": [
+      {
+        "path": "part.css",
+        "scope": "instance"
+      }
+    ],
+    "html": "part.html"
+  },
+  "title": "Background group",
+  "version": "1.0.0"
+}

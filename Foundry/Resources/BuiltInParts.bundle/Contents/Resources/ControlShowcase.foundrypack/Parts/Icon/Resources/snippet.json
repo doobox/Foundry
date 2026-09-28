@@ -1,0 +1,8 @@
+{
+    "type" : "icon",
+    "id" : "symbol",
+    "label" : "Icon",
+    "defaults" : {
+        "base" : "stars"
+    }
+}

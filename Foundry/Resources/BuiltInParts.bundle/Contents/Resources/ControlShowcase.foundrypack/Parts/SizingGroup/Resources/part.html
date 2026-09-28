@@ -1,0 +1,68 @@
+<article class="foundry-showcase {{ part.class }}" {{ part.attributes }}>
+    <p class="fx-kicker">Control group · sizing</p>
+    <h2>Sizing group</h2>
+    <p class="fx-lede">Width, height, aspect ratio and size limits. The composed CSS sizes whichever element receives it; the individual values are the semantic choices behind it.</p>
+
+    <section class="fx-form">
+        <h3>Sizing</h3>
+        <p>The full group. The dashed stage is a flex column, so Fill remaining space has a parent to grow into.</p>
+        <div class="fx-demo fx-stage"><div class="fx-target fx-sized">Sized box</div></div>
+        <dl class="fx-values">
+            <dt>control.sizing.css</dt><dd>{{ control.sizing.css }}</dd>
+            <dt>control.sizing.widthMode</dt><dd>{{ control.sizing.widthMode }}</dd>
+            <dt>control.sizing.customWidth</dt><dd>{{ control.sizing.customWidth }}</dd>
+            <dt>control.sizing.heightMode</dt><dd>{{ control.sizing.heightMode }}</dd>
+            <dt>control.sizing.customHeight</dt><dd>{{ control.sizing.customHeight }}</dd>
+            <dt>control.sizing.aspectRatio</dt><dd>{{ control.sizing.aspectRatio }}</dd>
+            <dt>control.sizing.aspectRatioWidth</dt><dd>{{ control.sizing.aspectRatioWidth }}</dd>
+            <dt>control.sizing.aspectRatioHeight</dt><dd>{{ control.sizing.aspectRatioHeight }}</dd>
+            <dt>control.sizing.minWidth</dt><dd>{{ control.sizing.minWidth }}</dd>
+            <dt>control.sizing.minWidth.css</dt><dd>{{ control.sizing.minWidth.css }}</dd>
+            <dt>control.sizing.minWidth.value</dt><dd>{{ control.sizing.minWidth.value }}</dd>
+            <dt>control.sizing.minWidth.unit</dt><dd>{{ control.sizing.minWidth.unit }}</dd>
+            <dt>control.sizing.maxWidth</dt><dd>{{ control.sizing.maxWidth }}</dd>
+            <dt>control.sizing.maxWidth.value</dt><dd>{{ control.sizing.maxWidth.value }}</dd>
+            <dt>control.sizing.maxWidth.unit</dt><dd>{{ control.sizing.maxWidth.unit }}</dd>
+            <dt>control.sizing.minHeight</dt><dd>{{ control.sizing.minHeight }}</dd>
+            <dt>control.sizing.minHeight.value</dt><dd>{{ control.sizing.minHeight.value }}</dd>
+            <dt>control.sizing.minHeight.unit</dt><dd>{{ control.sizing.minHeight.unit }}</dd>
+            <dt>control.sizing.maxHeight</dt><dd>{{ control.sizing.maxHeight }}</dd>
+            <dt>control.sizing.maxHeight.value</dt><dd>{{ control.sizing.maxHeight.value }}</dd>
+            <dt>control.sizing.maxHeight.unit</dt><dd>{{ control.sizing.maxHeight.unit }}</dd>
+        </dl>
+    </section>
+
+    <section class="fx-form">
+        <h3>Narrowed width</h3>
+        <p><code>"allowedOptions": { "widthMode": ["full", "custom"] }</code> offers only those two; <code>defaults</code> starts at Custom, 320px. The other controls are unchanged.</p>
+        <div class="fx-demo fx-stage"><div class="fx-target fx-card">Card</div></div>
+        <dl class="fx-values">
+            <dt>control.card.css</dt><dd>{{ control.card.css }}</dd>
+            <dt>control.card.widthMode</dt><dd>{{ control.card.widthMode }}</dd>
+            <dt>control.card.customWidth</dt><dd>{{ control.card.customWidth }}</dd>
+            <dt>control.card.heightMode</dt><dd>{{ control.card.heightMode }}</dd>
+            <dt>control.card.customHeight</dt><dd>{{ control.card.customHeight }}</dd>
+            <dt>control.card.aspectRatio</dt><dd>{{ control.card.aspectRatio }}</dd>
+            <dt>control.card.minWidth</dt><dd>{{ control.card.minWidth }}</dd>
+            <dt>control.card.maxWidth</dt><dd>{{ control.card.maxWidth }}</dd>
+            <dt>control.card.minHeight</dt><dd>{{ control.card.minHeight }}</dd>
+            <dt>control.card.maxHeight</dt><dd>{{ control.card.maxHeight }}</dd>
+        </dl>
+    </section>
+
+    <section class="fx-form">
+        <h3>Height only</h3>
+        <p><code>"excludeControls": ["widthMode", "minWidth", "maxWidth"]</code> removes the width controls and their values — <code>customWidth</code> goes with <code>widthMode</code>. The composed CSS is height only.</p>
+        <div class="fx-demo fx-stage"><div class="fx-target fx-band">Band</div></div>
+        <dl class="fx-values">
+            <dt>control.band.css</dt><dd>{{ control.band.css }}</dd>
+            <dt>control.band.heightMode</dt><dd>{{ control.band.heightMode }}</dd>
+            <dt>control.band.customHeight</dt><dd>{{ control.band.customHeight }}</dd>
+            <dt>control.band.aspectRatio</dt><dd>{{ control.band.aspectRatio }}</dd>
+            <dt>control.band.aspectRatioWidth</dt><dd>{{ control.band.aspectRatioWidth }}</dd>
+            <dt>control.band.aspectRatioHeight</dt><dd>{{ control.band.aspectRatioHeight }}</dd>
+            <dt>control.band.minHeight</dt><dd>{{ control.band.minHeight }}</dd>
+            <dt>control.band.maxHeight</dt><dd>{{ control.band.maxHeight }}</dd>
+        </dl>
+    </section>
+</article>

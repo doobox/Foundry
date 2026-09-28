@@ -189,6 +189,8 @@ private struct PagesPanelHeader: View {
 struct PartLibraryPanel: View {
     @Binding var selectedType: PartType?
     let addToPageEnd: (PartType) -> Void
+    /// Puts a Controls showcase part on the developer's playground page.
+    let showControl: (PartType) -> Void
     @State private var catalog = PartPackageCatalog.shared
     @AppStorage(AppPreferenceKey.partLibrarySource)
     private var partSource = PartLibrarySource.parts
@@ -220,9 +222,9 @@ struct PartLibraryPanel: View {
                 PartCatalogLoadingView()
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
-                if canShowDevelopmentParts {
+                if enablesDeveloperTools {
                     Picker("Part source", selection: $partSource) {
-                        ForEach(PartLibrarySource.allCases) { source in
+                        ForEach(availableSources) { source in
                             Text(source.title).tag(source)
                         }
                     }
@@ -261,7 +263,13 @@ struct PartLibraryPanel: View {
                                             type: type,
                                             iconSize: iconSize,
                                             isSelected: selectedType == type,
-                                            select: { selectedType = type }
+                                            select: {
+                                                selectedType = type
+                                                // A control is looked at, not
+                                                // dragged: selecting it shows
+                                                // the showcase straight away.
+                                                if activePartSource == .controls { showControl(type) }
+                                            }
                                         )
                                         .draggable(PartDragPayload.library(type).stringValue) {
                                             PartLibraryIcon(type: type, size: 54)
@@ -328,6 +336,9 @@ struct PartLibraryPanel: View {
         if !query.isEmpty {
             types = types.filter { $0.displayName.localizedCaseInsensitiveContains(query) }
         }
+        if activePartSource == .controls {
+            return showcaseSections(for: types)
+        }
         switch arrangement {
         case .group:
             return groupSections(for: types)
@@ -357,9 +368,7 @@ struct PartLibraryPanel: View {
     }
 
     private func groupSections(for types: [PartType]) -> [PartLibrarySection] {
-        let preferredCategories: [PartCategory] = [
-            .layout, .content, .media, .navigation, .forms, .interactive, .other
-        ]
+        let preferredCategories = PartPackageGroup.allCases.map(\.category)
         let remainingCategories = Set(types.map { $0.definition.category })
             .subtracting(preferredCategories)
             .sorted { $0.rawValue < $1.rawValue }
@@ -372,6 +381,21 @@ struct PartLibraryPanel: View {
                 title: category.rawValue,
                 types: categoryTypes
             )
+        }
+    }
+
+    /// Showcase parts group by the manifest's `group`, in the order the
+    /// developer reference lists controls, not alphabetically.
+    private func showcaseSections(for types: [PartType]) -> [PartLibrarySection] {
+        let preferredOrder = [
+            "Text & Numbers", "Choices", "Colour", "Framework", "Spacing & Edges",
+            "Media & Links", "Structure", "Presentation", "Control Groups"
+        ]
+        let grouped = Dictionary(grouping: types) { normalizedSectionTitle($0.definition.package?.manifest.category) }
+        let remaining = grouped.keys.filter { !preferredOrder.contains($0) }.sorted()
+        return (preferredOrder + remaining).compactMap { title in
+            guard let groupTypes = grouped[title], !groupTypes.isEmpty else { return nil }
+            return makeSection(id: "showcase-\(title)", title: title, types: groupTypes)
         }
     }
 
@@ -428,24 +452,33 @@ struct PartLibraryPanel: View {
 
     private var availableTypes: [PartType] {
         PartType.allCases.filter { type in
-            let isDevelopmentPack = type.definition.package?.isDevelopmentPack == true
-            let showsInLibrary = type.definition.package?.manifest.showsInPartLibrary ?? true
+            let package = type.definition.package
+            // Showcase parts live only in the Controls tab, never among the
+            // parts a page is built from — even with hidden parts shown.
+            if package?.isControlShowcase == true { return activePartSource == .controls }
+            guard activePartSource != .controls else { return false }
+            let isDevelopmentPack = package?.isDevelopmentPack == true
+            let showsInLibrary = package?.manifest.showsInPartLibrary ?? true
             return (showsInLibrary || showsHiddenParts)
                 && (activePartSource == .development ? isDevelopmentPack : !isDevelopmentPack)
         }
     }
 
-    private var activePartSource: PartLibrarySource {
-        canShowDevelopmentParts ? partSource : .parts
+    /// Dev Parts appears only when a development pack is loaded; Controls
+    /// whenever developer tools are on.
+    private var availableSources: [PartLibrarySource] {
+        [.parts] + (hasDevelopmentParts ? [.development] : []) + [.controls]
     }
 
-    private var canShowDevelopmentParts: Bool {
-        enablesDeveloperTools && hasDevelopmentParts
+    private var activePartSource: PartLibrarySource {
+        guard enablesDeveloperTools, availableSources.contains(partSource) else { return .parts }
+        return partSource
     }
 
     private var hasDevelopmentParts: Bool {
         PartType.allCases.contains {
             $0.definition.package?.isDevelopmentPack == true
+                && $0.definition.package?.isControlShowcase != true
                 && (($0.definition.package?.manifest.showsInPartLibrary ?? true) || showsHiddenParts)
         }
     }
@@ -462,6 +495,7 @@ struct PartLibraryPanel: View {
 nonisolated private enum PartLibrarySource: String, CaseIterable, Identifiable {
     case parts
     case development
+    case controls
 
     var id: String { rawValue }
 
@@ -469,6 +503,7 @@ nonisolated private enum PartLibrarySource: String, CaseIterable, Identifiable {
         switch self {
         case .parts: "Parts"
         case .development: "Dev Parts"
+        case .controls: "Controls"
         }
     }
 }

@@ -90,24 +90,65 @@ nonisolated struct PartCategory: RawRepresentable, Hashable, Sendable {
         self.rawValue = rawValue
     }
 
-    static let layout = PartCategory(rawValue: "Layout")
+    static let accessibility = PartCategory(rawValue: "Accessibility")
+    static let animation = PartCategory(rawValue: "Animation")
+    static let cms = PartCategory(rawValue: "CMS")
     static let content = PartCategory(rawValue: "Content")
-    static let media = PartCategory(rawValue: "Media")
-    static let navigation = PartCategory(rawValue: "Navigation")
+    static let dynamic = PartCategory(rawValue: "Dynamic")
+    static let ecommerce = PartCategory(rawValue: "Ecommerce")
     static let forms = PartCategory(rawValue: "Forms")
     static let interactive = PartCategory(rawValue: "Interactive")
+    static let layout = PartCategory(rawValue: "Layout")
+    static let media = PartCategory(rawValue: "Media")
+    static let navigation = PartCategory(rawValue: "Navigation")
+    static let security = PartCategory(rawValue: "Security")
+    static let seo = PartCategory(rawValue: "SEO")
+    static let utility = PartCategory(rawValue: "Utility")
     static let other = PartCategory(rawValue: "Other")
     static let unavailable = other
 }
 
+/// The Parts-panel headings a manifest's `group` may name, in the order the
+/// panel lists them. Anything else falls into Other.
 nonisolated enum PartPackageGroup: String, CaseIterable, Sendable {
-    case layout = "Layout"
+    case accessibility = "Accessibility"
+    case animation = "Animation"
+    case cms = "CMS"
     case content = "Content"
-    case media = "Media"
-    case navigation = "Navigation"
+    case dynamic = "Dynamic"
+    case ecommerce = "Ecommerce"
     case forms = "Forms"
     case interactive = "Interactive"
+    case layout = "Layout"
+    case media = "Media"
+    case navigation = "Navigation"
+    case security = "Security"
+    case seo = "SEO"
+    case utility = "Utility"
     case other = "Other"
+
+    /// What belongs under each heading, for developers choosing a group.
+    var summary: String {
+        switch self {
+        case .accessibility: "Skip links, screen-reader text, contrast and focus aids"
+        case .animation: "Motion and transitions on scroll, hover or load"
+        case .cms: "Content pulled from an external content management system"
+        case .content: "Headings, body text, quotes and lists"
+        case .dynamic: "Content fetched live from a spreadsheet, feed or API"
+        case .ecommerce: "Product listings, baskets, checkout links and pricing"
+        case .forms: "Inputs, choices, uploads and submit buttons"
+        case .interactive: "Dialogs, disclosure panels, slideshows and tooltips"
+        case .layout: "Sections, grids, columns and wrappers that arrange other parts"
+        case .media: "Pictures, film, sound and embedded players"
+        case .navigation: "Menus, bars, crumbs, tab strips and page links"
+        case .security: "Password gates, sign-in prompts and protected areas"
+        case .seo: "Structured data, meta helpers and rich results"
+        case .utility: "Consent banners, anchors, spacers and separators"
+        case .other: "Anything that fits nowhere else"
+        }
+    }
+
+    var category: PartCategory { PartCategory(rawValue: rawValue) }
 
     static func resolve(_ value: String) -> PartPackageGroup {
         allCases.first { $0.rawValue.caseInsensitiveCompare(value) == .orderedSame } ?? .other

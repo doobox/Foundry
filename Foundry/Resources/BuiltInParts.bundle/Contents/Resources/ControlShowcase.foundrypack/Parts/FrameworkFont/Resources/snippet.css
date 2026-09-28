@@ -1,0 +1,5 @@
+:instance .copy {
+    font-family: {{ control.font.family }};
+    font-weight: {{ control.font.weight }};
+    font-style: {{ control.font.style }};
+}

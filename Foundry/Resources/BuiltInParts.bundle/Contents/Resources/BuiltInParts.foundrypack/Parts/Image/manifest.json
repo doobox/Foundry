@@ -5,7 +5,7 @@
   "group": "Media",
   "icon": {
     "symbol": "photo",
-    "tint": "green"
+    "tint": "red"
   },
   "id": "foundry.media.image",
   "inspector": [

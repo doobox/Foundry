@@ -47,7 +47,7 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
         )
         var sitePackages: [LoadedPartPackage] = []
         var sitePackageIdentifiers = Set<String>()
-        for page in site.pages {
+        for page in site.pages where !page.isDeveloperPlayground {
             try Task.checkCancellation()
             let isHome = page.slug == "index"
             let directory = isHome
@@ -1173,7 +1173,7 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
         emit: (SiteExportFile) throws -> Void
     ) throws {
         var requests = Set<ImageRenditionRequest>()
-        for page in site.pages {
+        for page in site.pages where !page.isDeveloperPlayground {
             for node in page.parts.flatMap(\.flattened) {
                 guard let package = node.type.definition.package else { continue }
                 for property in package.renderDefinition.properties where property.control.type == .image {

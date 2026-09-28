@@ -1,0 +1,90 @@
+{
+  "assets": [],
+  "author": "Foundry",
+  "description": "A calendar-date picker storing YYYY-MM-DD, with named calendar values, bounds and a small array.",
+  "group": "Text & Numbers",
+  "helpURL": "https://doobox.github.io/foundry-docs/developer/date-control.html",
+  "icon": {
+    "symbol": "calendar",
+    "tint": "blue"
+  },
+  "id": "foundry.showcase.date",
+  "inspector": [
+    {
+      "section": "Picker",
+      "systemImage": "calendar",
+      "controls": [
+        {
+          "type": "date",
+          "id": "published",
+          "label": "Published",
+          "subtitle": "Any calendar date",
+          "defaults": {
+            "base": "2026-08-30"
+          },
+          "tooltip": "The default form: an unrestricted picker. defaults.base is a YYYY-MM-DD String."
+        }
+      ]
+    },
+    {
+      "section": "Bounds",
+      "systemImage": "calendar.badge.clock",
+      "controls": [
+        {
+          "type": "date",
+          "id": "launch",
+          "label": "Launch",
+          "minimum": "2026-01-01",
+          "maximum": "2026-12-31",
+          "defaults": {
+            "base": "2026-10-15"
+          },
+          "tooltip": "minimum and maximum restrict the picker to 2026; the default must sit inside them."
+        }
+      ]
+    },
+    {
+      "section": "Count",
+      "systemImage": "list.number",
+      "controls": [
+        {
+          "type": "date",
+          "id": "schedule",
+          "label": "Schedule",
+          "count": 2,
+          "subtitle": [
+            "Starts",
+            "Ends"
+          ],
+          "defaults": {
+            "base": [
+              "2026-08-30",
+              "2026-09-06"
+            ]
+          },
+          "tooltip": "count: 2 — two pickers stored as one array, each with its own named calendar values."
+        }
+      ]
+    },
+    {
+      "type": "advanced"
+    }
+  ],
+  "minimumAPIVersion": 1,
+  "showsInPartLibrary": false,
+  "tags": [
+    "Foundry",
+    "showcase"
+  ],
+  "templates": {
+    "files": [
+      {
+        "path": "part.css",
+        "scope": "instance"
+      }
+    ],
+    "html": "part.html"
+  },
+  "title": "Date",
+  "version": "1.0.0"
+}

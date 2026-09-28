@@ -1,0 +1,33 @@
+<article class="foundry-showcase {{ part.class }}" {{ part.attributes }}>
+    <p class="fx-kicker">Control · childPicker</p>
+    <h2>Child Picker</h2>
+    <p class="fx-lede">Real child parts, added from the Inspector and placed with the <code>childArea("id")</code> macro; it emits their rendered markup, not an escaped value.</p>
+
+    <section class="fx-form">
+        <h3>Basic</h3>
+        <p><code>pickerItems</code> lists the parts the Add button offers; <code>buttonText</code> and <code>buttonIcon</code> restyle that button. Drops accept the same parts.</p>
+        <div class="fx-demo fx-children">{{ childArea("items") }}</div>
+        <dl class="fx-values"><dt>childArea("items")</dt><dd>rendered above — child-part HTML in its current order</dd></dl>
+    </section>
+
+    <section class="fx-form">
+        <h3>Limits</h3>
+        <p><code>initial</code> creates two images in every new instance; <code>minimum: 1</code> stops the last one leaving and <code>maximum: 4</code> disables Add once reached.</p>
+        <div class="fx-demo fx-children fx-row">{{ childArea("slides") }}</div>
+        <dl class="fx-values"><dt>childArea("slides")</dt><dd>between 1 and 4 children</dd></dl>
+    </section>
+
+    <section class="fx-form">
+        <h3>Open drops</h3>
+        <p><code>"accepts": ["*"]</code> takes any part dropped from the canvas while <code>pickerItems</code> keeps the Add button to a paragraph.</p>
+        <div class="fx-demo fx-children">{{ childArea("extras") }}</div>
+        <dl class="fx-values"><dt>childArea("extras")</dt><dd>any dropped part; Add offers a paragraph</dd></dl>
+    </section>
+
+    <section class="fx-form">
+        <h3>Locked</h3>
+        <p><code>"containment": "locked"</code> lets the two initial containers reorder here but never move to another parent.</p>
+        <div class="fx-demo fx-children fx-row">{{ childArea("panels") }}</div>
+        <dl class="fx-values"><dt>childArea("panels")</dt><dd>reorder within; cannot leave</dd></dl>
+    </section>
+</article>

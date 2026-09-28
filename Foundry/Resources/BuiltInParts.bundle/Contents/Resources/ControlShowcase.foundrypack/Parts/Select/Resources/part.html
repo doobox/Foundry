@@ -1,0 +1,42 @@
+<article class="foundry-showcase {{ part.class }}" {{ part.attributes }}>
+    <p class="fx-kicker">Control · select</p>
+    <h2>Select</h2>
+    <p class="fx-lede">One value from a list the part declares. Templates receive the option's <code>value</code> String unchanged, never its title.</p>
+
+    <section class="fx-form">
+        <h3>Menu</h3>
+        <p><code>options</code> lists each <code>value</code> and <code>title</code>; the default <code>presentation</code> is a popup menu. Here the value is used directly as a CSS <code>display</code> keyword.</p>
+        <div class="fx-demo fx-tiles" style="display: {{ control.layout }}"><span>One</span><span>Two</span><span>Three</span></div>
+        <dl class="fx-values">
+            <dt>control.layout</dt><dd>{{ control.layout }}</dd>
+            <dt>control.layout == "grid"</dt><dd>{{ control.layout == "grid" }}</dd>
+        </dl>
+    </section>
+
+    <section class="fx-form">
+        <h3>Segmented</h3>
+        <p><code>"presentation": "segmented"</code> shows the options inline; an option's <code>systemImage</code> stands in for its title. The stored value is the same String.</p>
+        <div class="fx-demo"><div class="fx-swatch is-{{ control.tone }}">{{ if control.tone == "light" }}Light{{ elseif control.tone == "dark" }}Dark{{ else }}Accent{{ endif }} tone</div></div>
+        <dl class="fx-values"><dt>control.tone</dt><dd>{{ control.tone }}</dd></dl>
+    </section>
+
+    <section class="fx-form">
+        <h3>Responsive</h3>
+        <p><code>"responsive": true</code> keeps a selection per breakpoint. Resize the canvas past the medium breakpoint to see the list loosen up.</p>
+        <div class="fx-demo"><ul class="fx-list is-{{ control.density }}"><li>First item</li><li>Second item</li><li>Third item</li></ul></div>
+        <dl class="fx-values"><dt>control.density</dt><dd>{{ control.density }}</dd></dl>
+    </section>
+
+    <section class="fx-form">
+        <h3>Count</h3>
+        <p><code>"count": 2</code> makes two popups that share one <code>options</code> list, stored as an array and read by zero-based index.</p>
+        <div class="fx-demo fx-type">
+            <p class="fx-type-heading is-{{ control.sizes[0] }}">Heading text</p>
+            <p class="fx-type-body is-{{ control.sizes[1] }}">Body copy follows the second popup, so the two can be tuned independently.</p>
+        </div>
+        <dl class="fx-values">
+            <dt>control.sizes[0]</dt><dd>{{ control.sizes[0] }}</dd>
+            <dt>control.sizes[1]</dt><dd>{{ control.sizes[1] }}</dd>
+        </dl>
+    </section>
+</article>

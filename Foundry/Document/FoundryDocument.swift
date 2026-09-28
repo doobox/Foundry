@@ -314,7 +314,8 @@ final class FoundryDocument: ReferenceFileDocument {
         snapshot: FoundryDocumentSnapshot,
         existingFile: FileWrapper?
     ) throws -> FileWrapper {
-        let project = FileWrapper(regularFileWithContents: try Self.encoder.encode(snapshot.site))
+        // The Controls scratch page lives only in memory; it is never saved.
+        let project = FileWrapper(regularFileWithContents: try Self.encoder.encode(snapshot.site.withoutDeveloperPlayground()))
         let existingAssetWrappers = existingFile?.fileWrappers?["assets"]?.fileWrappers ?? [:]
         var assets: [String: FileWrapper] = [:]
         for asset in snapshot.site.assets + snapshot.site.webIconAssets + snapshot.site.siteLogoAssets {
@@ -365,15 +366,19 @@ final class FoundryDocument: ReferenceFileDocument {
             return
         }
         let previousSite = site
-        undoManager?.registerUndo(withTarget: self) { document in
-            document.replaceSite(
-                with: previousSite,
-                undoManager: undoManager,
-                actionName: actionName,
-                impact: impact
-            )
+        // The developer's Controls page is scratch: a change to it alone is
+        // neither undoable nor an unsaved change to the project.
+        if newSite.withoutDeveloperPlayground() != previousSite.withoutDeveloperPlayground() {
+            undoManager?.registerUndo(withTarget: self) { document in
+                document.replaceSite(
+                    with: previousSite,
+                    undoManager: undoManager,
+                    actionName: actionName,
+                    impact: impact
+                )
+            }
+            undoManager?.setActionName(actionName)
         }
-        undoManager?.setActionName(actionName)
         applySite(newSite, impact: impact)
     }
 

@@ -1,0 +1,2 @@
+:instance .card { padding: 24px; background: {{ control.backgroundColor }}; }
+:instance .card__text { margin: 0; color: {{ control.backgroundColor.contrastColor }}; }

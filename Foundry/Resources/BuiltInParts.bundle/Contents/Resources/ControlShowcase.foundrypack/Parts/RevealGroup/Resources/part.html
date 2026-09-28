@@ -1,0 +1,39 @@
+<article class="foundry-showcase {{ part.class }}" {{ part.attributes }}>
+    <p class="fx-kicker">Control group · reveal</p>
+    <h2>Reveal group</h2>
+    <p class="fx-lede">Animates an element as it enters the viewport. Unlike the CSS groups, Reveal consumes its own values: no template interpolation is needed, and its values are exposed only so a part can reflect them elsewhere.</p>
+
+    <section class="fx-form">
+        <h3>Reveal</h3>
+        <p>The full group, with no <code>targetSelector</code>, animates the part root — this whole sheet. Enable Reveal, then scroll it out of view and back in Preview. The box below borrows <code>revealDuration</code> for its own hover transition.</p>
+        <div class="fx-demo"><div class="fx-target fx-timed">Hover me — this transition lasts {{ control.reveal.revealDuration }}ms</div></div>
+        <dl class="fx-values">
+            <dt>control.reveal.revealEnabled</dt><dd>{{ control.reveal.revealEnabled }}</dd>
+            <dt>control.reveal.revealEffect</dt><dd>{{ control.reveal.revealEffect }}</dd>
+            <dt>control.reveal.revealDistance</dt><dd>{{ control.reveal.revealDistance }}</dd>
+            <dt>control.reveal.revealDuration</dt><dd>{{ control.reveal.revealDuration }}</dd>
+            <dt>control.reveal.revealDelay</dt><dd>{{ control.reveal.revealDelay }}</dd>
+            <dt>control.reveal.revealEase</dt><dd>{{ control.reveal.revealEase }}</dd>
+            <dt>control.reveal.revealStagger</dt><dd>{{ control.reveal.revealStagger }}</dd>
+            <dt>control.reveal.revealTrigger</dt><dd>{{ control.reveal.revealTrigger }}</dd>
+            <dt>control.reveal.revealOnce</dt><dd>{{ control.reveal.revealOnce }}</dd>
+        </dl>
+    </section>
+
+    <section class="fx-form">
+        <h3>Inner target with stagger</h3>
+        <p><code>"targetSelector": ".fx-reveal-list"</code> makes the list below both the animated element and the scroll trigger; with Child stagger above zero its tiles animate in turn. <code>defaults</code> starts it enabled at 100ms; <code>allowedOptions</code> offers only Fade, Fade up and Scale.</p>
+        <div class="fx-demo fx-reveal-list">{{ loop 6 }}<div class="fx-tile">Tile</div>{{ endloop }}</div>
+        <dl class="fx-values">
+            <dt>control.listReveal.revealEnabled</dt><dd>{{ control.listReveal.revealEnabled }}</dd>
+            <dt>control.listReveal.revealEffect</dt><dd>{{ control.listReveal.revealEffect }}</dd>
+            <dt>control.listReveal.revealDistance</dt><dd>{{ control.listReveal.revealDistance }}</dd>
+            <dt>control.listReveal.revealDuration</dt><dd>{{ control.listReveal.revealDuration }}</dd>
+            <dt>control.listReveal.revealDelay</dt><dd>{{ control.listReveal.revealDelay }}</dd>
+            <dt>control.listReveal.revealEase</dt><dd>{{ control.listReveal.revealEase }}</dd>
+            <dt>control.listReveal.revealStagger</dt><dd>{{ control.listReveal.revealStagger }}</dd>
+            <dt>control.listReveal.revealTrigger</dt><dd>{{ control.listReveal.revealTrigger }}</dd>
+            <dt>control.listReveal.revealOnce</dt><dd>{{ control.listReveal.revealOnce }}</dd>
+        </dl>
+    </section>
+</article>

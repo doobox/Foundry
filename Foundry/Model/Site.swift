@@ -644,3 +644,20 @@ nonisolated extension Site {
         return slugs.joined(separator: "/")
     }
 }
+
+nonisolated extension Site {
+    /// The pages the author made: everything except the developer's
+    /// in-memory Controls scratch page.
+    var authoredPages: [Page] {
+        pages.filter { !$0.isDeveloperPlayground }
+    }
+
+    /// The site as it is saved, undone and exported, with the Controls
+    /// scratch page left out.
+    func withoutDeveloperPlayground() -> Site {
+        guard pages.contains(where: \.isDeveloperPlayground) else { return self }
+        var copy = self
+        copy.pages = authoredPages
+        return copy
+    }
+}

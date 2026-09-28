@@ -1,0 +1,93 @@
+<article class="foundry-showcase {{ part.class }}" {{ part.attributes }}>
+    <p class="fx-kicker">Control · corners</p>
+    <h2>Corners</h2>
+    <p class="fx-lede">Four raw lengths, each an amount with a unit. Printed directly it is the <code>border-radius</code> shorthand; there are never <code>var()</code> references.</p>
+
+    <section class="fx-form">
+        <h3>Shared length</h3>
+        <p><code>defaults.base</code> as one <code>{ value, unit }</code> length starts the ring linked.</p>
+        <div class="fx-demo"><div class="fx-tile fx-tile-shared">Tile</div></div>
+        <dl class="fx-values">
+            <dt>control.radius</dt><dd>{{ control.radius }}</dd>
+            <dt>control.radius.css</dt><dd>{{ control.radius.css }}</dd>
+            <dt>control.radius.topLeft</dt><dd>{{ control.radius.topLeft }}</dd>
+            <dt>control.radius.topRight</dt><dd>{{ control.radius.topRight }}</dd>
+            <dt>control.radius.bottomRight</dt><dd>{{ control.radius.bottomRight }}</dd>
+            <dt>control.radius.bottomLeft</dt><dd>{{ control.radius.bottomLeft }}</dd>
+            <dt>control.radius.values.topLeft</dt><dd>{{ control.radius.values.topLeft }}</dd>
+            <dt>control.radius.values.topRight</dt><dd>{{ control.radius.values.topRight }}</dd>
+            <dt>control.radius.values.bottomRight</dt><dd>{{ control.radius.values.bottomRight }}</dd>
+            <dt>control.radius.values.bottomLeft</dt><dd>{{ control.radius.values.bottomLeft }}</dd>
+            <dt>control.radius.units.topLeft</dt><dd>{{ control.radius.units.topLeft }}</dd>
+            <dt>control.radius.units.topRight</dt><dd>{{ control.radius.units.topRight }}</dd>
+            <dt>control.radius.units.bottomRight</dt><dd>{{ control.radius.units.bottomRight }}</dd>
+            <dt>control.radius.units.bottomLeft</dt><dd>{{ control.radius.units.bottomLeft }}</dd>
+        </dl>
+    </section>
+
+    <section class="fx-form">
+        <h3>Per corner</h3>
+        <p><code>defaults.base</code> as a four-corner dictionary. Differing corners infer an unlinked start; <code>subtitle</code> sits beneath the editor.</p>
+        <div class="fx-demo"><div class="fx-tile fx-tile-card">Card</div></div>
+        <dl class="fx-values">
+            <dt>control.cardRadius</dt><dd>{{ control.cardRadius }}</dd>
+            <dt>control.cardRadius.css</dt><dd>{{ control.cardRadius.css }}</dd>
+            <dt>control.cardRadius.topLeft</dt><dd>{{ control.cardRadius.topLeft }}</dd>
+            <dt>control.cardRadius.topRight</dt><dd>{{ control.cardRadius.topRight }}</dd>
+            <dt>control.cardRadius.bottomRight</dt><dd>{{ control.cardRadius.bottomRight }}</dd>
+            <dt>control.cardRadius.bottomLeft</dt><dd>{{ control.cardRadius.bottomLeft }}</dd>
+            <dt>control.cardRadius.values.topLeft</dt><dd>{{ control.cardRadius.values.topLeft }}</dd>
+            <dt>control.cardRadius.values.topRight</dt><dd>{{ control.cardRadius.values.topRight }}</dd>
+            <dt>control.cardRadius.values.bottomRight</dt><dd>{{ control.cardRadius.values.bottomRight }}</dd>
+            <dt>control.cardRadius.values.bottomLeft</dt><dd>{{ control.cardRadius.values.bottomLeft }}</dd>
+            <dt>control.cardRadius.units.topLeft</dt><dd>{{ control.cardRadius.units.topLeft }}</dd>
+            <dt>control.cardRadius.units.topRight</dt><dd>{{ control.cardRadius.units.topRight }}</dd>
+            <dt>control.cardRadius.units.bottomRight</dt><dd>{{ control.cardRadius.units.bottomRight }}</dd>
+            <dt>control.cardRadius.units.bottomLeft</dt><dd>{{ control.cardRadius.units.bottomLeft }}</dd>
+        </dl>
+    </section>
+
+    <section class="fx-form">
+        <h3>Units and responsive</h3>
+        <p><code>"units": ["%", "px"]</code> limits each corner's unit menu, in that order. <code>"responsive": true</code> with a pinned <code>large</code> default; narrow the canvas to see the base <code>50%</code> value. Applied with <code>clip-path: inset(0 round …)</code>.</p>
+        <div class="fx-demo"><div class="fx-tile fx-tile-clip">Clipped</div></div>
+        <dl class="fx-values">
+            <dt>control.clipRadius</dt><dd>{{ control.clipRadius }}</dd>
+            <dt>control.clipRadius.css</dt><dd>{{ control.clipRadius.css }}</dd>
+            <dt>control.clipRadius.topLeft</dt><dd>{{ control.clipRadius.topLeft }}</dd>
+            <dt>control.clipRadius.topRight</dt><dd>{{ control.clipRadius.topRight }}</dd>
+            <dt>control.clipRadius.bottomRight</dt><dd>{{ control.clipRadius.bottomRight }}</dd>
+            <dt>control.clipRadius.bottomLeft</dt><dd>{{ control.clipRadius.bottomLeft }}</dd>
+            <dt>control.clipRadius.values.topLeft</dt><dd>{{ control.clipRadius.values.topLeft }}</dd>
+            <dt>control.clipRadius.values.topRight</dt><dd>{{ control.clipRadius.values.topRight }}</dd>
+            <dt>control.clipRadius.values.bottomRight</dt><dd>{{ control.clipRadius.values.bottomRight }}</dd>
+            <dt>control.clipRadius.values.bottomLeft</dt><dd>{{ control.clipRadius.values.bottomLeft }}</dd>
+            <dt>control.clipRadius.units.topLeft</dt><dd>{{ control.clipRadius.units.topLeft }}</dd>
+            <dt>control.clipRadius.units.topRight</dt><dd>{{ control.clipRadius.units.topRight }}</dd>
+            <dt>control.clipRadius.units.bottomRight</dt><dd>{{ control.clipRadius.units.bottomRight }}</dd>
+            <dt>control.clipRadius.units.bottomLeft</dt><dd>{{ control.clipRadius.units.bottomLeft }}</dd>
+        </dl>
+    </section>
+
+    <section class="fx-form">
+        <h3>Linked</h3>
+        <p><code>"linked": false</code> starts equal defaults with the ring unlinked (<code>true</code> requires equal corners). Each corner edits independently from the start.</p>
+        <div class="fx-demo"><div class="fx-tile fx-tile-mask">Mask</div></div>
+        <dl class="fx-values">
+            <dt>control.maskRadius</dt><dd>{{ control.maskRadius }}</dd>
+            <dt>control.maskRadius.css</dt><dd>{{ control.maskRadius.css }}</dd>
+            <dt>control.maskRadius.topLeft</dt><dd>{{ control.maskRadius.topLeft }}</dd>
+            <dt>control.maskRadius.topRight</dt><dd>{{ control.maskRadius.topRight }}</dd>
+            <dt>control.maskRadius.bottomRight</dt><dd>{{ control.maskRadius.bottomRight }}</dd>
+            <dt>control.maskRadius.bottomLeft</dt><dd>{{ control.maskRadius.bottomLeft }}</dd>
+            <dt>control.maskRadius.values.topLeft</dt><dd>{{ control.maskRadius.values.topLeft }}</dd>
+            <dt>control.maskRadius.values.topRight</dt><dd>{{ control.maskRadius.values.topRight }}</dd>
+            <dt>control.maskRadius.values.bottomRight</dt><dd>{{ control.maskRadius.values.bottomRight }}</dd>
+            <dt>control.maskRadius.values.bottomLeft</dt><dd>{{ control.maskRadius.values.bottomLeft }}</dd>
+            <dt>control.maskRadius.units.topLeft</dt><dd>{{ control.maskRadius.units.topLeft }}</dd>
+            <dt>control.maskRadius.units.topRight</dt><dd>{{ control.maskRadius.units.topRight }}</dd>
+            <dt>control.maskRadius.units.bottomRight</dt><dd>{{ control.maskRadius.units.bottomRight }}</dd>
+            <dt>control.maskRadius.units.bottomLeft</dt><dd>{{ control.maskRadius.units.bottomLeft }}</dd>
+        </dl>
+    </section>
+</article>

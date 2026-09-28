@@ -1,0 +1,8 @@
+{
+    "type" : "frameworkRadius",
+    "id" : "radius",
+    "label" : "Corner radius",
+    "defaults" : {
+        "base" : "sm"
+    }
+}

@@ -1,0 +1,95 @@
+{
+  "assets": [],
+  "author": "Foundry",
+  "description": "A project image well, with alt text, a focal point, named renditions and per-breakpoint selection.",
+  "group": "Media & Links",
+  "helpURL": "https://doobox.github.io/foundry-docs/developer/image-control.html",
+  "icon": {
+    "symbol": "photo",
+    "tint": "red"
+  },
+  "id": "foundry.showcase.image",
+  "inspector": [
+    {
+      "section": "Basic",
+      "systemImage": "photo",
+      "controls": [
+        {
+          "type": "image",
+          "id": "hero",
+          "label": "Image",
+          "alt": "A view across the harbour at sunset",
+          "tooltip": "label and alt — the initial alternative text, edited in the well's Alt field. No defaults, so it starts empty."
+        }
+      ]
+    },
+    {
+      "section": "Focal point",
+      "systemImage": "scope",
+      "controls": [
+        {
+          "type": "image",
+          "id": "banner",
+          "label": "Banner",
+          "focalPoint": true,
+          "tooltip": "focalPoint: true — adds the Focal Point button and the position, focalPointX and focalPointY values. The control becomes responsive."
+        }
+      ]
+    },
+    {
+      "section": "Renditions",
+      "systemImage": "photo.stack",
+      "controls": [
+        {
+          "type": "image",
+          "id": "photo",
+          "label": "Photo",
+          "renditions": [
+            {
+              "id": "small",
+              "maximumDimension": 800
+            },
+            {
+              "id": "medium",
+              "maximumDimension": 1600
+            }
+          ],
+          "tooltip": "renditions — named scaled copies read as control.photo.rendition.small, each with its own width and height for srcset."
+        }
+      ]
+    },
+    {
+      "section": "Responsive",
+      "systemImage": "rectangle.3.group",
+      "controls": [
+        {
+          "type": "image",
+          "id": "artwork",
+          "label": "Artwork",
+          "responsive": true,
+          "tooltip": "responsive: true — each breakpoint can pick a different image."
+        }
+      ]
+    },
+    {
+      "type": "advanced"
+    }
+  ],
+  "minimumAPIVersion": 1,
+  "showsInPartLibrary": false,
+  "tags": [
+    "Foundry",
+    "showcase"
+  ],
+  "templates": {
+    "files": [
+      {
+        "path": "part.css",
+        "scope": "instance"
+      }
+    ],
+    "html": "part.html"
+  },
+  "title": "Image",
+  "version": "1.0.0"
+}

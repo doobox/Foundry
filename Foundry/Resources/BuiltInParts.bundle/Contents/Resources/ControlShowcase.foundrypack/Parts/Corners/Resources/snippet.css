@@ -1,0 +1,3 @@
+:instance .media img {
+    clip-path: inset(0 round {{ control.clipRadius }});
+}

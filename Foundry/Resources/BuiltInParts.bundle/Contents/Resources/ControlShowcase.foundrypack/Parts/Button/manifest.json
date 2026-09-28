@@ -1,0 +1,166 @@
+{
+  "assets": [],
+  "author": "Foundry",
+  "description": "A persistent push button: a lone toggle, mapped outputs, independent buttons or a single-choice segmented picker.",
+  "group": "Choices",
+  "helpURL": "https://doobox.github.io/foundry-docs/developer/button-control.html",
+  "icon": {
+    "symbol": "button.horizontal",
+    "tint": "green"
+  },
+  "id": "foundry.showcase.button",
+  "inspector": [
+    {
+      "section": "Toggle button",
+      "systemImage": "star",
+      "controls": [
+        {
+          "type": "button",
+          "id": "featured",
+          "label": "Card",
+          "buttonText": "Feature this",
+          "buttonIcon": "star",
+          "activeButtonText": "Featured",
+          "activeButtonIcon": "star.fill",
+          "defaults": {
+            "base": false
+          },
+          "tooltip": "buttonText and buttonIcon while false; activeButtonText and activeButtonIcon while true. Without trueValue/falseValue the template gets the Boolean."
+        }
+      ]
+    },
+    {
+      "section": "Mapped values",
+      "systemImage": "arrow.left.arrow.right",
+      "controls": [
+        {
+          "type": "button",
+          "id": "status",
+          "label": "Status",
+          "buttonText": "Publish",
+          "buttonIcon": "paperplane",
+          "activeButtonText": "Published",
+          "activeButtonIcon": "checkmark.circle.fill",
+          "trueValue": "live",
+          "falseValue": "draft",
+          "defaults": {
+            "base": false
+          },
+          "tooltip": "trueValue and falseValue replace the Boolean in templates: live while pressed, draft otherwise."
+        }
+      ]
+    },
+    {
+      "section": "Independent buttons",
+      "systemImage": "bold.italic.underline",
+      "controls": [
+        {
+          "type": "button",
+          "id": "styles",
+          "label": "Style",
+          "count": 3,
+          "selectionMode": "multiple",
+          "buttonText": [
+            "Bold",
+            "Italic",
+            "Underline"
+          ],
+          "buttonIcon": [
+            "bold",
+            "italic",
+            "underline"
+          ],
+          "trueValue": [
+            "700",
+            "italic",
+            "underline"
+          ],
+          "falseValue": [
+            "400",
+            "normal",
+            "none"
+          ],
+          "defaults": {
+            "base": [
+              true,
+              false,
+              false
+            ]
+          },
+          "tooltip": "count: 3 with selectionMode: multiple — any number may be on. buttonText, buttonIcon, trueValue and falseValue take one entry per button."
+        }
+      ]
+    },
+    {
+      "section": "Single choice",
+      "systemImage": "rectangle.split.3x1",
+      "controls": [
+        {
+          "type": "button",
+          "id": "size",
+          "label": "Size",
+          "count": 3,
+          "selectionMode": "single",
+          "buttonText": [
+            "Small",
+            "Medium",
+            "Large"
+          ],
+          "trueValue": [
+            "small",
+            "medium",
+            "large"
+          ],
+          "defaults": {
+            "base": [
+              false,
+              true,
+              false
+            ]
+          },
+          "tooltip": "selectionMode: single — a segmented picker with exactly one segment on. trueValue maps each segment to the scalar the template receives; falseValue is not used."
+        },
+        {
+          "type": "button",
+          "id": "align",
+          "label": "Align",
+          "count": 3,
+          "selectionMode": "single",
+          "buttonIcon": [
+            "text.alignleft",
+            "text.aligncenter",
+            "text.alignright"
+          ],
+          "defaults": {
+            "base": [
+              true,
+              false,
+              false
+            ]
+          },
+          "tooltip": "Icon-only segments (buttonIcon without buttonText). With no trueValue, single mode returns the selected zero-based index."
+        }
+      ]
+    },
+    {
+      "type": "advanced"
+    }
+  ],
+  "minimumAPIVersion": 1,
+  "showsInPartLibrary": false,
+  "tags": [
+    "Foundry",
+    "showcase"
+  ],
+  "templates": {
+    "files": [
+      {
+        "path": "part.css",
+        "scope": "instance"
+      }
+    ],
+    "html": "part.html"
+  },
+  "title": "Button",
+  "version": "1.0.0"
+}

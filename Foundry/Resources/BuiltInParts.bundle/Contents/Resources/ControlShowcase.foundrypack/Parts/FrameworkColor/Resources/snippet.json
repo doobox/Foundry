@@ -1,0 +1,10 @@
+{
+    "type" : "frameworkColor",
+    "id" : "backgroundColor",
+    "label" : "Background",
+    "defaults" : {
+        "base" : {
+            "palette" : "accent"
+        }
+    }
+}

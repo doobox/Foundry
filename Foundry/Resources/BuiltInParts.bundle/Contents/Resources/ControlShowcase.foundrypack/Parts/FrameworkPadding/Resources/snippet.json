@@ -1,0 +1,8 @@
+{
+    "type" : "frameworkPadding",
+    "id" : "padding",
+    "label" : "Content padding",
+    "defaults" : {
+        "base" : "sm"
+    }
+}

@@ -1,0 +1,50 @@
+<article class="foundry-showcase {{ part.class }}" {{ part.attributes }}>
+    <p class="fx-kicker">Control · link</p>
+    <h2>Link</h2>
+    <p class="fx-lede">A structured destination. The direct value is the resolved <code>href</code>; <code>.target</code> and <code>.attributes</code> carry the new-window choice and custom attributes.</p>
+
+    <section class="fx-form">
+        <h3>Basic</h3>
+        <p><code>label</code>, a <code>subtitle</code> and an empty <code>defaults.base</code>. Pages and resources are stored by ID and resolve to their current path.</p>
+        <div class="fx-demo">{{ if control.destination }}<a class="fx-link" href="{{ control.destination }}" target="{{ control.destination.target }}" {{ control.destination.attributes }}>Read more</a>{{ else }}<span class="fx-pill">No destination yet</span>{{ endif }}</div>
+        <dl class="fx-values">
+            <dt>control.destination</dt><dd>{{ control.destination }}</dd>
+            <dt>control.destination.target</dt><dd>{{ control.destination.target }}</dd>
+            <dt>control.destination.attributes</dt><dd>{{ control.destination.attributes }}</dd>
+        </dl>
+    </section>
+
+    <section class="fx-form">
+        <h3>Absolute URL</h3>
+        <p><code>"absoluteURL": true</code> prefixes internal destinations with the Site URL, for sharing links and feeds. Pick a page to compare it with the Basic form.</p>
+        <div class="fx-demo">{{ if control.shareURL }}<a class="fx-link" href="{{ control.shareURL }}" target="{{ control.shareURL.target }}" {{ control.shareURL.attributes }}>Share this</a>{{ else }}<span class="fx-pill">No destination yet</span>{{ endif }}</div>
+        <dl class="fx-values">
+            <dt>control.shareURL</dt><dd>{{ control.shareURL }}</dd>
+            <dt>control.shareURL.target</dt><dd>{{ control.shareURL.target }}</dd>
+            <dt>control.shareURL.attributes</dt><dd>{{ control.shareURL.attributes }}</dd>
+        </dl>
+    </section>
+
+    <section class="fx-form">
+        <h3>Initial URL</h3>
+        <p>A non-empty <code>defaults.base</code> makes the control start as a URL destination.</p>
+        <div class="fx-demo"><a class="fx-link" href="{{ control.docs }}" target="{{ control.docs.target }}" {{ control.docs.attributes }}>Foundry Docs</a></div>
+        <dl class="fx-values">
+            <dt>control.docs</dt><dd>{{ control.docs }}</dd>
+            <dt>control.docs.target</dt><dd>{{ control.docs.target }}</dd>
+            <dt>control.docs.attributes</dt><dd>{{ control.docs.attributes }}</dd>
+        </dl>
+    </section>
+
+    <section class="fx-form">
+        <h3>Conditional</h3>
+        <p><code>visibleWhen</code> hides the row while the toggle is off; <code>"valueAvailability": "whenVisible"</code> empties the value too, so the template tests it before writing the anchor.</p>
+        <div class="fx-demo">{{ if control.more }}<a class="fx-link" href="{{ control.more }}" target="{{ control.more.target }}" {{ control.more.attributes }}>Read more</a>{{ else }}<span class="fx-pill">{{ if control.showsMore }}No destination yet{{ else }}Hidden and unavailable{{ endif }}</span>{{ endif }}</div>
+        <dl class="fx-values">
+            <dt>control.showsMore</dt><dd>{{ control.showsMore }}</dd>
+            <dt>control.more</dt><dd>{{ control.more }}</dd>
+            <dt>control.more.target</dt><dd>{{ control.more.target }}</dd>
+            <dt>control.more.attributes</dt><dd>{{ control.more.attributes }}</dd>
+        </dl>
+    </section>
+</article>

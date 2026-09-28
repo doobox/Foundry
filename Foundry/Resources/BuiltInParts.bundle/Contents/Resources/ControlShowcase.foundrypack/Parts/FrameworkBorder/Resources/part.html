@@ -1,0 +1,68 @@
+<article class="foundry-showcase {{ part.class }}" {{ part.attributes }}>
+    <p class="fx-kicker">Control · frameworkBorder</p>
+    <h2>Framework Border</h2>
+    <p class="fx-lede">Qualified fields only: <code>width</code> is four CSS lengths in top, right, bottom, left order and <code>style</code> is a keyword. Colour is a separate control.</p>
+
+    <section class="fx-form">
+        <h3>Widths</h3>
+        <p>The default form. <code>defaults.base.width</code> is one token for all four edges. Each edge is also available alone, with its numeric amount under <code>width.values</code> and unit under <code>width.units</code>.</p>
+        <div class="fx-demo"><div class="fx-card" style="border-width: {{ control.border.width }}; border-style: {{ control.border.style }}">Card</div></div>
+        <dl class="fx-values">
+            <dt>control.border.width</dt><dd>{{ control.border.width }}</dd>
+            <dt>control.border.width.css</dt><dd>{{ control.border.width.css }}</dd>
+            <dt>control.border.width.top</dt><dd>{{ control.border.width.top }}</dd>
+            <dt>control.border.width.right</dt><dd>{{ control.border.width.right }}</dd>
+            <dt>control.border.width.bottom</dt><dd>{{ control.border.width.bottom }}</dd>
+            <dt>control.border.width.left</dt><dd>{{ control.border.width.left }}</dd>
+            <dt>control.border.width.values.top</dt><dd>{{ control.border.width.values.top }}</dd>
+            <dt>control.border.width.values.right</dt><dd>{{ control.border.width.values.right }}</dd>
+            <dt>control.border.width.values.bottom</dt><dd>{{ control.border.width.values.bottom }}</dd>
+            <dt>control.border.width.values.left</dt><dd>{{ control.border.width.values.left }}</dd>
+            <dt>control.border.width.units.top</dt><dd>{{ control.border.width.units.top }}</dd>
+            <dt>control.border.width.units.right</dt><dd>{{ control.border.width.units.right }}</dd>
+            <dt>control.border.width.units.bottom</dt><dd>{{ control.border.width.units.bottom }}</dd>
+            <dt>control.border.width.units.left</dt><dd>{{ control.border.width.units.left }}</dd>
+            <dt>control.border.style</dt><dd>{{ control.border.style }}</dd>
+        </dl>
+    </section>
+
+    <section class="fx-form">
+        <h3>With style</h3>
+        <p><code>"showsStyle": true</code> adds the Style row. <code>defaults.base.style</code> is any CSS <code>border-style</code> keyword; choosing None keeps the widths.</p>
+        <div class="fx-demo"><div class="fx-card" style="border-width: {{ control.frame.width }}; border-style: {{ control.frame.style }}">{{ control.frame.style }} frame</div></div>
+        <dl class="fx-values">
+            <dt>control.frame.width</dt><dd>{{ control.frame.width }}</dd>
+            <dt>control.frame.style</dt><dd>{{ control.frame.style }}</dd>
+        </dl>
+    </section>
+
+    <section class="fx-form">
+        <h3>Per edge</h3>
+        <p><code>defaults.base.width</code> as a dictionary of <code>top</code>, <code>right</code>, <code>bottom</code>, <code>left</code>, each a token, <code>none</code> or a custom <code>{ value, unit }</code> length. Differing edges start unlinked.</p>
+        <div class="fx-demo"><div class="fx-card" style="border-width: {{ control.rule.width }}; border-style: {{ control.rule.style }}">Left token, bottom 3px, top and right none</div></div>
+        <dl class="fx-values">
+            <dt>control.rule.width</dt><dd>{{ control.rule.width }}</dd>
+            <dt>control.rule.width.top</dt><dd>{{ control.rule.width.top }}</dd>
+            <dt>control.rule.width.right</dt><dd>{{ control.rule.width.right }}</dd>
+            <dt>control.rule.width.bottom</dt><dd>{{ control.rule.width.bottom }}</dd>
+            <dt>control.rule.width.left</dt><dd>{{ control.rule.width.left }}</dd>
+            <dt>control.rule.width.values.bottom</dt><dd>{{ control.rule.width.values.bottom }}</dd>
+            <dt>control.rule.width.units.bottom</dt><dd>{{ control.rule.width.units.bottom }}</dd>
+            <dt>control.rule.width.values.left</dt><dd>{{ control.rule.width.values.left }}</dd>
+            <dt>control.rule.width.units.left</dt><dd>{{ control.rule.width.units.left }}</dd>
+            <dt>control.rule.width.values.top</dt><dd>{{ control.rule.width.values.top }}</dd>
+            <dt>control.rule.width.units.top</dt><dd>{{ control.rule.width.units.top }}</dd>
+            <dt>control.rule.style</dt><dd>{{ control.rule.style }}</dd>
+        </dl>
+    </section>
+
+    <section class="fx-form">
+        <h3>Responsive</h3>
+        <p><code>"responsive": true</code> keeps the four widths and the Style row per breakpoint. <code>base</code> is the phone value; the <code>medium</code> entry starts pinned. Resize the canvas to see it switch.</p>
+        <div class="fx-demo"><div class="fx-card" style="border-width: {{ control.outline.width }}; border-style: {{ control.outline.style }}">Thin solid on phones, thick double from medium up</div></div>
+        <dl class="fx-values">
+            <dt>control.outline.width</dt><dd>{{ control.outline.width }}</dd>
+            <dt>control.outline.style</dt><dd>{{ control.outline.style }}</dd>
+        </dl>
+    </section>
+</article>

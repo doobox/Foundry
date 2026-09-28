@@ -1,0 +1,70 @@
+{
+  "assets": [],
+  "author": "Foundry",
+  "description": "An entrance animation as the part scrolls into view. Foundry runs it; the part reads nothing.",
+  "group": "Control Groups",
+  "helpURL": "https://doobox.github.io/foundry-docs/developer/reveal-control-group.html",
+  "icon": {
+    "symbol": "sparkles.rectangle.stack",
+    "tint": "yellow"
+  },
+  "id": "foundry.showcase.reveal",
+  "inspector": [
+    {
+      "section": "Reveal",
+      "systemImage": "sparkles.rectangle.stack",
+      "controls": [
+        {
+          "type": "reveal",
+          "id": "reveal"
+        }
+      ]
+    },
+    {
+      "section": "Inner target with stagger",
+      "systemImage": "list.bullet.rectangle",
+      "controls": [
+        {
+          "type": "note",
+          "body": "targetSelector: \".fx-reveal-list\" animates that one inner element instead of the part root. defaults starts it enabled with a 100ms child stagger, so the list's tiles enter in sequence. allowedOptions offers only Fade, Fade up and Scale."
+        },
+        {
+          "type": "reveal",
+          "id": "listReveal",
+          "targetSelector": ".fx-reveal-list",
+          "defaults": {
+            "revealEnabled": true,
+            "revealStagger": 100
+          },
+          "allowedOptions": {
+            "revealEffect": [
+              "fade",
+              "fade-up",
+              "scale"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "type": "advanced"
+    }
+  ],
+  "minimumAPIVersion": 1,
+  "showsInPartLibrary": false,
+  "tags": [
+    "Foundry",
+    "showcase"
+  ],
+  "templates": {
+    "files": [
+      {
+        "path": "part.css",
+        "scope": "instance"
+      }
+    ],
+    "html": "part.html"
+  },
+  "title": "Reveal group",
+  "version": "1.0.0"
+}

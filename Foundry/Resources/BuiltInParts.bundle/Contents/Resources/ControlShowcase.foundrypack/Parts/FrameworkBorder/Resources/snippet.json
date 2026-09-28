@@ -1,0 +1,12 @@
+{
+    "type" : "frameworkBorder",
+    "id" : "border",
+    "label" : "Border",
+    "showsStyle" : true,
+    "defaults" : {
+        "base" : {
+            "width" : "sm",
+            "style" : "solid"
+        }
+    }
+}

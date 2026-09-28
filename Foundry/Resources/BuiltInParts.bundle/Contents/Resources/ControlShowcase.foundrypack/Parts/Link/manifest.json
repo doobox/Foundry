@@ -1,0 +1,110 @@
+{
+  "assets": [],
+  "author": "Foundry",
+  "description": "A structured destination: page, resource, anchor or URL, with new-window and custom attributes, optionally made absolute.",
+  "group": "Media & Links",
+  "helpURL": "https://doobox.github.io/foundry-docs/developer/link-control.html",
+  "icon": {
+    "symbol": "link",
+    "tint": "teal"
+  },
+  "id": "foundry.showcase.link",
+  "inspector": [
+    {
+      "section": "Basic",
+      "systemImage": "link",
+      "controls": [
+        {
+          "type": "link",
+          "id": "destination",
+          "label": "Destination",
+          "subtitle": "A page, resource, anchor or URL",
+          "defaults": {
+            "base": ""
+          },
+          "tooltip": "label, subtitle and an empty defaults.base — no destination until one is chosen."
+        }
+      ]
+    },
+    {
+      "section": "Absolute URL",
+      "systemImage": "globe",
+      "controls": [
+        {
+          "type": "link",
+          "id": "shareURL",
+          "label": "Share link",
+          "absoluteURL": true,
+          "defaults": {
+            "base": ""
+          },
+          "tooltip": "absoluteURL: true — page and resource paths are prefixed with the project's Site URL when it is a valid HTTP(S) address."
+        }
+      ]
+    },
+    {
+      "section": "Initial URL",
+      "systemImage": "link.badge.plus",
+      "controls": [
+        {
+          "type": "link",
+          "id": "docs",
+          "label": "Docs",
+          "defaults": {
+            "base": "https://doobox.github.io/foundry-docs/"
+          },
+          "tooltip": "A non-empty defaults.base starts the control as a URL destination."
+        }
+      ]
+    },
+    {
+      "section": "Conditional",
+      "systemImage": "eye",
+      "controls": [
+        {
+          "type": "toggle",
+          "id": "showsMore",
+          "label": "More link",
+          "defaults": {
+            "base": true
+          },
+          "tooltip": "Drives the visibleWhen of the link below."
+        },
+        {
+          "type": "link",
+          "id": "more",
+          "label": "Read more",
+          "visibleWhen": {
+            "id": "showsMore",
+            "value": true
+          },
+          "valueAvailability": "whenVisible",
+          "defaults": {
+            "base": ""
+          },
+          "tooltip": "visibleWhen hides the row; valueAvailability: whenVisible also empties control.more and its .target and .attributes while hidden."
+        }
+      ]
+    },
+    {
+      "type": "advanced"
+    }
+  ],
+  "minimumAPIVersion": 1,
+  "showsInPartLibrary": false,
+  "tags": [
+    "Foundry",
+    "showcase"
+  ],
+  "templates": {
+    "files": [
+      {
+        "path": "part.css",
+        "scope": "instance"
+      }
+    ],
+    "html": "part.html"
+  },
+  "title": "Link",
+  "version": "1.0.0"
+}

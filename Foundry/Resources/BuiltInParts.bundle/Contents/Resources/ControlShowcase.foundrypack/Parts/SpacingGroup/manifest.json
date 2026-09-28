@@ -1,0 +1,65 @@
+{
+  "assets": [],
+  "author": "Foundry",
+  "description": "Padding inside an element and margin outside it, from the framework scale or custom lengths.",
+  "group": "Control Groups",
+  "helpURL": "https://doobox.github.io/foundry-docs/developer/spacing-control-group.html",
+  "icon": {
+    "symbol": "arrow.up.and.down.and.arrow.left.and.right",
+    "tint": "teal"
+  },
+  "id": "foundry.showcase.spacing",
+  "inspector": [
+    {
+      "section": "Spacing",
+      "systemImage": "arrow.up.and.down.and.arrow.left.and.right",
+      "controls": [
+        {
+          "type": "spacing",
+          "id": "spacing"
+        }
+      ]
+    },
+    {
+      "section": "Padding only",
+      "systemImage": "rectangle.inset.filled",
+      "controls": [
+        {
+          "type": "note",
+          "body": "excludeControls: [\"frameworkMargin\"] removes the margin control and its template value, so the composed CSS contains padding alone. defaults switches it on with md padding."
+        },
+        {
+          "type": "spacing",
+          "id": "inset",
+          "excludeControls": [
+            "frameworkMargin"
+          ],
+          "defaults": {
+            "spacingEnabled": true,
+            "frameworkPadding": "md"
+          }
+        }
+      ]
+    },
+    {
+      "type": "advanced"
+    }
+  ],
+  "minimumAPIVersion": 1,
+  "showsInPartLibrary": false,
+  "tags": [
+    "Foundry",
+    "showcase"
+  ],
+  "templates": {
+    "files": [
+      {
+        "path": "part.css",
+        "scope": "instance"
+      }
+    ],
+    "html": "part.html"
+  },
+  "title": "Spacing group",
+  "version": "1.0.0"
+}

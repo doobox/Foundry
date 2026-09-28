@@ -145,6 +145,23 @@ nonisolated struct LoadedPartPackage: Sendable {
         return packagePath == bundlePath || packagePath.hasPrefix(bundlePath + "/")
     }
 
+    /// A part of the bundled Controls showcase, listed only in the Parts
+    /// panel's Controls tab.
+    var isControlShowcase: Bool {
+        rootURL.pathComponents.contains { $0 == "ControlShowcase.foundrypack" || $0 == "ControlShowcase.foundrydevpack" }
+    }
+
+    /// The copy-and-go snippets a showcase part keeps beside its templates:
+    /// the control declaration, its template usage and any CSS.
+    var showcaseSnippets: [PartShowcaseSnippet] {
+        guard isControlShowcase else { return [] }
+        return PartShowcaseSnippet.all.compactMap { snippet in
+            guard let text = try? String(contentsOf: resourceRootURL.appending(path: snippet.filename), encoding: .utf8),
+                  !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
+            return snippet.with(text: text)
+        }
+    }
+
     var developmentPackRootURL: URL? {
         var candidate = rootURL.standardizedFileURL
         while candidate.path != "/" {

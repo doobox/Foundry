@@ -73,6 +73,9 @@ nonisolated struct Page: Codable, Equatable, Identifiable, Sendable {
     var includeInSitemap: Bool
     /// Nil intentionally follows the framework's Page defaults in both appearances.
     var backgroundOverride: PartPackageColorValue?
+    /// The developer's Controls page: a scratch page the Parts panel fills
+    /// with a control showcase. It is never exported, listed or linked.
+    var isDeveloperPlayground: Bool
 
     init(
         id: UUID = UUID(),
@@ -90,7 +93,8 @@ nonisolated struct Page: Codable, Equatable, Identifiable, Sendable {
         language: String? = nil,
         includeInSearch: Bool = true,
         includeInSitemap: Bool = true,
-        backgroundOverride: PartPackageColorValue? = nil
+        backgroundOverride: PartPackageColorValue? = nil,
+        isDeveloperPlayground: Bool = false
     ) {
         self.id = id
         self.title = title
@@ -108,11 +112,13 @@ nonisolated struct Page: Codable, Equatable, Identifiable, Sendable {
         self.includeInSearch = includeInSearch
         self.includeInSitemap = includeInSitemap
         self.backgroundOverride = backgroundOverride
+        self.isDeveloperPlayground = isDeveloperPlayground
     }
 
     private enum CodingKeys: String, CodingKey {
         case id, title, slug, metadata, parts, folderID, parentPageID, order, includeInNavigation, preferredExtension,
-             folderOverride, filenameOverride, language, includeInSearch, includeInSitemap, backgroundOverride
+             folderOverride, filenameOverride, language, includeInSearch, includeInSitemap, backgroundOverride,
+             isDeveloperPlayground
     }
 
     init(from decoder: Decoder) throws {
@@ -133,6 +139,7 @@ nonisolated struct Page: Codable, Equatable, Identifiable, Sendable {
         includeInSearch = try container.decodeIfPresent(Bool.self, forKey: .includeInSearch) ?? true
         includeInSitemap = try container.decodeIfPresent(Bool.self, forKey: .includeInSitemap) ?? true
         backgroundOverride = try container.decodeIfPresent(PartPackageColorValue.self, forKey: .backgroundOverride)
+        isDeveloperPlayground = try container.decodeIfPresent(Bool.self, forKey: .isDeveloperPlayground) ?? false
     }
 
     func backgroundColour(framework: Framework, appearance: SiteAppearance) -> String {

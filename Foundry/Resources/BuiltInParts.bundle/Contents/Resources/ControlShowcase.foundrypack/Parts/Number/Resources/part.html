@@ -1,0 +1,43 @@
+<article class="foundry-showcase {{ part.class }}" {{ part.attributes }}>
+    <p class="fx-kicker">Control · number</p>
+    <h2>Number</h2>
+    <p class="fx-lede">A number typed or stepped in a field. Templates receive a locale-independent numeric String, never the unit.</p>
+
+    <section class="fx-form">
+        <h3>Bounds and units</h3>
+        <p><code>minimum</code>, <code>maximum</code> and <code>step</code> bound the field; <code>units</code> is an Inspector-only label. Add the unit yourself in the template.</p>
+        <div class="fx-demo"><div class="fx-square" style="width: {{ control.size }}px; height: {{ control.size }}px">{{ control.size }}</div></div>
+        <dl class="fx-values">
+            <dt>control.size</dt><dd>{{ control.size }}</dd>
+            <dt>control.size * 2</dt><dd>{{ control.size * 2 }}</dd>
+            <dt>control.size / 16</dt><dd>{{ control.size / 16 }}</dd>
+        </dl>
+    </section>
+
+    <section class="fx-form">
+        <h3>Decimal step</h3>
+        <p><code>"step": 0.1</code> — the stored value is a Double, so fractions are printed as typed.</p>
+        <div class="fx-demo fx-checker"><div class="fx-veil" style="opacity: {{ control.opacity }}">opacity: {{ control.opacity }}</div></div>
+        <dl class="fx-values">
+            <dt>control.opacity</dt><dd>{{ control.opacity }}</dd>
+            <dt>control.opacity * 100</dt><dd>{{ control.opacity * 100 }}</dd>
+        </dl>
+    </section>
+
+    <section class="fx-form">
+        <h3>Responsive</h3>
+        <p><code>"responsive": true</code> keeps a number per breakpoint. Because the control has a finite <code>maximum</code>, a <code>loop control.columns</code> block can repeat markup that many times.</p>
+        <div class="fx-demo fx-columns" style="--fx-count: {{ control.columns }}">{{ loop control.columns }}<span>{{ loop.position }}</span>{{ endloop }}</div>
+        <dl class="fx-values"><dt>control.columns</dt><dd>{{ control.columns }}</dd></dl>
+    </section>
+
+    <section class="fx-form">
+        <h3>Count</h3>
+        <p><code>"count": 2</code> stores two numbers in one array, read by zero-based index. <code>units</code> and <code>subtitle</code> become arrays with one entry per field.</p>
+        <div class="fx-demo"><div class="fx-frame"><div class="fx-inner" style="padding: {{ control.insets[0] }}px {{ control.insets[1] }}%">padding: {{ control.insets[0] }}px {{ control.insets[1] }}%</div></div></div>
+        <dl class="fx-values">
+            <dt>control.insets[0]</dt><dd>{{ control.insets[0] }}</dd>
+            <dt>control.insets[1]</dt><dd>{{ control.insets[1] }}</dd>
+        </dl>
+    </section>
+</article>

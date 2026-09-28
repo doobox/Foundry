@@ -1,0 +1,8 @@
+{
+    "type" : "link",
+    "id" : "destination",
+    "label" : "Destination",
+    "defaults" : {
+        "base" : ""
+    }
+}

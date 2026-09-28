@@ -1,0 +1,91 @@
+{
+  "assets": [],
+  "author": "Foundry",
+  "description": "A searchable picker for Foundry's built-in icon library, as one icon, a per-breakpoint icon or a small array.",
+  "group": "Media & Links",
+  "helpURL": "https://doobox.github.io/foundry-docs/developer/icon-control.html",
+  "icon": {
+    "symbol": "star",
+    "tint": "orange"
+  },
+  "id": "foundry.showcase.icon",
+  "inspector": [
+    {
+      "section": "Single",
+      "systemImage": "star",
+      "controls": [
+        {
+          "type": "icon",
+          "id": "symbol",
+          "label": "Icon",
+          "subtitle": "Any icon from the built-in library",
+          "defaults": {
+            "base": "stars"
+          },
+          "tooltip": "label, subtitle and defaults.base — an icon name without the bi- prefix."
+        }
+      ]
+    },
+    {
+      "section": "Responsive",
+      "systemImage": "rectangle.3.group",
+      "controls": [
+        {
+          "type": "icon",
+          "id": "device",
+          "label": "Device",
+          "responsive": true,
+          "defaults": {
+            "base": "phone",
+            "medium": "laptop",
+            "large": "display"
+          },
+          "tooltip": "responsive: true — a different icon per breakpoint; medium and large start pinned."
+        }
+      ]
+    },
+    {
+      "section": "Count",
+      "systemImage": "list.number",
+      "controls": [
+        {
+          "type": "icon",
+          "id": "directions",
+          "label": "Arrows",
+          "count": 2,
+          "subtitle": [
+            "Previous",
+            "Next"
+          ],
+          "defaults": {
+            "base": [
+              "arrow-left",
+              "arrow-right"
+            ]
+          },
+          "tooltip": "count: 2 — two pickers stored as one array, with a subtitle each."
+        }
+      ]
+    },
+    {
+      "type": "advanced"
+    }
+  ],
+  "minimumAPIVersion": 1,
+  "showsInPartLibrary": false,
+  "tags": [
+    "Foundry",
+    "showcase"
+  ],
+  "templates": {
+    "files": [
+      {
+        "path": "part.css",
+        "scope": "instance"
+      }
+    ],
+    "html": "part.html"
+  },
+  "title": "Icon",
+  "version": "1.0.0"
+}

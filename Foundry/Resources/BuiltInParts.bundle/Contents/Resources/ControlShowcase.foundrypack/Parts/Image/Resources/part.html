@@ -1,0 +1,66 @@
+<article class="foundry-showcase {{ part.class }}" {{ part.attributes }}>
+    <p class="fx-kicker">Control · image</p>
+    <h2>Image</h2>
+    <p class="fx-lede">A project image. The direct value is its path, empty until one is chosen; an <code>img</code> bound to it becomes a drop well on the canvas.</p>
+
+    <section class="fx-form">
+        <h3>Basic</h3>
+        <p><code>label</code> names the well and <code>alt</code> seeds its Alt field. Without <code>defaults</code> the control starts empty. The file values are empty for a linked web image.</p>
+        <div class="fx-demo"><img class="fx-image" src="{{ control.hero }}" alt="{{ control.hero.alt }}"></div>
+        <dl class="fx-values">
+            <dt>control.hero</dt><dd>{{ control.hero }}</dd>
+            <dt>control.hero.href</dt><dd>{{ control.hero.href }}</dd>
+            <dt>control.hero.alt</dt><dd>{{ control.hero.alt }}</dd>
+            <dt>control.hero.filename</dt><dd>{{ control.hero.filename }}</dd>
+            <dt>control.hero.extension</dt><dd>{{ control.hero.extension }}</dd>
+            <dt>control.hero.mimeType</dt><dd>{{ control.hero.mimeType }}</dd>
+            <dt>control.hero.byteCount</dt><dd>{{ control.hero.byteCount }}</dd>
+            <dt>control.hero.width</dt><dd>{{ control.hero.width }}</dd>
+            <dt>control.hero.height</dt><dd>{{ control.hero.height }}</dd>
+            <dt>control.hero.aspectRatio</dt><dd>{{ control.hero.aspectRatio }}</dd>
+        </dl>
+    </section>
+
+    <section class="fx-form">
+        <h3>Focal point</h3>
+        <p><code>"focalPoint": true</code> adds the Focal Point button. The crop below uses <code>position</code> for <code>object-position</code> in part.css and the two numbers to place the marker.</p>
+        <div class="fx-demo">
+            <div class="fx-frame">
+                <img class="fx-image fx-crop" src="{{ control.banner }}" alt="{{ control.banner.alt }}">
+                {{ if control.banner }}<span class="fx-focus"></span>{{ endif }}
+            </div>
+        </div>
+        <dl class="fx-values">
+            <dt>control.banner</dt><dd>{{ control.banner }}</dd>
+            <dt>control.banner.position</dt><dd>{{ control.banner.position }}</dd>
+            <dt>control.banner.focalPointX</dt><dd>{{ control.banner.focalPointX }}</dd>
+            <dt>control.banner.focalPointY</dt><dd>{{ control.banner.focalPointY }}</dd>
+        </dl>
+    </section>
+
+    <section class="fx-form">
+        <h3>Renditions</h3>
+        <p><code>renditions</code> declares named scaled copies. The <code>srcset</code> is written only when <code>control.photo.width</code> is known, so a linked web image gets a plain <code>src</code>.</p>
+        <div class="fx-demo"><img class="fx-image" src="{{ control.photo }}" {{ if control.photo.width }}srcset="{{ control.photo.rendition.small }} {{ control.photo.rendition.small.width }}w, {{ control.photo.rendition.medium }} {{ control.photo.rendition.medium.width }}w, {{ control.photo }} {{ control.photo.width }}w" sizes="(max-width: 860px) 100vw, 800px" width="{{ control.photo.width }}" height="{{ control.photo.height }}" {{ endif }}alt="{{ control.photo.alt }}"></div>
+        <dl class="fx-values">
+            <dt>control.photo</dt><dd>{{ control.photo }}</dd>
+            <dt>control.photo.width</dt><dd>{{ control.photo.width }}</dd>
+            <dt>control.photo.rendition.small</dt><dd>{{ control.photo.rendition.small }}</dd>
+            <dt>control.photo.rendition.small.width</dt><dd>{{ control.photo.rendition.small.width }}</dd>
+            <dt>control.photo.rendition.small.height</dt><dd>{{ control.photo.rendition.small.height }}</dd>
+            <dt>control.photo.rendition.medium</dt><dd>{{ control.photo.rendition.medium }}</dd>
+            <dt>control.photo.rendition.medium.width</dt><dd>{{ control.photo.rendition.medium.width }}</dd>
+            <dt>control.photo.rendition.medium.height</dt><dd>{{ control.photo.rendition.medium.height }}</dd>
+        </dl>
+    </section>
+
+    <section class="fx-form">
+        <h3>Responsive</h3>
+        <p><code>"responsive": true</code> lets each breakpoint choose its own image. Switch the canvas to a phone width and pick a second one.</p>
+        <div class="fx-demo"><img class="fx-image" src="{{ control.artwork }}" alt="{{ control.artwork.alt }}"></div>
+        <dl class="fx-values">
+            <dt>control.artwork</dt><dd>{{ control.artwork }}</dd>
+            <dt>control.artwork.filename</dt><dd>{{ control.artwork.filename }}</dd>
+        </dl>
+    </section>
+</article>

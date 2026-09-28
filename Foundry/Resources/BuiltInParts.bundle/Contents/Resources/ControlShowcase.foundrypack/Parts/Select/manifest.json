@@ -1,0 +1,160 @@
+{
+  "assets": [],
+  "author": "Foundry",
+  "description": "One choice from declared options, as a popup menu, a segmented picker, per breakpoint, or a small array.",
+  "group": "Choices",
+  "helpURL": "https://doobox.github.io/foundry-docs/developer/select-control.html",
+  "icon": {
+    "symbol": "list.bullet.circle",
+    "tint": "green"
+  },
+  "id": "foundry.showcase.select",
+  "inspector": [
+    {
+      "section": "Menu",
+      "systemImage": "chevron.up.chevron.down",
+      "controls": [
+        {
+          "type": "select",
+          "id": "layout",
+          "label": "Layout",
+          "options": [
+            {
+              "value": "block",
+              "title": "Stacked"
+            },
+            {
+              "value": "flex",
+              "title": "Row"
+            },
+            {
+              "value": "grid",
+              "title": "Grid"
+            }
+          ],
+          "defaults": {
+            "base": "flex"
+          },
+          "tooltip": "options declares each value and title; the default presentation is a popup menu. The template gets the value, not the title."
+        }
+      ]
+    },
+    {
+      "section": "Segmented",
+      "systemImage": "rectangle.split.3x1",
+      "controls": [
+        {
+          "type": "select",
+          "id": "tone",
+          "label": "Tone",
+          "presentation": "segmented",
+          "options": [
+            {
+              "value": "light",
+              "title": "Light",
+              "systemImage": "sun.max"
+            },
+            {
+              "value": "dark",
+              "title": "Dark",
+              "systemImage": "moon"
+            },
+            {
+              "value": "accent",
+              "title": "Accent",
+              "systemImage": "paintpalette"
+            }
+          ],
+          "defaults": {
+            "base": "light"
+          },
+          "tooltip": "presentation: segmented — an inline picker; each option's systemImage replaces its title, which stays as the accessible label."
+        }
+      ]
+    },
+    {
+      "section": "Responsive",
+      "systemImage": "rectangle.3.group",
+      "controls": [
+        {
+          "type": "select",
+          "id": "density",
+          "label": "Density",
+          "responsive": true,
+          "options": [
+            {
+              "value": "compact",
+              "title": "Compact"
+            },
+            {
+              "value": "comfortable",
+              "title": "Comfortable"
+            }
+          ],
+          "defaults": {
+            "base": "compact",
+            "medium": "comfortable"
+          },
+          "tooltip": "responsive: true — a different selection per breakpoint; medium starts as Comfortable."
+        }
+      ]
+    },
+    {
+      "section": "Count",
+      "systemImage": "list.number",
+      "controls": [
+        {
+          "type": "select",
+          "id": "sizes",
+          "label": "Sizes",
+          "count": 2,
+          "subtitle": [
+            "Heading",
+            "Body"
+          ],
+          "options": [
+            {
+              "value": "sm",
+              "title": "Small"
+            },
+            {
+              "value": "md",
+              "title": "Medium"
+            },
+            {
+              "value": "lg",
+              "title": "Large"
+            }
+          ],
+          "defaults": {
+            "base": [
+              "lg",
+              "md"
+            ]
+          },
+          "tooltip": "count: 2 — two popups sharing one options list, stored as one array with a subtitle each."
+        }
+      ]
+    },
+    {
+      "type": "advanced"
+    }
+  ],
+  "minimumAPIVersion": 1,
+  "showsInPartLibrary": false,
+  "tags": [
+    "Foundry",
+    "showcase"
+  ],
+  "templates": {
+    "files": [
+      {
+        "path": "part.css",
+        "scope": "instance"
+      }
+    ],
+    "html": "part.html"
+  },
+  "title": "Select",
+  "version": "1.0.0"
+}

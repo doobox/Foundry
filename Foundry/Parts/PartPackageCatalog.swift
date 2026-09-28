@@ -385,12 +385,12 @@ private struct PartCatalogSnapshot: Sendable {
         // The bundled built-ins normally ship as a release pack; a developer
         // working on them may rename the container to .foundrydevpack, which
         // additionally makes it a watched development root.
-        var builtInDevelopmentRoot: URL?
-        if let containerURL = FoundryPackLoader.builtInPackURL(),
-           let pack = try? FoundryPackLoader.load(from: containerURL) {
+        var builtInDevelopmentRoots: [URL] = []
+        for containerURL in FoundryPackLoader.builtInPackURLs() {
+            guard let pack = try? FoundryPackLoader.load(from: containerURL) else { continue }
             urls.append(contentsOf: pack.partURLs)
             if containerURL.pathExtension.lowercased() == "foundrydevpack" {
-                builtInDevelopmentRoot = containerURL.standardizedFileURL
+                builtInDevelopmentRoots.append(containerURL.standardizedFileURL)
             }
         }
 
@@ -401,7 +401,7 @@ private struct PartCatalogSnapshot: Sendable {
         var developmentRoots = Set(installedPackURLs.compactMap { url in
             url.pathExtension.lowercased() == "foundrydevpack" ? url.standardizedFileURL : nil
         })
-        if let builtInDevelopmentRoot { developmentRoots.insert(builtInDevelopmentRoot) }
+        developmentRoots.formUnion(builtInDevelopmentRoots)
 
         let standardizedURLs = urls.map(\.standardizedFileURL)
         await progress(.loading, 0, standardizedURLs.count)

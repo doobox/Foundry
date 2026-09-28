@@ -117,6 +117,21 @@ nonisolated enum FoundryPackLoader {
         return containerURL?.standardizedFileURL
     }
 
+    /// The bundled Controls showcase: one hidden part per control and control
+    /// group, shown only in the Parts panel's Controls tab for developers.
+    static func builtInShowcasePackURL() -> URL? {
+        guard let bundleURL = Bundle.main.url(forResource: "BuiltInParts", withExtension: "bundle"),
+              let partBundle = Bundle(url: bundleURL) else { return nil }
+        let containerURL = partBundle.url(forResource: "ControlShowcase", withExtension: "foundrypack")
+            ?? partBundle.url(forResource: "ControlShowcase", withExtension: "foundrydevpack")
+        return containerURL?.standardizedFileURL
+    }
+
+    /// Every pack shipped inside the app, built-in parts first.
+    static func builtInPackURLs() -> [URL] {
+        [builtInPackURL(), builtInShowcasePackURL()].compactMap { $0 }
+    }
+
     static func installedPacksURL(fileManager: FileManager = .default) throws -> URL {
         try FoundryLibraryLocation.directoryURL(named: "Packs", fileManager: fileManager)
     }

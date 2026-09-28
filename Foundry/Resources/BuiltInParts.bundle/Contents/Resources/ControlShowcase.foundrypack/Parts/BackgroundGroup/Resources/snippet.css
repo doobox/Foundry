@@ -1,0 +1,6 @@
+:instance {
+    position: relative;
+    isolation: isolate;
+    {{ control.background.css }}
+}
+:instance:hover { {{ control.background.hover.css }} }

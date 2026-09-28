@@ -5,7 +5,7 @@
   "group": "Content",
   "icon": {
     "symbol": "chevron.left.forwardslash.chevron.right",
-    "tint": "pink"
+    "tint": "orange"
   },
   "id": "foundry.content.html",
   "inspector": [

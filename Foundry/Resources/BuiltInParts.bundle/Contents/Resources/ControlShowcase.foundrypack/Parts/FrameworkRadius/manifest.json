@@ -1,0 +1,105 @@
+{
+  "assets": [],
+  "author": "Foundry",
+  "description": "Four-corner radius from the framework's radius scale, shared or per corner, with full, none and custom lengths.",
+  "group": "Spacing & Edges",
+  "helpURL": "https://doobox.github.io/foundry-docs/developer/framework-radius-control.html",
+  "icon": {
+    "symbol": "rectangle.roundedtop",
+    "tint": "orange"
+  },
+  "id": "foundry.showcase.framework-radius",
+  "inspector": [
+    {
+      "section": "Shared token",
+      "systemImage": "link",
+      "controls": [
+        {
+          "type": "frameworkRadius",
+          "id": "radius",
+          "label": "Radius",
+          "defaults": {
+            "base": "md"
+          },
+          "tooltip": "defaults.base as one framework radius token applied to all four corners; the ring starts linked."
+        }
+      ]
+    },
+    {
+      "section": "Per corner",
+      "systemImage": "square.grid.2x2",
+      "controls": [
+        {
+          "type": "frameworkRadius",
+          "id": "cardRadius",
+          "label": "Card radius",
+          "subtitle": "Token, none and a custom length",
+          "defaults": {
+            "base": {
+              "topLeft": "lg",
+              "topRight": "none",
+              "bottomRight": "xl",
+              "bottomLeft": {
+                "value": 1.5,
+                "unit": "rem"
+              }
+            }
+          },
+          "tooltip": "defaults.base as a four-corner dictionary mixing tokens, none and a custom length; subtitle beneath the editor."
+        }
+      ]
+    },
+    {
+      "section": "Full",
+      "systemImage": "capsule",
+      "controls": [
+        {
+          "type": "frameworkRadius",
+          "id": "pillRadius",
+          "label": "Pill radius",
+          "defaults": {
+            "base": "full"
+          },
+          "tooltip": "The full token: a framework length (9,999px in the standard framework), not a percentage."
+        }
+      ]
+    },
+    {
+      "section": "Responsive",
+      "systemImage": "rectangle.3.group",
+      "controls": [
+        {
+          "type": "frameworkRadius",
+          "id": "mediaRadius",
+          "label": "Media radius",
+          "responsive": true,
+          "defaults": {
+            "base": "sm",
+            "large": "2xl"
+          },
+          "tooltip": "responsive: true with a pinned large breakpoint default; one indicator for all four corners."
+        }
+      ]
+    },
+    {
+      "type": "advanced"
+    }
+  ],
+  "minimumAPIVersion": 1,
+  "showsInPartLibrary": false,
+  "tags": [
+    "Foundry",
+    "showcase"
+  ],
+  "templates": {
+    "files": [
+      {
+        "path": "part.css",
+        "scope": "instance"
+      }
+    ],
+    "html": "part.html"
+  },
+  "title": "Framework Radius",
+  "version": "1.0.0"
+}

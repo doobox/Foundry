@@ -1,0 +1,4 @@
+:instance .floating {
+    position: relative;
+    z-index: {{ control.layer }};
+}

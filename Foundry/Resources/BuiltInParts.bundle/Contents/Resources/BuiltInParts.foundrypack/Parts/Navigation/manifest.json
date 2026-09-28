@@ -5,7 +5,7 @@
   "group": "Navigation",
   "icon": {
     "symbol": "list.bullet",
-    "tint": "cyan"
+    "tint": "brown"
   },
   "id": "foundry.layout.navigation",
   "inspector": [

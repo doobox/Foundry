@@ -1,0 +1,40 @@
+<article class="foundry-showcase {{ part.class }}" {{ part.attributes }}>
+    <p class="fx-kicker">Control · frameworkFontSize</p>
+    <h2>Framework Font Size</h2>
+    <p class="fx-lede">A framework size. The value is a CSS variable reference, and <code>.lineHeight</code> is its paired leading, so published pages follow later framework edits.</p>
+
+    <section class="fx-form">
+        <h3>Basic</h3>
+        <p><code>defaults.base</code> is a predefined size ID. <code>base</code> is the framework's body size (MD in the Inspector).</p>
+        <div class="fx-demo"><p class="fx-sample" style="font-size: {{ control.textSize }}; line-height: {{ control.textSize.lineHeight }}">Body copy that follows the framework's size scale. Let it wrap to a second line so the paired line height is visible too.</p></div>
+        <dl class="fx-values">
+            <dt>control.textSize</dt><dd>{{ control.textSize }}</dd>
+            <dt>control.textSize.lineHeight</dt><dd>{{ control.textSize.lineHeight }}</dd>
+        </dl>
+    </section>
+
+    <section class="fx-form">
+        <h3>Scale</h3>
+        <p>The portable IDs are <code>xs</code>, <code>sm</code>, <code>base</code>, <code>lg</code>, <code>xl</code> and <code>2xl</code> through <code>9xl</code>. Project custom sizes appear in the picker but are not manifest defaults.</p>
+        <div class="fx-demo">
+            <p class="fx-sample" style="font-size: {{ control.fineSize }}; line-height: {{ control.fineSize.lineHeight }}">Fine print at {{ control.fineSize }}</p>
+            <p class="fx-sample" style="font-size: {{ control.displaySize }}; line-height: {{ control.displaySize.lineHeight }}">Display</p>
+        </div>
+        <dl class="fx-values">
+            <dt>control.fineSize</dt><dd>{{ control.fineSize }}</dd>
+            <dt>control.fineSize.lineHeight</dt><dd>{{ control.fineSize.lineHeight }}</dd>
+            <dt>control.displaySize</dt><dd>{{ control.displaySize }}</dd>
+            <dt>control.displaySize.lineHeight</dt><dd>{{ control.displaySize.lineHeight }}</dd>
+        </dl>
+    </section>
+
+    <section class="fx-form">
+        <h3>Responsive</h3>
+        <p><code>"responsive": true</code> keeps a size per breakpoint. <code>base</code> is the phone size; the <code>medium</code> entry starts pinned. Resize the canvas to see it switch.</p>
+        <div class="fx-demo"><p class="fx-sample fx-heading" style="font-size: {{ control.headingSize }}; line-height: {{ control.headingSize.lineHeight }}">Grows with the viewport</p></div>
+        <dl class="fx-values">
+            <dt>control.headingSize</dt><dd>{{ control.headingSize }}</dd>
+            <dt>control.headingSize.lineHeight</dt><dd>{{ control.headingSize.lineHeight }}</dd>
+        </dl>
+    </section>
+</article>

@@ -1,0 +1,71 @@
+{
+  "assets": [],
+  "author": "Foundry",
+  "description": "Border width, style, colour and corner radius, from the framework scale or custom values.",
+  "group": "Control Groups",
+  "helpURL": "https://doobox.github.io/foundry-docs/developer/borders-control-group.html",
+  "icon": {
+    "symbol": "square.dashed",
+    "tint": "orange"
+  },
+  "id": "foundry.showcase.borders",
+  "inspector": [
+    {
+      "section": "Borders",
+      "systemImage": "square.dashed",
+      "controls": [
+        {
+          "type": "borders",
+          "id": "borders"
+        }
+      ]
+    },
+    {
+      "section": "Border without radius",
+      "systemImage": "squareshape.dashed.squareshape",
+      "controls": [
+        {
+          "type": "note",
+          "body": "excludeControls: [\"frameworkRadius\"] leaves corner radius to the part's stylesheet. defaults starts it enabled with a 2px dashed border."
+        },
+        {
+          "type": "borders",
+          "id": "rule",
+          "excludeControls": [
+            "frameworkRadius"
+          ],
+          "defaults": {
+            "borderEnabled": true,
+            "frameworkBorder": {
+              "style": "dashed",
+              "width": {
+                "value": 2,
+                "unit": "px"
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "type": "advanced"
+    }
+  ],
+  "minimumAPIVersion": 1,
+  "showsInPartLibrary": false,
+  "tags": [
+    "Foundry",
+    "showcase"
+  ],
+  "templates": {
+    "files": [
+      {
+        "path": "part.css",
+        "scope": "instance"
+      }
+    ],
+    "html": "part.html"
+  },
+  "title": "Borders group",
+  "version": "1.0.0"
+}

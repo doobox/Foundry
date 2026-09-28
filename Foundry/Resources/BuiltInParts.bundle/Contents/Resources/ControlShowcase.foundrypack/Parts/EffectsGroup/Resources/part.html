@@ -1,0 +1,29 @@
+<article class="foundry-showcase {{ part.class }}" {{ part.attributes }}>
+    <p class="fx-kicker">Control group · effects</p>
+    <h2>Effects group</h2>
+    <p class="fx-lede">A shadow and an opacity. The composed CSS divides the percentage into the fraction CSS expects and restores <code>none</code> and <code>1</code> while the group is off.</p>
+
+    <section class="fx-form">
+        <h3>Effects</h3>
+        <p>The full group. Enable Effects in the Inspector; the striped backdrop shows opacity, the pale surround shows the shadow.</p>
+        <div class="fx-demo fx-backdrop"><div class="fx-target fx-styled">Shadow and opacity</div></div>
+        <dl class="fx-values">
+            <dt>control.effects.css</dt><dd>{{ control.effects.css }}</dd>
+            <dt>control.effects.effectsEnabled</dt><dd>{{ control.effects.effectsEnabled }}</dd>
+            <dt>control.effects.frameworkShadow</dt><dd>{{ control.effects.frameworkShadow }}</dd>
+            <dt>control.effects.opacity</dt><dd>{{ control.effects.opacity }}</dd>
+            <dt>control.effects.opacity / 100</dt><dd>{{ control.effects.opacity / 100 }}</dd>
+        </dl>
+    </section>
+
+    <section class="fx-form">
+        <h3>Opacity only</h3>
+        <p><code>"excludeControls": ["frameworkShadow"]</code> removes the shadow and its value; <code>defaults</code> starts it enabled at 60%.</p>
+        <div class="fx-demo fx-backdrop"><div class="fx-target fx-faded">60% by default</div></div>
+        <dl class="fx-values">
+            <dt>control.fade.css</dt><dd>{{ control.fade.css }}</dd>
+            <dt>control.fade.effectsEnabled</dt><dd>{{ control.fade.effectsEnabled }}</dd>
+            <dt>control.fade.opacity</dt><dd>{{ control.fade.opacity }}</dd>
+        </dl>
+    </section>
+</article>

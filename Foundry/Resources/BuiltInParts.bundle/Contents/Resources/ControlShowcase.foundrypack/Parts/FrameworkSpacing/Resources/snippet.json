@@ -1,0 +1,8 @@
+{
+    "type" : "frameworkSpacing",
+    "id" : "gap",
+    "label" : "Gap",
+    "defaults" : {
+        "base" : "sm"
+    }
+}

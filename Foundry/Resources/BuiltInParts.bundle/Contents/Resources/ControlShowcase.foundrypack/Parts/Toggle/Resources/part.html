@@ -1,0 +1,41 @@
+<article class="foundry-showcase {{ part.class }}" {{ part.attributes }}>
+    <p class="fx-kicker">Control · toggle</p>
+    <h2>Toggle</h2>
+    <p class="fx-lede">A Boolean. Test it in the template with an <code>if</code>; it prints as <code>true</code> or <code>false</code>.</p>
+
+    <section class="fx-form">
+        <h3>Checkbox</h3>
+        <p>The default presentation.</p>
+        <div class="fx-demo"><span class="fx-pill{{ if control.featured }} is-on{{ endif }}">Featured</span></div>
+        <dl class="fx-values"><dt>control.featured</dt><dd>{{ control.featured }}</dd></dl>
+    </section>
+
+    <section class="fx-form">
+        <h3>Switch</h3>
+        <p><code>"presentation": "switch"</code> changes only the Inspector control.</p>
+        <div class="fx-demo"><div class="fx-swatch{{ if control.darkMode }} is-dark{{ endif }}">{{ if control.darkMode }}Dark{{ else }}Light{{ endif }} mode</div></div>
+        <dl class="fx-values"><dt>control.darkMode</dt><dd>{{ control.darkMode }}</dd></dl>
+    </section>
+
+    <section class="fx-form">
+        <h3>Responsive</h3>
+        <p><code>"responsive": true</code> keeps a value per breakpoint. Switch the canvas to a tablet width or wider to see the other value.</p>
+        <div class="fx-demo fx-layout"><div class="fx-main">Content</div>{{ if control.showsSidebar }}<div class="fx-side">Sidebar</div>{{ endif }}</div>
+        <dl class="fx-values"><dt>control.showsSidebar</dt><dd>{{ control.showsSidebar }}</dd></dl>
+    </section>
+
+    <section class="fx-form">
+        <h3>Count</h3>
+        <p><code>"count": 3</code> stores three Booleans in one array, read by index.</p>
+        <div class="fx-demo">
+            <span class="fx-pill{{ if control.days[0] }} is-on{{ endif }}">Mon</span>
+            <span class="fx-pill{{ if control.days[1] }} is-on{{ endif }}">Wed</span>
+            <span class="fx-pill{{ if control.days[2] }} is-on{{ endif }}">Fri</span>
+        </div>
+        <dl class="fx-values">
+            <dt>control.days[0]</dt><dd>{{ control.days[0] }}</dd>
+            <dt>control.days[1]</dt><dd>{{ control.days[1] }}</dd>
+            <dt>control.days[2]</dt><dd>{{ control.days[2] }}</dd>
+        </dl>
+    </section>
+</article>

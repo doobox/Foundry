@@ -1,0 +1,5 @@
+{{ loop navigation.folders as group where group.id == control.sourceFolder }}
+    {{ loop group.children as item }}
+        <a href="{{ item.href }}">{{ item.title }}</a>
+    {{ endloop }}
+{{ endloop }}

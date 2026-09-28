@@ -1,0 +1,45 @@
+/* Showcase sheet: shared by every Controls showcase part. */
+:instance {
+    --fx-ink: #1d2430;
+    --fx-muted: #6b7280;
+    --fx-line: #e5e7eb;
+    --fx-panel: #f8fafc;
+    --fx-accent: #0d6efd;
+    box-sizing: border-box;
+    max-width: 860px;
+    margin: 32px auto;
+    padding: 28px 32px;
+    border: 1px solid var(--fx-line);
+    border-radius: 14px;
+    background: #ffffff;
+    color: var(--fx-ink);
+    font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+:instance * { box-sizing: border-box; }
+:instance .fx-kicker { margin: 0 0 4px; font-size: 12px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--fx-accent); }
+:instance h2 { margin: 0 0 6px; font-size: 26px; line-height: 1.2; }
+:instance .fx-lede { margin: 0 0 22px; color: var(--fx-muted); }
+:instance .fx-form { margin: 0 0 18px; padding: 18px 20px; border: 1px solid var(--fx-line); border-radius: 10px; background: var(--fx-panel); }
+:instance .fx-form h3 { margin: 0 0 6px; font-size: 15px; }
+:instance .fx-form > p { margin: 0 0 14px; font-size: 14px; color: var(--fx-muted); }
+:instance .fx-demo { margin: 0 0 14px; }
+:instance .fx-values { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 6px 18px; margin: 0; font-size: 13px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+:instance .fx-values dt { margin: 0; color: var(--fx-muted); }
+:instance .fx-values dd { margin: 0; overflow-wrap: anywhere; }
+:instance .fx-values dd:empty::before { content: "(empty)"; color: var(--fx-muted); }
+
+:instance .fx-card { position: relative; display: grid; gap: 4px; padding: 16px 18px; border-radius: 8px; border: 1px solid var(--fx-line); background: #fff; transition: border-color .15s, box-shadow .15s; }
+:instance .fx-card.is-featured { border-color: #f59e0b; box-shadow: 0 0 0 3px rgba(245, 158, 11, .2); }
+:instance .fx-card-text { font-size: 14px; color: var(--fx-muted); }
+:instance .fx-badge { position: absolute; top: -10px; right: 14px; padding: 2px 10px; border-radius: 999px; background: #f59e0b; color: #fff; font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
+:instance .fx-status { display: inline-block; padding: 4px 12px; border-radius: 999px; font-size: 13px; font-weight: 600; text-transform: capitalize; background: #e2e8f0; color: var(--fx-muted); }
+:instance .fx-status[data-state="live"] { background: #16a34a; color: #fff; }
+:instance .fx-sample { margin: 0; padding: 14px 18px; border-radius: 8px; background: #fff; border: 1px solid var(--fx-line); font-size: 18px; }
+:instance .fx-stage { display: flex; padding: 12px; border-radius: 8px; background: #e2e8f0; }
+:instance .fx-stage.is-align-0 { justify-content: flex-start; }
+:instance .fx-stage.is-align-1 { justify-content: center; }
+:instance .fx-stage.is-align-2 { justify-content: flex-end; }
+:instance .fx-box { display: flex; align-items: center; justify-content: center; border-radius: 6px; background: var(--fx-accent); color: #fff; font-size: 12px; text-transform: capitalize; transition: width .15s, height .15s; }
+:instance .fx-box.is-small { width: 64px; height: 40px; }
+:instance .fx-box.is-medium { width: 128px; height: 56px; }
+:instance .fx-box.is-large { width: 100%; height: 72px; }

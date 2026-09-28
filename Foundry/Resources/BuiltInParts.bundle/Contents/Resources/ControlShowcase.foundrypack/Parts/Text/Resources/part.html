@@ -1,0 +1,38 @@
+<article class="foundry-showcase {{ part.class }}" {{ part.attributes }}>
+    <p class="fx-kicker">Control · text</p>
+    <h2>Text</h2>
+    <p class="fx-lede">A single line of text. The template receives it HTML-escaped, so it is safe to print anywhere.</p>
+
+    <section class="fx-form">
+        <h3>Single line</h3>
+        <p>The default form. <code>label</code> names the field, <code>subtitle</code> adds a caption and <code>defaults.base</code> is the starting String.</p>
+        <div class="fx-demo"><h1 class="fx-heading">{{ control.heading }}</h1></div>
+        <dl class="fx-values">
+            <dt>control.heading</dt><dd>{{ control.heading }}</dd>
+            <dt>isNotEmpty(control.heading)</dt><dd>{{ isNotEmpty(control.heading) }}</dd>
+            <dt>contains(control.heading, "Foundry")</dt><dd>{{ contains(control.heading, "Foundry") }}</dd>
+        </dl>
+    </section>
+
+    <section class="fx-form">
+        <h3>Responsive</h3>
+        <p><code>"responsive": true</code> keeps a String per breakpoint. Widen or narrow the canvas past the medium breakpoint to see the value change.</p>
+        <div class="fx-demo"><p class="fx-tagline">{{ control.tagline }}</p></div>
+        <dl class="fx-values"><dt>control.tagline</dt><dd>{{ control.tagline }}</dd></dl>
+    </section>
+
+    <section class="fx-form">
+        <h3>Count</h3>
+        <p><code>"count": 3</code> stores three Strings in one array, read by zero-based index; <code>subtitle</code> captions each field.</p>
+        <div class="fx-demo">
+            <span class="fx-pill is-on">{{ control.labels[0] }}</span>
+            <span class="fx-pill is-on">{{ control.labels[1] }}</span>
+            <span class="fx-pill is-on">{{ control.labels[2] }}</span>
+        </div>
+        <dl class="fx-values">
+            <dt>control.labels[0]</dt><dd>{{ control.labels[0] }}</dd>
+            <dt>control.labels[1]</dt><dd>{{ control.labels[1] }}</dd>
+            <dt>control.labels[2]</dt><dd>{{ control.labels[2] }}</dd>
+        </dl>
+    </section>
+</article>

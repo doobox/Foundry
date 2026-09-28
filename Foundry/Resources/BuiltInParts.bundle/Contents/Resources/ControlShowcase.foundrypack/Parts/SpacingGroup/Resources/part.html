@@ -1,0 +1,45 @@
+<article class="foundry-showcase {{ part.class }}" {{ part.attributes }}>
+    <p class="fx-kicker">Control group · spacing</p>
+    <h2>Spacing group</h2>
+    <p class="fx-lede">Padding inside an element and margin outside it. Switching the group off composes zero padding and margin rather than nothing.</p>
+
+    <section class="fx-form">
+        <h3>Spacing</h3>
+        <p>The full group. The dashed frame shows the margin; the inner block shows the padding.</p>
+        <div class="fx-demo fx-frame"><div class="fx-target fx-spaced"><div class="fx-inner">Content</div></div></div>
+        <dl class="fx-values">
+            <dt>control.spacing.css</dt><dd>{{ control.spacing.css }}</dd>
+            <dt>control.spacing.spacingEnabled</dt><dd>{{ control.spacing.spacingEnabled }}</dd>
+            <dt>control.spacing.frameworkPadding</dt><dd>{{ control.spacing.frameworkPadding }}</dd>
+            <dt>control.spacing.frameworkPadding.css</dt><dd>{{ control.spacing.frameworkPadding.css }}</dd>
+            <dt>control.spacing.frameworkPadding.top</dt><dd>{{ control.spacing.frameworkPadding.top }}</dd>
+            <dt>control.spacing.frameworkPadding.right</dt><dd>{{ control.spacing.frameworkPadding.right }}</dd>
+            <dt>control.spacing.frameworkPadding.bottom</dt><dd>{{ control.spacing.frameworkPadding.bottom }}</dd>
+            <dt>control.spacing.frameworkPadding.left</dt><dd>{{ control.spacing.frameworkPadding.left }}</dd>
+            <dt>control.spacing.frameworkPadding.values.top</dt><dd>{{ control.spacing.frameworkPadding.values.top }}</dd>
+            <dt>control.spacing.frameworkPadding.units.top</dt><dd>{{ control.spacing.frameworkPadding.units.top }}</dd>
+            <dt>control.spacing.frameworkMargin</dt><dd>{{ control.spacing.frameworkMargin }}</dd>
+            <dt>control.spacing.frameworkMargin.css</dt><dd>{{ control.spacing.frameworkMargin.css }}</dd>
+            <dt>control.spacing.frameworkMargin.top</dt><dd>{{ control.spacing.frameworkMargin.top }}</dd>
+            <dt>control.spacing.frameworkMargin.right</dt><dd>{{ control.spacing.frameworkMargin.right }}</dd>
+            <dt>control.spacing.frameworkMargin.bottom</dt><dd>{{ control.spacing.frameworkMargin.bottom }}</dd>
+            <dt>control.spacing.frameworkMargin.left</dt><dd>{{ control.spacing.frameworkMargin.left }}</dd>
+            <dt>control.spacing.frameworkMargin.values.top</dt><dd>{{ control.spacing.frameworkMargin.values.top }}</dd>
+            <dt>control.spacing.frameworkMargin.units.top</dt><dd>{{ control.spacing.frameworkMargin.units.top }}</dd>
+        </dl>
+    </section>
+
+    <section class="fx-form">
+        <h3>Padding only</h3>
+        <p><code>"excludeControls": ["frameworkMargin"]</code> leaves only padding, so <code>control.inset.css</code> has no margin declaration. <code>defaults</code> starts it enabled at <code>md</code>.</p>
+        <div class="fx-demo fx-frame"><div class="fx-target fx-inset"><div class="fx-inner">Content</div></div></div>
+        <dl class="fx-values">
+            <dt>control.inset.css</dt><dd>{{ control.inset.css }}</dd>
+            <dt>control.inset.spacingEnabled</dt><dd>{{ control.inset.spacingEnabled }}</dd>
+            <dt>control.inset.frameworkPadding</dt><dd>{{ control.inset.frameworkPadding }}</dd>
+            <dt>control.inset.frameworkPadding.top</dt><dd>{{ control.inset.frameworkPadding.top }}</dd>
+            <dt>control.inset.frameworkPadding.values.top</dt><dd>{{ control.inset.frameworkPadding.values.top }}</dd>
+            <dt>control.inset.frameworkPadding.units.top</dt><dd>{{ control.inset.frameworkPadding.units.top }}</dd>
+        </dl>
+    </section>
+</article>

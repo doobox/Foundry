@@ -1,0 +1,10 @@
+{
+    "type" : "frameworkFont",
+    "id" : "font",
+    "label" : "Font",
+    "showsWeight" : true,
+    "showsStyle" : true,
+    "defaults" : {
+        "base" : "body"
+    }
+}

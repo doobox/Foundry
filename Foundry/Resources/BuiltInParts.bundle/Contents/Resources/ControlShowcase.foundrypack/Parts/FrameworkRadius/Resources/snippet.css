@@ -1,0 +1,4 @@
+:instance .card {
+    border-radius: {{ control.radius }};
+    overflow: hidden;
+}

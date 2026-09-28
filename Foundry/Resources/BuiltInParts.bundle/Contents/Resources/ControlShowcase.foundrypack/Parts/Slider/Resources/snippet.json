@@ -1,0 +1,12 @@
+{
+    "type" : "slider",
+    "id" : "amount",
+    "label" : "Amount",
+    "minimum" : 0,
+    "maximum" : 100,
+    "step" : 1,
+    "units" : "%",
+    "defaults" : {
+        "base" : 40
+    }
+}

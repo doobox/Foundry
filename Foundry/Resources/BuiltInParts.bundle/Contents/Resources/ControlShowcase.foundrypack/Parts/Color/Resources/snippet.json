@@ -1,0 +1,8 @@
+{
+    "type" : "color",
+    "id" : "textColor",
+    "label" : "Text colour",
+    "defaults" : {
+        "base" : "#3366CC"
+    }
+}

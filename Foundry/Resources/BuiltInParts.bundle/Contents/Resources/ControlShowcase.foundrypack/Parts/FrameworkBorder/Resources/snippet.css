@@ -1,0 +1,6 @@
+:instance .card {
+    padding: 24px;
+    border-width: {{ control.border.width }};
+    border-style: {{ control.border.style }};
+    border-color: currentColor;
+}

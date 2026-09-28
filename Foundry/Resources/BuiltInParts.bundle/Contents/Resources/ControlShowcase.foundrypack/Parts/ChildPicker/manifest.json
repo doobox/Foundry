@@ -1,0 +1,113 @@
+{
+  "assets": [],
+  "author": "Foundry",
+  "description": "Managed child parts: a curated Add button, initial children, limits, open drops and locked containment.",
+  "group": "Structure",
+  "helpURL": "https://doobox.github.io/foundry-docs/developer/child-picker-control.html",
+  "icon": {
+    "symbol": "square.grid.2x2",
+    "tint": "purple"
+  },
+  "id": "foundry.showcase.child-picker",
+  "inspector": [
+    {
+      "section": "Basic",
+      "systemImage": "plus.square",
+      "controls": [
+        {
+          "type": "childPicker",
+          "id": "items",
+          "label": "Items",
+          "buttonText": "Add Item",
+          "buttonIcon": "plus.square",
+          "pickerItems": [
+            "foundry.content.heading",
+            "foundry.content.paragraph",
+            "foundry.content.button"
+          ],
+          "tooltip": "pickerItems offers three parts in a popover; buttonText and buttonIcon restyle the Add button."
+        }
+      ]
+    },
+    {
+      "section": "Limits",
+      "systemImage": "number",
+      "controls": [
+        {
+          "type": "childPicker",
+          "id": "slides",
+          "label": "Slides",
+          "pickerItems": [
+            "foundry.media.image",
+            "foundry.media.video"
+          ],
+          "initial": [
+            "foundry.media.image",
+            "foundry.media.image"
+          ],
+          "minimum": 1,
+          "maximum": 4,
+          "tooltip": "initial creates two images in a new instance; minimum: 1 keeps the last one; maximum: 4 disables Add and rejects drops."
+        }
+      ]
+    },
+    {
+      "section": "Open drops",
+      "systemImage": "square.and.arrow.down",
+      "controls": [
+        {
+          "type": "childPicker",
+          "id": "extras",
+          "label": "Extras",
+          "pickerItems": [
+            "foundry.content.paragraph"
+          ],
+          "accepts": [
+            "*"
+          ],
+          "tooltip": "accepts: [\"*\"] takes any dropped part while the Add button stays curated to a paragraph."
+        }
+      ]
+    },
+    {
+      "section": "Locked",
+      "systemImage": "lock",
+      "controls": [
+        {
+          "type": "childPicker",
+          "id": "panels",
+          "label": "Panels",
+          "pickerItems": [
+            "foundry.layout.container"
+          ],
+          "initial": [
+            "foundry.layout.container",
+            "foundry.layout.container"
+          ],
+          "containment": "locked",
+          "tooltip": "containment: locked — children reorder within this collection but cannot be moved out of it."
+        }
+      ]
+    },
+    {
+      "type": "advanced"
+    }
+  ],
+  "minimumAPIVersion": 1,
+  "showsInPartLibrary": false,
+  "tags": [
+    "Foundry",
+    "showcase"
+  ],
+  "templates": {
+    "files": [
+      {
+        "path": "part.css",
+        "scope": "instance"
+      }
+    ],
+    "html": "part.html"
+  },
+  "title": "Child Picker",
+  "version": "1.0.0"
+}

@@ -1,0 +1,91 @@
+{
+  "assets": [],
+  "author": "Foundry",
+  "description": "Width, height, aspect ratio and size limits, composed into ready-to-use CSS.",
+  "group": "Control Groups",
+  "helpURL": "https://doobox.github.io/foundry-docs/developer/sizing-control-group.html",
+  "icon": {
+    "symbol": "arrow.up.left.and.arrow.down.right",
+    "tint": "blue"
+  },
+  "id": "foundry.showcase.sizing",
+  "inspector": [
+    {
+      "section": "Sizing",
+      "systemImage": "arrow.up.left.and.arrow.down.right",
+      "controls": [
+        {
+          "type": "sizing",
+          "id": "sizing"
+        }
+      ]
+    },
+    {
+      "section": "Narrowed width",
+      "systemImage": "arrow.left.and.right",
+      "controls": [
+        {
+          "type": "note",
+          "body": "allowedOptions limits Width to Fill parent and Custom; defaults starts it at Custom, 320px. Every other control is unchanged."
+        },
+        {
+          "type": "sizing",
+          "id": "card",
+          "allowedOptions": {
+            "widthMode": [
+              "full",
+              "custom"
+            ]
+          },
+          "defaults": {
+            "widthMode": "custom",
+            "customWidth": 320
+          }
+        }
+      ]
+    },
+    {
+      "section": "Height only",
+      "systemImage": "arrow.up.and.down",
+      "controls": [
+        {
+          "type": "note",
+          "body": "excludeControls: [\"widthMode\", \"minWidth\", \"maxWidth\"] removes the width controls; omitting widthMode also removes its dependent customWidth. defaults starts Height at Custom, 120px."
+        },
+        {
+          "type": "sizing",
+          "id": "band",
+          "excludeControls": [
+            "widthMode",
+            "minWidth",
+            "maxWidth"
+          ],
+          "defaults": {
+            "heightMode": "custom",
+            "customHeight": 120
+          }
+        }
+      ]
+    },
+    {
+      "type": "advanced"
+    }
+  ],
+  "minimumAPIVersion": 1,
+  "showsInPartLibrary": false,
+  "tags": [
+    "Foundry",
+    "showcase"
+  ],
+  "templates": {
+    "files": [
+      {
+        "path": "part.css",
+        "scope": "instance"
+      }
+    ],
+    "html": "part.html"
+  },
+  "title": "Sizing group",
+  "version": "1.0.0"
+}
