@@ -292,9 +292,19 @@ extension ProjectEditor {
     /// Stores the page's filename override and returns the normalized value
     /// the field should display; nil restores the standard `index` filename.
     @discardableResult
+    /// Returns the value now stored. The home page is always the root
+    /// `index` file, so it accepts only `index`, `index.html` or `index.php`
+    /// — the extension being the one thing an author may choose for it —
+    /// and refuses anything else by returning what it already had.
     func setPageFilename(id: UUID, value: String) -> String? {
-        guard document.site.pages.first(where: { $0.id == id })?.slug != "index" else { return nil }
+        guard let page = document.site.pages.first(where: { $0.id == id }) else { return nil }
         let normalized = Self.normalizedFilenameOverride(value)
+        if page.slug == "index" {
+            // Exact spellings only: dropping an unknown extension the way
+            // other pages do would silently reset the home page instead.
+            let typed = value.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            guard ["", "index", "index.html", "index.php"].contains(typed) else { return page.filenameOverride }
+        }
         mutate(actionName: "Edit Page Filename") { site in
             guard let index = site.pages.firstIndex(where: { $0.id == id }) else { return }
             site.pages[index].filenameOverride = normalized

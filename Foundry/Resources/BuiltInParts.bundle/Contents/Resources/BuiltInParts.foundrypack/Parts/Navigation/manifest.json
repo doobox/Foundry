@@ -4,8 +4,8 @@
   "description": "The site menu. Lists pages marked Include in Navigation, highlights the current page, shows child pages in dropdowns, and collapses to a menu button on small screens.",
   "group": "Navigation",
   "icon": {
-    "symbol": "list.bullet",
-    "tint": "brown"
+    "symbol": "inset.filled.topthird.rectangle",
+    "tint": "brown.dark"
   },
   "id": "foundry.layout.navigation",
   "inspector": [

@@ -12,11 +12,17 @@ struct ContainerContentLayoutTests {
     private func innerDeclarations(width: String) throws -> [String: String] {
         let package = try package()
         try package.preparePayload()
+        // Start from the manifest defaults so the Content Spacing group
+        // composes its margins, as it does in the app.
+        var values = Dictionary(uniqueKeysWithValues: package.manifest.resolvedProperties.map { ($0.id, $0.defaultValue) })
+        values["contentWidth"] = .string(width)
+        values["contentWidthSpacing"] = .string("45rem")
+        values["contentAlignment"] = .string("center")
+        values["contentGap"] = .string("2rem")
+        PartPackageControlGroupCSSResolver.resolve(&values, properties: package.manifest.resolvedProperties)
         let css = PartTemplateRenderer.render(package.css, context: .init(
             instanceID: UUID(), packageIdentifier: package.manifest.identifier,
-            properties: ["contentWidth": .string(width), "contentWidthSpacing": .string("45rem"),
-                         "contentAlignment": .string("center"), "contentJustify": .string("end"),
-                         "contentGap": .string("2rem")], slots: [:]
+            properties: values, slots: [:]
         ))
         let expression = try NSRegularExpression(pattern: #"(?s):instance > \.fd-container__content \{(.*?)\}"#)
         let match = try #require(expression.firstMatch(in: css, range: NSRange(css.startIndex..., in: css)))
@@ -37,14 +43,22 @@ struct ContainerContentLayoutTests {
     func contentControlsHaveOneSectionAndExplicitAxisLabels() throws {
         let manifest = try package().manifest
         let controls = manifest.resolvedProperties.filter { $0.group == "Content Layout" }
+        // Horizontal placement is the content box's own Spacing group now:
+        // auto side margins centre it, None on one side pushes it over.
         #expect(controls.filter { $0.control.type != .note && $0.control.type != .divider }.map(\.id)
-            == ["contentWidth", "contentWidthSpacing", "contentAlignment", "contentJustify", "contentGap"])
-        #expect(controls.first { $0.id == "contentAlignment" }?.label == "Vertical")
-        #expect(controls.first { $0.id == "contentJustify" }?.label == "Horizontal")
+            == ["contentWidth", "contentWidthSpacing", "contentAlignment", "contentGap"])
+        #expect(controls.first { $0.id == "contentAlignment" }?.label == "Vertical position")
         #expect(controls.first { $0.id == "contentWidth" }?.control.options?.map(\.title) == ["Breakpoint", "Full", "Fit Content", "Custom"])
         #expect(controls.contains { $0.id == "contentHeight" } == false)
         #expect(manifest.controlGroups.contains { $0.type == .flexbox } == false)
         #expect(manifest.controlGroups.contains { $0.type == .layout && $0.id == "layout" })
+        #expect(manifest.controlGroups.contains { $0.type == .spacing && $0.id == "contentSpacing" })
+        let margin = try #require(manifest.resolvedProperties.first { $0.id == "contentSpacing.frameworkMargin" })
+        #expect(String(describing: margin.defaultValue).contains("auto"))
+        #expect(manifest.resolvedProperties.first { $0.id == "contentSpacing.spacingEnabled" }?.defaultValue == .boolean(true))
+        // Vertical position only matters once the section has spare height.
+        let vertical = try #require(controls.first { $0.id == "contentAlignment" })
+        #expect(vertical.visibleWhen != nil)
     }
 
     @Test(arguments: ["breakpoint", "custom", "full", "auto"])
@@ -52,8 +66,11 @@ struct ContainerContentLayoutTests {
         let css = try innerDeclarations(width: width)
         #expect(css["display"] == "flex")
         #expect(css["flex-direction"] == "column")
+        // Children keep their own widths, like blocks in a div.
+        #expect(css["align-items"] == "flex-start")
         #expect(css["align-self"] == "center")
-        #expect(css["justify-self"] == "end")
+        #expect(css["justify-self"] == "start")
+        #expect(css["justify-self"] != "end")
         #expect(css["gap"] == "2rem")
         switch width {
         case "breakpoint": #expect(css["max-width"] == "var(--foundry-container-width)")
@@ -65,12 +82,29 @@ struct ContainerContentLayoutTests {
         }
     }
 
+    /// The full pipeline resolves the framework margins: auto on both sides
+    /// centres the content box, as a hand-written container would.
+    @Test @MainActor
+    func contentBoxIsCentredByAutoSideMargins() async throws {
+        await PartPackageCatalog.shared.waitUntilLoaded()
+        let part = PartNode.make(.container)
+        let site = Site(name: "Container", pages: [Page(title: "Home", slug: "index", parts: [part])])
+        let html = HTMLPageRenderer(site: site).render(page: site.pages[0], framework: site.framework)
+        let expression = try NSRegularExpression(pattern: #"(?s)\.fd-container__content \{(.*?)\}"#)
+        let match = try #require(expression.firstMatch(in: html, range: NSRange(html.startIndex..., in: html)))
+        let body = String(html[try #require(Range(match.range(at: 1), in: html))])
+        #expect(body.contains("margin: 0 auto 0 auto;") || body.contains("margin: 0 auto;"), "\(body)")
+        #expect(body.contains("align-items: flex-start;"))
+    }
+
     @Test(arguments: ["breakpoint", "custom"])
     func fullWidthResetsAnEarlierBreakpointLimit(_ earlierWidth: String) throws {
         var cascade = try innerDeclarations(width: earlierWidth)
         cascade.merge(try innerDeclarations(width: "full")) { _, wider in wider }
         #expect(cascade["max-width"] == "none")
-        #expect(cascade["margin-inline"] == "0")
-        #expect(cascade["padding-inline"] == "0")
+        // The Spacing group always writes margin and padding, so a wider
+        // breakpoint's values replace a narrower one's.
+        #expect(cascade["margin"] != nil)
+        #expect(cascade["padding"] != nil)
     }
 }

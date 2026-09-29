@@ -347,8 +347,11 @@ final class PartPackageCatalog {
             return await PartCatalogSnapshot.loadOutcomes(urls)
         }.value
         guard generation == controlShowcaseGeneration else { return }
+        // No replacement rights: should an installed pack already own one of
+        // these identifiers, that part stays and the showcase entry is
+        // rejected with the usual duplicate diagnostic.
         for outcome in outcomes {
-            apply(outcome, allowsReplacement: true)
+            apply(outcome, allowsReplacement: false)
         }
     }
 
@@ -537,6 +540,15 @@ private struct PartPackageLoadOutcome: Sendable {
     nonisolated static func load(from url: URL, validates: Bool) -> PartPackageLoadOutcome {
         do {
             let result = try PartPackageLoader.loadForCatalog(from: url, validates: validates)
+            // Enforced even with validation off: a reserved identifier is a
+            // question of who owns the name, not of the part's quality.
+            if LoadedPartPackage.usesReservedIdentifier(result.package.manifest.identifier, at: url) {
+                return .init(url: url, package: nil, diagnostics: [.init(
+                    severity: .error,
+                    location: "manifest.json:id",
+                    message: LoadedPartPackage.reservedIdentifierMessage
+                )])
+            }
             if result.package.isDevelopmentPack {
                 try result.package.preparePayload()
             }

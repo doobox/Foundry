@@ -10,6 +10,7 @@ nonisolated enum AppPreferenceKey {
     static let overridesCanvasBackground = "canvas.background.override"
     static let canvasBackgroundColor = "canvas.background.color"
     static let enablesCanvasWebInspector = "canvas.webInspector.enabled"
+    static let lastSelectedBreakpointWidth = "canvas.breakpoint.lastSelectedWidth"
     static let showsDeveloperPanel = "developer.panel.visible"
     static let showsHiddenParts = "developer.parts.showHidden"
     static let automaticallyChecksPartUpdates = "parts.updates.automatic"

@@ -89,6 +89,49 @@ struct ImagePartTests {
     }
 
     @Test @MainActor
+    func vectorImagesExportAsThemselvesWithoutPhantomRenditions() async throws {
+        await PartPackageCatalog.shared.waitUntilLoaded()
+        let data = Data(#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><circle cx="5" cy="5" r="4"/></svg>"#.utf8)
+        // Imported the way the app stores an SVG: no pixel size.
+        let asset = ProjectAsset(filename: "logo.svg", mediaType: "image/svg+xml", byteCount: data.count,
+                                 contentDigest: FoundryDocumentSnapshot.digest(for: data))
+        var part = PartNode.make(.image)
+        part.setProperty(.init(rawValue: "source"), value: .url(asset.reference))
+        let site = Site(name: "Vector", pages: [Page(title: "Home", slug: "index", parts: [part])], assets: [asset])
+        let bundle = StaticSiteRenderer().render(site: site, assets: [asset.id: .init(asset: asset, data: data)])
+        // Nothing to resize, so no rendition file is promised and none fails to resolve.
+        #expect(bundle.errors.isEmpty, "\(bundle.errors)")
+        #expect(!bundle.files.contains { $0.path.hasPrefix("assets/renditions/") })
+        for file in bundle.files { #expect((try? file.resolvedData()) != nil, "\(file.path) could not be resolved") }
+        let html = try #require(bundle.file(at: "index.html")?.contents)
+        #expect(html.contains("src=\"assets/logo.svg\""))
+        #expect(!html.contains("srcset"))
+    }
+
+    @Test @MainActor
+    func imageWidthSizesThePictureInsideThePart() async throws {
+        await PartPackageCatalog.shared.waitUntilLoaded()
+        let (site, asset, data) = try imageSite(width: 2000, height: 1000) { part in
+            part.setProperty(.init(rawValue: "imageWidth"), value: .choice("custom"))
+            part.setProperty(.init(rawValue: "imageCustomWidth"), value: .number(320))
+            part.setProperty(.init(rawValue: "alignment"), value: .choice("end"))
+        }
+        let bundle = StaticSiteRenderer().render(site: site, assets: [asset.id: .init(asset: asset, data: data)])
+        let output = bundle.files.map(\.contents).joined()
+        // The picture, not the part, is 320px; the part keeps its own Sizing.
+        #expect(output.contains("width: 320px;"))
+        #expect(output.contains("sizes=\"auto, 320px\""))
+        #expect(output.contains("align-items: flex-end;"))
+
+        let (original, originalAsset, originalData) = try imageSite(width: 300, height: 200) { part in
+            part.setProperty(.init(rawValue: "imageWidth"), value: .choice("original"))
+        }
+        let originalOutput = StaticSiteRenderer().render(site: original, assets: [originalAsset.id: .init(asset: originalAsset, data: originalData)]).files.map(\.contents).joined()
+        #expect(originalOutput.contains("width: auto;"))
+        #expect(originalOutput.contains("sizes=\"auto, 300px\""))
+    }
+
+    @Test @MainActor
     func linkedWebImagesRenderWithoutRenditionsOrDimensions() async throws {
         await PartPackageCatalog.shared.waitUntilLoaded()
         var part = PartNode.make(.image)

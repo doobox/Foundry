@@ -2135,7 +2135,7 @@ private struct FixedCanvasColumn<Content: View>: View {
                 HStack(spacing: 12) {
                     ForEach(screens.enabledScreens) { screen in
                         Button {
-                            viewportWidth = screens.canvasWidth(for: screen)
+                            selectBreakpoint(screen)
                         } label: {
                             Image(systemName: screen.id.systemImage)
                                 .font(.system(size: 15, weight: .medium))
@@ -2194,6 +2194,11 @@ private struct FixedCanvasColumn<Content: View>: View {
                     trailingTargeted = $0
                 }
         }
+    }
+
+    private func selectBreakpoint(_ screen: FrameworkScreen) {
+        viewportWidth = screens.canvasWidth(for: screen)
+        CanvasBreakpointPreference.remember(viewportWidth)
     }
 
     private func isSelected(_ screen: FrameworkScreen) -> Bool {

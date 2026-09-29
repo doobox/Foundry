@@ -765,7 +765,17 @@ private struct PageInspector: View {
                             value: page.filenameOverride ?? ""
                         ) { editor.setPageFilename(id: page.id, value: $0) ?? "" }
                             .labelsHidden()
-                            .disabled(isHome)
+                    }
+                    if isHome {
+                        GridRow {
+                            Color.clear.frame(width: 0, height: 0)
+                            // The setter silently keeps the old value for
+                            // anything else, so say what it will take.
+                            Text("The home page is always index. Type index.html or index.php to choose its extension.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
                     }
                 }
             }
@@ -1565,6 +1575,13 @@ private struct PartIdentityFields: View {
     @Binding var attributes: [PartHTMLAttribute]
     let isDuplicateAnchor: Bool
     @State private var showsAddAttributePopover = false
+    /// The CSS is edited here and committed to the document on a short
+    /// debounce and on losing focus. Binding the editor straight to the
+    /// document reset its text on every keystroke and threw the cursor to
+    /// the end.
+    @State private var cssDraft = AttributedString("")
+    @FocusState private var isEditingCSS: Bool
+    private static let cssFontSize: CGFloat = 12
 
     var body: some View {
         InspectorGrid(contentInsets: EdgeInsets()) {
@@ -1590,9 +1607,23 @@ private struct PartIdentityFields: View {
             }
 
             InspectorRow(title: "CSS", alignment: .top) {
-                TextEditor(text: $customCSS)
-                    .font(.system(.body, design: .monospaced))
-                    .autocorrectionDisabled()
+                HighlightedCodeEditor(text: $cssDraft, language: .css, fontSize: Self.cssFontSize)
+                    .focused($isEditingCSS)
+                    .onAppear { cssDraft = highlighted(customCSS) }
+                    .onChange(of: customCSS) { _, updated in
+                        if !isEditingCSS { cssDraft = highlighted(updated) }
+                    }
+                    .onChange(of: isEditingCSS) { _, focused in
+                        if !focused { commitCSS() }
+                    }
+                    .task(id: draftCSS) {
+                        // Live enough for the canvas to follow, without a
+                        // document mutation per keystroke.
+                        guard isEditingCSS else { return }
+                        try? await Task.sleep(for: .milliseconds(350))
+                        guard !Task.isCancelled else { return }
+                        commitCSS()
+                    }
                     .frame(minHeight: 96)
                     .padding(4)
                     .background(.background, in: RoundedRectangle(cornerRadius: 5))
@@ -1628,6 +1659,20 @@ private struct PartIdentityFields: View {
                 }
             }
         }
+    }
+    private var draftCSS: String { String(cssDraft.characters) }
+
+    private func highlighted(_ css: String) -> AttributedString {
+        SourceSyntaxHighlighter.highlight(css, language: .css, fontSize: Self.cssFontSize)
+    }
+
+    private func commitCSS() {
+        // Whitespace-only CSS is stored as nothing, so compare what the
+        // document would hold rather than the raw text.
+        let draft = draftCSS
+        let stored = draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "" : draft
+        guard stored != customCSS else { return }
+        customCSS = draft
     }
 }
 

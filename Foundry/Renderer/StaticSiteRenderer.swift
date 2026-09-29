@@ -1074,8 +1074,10 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
                 )
                 for rendition in property.renditions {
                     let href: String
+                    // Only point at a rendition file that export will make;
+                    // SVG, animated GIF and small images serve the original.
                     if let assetID = source.foundryAssetID, let asset = assets.asset(assetID),
-                       max(asset.pixelWidth ?? 0, asset.pixelHeight ?? 0) > rendition.effectiveMaximumDimension {
+                       canMakeRendition(of: asset, maximumDimension: rendition.effectiveMaximumDimension, assets: assets) {
                         href = siteRootPrefix(from: assetPrefix) + imageRenditionPath(
                             assetID: assetID,
                             maximumDimension: rendition.effectiveMaximumDimension,
@@ -1187,15 +1189,9 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
         }
         for request in requests {
             try Task.checkCancellation()
-            guard let asset = assets.asset(request.assetID) else { continue }
-            // Skip the source read entirely when persisted metadata already
-            // shows no rendition is needed. Unknown dimensions fall through
-            // to `rendition`, which inspects the bytes itself.
-            if let width = asset.pixelWidth, let height = asset.pixelHeight,
-               max(width, height) <= request.maximumDimension {
-                continue
-            }
-            guard let digest = assets.digest(request.assetID) else { continue }
+            guard let asset = assets.asset(request.assetID),
+                  canMakeRendition(of: asset, maximumDimension: request.maximumDimension, assets: assets),
+                  let digest = assets.digest(request.assetID) else { continue }
             let path = imageRenditionPath(
                 assetID: request.assetID,
                 maximumDimension: request.maximumDimension,
@@ -1220,6 +1216,18 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
                 }
             ))
         }
+    }
+
+    /// The one decision both the template and the file list rely on, so a
+    /// rendition path is never written for a file that will not exist.
+    private func canMakeRendition(of asset: ProjectAsset, maximumDimension: Int, assets: ProjectAssetContents) -> Bool {
+        PartImageProcessor.canMakeRendition(
+            mediaType: asset.mediaType,
+            pixelWidth: asset.pixelWidth,
+            pixelHeight: asset.pixelHeight,
+            maximumDimension: maximumDimension,
+            data: { assets[asset.id]?.data }
+        )
     }
 
     private func imageRenditionPath(assetID: UUID, maximumDimension: Int, fileExtension: String) -> String {

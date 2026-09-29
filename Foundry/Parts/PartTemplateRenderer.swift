@@ -853,7 +853,7 @@ nonisolated enum PartTemplateRenderer {
         case .string(let value):
             let resolved = reference.hasSuffix(".href") ? context.assetPaths[value] ?? value : value
             return escape(resolved)
-        case .number(let value): return value.formatted(.number.locale(Locale(identifier: "en_US_POSIX")))
+        case .number(let value): return value.formatted(.number.grouping(.never).locale(Locale(identifier: "en_US_POSIX")))
         case .boolean(let value): return value ? "true" : "false"
         case .array(let values): return values.map(packageValueString).joined(separator: ", ")
         case .object: return ""
@@ -879,7 +879,7 @@ nonisolated enum PartTemplateRenderer {
     private static func packageValueString(_ value: PartPackageValue) -> String {
         switch value {
         case .string(let value): escape(value)
-        case .number(let value): value.formatted(.number.locale(Locale(identifier: "en_US_POSIX")))
+        case .number(let value): value.formatted(.number.grouping(.never).locale(Locale(identifier: "en_US_POSIX")))
         case .boolean(let value): value ? "true" : "false"
         case .array(let values): values.map(packageValueString).joined(separator: ", ")
         case .object: ""
@@ -889,7 +889,7 @@ nonisolated enum PartTemplateRenderer {
     private static func packageValueRawString(_ value: PartPackageValue) -> String {
         switch value {
         case .string(let value): value
-        case .number(let value): value.formatted(.number.locale(Locale(identifier: "en_US_POSIX")))
+        case .number(let value): value.formatted(.number.grouping(.never).locale(Locale(identifier: "en_US_POSIX")))
         case .boolean(let value): value ? "true" : "false"
         case .array(let values): values.map(packageValueRawString).joined(separator: ", ")
         case .object: ""
@@ -1151,7 +1151,11 @@ nonisolated enum PartTemplateRenderer {
 
     static func colorWithAlpha(_ value: String, alpha: Double) -> String {
         guard let color = rgb(value) else { return value }
-        let alpha = min(max(alpha, 0), 1).formatted(.number.precision(.fractionLength(0...3)))
+        // CSS wants a dot and no grouping whatever the user's region; the
+        // default formatter follows the region and wrote "0,819" in German.
+        let alpha = min(max(alpha, 0), 1).formatted(
+            .number.grouping(.never).precision(.fractionLength(0...3)).locale(Locale(identifier: "en_US_POSIX"))
+        )
         return "rgb(\(Int(color.red)) \(Int(color.green)) \(Int(color.blue)) / \(alpha))"
     }
 
@@ -1233,7 +1237,7 @@ nonisolated enum PartTemplateRenderer {
     private static func stringValue(_ value: PartPackageValue?) -> String? {
         switch value {
         case .string(let value): value
-        case .number(let value): value.formatted(.number.locale(Locale(identifier: "en_US_POSIX")))
+        case .number(let value): value.formatted(.number.grouping(.never).locale(Locale(identifier: "en_US_POSIX")))
         case .boolean(let value): value ? "true" : "false"
         case .array(let values): values.map(packageValueString).joined(separator: ", ")
         case .object: nil

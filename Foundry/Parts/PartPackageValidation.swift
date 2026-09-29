@@ -52,6 +52,9 @@ nonisolated enum PartPackageValidator {
             ))
         }
         validate(manifest.identifier, expression: identifierExpression, location: "manifest.json:id", message: "Use a lowercase reverse-DNS identifier, for example com.example.focal-point-hero.", into: &diagnostics)
+        if LoadedPartPackage.usesReservedIdentifier(manifest.identifier, at: rootURL) {
+            diagnostics.append(.init(severity: .error, location: "manifest.json:id", message: LoadedPartPackage.reservedIdentifierMessage))
+        }
         if manifest.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             diagnostics.append(.init(severity: .error, location: "manifest.json:title", message: "A part title is required."))
         }

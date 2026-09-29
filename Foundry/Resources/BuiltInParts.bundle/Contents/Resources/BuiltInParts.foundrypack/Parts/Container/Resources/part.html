@@ -1,6 +1,8 @@
 <section class="{{ part.class }}" {{ part.attributes }}>
     {{ control.background.video }}
-    {{ if control.destination }}<a class="fd-container__link" href="{{ control.destination }}" target="{{ control.destination.target }}" {{ control.destination.attributes }} aria-label="{{ control.linkLabel }}"></a>{{ endif }}
+    {{ if control.destination }}
+    <a class="fd-container__link" href="{{ control.destination }}" target="{{ control.destination.target }}" {{ control.destination.attributes }} aria-label="{{ control.linkLabel }}"></a>
+    {{ endif }}
     <div class="fd-container__content">
         {{ dropZone("content") }}
     </div>

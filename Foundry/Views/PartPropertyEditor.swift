@@ -984,13 +984,17 @@ struct PartPropertyEditor: View {
     private var packageCustomColorBinding: Binding<Color> {
         Binding(
             get: {
-                (Color(hex: appearance == .light ? packageColorValue.customColor : packageColorValue.darkCustomColor) ?? .black)
-                    .opacity(appearance == .light ? packageColorValue.opacity : packageColorValue.darkOpacity)
+                Color.stored(
+                    hex: appearance == .light ? packageColorValue.customColor : packageColorValue.darkCustomColor,
+                    opacity: appearance == .light ? packageColorValue.opacity : packageColorValue.darkOpacity
+                )
             },
             set: { color in
                 var value = packageColorValue
-                let hex = color.hexString ?? "#000000"
-                let alpha = Double(NSColor(color).usingColorSpace(.sRGB)?.alphaComponent ?? 1)
+                // Read the well's colour as it is; only convert for the hex.
+                let picked = NSColor(color)
+                let alpha = Double(picked.alphaComponent)
+                guard let hex = color.hexString else { return }
                 if appearance == .light { value.customColor = hex; value.opacity = alpha }
                 else { value.darkCustomColor = hex; value.darkOpacity = alpha }
                 setProperty(.packageColor(value))

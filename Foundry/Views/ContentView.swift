@@ -72,7 +72,7 @@ struct ContentView: View {
     @State private var browserPreviewPackageRevision: Int?
     @State private var canvasEditorOptions = CanvasEditorOptions()
     @State private var partCatalog = PartPackageCatalog.shared
-    @State private var canvasViewportWidth = 390.0
+    @State private var canvasViewportWidth: Double
     @State private var selectedAppearance = SiteAppearance.light
     private var canvasAppearance: SiteAppearance {
         document.site.appearanceMode.permits(selectedAppearance) ? selectedAppearance :
@@ -95,6 +95,13 @@ struct ContentView: View {
     /// One cache for the document's lifetime. Without it every canvas render
     /// re-resolved each part's properties and CSS from scratch.
     @State private var canvasRenderCache = CanvasRenderCache()
+
+    init(document: FoundryDocument) {
+        self.document = document
+        _canvasViewportWidth = State(initialValue: CanvasBreakpointPreference.restoredViewportWidth(
+            screens: document.site.framework.screens
+        ))
+    }
 
     private var renderer: any PageRendering {
         HTMLPageRenderer(site: document.site, appearance: canvasAppearance,

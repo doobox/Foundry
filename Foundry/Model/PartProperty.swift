@@ -203,7 +203,8 @@ nonisolated struct PartProperty: Codable, Equatable, Identifiable, Sendable {
             case .string(let value), .url(let value), .color(let value), .choice(let value):
                 value
             case .number(let value):
-                value.formatted()
+                // Output text, not UI: fixed locale, no grouping.
+                value.formatted(.number.grouping(.never).locale(Locale(identifier: "en_US_POSIX")))
             case .boolean(let value):
                 value ? "true" : "false"
             case .token(let token):

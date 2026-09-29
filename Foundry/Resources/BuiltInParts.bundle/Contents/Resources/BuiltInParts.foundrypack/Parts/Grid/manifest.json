@@ -1,7 +1,7 @@
 {
   "assets": [],
   "author": "Foundry",
-  "description": "Responsive two-dimensional layouts with fixed or automatic columns.",
+  "description": "Equal columns you drop parts straight into — 1, 2 and 3 across phone, tablet and desktop to start. Add a Grid Item when a cell needs spanning or its own styling.",
   "group": "Layout",
   "icon": {
     "symbol": "app.grid.2x2",
@@ -23,11 +23,6 @@
           ],
           "accepts": [
             "*"
-          ],
-          "initial": [
-            "foundry.layout.griditem",
-            "foundry.layout.griditem",
-            "foundry.layout.griditem"
           ],
           "minimum": 0,
           "containment": "open",
@@ -58,7 +53,7 @@
         },
         {
           "defaults": {
-            "base": false
+            "base": true
           },
           "id": "previewColumns",
           "label": "Preview Grid",
@@ -198,7 +193,7 @@
         },
         {
           "defaults": {
-            "base": "normal"
+            "base": "start"
           },
           "id": "alignItems",
           "label": "Align Vertically",
@@ -230,7 +225,7 @@
         },
         {
           "defaults": {
-            "base": "normal"
+            "base": "start"
           },
           "id": "justifyItems",
           "label": "Align Horizontally",
@@ -366,5 +361,5 @@
     "editorCSS": "editor.css"
   },
   "title": "Grid",
-  "version": "3.0.0"
+  "version": "1.1.0"
 }

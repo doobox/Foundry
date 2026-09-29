@@ -35,6 +35,22 @@ extension Color {
         )
     }
 
+    /// A custom colour from its stored hex and opacity as one resolved sRGB
+    /// NSColor. `Color(nsColor:)` round-trips exactly through `NSColor(Color)`,
+    /// which an `.opacity()`-modified Color does not on every macOS.
+    static func stored(hex: String, opacity: Double) -> Color {
+        guard let base = Color(hex: hex),
+              let components = NSColor(base).usingColorSpace(.sRGB) else {
+            return Color(nsColor: NSColor(srgbRed: 0, green: 0, blue: 0, alpha: min(max(opacity, 0), 1)))
+        }
+        return Color(nsColor: NSColor(
+            srgbRed: components.redComponent,
+            green: components.greenComponent,
+            blue: components.blueComponent,
+            alpha: min(max(opacity, 0), 1)
+        ))
+    }
+
     var hexString: String? {
         guard let color = NSColor(self).usingColorSpace(.sRGB) else { return nil }
         return String(

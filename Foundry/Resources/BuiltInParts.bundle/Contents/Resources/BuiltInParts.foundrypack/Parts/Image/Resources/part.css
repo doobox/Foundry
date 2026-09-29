@@ -4,6 +4,7 @@
 :instance {
     display: flex;
     flex-direction: column;
+    align-items: {{ if control.alignment == "start" }}flex-start{{ elseif control.alignment == "end" }}flex-end{{ else }}center{{ endif }};
     margin-block: 0;
     margin-inline: auto;
     {{ if control.alignment == "start" }}margin-inline: 0 auto;{{ endif }}
@@ -16,7 +17,9 @@
    around its focal point, or sits inside it when Fit says Contain. */
 :instance .fd-image {
     display: block;
-    width: 100%;
+    /* The picture's own width: the part's, its natural pixels, or a number.
+       Never wider than the part. */
+    width: {{ if control.imageWidth == "original" }}auto{{ elseif control.imageWidth == "custom" }}{{ control.imageCustomWidth }}px{{ else }}100%{{ endif }};
     max-width: 100%;
     flex: 1 1 auto;
     min-height: 0;

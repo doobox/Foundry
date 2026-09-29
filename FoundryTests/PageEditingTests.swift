@@ -47,6 +47,35 @@ struct PageEditingTests {
     }
 
     @Test
+    func homePageFilenameOnlyChoosesItsExtension() throws {
+        let document = FoundryDocument()
+        let editor = ProjectEditor(document: document, undoManager: nil)
+        let homeID = try #require(document.site.pages.first { $0.slug == "index" }?.id)
+        func home() -> Page { document.site.pages.first { $0.id == homeID }! }
+
+        // The one thing the home page may choose is html or php.
+        #expect(editor.setPageFilename(id: homeID, value: "INDEX.PHP") == "index.php")
+        #expect(home().filenameOverride == "index.php")
+        #expect(StaticSiteRenderer.filename(for: home()) == "index.php")
+        #expect(StaticSiteRenderer.outputPath(for: home(), in: document.site) == "index.php")
+        // Still the root address, whatever the extension.
+        #expect(StaticSiteRenderer.urlPath(for: home(), pages: document.site.pages, folders: document.site.pageFolders) == "/")
+
+        // Anything that is not index is refused and the stored value stands.
+        for rejected in ["home.php", "welcome", "index.htm", "Index Page.html"] {
+            #expect(editor.setPageFilename(id: homeID, value: rejected) == "index.php", "\(rejected)")
+            #expect(home().filenameOverride == "index.php", "\(rejected)")
+        }
+
+        #expect(editor.setPageFilename(id: homeID, value: "index.html") == "index.html")
+        #expect(StaticSiteRenderer.filename(for: home()) == "index.html")
+        // A bare index, or nothing, returns to the page's stamped default.
+        #expect(editor.setPageFilename(id: homeID, value: "index") == nil)
+        #expect(home().filenameOverride == nil)
+        #expect(editor.setPageFilename(id: homeID, value: "   ") == nil)
+    }
+
+    @Test
     func createsPageWithUniqueSlugAndStableIdentifier() {
         let document = FoundryDocument()
         let editor = ProjectEditor(document: document, undoManager: nil)

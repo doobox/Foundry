@@ -137,18 +137,38 @@ nonisolated struct LoadedPartPackage: Sendable {
     }
 
     var isBuiltIn: Bool {
-        guard let bundleURL = Bundle.main.url(forResource: "BuiltInParts", withExtension: "bundle") else {
-            return false
-        }
-        let bundlePath = bundleURL.standardizedFileURL.path
-        let packagePath = rootURL.standardizedFileURL.path
-        return packagePath == bundlePath || packagePath.hasPrefix(bundlePath + "/")
+        Self.isBuiltInLocation(rootURL)
     }
 
-    /// A part of the bundled Controls showcase, listed only in the Parts
-    /// panel's Controls tab.
+    /// Whether a part lives inside the app's own bundle of built-in content.
+    /// The `foundry.` identifier prefix is reserved for parts that do.
+    nonisolated static func isBuiltInLocation(_ url: URL) -> Bool {
+        let packagePath = url.standardizedFileURL.path
+        if let bundleURL = Bundle.main.url(forResource: "BuiltInParts", withExtension: "bundle") {
+            let bundlePath = bundleURL.standardizedFileURL.path
+            if packagePath == bundlePath || packagePath.hasPrefix(bundlePath + "/") { return true }
+        }
+        // The same content read from the source tree, as tests do. Installed
+        // packs are scanned as `*.foundrypack` directly under Packs, so a
+        // folder by this name there is never reached.
+        return url.pathComponents.contains("BuiltInParts.bundle")
+    }
+
+    static let reservedIdentifierPrefix = "foundry."
+
+    /// A part outside the app claiming Foundry's own prefix: rejected so it
+    /// can never shadow, or be shadowed by, a built-in.
+    nonisolated static func usesReservedIdentifier(_ identifier: String, at url: URL) -> Bool {
+        identifier.lowercased().hasPrefix(reservedIdentifierPrefix) && !isBuiltInLocation(url)
+    }
+
+    static let reservedIdentifierMessage = "The 'foundry.' prefix is reserved for Foundry's own parts. Use your own reverse-DNS prefix, for example com.example.focal-point-hero."
+
+    /// A part of the bundled Controls showcase, listed only in the Developer
+    /// panel's Controls section. Only the app's own copy counts: an installed
+    /// pack that happens to share the name is an ordinary pack.
     var isControlShowcase: Bool {
-        rootURL.pathComponents.contains { $0 == "ControlShowcase.foundrypack" || $0 == "ControlShowcase.foundrydevpack" }
+        isBuiltIn && rootURL.pathComponents.contains { $0 == "ControlShowcase.foundrypack" || $0 == "ControlShowcase.foundrydevpack" }
     }
 
     /// The copy-and-go snippets a showcase part keeps beside its templates:

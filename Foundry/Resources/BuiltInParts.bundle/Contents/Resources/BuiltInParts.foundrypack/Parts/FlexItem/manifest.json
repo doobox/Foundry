@@ -295,6 +295,6 @@
   "version": "1.0.0",
   "showsInPartLibrary": false,
   "allowedParents": [
-    "foundry.layout.flex"
+    "foundry.layout.flexbox"
   ]
 }

@@ -4,7 +4,7 @@
   "description": "Side-by-side columns from a simple preset. Columns stack on small screens.",
   "group": "Layout",
   "icon": {
-    "symbol": "rectangle.split.2x1",
+    "symbol": "rectangle.split.3x1",
     "tint": "blue"
   },
   "id": "foundry.layout.columns",

@@ -64,6 +64,28 @@ nonisolated enum PartImageProcessor {
         return result
     }
 
+    /// Whether a stored image can have a smaller copy made at all: a raster
+    /// ImageIO can read and write, with a known size larger than the
+    /// rendition, and a single frame. SVG scales itself and an animated GIF
+    /// would lose its animation, so both are served as they are. Export asks
+    /// this before promising a rendition file, so it never promises one that
+    /// `rendition` will refuse to make.
+    static func canMakeRendition(
+        mediaType: String,
+        pixelWidth: Int?,
+        pixelHeight: Int?,
+        maximumDimension: Int,
+        data: () -> Data?
+    ) -> Bool {
+        guard mediaType.hasPrefix("image/"), mediaType != "image/svg+xml",
+              let pixelWidth, let pixelHeight,
+              max(pixelWidth, pixelHeight) > min(maximumDimension, canonicalMaximumDimension) else { return false }
+        // Only GIF can carry several frames; every other format skips the read.
+        guard mediaType == "image/gif" else { return true }
+        guard let data = data(), let source = CGImageSourceCreateWithData(data as CFData, nil) else { return false }
+        return CGImageSourceGetCount(source) == 1
+    }
+
     private static func trimRenditionCache(_ directory: URL) {
         let keys: Set<URLResourceKey> = [.fileSizeKey, .contentModificationDateKey, .isRegularFileKey]
         guard let files = try? FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: Array(keys)) else { return }

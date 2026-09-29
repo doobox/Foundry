@@ -1,10 +1,10 @@
 {
   "assets": [],
   "author": "Foundry",
-  "description": "A page section. Backgrounds, borders and padding span its full width while content stays inside the site's content width.",
+  "description": "A page section. Backgrounds, borders and padding span its full width; inside, content stacks like an ordinary block and stays within the site's content width.",
   "group": "Layout",
   "icon": {
-    "symbol": "inset.filled.topthird.rectangle",
+    "symbol": "rectangle",
     "tint": "blue"
   },
   "id": "foundry.layout.container",
@@ -65,17 +65,43 @@
         },
         {
           "type": "divider",
-          "id": "contentLayoutDivider"
+          "id": "contentLayoutDivider",
+          "visibleWhen": {
+            "any": [
+              {
+                "id": "sizing.heightMode",
+                "operation": "!=",
+                "value": "auto"
+              },
+              {
+                "id": "sizing.minHeight",
+                "operation": "isNotEmpty"
+              }
+            ]
+          }
         },
         {
           "type": "note",
           "id": "contentAlignmentHeading",
-          "body": "Position"
+          "body": "Position",
+          "visibleWhen": {
+            "any": [
+              {
+                "id": "sizing.heightMode",
+                "operation": "!=",
+                "value": "auto"
+              },
+              {
+                "id": "sizing.minHeight",
+                "operation": "isNotEmpty"
+              }
+            ]
+          }
         },
         {
           "type": "select",
           "id": "contentAlignment",
-          "label": "Vertical",
+          "label": "Vertical position",
           "defaults": {
             "base": "center"
           },
@@ -102,39 +128,20 @@
             }
           ],
           "responsive": true,
-          "tooltip": "Positions the inner content box vertically within the section."
-        },
-        {
-          "type": "select",
-          "id": "contentJustify",
-          "label": "Horizontal",
-          "defaults": {
-            "base": "center"
-          },
-          "options": [
-            {
-              "value": "normal",
-              "title": "Auto"
-            },
-            {
-              "value": "start",
-              "title": "Start"
-            },
-            {
-              "value": "end",
-              "title": "End"
-            },
-            {
-              "value": "center",
-              "title": "Centre"
-            },
-            {
-              "value": "stretch",
-              "title": "Stretch"
-            }
-          ],
-          "responsive": true,
-          "tooltip": "Positions the inner content box horizontally within the section."
+          "tooltip": "Where the content box sits when the section is taller than its content.",
+          "visibleWhen": {
+            "any": [
+              {
+                "id": "sizing.heightMode",
+                "operation": "!=",
+                "value": "auto"
+              },
+              {
+                "id": "sizing.minHeight",
+                "operation": "isNotEmpty"
+              }
+            ]
+          }
         },
         {
           "type": "frameworkSpacing",
@@ -145,7 +152,31 @@
           },
           "noneValue": "normal",
           "responsive": true,
-          "tooltip": "Space between children. None uses the normal automatic gap (zero for this layout)."
+          "tooltip": "Space between the parts stacked inside. None uses the normal automatic gap (zero for this layout)."
+        }
+      ]
+    },
+    {
+      "section": "Content Spacing",
+      "systemImage": "rectangle.inset.filled",
+      "controls": [
+        {
+          "type": "note",
+          "body": "Margins and padding of the content box inside the section. Auto side margins centre it; set one side to None to push the content that way.",
+          "systemImage": "info.circle"
+        },
+        {
+          "type": "spacing",
+          "id": "contentSpacing",
+          "defaults": {
+            "spacingEnabled": true,
+            "frameworkMargin": {
+              "top": "none",
+              "right": "auto",
+              "bottom": "none",
+              "left": "auto"
+            }
+          }
         }
       ]
     },
@@ -289,5 +320,5 @@
     "html": "part.html"
   },
   "title": "Container",
-  "version": "3.0.0"
+  "version": "3.1.0"
 }

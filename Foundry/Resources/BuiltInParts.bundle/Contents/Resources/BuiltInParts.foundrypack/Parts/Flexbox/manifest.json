@@ -1,9 +1,9 @@
 {
   "assets": [],
   "author": "Foundry",
-  "description": "Arrange content in a responsive row or column, with optional wrapping.",
+  "description": "Stacks parts top to bottom by default; switch Direction to Row for side by side. Add a Flex Item when a slot needs its own sizing or styling.",
   "group": "Layout",
-  "id": "foundry.layout.flex",
+  "id": "foundry.layout.flexbox",
   "icon": {
     "symbol": "app.dashed",
     "tint": "blue"
@@ -23,11 +23,6 @@
           "accepts": [
             "*"
           ],
-          "initial": [
-            "foundry.layout.flexitem",
-            "foundry.layout.flexitem",
-            "foundry.layout.flexitem"
-          ],
           "minimum": 0,
           "containment": "open",
           "tooltip": "Drop any part straight into the row. Add a Flex Item when an item needs its own size, background, padding or alignment."
@@ -42,9 +37,9 @@
           "type": "flexbox",
           "id": "flexbox",
           "defaults": {
-            "direction": "row",
-            "wrap": "wrap",
-            "alignItems": "center"
+            "direction": "column",
+            "wrap": "nowrap",
+            "alignItems": "flex-start"
           }
         }
       ]
@@ -168,7 +163,6 @@
     "built-in",
     "layout",
     "flex",
-    "row",
     "stack"
   ],
   "templates": {
@@ -181,5 +175,5 @@
     "html": "part.html"
   },
   "title": "Flexbox",
-  "version": "2.0.0"
+  "version": "2.1.0"
 }
