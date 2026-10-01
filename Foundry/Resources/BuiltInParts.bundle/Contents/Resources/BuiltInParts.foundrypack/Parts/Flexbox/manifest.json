@@ -1,7 +1,7 @@
 {
   "assets": [],
   "author": "Foundry",
-  "description": "Stacks parts top to bottom by default; switch Direction to Row for side by side. Add a Flex Item when a slot needs its own sizing or styling.",
+  "description": "Stacks parts vertically by default; switch Direction to Horizontal for side-by-side layouts. Add a Flex Item only when an item needs its own sizing or styling.",
   "group": "Layout",
   "id": "foundry.layout.flexbox",
   "icon": {
@@ -10,8 +10,8 @@
   },
   "inspector": [
     {
-      "section": "Items",
-      "systemImage": "square.stack",
+      "section": "Flexbox",
+      "systemImage": "rectangle.3.group",
       "controls": [
         {
           "type": "childPicker",
@@ -25,14 +25,11 @@
           ],
           "minimum": 0,
           "containment": "open",
-          "tooltip": "Drop any part straight into the row. Add a Flex Item when an item needs its own size, background, padding or alignment."
-        }
-      ]
-    },
-    {
-      "section": "Flex",
-      "systemImage": "rectangle.3.group",
-      "controls": [
+          "tooltip": "Drop any part directly into the layout. Add a Flex Item only when an item needs its own size, background, padding or alignment."
+        },
+        {
+          "type": "divider"
+        },
         {
           "type": "flexbox",
           "id": "flexbox",
@@ -73,7 +70,13 @@
       "controls": [
         {
           "type": "background",
-          "id": "background"
+          "id": "background",
+          "backgroundTypes": [
+            "colour",
+            "image",
+            "gradient",
+            "video"
+          ]
         }
       ]
     },
@@ -98,11 +101,42 @@
       ]
     },
     {
+      "section": "Filters",
+      "systemImage": "camera.filters",
+      "controls": [
+        {
+          "type": "filters",
+          "id": "filters"
+        }
+      ]
+    },
+    {
+      "section": "Transforms",
+      "systemImage": "move.3d",
+      "controls": [
+        {
+          "type": "transforms",
+          "id": "transforms"
+        }
+      ]
+    },
+    {
+      "section": "Transitions",
+      "systemImage": "circle.dotted.circle",
+      "controls": [
+        {
+          "type": "transitions",
+          "id": "transitions"
+        }
+      ]
+    },
+    {
       "section": "Layout",
       "systemImage": "square.on.square",
       "controls": [
         {
           "type": "layout",
+          "id": "layout",
           "allowedOptions": {
             "position": [
               "relative",
@@ -110,8 +144,7 @@
               "fixed",
               "sticky"
             ]
-          },
-          "id": "layout"
+          }
         }
       ]
     },
@@ -126,32 +159,14 @@
       ]
     },
     {
+      "section": "Link",
+      "systemImage": "link",
       "controls": [
         {
-          "defaults": {
-            "base": ""
-          },
-          "id": "destination",
-          "label": "Destination",
-          "tooltip": "Makes the whole part one link. The overlay also covers links and buttons inside; avoid nesting interactive content when enabled.",
-          "type": "link"
-        },
-        {
-          "defaults": {
-            "base": ""
-          },
-          "id": "linkLabel",
-          "label": "Accessible name",
-          "tooltip": "Describes the destination for screen readers, which cannot see the part's contents.",
-          "type": "text",
-          "visibleWhen": {
-            "id": "destination",
-            "operation": "isNotEmpty"
-          }
+          "type": "linkOverlay",
+          "id": "link"
         }
-      ],
-      "section": "Link",
-      "systemImage": "link"
+      ]
     },
     {
       "type": "advanced"
@@ -175,5 +190,5 @@
     "html": "part.html"
   },
   "title": "Flexbox",
-  "version": "2.1.0"
+  "version": "2.2.0"
 }

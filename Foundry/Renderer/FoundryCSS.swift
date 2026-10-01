@@ -21,7 +21,7 @@ nonisolated enum FoundryCSS {
         @layer foundry.tokens {
         :root{font-size:16px;color-scheme:\(colorScheme);\(tokenVariables(framework: framework, colour: colour))}
         \(framework.screens.containerCSS)
-        @media (prefers-reduced-motion:reduce){:root{--foundry-motion-fast:0ms;--foundry-motion-normal:0ms;--foundry-motion-slow:0ms}}
+        @media (prefers-reduced-motion:reduce){:root{--foundry-motion-fast:0ms;--foundry-motion-normal:0ms;--foundry-motion-slow:0ms;--foundry-transition-motion:0}}
         }
         @layer foundry.base {
         \(base)
@@ -79,6 +79,7 @@ nonisolated enum FoundryCSS {
         legend{padding:0}
         img,picture,video,canvas,svg{display:block;max-width:100%}
         .foundry-background-layer{position:absolute;inset:0;z-index:-1;overflow:hidden;border-radius:inherit;pointer-events:none}
+        .foundry-background-layer::after{content:"";position:absolute;inset:0;background-color:var(--foundry-background-overlay,transparent);pointer-events:none}
         .foundry-background-layer>.foundry-background-video{position:absolute;inset:0;width:100%;height:100%;max-width:none;object-fit:cover;pointer-events:none}
         input,button,textarea,select{font:inherit;color:inherit;margin:0}
         ::placeholder{color:var(--foundry-color-muted);opacity:1}

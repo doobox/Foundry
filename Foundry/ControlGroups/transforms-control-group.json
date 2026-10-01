@@ -1,0 +1,517 @@
+{
+  "controls": [
+    {
+      "id": "transformsMode",
+      "label": "Type",
+      "type": "select",
+      "presentation": "segmented",
+      "responsive": false,
+      "defaults": {
+        "base": "none"
+      },
+      "options": [
+        {
+          "title": "None",
+          "value": "none"
+        },
+        {
+          "title": "Static",
+          "value": "static"
+        },
+        {
+          "title": "Hover",
+          "value": "hover"
+        }
+      ]
+    },
+    {
+      "id": "transformsState",
+      "label": "State",
+      "type": "select",
+      "presentation": "segmented",
+      "responsive": false,
+      "defaults": {
+        "base": "normal"
+      },
+      "options": [
+        {
+          "title": "Normal",
+          "value": "normal"
+        },
+        {
+          "title": "Hovered",
+          "value": "hover"
+        }
+      ],
+      "visibleWhen": {
+        "id": "transformsMode",
+        "value": "hover"
+      }
+    },
+    {
+      "id": "transformsOrigin",
+      "label": "Origin",
+      "type": "select",
+      "defaults": {
+        "base": "center"
+      },
+      "responsive": true,
+      "visibleWhen": {
+        "any": [
+          {
+            "id": "transformsMode",
+            "value": "static"
+          },
+          {
+            "all": [
+              {
+                "id": "transformsMode",
+                "value": "hover"
+              },
+              {
+                "id": "transformsState",
+                "value": "normal"
+              }
+            ]
+          }
+        ]
+      },
+      "options": [
+        {
+          "title": "Center",
+          "value": "center"
+        },
+        {
+          "title": "Top left",
+          "value": "top left"
+        },
+        {
+          "title": "Top",
+          "value": "top"
+        },
+        {
+          "title": "Top right",
+          "value": "top right"
+        },
+        {
+          "title": "Left",
+          "value": "left"
+        },
+        {
+          "title": "Right",
+          "value": "right"
+        },
+        {
+          "title": "Bottom left",
+          "value": "bottom left"
+        },
+        {
+          "title": "Bottom",
+          "value": "bottom"
+        },
+        {
+          "title": "Bottom right",
+          "value": "bottom right"
+        }
+      ]
+    },
+    {
+      "id": "transformsScale",
+      "label": "Scale",
+      "type": "number",
+      "defaults": {
+        "base": 100
+      },
+      "responsive": true,
+      "visibleWhen": {
+        "any": [
+          {
+            "id": "transformsMode",
+            "value": "static"
+          },
+          {
+            "all": [
+              {
+                "id": "transformsMode",
+                "value": "hover"
+              },
+              {
+                "id": "transformsState",
+                "value": "normal"
+              }
+            ]
+          }
+        ]
+      },
+      "minimum": 0,
+      "maximum": 1000,
+      "step": 1,
+      "units": "%"
+    },
+    {
+      "id": "transformsRotate",
+      "label": "Rotate",
+      "type": "number",
+      "defaults": {
+        "base": 0
+      },
+      "responsive": true,
+      "visibleWhen": {
+        "any": [
+          {
+            "id": "transformsMode",
+            "value": "static"
+          },
+          {
+            "all": [
+              {
+                "id": "transformsMode",
+                "value": "hover"
+              },
+              {
+                "id": "transformsState",
+                "value": "normal"
+              }
+            ]
+          }
+        ]
+      },
+      "minimum": -360,
+      "maximum": 360,
+      "step": 1,
+      "units": "deg"
+    },
+    {
+      "id": "transformsTranslateX",
+      "label": "Translate horizontal",
+      "type": "text",
+      "defaults": {
+        "base": "0px"
+      },
+      "responsive": true,
+      "visibleWhen": {
+        "any": [
+          {
+            "id": "transformsMode",
+            "value": "static"
+          },
+          {
+            "all": [
+              {
+                "id": "transformsMode",
+                "value": "hover"
+              },
+              {
+                "id": "transformsState",
+                "value": "normal"
+              }
+            ]
+          }
+        ]
+      },
+      "tooltip": "Signed CSS length or percentage, for example -10px, 50% or 10vw. Unitless zero is accepted."
+    },
+    {
+      "id": "transformsTranslateY",
+      "label": "Translate vertical",
+      "type": "text",
+      "defaults": {
+        "base": "0px"
+      },
+      "responsive": true,
+      "visibleWhen": {
+        "any": [
+          {
+            "id": "transformsMode",
+            "value": "static"
+          },
+          {
+            "all": [
+              {
+                "id": "transformsMode",
+                "value": "hover"
+              },
+              {
+                "id": "transformsState",
+                "value": "normal"
+              }
+            ]
+          }
+        ]
+      },
+      "tooltip": "Signed CSS length or percentage, for example -10px, 50% or 10vw. Unitless zero is accepted."
+    },
+    {
+      "id": "transformsSkewX",
+      "label": "Skew horizontal",
+      "type": "number",
+      "defaults": {
+        "base": 0
+      },
+      "responsive": true,
+      "visibleWhen": {
+        "any": [
+          {
+            "id": "transformsMode",
+            "value": "static"
+          },
+          {
+            "all": [
+              {
+                "id": "transformsMode",
+                "value": "hover"
+              },
+              {
+                "id": "transformsState",
+                "value": "normal"
+              }
+            ]
+          }
+        ]
+      },
+      "minimum": -89,
+      "maximum": 89,
+      "step": 1,
+      "units": "deg"
+    },
+    {
+      "id": "transformsSkewY",
+      "label": "Skew vertical",
+      "type": "number",
+      "defaults": {
+        "base": 0
+      },
+      "responsive": true,
+      "visibleWhen": {
+        "any": [
+          {
+            "id": "transformsMode",
+            "value": "static"
+          },
+          {
+            "all": [
+              {
+                "id": "transformsMode",
+                "value": "hover"
+              },
+              {
+                "id": "transformsState",
+                "value": "normal"
+              }
+            ]
+          }
+        ]
+      },
+      "minimum": -89,
+      "maximum": 89,
+      "step": 1,
+      "units": "deg"
+    },
+    {
+      "id": "transformsHoverOrigin",
+      "label": "Origin",
+      "type": "select",
+      "defaults": {
+        "base": "center"
+      },
+      "responsive": true,
+      "visibleWhen": {
+        "all": [
+          {
+            "id": "transformsMode",
+            "value": "hover"
+          },
+          {
+            "id": "transformsState",
+            "value": "hover"
+          }
+        ]
+      },
+      "options": [
+        {
+          "title": "Center",
+          "value": "center"
+        },
+        {
+          "title": "Top left",
+          "value": "top left"
+        },
+        {
+          "title": "Top",
+          "value": "top"
+        },
+        {
+          "title": "Top right",
+          "value": "top right"
+        },
+        {
+          "title": "Left",
+          "value": "left"
+        },
+        {
+          "title": "Right",
+          "value": "right"
+        },
+        {
+          "title": "Bottom left",
+          "value": "bottom left"
+        },
+        {
+          "title": "Bottom",
+          "value": "bottom"
+        },
+        {
+          "title": "Bottom right",
+          "value": "bottom right"
+        }
+      ]
+    },
+    {
+      "id": "transformsHoverScale",
+      "label": "Scale",
+      "type": "number",
+      "defaults": {
+        "base": 100
+      },
+      "responsive": true,
+      "visibleWhen": {
+        "all": [
+          {
+            "id": "transformsMode",
+            "value": "hover"
+          },
+          {
+            "id": "transformsState",
+            "value": "hover"
+          }
+        ]
+      },
+      "minimum": 0,
+      "maximum": 1000,
+      "step": 1,
+      "units": "%"
+    },
+    {
+      "id": "transformsHoverRotate",
+      "label": "Rotate",
+      "type": "number",
+      "defaults": {
+        "base": 0
+      },
+      "responsive": true,
+      "visibleWhen": {
+        "all": [
+          {
+            "id": "transformsMode",
+            "value": "hover"
+          },
+          {
+            "id": "transformsState",
+            "value": "hover"
+          }
+        ]
+      },
+      "minimum": -360,
+      "maximum": 360,
+      "step": 1,
+      "units": "deg"
+    },
+    {
+      "id": "transformsHoverTranslateX",
+      "label": "Translate horizontal",
+      "type": "text",
+      "defaults": {
+        "base": "0px"
+      },
+      "responsive": true,
+      "visibleWhen": {
+        "all": [
+          {
+            "id": "transformsMode",
+            "value": "hover"
+          },
+          {
+            "id": "transformsState",
+            "value": "hover"
+          }
+        ]
+      },
+      "tooltip": "Signed CSS length or percentage, for example -10px, 50% or 10vw. Unitless zero is accepted."
+    },
+    {
+      "id": "transformsHoverTranslateY",
+      "label": "Translate vertical",
+      "type": "text",
+      "defaults": {
+        "base": "0px"
+      },
+      "responsive": true,
+      "visibleWhen": {
+        "all": [
+          {
+            "id": "transformsMode",
+            "value": "hover"
+          },
+          {
+            "id": "transformsState",
+            "value": "hover"
+          }
+        ]
+      },
+      "tooltip": "Signed CSS length or percentage, for example -10px, 50% or 10vw. Unitless zero is accepted."
+    },
+    {
+      "id": "transformsHoverSkewX",
+      "label": "Skew horizontal",
+      "type": "number",
+      "defaults": {
+        "base": 0
+      },
+      "responsive": true,
+      "visibleWhen": {
+        "all": [
+          {
+            "id": "transformsMode",
+            "value": "hover"
+          },
+          {
+            "id": "transformsState",
+            "value": "hover"
+          }
+        ]
+      },
+      "minimum": -89,
+      "maximum": 89,
+      "step": 1,
+      "units": "deg"
+    },
+    {
+      "id": "transformsHoverSkewY",
+      "label": "Skew vertical",
+      "type": "number",
+      "defaults": {
+        "base": 0
+      },
+      "responsive": true,
+      "visibleWhen": {
+        "all": [
+          {
+            "id": "transformsMode",
+            "value": "hover"
+          },
+          {
+            "id": "transformsState",
+            "value": "hover"
+          }
+        ]
+      },
+      "minimum": -89,
+      "maximum": 89,
+      "step": 1,
+      "units": "deg"
+    }
+  ],
+  "name": "Transforms",
+  "systemImage": "move.3d",
+  "type": "transforms"
+}

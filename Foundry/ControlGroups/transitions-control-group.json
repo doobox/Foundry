@@ -1,0 +1,133 @@
+{
+  "controls": [
+    {
+      "id": "transitionsEnabled",
+      "label": "Enable",
+      "type": "toggle",
+      "presentation": "switch",
+      "defaults": {
+        "base": false
+      },
+      "responsive": true
+    },
+    {
+      "id": "transitionProperty",
+      "label": "Apply to",
+      "type": "select",
+      "defaults": {
+        "base": "all"
+      },
+      "options": [
+        {
+          "value": "all",
+          "title": "All"
+        },
+        {
+          "value": "colors",
+          "title": "Colours"
+        },
+        {
+          "value": "opacity",
+          "title": "Opacity"
+        },
+        {
+          "value": "transform",
+          "title": "Transform"
+        },
+        {
+          "value": "shadow",
+          "title": "Shadow"
+        },
+        {
+          "value": "border",
+          "title": "Border"
+        },
+        {
+          "value": "size",
+          "title": "Size"
+        },
+        {
+          "value": "filters",
+          "title": "Filters"
+        }
+      ],
+      "responsive": true,
+      "visibleWhen": {
+        "id": "transitionsEnabled",
+        "value": true
+      }
+    },
+    {
+      "id": "transitionFunction",
+      "label": "Function",
+      "type": "select",
+      "defaults": {
+        "base": "ease-in-out"
+      },
+      "options": [
+        {
+          "value": "ease",
+          "title": "Ease"
+        },
+        {
+          "value": "linear",
+          "title": "Linear"
+        },
+        {
+          "value": "ease-in",
+          "title": "Ease-in"
+        },
+        {
+          "value": "ease-out",
+          "title": "Ease-out"
+        },
+        {
+          "value": "ease-in-out",
+          "title": "Ease-in-out"
+        }
+      ],
+      "responsive": true,
+      "visibleWhen": {
+        "id": "transitionsEnabled",
+        "value": true
+      }
+    },
+    {
+      "id": "transitionDuration",
+      "label": "Duration",
+      "type": "number",
+      "units": "ms",
+      "minimum": 0,
+      "maximum": 10000,
+      "step": 10,
+      "defaults": {
+        "base": 300
+      },
+      "responsive": true,
+      "visibleWhen": {
+        "id": "transitionsEnabled",
+        "value": true
+      }
+    },
+    {
+      "id": "transitionDelay",
+      "label": "Delay",
+      "type": "number",
+      "units": "ms",
+      "minimum": 0,
+      "maximum": 10000,
+      "step": 10,
+      "defaults": {
+        "base": 0
+      },
+      "responsive": true,
+      "visibleWhen": {
+        "id": "transitionsEnabled",
+        "value": true
+      }
+    }
+  ],
+  "name": "Transitions",
+  "systemImage": "circle.dotted.circle",
+  "type": "transitions"
+}

@@ -6,6 +6,7 @@
       },
       "id": "revealEnabled",
       "label": "Enable",
+      "presentation": "switch",
       "responsive": false,
       "type": "toggle"
     },

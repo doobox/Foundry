@@ -12,19 +12,15 @@
           "value": "auto"
         },
         {
-          "title": "Fill parent",
+          "title": "Full",
           "value": "full"
         },
         {
-          "title": "Fit content",
-          "value": "fit"
-        },
-        {
-          "title": "Viewport",
+          "title": "Screen",
           "value": "screen"
         },
         {
-          "title": "Framework container",
+          "title": "Site width",
           "value": "breakpoint"
         },
         {

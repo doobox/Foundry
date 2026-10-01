@@ -1,7 +1,7 @@
 {
   "assets": [],
   "author": "Foundry",
-  "description": "Equal columns you drop parts straight into — 1, 2 and 3 across phone, tablet and desktop to start. Add a Grid Item when a cell needs spanning or its own styling.",
+  "description": "Responsive columns you drop parts straight into. Add a Grid Item only when a cell needs spanning, placement or its own styling.",
   "group": "Layout",
   "icon": {
     "symbol": "app.grid.2x2",
@@ -33,18 +33,18 @@
         },
         {
           "defaults": {
-            "base": "count"
+            "base": "auto"
           },
           "id": "gridMode",
           "label": "Columns",
           "options": [
             {
-              "title": "Fixed Count",
-              "value": "count"
-            },
-            {
               "title": "Fit to Width",
               "value": "auto"
+            },
+            {
+              "title": "Fixed Count",
+              "value": "count"
             }
           ],
           "presentation": "segmented",
@@ -103,7 +103,7 @@
           "minimum": 40,
           "responsive": true,
           "step": 1,
-          "tooltip": "Adds columns when they fit, without overflowing narrow screens.",
+          "tooltip": "Adds columns automatically when they fit, without overflowing narrow screens.",
           "type": "number",
           "units": "px",
           "visibleWhen": {
@@ -193,7 +193,7 @@
         },
         {
           "defaults": {
-            "base": "start"
+            "base": "normal"
           },
           "id": "alignItems",
           "label": "Align Vertically",
@@ -225,7 +225,7 @@
         },
         {
           "defaults": {
-            "base": "start"
+            "base": "normal"
           },
           "id": "justifyItems",
           "label": "Align Horizontally",
@@ -286,7 +286,13 @@
       "controls": [
         {
           "type": "background",
-          "id": "background"
+          "id": "background",
+          "backgroundTypes": [
+            "colour",
+            "image",
+            "gradient",
+            "video"
+          ]
         }
       ]
     },
@@ -311,11 +317,42 @@
       ]
     },
     {
+      "section": "Filters",
+      "systemImage": "camera.filters",
+      "controls": [
+        {
+          "type": "filters",
+          "id": "filters"
+        }
+      ]
+    },
+    {
+      "section": "Transforms",
+      "systemImage": "move.3d",
+      "controls": [
+        {
+          "type": "transforms",
+          "id": "transforms"
+        }
+      ]
+    },
+    {
+      "section": "Transitions",
+      "systemImage": "circle.dotted.circle",
+      "controls": [
+        {
+          "type": "transitions",
+          "id": "transitions"
+        }
+      ]
+    },
+    {
       "section": "Layout",
       "systemImage": "square.on.square",
       "controls": [
         {
           "type": "layout",
+          "id": "layout",
           "allowedOptions": {
             "position": [
               "relative",
@@ -323,8 +360,7 @@
               "fixed",
               "sticky"
             ]
-          },
-          "id": "layout"
+          }
         }
       ]
     },
@@ -335,6 +371,16 @@
         {
           "type": "reveal",
           "id": "reveal"
+        }
+      ]
+    },
+    {
+      "section": "Link",
+      "systemImage": "link",
+      "controls": [
+        {
+          "type": "linkOverlay",
+          "id": "link"
         }
       ]
     },
@@ -361,5 +407,5 @@
     "editorCSS": "editor.css"
   },
   "title": "Grid",
-  "version": "1.1.0"
+  "version": "1.2.0"
 }

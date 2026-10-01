@@ -427,7 +427,7 @@ struct FrameworkEditingTests {
     }
 
     @Test @MainActor
-    func paragraphColorAppliesPickerOpacityOnlyToCustomColors() async {
+    func paragraphColorAppliesOptedInOpacityToPaletteAndCustomColors() async {
         await PartPackageCatalog.shared.waitUntilLoaded()
         var paragraph = PartNode.make(.paragraph)
         paragraph.setProperty(.init(rawValue: "textColor"), value: .packageColor(.init(
@@ -439,8 +439,7 @@ struct FrameworkEditingTests {
         let page = Page(title: "Colour", slug: "colour", parts: [paragraph])
         let frameworkdHTML = HTMLPageRenderer().render(page: page, framework: .standard)
 
-        #expect(frameworkdHTML.contains("color: #5B5BD6"))
-        #expect(!frameworkdHTML.contains("color: rgb("))
+        #expect(frameworkdHTML.contains("color: \(PartTemplateRenderer.colorWithAlpha("#5B5BD6", alpha: 0.5))"))
 
         paragraph.setProperty(.init(rawValue: "textColor"), value: .packageColor(.init(
             source: PartFrameworkValueSelection.manualCustom,

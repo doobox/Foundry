@@ -9,11 +9,6 @@ import WebKit
 /// because every one of those was previously proportional to the page.
 @MainActor
 struct CanvasPasteLatencyTests {
-    private static let devPackRoot = FileManager.default.homeDirectoryForCurrentUser.appending(path:
-        "Library/Application Support/Foundry/Packs/Layout.foundrydevpack/Parts")
-    private static let realProject = FileManager.default.homeDirectoryForCurrentUser
-        .appending(path: "Desktop/performance-test.foundry")
-
     private func fixture() throws -> LoadedPartPackage {
         let manifest = try JSONDecoder().decode(PartPackageManifest.self, from: Data("""
         {"minimumAPIVersion":1,"id":"test.paste.\(UUID().uuidString.lowercased())","title":"Paste",
@@ -113,61 +108,5 @@ struct CanvasPasteLatencyTests {
                 + "apply=\(String(format: "%.2f", applied))ms")
         }
         Attachment.record(report.joined(separator: "\n"), named: "paste-latency-\(count).txt")
-    }
-
-    /// The synthetic fixture above carries one property per part. Real parts
-    /// carry dozens, so confirm the same guarantees against an actual project.
-    @Test(.timeLimit(.minutes(3)),
-          .enabled(if: FileManager.default.fileExists(atPath: realProject.path)
-                    && FileManager.default.fileExists(atPath: devPackRoot.path)))
-    func pasteCostOnRealProject() throws {
-        let packages = try ["Container", "Flexbox", "FlexItem", "Grid", "GridItem"].map { name in
-            let package = try PartPackageLoader.load(from: Self.devPackRoot.appending(path: name))
-            try package.preparePayload()
-            return package
-        }
-        for package in packages { PartRegistry.register(package) }
-        defer { for package in packages { PartRegistry.unregisterPackage(identifier: package.manifest.identifier) } }
-        let wrapper = try FileWrapper(url: Self.realProject, options: [])
-        let document = FoundryDocument(snapshot: try FoundryDocument.decodeSnapshot(from: wrapper))
-        var site = document.site
-        try #require(site.pages.first?.parts.first?.children.isEmpty == false)
-        site.pages[0].parts[0].responsiveOverrides = nil
-        let assets = document.assetContents
-        let cache = CanvasRenderCache()
-        func render(_ previous: CanvasScene?,
-                    impact: ProjectMutationImpact? = nil) throws -> (scene: CanvasScene, result: CanvasRenderResult) {
-            try CanvasScene.render(renderer: HTMLPageRenderer(site: site, artifactCache: cache),
-                page: site.pages[0], language: site.language, framework: site.framework, assets: assets,
-                breakpoint: .extraLarge, packageRevision: 0, previous: previous, consecutiveImpact: impact)
-        }
-
-        var scene = try render(nil).scene
-        let instances = scene.inputs.count
-        var report: [String] = []
-        for step in 1...4 {
-            // Copy/paste of an existing child, which is what the editor does.
-            let copy = site.pages[0].parts[0].children[0].duplicated()
-            let pastedCount = copy.flattened.count
-            site.pages[0].parts[0].children.append(copy)
-            let impact = ProjectMutationImpact.partStructure(ownerID: site.pages[0].parts[0].id)
-            var pasted: (scene: CanvasScene, result: CanvasRenderResult)?
-            let cost = try milliseconds { pasted = try render(scene, impact: impact) }
-            scene = try #require(pasted).scene
-            guard case .scene(let update) = try #require(pasted).result else {
-                Issue.record("Paste \(step) fell back to a full document render")
-                return
-            }
-            // The pasted subtree plus the parent it landed in, whatever the
-            // size of the page around them.
-            #expect(scene.examinedInstanceCount <= pastedCount + 1,
-                "Paste \(step) examined \(scene.examinedInstanceCount) of \(instances) instances")
-            #expect(update.html.count <= pastedCount,
-                "Paste \(step) republished \(update.html.count) shells")
-            report.append("#\(step) native=\(String(format: "%.2f", cost))ms "
-                + "examined=\(scene.examinedInstanceCount) rendered=\(scene.renderedInstanceCount)")
-        }
-        Attachment.record("\(instances) instances\n" + report.joined(separator: "\n"),
-                          named: "paste-latency-real-project.txt")
     }
 }

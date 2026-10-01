@@ -387,7 +387,7 @@ struct ProjectEditor {
     }
 
     func setProperty(id: UUID, key: PartProperty.Key, value: String) {
-        let propertyValue: PartProperty.Value = key == .destination
+        let propertyValue: PartProperty.Value = key == .destination || key.rawValue == "link.destination"
             ? .link(.init(destination: value.isEmpty ? .none : .url(value)))
             : .string(value)
         setProperty(id: id, key: key, value: propertyValue)

@@ -6,6 +6,7 @@
       },
       "id": "borderEnabled",
       "label": "Enable",
+      "presentation": "switch",
       "responsive": true,
       "type": "toggle"
     },

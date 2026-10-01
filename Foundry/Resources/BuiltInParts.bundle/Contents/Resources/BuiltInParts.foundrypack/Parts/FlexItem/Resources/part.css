@@ -1,6 +1,7 @@
 :instance {
     box-sizing: border-box;
     min-width: 0;
+    min-height: 0;
     isolation: isolate;
     {{ control.sizing.css }}
     /* The root is the layout item; content forms a vertical stack. */
@@ -17,12 +18,12 @@
     {{ control.layout.css }}
 }
 :instance:hover { {{ control.background.hover.css }} }
-:instance > * { min-width: 0; }
+:instance > * { min-width: 0; min-height: 0; max-width: 100%; }
 
-/* Optional whole-part link overlay. Layout only offers positioned values,
-   so the part is always its containing block. */
-:instance > .foundry-part-link {
-    position: absolute;
-    inset: 0;
-    z-index: 1;
-}
+/* Shared state-change timing; never applied to nested parts implicitly. */
+:instance { {{ control.transitions.css }} }
+
+:instance { {{ control.filters.css }} }
+:instance:hover { {{ control.filters.hover.css }} }
+:instance { {{ control.transforms.css }} }
+:instance:hover { {{ control.transforms.hover.css }} }

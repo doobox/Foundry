@@ -291,6 +291,11 @@ nonisolated enum PartImageTemplateValues {
 }
 
 nonisolated enum PartVideoTemplateValues {
+    static func generatedPosterPath(for asset: ProjectAsset) -> String? {
+        guard let metadata = asset.videoMetadata, !metadata.posterJPEG.isEmpty else { return nil }
+        return "assets/foundry-video-posters/\(asset.id.uuidString.lowercased()).jpg"
+    }
+
     struct PlaybackOptions: Equatable, Sendable {
         static let standard = Self(
             autoplay: "never",

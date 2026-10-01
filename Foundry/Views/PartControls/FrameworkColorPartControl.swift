@@ -8,6 +8,7 @@ struct FrameworkColorPartControl: View {
     @Binding var source: String
     @Binding var shade: ColourShade
     @Binding var customColor: Color
+    @Binding var opacityPercent: Double
     let allowsOpacity: Bool
     let indicator: InspectorRowIndicator
     var resetToFramework: (() -> Void)? = nil
@@ -28,6 +29,14 @@ struct FrameworkColorPartControl: View {
                 canResetToFramework: canResetToFramework
             )
             .controlSize(.small)
+        }
+        if allowsOpacity {
+            SliderPartControl(
+                label: "Opacity",
+                options: SliderOptions(range: 0...100, step: 1, unit: "%"),
+                indicator: indicator,
+                value: $opacityPercent
+            )
         }
     }
 }
@@ -230,6 +239,7 @@ struct InspectorPaletteMenu: View {
     @Previewable @State var source = FrameworkColorRole.accent.rawValue
     @Previewable @State var color = Color.blue.opacity(0.75)
     @Previewable @State var shade = ColourShade.six
+    @Previewable @State var opacityPercent = 75.0
 
     PartControlPreview {
         FrameworkColorPartControl(
@@ -240,6 +250,7 @@ struct InspectorPaletteMenu: View {
             source: $source,
             shade: $shade,
             customColor: $color,
+            opacityPercent: $opacityPercent,
             allowsOpacity: true,
             indicator: .preview
         )

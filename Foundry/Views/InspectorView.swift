@@ -1875,6 +1875,7 @@ private struct PartIdentityContext {
 }
 
 private struct PartInspectorGroup: View {
+    @Environment(\.accessibilityDifferentiateWithoutColor) private var differentiateWithoutColor
     let group: PartPropertySection
     let rows: [PartInspectorRow]
     let identityFields: PartIdentityContext?
@@ -1896,7 +1897,27 @@ private struct PartInspectorGroup: View {
     let openAll: () -> Void
     let closeAll: () -> Void
 
+    private var sectionStatus: (isModified: Bool, canReset: Bool) {
+        let targets = selectedParts.isEmpty ? [part] : selectedParts
+        var result = (isModified: false, canReset: false)
+        for target in targets {
+            let state = PartInspectorSectionState(part: target, section: group, framework: framework)
+            result.isModified = result.isModified || state.hasChanges(in: target)
+            result.canReset = result.canReset || state.canReset(target)
+        }
+        return result
+    }
+
+    private func resetSection() {
+        editor.resetInspectorSection(
+            ids: selectedParts.isEmpty ? [part.id] : selectedParts.map(\.id),
+            section: group,
+            editsSharedDefinition: editsSharedDefinition
+        )
+    }
+
     var body: some View {
+        let status = sectionStatus
         DisclosureGroup(isExpanded: $isExpanded) {
             // Separate controls sit exactly as far apart as the rows of one
             // multi-part control. Developers who want more separation declare
@@ -1943,12 +1964,22 @@ private struct PartInspectorGroup: View {
             }
             .padding(.vertical, InspectorMetrics.verticalSectionPadding)
         } label: {
-            Label(group.rawValue, systemImage: part.type.definition.systemImage(for: group))
+            Label {
+                Text(group.rawValue)
+                    .foregroundStyle(status.isModified ? Color.accentColor : Color.primary)
+                    .underline(status.isModified && differentiateWithoutColor)
+            } icon: {
+                Image(systemName: part.type.definition.systemImage(for: group))
+                    .foregroundStyle(.primary)
+            }
         }
         .disclosureGroupStyle(PartInspectorDisclosureStyle(
             usesAccordion: $usesAccordion,
             openAll: openAll,
-            closeAll: closeAll
+            closeAll: closeAll,
+            hasChanges: status.isModified,
+            canReset: status.canReset,
+            resetSection: resetSection
         ))
     }
 
@@ -1977,6 +2008,9 @@ private struct PartInspectorDisclosureStyle: DisclosureGroupStyle {
     @Binding var usesAccordion: Bool
     let openAll: () -> Void
     let closeAll: () -> Void
+    let hasChanges: Bool
+    let canReset: Bool
+    let resetSection: () -> Void
     @State private var isHovering = false
 
     func makeBody(configuration: Configuration) -> some View {
@@ -2007,6 +2041,9 @@ private struct PartInspectorDisclosureStyle: DisclosureGroupStyle {
             .buttonStyle(.plain)
             .onHover { isHovering = $0 }
             .contextMenu {
+                Button("Reset Section", action: resetSection)
+                    .disabled(!canReset)
+                Divider()
                 Toggle("Accordion Mode", isOn: $usesAccordion)
                 if !usesAccordion {
                     Divider()
@@ -2018,7 +2055,7 @@ private struct PartInspectorDisclosureStyle: DisclosureGroupStyle {
                     }
                 }
             }
-            .accessibilityValue(configuration.isExpanded ? "Expanded" : "Collapsed")
+            .accessibilityValue((configuration.isExpanded ? "Expanded" : "Collapsed") + (hasChanges ? ", Modified" : ""))
             .accessibilityHint(configuration.isExpanded ? "Collapses this group" : "Expands this group")
 
             if configuration.isExpanded {

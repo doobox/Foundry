@@ -1,6 +1,7 @@
 :instance {
     box-sizing: border-box;
     min-width: 0;
+    min-height: 0;
     /* Background video needs an isolated host. Layout supplies positioning. */
     isolation: isolate;
     /* Position the inner content box within the section. */
@@ -16,23 +17,22 @@
 :instance:hover { {{ control.background.hover.css }} }
 
 /* The content box behaves like an ordinary block: parts stack, each keeping
-   its own width — text fills, a button stays its size. Content Spacing's
-   auto side margins centre the box; justify-self start lets a side margin of
-   None push it to that side instead. */
+   its own width — text fills, a button stays its size. The rail stays centred;
+   children own their own margins and padding. */
 :instance > .fd-container__content {
     box-sizing: border-box;
     min-width: 0;
+    min-height: 0;
     width: auto;
     height: auto;
     display: flex;
     flex-direction: column;
     align-items: flex-start;
     align-self: {{ control.contentAlignment }};
-    justify-self: start;
+    justify-self: center;
     gap: {{ control.contentGap }};
     /* Explicit defaults clear limits inherited from narrower breakpoints. */
     max-width: none;
-    {{ control.contentSpacing.css }}
     {{ if control.contentWidth == "full" }}
     width: 100%;
     {{ endif }}
@@ -46,14 +46,14 @@
     {{ endif }}
 }
 
-/* Scope this to our own drop zone, not nested containers inside child parts.
-   Parts that fill (headings, paragraphs, images) say so themselves. */
-:instance > .fd-container__content > * { min-width: 0; max-width: 100%; }
+/* Scope these low-priority defaults to our own drop zone. Explicit child
+   sizing must win, including custom widths and minimum heights. */
+:where(:instance > .fd-container__content > *) { min-width: 0; min-height: 0; max-width: 100%; }
 
-/* Optional whole-part link overlay. Layout only offers positioned values,
-   so the section is always its containing block. */
-:instance > .fd-container__link {
-    position: absolute;
-    inset: 0;
-    z-index: 1;
-}
+/* Shared state-change timing; never applied to nested parts implicitly. */
+:instance { {{ control.transitions.css }} }
+
+:instance { {{ control.filters.css }} }
+:instance:hover { {{ control.filters.hover.css }} }
+:instance { {{ control.transforms.css }} }
+:instance:hover { {{ control.transforms.hover.css }} }

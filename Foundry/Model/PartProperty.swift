@@ -119,6 +119,14 @@ nonisolated struct PartPackageShadowValue: Codable, Equatable, Sendable {
 }
 
 nonisolated enum PartPackageShadowResolver {
+    static func filter(_ value: PartPackageShadowValue, framework: Framework) -> String {
+        let layers = PartFrameworkValueSelection.isManualCustom(value.source)
+            ? value.customLayers
+            : framework.shadows.shadows.first(where: { $0.id == value.source })?.layers ?? []
+        let shadows = layers.compactMap(\.dropShadowCSS)
+        return shadows.isEmpty ? "none" : shadows.joined(separator: " ")
+    }
+
     static func resolve(_ value: PartPackageShadowValue, framework: Framework) -> String {
         if PartFrameworkValueSelection.isManualCustom(value.source) {
             return value.customLayers.isEmpty ? "none" : value.customLayers.map(\.cssValue).joined(separator: ", ")

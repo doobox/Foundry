@@ -127,6 +127,36 @@
       ]
     },
     {
+      "section": "Filters",
+      "systemImage": "camera.filters",
+      "controls": [
+        {
+          "type": "filters",
+          "id": "filters"
+        }
+      ]
+    },
+    {
+      "section": "Transforms",
+      "systemImage": "move.3d",
+      "controls": [
+        {
+          "type": "transforms",
+          "id": "transforms"
+        }
+      ]
+    },
+    {
+      "section": "Transitions",
+      "systemImage": "circle.dotted.circle",
+      "controls": [
+        {
+          "type": "transitions",
+          "id": "transitions"
+        }
+      ]
+    },
+    {
       "section": "Layout",
       "systemImage": "square.on.square",
       "controls": [

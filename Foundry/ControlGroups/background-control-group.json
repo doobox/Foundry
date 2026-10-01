@@ -36,7 +36,7 @@
           "value": "normal"
         },
         {
-          "title": "Hover",
+          "title": "Hovered",
           "value": "hover"
         }
       ],
@@ -1030,6 +1030,126 @@
           }
         ]
       }
+    },
+    {
+      "id": "backgroundOverlayEnabled",
+      "label": "Overlay",
+      "type": "toggle",
+      "presentation": "switch",
+      "responsive": true,
+      "defaults": {
+        "base": false
+      },
+      "visibleWhen": {
+        "any": [
+          {
+            "all": [
+              {
+                "id": "backgroundMode",
+                "value": "static"
+              },
+              {
+                "any": [
+                  {
+                    "id": "backgroundStyle",
+                    "value": "image"
+                  },
+                  {
+                    "id": "backgroundStyle",
+                    "value": "video"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "all": [
+              {
+                "id": "backgroundMode",
+                "value": "hover"
+              },
+              {
+                "any": [
+                  {
+                    "id": "backgroundStyle",
+                    "value": "image"
+                  },
+                  {
+                    "id": "backgroundHoverStyle",
+                    "value": "image"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "type": "frameworkColor",
+      "id": "backgroundOverlayColor",
+      "label": "Overlay colour",
+      "opacity": true,
+      "responsive": true,
+      "defaults": {
+        "base": {
+          "palette": "standard.black",
+          "opacity": 0.2
+        }
+      },
+      "visibleWhen": {
+        "all": [
+          {
+            "any": [
+              {
+                "all": [
+                  {
+                    "id": "backgroundMode",
+                    "value": "static"
+                  },
+                  {
+                    "any": [
+                      {
+                        "id": "backgroundStyle",
+                        "value": "image"
+                      },
+                      {
+                        "id": "backgroundStyle",
+                        "value": "video"
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "all": [
+                  {
+                    "id": "backgroundMode",
+                    "value": "hover"
+                  },
+                  {
+                    "any": [
+                      {
+                        "id": "backgroundStyle",
+                        "value": "image"
+                      },
+                      {
+                        "id": "backgroundHoverStyle",
+                        "value": "image"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "id": "backgroundOverlayEnabled",
+            "value": true
+          }
+        ]
+      },
+      "allowsCustom": true
     }
   ],
   "name": "Background",

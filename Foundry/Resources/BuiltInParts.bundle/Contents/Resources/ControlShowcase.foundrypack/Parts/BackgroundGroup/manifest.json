@@ -16,7 +16,8 @@
       "controls": [
         {
           "type": "background",
-          "id": "background"
+          "id": "background",
+          "backgroundTypes": ["colour", "image", "gradient", "video"]
         }
       ]
     },

@@ -1,7 +1,7 @@
 {
   "assets": [],
   "author": "Foundry",
-  "description": "Content and placement settings for one item directly inside Flex.",
+  "description": "Content and placement settings for one item directly inside Flexbox.",
   "group": "Layout",
   "icon": {
     "symbol": "square.stack.3d.up",
@@ -18,7 +18,7 @@
           "id": "flexSize",
           "label": "Size",
           "defaults": {
-            "base": "fill"
+            "base": "fit"
           },
           "responsive": true,
           "options": [
@@ -32,14 +32,14 @@
             },
             {
               "value": "equal",
-              "title": "Equal Width"
+              "title": "Equal Space"
             },
             {
               "value": "custom",
               "title": "Custom"
             }
           ],
-          "tooltip": "Fit Content keeps the item's natural size. Fill Space shares the row and still wraps. Equal Width gives every Equal Width item the same width and never wraps. Custom shows Grow, Shrink and Starting Size."
+          "tooltip": "Fit Content keeps the item's natural size. Fill Space grows from that size. Equal Space divides the available space evenly along the Flexbox direction. Custom shows Grow, Shrink and Starting Size."
         },
         {
           "type": "number",
@@ -93,7 +93,7 @@
         {
           "type": "select",
           "id": "flexAlign",
-          "label": "Align",
+          "label": "Item Alignment",
           "defaults": {
             "base": "auto"
           },
@@ -138,17 +138,14 @@
           "step": 1,
           "responsive": true,
           "tooltip": "Changes visual order only, not reading or keyboard order. Prefer rearranging parts in the tree."
-        }
-      ]
-    },
-    {
-      "section": "Content",
-      "systemImage": "square.on.square",
-      "controls": [
+        },
+        {
+          "type": "divider"
+        },
         {
           "type": "frameworkSpacing",
           "id": "contentGap",
-          "label": "Gap",
+          "label": "Content Gap",
           "defaults": {
             "base": "none"
           },
@@ -190,7 +187,13 @@
       "controls": [
         {
           "type": "background",
-          "id": "background"
+          "id": "background",
+          "backgroundTypes": [
+            "colour",
+            "image",
+            "gradient",
+            "video"
+          ]
         }
       ]
     },
@@ -215,11 +218,42 @@
       ]
     },
     {
+      "section": "Filters",
+      "systemImage": "camera.filters",
+      "controls": [
+        {
+          "type": "filters",
+          "id": "filters"
+        }
+      ]
+    },
+    {
+      "section": "Transforms",
+      "systemImage": "move.3d",
+      "controls": [
+        {
+          "type": "transforms",
+          "id": "transforms"
+        }
+      ]
+    },
+    {
+      "section": "Transitions",
+      "systemImage": "circle.dotted.circle",
+      "controls": [
+        {
+          "type": "transitions",
+          "id": "transitions"
+        }
+      ]
+    },
+    {
       "section": "Layout",
       "systemImage": "square.on.square",
       "controls": [
         {
           "type": "layout",
+          "id": "layout",
           "allowedOptions": {
             "position": [
               "relative",
@@ -227,8 +261,7 @@
               "fixed",
               "sticky"
             ]
-          },
-          "id": "layout"
+          }
         }
       ]
     },
@@ -243,32 +276,14 @@
       ]
     },
     {
+      "section": "Link",
+      "systemImage": "link",
       "controls": [
         {
-          "defaults": {
-            "base": ""
-          },
-          "id": "destination",
-          "label": "Destination",
-          "tooltip": "Makes the whole part one link. The overlay also covers links and buttons inside; avoid nesting interactive content when enabled.",
-          "type": "link"
-        },
-        {
-          "defaults": {
-            "base": ""
-          },
-          "id": "linkLabel",
-          "label": "Accessible name",
-          "tooltip": "Describes the destination for screen readers, which cannot see the part's contents.",
-          "type": "text",
-          "visibleWhen": {
-            "id": "destination",
-            "operation": "isNotEmpty"
-          }
+          "type": "linkOverlay",
+          "id": "link"
         }
-      ],
-      "section": "Link",
-      "systemImage": "link"
+      ]
     },
     {
       "type": "advanced"
@@ -292,7 +307,7 @@
     "html": "part.html"
   },
   "title": "Flex Item",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "showsInPartLibrary": false,
   "allowedParents": [
     "foundry.layout.flexbox"

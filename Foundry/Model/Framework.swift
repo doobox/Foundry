@@ -587,6 +587,13 @@ nonisolated struct FrameworkShadowLayer: Codable, Equatable, Identifiable, Senda
         return "\(inset)\(x.rounded().cssNumber)px \(y.rounded().cssNumber)px \(max(0, blur).cssNumber)px \(spread.rounded().cssNumber)px \(cssColor)"
     }
 
+    /// CSS drop shadows have no inset or spread. Their blur argument is a
+    /// standard deviation, half the corresponding box-shadow blur radius.
+    var dropShadowCSS: String? {
+        guard !isInset else { return nil }
+        return "drop-shadow(\(x.rounded().cssNumber)px \(y.rounded().cssNumber)px \((max(0, blur) / 2).cssNumber)px \(cssColor))"
+    }
+
     private enum CodingKeys: String, CodingKey {
         case id, x, y, blur, spread, color, opacity, isInset
     }

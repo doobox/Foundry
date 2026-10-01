@@ -260,7 +260,7 @@ nonisolated enum PartPackageAdapter {
                         activeText: property.activeButtonTexts.first
                     )
                     : control(property.control, unit: property.units.first ?? ""),
-            defaultValue: value(property.defaultValue, control: property.control.type),
+            defaultValue: defaultValue(for: property),
             isResponsive: property.control.type != .note && property.responsive,
             isInspectorVisible: property.control.type != .math &&
                 (property.control.type != .note || !property.noteBody.isEmpty),
@@ -318,7 +318,7 @@ nonisolated enum PartPackageAdapter {
                         forManifestValue: initial["palette"]?.stringValue ?? ""
                     ),
                     customColor: property.control.customColor ?? "#000000",
-                    opacity: 1,
+                    opacity: initial["opacity"]?.numberValue ?? 1,
                     shade: lightShade,
                     darkShade: darkShade
                 )),
@@ -439,6 +439,22 @@ nonisolated enum PartPackageAdapter {
         case .frameworkShadow: .packageShadow
         case .childPicker: .derived
         }
+    }
+
+    static func defaultValue(for property: PartPackageProperty) -> PartProperty.Value {
+        let resolved = value(property.defaultValue, control: property.control.type)
+        guard let source = property.controlGroupSource, source.type == .sizing,
+              case .frameworkSpacing(var spacing) = resolved,
+              !spacing.selection.isCustom else { return resolved }
+        // Seed the inactive Custom mode without enabling a maximum constraint.
+        // Switching modes already preserves the user's last amount and unit.
+        switch source.localID {
+        case "maxWidth": spacing.selection.amount = 1200
+        case "maxHeight": spacing.selection.amount = 800
+        default: return resolved
+        }
+        spacing.selection.unit = "px"
+        return .frameworkSpacing(spacing)
     }
 
     private static func value(

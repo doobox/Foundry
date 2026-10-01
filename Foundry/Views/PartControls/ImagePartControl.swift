@@ -53,24 +53,17 @@ struct ImagePartControl: View {
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.trailing)
                         .help(label)
-                    // A split button: click picks from the Mac, the menu
-                    // offers an image on the web.
-                    Menu {
-                        Button("From URL…") {
-                            enteredURL = remoteURL?.absoluteString ?? ""
-                            remoteImageError = nil
-                            showsURLEntry = true
-                        }
-                    } label: {
-                        Text("Pick")
-                    } primaryAction: {
-                        chooseImage()
+                    HStack(spacing: 4) {
+                        Button("Pick", action: chooseImage)
+                            .buttonSizing(.flexible)
+                            .frame(maxWidth: .infinity)
+                        Button("Image on the Web", systemImage: "link", action: showURLEntry)
+                            .labelStyle(.iconOnly)
+                            .help("Link or import an image from the web")
+                            .popover(isPresented: $showsURLEntry, arrowEdge: .trailing) { urlEntry }
                     }
-                    .menuStyle(.button)
                     .buttonStyle(.bordered)
-                    .buttonSizing(.flexible)
                     .frame(maxWidth: .infinity)
-                    .popover(isPresented: $showsURLEntry, arrowEdge: .trailing) { urlEntry }
                     Button("Clear", action: clearImage)
                         .buttonStyle(.bordered)
                         .buttonSizing(.flexible)
@@ -132,31 +125,39 @@ struct ImagePartControl: View {
             TextField("https://example.com/photo.jpg", text: $enteredURL)
                 .textFieldStyle(.roundedBorder)
                 .frame(width: 320)
-                .onSubmit(importEnteredURL)
+                .onSubmit(linkEnteredURL)
             if let remoteImageError {
                 Text(remoteImageError)
                     .font(.caption)
                     .foregroundStyle(.red)
             }
             HStack {
-                Button("Link") {
-                    guard let url = enteredWebURL else { return }
-                    linkImage(url)
-                    showsURLEntry = false
-                }
-                .buttonStyle(.borderedProminent)
-                .help("Use the image where it is. Visitors load it from that address.")
-                Spacer()
+                Button("Import Copy", action: importEnteredURL)
+                    .buttonStyle(.bordered)
+                    .help("Download the image into the project")
                 if isImportingRemoteImage {
                     ProgressView().controlSize(.small)
                 }
-                Button("Import Copy", action: importEnteredURL)
+                Spacer()
+                Button("Link", action: linkEnteredURL)
                     .buttonStyle(.borderedProminent)
-                    .help("Download the image into the project")
+                    .help("Use the image where it is. Visitors load it from that address.")
             }
             .disabled(enteredWebURL == nil || isImportingRemoteImage)
         }
         .padding()
+    }
+
+    private func showURLEntry() {
+        enteredURL = remoteURL?.absoluteString ?? ""
+        remoteImageError = nil
+        showsURLEntry = true
+    }
+
+    private func linkEnteredURL() {
+        guard let url = enteredWebURL, !isImportingRemoteImage else { return }
+        linkImage(url)
+        showsURLEntry = false
     }
 
     private func importEnteredURL() {

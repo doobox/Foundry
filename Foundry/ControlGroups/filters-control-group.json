@@ -1,0 +1,631 @@
+{
+  "controls": [
+    {
+      "id": "filtersMode",
+      "label": "Type",
+      "type": "select",
+      "presentation": "segmented",
+      "responsive": false,
+      "defaults": {
+        "base": "none"
+      },
+      "options": [
+        {
+          "title": "None",
+          "value": "none"
+        },
+        {
+          "title": "Static",
+          "value": "static"
+        },
+        {
+          "title": "Hover",
+          "value": "hover"
+        }
+      ]
+    },
+    {
+      "id": "filtersState",
+      "label": "State",
+      "type": "select",
+      "presentation": "segmented",
+      "responsive": false,
+      "defaults": {
+        "base": "normal"
+      },
+      "options": [
+        {
+          "title": "Normal",
+          "value": "normal"
+        },
+        {
+          "title": "Hovered",
+          "value": "hover"
+        }
+      ],
+      "visibleWhen": {
+        "id": "filtersMode",
+        "value": "hover"
+      }
+    },
+    {
+      "id": "filtersBlur",
+      "label": "Blur",
+      "type": "number",
+      "defaults": {
+        "base": 0
+      },
+      "minimum": 0,
+      "maximum": 100,
+      "step": 1,
+      "units": "px",
+      "responsive": true,
+      "visibleWhen": {
+        "any": [
+          {
+            "id": "filtersMode",
+            "value": "static"
+          },
+          {
+            "all": [
+              {
+                "id": "filtersMode",
+                "value": "hover"
+              },
+              {
+                "id": "filtersState",
+                "value": "normal"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "filtersBrightness",
+      "label": "Brightness",
+      "type": "number",
+      "defaults": {
+        "base": 100
+      },
+      "minimum": 0,
+      "maximum": 200,
+      "step": 1,
+      "units": "%",
+      "responsive": true,
+      "visibleWhen": {
+        "any": [
+          {
+            "id": "filtersMode",
+            "value": "static"
+          },
+          {
+            "all": [
+              {
+                "id": "filtersMode",
+                "value": "hover"
+              },
+              {
+                "id": "filtersState",
+                "value": "normal"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "filtersContrast",
+      "label": "Contrast",
+      "type": "number",
+      "defaults": {
+        "base": 100
+      },
+      "minimum": 0,
+      "maximum": 200,
+      "step": 1,
+      "units": "%",
+      "responsive": true,
+      "visibleWhen": {
+        "any": [
+          {
+            "id": "filtersMode",
+            "value": "static"
+          },
+          {
+            "all": [
+              {
+                "id": "filtersMode",
+                "value": "hover"
+              },
+              {
+                "id": "filtersState",
+                "value": "normal"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "filtersSaturate",
+      "label": "Saturation",
+      "type": "number",
+      "defaults": {
+        "base": 100
+      },
+      "minimum": 0,
+      "maximum": 200,
+      "step": 1,
+      "units": "%",
+      "responsive": true,
+      "visibleWhen": {
+        "any": [
+          {
+            "id": "filtersMode",
+            "value": "static"
+          },
+          {
+            "all": [
+              {
+                "id": "filtersMode",
+                "value": "hover"
+              },
+              {
+                "id": "filtersState",
+                "value": "normal"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "filtersGrayscale",
+      "label": "Grayscale",
+      "type": "number",
+      "defaults": {
+        "base": 0
+      },
+      "minimum": 0,
+      "maximum": 100,
+      "step": 1,
+      "units": "%",
+      "responsive": true,
+      "visibleWhen": {
+        "any": [
+          {
+            "id": "filtersMode",
+            "value": "static"
+          },
+          {
+            "all": [
+              {
+                "id": "filtersMode",
+                "value": "hover"
+              },
+              {
+                "id": "filtersState",
+                "value": "normal"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "filtersSepia",
+      "label": "Sepia",
+      "type": "number",
+      "defaults": {
+        "base": 0
+      },
+      "minimum": 0,
+      "maximum": 100,
+      "step": 1,
+      "units": "%",
+      "responsive": true,
+      "visibleWhen": {
+        "any": [
+          {
+            "id": "filtersMode",
+            "value": "static"
+          },
+          {
+            "all": [
+              {
+                "id": "filtersMode",
+                "value": "hover"
+              },
+              {
+                "id": "filtersState",
+                "value": "normal"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "filtersInvert",
+      "label": "Invert",
+      "type": "number",
+      "defaults": {
+        "base": 0
+      },
+      "minimum": 0,
+      "maximum": 100,
+      "step": 1,
+      "units": "%",
+      "responsive": true,
+      "visibleWhen": {
+        "any": [
+          {
+            "id": "filtersMode",
+            "value": "static"
+          },
+          {
+            "all": [
+              {
+                "id": "filtersMode",
+                "value": "hover"
+              },
+              {
+                "id": "filtersState",
+                "value": "normal"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "filtersHueRotate",
+      "label": "Hue rotation",
+      "type": "number",
+      "defaults": {
+        "base": 0
+      },
+      "minimum": 0,
+      "maximum": 360,
+      "step": 1,
+      "units": "deg",
+      "responsive": true,
+      "visibleWhen": {
+        "any": [
+          {
+            "id": "filtersMode",
+            "value": "static"
+          },
+          {
+            "all": [
+              {
+                "id": "filtersMode",
+                "value": "hover"
+              },
+              {
+                "id": "filtersState",
+                "value": "normal"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "filtersBackdropBlur",
+      "label": "Backdrop blur",
+      "type": "number",
+      "defaults": {
+        "base": 0
+      },
+      "minimum": 0,
+      "maximum": 100,
+      "step": 1,
+      "units": "px",
+      "responsive": true,
+      "visibleWhen": {
+        "any": [
+          {
+            "id": "filtersMode",
+            "value": "static"
+          },
+          {
+            "all": [
+              {
+                "id": "filtersMode",
+                "value": "hover"
+              },
+              {
+                "id": "filtersState",
+                "value": "normal"
+              }
+            ]
+          }
+        ]
+      },
+      "tooltip": "Blurs content behind the part. Use a transparent or translucent background to see it."
+    },
+    {
+      "id": "filtersShadow",
+      "label": "Drop shadow",
+      "type": "frameworkShadow",
+      "defaults": {
+        "base": "none"
+      },
+      "responsive": true,
+      "visibleWhen": {
+        "any": [
+          {
+            "id": "filtersMode",
+            "value": "static"
+          },
+          {
+            "all": [
+              {
+                "id": "filtersMode",
+                "value": "hover"
+              },
+              {
+                "id": "filtersState",
+                "value": "normal"
+              }
+            ]
+          }
+        ]
+      },
+      "tooltip": "Uses the framework shadow's outer layers. Inset and spread do not apply to CSS drop shadows."
+    },
+    {
+      "id": "filtersHoverBlur",
+      "label": "Blur",
+      "type": "number",
+      "defaults": {
+        "base": 0
+      },
+      "minimum": 0,
+      "maximum": 100,
+      "step": 1,
+      "units": "px",
+      "responsive": true,
+      "visibleWhen": {
+        "all": [
+          {
+            "id": "filtersMode",
+            "value": "hover"
+          },
+          {
+            "id": "filtersState",
+            "value": "hover"
+          }
+        ]
+      }
+    },
+    {
+      "id": "filtersHoverBrightness",
+      "label": "Brightness",
+      "type": "number",
+      "defaults": {
+        "base": 100
+      },
+      "minimum": 0,
+      "maximum": 200,
+      "step": 1,
+      "units": "%",
+      "responsive": true,
+      "visibleWhen": {
+        "all": [
+          {
+            "id": "filtersMode",
+            "value": "hover"
+          },
+          {
+            "id": "filtersState",
+            "value": "hover"
+          }
+        ]
+      }
+    },
+    {
+      "id": "filtersHoverContrast",
+      "label": "Contrast",
+      "type": "number",
+      "defaults": {
+        "base": 100
+      },
+      "minimum": 0,
+      "maximum": 200,
+      "step": 1,
+      "units": "%",
+      "responsive": true,
+      "visibleWhen": {
+        "all": [
+          {
+            "id": "filtersMode",
+            "value": "hover"
+          },
+          {
+            "id": "filtersState",
+            "value": "hover"
+          }
+        ]
+      }
+    },
+    {
+      "id": "filtersHoverSaturate",
+      "label": "Saturation",
+      "type": "number",
+      "defaults": {
+        "base": 100
+      },
+      "minimum": 0,
+      "maximum": 200,
+      "step": 1,
+      "units": "%",
+      "responsive": true,
+      "visibleWhen": {
+        "all": [
+          {
+            "id": "filtersMode",
+            "value": "hover"
+          },
+          {
+            "id": "filtersState",
+            "value": "hover"
+          }
+        ]
+      }
+    },
+    {
+      "id": "filtersHoverGrayscale",
+      "label": "Grayscale",
+      "type": "number",
+      "defaults": {
+        "base": 0
+      },
+      "minimum": 0,
+      "maximum": 100,
+      "step": 1,
+      "units": "%",
+      "responsive": true,
+      "visibleWhen": {
+        "all": [
+          {
+            "id": "filtersMode",
+            "value": "hover"
+          },
+          {
+            "id": "filtersState",
+            "value": "hover"
+          }
+        ]
+      }
+    },
+    {
+      "id": "filtersHoverSepia",
+      "label": "Sepia",
+      "type": "number",
+      "defaults": {
+        "base": 0
+      },
+      "minimum": 0,
+      "maximum": 100,
+      "step": 1,
+      "units": "%",
+      "responsive": true,
+      "visibleWhen": {
+        "all": [
+          {
+            "id": "filtersMode",
+            "value": "hover"
+          },
+          {
+            "id": "filtersState",
+            "value": "hover"
+          }
+        ]
+      }
+    },
+    {
+      "id": "filtersHoverInvert",
+      "label": "Invert",
+      "type": "number",
+      "defaults": {
+        "base": 0
+      },
+      "minimum": 0,
+      "maximum": 100,
+      "step": 1,
+      "units": "%",
+      "responsive": true,
+      "visibleWhen": {
+        "all": [
+          {
+            "id": "filtersMode",
+            "value": "hover"
+          },
+          {
+            "id": "filtersState",
+            "value": "hover"
+          }
+        ]
+      }
+    },
+    {
+      "id": "filtersHoverHueRotate",
+      "label": "Hue rotation",
+      "type": "number",
+      "defaults": {
+        "base": 0
+      },
+      "minimum": 0,
+      "maximum": 360,
+      "step": 1,
+      "units": "deg",
+      "responsive": true,
+      "visibleWhen": {
+        "all": [
+          {
+            "id": "filtersMode",
+            "value": "hover"
+          },
+          {
+            "id": "filtersState",
+            "value": "hover"
+          }
+        ]
+      }
+    },
+    {
+      "id": "filtersHoverBackdropBlur",
+      "label": "Backdrop blur",
+      "type": "number",
+      "defaults": {
+        "base": 0
+      },
+      "minimum": 0,
+      "maximum": 100,
+      "step": 1,
+      "units": "px",
+      "responsive": true,
+      "visibleWhen": {
+        "all": [
+          {
+            "id": "filtersMode",
+            "value": "hover"
+          },
+          {
+            "id": "filtersState",
+            "value": "hover"
+          }
+        ]
+      },
+      "tooltip": "Blurs content behind the part. Use a transparent or translucent background to see it."
+    },
+    {
+      "id": "filtersHoverShadow",
+      "label": "Drop shadow",
+      "type": "frameworkShadow",
+      "defaults": {
+        "base": "none"
+      },
+      "responsive": true,
+      "visibleWhen": {
+        "all": [
+          {
+            "id": "filtersMode",
+            "value": "hover"
+          },
+          {
+            "id": "filtersState",
+            "value": "hover"
+          }
+        ]
+      },
+      "tooltip": "Uses the framework shadow's outer layers. Inset and spread do not apply to CSS drop shadows."
+    }
+  ],
+  "name": "Filters",
+  "systemImage": "camera.filters",
+  "type": "filters"
+}

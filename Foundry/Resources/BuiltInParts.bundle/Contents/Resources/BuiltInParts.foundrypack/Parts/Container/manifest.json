@@ -10,33 +10,28 @@
   "id": "foundry.layout.container",
   "inspector": [
     {
-      "section": "Content Layout",
+      "section": "Container",
       "systemImage": "rectangle.center.inset.filled",
       "controls": [
         {
-          "type": "note",
-          "id": "contentSizeHeading",
-          "body": "Width"
-        },
-        {
           "type": "select",
           "id": "contentWidth",
-          "label": "Width",
+          "label": "Content width",
           "defaults": {
             "base": "breakpoint"
           },
           "options": [
             {
-              "value": "breakpoint",
-              "title": "Breakpoint"
+              "value": "auto",
+              "title": "Fit content"
             },
             {
               "value": "full",
               "title": "Full"
             },
             {
-              "value": "auto",
-              "title": "Fit Content"
+              "value": "breakpoint",
+              "title": "Site width"
             },
             {
               "value": "custom",
@@ -44,16 +39,16 @@
             }
           ],
           "responsive": true,
-          "tooltip": "Breakpoint keeps content at the site's content width. Full spans the section. Fit Content shrinks to the content. Custom sets an exact width."
+          "tooltip": "Sets the inner content area's width, not the whole part. Fit content shrinks to the content. Full spans the section. Site width follows the project's responsive content width. Custom sets an exact width."
         },
         {
           "type": "frameworkSpacing",
           "id": "contentWidthSpacing",
-          "label": "Custom Width",
+          "label": "Custom width",
           "defaults": {
             "base": {
-              "value": 60,
-              "unit": "rem"
+              "value": 800,
+              "unit": "px"
             }
           },
           "noneValue": "auto",
@@ -64,46 +59,11 @@
           }
         },
         {
-          "type": "divider",
-          "id": "contentLayoutDivider",
-          "visibleWhen": {
-            "any": [
-              {
-                "id": "sizing.heightMode",
-                "operation": "!=",
-                "value": "auto"
-              },
-              {
-                "id": "sizing.minHeight",
-                "operation": "isNotEmpty"
-              }
-            ]
-          }
-        },
-        {
-          "type": "note",
-          "id": "contentAlignmentHeading",
-          "body": "Position",
-          "visibleWhen": {
-            "any": [
-              {
-                "id": "sizing.heightMode",
-                "operation": "!=",
-                "value": "auto"
-              },
-              {
-                "id": "sizing.minHeight",
-                "operation": "isNotEmpty"
-              }
-            ]
-          }
-        },
-        {
           "type": "select",
           "id": "contentAlignment",
           "label": "Vertical position",
           "defaults": {
-            "base": "center"
+            "base": "normal"
           },
           "options": [
             {
@@ -157,30 +117,6 @@
       ]
     },
     {
-      "section": "Content Spacing",
-      "systemImage": "rectangle.inset.filled",
-      "controls": [
-        {
-          "type": "note",
-          "body": "Margins and padding of the content box inside the section. Auto side margins centre it; set one side to None to push the content that way.",
-          "systemImage": "info.circle"
-        },
-        {
-          "type": "spacing",
-          "id": "contentSpacing",
-          "defaults": {
-            "spacingEnabled": true,
-            "frameworkMargin": {
-              "top": "none",
-              "right": "auto",
-              "bottom": "none",
-              "left": "auto"
-            }
-          }
-        }
-      ]
-    },
-    {
       "section": "Sizing",
       "systemImage": "arrow.up.left.and.arrow.down.right",
       "controls": [
@@ -199,16 +135,7 @@
       "controls": [
         {
           "type": "spacing",
-          "id": "spacing",
-          "defaults": {
-            "spacingEnabled": true,
-            "frameworkPadding": {
-              "top": "xl",
-              "right": "md",
-              "bottom": "xl",
-              "left": "md"
-            }
-          }
+          "id": "spacing"
         }
       ]
     },
@@ -218,7 +145,13 @@
       "controls": [
         {
           "type": "background",
-          "id": "background"
+          "id": "background",
+          "backgroundTypes": [
+            "colour",
+            "image",
+            "gradient",
+            "video"
+          ]
         }
       ]
     },
@@ -243,11 +176,42 @@
       ]
     },
     {
+      "section": "Filters",
+      "systemImage": "camera.filters",
+      "controls": [
+        {
+          "type": "filters",
+          "id": "filters"
+        }
+      ]
+    },
+    {
+      "section": "Transforms",
+      "systemImage": "move.3d",
+      "controls": [
+        {
+          "type": "transforms",
+          "id": "transforms"
+        }
+      ]
+    },
+    {
+      "section": "Transitions",
+      "systemImage": "circle.dotted.circle",
+      "controls": [
+        {
+          "type": "transitions",
+          "id": "transitions"
+        }
+      ]
+    },
+    {
       "section": "Layout",
       "systemImage": "square.on.square",
       "controls": [
         {
           "type": "layout",
+          "id": "layout",
           "allowedOptions": {
             "position": [
               "relative",
@@ -255,8 +219,7 @@
               "fixed",
               "sticky"
             ]
-          },
-          "id": "layout"
+          }
         }
       ]
     },
@@ -271,32 +234,14 @@
       ]
     },
     {
+      "section": "Link",
+      "systemImage": "link",
       "controls": [
         {
-          "defaults": {
-            "base": ""
-          },
-          "id": "destination",
-          "label": "Destination",
-          "tooltip": "Makes the whole part one link. The overlay also covers links and buttons inside; avoid nesting interactive content when enabled.",
-          "type": "link"
-        },
-        {
-          "defaults": {
-            "base": ""
-          },
-          "id": "linkLabel",
-          "label": "Accessible name",
-          "tooltip": "Describes the destination for screen readers, which cannot see the part's contents.",
-          "type": "text",
-          "visibleWhen": {
-            "id": "destination",
-            "operation": "isNotEmpty"
-          }
+          "type": "linkOverlay",
+          "id": "link"
         }
-      ],
-      "section": "Link",
-      "systemImage": "link"
+      ]
     },
     {
       "type": "advanced"
@@ -320,5 +265,5 @@
     "html": "part.html"
   },
   "title": "Container",
-  "version": "3.1.0"
+  "version": "3.3.0"
 }

@@ -154,6 +154,7 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
             ))
         }
         try imageRenditionFiles(site: site, assets: assets, emit: emit)
+        try backgroundVideoPosterFiles(site: site, assets: assets, emit: emit)
         for file in webIconPlan.files { try emit(file) }
         if site.generatesSitemap, let baseURL = validPublicURL(site.publicURL) {
             try emit(.init(path: "sitemap.xml", contents: sitemap(for: site, baseURL: baseURL)))
@@ -943,9 +944,8 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
         let partDefinition = node.type.definition
         let definitions = partDefinition.properties
         let manifestProperties = partDefinition.package?.renderDefinition.properties ?? []
-        let stored = Dictionary(node.properties.map { ($0.key, $0.value) }, uniquingKeysWith: { first, _ in first })
         var values: [String: PartPackageValue] = Dictionary(uniqueKeysWithValues: definitions.map { definition in
-            let value = stored[definition.key] ?? definition.defaultValue
+            let value = node.storedPropertyValue(definition.key) ?? definition.defaultValue
             if case .frameworkBorderWidth(let width) = value {
                 return (definition.key.rawValue, PartPackageFrameworkBorderWidthControl.resolved(width, framework: framework))
             }
@@ -998,6 +998,9 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
             }
             if case .packageShadow = definition.control,
                case .packageShadow(let shadowValue) = value {
+                if manifestProperties.first(where: { $0.id == definition.key.rawValue })?.controlGroupSource?.type == .filters {
+                    return (definition.key.rawValue, .string(PartPackageShadowResolver.filter(shadowValue, framework: framework)))
+                }
                 return (
                     definition.key.rawValue,
                     .string(PartPackageShadowResolver.resolve(shadowValue, framework: framework))
@@ -1106,12 +1109,18 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
                 let customPoster = node.property(
                     PartVideoTemplateValues.posterPropertyKey(for: property.id)
                 )
+                let poster: String
+                if property.usesAutomaticVideoPoster {
+                    poster = asset.flatMap(PartVideoTemplateValues.generatedPosterPath)
+                        .map { siteRootPrefix(from: assetPrefix) + $0 } ?? ""
+                } else {
+                    poster = customPoster.isEmpty ? ""
+                        : exportSource(customPoster, assetPrefix: assetPrefix, assets: assets, site: site)
+                }
                 PartVideoTemplateValues.insert(
                     propertyID: property.id,
                     href: values[property.id]?.stringValue ?? "",
-                    poster: customPoster.isEmpty
-                        ? ""
-                        : exportSource(customPoster, assetPrefix: assetPrefix, assets: assets, site: site),
+                    poster: poster,
                     asset: asset,
                     playback: PartVideoTemplateValues.playbackOptions(propertyID: property.id, node: node),
                     into: &values
@@ -1166,6 +1175,28 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
             })
         default:
             packageValue(value)
+        }
+    }
+
+    private func backgroundVideoPosterFiles(
+        site: Site,
+        assets: ProjectAssetContents,
+        emit: (SiteExportFile) throws -> Void
+    ) throws {
+        var emitted = Set<UUID>()
+        for page in site.pages where !page.isDeveloperPlayground {
+            for node in page.parts.flatMap(\.flattened) {
+                guard let package = node.type.definition.package else { continue }
+                for property in package.renderDefinition.properties where property.usesAutomaticVideoPoster {
+                    guard let id = node.property(.init(rawValue: property.id)).foundryAssetID,
+                          emitted.insert(id).inserted,
+                          let asset = assets.asset(id),
+                          let path = PartVideoTemplateValues.generatedPosterPath(for: asset),
+                          let data = asset.videoMetadata?.posterJPEG else { continue }
+                    try Task.checkCancellation()
+                    try emit(.init(path: path, data: data))
+                }
+            }
         }
     }
 

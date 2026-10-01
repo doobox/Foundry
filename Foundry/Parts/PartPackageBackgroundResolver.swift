@@ -34,16 +34,20 @@ nonisolated enum PartPackageBackgroundResolver {
 
     private static func resolveLayerValues(_ values: inout [String: PartPackageValue], enablesEditorMarkup: Bool) {
         let mode = string(values["backgroundMode"]) ?? "none"
+        let normalStyle = string(values["backgroundStyle"]) ?? "color"
+        let hoverStyle = string(values["backgroundHoverStyle"]) ?? "none"
+        let hasMedia = ["image", "video"].contains(normalStyle)
+            || (mode == "hover" && hoverStyle == "image")
+        let overlay = hasMedia ? overlayColor(values: values) : nil
         let staticLayer = mode == "none"
             ? Layer.empty
-            : layer(prefix: "background", style: string(values["backgroundStyle"]) ?? "color",
+            : layer(prefix: "background", style: normalStyle, overlay: overlay,
                     isHover: false, values: values, enablesEditorMarkup: enablesEditorMarkup)
 
         // Hover mirrors the static layer unless the part is in hover mode with
         // a hover style chosen, so `:hover` rules are safe to write blindly.
-        let hoverStyle = string(values["backgroundHoverStyle"]) ?? "none"
         var hoverLayer = mode == "hover" && hoverStyle != "none"
-            ? layer(prefix: "backgroundHover", style: hoverStyle,
+            ? layer(prefix: "backgroundHover", style: hoverStyle, overlay: overlay,
                     isHover: true, values: values, enablesEditorMarkup: enablesEditorMarkup)
             : staticLayer
         // Hover supports colour, image, and gradient only. It may mirror the
@@ -61,19 +65,23 @@ nonisolated enum PartPackageBackgroundResolver {
         var size = "cover"
         var repeatValue = "no-repeat"
         var video = ""
+        var videoOverlay: String?
 
         static let empty = Layer()
 
         /// Every declaration the layer needs, ready to drop into a rule so a
         /// part can take the whole background in one interpolation.
         var css: String {
-            let declarations = [
+            var declarations = [
                 "background-color: \(color);",
                 "background-image: \(image);",
                 "background-position: \(position);",
                 "background-size: \(size);",
                 "background-repeat: \(repeatValue);"
             ]
+            if let videoOverlay {
+                declarations.append("--foundry-background-overlay: \(videoOverlay);")
+            }
             return declarations.joined(separator: " ")
         }
 
@@ -91,6 +99,7 @@ nonisolated enum PartPackageBackgroundResolver {
     private static func layer(
         prefix: String,
         style: String,
+        overlay: String?,
         isHover: Bool,
         values: [String: PartPackageValue],
         enablesEditorMarkup: Bool
@@ -108,6 +117,7 @@ nonisolated enum PartPackageBackgroundResolver {
         case "gradient":
             layer.image = gradient(prefix: prefix, values: values)
         case "video":
+            layer.videoOverlay = overlay ?? "transparent"
             layer.video = videoElement(
                 prefix: prefix,
                 isHover: isHover,
@@ -117,7 +127,20 @@ nonisolated enum PartPackageBackgroundResolver {
         default:
             break
         }
+        // The overlay belongs to the whole background, not either hover state.
+        // Keep its paint unchanged even when the other state is colour or gradient.
+        if style != "video", let overlay {
+            layer.image = "linear-gradient(\(overlay), \(overlay)), " + layer.image
+            layer.position = "center, " + layer.position
+            layer.size = "100% 100%, " + layer.size
+            layer.repeatValue = "no-repeat, " + layer.repeatValue
+        }
         return layer
+    }
+
+    private static func overlayColor(values: [String: PartPackageValue]) -> String? {
+        guard boolean(values["backgroundOverlayEnabled"]) == true else { return nil }
+        return string(values["backgroundOverlayColor"]) ?? "#00000033"
     }
 
     private static func gradient(prefix: String, values: [String: PartPackageValue]) -> String {

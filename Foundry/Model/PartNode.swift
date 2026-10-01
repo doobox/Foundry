@@ -211,10 +211,27 @@ nonisolated struct PartNode: Codable, Equatable, Identifiable, Sendable {
     }
 
     func propertyValue(_ key: PartProperty.Key) -> PartProperty.Value {
-        if let value = properties.first(where: { $0.key == key })?.value {
+        if let value = storedPropertyValue(key) {
             return value
         }
         return type.definition.property(for: key)?.defaultValue ?? .string("")
+    }
+
+    /// Reads current package keys first, then the flat keys used by built-in
+    /// whole-part links before they became a shared control group. Keeping the
+    /// fallback here lets existing sites migrate lazily when the field is next
+    /// edited instead of rewriting every stored part tree during decoding.
+    func storedPropertyValue(_ key: PartProperty.Key) -> PartProperty.Value? {
+        if let value = properties.first(where: { $0.key == key })?.value {
+            return value
+        }
+        let legacyKey: PartProperty.Key? = switch key.rawValue {
+        case "link.destination": .init(rawValue: "destination")
+        case "link.accessibleName": .init(rawValue: "linkLabel")
+        default: nil
+        }
+        guard let legacyKey else { return nil }
+        return properties.first(where: { $0.key == legacyKey })?.value
     }
 
     func propertyValue(_ key: PartProperty.Key, at breakpoint: ResponsiveBreakpoint, screens: ScreenTokens = .standard) -> PartProperty.Value {
@@ -295,6 +312,16 @@ nonisolated struct PartNode: Codable, Equatable, Identifiable, Sendable {
     }
 
     mutating func setProperty(_ key: PartProperty.Key, value: PartProperty.Value) {
+        // Once a namespaced Link field is edited, discard its pre-group alias
+        // so clearing the new field cannot make an old value reappear.
+        let legacyKey: PartProperty.Key? = switch key.rawValue {
+        case "link.destination": .init(rawValue: "destination")
+        case "link.accessibleName": .init(rawValue: "linkLabel")
+        default: nil
+        }
+        if let legacyKey {
+            properties.removeAll(where: { $0.key == legacyKey })
+        }
         if let index = properties.firstIndex(where: { $0.key == key }) {
             properties[index].value = value
         } else {
@@ -326,7 +353,7 @@ nonisolated struct PartNode: Codable, Equatable, Identifiable, Sendable {
     }
 
     mutating func setProperty(_ key: PartProperty.Key, value: String) {
-        let propertyValue: PartProperty.Value = key == .destination
+        let propertyValue: PartProperty.Value = key == .destination || key.rawValue == "link.destination"
             ? .link(.init(destination: value.isEmpty ? .none : .url(value)))
             : .string(value)
         setProperty(key, value: propertyValue)

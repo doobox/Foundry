@@ -6,6 +6,7 @@
       },
       "id": "effectsEnabled",
       "label": "Enable",
+      "presentation": "switch",
       "responsive": true,
       "type": "toggle"
     },

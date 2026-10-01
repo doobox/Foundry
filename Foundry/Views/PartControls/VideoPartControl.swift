@@ -21,6 +21,7 @@ struct VideoPartControl: View {
     let choices: [Choice]
     let indicator: InspectorRowIndicator
     let showsPlaybackOptions: Bool
+    var showsPosterOptions = true
     @Binding var autoplay: String
     @Binding var muted: Bool
     @Binding var showsControls: Bool
@@ -79,7 +80,9 @@ struct VideoPartControl: View {
 
                 videoWell.gridColumnAlignment(.leading)
             }
-            posterRow
+            if showsPosterOptions {
+                posterRow
+            }
             if showsPlaybackOptions {
                 playbackOptions
             }

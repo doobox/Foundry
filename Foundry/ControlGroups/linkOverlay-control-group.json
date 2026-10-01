@@ -1,0 +1,29 @@
+{
+  "type": "linkOverlay",
+  "name": "Link",
+  "systemImage": "link",
+  "controls": [
+    {
+      "type": "link",
+      "id": "destination",
+      "label": "Destination",
+      "tooltip": "Makes the part's root a link. Remove nested links, buttons and other interactive controls before enabling a whole-part link.",
+      "defaults": {
+        "base": ""
+      }
+    },
+    {
+      "type": "text",
+      "id": "accessibleName",
+      "label": "Accessible name",
+      "tooltip": "Describes the destination for screen readers, which cannot see the part's contents.",
+      "defaults": {
+        "base": ""
+      },
+      "visibleWhen": {
+        "id": "destination",
+        "operation": "isNotEmpty"
+      }
+    }
+  ]
+}

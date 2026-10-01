@@ -1,6 +1,7 @@
 :instance {
     box-sizing: border-box;
     min-width: 0;
+    min-height: 0;
     isolation: isolate;
     display: grid;
     grid-template-columns: {{ if control.gridMode == "auto" }}repeat(auto-fit, minmax(min(100%, {{ control.minimumColumnWidth }}px), 1fr)){{ else }}repeat({{ control.columnCount }}, minmax(0, 1fr)){{ endif }};
@@ -19,5 +20,13 @@
     {{ control.layout.css }}
 }
 :instance:hover { {{ control.background.hover.css }} }
-:instance > * { min-width: 0; }
+:instance > * { min-width: 0; min-height: 0; max-width: 100%; }
 :instance > .foundry-empty-drop-zone { grid-column: 1 / -1; }
+
+/* Shared state-change timing; never applied to nested parts implicitly. */
+:instance { {{ control.transitions.css }} }
+
+:instance { {{ control.filters.css }} }
+:instance:hover { {{ control.filters.hover.css }} }
+:instance { {{ control.transforms.css }} }
+:instance:hover { {{ control.transforms.hover.css }} }

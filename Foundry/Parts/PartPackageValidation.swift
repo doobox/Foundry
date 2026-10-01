@@ -259,6 +259,18 @@ nonisolated enum PartPackageValidator {
                 into: &diagnostics
             )
         }
+        let linkGroups = manifest.controlGroups.filter { $0.type == .linkOverlay }
+        if !linkGroups.isEmpty, let template = templateContents[manifest.render.html] {
+            if linkGroups.count > 1 {
+                diagnostics.append(.init(severity: .error, location: "manifest.json:inspector", message: "Declare only one Link group per part root."))
+            }
+            if let root = PartRootLinkRenderer.root(in: template), !PartRootLinkRenderer.allowedTags.contains(root.name) {
+                diagnostics.append(.init(severity: .error, location: manifest.render.html, message: "The Link group cannot convert a <\(root.name)> root into an anchor. Use an ordinary content container or the primitive link control."))
+            }
+            if PartRootLinkRenderer.hasInteractiveChildren(template) {
+                diagnostics.append(.init(severity: .warning, location: manifest.render.html, message: "The Link group cannot activate while the rendered root contains links, controls or focusable descendants."))
+            }
+        }
         for (index, contribution) in manifest.htmlContributions.enumerated() {
             validateTemplate(
                 contribution.template,
@@ -331,6 +343,10 @@ nonisolated enum PartPackageValidator {
         }
         for group in manifest.controlGroups where group.type == .flexbox {
             propertyIDs.insert(group.namespace + ".childCSS")
+        }
+        for group in manifest.controlGroups where group.type == .filters || group.type == .transforms {
+            propertyIDs.insert(group.namespace + ".hover")
+            propertyIDs.insert(group.namespace + ".hover.css")
         }
         let childPickerIDs = Set(manifest.slots.map(\.id))
 
@@ -1174,8 +1190,17 @@ nonisolated enum PartPackageValidator {
                 diagnostics.append(.init(severity: .error, location: location, message: "A frameworkColor default requires a dictionary with a string palette."))
                 return
             }
-            for key in initial.keys where !["palette", "lightShade", "darkShade"].contains(key) {
+            for key in initial.keys where !["palette", "lightShade", "darkShade", "opacity"].contains(key) {
                 diagnostics.append(.init(severity: .error, location: "\(location).\(key)", message: "Unknown frameworkColor default key '\(key)'."))
+            }
+            if let supplied = initial["opacity"] {
+                if case .number(let alpha) = supplied, alpha.isFinite, (0...1).contains(alpha) {
+                    if property.control.opacity != true {
+                        diagnostics.append(.init(severity: .error, location: "\(location).opacity", message: "An opacity default requires opacity: true on the frameworkColor control."))
+                    }
+                } else {
+                    diagnostics.append(.init(severity: .error, location: "\(location).opacity", message: "An opacity default must be a number from 0 to 1."))
+                }
             }
             for key in ["lightShade", "darkShade"] {
                 guard let supplied = initial[key] else { continue }
@@ -1444,14 +1469,14 @@ private nonisolated struct PartRootStructureIssue {
     let message: String
 }
 
-private nonisolated struct PartHTMLTag {
+nonisolated struct PartHTMLTag {
     let range: Range<String.Index>
     let name: String
     let isClosing: Bool
     let isSelfClosing: Bool
 }
 
-private nonisolated extension String {
+nonisolated extension String {
     private static var partRootStructureMessage: String {
         "The primary HTML template must contain exactly one stable top-level root element. Put all rendered markup and template macros inside that root; only whitespace and HTML comments may appear outside it."
     }
@@ -1460,7 +1485,7 @@ private nonisolated extension String {
         "area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "param", "source", "track", "wbr"
     ]
 
-    var partRootStructureIssue: PartRootStructureIssue? {
+    fileprivate var partRootStructureIssue: PartRootStructureIssue? {
         guard let rootStart = indexAfterPartTemplateTrivia(from: startIndex),
               rootStart < endIndex,
               self[rootStart] == "<",
@@ -1513,7 +1538,7 @@ private nonisolated extension String {
         return nil
     }
 
-    private func indexAfterPartTemplateTrivia(from start: String.Index) -> String.Index? {
+    func indexAfterPartTemplateTrivia(from start: String.Index) -> String.Index? {
         var cursor = start
         while cursor < endIndex {
             if self[cursor].isWhitespace {
@@ -1532,7 +1557,7 @@ private nonisolated extension String {
         return cursor
     }
 
-    private func partHTMLTag(at start: String.Index) -> PartHTMLTag? {
+    func partHTMLTag(at start: String.Index) -> PartHTMLTag? {
         guard start < endIndex, self[start] == "<" else { return nil }
         var cursor = index(after: start)
         var isClosing = false
@@ -1616,7 +1641,7 @@ private nonisolated extension String {
         return String(self[range])
     }
 
-    func matches(_ pattern: String) -> Bool {
+    fileprivate func matches(_ pattern: String) -> Bool {
         matchCount(pattern) > 0
     }
 
@@ -1625,7 +1650,7 @@ private nonisolated extension String {
         return expression.numberOfMatches(in: self, range: NSRange(startIndex..., in: self))
     }
 
-    func references(matching pattern: String) -> [PartTemplateReference] {
+    fileprivate func references(matching pattern: String) -> [PartTemplateReference] {
         let expression = try! NSRegularExpression(pattern: pattern)
         return expression.matches(in: self, range: NSRange(startIndex..., in: self)).compactMap { match in
             guard let valueRange = Range(match.range(at: 1), in: self) else { return nil }

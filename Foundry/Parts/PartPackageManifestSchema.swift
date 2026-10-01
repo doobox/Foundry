@@ -499,7 +499,7 @@ nonisolated enum PartPackageManifestSchema {
         let generated = PartPackageControlGroup(
             type: kind,
             id: kind.rawValue,
-            backgroundTypes: backgroundTypes.isEmpty ? PartPackageControlGroup.BackgroundStyle.allCases : backgroundTypes,
+            backgroundTypes: backgroundTypes.isEmpty ? PartPackageControlGroup.BackgroundStyle.defaultStyles : backgroundTypes,
             supportsHover: controlGroup["supportsHover"] as? Bool ?? true
         ).properties.map { original in
             var property = original
@@ -1075,7 +1075,8 @@ nonisolated enum PartPackageManifestSchema {
         validateSliderOptions(property, type: type, location: location, into: &diagnostics)
         if type == .frameworkColor {
             if let initial = property["default"] as? [String: Any] {
-                unknownKeys(in: initial, allowed: ["palette", "lightShade", "darkShade"], location: "\(location).default", into: &diagnostics)
+                unknownKeys(in: initial, allowed: ["palette", "lightShade", "darkShade", "opacity"], location: "\(location).default", into: &diagnostics)
+                optionalNumber("opacity", in: initial, location: "\(location).default", into: &diagnostics)
                 optionalString("palette", in: initial, location: "\(location).default", into: &diagnostics)
                 if initial["palette"] == nil {
                     appendMissing("palette", expected: "string", location: "\(location).default", into: &diagnostics)

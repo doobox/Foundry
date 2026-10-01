@@ -26,7 +26,7 @@
       "controls": [
         {
           "type": "note",
-          "body": "allowedOptions limits Width to Fill parent and Custom; defaults starts it at Custom, 320px. Every other control is unchanged."
+          "body": "allowedOptions limits Width to Full and Custom; defaults starts it at Custom, 320px. Every other control is unchanged."
         },
         {
           "type": "sizing",

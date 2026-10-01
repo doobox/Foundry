@@ -1,12 +1,36 @@
 :instance {
-    box-sizing: border-box;
-    display: inline-block;
+    /* Arrange the label and optional icon */
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5em;
+
+      /* Size within flex and grid layouts */
+      box-sizing: border-box;
+      inline-size: fit-content;
+      max-inline-size: 100%;
+      min-inline-size: 0;
+
+      flex: 0 1 auto;
+      align-self: start;
+      justify-self: start;
+
+      /* Appearance */
+      padding: 0.65em 1.1em;
+      border: 1px solid transparent;
+      background: #222;
+      color: white;
+
+      font: inherit;
+      line-height: 1.3;
+      text-align: center;
+      text-decoration: none;
+      white-space: normal;
+      overflow-wrap: anywhere;
+      cursor: pointer;
     color: {{ control.textColor }};
-    line-height: 1.2;
-    text-decoration: none;
     background-color: {{ control.backgroundColor }};
     border-radius: {{ control.cornerRadius }}px;
-    padding: 12px 22px;
 }
 
 /* Control groups: declared after the part's own rules so they take precedence. */
@@ -14,5 +38,22 @@
     {{ control.sizing.css }}
     {{ control.effects.css }}
     {{ control.layout.css }}
-    padding: {{ if control.spacing.spacingEnabled }}{{ control.spacing.frameworkPadding }}{{ else }}12px 22px{{ endif }}; margin: {{ if control.spacing.spacingEnabled }}{{ control.spacing.frameworkMargin }}{{ else }}0{{ endif }};
+    padding: {{ if control.spacing.spacingEnabled }}
+    {{ control.spacing.frameworkPadding }}
+    {{ else }}
+    12px 22px
+    {{ endif }};
+    margin: {{ if control.spacing.spacingEnabled }}
+    {{ control.spacing.frameworkMargin }}
+    {{ else }}
+    0
+    {{ endif }};
 }
+
+/* Shared state-change timing; never applied to nested parts implicitly. */
+:instance { {{ control.transitions.css }} }
+
+:instance { {{ control.filters.css }} }
+:instance:hover { {{ control.filters.hover.css }} }
+:instance { {{ control.transforms.css }} }
+:instance:hover { {{ control.transforms.hover.css }} }

@@ -336,7 +336,13 @@
       "controls": [
         {
           "type": "background",
-          "id": "background"
+          "id": "background",
+          "backgroundTypes": [
+            "colour",
+            "image",
+            "gradient",
+            "video"
+          ]
         }
       ],
       "section": "Background",
@@ -361,6 +367,41 @@
       ],
       "section": "Effects",
       "systemImage": "sparkles"
+    },
+    {
+      "section": "Filters",
+      "systemImage": "camera.filters",
+      "controls": [
+        {
+          "type": "filters",
+          "id": "filters"
+        }
+      ]
+    },
+    {
+      "section": "Transforms",
+      "systemImage": "move.3d",
+      "controls": [
+        {
+          "type": "transforms",
+          "id": "transforms"
+        }
+      ]
+    },
+    {
+      "section": "Transitions",
+      "systemImage": "circle.dotted.circle",
+      "controls": [
+        {
+          "type": "transitions",
+          "id": "transitions",
+          "defaults": {
+            "transitionsEnabled": true,
+            "transitionDuration": 150,
+            "transitionFunction": "ease"
+          }
+        }
+      ]
     },
     {
       "section": "Reveal",

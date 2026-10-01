@@ -2,6 +2,32 @@ import Foundation
 
 @MainActor
 extension ProjectEditor {
+    /// Resets a section in one transaction, including linked global definitions.
+    func resetInspectorSection(ids: [UUID], section: PartPropertySection, editsSharedDefinition: Bool = false) {
+        let ids = Array(Set(ids))
+        guard !ids.isEmpty else { return }
+        mutate(actionName: "Reset \(section.rawValue) Section") { site in
+            let framework = site.framework
+            for id in ids {
+                guard let part = site.part(withID: id) else { continue }
+                let state = PartInspectorSectionState(part: part, section: section, framework: framework)
+                if let context = site.globalPartContext(containing: id), editsSharedDefinition || !context.isOverridden {
+                    var updatedRoot: PartNode?
+                    site.globalPartLibrary.mutateDefinition(id: context.definitionID) {
+                        $0.root.mutateNode(at: context.path) { state.reset(&$0) }
+                        updatedRoot = $0.root
+                    }
+                    guard let template = updatedRoot else { continue }
+                    for pageIndex in site.pages.indices {
+                        site.pages[pageIndex].parts.replaceReusableInstances(definitionID: context.definitionID, with: template)
+                    }
+                } else {
+                    site.updatePart(id: id) { state.reset(&$0) }
+                }
+            }
+        }
+    }
+
     /// Stamps a template onto the page: an independent copy with fresh tree
     /// identity, exactly like inserting parts by hand. The definition arrives
     /// already resolved (library entry with assets imported into this project).

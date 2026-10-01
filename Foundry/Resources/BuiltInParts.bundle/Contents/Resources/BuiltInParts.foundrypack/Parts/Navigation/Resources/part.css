@@ -72,7 +72,7 @@
     color: {{ control.linkColor }};
     text-decoration: none;
     border-radius: var(--foundry-border-radius-sm);
-    transition: color var(--foundry-motion-fast) var(--foundry-motion-ease);
+    {{ control.transitions.css }}
 }
 :instance .fd-navigation__link--label { cursor: default; }
 :instance .fd-navigation__link:hover { color: {{ control.activeColor }}; }
@@ -118,7 +118,7 @@
     height: 2px;
     background: {{ control.activeColor }};
     transform: scaleX(0);
-    transition: transform var(--foundry-motion-fast) var(--foundry-motion-ease);
+    {{ control.transitions.css }}
 }
 :instance .fd-navigation__link:hover::after,
 :instance .fd-navigation__link.is-current::after,
@@ -181,6 +181,7 @@
     color: color-mix(in srgb, {{ control.linkColor }} 62%, transparent);
 }
 :instance .fd-navigation__dropdown-link {
+    {{ control.transitions.css }}
     display: block;
     padding: var(--foundry-space-2xs) var(--foundry-space-xs);
     color: {{ control.linkColor }};
@@ -215,8 +216,7 @@
     width: 100%;
     background: {{ control.linkColor }};
     border-radius: 1px;
-    transition: transform var(--foundry-motion-fast) var(--foundry-motion-ease),
-                opacity var(--foundry-motion-fast) var(--foundry-motion-ease);
+    {{ control.transitions.css }}
 }
 :instance .fd-navigation__toggle.is-open span:nth-child(1) { transform: translateY(6px) rotate(45deg); }
 :instance .fd-navigation__toggle.is-open span:nth-child(2) { opacity: 0; }
@@ -274,3 +274,11 @@
     {{ control.borders.css }}
     {{ control.effects.css }}
 }
+
+/* Shared state-change timing; never applied to nested parts implicitly. */
+:instance { {{ control.transitions.css }} }
+
+:instance { {{ control.filters.css }} }
+:instance:hover { {{ control.filters.hover.css }} }
+:instance { {{ control.transforms.css }} }
+:instance:hover { {{ control.transforms.hover.css }} }

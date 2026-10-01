@@ -15,9 +15,9 @@ nonisolated enum PartPackageValidationCache {
         var isDirty = false
     }
 
-    private static let formatVersion = 1
+    private static let formatVersion = 3
     // Increment whenever validation rules change without an application build change.
-    private static let validatorVersion = 3
+    private static let validatorVersion = 9
     private static let state = Mutex(State())
 
     static func fingerprint(

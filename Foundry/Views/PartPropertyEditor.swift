@@ -58,21 +58,27 @@ struct PartPropertyEditor: View {
 
     @ViewBuilder
     var body: some View {
-        if let subtitle = definition.subtitle,
-           !subtitle.isEmpty,
-           !definition.control.isArray,
-           !isDateControl,
-           !isNoteControl,
-           !isLinkControl {
-            VStack(alignment: .leading, spacing: 4) {
+        Group {
+            if let subtitle = definition.subtitle,
+               !subtitle.isEmpty,
+               !definition.control.isArray,
+               !isDateControl,
+               !isNoteControl,
+               !isLinkControl {
+                VStack(alignment: .leading, spacing: 4) {
+                    editorControl
+                    Text(subtitle)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            } else {
                 editorControl
-                Text(subtitle)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
             }
-        } else {
-            editorControl
         }
+        .environment(\.inspectorControlReset, InspectorControlReset(
+            isEnabled: canResetControl,
+            action: resetControl
+        ))
     }
 
     private var isDateControl: Bool {
@@ -94,14 +100,7 @@ struct PartPropertyEditor: View {
     private var editorControl: some View {
         switch definition.control {
         case .array(let element, let count, let subtitles, let buttonTexts, let buttonIcons, let activeButtonTexts, let activeButtonIcons, let buttonSelectionMode, let units, let help):
-            if case .slider = element {
-                controlArrayRow(element: element, count: count, subtitles: subtitles, buttonTexts: buttonTexts, buttonIcons: buttonIcons, activeButtonTexts: activeButtonTexts, activeButtonIcons: activeButtonIcons, buttonSelectionMode: buttonSelectionMode, units: units, help: help)
-                    .contextMenu {
-                        resetButton
-                    }
-            } else {
-                controlArrayRow(element: element, count: count, subtitles: subtitles, buttonTexts: buttonTexts, buttonIcons: buttonIcons, activeButtonTexts: activeButtonTexts, activeButtonIcons: activeButtonIcons, buttonSelectionMode: buttonSelectionMode, units: units, help: help)
-            }
+            controlArrayRow(element: element, count: count, subtitles: subtitles, buttonTexts: buttonTexts, buttonIcons: buttonIcons, activeButtonTexts: activeButtonTexts, activeButtonIcons: activeButtonIcons, buttonSelectionMode: buttonSelectionMode, units: units, help: help)
         case .singleLineText:
             TextPartControl(label: definition.label, indicator: responsiveIndicator, text: stringBinding(as: .string))
         case .multilineText:
@@ -155,9 +154,6 @@ struct PartPropertyEditor: View {
                 indicator: responsiveIndicator,
                 value: numberBinding
             )
-            .contextMenu {
-                resetButton
-            }
         case .date:
             DatePartControl(
                 label: definition.label,
@@ -216,6 +212,7 @@ struct PartPropertyEditor: View {
                 source: packageColorSourceBinding,
                 shade: packageColorShadeBinding,
                 customColor: packageCustomColorBinding,
+                opacityPercent: packageColorOpacityBinding,
                 allowsOpacity: opacity,
                 indicator: responsiveIndicator
             )
@@ -263,7 +260,6 @@ struct PartPropertyEditor: View {
             }
             .focusScope(frameworkSpacingFocusNamespace)
             .help(part.type.definition.package?.manifest.resolvedProperties.first { $0.id == definition.key.rawValue }?.tooltip ?? "Spacing")
-            .contextMenu { resetButton }
         case .frameworkBorderWidth:
             FrameworkBorderWidthPartControl(label: definition.label, framework: framework, indicator: responsiveIndicator,
                 value: Binding(get: {
@@ -272,7 +268,6 @@ struct PartPropertyEditor: View {
                     return FrameworkBorderWidthValue()
                 }, set: { setProperty(.frameworkBorderWidth($0)) }))
                 .help(part.type.definition.package?.manifest.resolvedProperties.first { $0.id == (definition.inspectorControlID ?? definition.key.rawValue) }?.tooltip ?? "Border")
-                .contextMenu { resetButton }
         case .frameworkRadius:
             FrameworkRadiusPartControl(label: definition.label, framework: framework, indicator: responsiveIndicator,
                 value: Binding(get: {
@@ -281,7 +276,6 @@ struct PartPropertyEditor: View {
                     return FrameworkRadiusValue()
                 }, set: { setProperty(.frameworkRadius($0)) }))
                 .help(part.type.definition.package?.manifest.resolvedProperties.first { $0.id == definition.key.rawValue }?.tooltip ?? "Radius")
-                .contextMenu { resetButton }
         case .frameworkMargin:
             FrameworkMarginPartControl(label: definition.label, framework: framework, indicator: responsiveIndicator,
                 value: Binding(get: {
@@ -290,7 +284,6 @@ struct PartPropertyEditor: View {
                     return FrameworkMarginValue()
                 }, set: { setProperty(.frameworkMargin($0)) }))
                 .help(part.type.definition.package?.manifest.resolvedProperties.first { $0.id == definition.key.rawValue }?.tooltip ?? "Margin")
-                .contextMenu { resetButton }
         case .frameworkPadding:
             FrameworkPaddingPartControl(label: definition.label, framework: framework, indicator: responsiveIndicator,
                 value: Binding(get: {
@@ -299,7 +292,6 @@ struct PartPropertyEditor: View {
                     return FrameworkPaddingValue()
                 }, set: { setProperty(.frameworkPadding($0)) }))
                 .help(part.type.definition.package?.manifest.resolvedProperties.first { $0.id == definition.key.rawValue }?.tooltip ?? "Padding")
-                .contextMenu { resetButton }
         case .edges(let units):
             FrameworkMarginPartControl(label: definition.label, framework: framework, indicator: responsiveIndicator,
                 allowsFrameworkTokens: false, unitChoices: units, fallbackLabel: "Edges",
@@ -309,7 +301,6 @@ struct PartPropertyEditor: View {
                     return PartPackageFrameworkMarginControl.customZero(units: units)
                 }, set: { setProperty(.frameworkMargin($0)) }))
                 .help(part.type.definition.package?.manifest.resolvedProperties.first { $0.id == definition.key.rawValue }?.tooltip ?? "Edges")
-                .contextMenu { resetButton }
         case .corners(let units):
             FrameworkRadiusPartControl(label: definition.label, framework: framework, indicator: responsiveIndicator,
                 allowsFrameworkTokens: false, unitChoices: units, fallbackLabel: "Corners",
@@ -319,7 +310,6 @@ struct PartPropertyEditor: View {
                     return PartPackageFrameworkRadiusControl.customZero(units: units)
                 }, set: { setProperty(.frameworkRadius($0)) }))
                 .help(part.type.definition.package?.manifest.resolvedProperties.first { $0.id == definition.key.rawValue }?.tooltip ?? "Corners")
-                .contextMenu { resetButton }
         case .fontWeight(let font):
             FontFacePartControl(label: definition.label,
                 options: fontFaceOptions(font: font, editsWeight: true),
@@ -484,6 +474,7 @@ struct PartPropertyEditor: View {
                 choices: availableVideos.map { .init(id: $0.id, title: $0.filename) },
                 indicator: responsiveIndicator,
                 showsPlaybackOptions: showsVideoPlaybackOptions,
+                showsPosterOptions: allowsCustomVideoPoster,
                 autoplay: videoAutoplayBinding,
                 muted: videoBooleanBinding(videoMutedKey, fallback: false),
                 showsControls: videoBooleanBinding(videoControlsKey, fallback: true),
@@ -543,7 +534,7 @@ struct PartPropertyEditor: View {
     }
 
     private var selectedVideoPoster: NSImage? {
-        let source = displayPart.property(videoPosterKey)
+        let source = allowsCustomVideoPoster ? displayPart.property(videoPosterKey) : ""
         if let id = source.foundryAssetID,
            let data = assetContents[id]?.data,
            let image = NSImage(data: data) {
@@ -554,6 +545,11 @@ struct PartPropertyEditor: View {
 
     private var videoPosterKey: PartProperty.Key {
         PartVideoTemplateValues.posterPropertyKey(for: definition.key.rawValue)
+    }
+
+    private var allowsCustomVideoPoster: Bool {
+        part.type.definition.package?.renderDefinition.properties
+            .first { $0.id == definition.key.rawValue }?.usesAutomaticVideoPoster != true
     }
 
     private var showsVideoPlaybackOptions: Bool {
@@ -808,7 +804,7 @@ struct PartPropertyEditor: View {
         Binding(
             get: { displayPart.property(definition.key) },
             set: { newValue in
-                if definition.key.rawValue == "backgroundMode", newValue == "hover" {
+                if backgroundInspectorContext?.localID == "backgroundMode", newValue == "hover" {
                     replaceVideoBackgroundStyleForHover()
                 }
                 setProperty(kind.value(newValue))
@@ -822,21 +818,23 @@ struct PartPropertyEditor: View {
     private func choicesForCurrentContext(
         _ choices: [PartPropertyChoice]
     ) -> [PartPropertyChoice] {
-        guard definition.key.rawValue == "backgroundStyle",
-              displayPart.property(.init(rawValue: "backgroundMode")) == "hover" else {
-            return choices
-        }
-        return choices.filter { $0.value != "video" }
+        guard let context = backgroundInspectorContext else { return choices }
+        return context.choices(choices, mode: displayPart.property(context.modeKey))
+    }
+
+    private var backgroundInspectorContext: PartBackgroundInspectorContext? {
+        PartBackgroundInspectorContext(property: part.type.definition.package?.manifest.resolvedProperties.first {
+            $0.id == definition.key.rawValue
+        })
     }
 
     private func replaceVideoBackgroundStyleForHover() {
-        let styleKey = PartProperty.Key(rawValue: "backgroundStyle")
-        guard displayPart.property(styleKey) == "video",
-              case .choice(let choices)? = part.type.definition.property(for: styleKey)?.control,
-              let fallback = choices.first(where: { $0.value != "video" })?.value else {
+        guard let context = backgroundInspectorContext,
+              case .choice(let choices)? = part.type.definition.property(for: context.styleKey)?.control,
+              let fallback = context.replacementStyle(newMode: "hover", currentStyle: displayPart.property(context.styleKey), choices: choices) else {
             return
         }
-        setProperty(.choice(fallback), key: styleKey)
+        setProperty(.choice(fallback), key: context.styleKey)
     }
 
     private func folderPathName(_ folder: PageFolder) -> String {
@@ -981,6 +979,18 @@ struct PartPropertyEditor: View {
         })
     }
 
+    private var packageColorOpacityBinding: Binding<Double> {
+        Binding(
+            get: { (appearance == .light ? packageColorValue.opacity : packageColorValue.darkOpacity) * 100 },
+            set: { percent in
+                var value = packageColorValue
+                let alpha = min(max(percent / 100, 0), 1)
+                if appearance == .light { value.opacity = alpha } else { value.darkOpacity = alpha }
+                setProperty(.packageColor(value))
+            }
+        )
+    }
+
     private var packageCustomColorBinding: Binding<Color> {
         Binding(
             get: {
@@ -1093,14 +1103,15 @@ struct PartPropertyEditor: View {
         )
     }
 
-    private var resetButton: some View {
-        Button("Reset") {
-            if effectiveBreakpoint != .mobile { removeOverride(for: definition.key) }
-            else { setProperty(definition.defaultValue) }
-        }
-        .disabled(effectiveBreakpoint != .mobile
-            ? !part.hasResponsiveOverride(definition.key, at: effectiveBreakpoint)
-            : part.propertyValue(definition.key) == definition.defaultValue)
+    private func resetControl() {
+        if effectiveBreakpoint != .mobile { removeOverride(for: definition.key) }
+        else { setProperty(definition.defaultValue) }
+    }
+
+    private var canResetControl: Bool {
+        effectiveBreakpoint != .mobile
+            ? part.hasResponsiveOverride(definition.key, at: effectiveBreakpoint)
+            : part.propertyValue(definition.key) != definition.defaultValue
     }
 
     private var responsiveIndicator: InspectorRowIndicator {

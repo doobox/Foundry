@@ -8,23 +8,24 @@
       "label": "Direction",
       "options": [
         {
-          "title": "Column",
+          "title": "Vertical",
           "value": "column"
         },
         {
-          "title": "Row",
+          "title": "Horizontal",
           "value": "row"
         },
         {
-          "title": "Column Reverse",
+          "title": "Vertical Reverse",
           "value": "column-reverse"
         },
         {
-          "title": "Row Reverse",
+          "title": "Horizontal Reverse",
           "value": "row-reverse"
         }
       ],
       "responsive": true,
+      "tooltip": "Vertical stacks items from top to bottom. Horizontal places them side by side. Reverse changes visual order without changing reading or keyboard order.",
       "type": "select"
     },
     {
@@ -32,10 +33,10 @@
         "base": "nowrap"
       },
       "id": "wrap",
-      "label": "Wrap Items",
+      "label": "Wrapping",
       "options": [
         {
-          "title": "No Wrap",
+          "title": "Don't Wrap",
           "value": "nowrap"
         },
         {
@@ -43,7 +44,7 @@
           "value": "wrap"
         },
         {
-          "title": "Wrap Reverse",
+          "title": "Wrap in Reverse",
           "value": "wrap-reverse"
         }
       ],
@@ -108,7 +109,7 @@
         "base": "flex-start"
       },
       "id": "alignItems",
-      "label": "Align Items",
+      "label": "Item Alignment",
       "options": [
         {
           "title": "Start",
@@ -132,7 +133,7 @@
         }
       ],
       "responsive": true,
-      "tooltip": "Aligns each item across the direction of flow. Stretch gives items matching sizes.",
+      "tooltip": "Positions items across the direction of flow. Stretch makes their boxes fill the available cross-axis space.",
       "type": "select"
     },
     {
@@ -140,7 +141,7 @@
         "base": "flex-start"
       },
       "id": "alignContent",
-      "label": "Align Content",
+      "label": "Wrapped Lines",
       "visibleWhen": {
         "id": "wrap",
         "operation": "!=",
@@ -177,7 +178,7 @@
         }
       ],
       "responsive": true,
-      "tooltip": "Spaces wrapped lines; single-line layouts are unaffected.",
+      "tooltip": "Positions or distributes the lines created by wrapping. Single-line layouts are unaffected.",
       "type": "select"
     },
     {
@@ -185,7 +186,7 @@
         "base": "flex-start"
       },
       "id": "justifyContent",
-      "label": "Justify Content",
+      "label": "Distribution",
       "options": [
         {
           "title": "Start",

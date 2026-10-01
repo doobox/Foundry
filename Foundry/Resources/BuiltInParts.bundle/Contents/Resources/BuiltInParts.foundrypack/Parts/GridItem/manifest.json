@@ -141,17 +141,14 @@
           "step": 1,
           "responsive": true,
           "tooltip": "Changes visual order only, not reading or keyboard order. Prefer rearranging parts in the tree."
-        }
-      ]
-    },
-    {
-      "section": "Content",
-      "systemImage": "square.on.square",
-      "controls": [
+        },
+        {
+          "type": "divider"
+        },
         {
           "type": "frameworkSpacing",
           "id": "contentGap",
-          "label": "Gap",
+          "label": "Content Gap",
           "defaults": {
             "base": "none"
           },
@@ -193,7 +190,13 @@
       "controls": [
         {
           "type": "background",
-          "id": "background"
+          "id": "background",
+          "backgroundTypes": [
+            "colour",
+            "image",
+            "gradient",
+            "video"
+          ]
         }
       ]
     },
@@ -218,11 +221,42 @@
       ]
     },
     {
+      "section": "Filters",
+      "systemImage": "camera.filters",
+      "controls": [
+        {
+          "type": "filters",
+          "id": "filters"
+        }
+      ]
+    },
+    {
+      "section": "Transforms",
+      "systemImage": "move.3d",
+      "controls": [
+        {
+          "type": "transforms",
+          "id": "transforms"
+        }
+      ]
+    },
+    {
+      "section": "Transitions",
+      "systemImage": "circle.dotted.circle",
+      "controls": [
+        {
+          "type": "transitions",
+          "id": "transitions"
+        }
+      ]
+    },
+    {
       "section": "Layout",
       "systemImage": "square.on.square",
       "controls": [
         {
           "type": "layout",
+          "id": "layout",
           "allowedOptions": {
             "position": [
               "relative",
@@ -230,8 +264,7 @@
               "fixed",
               "sticky"
             ]
-          },
-          "id": "layout"
+          }
         }
       ]
     },
@@ -246,32 +279,14 @@
       ]
     },
     {
+      "section": "Link",
+      "systemImage": "link",
       "controls": [
         {
-          "defaults": {
-            "base": ""
-          },
-          "id": "destination",
-          "label": "Destination",
-          "tooltip": "Makes the whole part one link. The overlay also covers links and buttons inside; avoid nesting interactive content when enabled.",
-          "type": "link"
-        },
-        {
-          "defaults": {
-            "base": ""
-          },
-          "id": "linkLabel",
-          "label": "Accessible name",
-          "tooltip": "Describes the destination for screen readers, which cannot see the part's contents.",
-          "type": "text",
-          "visibleWhen": {
-            "id": "destination",
-            "operation": "isNotEmpty"
-          }
+          "type": "linkOverlay",
+          "id": "link"
         }
-      ],
-      "section": "Link",
-      "systemImage": "link"
+      ]
     },
     {
       "type": "advanced"
@@ -295,7 +310,7 @@
     "html": "part.html"
   },
   "title": "Grid Item",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "showsInPartLibrary": false,
   "allowedParents": [
     "foundry.layout.grid"

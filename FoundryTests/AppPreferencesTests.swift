@@ -7,8 +7,8 @@ struct AppPreferencesTests {
     func canvasBackgroundAssetContainsBothAppearanceColours() throws {
         let colour = try #require(NSColor(named: "CanvasWorkspaceBackground", bundle: Bundle.main))
         for (name, red, green, blue) in [
-            (NSAppearance.Name.aqua, 0.476, 0.476, 0.476),
-            (NSAppearance.Name.darkAqua, 0.157, 0.165, 0.212)
+            (NSAppearance.Name.aqua, 0.475, 0.486, 0.498),
+            (NSAppearance.Name.darkAqua, 0.170, 0.179, 0.230)
         ] {
             let appearance = try #require(NSAppearance(named: name))
             var resolved: NSColor?

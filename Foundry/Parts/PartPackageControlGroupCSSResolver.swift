@@ -23,6 +23,13 @@ nonisolated enum PartPackageControlGroupCSSResolver {
         .init(name: "spacing", declarations: spacing),
         .init(name: "borders", declarations: borders),
         .init(name: "effects", declarations: effects),
+        .init(name: "transitions", declarations: transitions),
+        .init(name: "filters", declarations: { values, declared in
+            PartPackageFiltersResolver.declarations(values: values, declared: declared, hovered: false)
+        }),
+        .init(name: "transforms", declarations: { values, declared in
+            PartPackageTransformsResolver.declarations(values: values, declared: declared, hovered: false)
+        }),
         .init(name: "layout", declarations: layout)
     ]
 
@@ -34,10 +41,26 @@ nonisolated enum PartPackageControlGroupCSSResolver {
             guard let source = members.first?.controlGroupSource,
                   let composer = composers.first(where: { $0.name == source.type.rawValue }) else { continue }
             let declared = Set(members.compactMap { $0.controlGroupSource?.localID })
-            let local = localValues(values, members: members)
+            var local = localValues(values, members: members)
+            // Old documents can contain positions removed by allowedOptions.
+            // Use the declared default rather than render a forbidden position.
+            if source.type == .layout,
+               let position = members.first(where: { $0.controlGroupSource?.localID == "position" }),
+               let options = position.control.options,
+               !options.contains(where: { $0.value == string(local["position"]) }) {
+                local["position"] = position.defaultValue
+            }
             let declarations = composer.declarations(local, declared)
             let css = declarations.joined(separator: " ")
             insertRaw(css, at: source.namespace + ".css", into: &values)
+            if source.type == .filters {
+                let hover = PartPackageFiltersResolver.declarations(values: local, declared: declared, hovered: true)
+                insertRaw(hover.joined(separator: " "), at: source.namespace + ".hover.css", into: &values)
+            }
+            if source.type == .transforms {
+                let hover = PartPackageTransformsResolver.declarations(values: local, declared: declared, hovered: true)
+                insertRaw(hover.joined(separator: " "), at: source.namespace + ".hover.css", into: &values)
+            }
             if source.type == .flexbox {
                 // Structural child sizing is explicitly placed by the part;
                 // it does not inject a rule onto the part root.
@@ -132,9 +155,6 @@ nonisolated enum PartPackageControlGroupCSSResolver {
             switch string(values["widthMode"]) ?? "auto" {
             case "full":
                 declarations += fills
-            case "fit":
-                // fit-content already clamps itself to the available space.
-                declarations.append("width: fit-content;")
             case "screen":
                 // Deliberately ignores the parent, so it escapes the rail.
                 declarations.append("width: 100svw;")
@@ -217,6 +237,43 @@ nonisolated enum PartPackageControlGroupCSSResolver {
             declarations.append("max-height: \(string(values["maxHeight"]) ?? "none");")
         }
         return declarations
+    }
+
+    private static func transitions(
+        _ values: [String: PartPackageValue],
+        declared: Set<String>
+    ) -> [String] {
+        guard boolean(values["transitionsEnabled"]) == true else {
+            return ["transition: none;"]
+        }
+        let scopes = [
+            "all": "all",
+            "colors": "color, background-color, border-color, text-decoration-color, fill, stroke",
+            "opacity": "opacity",
+            "transform": "transform, translate, rotate, scale",
+            "shadow": "box-shadow, text-shadow",
+            "filters": "filter, backdrop-filter, -webkit-backdrop-filter",
+            "border": "border-color, border-width, border-radius",
+            "size": "width, height, min-width, max-width, min-height, max-height"
+        ]
+        let scope = scopes[string(values["transitionProperty"]) ?? "all"] ?? "all"
+        let functions = ["ease", "linear", "ease-in", "ease-out", "ease-in-out"]
+        let requested = string(values["transitionFunction"]) ?? "ease-in-out"
+        let function = functions.contains(requested) ? requested : "ease-in-out"
+        func milliseconds(_ key: String, fallback: Double) -> String {
+            let raw = number(values[key]) ?? fallback
+            let safe = raw.isFinite ? min(max(raw, 0), 10000) : fallback
+            return safe.formatted(
+                .number.locale(Locale(identifier: "en_US_POSIX"))
+                    .grouping(.never).precision(.fractionLength(0...4))
+            ) + "ms"
+        }
+        return [
+            "transition-property: \(scope);",
+            "transition-duration: calc(\(milliseconds("transitionDuration", fallback: 300)) * var(--foundry-transition-motion, 1));",
+            "transition-timing-function: \(function);",
+            "transition-delay: calc(\(milliseconds("transitionDelay", fallback: 0)) * var(--foundry-transition-motion, 1));"
+        ]
     }
 
     // MARK: Spacing

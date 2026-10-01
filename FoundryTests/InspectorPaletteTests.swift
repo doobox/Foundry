@@ -154,12 +154,25 @@ struct InspectorPaletteTests {
         #expect(css.contains("background-color: #193A5C"))
     }
 
-    @Test func missingPaletteUsesExistingFallbackAndCustomOpacityStillWorks() {
+    @Test func missingPaletteAndCustomColorsApplyOptedInOpacity() {
         let missing = PartPackageColorValue(source: "custom.deleted", customColor: "#123456", opacity: 0.5)
-        #expect(PartPackageColorResolver.resolve(missing, framework: .standard, opacity: true) == "#123456")
+        #expect(PartPackageColorResolver.resolve(missing, framework: .standard, opacity: true)
+            == PartTemplateRenderer.colorWithAlpha("#123456", alpha: 0.5))
         var manual = missing
         manual.source = PartFrameworkValueSelection.manualCustom
         #expect(PartPackageColorResolver.resolve(manual, framework: .standard, opacity: true)
             == PartTemplateRenderer.colorWithAlpha("#123456", alpha: 0.5))
+    }
+
+    @Test func paletteOpacityRespectsOptInAndBothAppearances() throws {
+        var value = PartPackageColorValue(source: "standard.black", customColor: "#000000", opacity: 0.2)
+        value.darkOpacity = 0.7
+        #expect(PartPackageColorResolver.resolve(value, framework: .standard, opacity: false) == "#000000")
+        #expect(PartPackageColorResolver.resolve(value, framework: .standard, opacity: true) == "rgb(0 0 0 / 0.2)")
+        #expect(PartPackageColorResolver.resolve(value, framework: .standard, opacity: true, appearance: .dark) == "rgb(0 0 0 / 0.7)")
+        #expect(PartPackageColorResolver.channels(value, framework: .standard, opacity: false, appearance: .dark)?.alpha == 1)
+        #expect(PartPackageColorResolver.channels(value, framework: .standard, opacity: true, appearance: .dark)?.alpha == 0.7)
+        let restored = try JSONDecoder().decode(PartPackageColorValue.self, from: JSONEncoder().encode(value))
+        #expect(restored == value)
     }
 }

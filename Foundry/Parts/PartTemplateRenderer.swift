@@ -372,7 +372,6 @@ nonisolated enum PartTemplateRenderer {
                 output += segment
                 output.append(character)
                 segment = ""
-""
             default:
                 segment.append(character)
             }

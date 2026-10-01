@@ -130,10 +130,12 @@ struct InspectorRow<Control: View>: View {
             }
             .frame(width: InspectorMetrics.clampedLabelWidth(labelWidth))
             .gridColumnAlignment(.trailing)
+            .modifier(InspectorControlResetMenu())
 
             control
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .gridColumnAlignment(.leading)
+                .modifier(InspectorControlResetMenu())
         }
     }
 }

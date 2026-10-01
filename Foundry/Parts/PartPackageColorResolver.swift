@@ -15,10 +15,12 @@ nonisolated enum PartPackageColorResolver {
         } else {
             baseColor = value.customColor
         }
-        guard opacity, PartFrameworkValueSelection.isManualCustom(value.source) else { return baseColor }
+        guard opacity else { return baseColor }
+        let alpha = min(max(appearance == .light ? value.opacity : value.darkOpacity, 0), 1)
+        if alpha == 1, !PartFrameworkValueSelection.isManualCustom(value.source) { return baseColor }
         return PartTemplateRenderer.colorWithAlpha(
             baseColor,
-            alpha: min(max(appearance == .light ? value.opacity : value.darkOpacity, 0), 1)
+            alpha: alpha
         )
     }
 
@@ -42,7 +44,7 @@ nonisolated enum PartPackageColorResolver {
             baseColor = value.customColor
         }
         guard let channels = PartColorChannels(hex: baseColor) else { return nil }
-        guard opacity, PartFrameworkValueSelection.isManualCustom(value.source) else { return channels }
+        guard opacity else { return channels }
         return channels.withAlpha(min(max(appearance == .light ? value.opacity : value.darkOpacity, 0), 1))
     }
 }

@@ -4,6 +4,79 @@ import Testing
 @testable import Foundry
 
 struct PartPackageTests {
+    @Test @MainActor func inspectorSectionResetRestoresHiddenAndResponsiveDefaultsWithOneUndo() throws {
+        let controls = """
+        {"section":"Layout","controls":[
+          {"type":"number","id":"width","responsive":true,"defaults":{"base":10,"large":20}},
+          {"type":"toggle","id":"enabled","defaults":{"base":false}},
+          {"type":"number","id":"hiddenValue","defaults":{"base":5},"visibleWhen":{"id":"enabled","value":true}}
+        ]},
+        {"section":"Other","controls":[{"type":"number","id":"other","defaults":{"base":1}}]},
+        {"type":"advanced"}
+        """
+        let url = try makePackage(manifest: manifest(withInspectorEntries: controls), template: "<div {{ part.attributes }}>{{ childArea(\"content\") }}</div>")
+        defer { try? FileManager.default.removeItem(at: url) }
+        let package = try PartPackageLoader.load(from: url)
+        PartRegistry.register(package)
+        defer { PartRegistry.unregisterPackage(identifier: package.manifest.identifier) }
+        var node = PartNode.make(.init(rawValue: package.manifest.identifier))
+        let section = PartPropertySection(rawValue: "Layout")
+        let state = PartInspectorSectionState(part: node, section: section, framework: .standard)
+        #expect(state.hasChanges(in: node) == false)
+        node.setResponsiveProperty(.init(rawValue: "width"), value: .number(10), at: .medium)
+        #expect(state.hasChanges(in: node) == false)
+        #expect(state.canReset(node))
+        node.setProperty(.init(rawValue: "hiddenValue"), value: .number(9))
+        #expect(state.hasChanges(in: node))
+        node.setProperty(.init(rawValue: "width"), value: .number(30))
+        node.setResponsiveProperty(.init(rawValue: "width"), value: .number(60), at: .large)
+        node.setResponsiveProperty(.init(rawValue: "width"), value: .number(80), at: .extraLarge)
+        node.setProperty(.init(rawValue: "other"), value: .number(99))
+        node.children = [PartNode(type: .paragraph)]
+        node.anchor = "hero"
+        let changed = node
+        let document = FoundryDocument()
+        document.site.pages = [Page(title: "Home", slug: "index", parts: [node])]
+        let undo = UndoManager()
+        let editor = ProjectEditor(document: document, undoManager: undo)
+        editor.resetInspectorSection(ids: [node.id], section: section)
+        let reset = try #require(document.site.part(withID: node.id))
+        #expect(state.hasChanges(in: reset) == false)
+        #expect(reset.propertyValue(.init(rawValue: "width")) == .number(10))
+        #expect(reset.responsiveOverrides?.first { $0.breakpoint == .large }?.value == .number(20))
+        #expect(reset.hasResponsiveOverride(.init(rawValue: "width"), at: .extraLarge) == false)
+        #expect(reset.propertyValue(.init(rawValue: "other")) == .number(99))
+        #expect(reset.children == changed.children)
+        #expect(reset.anchor == "hero")
+        undo.undo()
+        #expect(document.site.part(withID: node.id) == changed)
+        undo.redo()
+        #expect(document.site.part(withID: node.id) == reset)
+
+        let advanced = PartPropertySection(rawValue: "Advanced")
+        #expect(PartInspectorSectionState(part: reset, section: advanced, framework: .standard).hasChanges(in: reset))
+        editor.resetInspectorSection(ids: [node.id], section: advanced)
+        #expect(document.site.part(withID: node.id)?.anchor == nil)
+        #expect(document.site.part(withID: node.id)?.propertyValue(.init(rawValue: "other")) == .number(99))
+
+        let global = ReusablePartDefinition(name: "Shared", root: changed)
+        var first = changed.duplicatedForReusableDefinition()
+        first.reusableDefinitionID = global.id
+        var second = changed.duplicatedForReusableDefinition()
+        second.reusableDefinitionID = global.id
+        var overridden = changed.duplicatedForReusableDefinition()
+        overridden.reusableDefinitionID = global.id
+        overridden.overridesGlobalDefinition = true
+        document.site.globalPartLibrary = [.part(global)]
+        document.site.pages = [Page(title: "Globals", slug: "globals", parts: [first, second, overridden])]
+        editor.resetInspectorSection(ids: [first.id], section: section)
+        #expect(state.hasChanges(in: try #require(document.site.part(withID: first.id))) == false)
+        #expect(state.hasChanges(in: try #require(document.site.part(withID: second.id))) == false)
+        #expect(document.site.part(withID: overridden.id) == overridden)
+        editor.resetInspectorSection(ids: [overridden.id, second.id], section: section)
+        #expect(state.hasChanges(in: try #require(document.site.part(withID: overridden.id))) == false)
+    }
+
     private static var developerDocsURL: URL {
         URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent().deletingLastPathComponent()
@@ -46,7 +119,7 @@ struct PartPackageTests {
             }
             checked += 1
         }
-        #expect(checked == 41, "Expected every documented control and control group's Quick example; update this count when adding a reference page.")
+        #expect(checked == 45, "Expected every documented control and control group's Quick example; update this count when adding a reference page.")
     }
 
     @Test(.enabled(if: FileManager.default.fileExists(atPath: developerDocsURL.appending(path: "index.md").path)))
@@ -55,7 +128,7 @@ struct PartPackageTests {
             .filter { $0.lastPathComponent.hasSuffix("-control-group.md") }
             .sorted { $0.lastPathComponent < $1.lastPathComponent }
         let expression = try NSRegularExpression(pattern: #"(?s)```json\s*\n(.*?)```"#)
-        #expect(pages.count == 9)
+        #expect(pages.count == 13)
         for page in pages {
             let source = try String(contentsOf: page, encoding: .utf8)
             let matches = expression.matches(in: source, range: NSRange(source.startIndex..., in: source))
@@ -1079,6 +1152,52 @@ struct PartPackageTests {
         }
     }
 
+    @Test(arguments: [0.0, 0.2, 1.0])
+    func frameworkColourAcceptsInitialOpacity(alpha: Double) throws {
+        let item = """
+        {"type":"frameworkColor","id":"colour","opacity":true,
+        "defaults":{"base":{"palette":"standard.black","opacity":\(alpha)}}}
+        """
+        let url = try makePackage(manifest: manifest(withInspectorEntries: item), template: "<div {{ part.attributes }}>{{ childArea(\"content\") }}</div>")
+        defer { try? FileManager.default.removeItem(at: url) }
+        let package = try PartPackageLoader.load(from: url)
+        let definition = try #require(PartPackageAdapter.definition(from: package).properties.first { $0.key.rawValue == "colour" })
+        guard case .packageColor(let value) = definition.defaultValue else { Issue.record("Missing colour"); return }
+        #expect(value.opacity == alpha)
+        #expect(value.darkOpacity == alpha)
+        #expect(PartPackageColorResolver.channels(value, framework: .standard, opacity: true, appearance: .light)?.alpha == alpha)
+    }
+
+    @Test func frameworkColourOpacityIsOptIn() throws {
+        let item = """
+        {"type":"frameworkColor","id":"colour",
+        "defaults":{"base":{"palette":"standard.black"}}}
+        """
+        let url = try makePackage(manifest: manifest(withInspectorEntries: item), template: "<div {{ part.attributes }}>{{ childArea(\"content\") }}</div>")
+        defer { try? FileManager.default.removeItem(at: url) }
+        let package = try PartPackageLoader.load(from: url)
+        let definition = try #require(PartPackageAdapter.definition(from: package).properties.first { $0.key.rawValue == "colour" })
+        guard case .packageColor(_, let opacity, _, _) = definition.control,
+              case .packageColor(let value) = definition.defaultValue else { Issue.record("Missing colour"); return }
+        #expect(opacity == false)
+        #expect(value.opacity == 1)
+        let invalid = item.replacingOccurrences(of: "\"standard.black\"", with: "\"standard.black\",\"opacity\":0.2")
+        let invalidURL = try makePackage(manifest: manifest(withInspectorEntries: invalid), template: "<div {{ part.attributes }}>{{ childArea(\"content\") }}</div>")
+        defer { try? FileManager.default.removeItem(at: invalidURL) }
+        #expect(throws: PartPackageLoadingError.self) { try PartPackageLoader.load(from: invalidURL) }
+    }
+
+    @Test(arguments: ["-0.1", "1.1", "\"0.2\"", "true"])
+    func frameworkColourRejectsInvalidOpacity(alpha: String) throws {
+        let item = """
+        {"type":"frameworkColor","id":"colour","opacity":true,
+        "defaults":{"base":{"palette":"standard.black","opacity":\(alpha)}}}
+        """
+        let url = try makePackage(manifest: manifest(withInspectorEntries: item), template: "<div {{ part.attributes }}>{{ childArea(\"content\") }}</div>")
+        defer { try? FileManager.default.removeItem(at: url) }
+        #expect(throws: PartPackageLoadingError.self) { try PartPackageLoader.load(from: url) }
+    }
+
     @Test
     func frameworkColourAcceptsAnOptionalInitialShade() throws {
         for key in ["lightShade", "darkShade"] {
@@ -1387,6 +1506,23 @@ struct PartPackageTests {
     }
 
     @Test
+    func backgroundVideoRequiresExplicitOptIn() throws {
+        let data = Data(manifest(withInspectorEntries: #"{"type":"background","id":"background"}"#).utf8)
+        let decoded = try JSONDecoder().decode(PartPackageManifest.self, from: data)
+        let group = try #require(decoded.controlGroups.first)
+        #expect(group.backgroundTypes == [.colour, .image, .gradient])
+        #expect(group == PartPackageControlGroup(type: .background, id: "background"))
+        #expect(group.properties.contains { $0.control.type == .video } == false)
+        #expect(group.properties.first { $0.id == "background.backgroundStyle" }?.control.options?.map(\.value) == ["color", "image", "gradient"])
+        let invalid = Data(manifest(withInspectorEntries: #"{"type":"background","id":"background","allowedOptions":{"backgroundStyle":["video"]}}"#).utf8)
+        #expect(try PartPackageManifestSchema.diagnostics(for: invalid).contains { $0.severity == .error })
+        let explicit = Data(manifest(withInspectorEntries: #"{"type":"background","id":"background","backgroundTypes":["video"],"defaults":{"backgroundStyle":"video"}}"#).utf8)
+        #expect(try PartPackageManifestSchema.diagnostics(for: explicit).contains { $0.severity == .error } == false)
+        let optedIn = try JSONDecoder().decode(PartPackageManifest.self, from: explicit)
+        #expect(optedIn.resolvedProperties.contains { $0.control.type == .video })
+    }
+
+    @Test
     func backgroundControlGroupExpandsIntoFoundryOwnedControls() throws {
         let json = """
         {
@@ -1394,14 +1530,14 @@ struct PartPackageTests {
         "id" : "com.example.background-group",
         "title" : "Background Group",
         "version" : "1.0.0",
-        "inspector" : [{"type" : "background", "id": "background"}],
+        "inspector" : [{"type" : "background", "id": "background", "backgroundTypes": ["colour", "image", "gradient", "video"]}],
         "templates" : {"html" : "part.html"}
         }
         """
 
         let data = Data(json.utf8)
         let manifest = try JSONDecoder().decode(PartPackageManifest.self, from: data)
-        #expect(manifest.controlGroups == [.init(type: .background, id: "background")])
+        #expect(manifest.controlGroups == [.init(type: .background, id: "background", backgroundTypes: PartPackageControlGroup.BackgroundStyle.allCases)])
         #expect(manifest.resolvedProperties.first?.id == "background.backgroundMode")
         #expect(manifest.resolvedProperties.first?.defaultValue == .string("none"))
         #expect(manifest.resolvedProperties.contains { $0.id == "background.backgroundImage" && $0.control.type == .image })
@@ -1532,7 +1668,7 @@ struct PartPackageTests {
         "id" : "com.example.background-values",
         "title" : "Background Values",
         "version" : "1.0.0",
-        "inspector" : [{"type" : "background", "id": "background"}],
+        "inspector" : [{"type" : "background", "id": "background", "backgroundTypes": ["colour", "image", "gradient", "video"]}],
         "templates" : {"html" : "part.html"}
         }
         """
@@ -1827,11 +1963,6 @@ struct PartPackageTests {
             "minHeight": .string("0"), "maxHeight": .string("48rem")
         ]) == "max-width: 100%; width: 100svw; max-width: none; flex-grow: 0; height: auto; aspect-ratio: auto; min-width: 0; "
             + "max-width: min(100%, var(--foundry-space-4xl)); min-height: 0; max-height: 48rem;")
-        #expect(try composed("sizing", values: [
-            "widthMode": .string("fit"), "heightMode": .string("auto"),
-            "minWidth": .string("0"), "maxWidth": .string("none"),
-            "minHeight": .string("0"), "maxHeight": .string("none")
-        ]) == "max-width: 100%; width: fit-content; flex-grow: 0; height: auto; aspect-ratio: auto; min-width: 0; min-height: 0; max-height: none;")
         // A ratio shapes the part only while its height follows the content;
         // a custom ratio composes its two numbers.
         #expect(try composed("sizing", values: [
@@ -1962,7 +2093,7 @@ struct PartPackageTests {
 
     @Test
     func namedBackgroundOutputIsComposedAndEscapedOnce() throws {
-        let decoded = try JSONDecoder().decode(PartPackageManifest.self, from: Data(manifest(withInspectorEntries: #"{"type":"background","id":"surface"},{"type":"background","id":"other"}"#).utf8))
+        let decoded = try JSONDecoder().decode(PartPackageManifest.self, from: Data(manifest(withInspectorEntries: #"{"type":"background","id":"surface","backgroundTypes":["colour","image","gradient","video"]},{"type":"background","id":"other"}"#).utf8))
         var values: [String: PartPackageValue] = ["surface.backgroundMode": .string("static"), "surface.backgroundStyle": .string("video"), "surface.backgroundVideo.href": .string("movie&clip.mp4"), "other.backgroundMode": .string("none")]
         PartPackageBackgroundResolver.resolve(&values, properties: decoded.resolvedProperties, enablesEditorMarkup: false)
         let output = PartTemplateRenderer.render("{{ control.surface.video }}", context: .init(instanceID: UUID(), packageIdentifier: decoded.identifier, properties: values, slots: [:]))
@@ -2044,7 +2175,7 @@ struct PartPackageTests {
         "id" : "com.example.background-escaping",
         "title" : "Background Escaping",
         "version" : "1.0.0",
-        "inspector" : [{"type" : "background", "id": "background"}],
+        "inspector" : [{"type" : "background", "id": "background", "backgroundTypes": ["colour", "image", "gradient", "video"]}],
         "templates" : {"html" : "part.html"}
         }
         """
@@ -2458,6 +2589,49 @@ struct PartPackageTests {
         // decode, since the separate key is no longer read at all.
         let manifest = try JSONDecoder().decode(PartPackageManifest.self, from: data)
         #expect(manifest.controlGroups.isEmpty)
+    }
+
+    @Test @MainActor
+    func backgroundVideoUsesGeneratedPosterInCanvasAndExport() throws {
+        let packageURL = try makePackage(
+            manifest: manifest(withInspectorEntries: #"{"type":"background","id":"surface","backgroundTypes":["video"]}"#),
+            template: #"<section class="{{ part.class }}" {{ part.attributes }}>{{ control.surface.video }}{{ childArea("content") }}</section>"#
+        )
+        defer { try? FileManager.default.removeItem(at: packageURL) }
+        let package = try PartPackageLoader.load(from: packageURL)
+        let property = try #require(package.renderDefinition.properties.first { $0.control.type == .video })
+        #expect(property.usesAutomaticVideoPoster)
+        PartRegistry.register(package)
+        defer { PartRegistry.unregisterPackage(identifier: package.manifest.identifier) }
+        let data = Data("generated background still".utf8)
+        var asset = ProjectAsset(filename: "background.mp4", mediaType: "video/mp4", byteCount: 0, contentDigest: "background-test",
+                                 videoMetadata: .init(duration: 4, posterJPEG: data))
+        var node = PartNode(type: .init(rawValue: package.manifest.identifier))
+        node.setProperty(.init(rawValue: "surface.backgroundMode"), value: .string("static"))
+        node.setProperty(.init(rawValue: "surface.backgroundStyle"), value: .string("video"))
+        node.setProperty(.init(rawValue: property.id), value: .url(asset.reference))
+        node.setProperty(PartVideoTemplateValues.posterPropertyKey(for: property.id), value: .url("https://example.com/legacy-poster.jpg"))
+        var site = Site.starter()
+        site.pages = [Page(title: "Home", slug: "index", parts: [node]),
+                      Page(title: "Nested", slug: "nested", parts: [node])]
+        site.assetLibrary = [.asset(asset)]
+        let assets: ProjectAssetContents = [asset.id: .init(asset: asset, data: Data())]
+        let canvas = HTMLPageRenderer(site: site).render(page: site.pages[0], language: "en", framework: site.framework, assets: assets, breakpoint: .extraLarge)
+        let metadata = try #require(asset.videoMetadata)
+        #expect(canvas.contains(metadata.posterDataURL))
+        #expect(canvas.contains("legacy-poster.jpg") == false)
+        let export = StaticSiteRenderer().render(site: site, assets: assets)
+        #expect(export.errors.isEmpty)
+        let path = try #require(PartVideoTemplateValues.generatedPosterPath(for: asset))
+        #expect(export.files.filter { $0.path == path }.count == 1)
+        #expect(export.file(at: path)?.data == data)
+        #expect(export.file(at: "index.html")?.contents.contains("poster=\"\(path)\"") == true)
+        #expect(export.file(at: "nested/index.html")?.contents.contains("poster=\"../\(path)\"") == true)
+        #expect(export.file(at: "index.html")?.contents.contains("legacy-poster.jpg") == false)
+        asset.videoMetadata = nil
+        let missing = StaticSiteRenderer().render(site: site, assets: [asset.id: .init(asset: asset, data: Data())])
+        #expect(missing.file(at: path) == nil)
+        #expect(missing.file(at: "index.html")?.contents.contains(" poster=") == false)
     }
 
     @Test @MainActor

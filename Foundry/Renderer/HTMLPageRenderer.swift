@@ -161,6 +161,35 @@ nonisolated struct HTMLPageRenderer: PageRendering {
               color: #898989;
             }
             .foundry-drop-label svg { display: block; }
+            /* Empty Containers reserve a comfortable target when auto-sized,
+               but may shrink their layout box when the author sets a height.
+               The visible target remains readable outside that smaller box. */
+            [data-foundry-package="foundry.layout.container"] > .fd-container__content > .foundry-empty-drop-zone {
+              height: 64px;
+              min-height: 0;
+              padding: 0;
+              border: 0 !important;
+              background: transparent;
+              overflow: visible;
+            }
+            [data-foundry-package="foundry.layout.container"] > .fd-container__content > .foundry-empty-drop-zone::before {
+              /* Preserve an intrinsic width for the empty Fit content mode. */
+              content: "";
+              width: 56px;
+              height: 0;
+              pointer-events: none;
+            }
+            [data-foundry-package="foundry.layout.container"] > .fd-container__content > .foundry-empty-drop-zone > .foundry-drop-label {
+              position: absolute;
+              inset: 0;
+              min-height: 64px;
+              display: grid;
+              place-items: center;
+              padding: 16px;
+              background: #e9e9e9;
+              border: 1px solid #cdcdcd;
+              border-radius: 4px;
+            }
             .foundry-empty-page { min-height: 100vh; }
             .foundry-contentless-drop-zone { min-height: 32px; padding: 6px 12px; }
             .foundry-grid > .foundry-empty-drop-zone { grid-column: 1 / -1; }
@@ -700,9 +729,8 @@ nonisolated struct HTMLPageRenderer: PageRendering {
         let definitions = partDefinition.properties
         let manifestProperties = partDefinition.package?.renderDefinition.properties ?? []
         let manifestPropertiesByID = partDefinition.package?.renderDefinition.propertiesByID ?? [:]
-        let stored = Dictionary(node.properties.map { ($0.key, $0.value) }, uniquingKeysWith: { first, _ in first })
         var values: [String: PartPackageValue] = Dictionary(uniqueKeysWithValues: definitions.map { definition in
-            let value = stored[definition.key] ?? definition.defaultValue
+            let value = node.storedPropertyValue(definition.key) ?? definition.defaultValue
             if case .frameworkBorderWidth(let width) = value {
                 return (definition.key.rawValue, PartPackageFrameworkBorderWidthControl.resolved(width, framework: framework))
             }
@@ -758,6 +786,9 @@ nonisolated struct HTMLPageRenderer: PageRendering {
             }
             if case .packageShadow = definition.control,
                case .packageShadow(let shadowValue) = value {
+                if manifestPropertiesByID[definition.key.rawValue]?.controlGroupSource?.type == .filters {
+                    return (definition.key.rawValue, .string(PartPackageShadowResolver.filter(shadowValue, framework: framework)))
+                }
                 return (
                     definition.key.rawValue,
                     .string(PartPackageShadowResolver.resolve(shadowValue, framework: framework))
@@ -853,7 +884,7 @@ nonisolated struct HTMLPageRenderer: PageRendering {
                 PartVideoTemplateValues.insert(
                     propertyID: property.id,
                     href: "",
-                    poster: customPoster.isEmpty
+                    poster: property.usesAutomaticVideoPoster || customPoster.isEmpty
                         ? asset?.videoMetadata?.posterDataURL ?? ""
                         : canvasSource(customPoster, assets: assets),
                     asset: asset,

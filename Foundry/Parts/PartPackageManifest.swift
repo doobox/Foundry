@@ -351,7 +351,9 @@ extension PartPackageManifest {
     }
 
     nonisolated var htmlContributions: [PartPackageHTMLContribution] {
-        render.htmlContributions + controlGroups.flatMap(\.htmlContributions)
+        let imageAlt = resolvedProperties.first { $0.id == "source" && $0.control.type == .image }
+            .map { "control.\($0.id).alt" }
+        return render.htmlContributions + controlGroups.flatMap { $0.htmlContributions(imageAlt: imageAlt) }
     }
 
     nonisolated var slots: [PartPackageSlot] {
@@ -376,9 +378,15 @@ nonisolated struct PartPackageControlGroup: Codable, Equatable, Sendable {
         case sizing
         case borders
         case effects
+        case transitions
+        case filters
+        case transforms
         case flexbox
         case layout
         case reveal
+        /// A whole-part destination and its accessible name. Its distinct
+        /// name avoids colliding with the primitive `link` control kind.
+        case linkOverlay
         /// The opt-in HTML identity section (ID, classes, custom attributes).
         /// Unlike the other kinds it carries native Inspector fields bound to
         /// the placed part, not property controls, so it has no registry
@@ -391,6 +399,9 @@ nonisolated struct PartPackageControlGroup: Codable, Equatable, Sendable {
         case image
         case gradient
         case video
+
+        /// Video requires authored markup and a positioned host; opt in explicitly.
+        static let defaultStyles: [Self] = [.colour, .image, .gradient]
 
         var templateValue: String {
             self == .colour ? "color" : rawValue
@@ -424,7 +435,7 @@ nonisolated struct PartPackageControlGroup: Codable, Equatable, Sendable {
         type: Kind,
         id: String?,
         target: String? = nil,
-        backgroundTypes: [BackgroundStyle] = BackgroundStyle.allCases,
+        backgroundTypes: [BackgroundStyle] = BackgroundStyle.defaultStyles,
         supportsHover: Bool = true,
         defaults: [String: PartPackageValue] = [:],
         visibleWhen: PartPackageVisibilityCondition? = nil,
@@ -463,7 +474,7 @@ nonisolated struct PartPackageControlGroup: Codable, Equatable, Sendable {
         }
         target = try container.decodeIfPresent(String.self, forKey: .target)
         backgroundTypes = try container.decodeIfPresent([BackgroundStyle].self, forKey: .backgroundTypes)
-            ?? BackgroundStyle.allCases
+            ?? BackgroundStyle.defaultStyles
         supportsHover = try container.decodeIfPresent(Bool.self, forKey: .supportsHover) ?? true
         defaults = try container.decodeIfPresent([String: PartPackageValue].self, forKey: .defaults) ?? [:]
         visibleWhen = try container.decodeIfPresent(PartPackageVisibilityCondition.self, forKey: .visibleWhen)
@@ -576,12 +587,29 @@ nonisolated struct PartPackageControlGroup: Codable, Equatable, Sendable {
             if !includesHover, original.id.hasPrefix("backgroundHover") {
                 return nil
             }
+            let isOverlay = original.id.hasPrefix("backgroundOverlay")
+            if isOverlay {
+                let mediaStyles: Set<String> = ["image", "video"]
+                if styleValues.isDisjoint(with: mediaStyles) { return nil }
+            }
             if let requiredStyle = Self.backgroundStyle(for: original.id),
-               !styleValues.contains(requiredStyle) {
+               !isOverlay, !styleValues.contains(requiredStyle) {
                 return nil
             }
 
             var property = original
+            if isOverlay, !includesHover {
+                var conditions: [PartPackageVisibilityCondition] = [
+                    .init(id: "backgroundMode", value: .string("static")),
+                    .init(any: ["image", "video"].map {
+                        .init(id: "backgroundStyle", value: .string($0))
+                    })
+                ]
+                if property.id == "backgroundOverlayColor" {
+                    conditions.append(.init(id: "backgroundOverlayEnabled", value: .boolean(true)))
+                }
+                property.visibleWhen = .init(all: conditions)
+            }
             switch property.id {
             case "backgroundMode":
                 property.control.options = property.control.options?.filter {
@@ -617,13 +645,40 @@ nonisolated struct PartPackageControlGroup: Codable, Equatable, Sendable {
         return nil
     }
 
-    /// CSS placement belongs to the part template, including Flexbox childCSS.
-    var css: String { "" }
+    /// Link supplies its own root decoration; style groups expose CSS values.
+    var css: String {
+        guard type == .linkOverlay, let id else { return "" }
+        return """
+        {{ if control.\(id).destination }}
+        :where(:instance[data-foundry-link-display="block"]) { display: block; }
+        :where(:instance[data-foundry-root-link]) { color: inherit; text-decoration: none; }
+        :instance[data-foundry-root-link]:focus-visible {
+            outline: 2px solid currentColor;
+            outline-offset: -2px;
+        }
+        {{ endif }}
+        """
+    }
 
-    /// Control groups hand over values; none of them inject markup.
-    var htmlContributions: [PartPackageHTMLContribution] { [] }
+    var htmlContributions: [PartPackageHTMLContribution] { htmlContributions(imageAlt: nil) }
+
+    func htmlContributions(imageAlt: String?) -> [PartPackageHTMLContribution] {
+        guard type == .linkOverlay, let id,
+              properties.contains(where: { $0.controlGroupSource?.localID == "destination" }) else { return [] }
+        let fallback = imageAlt.map { "{{ if \($0) }}{{ \($0) }}{{ else }}{{ control.\(id).destination }}{{ endif }}" }
+            ?? "{{ control.\(id).destination }}"
+        let label = properties.contains { $0.controlGroupSource?.localID == "accessibleName" }
+            ? "{{ if control.\(id).accessibleName }}{{ control.\(id).accessibleName }}{{ else }}\(fallback){{ endif }}"
+            : fallback
+        return [.init(placement: .rootLink, template: """
+        {{ if control.\(id).destination }}<a data-foundry-root-link="\(id)" href="{{ control.\(id).destination }}" target="{{ control.\(id).destination.target }}" {{ control.\(id).destination.attributes }} aria-label="\(label)"></a>{{ endif }}
+        """)]
+    }
 
     var javaScript: String {
+        if type == .background, backgroundTypes.contains(.video) {
+            return PartBackgroundVideoPlayback.javaScript
+        }
         guard type == .reveal, let id else { return "" }
         let script = #"""
         (() => {
@@ -706,6 +761,8 @@ nonisolated enum PartPackageHTMLContributionRenderer {
             let fragment = PartTemplateRenderer.render(contribution.template, context: context)
             guard !fragment.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { continue }
             switch contribution.placement {
+            case .rootLink:
+                output = PartRootLinkRenderer.convert(output, anchor: fragment)
             case .afterOpeningTag:
                 guard let index = openingTagEnd(in: output, target: contribution.target, context: context) else { continue }
                 output.insert(contentsOf: fragment, at: output.index(after: index))
@@ -734,6 +791,7 @@ nonisolated struct PartPackageHTMLContribution: Codable, Equatable, Sendable {
     enum Placement: String, Codable, Sendable {
         case afterOpeningTag
         case beforeClosingTag
+        case rootLink
     }
 
     enum Target: Equatable, Sendable {
@@ -847,6 +905,9 @@ nonisolated struct PartPackageProperty: Codable, Equatable, Identifiable, Sendab
     }
     // Expansion-only identity, never inferred from IDs or encoded as a custom control key.
     var controlGroupSource: ControlGroupSource? = nil
+    var usesAutomaticVideoPoster: Bool {
+        control.type == .video && controlGroupSource?.type == .background
+    }
     enum ValueAvailability: String, Codable, CaseIterable, Sendable {
         case always
         case whenVisible

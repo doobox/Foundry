@@ -78,7 +78,7 @@ struct ImagePartTests {
     func linkOverlayFallsBackToTheAltTextAndFitFollowsTheControl() async throws {
         await PartPackageCatalog.shared.waitUntilLoaded()
         let (site, asset, data) = try imageSite(width: 300, height: 200) { part in
-            part.setProperty(.init(rawValue: "destination"), value: .url("https://example.com"))
+            part.setProperty(.init(rawValue: "link.destination"), value: .url("https://example.com"))
             part.setProperty(.init(rawValue: "sizing.heightMode"), value: .choice("custom"))
             part.setProperty(.init(rawValue: "fit"), value: .choice("contain"))
         }

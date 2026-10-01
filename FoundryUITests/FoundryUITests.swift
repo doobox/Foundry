@@ -5,8 +5,10 @@ final class FoundryUITests: XCTestCase {
         continueAfterFailure = false
     }
 
-    @MainActor
-    func testCreatesDocumentAddsPageAndPart() async throws {
+    // XCUI calls block while they talk to the app, so this stays a plain
+    // synchronous test. Declaring it `@MainActor async` makes XCTest report
+    // main-thread blocking and a QoS priority inversion on every run.
+    func testCreatesDocumentAddsPageAndPart() throws {
         let app = XCUIApplication()
         app.launchArguments = [
             "-ApplePersistenceIgnoreState", "YES",
@@ -17,41 +19,37 @@ final class FoundryUITests: XCTestCase {
         app.typeKey("n", modifierFlags: [.command, .option])
 
         let pagesTab = app.buttons["Pages"]
-        await assertExists(pagesTab)
+        assertExists(pagesTab)
         pagesTab.click()
 
         let addMenu = app.menuButtons["Add Page or Folder"]
-        await assertExists(addMenu)
+        assertExists(addMenu)
         addMenu.click()
 
         let newPage = app.menuItems["New Page"]
-        await assertExists(newPage)
+        assertExists(newPage)
         newPage.click()
 
-        await assertExists(app.descendants(matching: .any)["Page 2"])
+        assertExists(app.descendants(matching: .any)["Page 2"])
 
         let partsTab = app.buttons["Parts"]
-        await assertExists(partsTab)
+        assertExists(partsTab)
         partsTab.click()
 
         let paragraph = app.descendants(matching: .any)["part-library-foundry.content.paragraph"]
-        await assertExists(paragraph)
+        assertExists(paragraph)
         paragraph.rightClick()
 
         let addToPageEnd = app.menuItems["Add to Page End"]
-        await assertExists(addToPageEnd)
+        assertExists(addToPageEnd)
         addToPageEnd.click()
 
-        await assertExists(app.descendants(matching: .any)["Paragraph"])
+        assertExists(app.descendants(matching: .any)["Paragraph"])
     }
 
-    @MainActor
-    private func assertExists(_ element: XCUIElement, timeout: TimeInterval = 5) async {
-        let exists = expectation(
-            for: NSPredicate(format: "exists == true"),
-            evaluatedWith: element
-        )
-        await fulfillment(of: [exists], timeout: timeout)
+    private func assertExists(_ element: XCUIElement, timeout: TimeInterval = 5,
+                              file: StaticString = #filePath, line: UInt = #line) {
+        XCTAssertTrue(element.waitForExistence(timeout: timeout),
+                      "\(element) did not appear within \(timeout)s", file: file, line: line)
     }
-
 }

@@ -183,6 +183,7 @@ nonisolated enum CanvasWebOperation: Equatable, Sendable {
 final class CanvasWebView: WKWebView {
     weak var canvasCoordinator: WebCanvasView.Coordinator?
     private var canvasTrackingArea: NSTrackingArea?
+    private var hoverTransitionRevision = 0
 
     override func updateTrackingAreas() {
         super.updateTrackingAreas()
@@ -202,9 +203,25 @@ final class CanvasWebView: WKWebView {
         clearHoverChrome()
     }
 
-    func clearHoverChrome() {
+    override func mouseEntered(with event: NSEvent) {
+        super.mouseEntered(with: event)
+        hoverTransitionRevision += 1
+        let revision = hoverTransitionRevision
         Task { @MainActor [weak self] in
-            guard let self else { return }
+            guard let self, revision == hoverTransitionRevision else { return }
+            _ = try? await callAsyncJavaScript(
+                "window.foundrySetCanvasPointerInside?.(true)",
+                arguments: [:], in: nil, contentWorld: .defaultClient
+            )
+        }
+    }
+
+    @discardableResult
+    func clearHoverChrome() -> Task<Void, Never> {
+        hoverTransitionRevision += 1
+        let revision = hoverTransitionRevision
+        return Task { @MainActor [weak self] in
+            guard let self, revision == hoverTransitionRevision else { return }
             _ = try? await callAsyncJavaScript(
                 "window.foundryClearHoverChrome?.()",
                 arguments: [:],
@@ -332,7 +349,7 @@ struct WebCanvasView: NSViewRepresentable {
     final class Coordinator: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
         static let handlerName = "foundryCanvas"
         let assetSchemeHandler: CanvasAssetSchemeHandler
-        nonisolated static let interactionScript = """
+        nonisolated static let interactionScript = CanvasHoverGuard.javaScript + "\n" + """
         (() => {
           if (window.foundryCanvasInstalled) return;
           window.foundryCanvasInstalled = true;
@@ -478,6 +495,14 @@ struct WebCanvasView: NSViewRepresentable {
           const partChromeTitle = part => part?.dataset.foundryName || '';
 
           const chromeRect = target => {
+            // A constrained empty Container keeps its readable drop target
+            // outside the smaller layout box. Highlight the visible target.
+            if (target.matches('.foundry-empty-drop-zone')) {
+              const label = target.querySelector(':scope > .foundry-drop-label');
+              if (label && getComputedStyle(label).position === 'absolute') {
+                return label.getBoundingClientRect();
+              }
+            }
             const elementRect = target.getBoundingClientRect();
             if (elementRect.width > 0 && elementRect.height > 0) return elementRect;
 
@@ -806,6 +831,7 @@ struct WebCanvasView: NSViewRepresentable {
             scheduleChromeTitleUpdate();
           }, true);
           const clearHoverChrome = () => {
+            window.foundrySetCanvasPointerInside(false);
             hoveredPart = null;
             hoveredPrimitive = null;
             hoveredEditable = null;
@@ -1247,8 +1273,10 @@ struct WebCanvasView: NSViewRepresentable {
           installPartDragHandlers();
 
           const syncAttributes = (target, source) => {
+            const pointerOutside = target === document.documentElement && target.hasAttribute('data-foundry-pointer-outside');
             Array.from(target.attributes).forEach(attribute => target.removeAttribute(attribute.name));
             Array.from(source.attributes).forEach(attribute => target.setAttribute(attribute.name, attribute.value));
+            if (pointerOutside) target.setAttribute('data-foundry-pointer-outside', '');
           };
 
           let latestFoundryRevision = 0;
