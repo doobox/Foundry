@@ -8,9 +8,12 @@ nonisolated enum PartPackageFiltersResolver {
     ) -> [String] {
         let mode = values["filtersMode"]?.stringValue ?? "none"
         guard mode == "static" || mode == "hover" else {
-            return ["filter: none;", "backdrop-filter: none;", "-webkit-backdrop-filter: none;"]
+            return ["opacity: 1;", "filter: none;", "backdrop-filter: none;", "-webkit-backdrop-filter: none;"]
         }
         let prefix = hovered && mode == "hover" ? "filtersHover" : "filters"
+        let opacity = declared.contains(prefix + "Opacity")
+            ? number(values[prefix + "Opacity"], fallback: 100, maximum: 100) : 100
+        let opacityDeclaration = "opacity: \(formatted(opacity / 100));"
         let specifications: [(String, String, Double, Double, String)] = [
             ("Blur", "blur", 0, 100, "px"),
             ("Brightness", "brightness", 100, 200, "%"),
@@ -38,6 +41,7 @@ nonisolated enum PartPackageFiltersResolver {
             ? number(values[prefix + "BackdropBlur"], fallback: 0, maximum: 100) : 0
         let backdrop = blur == 0 ? "none" : "blur(\(formatted(blur))px)"
         return [
+            opacityDeclaration,
             "filter: \(hasEffect ? functions.joined(separator: " ") : "none");",
             "backdrop-filter: \(backdrop);",
             "-webkit-backdrop-filter: \(backdrop);"

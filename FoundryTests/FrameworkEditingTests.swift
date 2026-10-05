@@ -273,12 +273,12 @@ struct FrameworkEditingTests {
         document.site.framework.colourPalettes.insert(custom, at: 0)
         let value = PartPackageColorValue(source: custom.id, customColor: "#000000",
                                               opacity: 1, shade: .eight)
-        var child = PartNode.make(.container)
+        var child = PartNode.make(.section)
         child.setProperty(.init(rawValue: "background.backgroundColor"), value: .packageColor(value))
         var following = value
         following.shade = .one
         child.setResponsiveProperty(.init(rawValue: "background.backgroundColor"), value: .packageColor(following), at: .medium)
-        var parent = PartNode.make(.container)
+        var parent = PartNode.make(.section)
         parent.children = [child]
         document.site.pages[0].parts = [parent]
         document.site.globalPartLibrary = [.part(.init(name: "Global", root: child))]
@@ -412,7 +412,7 @@ struct FrameworkEditingTests {
         await PartPackageCatalog.shared.waitUntilLoaded()
         var framework = Framework.standard
         framework.colors.accent = "#123ABC"
-        var container = PartNode.make(.container)
+        var container = PartNode.make(.section)
         container.setProperty(.init(rawValue: "background.backgroundMode"), value: .choice("static"))
         container.setProperty(.init(rawValue: "background.backgroundColor"), value: .packageColor(.init(
             source: FrameworkColorRole.accent.rawValue,
@@ -504,7 +504,7 @@ struct FrameworkEditingTests {
 
         var padding = FrameworkPaddingValue()
         padding.setAll(.init(token: reference))
-        var part = PartNode.make(.container)
+        var part = PartNode.make(.section)
         part.setProperty(.init(rawValue: "framePadding"), value: .frameworkPadding(padding))
         part.setProperty(.init(rawValue: "gap"), value: .frameworkSpacing(.init(selection: .init(token: reference))))
         part.setProperty(.init(rawValue: "spacingChoice"), value: .choice(reference))
@@ -563,7 +563,7 @@ struct FrameworkEditingTests {
 
         var border = FrameworkBorderWidthValue()
         border.setAll(.init(token: width.reference))
-        var part = PartNode.make(.container)
+        var part = PartNode.make(.section)
         part.setProperty(.init(rawValue: "edge"), value: .frameworkBorderWidth(border))
         document.site.pages[0].parts = [part]
 
@@ -862,6 +862,25 @@ struct FrameworkEditingTests {
         #expect(font.family == "Inter")
         #expect(font.fallbacks == ["system-ui", "sans-serif"])
         #expect(font.source == .system)
+    }
+
+    @Test
+    func customFontNamedForAFrameworkRoleOverridesThatRole() {
+        var framework = Framework.standard
+        let custom = FrameworkCustomFont(
+            name: " body ",
+            font: .system(family: "Custom Body", weights: [400])
+        )
+        framework.typography.customFonts = [custom]
+
+        #expect(framework.fontFamilyChoices.map(\.label) == [" body ", "Heading", "Monospaced"])
+        #expect(framework.fontFamilyChoices.first?.value == FrameworkFontRole.body.rawValue)
+        #expect(framework.fontCSSVariable(for: FrameworkFontRole.body.rawValue)
+            == "var(--foundry-font-custom-\(custom.id.uuidString.lowercased()))")
+
+        framework.typography.customFonts[0].name = "Editorial"
+        #expect(framework.fontFamilyChoices.map(\.label) == ["Editorial", "Body", "Heading", "Monospaced"])
+        #expect(framework.fontCSSVariable(for: FrameworkFontRole.body.rawValue) == "var(--foundry-font-body)")
     }
 
     @Test

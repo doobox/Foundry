@@ -260,6 +260,16 @@ nonisolated enum PartPackageValidator {
             )
         }
         let linkGroups = manifest.controlGroups.filter { $0.type == .linkOverlay }
+        let lightboxGroups = manifest.controlGroups.filter { $0.type == .lightbox }
+        if !lightboxGroups.isEmpty, let template = templateContents[manifest.render.html] {
+            if lightboxGroups.count > 1 {
+                diagnostics.append(.init(severity: .error, location: "manifest.json:inspector", message: "Declare only one Lightbox group per part."))
+            }
+            if let root = PartRootLinkRenderer.root(in: template),
+               !["div", "section", "article", "figure", "main", "aside", "header", "footer", "nav"].contains(root.name) {
+                diagnostics.append(.init(severity: .error, location: manifest.render.html, message: "The Lightbox group requires a flow-content container root, such as div, section or figure."))
+            }
+        }
         if !linkGroups.isEmpty, let template = templateContents[manifest.render.html] {
             if linkGroups.count > 1 {
                 diagnostics.append(.init(severity: .error, location: "manifest.json:inspector", message: "Declare only one Link group per part root."))
@@ -285,7 +295,7 @@ nonisolated enum PartPackageValidator {
                 continue
             }
             if template.matches(#"\{\{\s*(?:id|instance\.|part\.|control\.|slot\.)"#) ||
-                template.matches(#"\{\{\s*(?:text|html|image|video|dropZone|childArea)\s*\("#) ||
+                template.matches(#"\{\{\s*(?:text|html|image|svg|video|dropZone|childArea)\s*\("#) ||
                 template.matches(#"\{\{\s*(?:slot\s+id|text(?:\s*=|\s*\}\})|html(?:\s*=|\s*\}\})|image(?:\s+[^}]+)?\s*\}\})"#) {
                 diagnostics.append(.init(
                     severity: .error,
@@ -337,7 +347,7 @@ nonisolated enum PartPackageValidator {
             propertyIDs.insert(namespace + ".css")
         }
         for group in manifest.controlGroups where group.type == .background {
-            for field in ["css", "color", "image", "position", "size", "repeat", "video", "hover"] {
+            for field in ["css", "color", "image", "position", "size", "repeat", "video", "hover", "hover.selector"] {
                 propertyIDs.insert(group.namespace + "." + field)
             }
         }
@@ -347,6 +357,7 @@ nonisolated enum PartPackageValidator {
         for group in manifest.controlGroups where group.type == .filters || group.type == .transforms {
             propertyIDs.insert(group.namespace + ".hover")
             propertyIDs.insert(group.namespace + ".hover.css")
+            propertyIDs.insert(group.namespace + ".hover.selector")
         }
         let childPickerIDs = Set(manifest.slots.map(\.id))
 
@@ -367,7 +378,10 @@ nonisolated enum PartPackageValidator {
                     message: "The root element must include {{ part.attributes }}."
                 ))
             }
-            if !rootTag.matches(#"(?i)\bclass\s*=\s*([\"'])[^\"']*\{\{\s*part\.class\s*\}\}[^\"']*\1"#) {
+            let rootClassContainsHook =
+                rootTag.matches(#"(?i)\bclass\s*=\s*\"[^\"]*\{\{\s*part\.class\s*\}\}[^\"]*\""#) ||
+                rootTag.matches(#"(?i)\bclass\s*=\s*'[^']*\{\{\s*part\.class\s*\}\}[^']*'"#)
+            if rootClassContainsHook == false {
                 diagnostics.append(.init(
                     severity: .error,
                     location: templateLocation,
@@ -435,7 +449,7 @@ nonisolated enum PartPackageValidator {
         }
         let primitiveDeclarations = (try? PartTemplateLoop.declarations(in: template)) ?? []
         let primitiveNames = primitiveDeclarations.map(\.key)
-        let primitiveCandidateCount = template.matchCount(#"\{\{\s*(?:text|html|image|video)\b[^}]*\}\}"#)
+        let primitiveCandidateCount = template.matchCount(#"\{\{\s*(?:text|html|image|svg|video)\b[^}]*\}\}"#)
         if primitiveCandidateCount != primitiveNames.count {
             diagnostics.append(.init(
                 severity: .error,
@@ -470,7 +484,8 @@ nonisolated enum PartPackageValidator {
                     message: "Persistent template name '\(name)' conflicts with a custom control id."
                 ))
             }
-            let childReferences = Set(template.references(
+            let childTemplates = ([template] + manifest.htmlContributions.map(\.template)).joined(separator: "\n")
+            let childReferences = Set(childTemplates.references(
                 matching: #"\{\{\s*childArea\(\s*\"([A-Za-z][A-Za-z0-9_-]*)\"\s*\)\s*\}\}"#
             ).map(\.value))
             for childPickerID in childPickerIDs.subtracting(childReferences).sorted() {
@@ -500,7 +515,7 @@ nonisolated enum PartPackageValidator {
             }
         }
 
-        for (index, property) in manifest.resolvedProperties.enumerated() where property.control.type == .image {
+        for (index, property) in manifest.resolvedProperties.enumerated() where property.control.type == .image || property.control.type == .svg {
             let defaultPath = property.defaultValue.stringValue
             if !defaultPath.isEmpty && manifest.assetDeclaration(containing: defaultPath) == nil {
                 diagnostics.append(.init(
@@ -697,8 +712,8 @@ nonisolated enum PartPackageValidator {
             if source.hasPrefix("if ") || source.hasPrefix("elseif ") || source == "else" || source == "endif" ||
                 source.hasPrefix("loop ") || source == "endloop" || source.hasPrefix("loop.") ||
                 source.hasPrefix("slot ") || source.hasPrefix("text(") || source.hasPrefix("html(") ||
-                source.hasPrefix("image(") || source.hasPrefix("video(") || source.hasPrefix("dropZone(") || source.hasPrefix("childArea(") || source.hasPrefix("asset(") ||
-                ["text", "html", "image", "video", "instance.id", "package.id", "site.baseURL", "page.url", "path.siteRoot", "path.siteAssets", "part.class", "part.attributes", "dropZone", "childArea", "asset"].contains(source) {
+                source.hasPrefix("image(") || source.hasPrefix("svg(") || source.hasPrefix("video(") || source.hasPrefix("dropZone(") || source.hasPrefix("childArea(") || source.hasPrefix("asset(") ||
+                ["text", "html", "image", "svg", "video", "instance.id", "package.id", "site.baseURL", "page.url", "path.siteRoot", "path.siteAssets", "part.class", "part.attributes", "dropZone", "childArea", "asset"].contains(source) {
                 continue
             }
             if loopAliases.contains(where: { source == $0 || source.hasPrefix($0 + ".") }) { continue }
@@ -727,7 +742,7 @@ nonisolated enum PartPackageValidator {
 
         let supportedMacroNames: Set<String> = [
             "id", "instance", "package", "site", "page", "path", "part", "control", "asset", "slot", "dropZone", "childArea",
-            "if", "elseif", "else", "endif", "loop", "endloop", "text", "html", "image", "video", "canvas", "preview", "published", "navigation", "pages", "assets"
+            "if", "elseif", "else", "endif", "loop", "endloop", "text", "html", "image", "svg", "video", "canvas", "preview", "published", "navigation", "pages", "assets"
         ]
         for reference in template.references(matching: #"\{\{\s*([A-Za-z]+)(?:\.|\s|\}\})"#)
             where !supportedMacroNames.contains(reference.value) && !loopAliases.contains(reference.value) {

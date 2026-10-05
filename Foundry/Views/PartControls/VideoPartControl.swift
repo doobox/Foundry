@@ -2,13 +2,9 @@ import AppKit
 import SwiftUI
 
 struct VideoPartControl: View {
-    struct Choice: Identifiable {
-        let id: UUID
-        let title: String
-    }
-
     @Environment(\.inspectorLabelWidth) private var labelWidth
     @State private var isDropTarget = false
+    @State private var showsWebPopover = false
 
     let label: String
     let filename: String?
@@ -18,7 +14,6 @@ struct VideoPartControl: View {
     let compatibilityWarning: String?
     let isProcessing: Bool
     let errorMessage: String?
-    let choices: [Choice]
     let indicator: InspectorRowIndicator
     let showsPlaybackOptions: Bool
     var showsPosterOptions = true
@@ -29,11 +24,15 @@ struct VideoPartControl: View {
     @Binding var startAt: Double
     let isClearDisabled: Bool
     let importVideoFromMac: () -> Void
-    let selectVideo: (UUID) -> Void
     let clearVideo: () -> Void
     let importVideo: (URL) -> Bool
     let choosePoster: () -> Void
     let clearPoster: () -> Void
+    var remoteURL: URL? = nil
+    var allowsYouTube = true
+    var posterFirst: Binding<Bool> = .constant(true)
+    var linkVideo: (URL) -> Void = { _ in }
+    var importRemoteVideo: (URL) async -> Bool = { _ in false }
 
     var body: some View {
         Group {
@@ -55,18 +54,18 @@ struct VideoPartControl: View {
                             .foregroundStyle(.secondary)
                             .multilineTextAlignment(.trailing)
                             .help(label)
-                        Menu(filename == nil ? "Choose" : "Replace") {
-                            if !choices.isEmpty {
-                                Section("Project Resources") {
-                                    ForEach(choices) { choice in
-                                        Button(choice.title) { selectVideo(choice.id) }
-                                    }
+                        HStack(spacing: 4) {
+                            Button("Pick", action: importVideoFromMac)
+                                .buttonSizing(.flexible)
+                                .frame(maxWidth: .infinity)
+                            Button("Video on the Web", systemImage: "link") { showsWebPopover = true }
+                                .labelStyle(.iconOnly)
+                                .help("Link or import a video from the web")
+                                .popover(isPresented: $showsWebPopover, arrowEdge: .trailing) {
+                                    VideoWebPopover(url: remoteURL, link: linkVideo, importCopy: importRemoteVideo, allowsYouTube: allowsYouTube)
                                 }
-                            }
-                            Button("Import from Mac…", action: importVideoFromMac)
                         }
                         .buttonStyle(.bordered)
-                        .menuStyle(.button)
                         .frame(maxWidth: .infinity)
                         Button("Clear", action: clearVideo)
                             .buttonStyle(.bordered)
@@ -80,7 +79,12 @@ struct VideoPartControl: View {
 
                 videoWell.gridColumnAlignment(.leading)
             }
-            if showsPosterOptions {
+            if YouTubeVideo.id(from: remoteURL?.absoluteString ?? "") != nil {
+                InspectorRow(title: "Show poster first") {
+                    Toggle("", isOn: posterFirst).labelsHidden().toggleStyle(.switch)
+                }
+            }
+            if showsPosterOptions && (YouTubeVideo.id(from: remoteURL?.absoluteString ?? "") == nil || posterFirst.wrappedValue) {
                 posterRow
             }
             if showsPlaybackOptions {
@@ -93,19 +97,21 @@ struct VideoPartControl: View {
     private var playbackOptions: some View {
         sectionDivider
         sectionHeading("Options")
-        InspectorRow(title: "Autoplay") {
-            InspectorPopup(
-                selection: $autoplay,
-                options: [
-                    .init(title: "Never", value: "never"),
-                    .init(title: "On page load", value: "onLoad")
-                ],
-                accessibilityLabel: "Autoplay",
-                help: "Choose whether playback starts automatically when the page loads."
-            )
-        }
-        InspectorRow(title: "Muted") {
-            Toggle("", isOn: $muted).labelsHidden()
+        if YouTubeVideo.id(from: remoteURL?.absoluteString ?? "") == nil {
+            InspectorRow(title: "Autoplay") {
+                InspectorPopup(
+                    selection: $autoplay,
+                    options: [
+                        .init(title: "Never", value: "never"),
+                        .init(title: "On page load", value: "onLoad")
+                    ],
+                    accessibilityLabel: "Autoplay",
+                    help: "Choose whether playback starts automatically when the page loads."
+                )
+            }
+            InspectorRow(title: "Muted") {
+                Toggle("", isOn: $muted).labelsHidden()
+            }
         }
         InspectorRow(title: "Controls") {
             Toggle("", isOn: $showsControls).labelsHidden()
@@ -163,7 +169,9 @@ struct VideoPartControl: View {
     private var videoWell: some View {
         ZStack {
             RoundedRectangle(cornerRadius: 6).fill(.background)
-            if let posterImage {
+            if let id = YouTubeVideo.id(from: remoteURL?.absoluteString ?? ""), !hasCustomPoster {
+                YouTubeThumbnailView(videoID: id).padding(6)
+            } else if let posterImage {
                 Image(nsImage: posterImage)
                     .resizable()
                     .scaledToFit()
@@ -227,6 +235,10 @@ struct VideoPartControl: View {
             if let details {
                 Text(details).font(.caption2).foregroundStyle(.secondary)
             }
+            if remoteURL != nil {
+                Text("Linked video · plays in preview")
+                    .font(.caption2).foregroundStyle(.secondary)
+            }
             if let errorMessage {
                 Label(errorMessage, systemImage: "exclamationmark.triangle.fill")
                     .font(.caption2)
@@ -258,7 +270,6 @@ struct VideoPartControl: View {
             compatibilityWarning: nil,
             isProcessing: false,
             errorMessage: nil,
-            choices: [],
             indicator: .preview,
             showsPlaybackOptions: true,
             autoplay: $autoplay,
@@ -268,7 +279,6 @@ struct VideoPartControl: View {
             startAt: $startAt,
             isClearDisabled: false,
             importVideoFromMac: {},
-            selectVideo: { _ in },
             clearVideo: {},
             importVideo: { _ in false },
             choosePoster: {},

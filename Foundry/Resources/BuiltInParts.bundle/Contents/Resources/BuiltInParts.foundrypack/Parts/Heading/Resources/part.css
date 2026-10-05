@@ -1,14 +1,16 @@
 :instance {
     box-sizing: border-box;
     width: 100%;
+    font-family: {{ control.font.family }};
+    font-weight: {{ control.font.weight }};
+    font-style: {{ control.font.style }};
     {{ if control.sizeEnabled }}
     font-size: {{ control.fontSize }};
     line-height: {{ control.fontSize.lineHeight }};
     {{ endif }}
     color: {{ control.textColor }};
     text-align: {{ control.textAlignment }};
-    padding: {{ if control.spacing.spacingEnabled }}{{ control.spacing.frameworkPadding }}{{ else }}0{{ endif }};
-    margin: {{ if control.spacing.spacingEnabled }}{{ control.spacing.frameworkMargin }}{{ else }}0{{ endif }};
+    text-decoration-line: {{ control.textDecoration }};
 }
 
 /* Control groups: declared after the part's own rules so they take precedence. */
@@ -20,12 +22,14 @@
     {{ control.background.css }}
     {{ control.layout.css }}
 }
-:instance:hover { {{ control.background.hover.css }} }
+{{ control.background.hover.selector }} { {{ control.background.hover.css }} }
 
 /* Shared state-change timing; never applied to nested parts implicitly. */
 :instance { {{ control.transitions.css }} }
 
 :instance { {{ control.filters.css }} }
-:instance:hover { {{ control.filters.hover.css }} }
-:instance { {{ control.transforms.css }} }
-:instance:hover { {{ control.transforms.hover.css }} }
+{{ control.filters.hover.selector }} { {{ control.filters.hover.css }} }
+:instance > .fd-transform-content { {{ control.transforms.css }} {{ control.transitions.css }} }
+{{ control.transforms.hover.selector }} > .fd-transform-content { {{ control.transforms.hover.css }} }
+
+:instance > .fd-transform-content { display: block; min-width: 0; }

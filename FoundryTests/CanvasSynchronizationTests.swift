@@ -41,7 +41,7 @@ struct CanvasSynchronizationTests {
     }
 
     @Test func nestedStructureInsertionRendersOnlyItsOwnerSubtree() throws {
-        let owner = PartNode(type: .container)
+        let owner = PartNode(type: .section)
         let page = Page(title: "Home", slug: "index", parts: [owner])
         let renderer = CanvasRenderSpy(subtree: .init(
             partID: owner.id,

@@ -5,7 +5,7 @@ import Testing
 struct PartTreeMutationTests {
     @Test
     func appendsChildToRequestedContainer() {
-        let container = PartNode.make(.container)
+        let container = PartNode.make(.section)
         let child = PartNode.make(.paragraph)
         var tree = [container]
 
@@ -19,7 +19,7 @@ struct PartTreeMutationTests {
     @Test
     func updatesNestedPartWithoutChangingIdentity() {
         let child = PartNode.make(.paragraph)
-        var tree = [PartNode(type: .container, children: [child])]
+        var tree = [PartNode(type: .section, children: [child])]
 
         let changed = tree.updateNode(withID: child.id) {
             $0.setProperty(.text, value: "Edited")
@@ -33,7 +33,7 @@ struct PartTreeMutationTests {
     @Test
     func removesNestedPart() {
         let child = PartNode.make(.button)
-        var tree = [PartNode(type: .container, children: [child])]
+        var tree = [PartNode(type: .section, children: [child])]
 
         let changed = tree.removeNode(withID: child.id)
 
@@ -45,8 +45,8 @@ struct PartTreeMutationTests {
     @Test
     func findsEveryAncestorNeededToRevealNestedSelection() {
         let selected = PartNode.make(.paragraph)
-        let innerContainer = PartNode(type: .container, children: [selected])
-        let outerContainer = PartNode(type: .container, children: [innerContainer])
+        let innerContainer = PartNode(type: .section, children: [selected])
+        let outerContainer = PartNode(type: .section, children: [innerContainer])
         let tree = [outerContainer]
 
         #expect(tree.ancestorIDs(of: selected.id) == [outerContainer.id, innerContainer.id])
@@ -57,8 +57,8 @@ struct PartTreeMutationTests {
     @Test
     func structureProjectionShowsExpandedChildrenAtTheirDepth() {
         let grandchild = PartNode.make(.paragraph)
-        let child = PartNode(type: .container, children: [grandchild])
-        let parent = PartNode(type: .container, children: [child])
+        let child = PartNode(type: .section, children: [grandchild])
+        let parent = PartNode(type: .section, children: [child])
 
         let items = StructureTreeItem.flatten(
             [parent],
@@ -72,7 +72,7 @@ struct PartTreeMutationTests {
     @Test
     func structureProjectionHidesOnlyCollapsedDescendants() {
         let child = PartNode.make(.button)
-        let parent = PartNode(type: .container, children: [child])
+        let parent = PartNode(type: .section, children: [child])
         let sibling = PartNode.make(.paragraph)
 
         let items = StructureTreeItem.flatten(

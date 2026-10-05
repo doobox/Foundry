@@ -12,4 +12,4 @@
     {{ control.background.css }}
     {{ control.layout.css }}
 }
-:instance:hover { {{ control.background.hover.css }} }
+{{ control.background.hover.selector }} { {{ control.background.hover.css }} }

@@ -7,7 +7,7 @@
     /* The root is the layout item; content forms a vertical stack. */
     display: flex;
     flex-direction: column;
-    gap: {{ control.contentGap }};
+
     order: {{ control.itemOrder }};
     grid-column: {{ if control.columnStart == 0 }}auto{{ else }}{{ control.columnStart }}{{ endif }} / span {{ control.columnSpan }};
     grid-row: {{ if control.rowStart == 0 }}auto{{ else }}{{ control.rowStart }}{{ endif }} / span {{ control.rowSpan }};
@@ -19,13 +19,24 @@
     {{ control.background.css }}
     {{ control.layout.css }}
 }
-:instance:hover { {{ control.background.hover.css }} }
-:instance > * { min-width: 0; min-height: 0; max-width: 100%; }
+{{ control.background.hover.selector }} { {{ control.background.hover.css }} }
+:instance > .fd-transform-content > * { min-width: 0; min-height: 0; }
 
 /* Shared state-change timing; never applied to nested parts implicitly. */
 :instance { {{ control.transitions.css }} }
 
 :instance { {{ control.filters.css }} }
-:instance:hover { {{ control.filters.hover.css }} }
-:instance { {{ control.transforms.css }} }
-:instance:hover { {{ control.transforms.hover.css }} }
+{{ control.filters.hover.selector }} { {{ control.filters.hover.css }} }
+:instance > .fd-transform-content { {{ control.transforms.css }} {{ control.transitions.css }} }
+{{ control.transforms.hover.selector }} > .fd-transform-content { {{ control.transforms.hover.css }} }
+
+:instance > .fd-transform-content {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 auto;
+    min-width: 0;
+    min-height: 0;
+    gap: {{ control.contentGap }};
+    /* Content placement is independent of the root's grid placement and sizing. */
+    justify-content: {{ control.contentAlignment }};
+}

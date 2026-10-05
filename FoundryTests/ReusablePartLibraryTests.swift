@@ -25,7 +25,7 @@ struct ReusablePartLibraryTests {
     func savingWritesASelfContainedBundleAndLatestSaveWins() throws {
         let library = temporaryLibrary()
         let (document, assetID) = documentWithAsset()
-        var root = PartNode.make(.container)
+        var root = PartNode.make(.section)
         root.setProperty(.init(rawValue: "image"), value: .url("foundry-asset:\(assetID.uuidString)"))
         let definition = ReusablePartDefinition(name: "Hero", root: root)
 
@@ -50,7 +50,7 @@ struct ReusablePartLibraryTests {
     func renameAndDeleteManageBundles() throws {
         let library = temporaryLibrary()
         let (document, _) = documentWithAsset()
-        let definition = ReusablePartDefinition(name: "Footer", root: PartNode.make(.container))
+        let definition = ReusablePartDefinition(name: "Footer", root: PartNode.make(.section))
         library.save(definition: definition, assetContents: document.assetContents)
 
         library.rename(id: definition.id, to: "Site Footer")
@@ -65,7 +65,7 @@ struct ReusablePartLibraryTests {
     func importingRemapsAssetsAndReusesIdenticalContent() throws {
         let library = temporaryLibrary()
         let (sourceDocument, sourceAssetID) = documentWithAsset()
-        var root = PartNode.make(.container)
+        var root = PartNode.make(.section)
         root.setProperty(.init(rawValue: "image"), value: .url("foundry-asset:\(sourceAssetID.uuidString)"))
         let definition = ReusablePartDefinition(name: "Hero", root: root)
         library.save(definition: definition, assetContents: sourceDocument.assetContents)
@@ -123,8 +123,8 @@ struct ReusablePartLibraryTests {
     func foldersAreRealDirectoriesAndSurviveReload() throws {
         let library = temporaryLibrary()
         let (document, _) = documentWithAsset()
-        let hero = ReusablePartDefinition(name: "Hero", root: PartNode.make(.container))
-        let footer = ReusablePartDefinition(name: "Footer", root: PartNode.make(.container))
+        let hero = ReusablePartDefinition(name: "Hero", root: PartNode.make(.section))
+        let footer = ReusablePartDefinition(name: "Footer", root: PartNode.make(.section))
         library.save(definition: hero, assetContents: document.assetContents)
         library.save(definition: footer, assetContents: document.assetContents)
         let rootURL = library.bundleURL(forID: footer.id).deletingLastPathComponent()
@@ -207,7 +207,7 @@ struct ReusablePartLibraryTests {
 
     @Test
     func projectTemplatesLiveInTheDocumentAndSupportUndo() throws {
-        let page = Page(title: "Home", slug: "index", parts: [PartNode.make(.container)])
+        let page = Page(title: "Home", slug: "index", parts: [PartNode.make(.section)])
         let document = FoundryDocument(site: Site(name: "Project", pages: [page]))
         let undoManager = UndoManager()
         undoManager.groupsByEvent = false
@@ -254,7 +254,7 @@ struct ReusablePartLibraryTests {
     func duplicateCreatesAnIndependentBundleAfterTheOriginal() throws {
         let library = temporaryLibrary()
         let (document, _) = documentWithAsset()
-        let hero = ReusablePartDefinition(name: "Hero", root: PartNode.make(.container))
+        let hero = ReusablePartDefinition(name: "Hero", root: PartNode.make(.section))
         library.save(definition: hero, assetContents: document.assetContents)
 
         library.duplicate(id: hero.id)

@@ -1,0 +1,26 @@
+:instance { display: block; margin: 0 auto; min-width: 0; }
+:instance .fd-svg-content, :instance .fd-inline-svg { display: block; width: 100%; }
+:instance .fd-svg-content svg { display: block; width: 100%; height: auto; }
+{{ if control.fillEnabled }}
+:instance svg [data-foundry-svg-fill] { fill: {{ control.fill }} !important; }
+{{ endif }}
+{{ if control.strokeEnabled }}
+:instance svg [data-foundry-svg-stroke] { stroke: {{ control.stroke }} !important; }
+{{ endif }}
+{{ if control.strokeWidthEnabled }}
+:instance svg [data-foundry-svg-stroke] { stroke-width: {{ control.strokeWidth }} !important; }
+{{ endif }}
+:instance {
+    {{ control.sizing.css }}
+    {{ control.borders.css }}
+    {{ control.effects.css }}
+    {{ control.background.css }}
+    {{ control.layout.css }}
+    {{ control.filters.css }}
+    {{ control.transitions.css }}
+    {{ if control.spacing.spacingEnabled }}padding: {{ control.spacing.frameworkPadding }}; margin-top: {{ control.spacing.frameworkMargin.top }}; margin-bottom: {{ control.spacing.frameworkMargin.bottom }};{{ endif }}
+}
+{{ control.background.hover.selector }} { {{ control.background.hover.css }} }
+{{ control.filters.hover.selector }} { {{ control.filters.hover.css }} }
+:instance > .fd-transform-content { {{ control.transforms.css }} {{ control.transitions.css }} }
+{{ control.transforms.hover.selector }} > .fd-transform-content { {{ control.transforms.hover.css }} }

@@ -8,6 +8,7 @@ nonisolated enum PartTemplateLoop {
         case text
         case html
         case image
+        case svg
         case video
     }
 
@@ -111,6 +112,10 @@ nonisolated enum PartTemplateLoop {
                 result = replacePrimitives(in: result, expression: videoExpression) { name, _ in
                     state.declarations.append(.init(kind: .video, key: name, defaultValue: nil, isRepeated: depth > 0))
                     return token(name: "__foundry_video", key: name, value: nil, isRepeated: depth > 0)
+                }
+                result = replacePrimitives(in: result, expression: svgExpression) { name, _ in
+                    state.declarations.append(.init(kind: .svg, key: name, defaultValue: nil, isRepeated: depth > 0))
+                    return token(name: "__foundry_image", key: name, value: nil, isRepeated: depth > 0)
                 }
                 return .text(result)
             case .loop(let source, let children):
@@ -435,6 +440,7 @@ nonisolated enum PartTemplateLoop {
 
     private static let directiveExpression = try! NSRegularExpression(pattern: #"\{\{\s*(loop\s+([^{}]+?)|endloop)\s*\}\}"#)
     private static let imageExpression = try! NSRegularExpression(pattern: #"\{\{\s*image\(\s*\"([A-Za-z][A-Za-z0-9_-]*)\"\s*\)\s*\}\}"#)
+    private static let svgExpression = try! NSRegularExpression(pattern: #"\{\{\s*svg\(\s*\"([A-Za-z][A-Za-z0-9_-]*)\"\s*\)\s*\}\}"#)
     private static let videoExpression = try! NSRegularExpression(pattern: #"\{\{\s*video\(\s*\"([A-Za-z][A-Za-z0-9_-]*)\"\s*\)\s*\}\}"#)
     private static let textExpression = try! NSRegularExpression(pattern: #"\{\{\s*text\(\s*\"([A-Za-z][A-Za-z0-9_-]*)\"\s*(?:,\s*default\s*:\s*\"((?:\\.|[^\"\\])*)\"\s*)?\)\s*\}\}"#)
     private static let htmlExpression = try! NSRegularExpression(pattern: #"\{\{\s*html\(\s*\"([A-Za-z][A-Za-z0-9_-]*)\"\s*(?:,\s*default\s*:\s*\"((?:\\.|[^\"\\])*)\"\s*)?\)\s*\}\}"#)

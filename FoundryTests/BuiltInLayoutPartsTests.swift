@@ -15,10 +15,11 @@ struct BuiltInLayoutPartsTests {
     @Test
     func layoutPartsShareOneInspectorContract() throws {
         let expectedSharedSections = [
-            "Sizing", "Spacing", "Background", "Borders", "Effects", "Filters", "Transforms", "Transitions", "Layout", "Reveal", "Link"
+            "Sizing", "Spacing", "Background", "Borders", "Shadow", "Filters", "Transforms", "Transitions", "Layout", "Reveal", "Link"
         ]
         let parts = [
-            (directory: "Container", section: "Container"),
+            (directory: "BentoGrid", section: "Bento Grid"),
+            (directory: "Section", section: "Section"),
             (directory: "Flexbox", section: "Flexbox"),
             (directory: "FlexItem", section: "Flex Item"),
             (directory: "Grid", section: "Grid"),
@@ -32,7 +33,7 @@ struct BuiltInLayoutPartsTests {
         }
     }
 
-    @Test(arguments: ["Container", "Flexbox", "FlexItem", "Grid", "GridItem"])
+    @Test(arguments: ["BentoGrid", "Section", "Flexbox", "FlexItem", "Grid", "GridItem"])
     func videoBackgroundsOptInAndKeepAPositionedHost(_ name: String) throws {
         let manifest = try package(name).manifest
         let group = try #require(manifest.controlGroups.first { $0.type == .background })
@@ -59,27 +60,88 @@ struct BuiltInLayoutPartsTests {
     }
 
     @Test
-    func sharedLinkGroupUsesNamespacedFieldsAndReadsLegacyValues() throws {
-        let manifest = try package("Container").manifest
+    func bentoGridKeepsFiveCellsAcrossEveryResponsivePreset() throws {
+        let loaded = try package("BentoGrid")
+        let preset = try #require(loaded.manifest.resolvedProperties.first { $0.id == "preset" })
+        #expect(preset.responsive)
+        #expect(preset.defaultValue == .string("stacked"))
+        #expect(preset.breakpointDefaults["medium"] == .string("feature-left"))
+        #expect(preset.control.options?.map(\.value) == [
+            "stacked", "feature-left", "feature-right", "feature-top", "feature-bottom", "balanced", "equal"
+        ])
+        #expect(loaded.dropZoneNames == ["cell1", "cell2", "cell3", "cell4", "cell5"])
+
+        for option in preset.control.options ?? [] {
+            var values = Dictionary(uniqueKeysWithValues: loaded.manifest.resolvedProperties.map { ($0.id, $0.defaultValue) })
+            values["preset"] = .string(option.value)
+            PartPackageControlGroupCSSResolver.resolve(&values, properties: loaded.manifest.resolvedProperties)
+            let rendered = PartTemplateRenderer.render(loaded.css, context: .init(
+                instanceID: UUID(), packageIdentifier: loaded.manifest.identifier, properties: values, slots: [:]))
+            for area in ["one", "two", "three", "four", "five"] {
+                #expect(rendered.contains("grid-area: \(area);"), "\(option.value): missing \(area)")
+            }
+            #expect(rendered.contains("{{") == false)
+        }
+    }
+
+    @Test(arguments: ["flex-start", "center", "flex-end"])
+    func gridItemContentAlignmentDoesNotChangeRootSizing(_ alignment: String) throws {
+        let loaded = try package("GridItem")
+        let properties = loaded.manifest.resolvedProperties
+        #expect(properties.first { $0.id == "gridAlign" }?.defaultValue == .string("stretch"))
+        #expect(properties.first { $0.id == "gridJustify" }?.defaultValue == .string("stretch"))
+        let content = try #require(properties.first { $0.id == "contentAlignment" })
+        #expect(content.defaultValue == .string("flex-start"))
+        #expect(content.responsive)
+        #expect(content.control.options?.map(\.title) == ["Top", "Centre", "Bottom"])
+        var values = Dictionary(uniqueKeysWithValues: properties.map { ($0.id, $0.defaultValue) })
+        values["contentAlignment"] = .string(alignment)
+        values["sizing.heightMode"] = .string("custom")
+        values["sizing.customHeight"] = .number(320)
+        PartPackageControlGroupCSSResolver.resolve(&values, properties: properties)
+        let rendered = PartTemplateRenderer.render(loaded.css, context: .init(
+            instanceID: UUID(), packageIdentifier: loaded.manifest.identifier, properties: values, slots: [:]))
+        let rootRule = try #require(rendered.components(separatedBy: "}").first)
+        #expect(rootRule.contains("height: 320px;"))
+        #expect(rootRule.contains("align-self: stretch;"))
+        #expect(rootRule.contains("justify-content:") == false)
+        #expect(rendered.contains("justify-content: \(alignment);"))
+        #expect(rendered.contains("flex: 1 1 auto;"))
+        #expect(rendered.contains("{{") == false)
+    }
+
+    @Test
+    func sharedLinkGroupUsesOnlyExactNamespacedFields() throws {
+        let manifest = try package("Section").manifest
         #expect(manifest.resolvedProperties.contains { $0.id == "link.destination" })
         #expect(manifest.resolvedProperties.contains { $0.id == "link.accessibleName" })
         #expect(!manifest.resolvedProperties.contains { $0.id == "destination" })
         #expect(manifest.controlGroups.contains { $0.type == .linkOverlay && $0.id == "link" })
 
-        var node = PartNode.make(.container)
+        var node = PartNode.make(.section)
         node.properties.removeAll { $0.key.rawValue.hasPrefix("link.") }
         node.setProperty(.init(rawValue: "destination"), value: .url("https://example.com"))
         node.setProperty(.init(rawValue: "linkLabel"), value: .string("Example"))
-        #expect(node.propertyValue(.init(rawValue: "link.destination")).stringValue == "https://example.com")
-        #expect(node.propertyValue(.init(rawValue: "link.accessibleName")).stringValue == "Example")
+        #expect(node.storedPropertyValue(.init(rawValue: "link.destination")) == nil)
+        #expect(node.storedPropertyValue(.init(rawValue: "link.accessibleName")) == nil)
+        #expect(node.propertyValue(.init(rawValue: "link.destination")).stringValue.isEmpty)
+        #expect(node.propertyValue(.init(rawValue: "link.accessibleName")).stringValue.isEmpty)
 
+        node.setProperty(.init(rawValue: "link.destination"), value: .url("https://example.com/current"))
+        node.setProperty(.init(rawValue: "link.accessibleName"), value: .string("Current"))
+        #expect(node.propertyValue(.init(rawValue: "link.destination")).stringValue == "https://example.com/current")
+        #expect(node.propertyValue(.init(rawValue: "link.accessibleName")).stringValue == "Current")
+        #expect(node.storedPropertyValue(.init(rawValue: "destination")) == .url("https://example.com"))
+        #expect(node.storedPropertyValue(.init(rawValue: "linkLabel")) == .string("Example"))
         node.setProperty(.init(rawValue: "link.destination"), value: .link(.init(destination: .none)))
-        #expect(!node.properties.contains { $0.key.rawValue == "destination" })
+        node.setProperty(.init(rawValue: "link.accessibleName"), value: .string(""))
+        #expect(node.propertyValue(.init(rawValue: "link.destination")).stringValue.isEmpty)
+        #expect(node.propertyValue(.init(rawValue: "link.accessibleName")).stringValue.isEmpty)
     }
 
     @Test
     func layoutPartPackagesAndTemplatesValidate() throws {
-        for directory in ["Container", "Flexbox", "FlexItem", "Grid", "GridItem"] {
+        for directory in ["BentoGrid", "Section", "Flexbox", "FlexItem", "Grid", "GridItem"] {
             let loaded = try package(directory)
             let diagnostics = PartPackageValidator.validate(
                 loaded.manifest,
@@ -92,7 +154,7 @@ struct BuiltInLayoutPartsTests {
     @Test @MainActor
     func linkGroupAutomaticallyDecoratesCanvasAndExportAndClearsCleanly() async throws {
         await PartPackageCatalog.shared.waitUntilLoaded()
-        for name in ["Container", "Flexbox", "FlexItem", "Grid", "GridItem", "Image"] {
+        for name in ["BentoGrid", "Section", "Flexbox", "FlexItem", "Grid", "GridItem", "Image"] {
             let loaded = try package(name)
             var part = PartNode.make(.init(rawValue: loaded.manifest.identifier))
             part.setProperty(.init(rawValue: "link.destination"), value: "https://example.com/card")

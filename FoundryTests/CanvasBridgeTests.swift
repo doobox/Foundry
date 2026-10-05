@@ -299,7 +299,7 @@ struct CanvasBridgeTests {
         }
         #expect(html.contains("data-foundry-part"))
         #expect(html.contains("data-foundry-package="))
-        #expect(html.contains("data-foundry-type=\"Container\""))
+        #expect(html.contains("data-foundry-type=\"Section\""))
         #expect(html.contains("data-foundry-type=\"Paragraph\""))
         #expect(html.contains("data-foundry-type=\"Button\""))
     }
@@ -330,7 +330,7 @@ struct CanvasBridgeTests {
     func subtreeRendererIncludesNestedDescendantsAndTheirStyles() throws {
         var child = PartNode.make(.paragraph)
         child.setProperty(.init(rawValue: "content"), value: .string("Nested value"))
-        var container = PartNode.make(.container)
+        var container = PartNode.make(.section)
         container.children = [child]
         let page = Page(title: "Nested", slug: "nested", parts: [container])
         let renderer = HTMLPageRenderer()
@@ -362,7 +362,7 @@ struct CanvasBridgeTests {
         await PartPackageCatalog.shared.waitUntilLoaded()
         var grid = PartNode.make(.grid)
         grid.children = (0..<3).map { _ in PartNode.make(.paragraph) }
-        var container = PartNode.make(.container)
+        var container = PartNode.make(.section)
         container.children = [grid]
         var page = Page(title: "Home", slug: "index", parts: [container])
         let renderer = HTMLPageRenderer()
@@ -392,7 +392,7 @@ struct CanvasBridgeTests {
     func subtreeRendererPreservesInheritedGlobalIdentity() throws {
         let definitionID = UUID()
         let child = PartNode.make(.paragraph)
-        var globalContainer = PartNode.make(.container)
+        var globalContainer = PartNode.make(.section)
         globalContainer.reusableDefinitionID = definitionID
         globalContainer.children = [child]
         let page = Page(title: "Global", slug: "global", parts: [globalContainer])
@@ -422,7 +422,7 @@ struct CanvasBridgeTests {
         let definitionID = UUID()
         var global = PartNode.make(.paragraph)
         global.reusableDefinitionID = definitionID
-        var container = PartNode.make(.container)
+        var container = PartNode.make(.section)
         container.children = [global]
         let page = Page(title: "Nested Global", slug: "nested-global", parts: [container])
 

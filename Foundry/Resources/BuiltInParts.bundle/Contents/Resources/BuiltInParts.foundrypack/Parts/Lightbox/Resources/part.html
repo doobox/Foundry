@@ -1,0 +1,6 @@
+<div class="{{ part.class }}" {{ part.attributes }}>
+    <div class="fd-transform-content" data-foundry-lightbox-trigger>{{ childArea("trigger") }}</div>
+    <div {{ if !canvas }}hidden{{ endif }}>
+        <div data-foundry-lightbox-content aria-label="{{ control.title }}">{{ childArea("content") }}</div>
+    </div>
+</div>

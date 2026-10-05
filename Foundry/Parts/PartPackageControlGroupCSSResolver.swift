@@ -38,10 +38,17 @@ nonisolated enum PartPackageControlGroupCSSResolver {
         properties: [PartPackageProperty]
     ) {
         for members in groups(in: properties).values {
-            guard let source = members.first?.controlGroupSource,
-                  let composer = composers.first(where: { $0.name == source.type.rawValue }) else { continue }
+            guard let source = members.first?.controlGroupSource else { continue }
             let declared = Set(members.compactMap { $0.controlGroupSource?.localID })
             var local = localValues(values, members: members)
+            if supportsHoverTrigger(source.type) {
+                insertRaw(
+                    hoverSelector(values: local),
+                    at: source.namespace + ".hover.selector",
+                    into: &values
+                )
+            }
+            guard let composer = composers.first(where: { $0.name == source.type.rawValue }) else { continue }
             // Old documents can contain positions removed by allowedOptions.
             // Use the declared default rather than render a forbidden position.
             if source.type == .layout,
@@ -77,6 +84,24 @@ nonisolated enum PartPackageControlGroupCSSResolver {
                   composers.contains(where: { $0.name == source.type.rawValue }) else { return nil }
             return source.namespace
         })
+    }
+
+    private static func supportsHoverTrigger(_ type: PartPackageControlGroup.Kind) -> Bool {
+        type == .background || type == .filters || type == .transforms
+    }
+
+    private static func hoverSelector(values: [String: PartPackageValue]) -> String {
+        switch string(values["hoverTrigger"]) ?? "self" {
+        case "parent":
+            return ":parent:hover :instance"
+        case "custom":
+            guard let id = PartAnchorValidator.validated(string(values["hoverTriggerID"])) else {
+                return ":instance:hover"
+            }
+            return "#\(id):hover :instance"
+        default:
+            return ":instance:hover"
+        }
     }
 
     static func groups(in properties: [PartPackageProperty]) -> [String: [PartPackageProperty]] {
@@ -319,7 +344,7 @@ nonisolated enum PartPackageControlGroupCSSResolver {
         return declarations
     }
 
-    // MARK: Effects
+    // MARK: Shadow
 
     private static func effects(
         _ values: [String: PartPackageValue],
@@ -329,12 +354,6 @@ nonisolated enum PartPackageControlGroupCSSResolver {
         var declarations: [String] = []
         if declared.contains("frameworkShadow") {
             declarations.append("box-shadow: \(enabled ? string(values["frameworkShadow"]) ?? "none" : "none");")
-        }
-        if declared.contains("opacity") {
-            // The control is a percentage; CSS opacity is a fraction. Doing
-            // the division here spares every part a calc().
-            let percent = enabled ? number(values["opacity"]) ?? 100 : 100
-            declarations.append("opacity: \(fraction(percent / 100));")
         }
         return declarations
     }

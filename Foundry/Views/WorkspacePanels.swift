@@ -397,6 +397,11 @@ struct PartLibraryPanel: View {
             )
         }
         .sorted { left, right in
+            let leftContainsBuiltIn = left.types.contains { $0.definition.package?.isBuiltIn == true }
+            let rightContainsBuiltIn = right.types.contains { $0.definition.package?.isBuiltIn == true }
+            if leftContainsBuiltIn != rightContainsBuiltIn {
+                return leftContainsBuiltIn
+            }
             if left.title == "Other" { return false }
             if right.title == "Other" { return true }
             return left.title.localizedStandardCompare(right.title) == .orderedAscending
@@ -417,6 +422,11 @@ struct PartLibraryPanel: View {
             id: id,
             title: title,
             types: types.sorted {
+                let leftIsBuiltIn = $0.definition.package?.isBuiltIn == true
+                let rightIsBuiltIn = $1.definition.package?.isBuiltIn == true
+                if leftIsBuiltIn != rightIsBuiltIn {
+                    return leftIsBuiltIn
+                }
                 let comparison = $0.displayName.localizedStandardCompare($1.displayName)
                 if comparison == .orderedSame { return $0.rawValue < $1.rawValue }
                 return comparison == .orderedAscending

@@ -21,7 +21,7 @@ struct PartPlacementTests {
 
     @Test
     func movesPartIntoContainer() {
-        let container = PartNode.make(.container)
+        let container = PartNode.make(.section)
         let text = PartNode.make(.paragraph)
         var tree = [container, text]
 
@@ -62,9 +62,9 @@ struct PartPlacementTests {
 
     @Test
     func rejectsMovingContainerIntoItsDescendant() {
-        let childContainer = PartNode.make(.container)
+        let childContainer = PartNode.make(.section)
         let parent = PartNode(
-            type: .container,
+            type: .section,
             children: [childContainer]
         )
         var tree = [parent]
@@ -100,7 +100,7 @@ struct PartEditingTests {
     @Test
     func moveValidationRejectsSelfAndDescendantDestinations() {
         let child = PartNode.make(.paragraph)
-        let container = PartNode(type: .container, children: [child])
+        let container = PartNode(type: .section, children: [child])
         let page = Page(title: "Home", slug: "index", parts: [container])
         let document = FoundryDocument(site: Site(name: "Validation", pages: [page]))
         let editor = ProjectEditor(document: document, undoManager: nil)

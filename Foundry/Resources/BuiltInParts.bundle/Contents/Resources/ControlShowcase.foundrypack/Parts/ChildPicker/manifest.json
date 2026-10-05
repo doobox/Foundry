@@ -78,11 +78,11 @@
           "id": "panels",
           "label": "Panels",
           "pickerItems": [
-            "foundry.layout.container"
+            "foundry.layout.section"
           ],
           "initial": [
-            "foundry.layout.container",
-            "foundry.layout.container"
+            "foundry.layout.section",
+            "foundry.layout.section"
           ],
           "containment": "locked",
           "tooltip": "containment: locked — children reorder within this collection but cannot be moved out of it."

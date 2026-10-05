@@ -28,10 +28,19 @@ private struct InspectorLabelWidthKey: EnvironmentKey {
     static let defaultValue = InspectorMetrics.minimumLabelWidth
 }
 
+private struct InspectorControlModifiedKey: EnvironmentKey {
+    static let defaultValue = false
+}
+
 extension EnvironmentValues {
     var inspectorLabelWidth: CGFloat {
         get { self[InspectorLabelWidthKey.self] }
         set { self[InspectorLabelWidthKey.self] = newValue }
+    }
+
+    var inspectorControlModified: Bool {
+        get { self[InspectorControlModifiedKey.self] }
+        set { self[InspectorControlModifiedKey.self] = newValue }
     }
 }
 
@@ -89,6 +98,8 @@ struct InspectorGrid<Content: View>: View {
 
 struct InspectorRow<Control: View>: View {
     @Environment(\.inspectorLabelWidth) private var labelWidth
+    @Environment(\.inspectorControlModified) private var isModified
+    @Environment(\.accessibilityDifferentiateWithoutColor) private var differentiateWithoutColor
 
     let title: String
     let alignment: VerticalAlignment
@@ -124,7 +135,8 @@ struct InspectorRow<Control: View>: View {
                     .lineLimit(1)
                     .truncationMode(.tail)
                     .frame(maxWidth: .infinity, alignment: .trailing)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(isModified ? Color.accentColor : Color.secondary)
+                    .underline(isModified && differentiateWithoutColor)
                     .multilineTextAlignment(.trailing)
                     .help(title)
             }

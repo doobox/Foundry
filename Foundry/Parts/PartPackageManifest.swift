@@ -353,7 +353,14 @@ extension PartPackageManifest {
     nonisolated var htmlContributions: [PartPackageHTMLContribution] {
         let imageAlt = resolvedProperties.first { $0.id == "source" && $0.control.type == .image }
             .map { "control.\($0.id).alt" }
-        return render.htmlContributions + controlGroups.flatMap { $0.htmlContributions(imageAlt: imageAlt) }
+        let lightboxes = controlGroups.filter { $0.type == .lightbox }.compactMap(\.id)
+        return render.htmlContributions + controlGroups.flatMap { group in
+            group.htmlContributions(imageAlt: imageAlt).map { contribution in
+                guard group.type == .linkOverlay, !lightboxes.isEmpty else { return contribution }
+                let guards = lightboxes.map { "{{ if !control.\($0).enabled }}" }.joined()
+                return PartPackageHTMLContribution(placement: contribution.placement, template: guards + contribution.template + String(repeating: "{{ endif }}", count: lightboxes.count))
+            }
+        }
     }
 
     nonisolated var slots: [PartPackageSlot] {
@@ -387,6 +394,7 @@ nonisolated struct PartPackageControlGroup: Codable, Equatable, Sendable {
         /// A whole-part destination and its accessible name. Its distinct
         /// name avoids colliding with the primitive `link` control kind.
         case linkOverlay
+        case lightbox
         /// The opt-in HTML identity section (ID, classes, custom attributes).
         /// Unlike the other kinds it carries native Inspector fields bound to
         /// the placed part, not property controls, so it has no registry
@@ -663,6 +671,13 @@ nonisolated struct PartPackageControlGroup: Codable, Equatable, Sendable {
     var htmlContributions: [PartPackageHTMLContribution] { htmlContributions(imageAlt: nil) }
 
     func htmlContributions(imageAlt: String?) -> [PartPackageHTMLContribution] {
+        if type == .lightbox, let id {
+            return [.init(placement: .beforeClosingTag, template: """
+            {{ if control.\(id).enabled }}
+            <div hidden data-foundry-lightbox-config="\(id)" style="color: {{ control.\(id).backdropColor }}" data-backdrop-color="{{ control.\(id).backdropColor }}" data-backdrop-blur="{{ control.\(id).backdropBlur }}"></div>
+            {{ endif }}
+            """)]
+        }
         guard type == .linkOverlay, let id,
               properties.contains(where: { $0.controlGroupSource?.localID == "destination" }) else { return [] }
         let fallback = imageAlt.map { "{{ if \($0) }}{{ \($0) }}{{ else }}{{ control.\(id).destination }}{{ endif }}" }
@@ -676,6 +691,16 @@ nonisolated struct PartPackageControlGroup: Codable, Equatable, Sendable {
     }
 
     var javaScript: String {
+        if type == .lightbox, let id {
+            return "{{ if !canvas }}{{ if control.\(id).enabled }}" + YouTubePosterPlayback.javaScript + "\n" + CanvasYouTubeThumbnails.javaScript + "\n" + FoundryLightbox.javaScript + """
+            \n(() => {
+              const root = document.querySelector('[data-foundry-id="{{ instance.id }}"]');
+              const config = root && Array.from(root.querySelectorAll('[data-foundry-lightbox-config="\(id)"]')).find(node => node.closest('[data-foundry-id]') === root);
+              if (root && config) globalThis.foundryLightbox.connect(root, config);
+            })();
+            {{ endif }}{{ endif }}
+            """
+        }
         if type == .background, backgroundTypes.contains(.video) {
             return PartBackgroundVideoPlayback.javaScript
         }
@@ -1097,7 +1122,7 @@ nonisolated struct PartPackageProperty: Codable, Equatable, Identifiable, Sendab
             guard defaults["base"] != nil else { throw DecodingError.dataCorruptedError(forKey: .defaultValue, in: container, debugDescription: "defaults.base is required") }
             breakpointDefaults = defaults.filter { $0.key != "base" }
         }
-        if control.type == .divider || control.type == .spacer || control.type == .note || control.type == .image || control.type == .video || control.type == .math || control.type == .childPicker {
+        if control.type == .divider || control.type == .spacer || control.type == .note || control.type == .image || control.type == .svg || control.type == .video || control.type == .math || control.type == .childPicker {
             defaultValue = defaults?["base"] ?? .string("")
             if control.type == .video {
                 responsive = false
@@ -1165,7 +1190,7 @@ nonisolated struct PartPackageProperty: Codable, Equatable, Identifiable, Sendab
         if valueAvailability != .always {
             try container.encode(valueAvailability, forKey: .valueAvailability)
         }
-        if control.type == .image, !alt.isEmpty {
+        if (control.type == .image || control.type == .svg), !alt.isEmpty {
             try container.encode(alt, forKey: .alt)
         }
         if control.type == .image, focalPoint {
@@ -1319,6 +1344,7 @@ nonisolated struct PartPackageControl: Codable, Equatable, Sendable {
         case note
         case button
         case image
+        case svg
         case video
         case math
         case frameworkShadow

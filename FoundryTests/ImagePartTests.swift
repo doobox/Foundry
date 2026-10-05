@@ -178,7 +178,7 @@ struct ImagePartTests {
     @Test @MainActor
     func aspectRatioShapesAnyPartWithTheSizingGroup() async throws {
         await PartPackageCatalog.shared.waitUntilLoaded()
-        var part = PartNode.make(.container)
+        var part = PartNode.make(.section)
         part.setProperty(.init(rawValue: "sizing.aspectRatio"), value: .choice("custom"))
         part.setProperty(.init(rawValue: "sizing.aspectRatioWidth"), value: .number(5))
         part.setProperty(.init(rawValue: "sizing.aspectRatioHeight"), value: .number(2))

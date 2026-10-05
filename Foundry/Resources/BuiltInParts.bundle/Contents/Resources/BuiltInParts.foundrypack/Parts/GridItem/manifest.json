@@ -68,9 +68,9 @@
         {
           "type": "select",
           "id": "gridAlign",
-          "label": "Align Vertically",
+          "label": "Item vertical alignment",
           "defaults": {
-            "base": "auto"
+            "base": "stretch"
           },
           "responsive": true,
           "options": [
@@ -95,14 +95,14 @@
               "title": "Stretch"
             }
           ],
-          "tooltip": "Auto follows the Grid's alignment."
+          "tooltip": "Positions the whole item within its grid cell. Stretch fills the available height unless Sizing sets a height. Auto follows the Grid. Use Content alignment to position what is inside."
         },
         {
           "type": "select",
           "id": "gridJustify",
-          "label": "Align Horizontally",
+          "label": "Item horizontal alignment",
           "defaults": {
-            "base": "auto"
+            "base": "stretch"
           },
           "responsive": true,
           "options": [
@@ -127,7 +127,7 @@
               "title": "Stretch"
             }
           ],
-          "tooltip": "Auto follows the Grid's alignment."
+          "tooltip": "Positions the whole item within its grid cell. Stretch fills the available width unless Sizing sets a width. Auto follows the Grid."
         },
         {
           "type": "number",
@@ -154,6 +154,19 @@
           },
           "noneValue": "0px",
           "responsive": true
+        },
+        {
+          "type": "select",
+          "id": "contentAlignment",
+          "label": "Content alignment",
+          "defaults": { "base": "flex-start" },
+          "responsive": true,
+          "options": [
+            { "value": "flex-start", "title": "Top" },
+            { "value": "center", "title": "Centre" },
+            { "value": "flex-end", "title": "Bottom" }
+          ],
+          "tooltip": "Positions the content vertically inside this item without changing the item's size. Leave Item vertical alignment on Stretch to fill the grid cell."
         }
       ]
     },
@@ -211,7 +224,7 @@
       ]
     },
     {
-      "section": "Effects",
+      "section": "Shadow",
       "systemImage": "sparkles",
       "controls": [
         {
@@ -310,7 +323,7 @@
     "html": "part.html"
   },
   "title": "Grid Item",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "showsInPartLibrary": false,
   "allowedParents": [
     "foundry.layout.grid"

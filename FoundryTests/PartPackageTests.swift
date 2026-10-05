@@ -22,15 +22,23 @@ struct PartPackageTests {
         var node = PartNode.make(.init(rawValue: package.manifest.identifier))
         let section = PartPropertySection(rawValue: "Layout")
         let state = PartInspectorSectionState(part: node, section: section, framework: .standard)
+        let widthDefinition = try #require(node.type.definition.property(for: .init(rawValue: "width")))
+        let widthState = PartInspectorControlState(part: node, definition: widthDefinition, framework: .standard)
         #expect(state.hasChanges(in: node) == false)
+        #expect(!widthState.hasChanges(in: node, at: .mobile, screens: .standard))
+        #expect(!widthState.hasChanges(in: node, at: .large, screens: .standard))
         node.setResponsiveProperty(.init(rawValue: "width"), value: .number(10), at: .medium)
         #expect(state.hasChanges(in: node) == false)
+        #expect(!widthState.hasChanges(in: node, at: .medium, screens: .standard))
         #expect(state.canReset(node))
         node.setProperty(.init(rawValue: "hiddenValue"), value: .number(9))
         #expect(state.hasChanges(in: node))
         node.setProperty(.init(rawValue: "width"), value: .number(30))
         node.setResponsiveProperty(.init(rawValue: "width"), value: .number(60), at: .large)
         node.setResponsiveProperty(.init(rawValue: "width"), value: .number(80), at: .extraLarge)
+        #expect(widthState.hasChanges(in: node, at: .mobile, screens: .standard))
+        #expect(widthState.hasChanges(in: node, at: .large, screens: .standard))
+        #expect(widthState.hasChanges(in: node, at: .extraLarge, screens: .standard))
         node.setProperty(.init(rawValue: "other"), value: .number(99))
         node.children = [PartNode(type: .paragraph)]
         node.anchor = "hero"
@@ -119,7 +127,7 @@ struct PartPackageTests {
             }
             checked += 1
         }
-        #expect(checked == 45, "Expected every documented control and control group's Quick example; update this count when adding a reference page.")
+        #expect(checked == 47, "Expected every documented control and control group's Quick example; update this count when adding a reference page.")
     }
 
     @Test(.enabled(if: FileManager.default.fileExists(atPath: developerDocsURL.appending(path: "index.md").path)))
@@ -128,7 +136,7 @@ struct PartPackageTests {
             .filter { $0.lastPathComponent.hasSuffix("-control-group.md") }
             .sorted { $0.lastPathComponent < $1.lastPathComponent }
         let expression = try NSRegularExpression(pattern: #"(?s)```json\s*\n(.*?)```"#)
-        #expect(pages.count == 13)
+        #expect(pages.count == 14)
         for page in pages {
             let source = try String(contentsOf: page, encoding: .utf8)
             let matches = expression.matches(in: source, range: NSRange(source.startIndex..., in: source))
@@ -2668,7 +2676,7 @@ struct PartPackageTests {
             return
         }
         let definitions = PartPackageAdapter.definition(from: package).properties
-        #expect(definitions.count == 7)
+        #expect(definitions.count == 8)
         #expect(definitions.first?.isResponsive == false)
         let posterDefinition = try #require(definitions.first {
             $0.key == PartVideoTemplateValues.posterPropertyKey(for: "film")
@@ -4720,6 +4728,26 @@ struct PartPackageTests {
     }
 
     @Test
+    func validatorAllowsQuotedTemplateExpressionsInsideRootClassAttribute() throws {
+        let template = #"""
+        <nav class="navbar {{ if contains(control.position, 'fixed-bottom') }}fixed-bottom{{ endif }} {{ if contains(control.position, 'fixed-top') }}fixed-top{{ endif }} navbar-theme {{ if control.style == 'menubar' }}navbar-expand{{ control.expand }}{{ endif }} bg-{{ control.color }} {{ part.class }}" {{ part.attributes }}></nav>
+        """#
+        let packageURL = try makePackage(manifest: validManifest, template: template)
+        defer { try? FileManager.default.removeItem(at: packageURL) }
+        let manifest = try JSONDecoder().decode(
+            PartPackageManifest.self,
+            from: Data(validManifest.utf8)
+        )
+
+        let messages = PartPackageValidator.validate(
+            manifest,
+            rootURL: packageURL.appending(path: "Resources", directoryHint: .isDirectory)
+        ).map(\.message)
+
+        #expect(messages.contains("The root class must include {{ part.class }}.") == false)
+    }
+
+    @Test
     func validatorRequiresAllPrimaryHTMLOutputInsideOneStableRoot() throws {
         let invalidTemplates = [
             "Before {{ control.title }}<section class=\"sample {{ part.class }}\" {{ part.attributes }}></section>",
@@ -6162,13 +6190,13 @@ struct PartPackageTests {
         })
         #expect(Set(builtIns.compactMap { $0.package?.manifest.identifier }).count == builtIns.count)
         #expect(PartType.image.definition.package?.manifest.identifier == PartType.image.rawValue)
-        #expect(PartType.container.definition.package?.manifest.identifier == PartType.container.rawValue)
-        #expect(PartType.container.definition.allowsChildren)
-        #expect(PartType.container.definition.properties.contains { $0.key.rawValue == "spacing.frameworkPadding" })
-        #expect(PartType.container.definition.properties.contains { $0.key.rawValue == "spacing.frameworkMargin" })
-        #expect(PartType.container.definition.properties.contains { $0.key.rawValue == "sizing.heightMode" })
-        #expect(PartType.container.definition.properties.contains { $0.key.rawValue == "layout.position" })
-        #expect(!PartType.container.definition.properties.contains { $0.key.rawValue == "minimumHeight" })
+        #expect(PartType.section.definition.package?.manifest.identifier == PartType.section.rawValue)
+        #expect(PartType.section.definition.allowsChildren)
+        #expect(PartType.section.definition.properties.contains { $0.key.rawValue == "spacing.frameworkPadding" })
+        #expect(PartType.section.definition.properties.contains { $0.key.rawValue == "spacing.frameworkMargin" })
+        #expect(PartType.section.definition.properties.contains { $0.key.rawValue == "sizing.heightMode" })
+        #expect(PartType.section.definition.properties.contains { $0.key.rawValue == "layout.position" })
+        #expect(!PartType.section.definition.properties.contains { $0.key.rawValue == "minimumHeight" })
         #expect(PartType.flex.definition.properties.contains { $0.key.rawValue == "borders.frameworkBorder.width" })
         #expect(PartType.flex.definition.properties.contains { $0.key.rawValue == "effects.opacity" })
         #expect(PartType.flex.definition.properties.contains { $0.key.rawValue == "reveal.revealEffect" })
@@ -6189,14 +6217,14 @@ struct PartPackageTests {
         let htmlDefinition = PartPackageAdapter.definition(from: html)
         #expect(htmlDefinition.properties.contains { $0.key.rawValue == "content" && !$0.isInspectorVisible })
 
-        let container = PartNode.make(.container)
+        let container = PartNode.make(.section)
         let page = Page(title: "Layout", slug: "index", parts: [container])
         let rendered = HTMLPageRenderer().render(
             page: page,
             framework: Framework.standard
         )
         #expect(rendered.contains("<section"))
-        #expect(rendered.contains("fd-container__content"))
+        #expect(rendered.contains("fd-section__content"))
     }
 
     @Test @MainActor
@@ -6397,6 +6425,50 @@ struct PartPackageTests {
         site.pages[0].parts = [paragraph]
         let underlinedHTML = HTMLPageRenderer(site: site).render(page: site.pages[0], framework: site.framework)
         #expect(underlinedHTML.contains("text-decoration-line: underline"))
+    }
+
+    @Test @MainActor
+    func headingUsesSemanticLevelAndFrameworkTypography() throws {
+        _ = PartPackageCatalog.shared
+        let definition = PartType.heading.definition
+        let properties = definition.properties
+        let level = try #require(properties.first { $0.key.rawValue == "headingLevel" })
+        let font = try #require(properties.first { $0.key.rawValue == "font" })
+        let color = try #require(properties.first { $0.key.rawValue == "textColor" })
+        let decoration = try #require(properties.first { $0.key.rawValue == "textDecoration" })
+        let sizeEnabled = try #require(properties.first { $0.key.rawValue == "sizeEnabled" })
+        let fontSize = try #require(properties.first { $0.key.rawValue == "fontSize" })
+
+        #expect(level.defaultValue == .choice("2"))
+        #expect(level.isResponsive == false)
+        if case .choice(let choices) = level.control {
+            #expect(choices.map(\.value) == ["1", "2", "3", "4", "5", "6"])
+        } else {
+            Issue.record("Heading level should use a select control")
+        }
+        guard case .frameworkFont = font.control else {
+            Issue.record("Heading should use the framework font control")
+            return
+        }
+        let heading = PartNode.make(.heading)
+        #expect(heading.propertyValue(.init(rawValue: "font")).stringValue == "heading")
+        #expect(heading.propertyValue(.init(rawValue: "font.weight")) == .number(700))
+        #expect(heading.propertyValue(.init(rawValue: "font.style")).stringValue == "normal")
+        #expect(color.defaultValue == .packageColor(.init(
+            source: FrameworkColorRole.text.rawValue,
+            customColor: "#000000",
+            opacity: 1
+        )))
+        #expect(decoration.defaultValue == .choice("none"))
+        #expect(decoration.isResponsive)
+        #expect(sizeEnabled.defaultValue == .boolean(false))
+        #expect(fontSize.defaultValue == .choice("2xl"))
+        #expect(fontSize.isResponsive)
+        #expect(definition.package?.css.contains("font-family: {{ control.font.family }}") == true)
+        #expect(definition.package?.css.contains("font-weight: {{ control.font.weight }}") == true)
+        #expect(definition.package?.css.contains("font-style: {{ control.font.style }}") == true)
+        #expect(definition.package?.css.contains("text-decoration-line: {{ control.textDecoration }}") == true)
+        #expect(definition.package?.css.contains("{{ if control.sizeEnabled }}") == true)
     }
 
     @Test

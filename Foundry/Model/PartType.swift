@@ -13,8 +13,8 @@ nonisolated struct PartType: RawRepresentable, Codable, Hashable, Identifiable, 
             return description
         }
         return switch self {
-        case .container:
-            "Groups parts inside a constrained, styled wrapper."
+        case .section:
+            "Creates a full-width page section with constrained inner content."
         case .flex:
             "Arranges child parts with CSS Flexbox."
         case .grid:
@@ -40,7 +40,7 @@ nonisolated struct PartType: RawRepresentable, Codable, Hashable, Identifiable, 
 
     init(from decoder: Decoder) throws {
         let container = try decoder.singleValueContainer()
-        rawValue = try container.decode(String.self)
+        self.init(rawValue: try container.decode(String.self))
     }
 
     func encode(to encoder: Encoder) throws {
@@ -48,14 +48,16 @@ nonisolated struct PartType: RawRepresentable, Codable, Hashable, Identifiable, 
         try container.encode(rawValue)
     }
 
-    static let container = PartType(rawValue: "foundry.layout.container")
+    static let section = PartType(rawValue: "foundry.layout.section")
     static let flex = PartType(rawValue: "foundry.layout.flexbox")
     static let grid = PartType(rawValue: "foundry.layout.grid")
     static let paragraph = PartType(rawValue: "foundry.content.paragraph")
     static let heading = PartType(rawValue: "foundry.content.heading")
     static let button = PartType(rawValue: "foundry.content.button")
     static let image = PartType(rawValue: "foundry.media.image")
+    static let svg = PartType(rawValue: "foundry.media.svg")
     static let video = PartType(rawValue: "foundry.media.video")
+    static let lightbox = PartType(rawValue: "foundry.content.lightbox")
     static let divider = PartType(rawValue: "foundry.layout.divider")
 
     static var allCases: [PartType] { PartRegistry.availableTypes }

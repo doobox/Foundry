@@ -14,12 +14,12 @@
     {{ control.background.css }}
     {{ control.layout.css }}
 }
-:instance:hover { {{ control.background.hover.css }} }
+{{ control.background.hover.selector }} { {{ control.background.hover.css }} }
 
 /* The content box behaves like an ordinary block: parts stack, each keeping
    its own width — text fills, a button stays its size. The rail stays centred;
    children own their own margins and padding. */
-:instance > .fd-container__content {
+:instance > .fd-section__content {
     box-sizing: border-box;
     min-width: 0;
     min-height: 0;
@@ -48,12 +48,12 @@
 
 /* Scope these low-priority defaults to our own drop zone. Explicit child
    sizing must win, including custom widths and minimum heights. */
-:where(:instance > .fd-container__content > *) { min-width: 0; min-height: 0; max-width: 100%; }
+:where(:instance > .fd-section__content > *) { min-width: 0; min-height: 0; }
 
 /* Shared state-change timing; never applied to nested parts implicitly. */
 :instance { {{ control.transitions.css }} }
 
 :instance { {{ control.filters.css }} }
-:instance:hover { {{ control.filters.hover.css }} }
-:instance { {{ control.transforms.css }} }
-:instance:hover { {{ control.transforms.hover.css }} }
+{{ control.filters.hover.selector }} { {{ control.filters.hover.css }} }
+:instance > .fd-transform-content { {{ control.transforms.css }} {{ control.transitions.css }} }
+{{ control.transforms.hover.selector }} > .fd-transform-content { {{ control.transforms.hover.css }} }

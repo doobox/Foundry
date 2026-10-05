@@ -25,6 +25,55 @@
       ]
     },
     {
+      "id": "hoverTrigger",
+      "label": "Hover Trigger",
+      "type": "select",
+      "responsive": false,
+      "defaults": {
+        "base": "self"
+      },
+      "options": [
+        {
+          "title": "This Part",
+          "value": "self"
+        },
+        {
+          "title": "Parent Part",
+          "value": "parent"
+        },
+        {
+          "title": "Custom ID",
+          "value": "custom"
+        }
+      ],
+      "visibleWhen": {
+        "id": "filtersMode",
+        "value": "hover"
+      }
+    },
+    {
+      "id": "hoverTriggerID",
+      "label": "Custom ID",
+      "type": "text",
+      "responsive": false,
+      "defaults": {
+        "base": ""
+      },
+      "visibleWhen": {
+        "all": [
+          {
+            "id": "filtersMode",
+            "value": "hover"
+          },
+          {
+            "id": "hoverTrigger",
+            "value": "custom"
+          }
+        ]
+      },
+      "tooltip": "The HTML ID of an ancestor part, without the #."
+    },
+    {
       "id": "filtersState",
       "label": "State",
       "type": "select",
@@ -46,6 +95,39 @@
       "visibleWhen": {
         "id": "filtersMode",
         "value": "hover"
+      }
+    },
+    {
+      "id": "filtersOpacity",
+      "label": "Opacity",
+      "type": "number",
+      "defaults": {
+        "base": 100
+      },
+      "minimum": 0,
+      "maximum": 100,
+      "step": 1,
+      "units": "%",
+      "responsive": true,
+      "visibleWhen": {
+        "any": [
+          {
+            "id": "filtersMode",
+            "value": "static"
+          },
+          {
+            "all": [
+              {
+                "id": "filtersMode",
+                "value": "hover"
+              },
+              {
+                "id": "filtersState",
+                "value": "normal"
+              }
+            ]
+          }
+        ]
       }
     },
     {
@@ -375,6 +457,31 @@
         ]
       },
       "tooltip": "Uses the framework shadow's outer layers. Inset and spread do not apply to CSS drop shadows."
+    },
+    {
+      "id": "filtersHoverOpacity",
+      "label": "Opacity",
+      "type": "number",
+      "defaults": {
+        "base": 100
+      },
+      "minimum": 0,
+      "maximum": 100,
+      "step": 1,
+      "units": "%",
+      "responsive": true,
+      "visibleWhen": {
+        "all": [
+          {
+            "id": "filtersMode",
+            "value": "hover"
+          },
+          {
+            "id": "filtersState",
+            "value": "hover"
+          }
+        ]
+      }
     },
     {
       "id": "filtersHoverBlur",

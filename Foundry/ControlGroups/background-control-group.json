@@ -25,6 +25,55 @@
       "type": "select"
     },
     {
+      "id": "hoverTrigger",
+      "label": "Hover Trigger",
+      "type": "select",
+      "responsive": false,
+      "defaults": {
+        "base": "self"
+      },
+      "options": [
+        {
+          "title": "This Part",
+          "value": "self"
+        },
+        {
+          "title": "Parent Part",
+          "value": "parent"
+        },
+        {
+          "title": "Custom ID",
+          "value": "custom"
+        }
+      ],
+      "visibleWhen": {
+        "id": "backgroundMode",
+        "value": "hover"
+      }
+    },
+    {
+      "id": "hoverTriggerID",
+      "label": "Custom ID",
+      "type": "text",
+      "responsive": false,
+      "defaults": {
+        "base": ""
+      },
+      "visibleWhen": {
+        "all": [
+          {
+            "id": "backgroundMode",
+            "value": "hover"
+          },
+          {
+            "id": "hoverTrigger",
+            "value": "custom"
+          }
+        ]
+      },
+      "tooltip": "The HTML ID of an ancestor part, without the #."
+    },
+    {
       "defaults": {
         "base": "normal"
       },

@@ -132,6 +132,7 @@ nonisolated struct PartHTMLPrimitive: Codable, Equatable, Sendable {
 nonisolated struct PartImagePrimitive: Codable, Equatable, Sendable {
     let key: String
     let isRepeated: Bool
+    var isSVG: Bool = false
 }
 
 nonisolated struct PartVideoPrimitive: Codable, Equatable, Sendable {
@@ -182,7 +183,7 @@ nonisolated enum PartTemplateRenderer {
     private static let keyedImageExpression = try! NSRegularExpression(pattern: #"\{\{\s*__foundry_image\s+key=\"([^\"]+)\"(?:\s+repeated=\"(true)\"\s+path=\"([0-9,]+)\")?\s*\}\}"#)
     private static let keyedVideoExpression = try! NSRegularExpression(pattern: #"\{\{\s*__foundry_video\s+key=\"([^\"]+)\"(?:\s+repeated=\"(true)\"\s+path=\"([0-9,]+)\")?\s*\}\}"#)
     private static let controlledVideoElementExpression = try! NSRegularExpression(
-        pattern: #"<video\b([^>]*?)\bsrc\s*=\s*([\"'])\{\{\s*control\.([A-Za-z][A-Za-z0-9_-]*)(\.source|\.href)?\s*\}\}\2([^>]*)>(.*?)</video\s*>"#,
+        pattern: #"<video\b([^>]*?)\bsrc\s*=\s*([\"'])\{\{\s*control\.([A-Za-z][A-Za-z0-9_-]*(?:\.[A-Za-z][A-Za-z0-9_-]*)*?)(\.source|\.href)?\s*\}\}\2([^>]*)>(.*?)</video\s*>"#,
         options: [.caseInsensitive, .dotMatchesLineSeparators]
     )
     private static let controlledImageElementExpression = try! NSRegularExpression(
@@ -253,8 +254,11 @@ nonisolated enum PartTemplateRenderer {
 
     static func imagePrimitives(in template: String) -> [PartImagePrimitive] {
         (try? PartTemplateLoop.declarations(in: template))?.compactMap {
-            guard case .image = $0.kind else { return nil }
-            return .init(key: $0.key, isRepeated: $0.isRepeated)
+            switch $0.kind {
+            case .image: return .init(key: $0.key, isRepeated: $0.isRepeated)
+            case .svg: return .init(key: $0.key, isRepeated: $0.isRepeated, isSVG: true)
+            default: return nil
+            }
         } ?? []
     }
 
@@ -266,9 +270,14 @@ nonisolated enum PartTemplateRenderer {
     }
 
     static func scopedCSS(_ css: String, packageIdentifier: String, instanceID: UUID) -> String {
-        css.replacingOccurrences(
+        let instanceSelector = "[data-foundry-id=\"\(instanceID.uuidString)\"]"
+        let parentSelector = "[data-foundry-part]:has(\(instanceSelector)):not(:has([data-foundry-part] \(instanceSelector)))"
+        return css.replacingOccurrences(
+            of: ":parent",
+            with: parentSelector
+        ).replacingOccurrences(
             of: ":instance",
-            with: "[data-foundry-id=\"\(instanceID.uuidString)\"]"
+            with: instanceSelector
         ).replacingOccurrences(
             of: ":host",
             with: ":is([data-foundry-package=\"\(escapeAttribute(packageIdentifier))\"], .\(packageClass(for: packageIdentifier)))"
@@ -423,6 +432,10 @@ nonisolated enum PartTemplateRenderer {
                   let keyRange = Range(match.range(at: 1), in: result) else { continue }
             let key = String(result[keyRange])
             let path = indexPath(match, group: 3, in: result)
+            if context.allProperties["__foundry_svg." + key] == .boolean(true) {
+                result.replaceSubrange(range, with: stringValue(value(context.allProperties[key], at: path)) ?? PartSVGRenderer.fragment(markup: "", key: key, path: path, canvas: context.enablesEditorMarkup))
+                continue
+            }
             result.replaceSubrange(
                 range,
                 with: renderedImage(
@@ -482,6 +495,30 @@ nonisolated enum PartTemplateRenderer {
             let after = String(result[afterRange])
             let inner = String(result[innerRange])
             let isSelected = !(stringValue(context.allProperties[key]) ?? "").isEmpty
+            if let id = YouTubeVideo.id(from: stringValue(context.allProperties[key]) ?? "") {
+                let attributes = (before + after)
+                    .replacingOccurrences(of: "poster=\"{{ control.\(key).poster }}\"", with: "")
+                    .replacingOccurrences(of: "{{ control.\(key).attributes }}", with: "")
+                let media: String
+                let posterFirst = stringValue(context.allProperties[key + ".posterFirst"]) != "false"
+                let customPoster = stringValue(context.allProperties[key + ".customPoster"]) == "true"
+                let poster = stringValue(context.allProperties[key + ".poster"]) ?? YouTubeVideo.poster(for: id)
+                let posterSource = context.assetPaths[poster] ?? poster
+                let thumbnailAttribute = customPoster ? "" : " data-foundry-youtube-thumbnail=\"\(id)\""
+                let image = "<img\(thumbnailAttribute) src=\"\(escapeAttribute(posterSource))\" alt=\"\" style=\"position:absolute;inset:0;display:block;width:100%;height:100%;object-fit:cover\">"
+                let playIcon = "<span aria-hidden=\"true\" style=\"position:absolute;inset:0;display:grid;place-items:center;pointer-events:none\"><span style=\"display:grid;place-items:center;width:72px;height:72px;border-radius:50%;background:rgba(0,0,0,.7);color:white;font:32px system-ui\">&#9654;</span></span>"
+                let source = YouTubeVideo.embed(for: id, controls: stringValue(context.allProperties[key + ".controls"]) != "false", loops: stringValue(context.allProperties[key + ".loop"]) == "true", start: Double(stringValue(context.allProperties[key + ".startAt"]) ?? "0") ?? 0)
+                if context.enablesEditorMarkup {
+                    media = image + (posterFirst ? playIcon : "")
+                } else if posterFirst {
+                    media = "<button type=\"button\" aria-label=\"Play YouTube video\" data-foundry-youtube-play=\"\(escapeAttribute(source))\" style=\"position:absolute;inset:0;display:block;width:100%;height:100%;padding:0;border:0;background:#161616;cursor:pointer\">\(image)\(playIcon)</button><script>\(YouTubePosterPlayback.javaScript)\n\(CanvasYouTubeThumbnails.javaScript)</script><noscript><a href=\"https://www.youtube.com/watch?v=\(id)\">Watch on YouTube</a></noscript>"
+                } else {
+                    media = "<iframe src=\"\(escapeAttribute(source))\" title=\"YouTube video\" loading=\"lazy\" referrerpolicy=\"strict-origin-when-cross-origin\" allow=\"encrypted-media; picture-in-picture; fullscreen\" allowfullscreen style=\"display:block;width:100%;height:100%;border:0;min-height:200px\"></iframe>"
+                }
+                let editor = context.enablesEditorMarkup ? " data-foundry-video-drop-zone data-foundry-video-property=\"\(escapeAttribute(key))\"" : ""
+                result.replaceSubrange(wholeRange, with: "<div\(attributes)\(editor)><div style=\"position:relative;overflow:hidden;aspect-ratio:16/9;min-height:200px;background:#161616\">\(media)</div></div>")
+                continue
+            }
             if !isSelected {
                 if context.enablesEditorMarkup {
                     let attributes = addingCSSClass("foundry-video-drop-zone", to: before + after)
@@ -495,6 +532,12 @@ nonisolated enum PartTemplateRenderer {
                 continue
             }
             if context.enablesEditorMarkup {
+                if RemoteVideoImport.webURL(stringValue(context.allProperties[key]) ?? "") != nil,
+                   (context.allProperties[key + ".poster"]?.stringValue ?? "").isEmpty {
+                    let attributes = addingCSSClass("foundry-video-drop-zone", to: before + after)
+                    result.replaceSubrange(wholeRange, with: "<span\(attributes) data-foundry-video-drop-zone data-foundry-video-property=\"\(escapeAttribute(key))\"><span class=\"foundry-drop-label\">Linked video</span></span>")
+                    continue
+                }
                 // No src on the canvas: the author's poster attribute stands in.
                 result.replaceSubrange(
                     wholeRange,
@@ -647,6 +690,12 @@ nonisolated enum PartTemplateRenderer {
             : ""
         if resolvedSource.isEmpty && context.enablesEditorMarkup {
             return "<span class=\"foundry-video-drop-zone\" data-foundry-video-drop-zone\(propertyAttribute)\(primitiveAttribute)\(pathAttribute)><span class=\"foundry-drop-label\">\(FoundryDropZoneGlyphs.video)</span></span>"
+        }
+        if let id = YouTubeVideo.id(from: source) {
+            if context.enablesEditorMarkup {
+                return "<span class=\"fd-video\" data-foundry-video-drop-zone\(propertyAttribute)\(primitiveAttribute)\(pathAttribute) style=\"display:block;position:relative;overflow:hidden;aspect-ratio:16/9;background:#161616\"><img data-foundry-youtube-thumbnail=\"\(id)\" src=\"\(YouTubeVideo.poster(for: id))\" alt=\"YouTube video thumbnail\" style=\"position:absolute;inset:0;width:100%;height:100%;object-fit:cover\"></span>"
+            }
+            return "<iframe class=\"fd-video\" src=\"\(escapeAttribute(YouTubeVideo.embed(for: id, controls: true, loops: false, start: 0)))\" title=\"YouTube video\" loading=\"lazy\" referrerpolicy=\"strict-origin-when-cross-origin\" allowfullscreen style=\"width:100%;aspect-ratio:16/9;min-height:200px;border:0\"></iframe>"
         }
         if context.enablesEditorMarkup {
             // On the canvas the movie itself is never loaded; the element shows

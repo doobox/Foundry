@@ -1,30 +1,26 @@
 :instance {
     box-sizing: border-box;
     min-width: 0;
-    display: grid;
-    grid-template-columns: {{ if control.stacked }}minmax(0, 1fr){{ elseif control.reversed }}{{ if control.columnLayout == "50-50" }}repeat(2, minmax(0, 1fr)){{ elseif control.columnLayout == "33-67" }}minmax(0, 2fr) minmax(0, 1fr){{ elseif control.columnLayout == "67-33" }}minmax(0, 1fr) minmax(0, 2fr){{ elseif control.columnLayout == "25-75" }}minmax(0, 3fr) minmax(0, 1fr){{ elseif control.columnLayout == "75-25" }}minmax(0, 1fr) minmax(0, 3fr){{ elseif control.columnLayout == "thirds" }}repeat(3, minmax(0, 1fr)){{ elseif control.columnLayout == "25-50-25" }}minmax(0, 1fr) minmax(0, 2fr) minmax(0, 1fr){{ elseif control.columnLayout == "quarters" }}repeat(4, minmax(0, 1fr)){{ endif }}{{ else }}{{ if control.columnLayout == "50-50" }}repeat(2, minmax(0, 1fr)){{ elseif control.columnLayout == "33-67" }}minmax(0, 1fr) minmax(0, 2fr){{ elseif control.columnLayout == "67-33" }}minmax(0, 2fr) minmax(0, 1fr){{ elseif control.columnLayout == "25-75" }}minmax(0, 1fr) minmax(0, 3fr){{ elseif control.columnLayout == "75-25" }}minmax(0, 3fr) minmax(0, 1fr){{ elseif control.columnLayout == "thirds" }}repeat(3, minmax(0, 1fr)){{ elseif control.columnLayout == "25-50-25" }}minmax(0, 1fr) minmax(0, 2fr) minmax(0, 1fr){{ elseif control.columnLayout == "quarters" }}repeat(4, minmax(0, 1fr)){{ endif }}{{ endif }};
-    gap: {{ control.gap }};
-    align-items: {{ control.align }};
     {{ control.spacing.css }}
     {{ control.background.css }}
 }
-:instance:hover { {{ control.background.hover.css }} }
-:instance > .foundry-columns__column {
+{{ control.background.hover.selector }} { {{ control.background.hover.css }} }
+:instance > .fd-transform-content > .foundry-columns__column {
     box-sizing: border-box;
     min-width: 0;
     display: flex;
     flex-direction: column;
 }
-:instance > .foundry-columns__column > * { min-width: 0; }
+:instance > .fd-transform-content > .foundry-columns__column > * { min-width: 0; }
 /* Columns the layout does not use keep their content, hidden. */
-{{ if control.columnLayout == "50-50" || control.columnLayout == "33-67" || control.columnLayout == "67-33" || control.columnLayout == "25-75" || control.columnLayout == "75-25" }}:instance > .foundry-columns__column:nth-child(n+3) { display: none; }{{ endif }}
-{{ if control.columnLayout == "thirds" || control.columnLayout == "25-50-25" }}:instance > .foundry-columns__column:nth-child(n+4) { display: none; }{{ endif }}
+{{ if control.columnLayout == "50-50" || control.columnLayout == "33-67" || control.columnLayout == "67-33" || control.columnLayout == "25-75" || control.columnLayout == "75-25" }}:instance > .fd-transform-content > .foundry-columns__column:nth-child(n+3) { display: none; }{{ endif }}
+{{ if control.columnLayout == "thirds" || control.columnLayout == "25-50-25" }}:instance > .fd-transform-content > .foundry-columns__column:nth-child(n+4) { display: none; }{{ endif }}
 /* Reverse Order flips the visual order; widths follow via the reversed tracks.
    Always written, so a wider breakpoint can switch it back off. */
-:instance > .foundry-columns__column:nth-child(1) { order: {{ if control.reversed }}4{{ else }}0{{ endif }}; }
-:instance > .foundry-columns__column:nth-child(2) { order: {{ if control.reversed }}3{{ else }}0{{ endif }}; }
-:instance > .foundry-columns__column:nth-child(3) { order: {{ if control.reversed }}2{{ else }}0{{ endif }}; }
-:instance > .foundry-columns__column:nth-child(4) { order: {{ if control.reversed }}1{{ else }}0{{ endif }}; }
+:instance > .fd-transform-content > .foundry-columns__column:nth-child(1) { order: {{ if control.reversed }}4{{ else }}0{{ endif }}; }
+:instance > .fd-transform-content > .foundry-columns__column:nth-child(2) { order: {{ if control.reversed }}3{{ else }}0{{ endif }}; }
+:instance > .fd-transform-content > .foundry-columns__column:nth-child(3) { order: {{ if control.reversed }}2{{ else }}0{{ endif }}; }
+:instance > .fd-transform-content > .foundry-columns__column:nth-child(4) { order: {{ if control.reversed }}1{{ else }}0{{ endif }}; }
 
 /* Control groups: declared after the part's own rules so they take precedence. */
 :instance {
@@ -38,6 +34,17 @@
 :instance { {{ control.transitions.css }} }
 
 :instance { {{ control.filters.css }} }
-:instance:hover { {{ control.filters.hover.css }} }
-:instance { {{ control.transforms.css }} }
-:instance:hover { {{ control.transforms.hover.css }} }
+{{ control.filters.hover.selector }} { {{ control.filters.hover.css }} }
+:instance > .fd-transform-content { {{ control.transforms.css }} {{ control.transitions.css }} }
+{{ control.transforms.hover.selector }} > .fd-transform-content { {{ control.transforms.hover.css }} }
+
+/* The root remains the hover host; this inner box lays out the children. */
+:instance { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); }
+:instance > .fd-transform-content {
+    min-width: 0;
+    min-height: 0;
+    display: grid;
+    grid-template-columns: {{ if control.stacked }}minmax(0, 1fr){{ elseif control.reversed }}{{ if control.columnLayout == "50-50" }}repeat(2, minmax(0, 1fr)){{ elseif control.columnLayout == "33-67" }}minmax(0, 2fr) minmax(0, 1fr){{ elseif control.columnLayout == "67-33" }}minmax(0, 1fr) minmax(0, 2fr){{ elseif control.columnLayout == "25-75" }}minmax(0, 3fr) minmax(0, 1fr){{ elseif control.columnLayout == "75-25" }}minmax(0, 1fr) minmax(0, 3fr){{ elseif control.columnLayout == "thirds" }}repeat(3, minmax(0, 1fr)){{ elseif control.columnLayout == "25-50-25" }}minmax(0, 1fr) minmax(0, 2fr) minmax(0, 1fr){{ elseif control.columnLayout == "quarters" }}repeat(4, minmax(0, 1fr)){{ endif }}{{ else }}{{ if control.columnLayout == "50-50" }}repeat(2, minmax(0, 1fr)){{ elseif control.columnLayout == "33-67" }}minmax(0, 1fr) minmax(0, 2fr){{ elseif control.columnLayout == "67-33" }}minmax(0, 2fr) minmax(0, 1fr){{ elseif control.columnLayout == "25-75" }}minmax(0, 1fr) minmax(0, 3fr){{ elseif control.columnLayout == "75-25" }}minmax(0, 3fr) minmax(0, 1fr){{ elseif control.columnLayout == "thirds" }}repeat(3, minmax(0, 1fr)){{ elseif control.columnLayout == "25-50-25" }}minmax(0, 1fr) minmax(0, 2fr) minmax(0, 1fr){{ elseif control.columnLayout == "quarters" }}repeat(4, minmax(0, 1fr)){{ endif }}{{ endif }};
+    gap: {{ control.gap }};
+    align-items: {{ control.align }};
+}

@@ -1058,6 +1058,7 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
             }
         }
         if let package = partDefinition.package {
+            PartSVGRenderer.insert(node: node, package: package, assets: assets, canvas: false, into: &values)
             for property in manifestProperties where property.control.type == .image {
                 let key = PartProperty.Key(rawValue: property.id)
                 guard case .url(let source) = node.propertyValue(key) else { continue }

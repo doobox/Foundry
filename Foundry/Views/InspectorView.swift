@@ -30,6 +30,7 @@ struct InspectorView: View {
     let reusableDefinition: ReusablePartDefinition?
     let isGlobalOverride: Bool
     let setGlobalOverride: (Bool) -> Void
+    let selectInsertedPart: (UUID) -> Void
     let breakpoint: ResponsiveBreakpoint
     let assetUsageCount: (UUID) -> Int
     let renameAsset: (UUID, String) -> Void
@@ -97,6 +98,7 @@ struct InspectorView: View {
                     reusableDefinition: reusableDefinition,
                     isGlobalOverride: isGlobalOverride,
                     setGlobalOverride: setGlobalOverride,
+                    selectInsertedPart: selectInsertedPart,
                     breakpoint: breakpoint,
                     importMedia: importMedia,
                     editsSharedDefinition: $editsSharedDefinition,
@@ -1079,6 +1081,7 @@ private struct PartInspector: View {
     let reusableDefinition: ReusablePartDefinition?
     let isGlobalOverride: Bool
     let setGlobalOverride: (Bool) -> Void
+    let selectInsertedPart: (UUID) -> Void
     let breakpoint: ResponsiveBreakpoint
     let importMedia: (URL, UTType) -> ProjectAsset?
     @Binding var editsSharedDefinition: Bool
@@ -1185,6 +1188,7 @@ private struct PartInspector: View {
                         editsSharedDefinition: reusableDefinition != nil && !isGlobalOverride,
                         breakpoint: breakpoint,
                         importMedia: importMedia,
+                        selectInsertedPart: selectInsertedPart,
                         isExpanded: Binding(
                             get: { expandedGroups.contains(group) },
                             set: { setExpanded($0, group: group) }
@@ -1516,6 +1520,7 @@ private struct PartSlotInspectorCard: View {
     let part: PartNode
     let pageID: UUID
     let editor: ProjectEditor
+    let selectInsertedPart: (UUID) -> Void
 
     private var availableTypes: [PartType] {
         PartRegistry.availableTypes
@@ -1557,11 +1562,12 @@ private struct PartSlotInspectorCard: View {
     private func addChild(_ type: PartType) {
         guard availableTypes.contains(type),
               slot.maximum.map({ children.count < $0 }) ?? true else { return }
-        _ = editor.insertPart(
+        guard let insertedID = editor.insertPart(
             type: type,
             on: pageID,
             placement: .insideSlot(part.id, slot.id)
-        )
+        ) else { return }
+        selectInsertedPart(insertedID)
     }
 }
 
@@ -1892,6 +1898,7 @@ private struct PartInspectorGroup: View {
     let editsSharedDefinition: Bool
     let breakpoint: ResponsiveBreakpoint
     let importMedia: (URL, UTType) -> ProjectAsset?
+    let selectInsertedPart: (UUID) -> Void
     @Binding var isExpanded: Bool
     @Binding var usesAccordion: Bool
     let openAll: () -> Void
@@ -1954,7 +1961,8 @@ private struct PartInspectorGroup: View {
                                     slot: slot,
                                     part: part,
                                     pageID: pageID,
-                                    editor: editor
+                                    editor: editor,
+                                    selectInsertedPart: selectInsertedPart
                                 )
                             }
                         }
@@ -2107,6 +2115,7 @@ private struct PartInspectorPreviewHarness: View {
                     reusableDefinition: nil,
                     isGlobalOverride: false,
                     setGlobalOverride: { _ in },
+                    selectInsertedPart: { _ in },
                     breakpoint: .large,
                     assetUsageCount: { _ in 0 },
                     renameAsset: { _, _ in },

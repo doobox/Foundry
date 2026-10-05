@@ -282,6 +282,7 @@ nonisolated enum PartPropertyControl: Sendable {
     case spacer(height: Double)
     case toggle
     case image
+    case svg
     case video
 
     var isFrameworkFontSize: Bool {
@@ -294,7 +295,7 @@ nonisolated enum PartPropertyControl: Sendable {
 
     var isMedia: Bool {
         switch self {
-        case .image, .video: true
+        case .image, .svg, .video: true
         default: false
         }
     }

@@ -35,7 +35,7 @@
     {{ control.layout.css }}
     {{ if control.spacing.spacingEnabled }}padding: {{ control.spacing.frameworkPadding }}; margin-top: {{ control.spacing.frameworkMargin.top }}; margin-bottom: {{ control.spacing.frameworkMargin.bottom }};{{ endif }}
 }
-:instance:hover { {{ control.background.hover.css }} }
+{{ control.background.hover.selector }} { {{ control.background.hover.css }} }
 
 
 /* Corner radius from Borders clips the media inside. */
@@ -45,6 +45,6 @@
 :instance { {{ control.transitions.css }} }
 
 :instance { {{ control.filters.css }} }
-:instance:hover { {{ control.filters.hover.css }} }
-:instance { {{ control.transforms.css }} }
-:instance:hover { {{ control.transforms.hover.css }} }
+{{ control.filters.hover.selector }} { {{ control.filters.hover.css }} }
+:instance > .fd-transform-content { {{ control.transforms.css }} {{ control.transitions.css }} }
+{{ control.transforms.hover.selector }} > .fd-transform-content { {{ control.transforms.hover.css }} }

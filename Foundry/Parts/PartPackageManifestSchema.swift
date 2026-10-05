@@ -991,11 +991,11 @@ nonisolated enum PartPackageManifestSchema {
                 message: "A video control does not support responsive."
             ))
         }
-        if type != .image, property["alt"] != nil {
+        if type != .image && type != .svg, property["alt"] != nil {
             diagnostics.append(.init(
                 severity: .error,
                 location: "\(location):alt",
-                message: "alt is supported only by image controls."
+                message: "alt is supported only by image and svg controls."
             ))
         }
         if type != .image, property["focalPoint"] != nil {
@@ -1017,11 +1017,11 @@ nonisolated enum PartPackageManifestSchema {
         if property["count"] != nil && count == nil {
             appendTypeError(key: "count", expected: "an integer", location: location, into: &diagnostics)
         }
-        if type == .image, property["count"] != nil {
+        if (type == .image || type == .svg), property["count"] != nil {
             diagnostics.append(.init(
                 severity: .error,
                 location: "\(location).count",
-                message: "An image control represents one named image; remove count and declare each image property explicitly."
+                message: "A media control represents one named image or SVG; remove count and declare each property explicitly."
             ))
         }
         if type == .frameworkShadow, property["count"] != nil {
@@ -1104,7 +1104,7 @@ nonisolated enum PartPackageManifestSchema {
             optionalPartValue(key, in: property, location: location, into: &diagnostics)
         }
 
-        let permitsMissingDefault = type == .divider || type == .spacer || type == .image || type == .video || type == .note || type == .math
+        let permitsMissingDefault = type == .divider || type == .spacer || type == .image || type == .svg || type == .video || type == .note || type == .math
         if !permitsMissingDefault && property["default"] == nil {
             appendMissing("default", expected: "value", location: location, into: &diagnostics)
         }
@@ -1143,7 +1143,7 @@ nonisolated enum PartPackageManifestSchema {
                 message: "selectionMode requires count."
             ))
         }
-        if type == .image, let value = property["default"], !(value is String) {
+        if type == .image || type == .svg, let value = property["default"], !(value is String) {
             appendTypeError(key: "default", expected: "an asset path string", location: location, into: &diagnostics)
         }
     }

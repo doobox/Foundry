@@ -2,11 +2,11 @@ import Foundation
 import Testing
 @testable import Foundry
 
-struct ContainerContentLayoutTests {
+struct SectionContentLayoutTests {
     private func package() throws -> LoadedPartPackage {
         let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
         return try PartPackageLoader.load(from: root.appending(path:
-            "Foundry/Resources/BuiltInParts.bundle/Contents/Resources/BuiltInParts.foundrypack/Parts/Container"))
+            "Foundry/Resources/BuiltInParts.bundle/Contents/Resources/BuiltInParts.foundrypack/Parts/Section"))
     }
 
     private func innerDeclarations(width: String) throws -> [String: String] {
@@ -22,7 +22,7 @@ struct ContainerContentLayoutTests {
             instanceID: UUID(), packageIdentifier: package.manifest.identifier,
             properties: values, slots: [:]
         ))
-        let expression = try NSRegularExpression(pattern: #"(?s):instance > \.fd-container__content \{(.*?)\}"#)
+        let expression = try NSRegularExpression(pattern: #"(?s):instance > \.fd-section__content \{(.*?)\}"#)
         let match = try #require(expression.firstMatch(in: css, range: NSRange(css.startIndex..., in: css)))
         let range = try #require(Range(match.range(at: 1), in: css))
         let body = String(css[range]).replacingOccurrences(of: #"(?s)/\*.*?\*/"#, with: "", options: .regularExpression)
@@ -40,8 +40,8 @@ struct ContainerContentLayoutTests {
     @Test
     func contentControlsHaveOneSectionAndExplicitAxisLabels() throws {
         let manifest = try package().manifest
-        let controls = manifest.resolvedProperties.filter { $0.group == "Container" }
-        #expect(manifest.controlSections.first?.name == "Container")
+        let controls = manifest.resolvedProperties.filter { $0.group == "Section" }
+        #expect(manifest.controlSections.first?.name == "Section")
         #expect(manifest.controlSections.contains { $0.name == "Content Spacing" } == false)
         #expect(["contentWidth", "contentWidthSpacing", "contentAlignment", "contentGap"].allSatisfy { id in
             controls.contains { $0.id == id }
@@ -63,7 +63,7 @@ struct ContainerContentLayoutTests {
     }
 
     @Test(arguments: ["breakpoint", "custom", "full", "auto"])
-    func innerContainerStacksAndPositionsItsContent(_ width: String) throws {
+    func innerSectionStacksAndPositionsItsContent(_ width: String) throws {
         let css = try innerDeclarations(width: width)
         #expect(css["display"] == "flex")
         #expect(css["flex-direction"] == "column")
@@ -86,10 +86,10 @@ struct ContainerContentLayoutTests {
     @Test @MainActor
     func contentBoxIsCentredWithoutASecondSpacingControl() async throws {
         await PartPackageCatalog.shared.waitUntilLoaded()
-        let part = PartNode.make(.container)
-        let site = Site(name: "Container", pages: [Page(title: "Home", slug: "index", parts: [part])])
+        let part = PartNode.make(.section)
+        let site = Site(name: "Section", pages: [Page(title: "Home", slug: "index", parts: [part])])
         let html = HTMLPageRenderer(site: site).render(page: site.pages[0], framework: site.framework)
-        let expression = try NSRegularExpression(pattern: #"(?s)\.fd-container__content \{(.*?)\}"#)
+        let expression = try NSRegularExpression(pattern: #"(?s)\.fd-section__content \{(.*?)\}"#)
         let match = try #require(expression.firstMatch(in: html, range: NSRange(html.startIndex..., in: html)))
         let body = String(html[try #require(Range(match.range(at: 1), in: html))])
         #expect(body.contains("justify-self: center;"), "\(body)")

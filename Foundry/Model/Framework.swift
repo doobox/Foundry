@@ -800,17 +800,24 @@ nonisolated extension Framework {
     }
 
     var fontFamilyChoices: [PartPropertyChoice] {
-        [
-            .init(value: FrameworkFontRole.body.rawValue, label: FrameworkFontRole.body.title),
-            .init(value: FrameworkFontRole.heading.rawValue, label: FrameworkFontRole.heading.title),
-            .init(value: FrameworkFontRole.monospaced.rawValue, label: FrameworkFontRole.monospaced.title)
-        ] + typography.customFonts.enumerated().map { index, font in
-            .init(
-                value: "custom:\(font.id.uuidString.lowercased())",
+        let custom: [PartPropertyChoice] = typography.customFonts.map { font in
+            PartPropertyChoice(
+                value: overriddenFontRole(named: font.name)?.rawValue
+                    ?? "custom:\(font.id.uuidString.lowercased())",
                 label: font.name,
-                separatorBefore: index == 0
+                separatorBefore: false
             )
         }
+        let overriddenRoles = Set(custom.compactMap { FrameworkFontRole(rawValue: $0.value) })
+        let availableRoles = FrameworkFontRole.allCases.filter { !overriddenRoles.contains($0) }
+        let predefined = availableRoles.enumerated().map { index, role in
+            PartPropertyChoice(
+                value: role.rawValue,
+                label: role.title,
+                separatorBefore: index == 0 && !custom.isEmpty
+            )
+        }
+        return custom + predefined
     }
 
     var fontSizeChoices: [PartPropertyChoice] {
@@ -948,19 +955,31 @@ nonisolated extension Framework {
     }
 
     func fontCSSVariable(for reference: String) -> String {
+        if let custom = typography.customFonts.first(where: {
+            overriddenFontRole(named: $0.name)?.rawValue == reference
+        }) {
+            return "var(--foundry-font-custom-\(custom.id.uuidString.lowercased()))"
+        }
         switch reference {
         case FrameworkFontRole.heading.rawValue:
-            "var(--foundry-font-heading)"
+            return "var(--foundry-font-heading)"
         case FrameworkFontRole.monospaced.rawValue:
-            "var(--foundry-font-monospace)"
+            return "var(--foundry-font-monospace)"
         default:
             if reference.hasPrefix("custom:"),
                let id = UUID(uuidString: String(reference.dropFirst("custom:".count))),
                typography.customFonts.contains(where: { $0.id == id }) {
-                "var(--foundry-font-custom-\(id.uuidString.lowercased()))"
+                return "var(--foundry-font-custom-\(id.uuidString.lowercased()))"
             } else {
-                "var(--foundry-font-body)"
+                return "var(--foundry-font-body)"
             }
+        }
+    }
+
+    private func overriddenFontRole(named name: String) -> FrameworkFontRole? {
+        let normalized = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        return FrameworkFontRole.allCases.first {
+            $0.title.caseInsensitiveCompare(normalized) == .orderedSame
         }
     }
 

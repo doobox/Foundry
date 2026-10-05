@@ -235,7 +235,7 @@
       ]
     },
     {
-      "section": "Effects",
+      "section": "Shadow",
       "systemImage": "sparkles",
       "controls": [
         {
@@ -301,6 +301,16 @@
         {
           "type": "linkOverlay",
           "id": "link"
+        }
+      ]
+    },
+    {
+      "section": "Lightbox",
+      "systemImage": "rectangle.on.rectangle",
+      "controls": [
+        {
+          "type": "lightbox",
+          "id": "lightbox"
         }
       ]
     },

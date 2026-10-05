@@ -1,0 +1,246 @@
+{
+  "assets": [],
+  "author": "Foundry",
+  "description": "Displays and styles an inline SVG.",
+  "group": "Media",
+  "icon": {
+    "symbol": "tent.2",
+    "tint": "red"
+  },
+  "id": "foundry.media.svg",
+  "inspector": [
+    {
+      "section": "SVG",
+      "systemImage": "tent.2",
+      "controls": [
+        {
+          "id": "source",
+          "label": "SVG",
+          "type": "svg"
+        },
+        {
+          "id": "fillEnabled",
+          "label": "Override fill",
+          "tooltip": "Recolours existing fills. Unfilled shapes and clipping geometry stay unchanged.",
+          "type": "toggle",
+          "presentation": "switch",
+          "defaults": {
+            "base": false
+          }
+        },
+        {
+          "id": "fill",
+          "label": "Fill",
+          "type": "frameworkColor",
+          "defaults": {
+            "base": {
+              "palette": "text"
+            }
+          },
+          "visibleWhen": {
+            "id": "fillEnabled",
+            "value": true
+          }
+        },
+        {
+          "id": "strokeEnabled",
+          "label": "Override stroke",
+          "tooltip": "Recolours existing strokes; does not add an outline to artwork without strokes.",
+          "type": "toggle",
+          "presentation": "switch",
+          "defaults": {
+            "base": false
+          }
+        },
+        {
+          "id": "stroke",
+          "label": "Stroke",
+          "type": "frameworkColor",
+          "defaults": {
+            "base": {
+              "palette": "text"
+            }
+          },
+          "visibleWhen": {
+            "id": "strokeEnabled",
+            "value": true
+          }
+        },
+        {
+          "id": "strokeWidthEnabled",
+          "label": "Override stroke width",
+          "tooltip": "Changes existing stroke widths in SVG units. Does not create new strokes.",
+          "type": "toggle",
+          "presentation": "switch",
+          "defaults": {
+            "base": false
+          }
+        },
+        {
+          "id": "strokeWidth",
+          "label": "Stroke width",
+          "type": "number",
+          "defaults": {
+            "base": 1
+          },
+          "minimum": 0,
+          "maximum": 100,
+          "step": 0.1,
+          "visibleWhen": {
+            "id": "strokeWidthEnabled",
+            "value": true
+          }
+        }
+      ]
+    },
+    {
+      "section": "Sizing",
+      "systemImage": "arrow.up.left.and.arrow.down.right",
+      "controls": [
+        {
+          "type": "sizing",
+          "id": "sizing",
+          "defaults": {
+            "widthMode": "custom",
+            "customWidth": 240
+          }
+        }
+      ]
+    },
+    {
+      "section": "Spacing",
+      "systemImage": "arrow.up.and.down.and.arrow.left.and.right",
+      "controls": [
+        {
+          "type": "spacing",
+          "id": "spacing"
+        }
+      ]
+    },
+    {
+      "section": "Background",
+      "systemImage": "paintbrush.fill",
+      "controls": [
+        {
+          "type": "background",
+          "id": "background",
+          "backgroundTypes": [
+            "colour",
+            "gradient",
+            "image"
+          ]
+        }
+      ]
+    },
+    {
+      "section": "Borders",
+      "systemImage": "square.dashed",
+      "controls": [
+        {
+          "type": "borders",
+          "id": "borders"
+        }
+      ]
+    },
+    {
+      "section": "Shadow",
+      "systemImage": "sparkles",
+      "controls": [
+        {
+          "type": "effects",
+          "id": "effects"
+        }
+      ]
+    },
+    {
+      "section": "Filters",
+      "systemImage": "camera.filters",
+      "controls": [
+        {
+          "type": "filters",
+          "id": "filters"
+        }
+      ]
+    },
+    {
+      "section": "Transforms",
+      "systemImage": "move.3d",
+      "controls": [
+        {
+          "type": "transforms",
+          "id": "transforms"
+        }
+      ]
+    },
+    {
+      "section": "Transitions",
+      "systemImage": "circle.dotted.circle",
+      "controls": [
+        {
+          "type": "transitions",
+          "id": "transitions"
+        }
+      ]
+    },
+    {
+      "section": "Layout",
+      "systemImage": "square.on.square",
+      "controls": [
+        {
+          "type": "layout",
+          "id": "layout"
+        }
+      ]
+    },
+    {
+      "controls": [
+        {
+          "type": "reveal",
+          "id": "reveal"
+        }
+      ],
+      "section": "Reveal",
+      "systemImage": "sparkles.rectangle.stack"
+    },
+    {
+      "section": "Link",
+      "systemImage": "link",
+      "controls": [
+        {
+          "type": "linkOverlay",
+          "id": "link"
+        }
+      ]
+    },
+    {
+      "section": "Lightbox",
+      "systemImage": "rectangle.on.rectangle",
+      "controls": [
+        {
+          "type": "lightbox",
+          "id": "lightbox"
+        }
+      ]
+    },
+    {
+      "type": "advanced"
+    }
+  ],
+  "minimumAPIVersion": 1,
+  "tags": [
+    "Foundry",
+    "built-in"
+  ],
+  "templates": {
+    "editorCSS": "editor.css",
+    "files": [
+      {
+        "path": "part.css",
+        "scope": "instance"
+      }
+    ],
+    "html": "part.html"
+  },
+  "title": "SVG",
+  "version": "1.0.0"
+}

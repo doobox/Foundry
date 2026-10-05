@@ -12,7 +12,7 @@ struct InspectorPaletteTests {
         value.darkOpacity = 0.4
         #expect(PartPackageColorResolver.resolve(value, framework: .standard, opacity: true).contains("18 52 86 / 1"))
         #expect(PartPackageColorResolver.resolve(value, framework: .standard, opacity: true, appearance: .dark).contains("171 205 239 / 0.4"))
-        var node = PartNode(type: .container)
+        var node = PartNode(type: .section)
         node.setProperty(.init(rawValue: "background.backgroundColor"), value: .packageColor(value))
         node.setProperty(.init(rawValue: "background.backgroundMode"), value: .choice("static"))
         var wide = value
@@ -47,7 +47,7 @@ struct InspectorPaletteTests {
         site.framework.colourPalettes[index].setDarkDefault(.seven)
         #expect(PartPackageColorResolver.resolve(value, framework: site.framework, opacity: false) == "#123456")
         #expect(PartPackageColorResolver.resolve(value, framework: site.framework, opacity: false, appearance: .dark) == "#ABCDEF")
-        var node = PartNode.make(.container)
+        var node = PartNode.make(.section)
         node.setProperty(.init(rawValue: "background.backgroundColor"), value: .packageColor(value))
         node.setProperty(.init(rawValue: "background.backgroundMode"), value: .choice("static"))
         let page = Page(title: "Appearance", slug: "index", parts: [node])
@@ -67,7 +67,7 @@ struct InspectorPaletteTests {
         var framework = Framework.standard
         let index = try #require(framework.colourPalettes.firstIndex { $0.id == "framework.surface" })
         framework.colourPalettes[index].setLightDefault(.three)
-        var node = PartNode.make(.container)
+        var node = PartNode.make(.section)
         // The built-in container starts with a literal colour. Supply a framework-role
         // declaration and exercise the same initialisation used by make(_:framework:).
         node.setProperty(.init(rawValue: "background.backgroundColor"), value: .packageColor(.init(
@@ -97,7 +97,7 @@ struct InspectorPaletteTests {
         custom.name = original.name
         try custom.replaceShades(Array(repeating: "#193A5C", count: 11))
         site.framework.colourPalettes.insert(custom, at: 0)
-        var node = PartNode.make(.container)
+        var node = PartNode.make(.section)
         node.setProperty(.init(rawValue: "background.backgroundColor"), value: .packageColor(.init(source: "surface",
             customColor: "#000000", opacity: 1)))
         let page = Page(title: "Override", slug: "index", parts: [node])
@@ -142,7 +142,7 @@ struct InspectorPaletteTests {
         shades[7] = "#193A5C"
         try palette.replaceShades(shades)
         site.framework.colourPalettes.append(palette)
-        var node = PartNode.make(.container)
+        var node = PartNode.make(.section)
         node.setProperty(.init(rawValue: "background.backgroundColor"), value: .packageColor(.init(source: palette.id,
             customColor: "#000000", opacity: 1, shade: .eight)))
         node.setProperty(.init(rawValue: "background.backgroundMode"), value: .choice("static"))

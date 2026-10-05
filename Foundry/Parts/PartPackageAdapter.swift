@@ -43,8 +43,8 @@ nonisolated enum PartPackageAdapter {
         }
         let implicitImageProperties = package.preparedPrimitives.images.map { primitive in
             PartPropertyDefinition(
-                key: .init(rawValue: primitive.key), label: "Image", section: .content,
-                control: .image,
+                key: .init(rawValue: primitive.key), label: primitive.isSVG ? "SVG" : "Image", section: .content,
+                control: primitive.isSVG ? .svg : .image,
                 defaultValue: primitive.isRepeated ? .array([]) : .url(""),
                 isResponsive: false, isInspectorVisible: false
             )
@@ -118,6 +118,16 @@ nonisolated enum PartPackageAdapter {
                     visibleWhen: property.visibleWhen
                 ),
                 PartPropertyDefinition(
+                    key: PartVideoTemplateValues.posterFirstPropertyKey(for: property.id),
+                    label: "Show poster first",
+                    section: .init(rawValue: property.group),
+                    control: .derived,
+                    defaultValue: .boolean(true),
+                    isResponsive: false,
+                    isInspectorVisible: false,
+                    visibleWhen: property.visibleWhen
+                ),
+                PartPropertyDefinition(
                     key: PartVideoTemplateValues.mutedPropertyKey(for: property.id),
                     label: "Muted",
                     section: .init(rawValue: property.group),
@@ -159,13 +169,13 @@ nonisolated enum PartPackageAdapter {
                 )
             ]
         }
-        if property.control.type == .image {
+        if property.control.type == .image || property.control.type == .svg {
             var definitions = [
                 PartPropertyDefinition(
                     key: .init(rawValue: property.id),
                     label: property.label,
                     section: .init(rawValue: property.group),
-                    control: .image,
+                    control: property.control.type == .svg ? .svg : .image,
                     defaultValue: value(property.defaultValue, control: .image),
                     isResponsive: property.responsive,
                     visibleWhen: property.visibleWhen,
@@ -434,6 +444,7 @@ nonisolated enum PartPackageAdapter {
         case .note: .note(systemImage: nil)
         case .button: .button(icon: nil, text: "Button", activeIcon: nil, activeText: nil)
         case .image: .image
+        case .svg: .svg
         case .video: .video
         case .math: .derived
         case .frameworkShadow: .packageShadow
@@ -487,7 +498,7 @@ nonisolated enum PartPackageAdapter {
             case .frameworkColor: .choice(value)
             case .icon, .select, .frameworkFont, .frameworkFontSize, .frameworkStackingOrder, .pageFolder, .fontStyle, .textAlignment, .frameworkShadow: .choice(value)
             case .date: .string(value)
-            case .image, .video: .url(value)
+            case .image, .svg, .video: .url(value)
             default: .string(value)
             }
         case .array(let values):

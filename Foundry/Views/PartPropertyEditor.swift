@@ -79,6 +79,7 @@ struct PartPropertyEditor: View {
             isEnabled: canResetControl,
             action: resetControl
         ))
+        .environment(\.inspectorControlModified, controlHasChanges)
     }
 
     private var isDateControl: Bool {
@@ -440,11 +441,12 @@ struct PartPropertyEditor: View {
                 isOn: booleanBinding,
                 usesSwitch: definition.presentation == .switch
             )
-        case .image:
+        case .image, .svg:
             ImagePartControl(
                 label: definition.label,
                 previewImage: previewImage,
                 remoteURL: remoteImageURL,
+                allowsRemoteSource: !isSVGControl,
                 supportsFocalPoint: definition.supportsImageFocalPoint,
                 focalPoint: imageFocalPoint,
                 focalPointIndicator: imageFocalPointResponsiveIndicator,
@@ -453,7 +455,7 @@ struct PartPropertyEditor: View {
                 chooseImage: chooseImageFromFinder,
                 clearImage: { setProperty(definition.defaultValue) },
                 importImage: { url in
-                    guard let asset = importMedia(url, .image) else { return false }
+                    guard let asset = importMedia(url, isSVGControl ? .svg : .image) else { return false }
                     setProperty(.url(asset.reference))
                     return true
                 },
@@ -471,7 +473,6 @@ struct PartPropertyEditor: View {
                 compatibilityWarning: selectedVideoCompatibilityWarning,
                 isProcessing: isAnalysingVideo,
                 errorMessage: videoAnalysisError,
-                choices: availableVideos.map { .init(id: $0.id, title: $0.filename) },
                 indicator: responsiveIndicator,
                 showsPlaybackOptions: showsVideoPlaybackOptions,
                 showsPosterOptions: allowsCustomVideoPoster,
@@ -482,7 +483,6 @@ struct PartPropertyEditor: View {
                 startAt: videoStartAtBinding,
                 isClearDisabled: displayPart.propertyValue(definition.key) == definition.defaultValue,
                 importVideoFromMac: chooseVideoFromFinder,
-                selectVideo: selectExistingVideo,
                 clearVideo: clearVideo,
                 importVideo: { url in
                     guard let asset = importMedia(url, .movie) else { return false }
@@ -490,7 +490,12 @@ struct PartPropertyEditor: View {
                     return true
                 },
                 choosePoster: chooseVideoPosterFromFinder,
-                clearPoster: { setProperty(.url(""), key: videoPosterKey) }
+                clearPoster: { setProperty(.url(""), key: videoPosterKey) },
+                remoteURL: RemoteVideoImport.webURL(displayPart.property(definition.key)),
+                allowsYouTube: showsVideoPlaybackOptions,
+                posterFirst: videoBooleanBinding(PartVideoTemplateValues.posterFirstPropertyKey(for: definition.key.rawValue), fallback: true),
+                linkVideo: linkRemoteVideo,
+                importRemoteVideo: importRemoteVideo
             )
             .task(id: selectedAsset?.id) {
                 await Task.yield()
@@ -556,7 +561,7 @@ struct PartPropertyEditor: View {
         guard let package = part.type.definition.package else { return true }
         return !package.manifest.controlGroups
             .flatMap(\.properties)
-            .contains { $0.id == definition.key.rawValue && $0.control.type == .video }
+            .contains { $0.id == definition.key.rawValue && $0.controlGroupSource?.type == .background && $0.control.type == .video }
     }
 
     private var videoAutoplayKey: PartProperty.Key {
@@ -621,14 +626,6 @@ struct PartPropertyEditor: View {
             return "This format may not play in every browser"
         }
         return nil
-    }
-
-    private var availableVideos: [ProjectAsset] {
-        assets.filter { asset in
-            UTType(mimeType: asset.mediaType)?.conforms(to: .movie) == true
-                || asset.mediaType.hasPrefix("video/")
-        }
-        .sorted { $0.filename.localizedStandardCompare($1.filename) == .orderedAscending }
     }
 
     private var imageFocalPoint: CGPoint {
@@ -701,15 +698,20 @@ struct PartPropertyEditor: View {
         return true
     }
 
+    private var isSVGControl: Bool {
+        if case .svg = definition.control { return true }
+        return false
+    }
+
     private func chooseImageFromFinder() {
         let panel = NSOpenPanel()
-        panel.title = "Choose Image"
-        panel.allowedContentTypes = [.image]
+        panel.title = isSVGControl ? "Choose SVG" : "Choose Image"
+        panel.allowedContentTypes = [isSVGControl ? .svg : .image]
         panel.canChooseDirectories = false
         panel.allowsMultipleSelection = false
         guard panel.runModal() == .OK,
               let url = panel.url,
-              let asset = importMedia(url, .image) else { return }
+              let asset = importMedia(url, isSVGControl ? .svg : .image) else { return }
         setProperty(.url(asset.reference))
     }
 
@@ -741,11 +743,6 @@ struct PartPropertyEditor: View {
         return true
     }
 
-    private func selectExistingVideo(_ id: UUID) {
-        guard let asset = assets.first(where: { $0.id == id }) else { return }
-        selectVideo(asset)
-    }
-
     private func selectVideo(_ asset: ProjectAsset) {
         videoPosterTask?.cancel()
         generatedVideoPoster = nil
@@ -753,6 +750,29 @@ struct PartPropertyEditor: View {
         let wasAlreadySelected = selectedAsset?.id == asset.id
         setProperty(.url(asset.reference))
         if wasAlreadySelected { analyseVideoIfNeeded(asset) }
+    }
+
+    private func linkRemoteVideo(_ url: URL) {
+        if YouTubeVideo.isYouTubeAddress(url.absoluteString) {
+            guard showsVideoPlaybackOptions, YouTubeVideo.id(from: url.absoluteString) != nil else { return }
+        }
+        videoPosterTask?.cancel()
+        generatedVideoPoster = nil
+        isAnalysingVideo = false
+        videoAnalysisError = nil
+        setProperty(.url(url.absoluteString))
+    }
+
+    private func importRemoteVideo(_ url: URL) async -> Bool {
+        let original = displayPart.propertyValue(definition.key)
+        guard let file = try? await RemoteVideoImport.download(url) else { return false }
+        defer { try? FileManager.default.removeItem(at: file.deletingLastPathComponent()) }
+        guard !Task.isCancelled else { return false }
+        if let current = editor.document.site.pages.flatMap(\.parts).node(withID: part.id),
+           current.propertyValue(definition.key) != original { return false }
+        guard let asset = importMedia(file, .movie) else { return false }
+        selectVideo(asset)
+        return true
     }
 
     private func analyseVideoIfNeeded(_ asset: ProjectAsset) {
@@ -1112,6 +1132,18 @@ struct PartPropertyEditor: View {
         effectiveBreakpoint != .mobile
             ? part.hasResponsiveOverride(definition.key, at: effectiveBreakpoint)
             : part.propertyValue(definition.key) != definition.defaultValue
+    }
+
+    private var controlHasChanges: Bool {
+        let state = PartInspectorControlState(part: part, definition: definition, framework: framework)
+        let targets = selectedParts.isEmpty ? [part] : selectedParts
+        return targets.contains { target in
+            state.hasChanges(
+                in: target,
+                at: effectiveBreakpoint,
+                screens: framework.screens
+            )
+        }
     }
 
     private var responsiveIndicator: InspectorRowIndicator {

@@ -44,7 +44,7 @@ struct PartDefinitionTests {
 
     @Test
     func registryDeclaresChildCapabilities() {
-        #expect(PartType.container.definition.allowsChildren)
+        #expect(PartType.section.definition.allowsChildren)
         #expect(PartType.flex.definition.allowsChildren)
         #expect(PartType.grid.definition.allowsChildren)
         #expect(!PartType.paragraph.definition.allowsChildren)
@@ -55,7 +55,7 @@ struct PartDefinitionTests {
     @Test
     func stockRegistryUsesUniqueNamespacedIdentifiers() {
         let identifiers = [
-            PartType.container,
+            PartType.section,
             .flex,
             .grid,
             .paragraph,
@@ -73,10 +73,16 @@ struct PartDefinitionTests {
     @Test
     func unknownPartIdentifiersDecodeWithoutAliases() throws {
         let unqualified = try JSONDecoder().decode(PartType.self, from: Data("\"container\"".utf8))
+        let retiredContainer = try JSONDecoder().decode(
+            PartType.self,
+            from: Data("\"foundry.layout.container\"".utf8)
+        )
         let unknown = try JSONDecoder().decode(PartType.self, from: Data("\"com.example.gallery\"".utf8))
 
         #expect(unqualified.rawValue == "container")
         #expect(unqualified.definition.renderKind == .unavailable)
+        #expect(retiredContainer.rawValue == "foundry.layout.container")
+        #expect(retiredContainer.definition.renderKind == .unavailable)
         #expect(unknown.rawValue == "com.example.gallery")
         #expect(unknown.definition.renderKind == .unavailable)
     }
@@ -130,7 +136,7 @@ struct PartDefinitionTests {
 
     @Test
     func rendererAppliesPackagePropertiesAndEscapesAccessibilityLabel() {
-        var container = PartNode.make(.container)
+        var container = PartNode.make(.section)
         var stack = PartNode.make(.flex)
         var text = PartNode.make(.paragraph)
         var button = PartNode.make(.button)
@@ -138,7 +144,7 @@ struct PartDefinitionTests {
         container.setProperty(.init(rawValue: "borders.frameworkBorder.width"), value: .frameworkBorderWidth(PartPackageFrameworkBorderWidthControl.defaultValue(.object(["value": .number(2), "unit": .string("px")]))!))
         container.setProperty(.init(rawValue: "borders.frameworkBorderColour"), value: .packageColor(.init(source: "custom", customColor: "#ABCDEF", opacity: 1)))
         container.setProperty(.init(rawValue: "borders.frameworkRadius"), value: .frameworkRadius(PartPackageFrameworkRadiusControl.defaultValue(.object(["value": .number(28), "unit": .string("px")]))!))
-        // Container roots are always full width; a Flex carries the shared
+        // Section roots are always full width; a Flex carries the shared
         // sizing group's max-width control.
         stack.setProperty(.init(rawValue: "sizing.maxWidth"), value: .frameworkSpacing(.init(
             selection: .init(token: "none", isCustom: true, amount: 920, unit: "px")

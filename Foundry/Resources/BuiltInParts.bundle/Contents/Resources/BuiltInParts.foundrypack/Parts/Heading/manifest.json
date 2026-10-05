@@ -48,6 +48,21 @@
         },
         {
           "defaults": {
+            "base": {
+              "family": "heading",
+              "style": "normal",
+              "weight": 700
+            }
+          },
+          "id": "font",
+          "label": "Font",
+          "responsive": true,
+          "showsStyle": true,
+          "showsWeight": true,
+          "type": "frameworkFont"
+        },
+        {
+          "defaults": {
             "base": "start"
           },
           "id": "textAlignment",
@@ -76,6 +91,33 @@
             "id": "sizeEnabled",
             "value": true
           }
+        },
+        {
+          "defaults": {
+            "base": "none"
+          },
+          "id": "textDecoration",
+          "label": "Decoration",
+          "options": [
+            {
+              "title": "None",
+              "value": "none"
+            },
+            {
+              "title": "Underline",
+              "value": "underline"
+            },
+            {
+              "title": "Overline",
+              "value": "overline"
+            },
+            {
+              "title": "Line Through",
+              "value": "line-through"
+            }
+          ],
+          "responsive": true,
+          "type": "select"
         }
       ],
       "section": "Typography",
@@ -85,10 +127,10 @@
       "controls": [
         {
           "allowsCustom": true,
-          "customColor": "#171719",
+          "customColor": "#000000",
           "defaults": {
             "base": {
-              "palette": "custom"
+              "palette": "text"
             }
           },
           "id": "textColor",
@@ -159,7 +201,7 @@
       ]
     },
     {
-      "section": "Effects",
+      "section": "Shadow",
       "systemImage": "sparkles",
       "controls": [
         {
@@ -238,5 +280,5 @@
     "html": "part.html"
   },
   "title": "Heading",
-  "version": "1.2.0"
+  "version": "1.3.0"
 }

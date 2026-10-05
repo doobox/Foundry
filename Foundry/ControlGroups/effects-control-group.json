@@ -22,27 +22,9 @@
         "id": "effectsEnabled",
         "value": true
       }
-    },
-    {
-      "defaults": {
-        "base": 100
-      },
-      "id": "opacity",
-      "label": "Opacity",
-      "maximum": 100,
-      "minimum": 0,
-      "responsive": true,
-      "editableValue": true,
-      "step": 1,
-      "type": "slider",
-      "units": "%",
-      "visibleWhen": {
-        "id": "effectsEnabled",
-        "value": true
-      }
     }
   ],
-  "name": "Effects",
+  "name": "Shadow",
   "systemImage": "sparkles",
   "type": "effects"
 }

@@ -277,7 +277,7 @@ struct StructureOutlineView: NSViewRepresentable {
             let movement = movementAvailability(for: item, isSingleSelection: isSingleSelection)
             let moveUp = menuItem("Move Up", action: #selector(moveUpFromContextMenu(_:)), item: item, key: String(Character(UnicodeScalar(NSUpArrowFunctionKey)!)), modifiers: [.command, .option])
             let moveDown = menuItem("Move Down", action: #selector(moveDownFromContextMenu(_:)), item: item, key: String(Character(UnicodeScalar(NSDownArrowFunctionKey)!)), modifiers: [.command, .option])
-            let outdent = menuItem("Move Out of Container", action: #selector(outdentFromContextMenu(_:)), item: item, key: String(Character(UnicodeScalar(NSLeftArrowFunctionKey)!)), modifiers: [.command, .option])
+            let outdent = menuItem("Move Out of Section", action: #selector(outdentFromContextMenu(_:)), item: item, key: String(Character(UnicodeScalar(NSLeftArrowFunctionKey)!)), modifiers: [.command, .option])
             moveUp.isEnabled = movement.canMoveUp
             moveDown.isEnabled = movement.canMoveDown
             outdent.isEnabled = movement.canOutdent

@@ -64,7 +64,7 @@ struct StaticSiteRendererTests {
     @Test
     func responsiveOverridesExportAsMediaQueriesWithoutCanvasMetadata() throws {
         var site = TestSiteFixtures.populatedSite()
-        // Container roots no longer carry the sizing max-width; a Flex
+        // Section roots no longer carry the sizing max-width; a Flex
         // exercises the shared responsive control instead.
         let stack = PartNode.make(.flex)
         site.pages[0].parts.insert(stack, at: 0)

@@ -28,7 +28,7 @@
     gap: var(--foundry-space-sm);
     width: 100%;
     /* The bar owns the horizontal gutter so link and brand text lines up
-       with a default Container's content at every width. */
+       with a default Section's content at every width. */
     padding-inline: var(--foundry-space-sm);
     {{ if control.contentWidth == "contained" }}
     max-width: var(--foundry-container-width);
@@ -266,7 +266,7 @@
    layer mirrors the static one unless hover is switched on, so no conditionals
    are needed. */
 :instance { {{ control.background.css }} }
-:instance:hover { {{ control.background.hover.css }} }
+{{ control.background.hover.selector }} { {{ control.background.hover.css }} }
 
 /* Control groups: declared after the part's own rules so they take precedence. */
 :instance {
@@ -279,6 +279,6 @@
 :instance { {{ control.transitions.css }} }
 
 :instance { {{ control.filters.css }} }
-:instance:hover { {{ control.filters.hover.css }} }
-:instance { {{ control.transforms.css }} }
-:instance:hover { {{ control.transforms.hover.css }} }
+{{ control.filters.hover.selector }} { {{ control.filters.hover.css }} }
+:instance > .fd-transform-content { {{ control.transforms.css }} {{ control.transitions.css }} }
+{{ control.transforms.hover.selector }} > .fd-transform-content { {{ control.transforms.hover.css }} }

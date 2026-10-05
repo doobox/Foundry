@@ -1,0 +1,48 @@
+{
+  "type": "lightbox",
+  "name": "Lightbox",
+  "systemImage": "rectangle.on.rectangle",
+  "controls": [
+    {
+      "type": "toggle",
+      "id": "enabled",
+      "label": "Enable",
+      "presentation": "switch",
+      "defaults": {
+        "base": false
+      }
+    },
+    {
+      "type": "frameworkColor",
+      "id": "backdropColor",
+      "label": "Backdrop",
+      "opacity": true,
+      "defaults": {
+        "base": {
+          "palette": "standard.black",
+          "opacity": 0.5
+        }
+      },
+      "visibleWhen": {
+        "id": "enabled",
+        "value": true
+      }
+    },
+    {
+      "type": "number",
+      "id": "backdropBlur",
+      "label": "Blur",
+      "units": "px",
+      "minimum": 0,
+      "maximum": 40,
+      "step": 1,
+      "defaults": {
+        "base": 0
+      },
+      "visibleWhen": {
+        "id": "enabled",
+        "value": true
+      }
+    }
+  ]
+}

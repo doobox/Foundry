@@ -538,6 +538,7 @@ struct ContentView: View {
                     reusableDefinition: selectedReusableDefinition,
                     isGlobalOverride: selectedGlobalContext?.isOverridden == true,
                     setGlobalOverride: setSelectedGlobalOverride,
+                    selectInsertedPart: revealInsertedPartInStructure,
                     breakpoint: activeCanvasBreakpoint,
                     assetUsageCount: assetUsageCount,
                     renameAsset: { document.renameAsset(id: $0, filename: $1, undoManager: undoManager) },
@@ -1003,6 +1004,16 @@ struct ContentView: View {
         editor.setGlobalPartLinked(partID: selectedPartID, isLinked: !isOverridden)
     }
 
+    private func revealInsertedPartInStructure(_ partID: UUID) {
+        guard let page = selectedPage,
+              page.parts.node(withID: partID) != nil else { return }
+        selectedPrimitive = nil
+        expandedStructurePartIDs.formUnion(page.parts.ancestorIDs(of: partID))
+        selectedPartIDs = [partID]
+        selectedPartID = partID
+        workspaceLayout.activate(.structure)
+    }
+
     private func handleCanvasMessage(_ message: CanvasMessage) {
         guard let page = selectedPage else { return }
 
@@ -1159,9 +1170,13 @@ struct ContentView: View {
                 }
                 return false
             })
-            guard targetsVideo || targetsImage else { return }
-            let expectedType: UTType = targetsVideo ? .movie : .image
-            let byteLimit = targetsVideo ? 100_000_000 : 25_000_000
+            let targetsSVG = part.type.definition.properties.contains(where: {
+                if case .svg = $0.control { return $0.key == propertyKey }
+                return false
+            })
+            guard targetsVideo || targetsImage || targetsSVG else { return }
+            let expectedType: UTType = targetsVideo ? .movie : targetsSVG ? .svg : .image
+            let byteLimit = targetsVideo ? 100_000_000 : targetsSVG ? 5_000_000 : 25_000_000
             undoManager?.beginUndoGrouping()
             let asset: ProjectAsset
             if let assetID = message.assetID {
@@ -1179,7 +1194,8 @@ struct ContentView: View {
                       type.conforms(to: expectedType),
                       let encoded = message.assetData,
                       let data = Data(base64Encoded: encoded),
-                      data.count <= byteLimit else {
+                      data.count <= byteLimit,
+                      !targetsSVG || PartSVGRenderer.sanitized(data, prefix: "validation") != nil else {
                     undoManager?.endUndoGrouping()
                     return
                 }
@@ -1246,7 +1262,8 @@ struct ContentView: View {
                       type.conforms(to: .image) || type.conforms(to: .movie),
                       let encoded = message.assetData,
                       let data = Data(base64Encoded: encoded),
-                      data.count <= (type.conforms(to: .movie) ? 100_000_000 : 25_000_000) else {
+                      data.count <= (type.conforms(to: .movie) ? 100_000_000 : 25_000_000),
+                      !type.conforms(to: .svg) || PartSVGRenderer.sanitized(data, prefix: "validation") != nil else {
                     undoManager?.endUndoGrouping()
                     return
                 }
@@ -1264,13 +1281,15 @@ struct ContentView: View {
                 }
                 asset = importedAsset
             }
-            let partType: PartType = isVideo ? .video : .image
+            let isSVG = UTType(mimeType: asset.mediaType)?.conforms(to: .svg) == true
+            let partType: PartType = isVideo ? .video : isSVG ? .svg : .image
             guard let partID = editor.insertPart(type: partType, on: page.id, placement: placement) else {
                 undoManager?.endUndoGrouping()
                 return
             }
             guard let mediaProperty = partType.definition.properties.first(where: {
-                      if case .image = $0.control { return !isVideo }
+                      if case .svg = $0.control { return isSVG }
+                      if case .image = $0.control { return !isVideo && !isSVG }
                       if case .video = $0.control { return isVideo }
                       return false
                   }) else {
@@ -1329,6 +1348,7 @@ struct ContentView: View {
                   let definition = part.type.definition.properties.first(where: {
                       guard $0.key == imageProperty else { return false }
                       if case .image = $0.control { return true }
+                      if case .svg = $0.control { return true }
                       if case .video = $0.control { return true }
                       return false
                   }) else { return }
@@ -1381,6 +1401,7 @@ struct ContentView: View {
               let definition = part.type.definition.properties.first(where: {
                   guard $0.key == imageProperty else { return false }
                   if case .image = $0.control { return true }
+                  if case .svg = $0.control { return true }
                   if case .video = $0.control { return true }
                   return false
               }) else { return false }
@@ -1509,7 +1530,7 @@ struct ContentView: View {
     }
 
     private func imageType(filename: String, mediaType: String) -> UTType? {
-        UTType(mimeType: mediaType) ?? UTType(filenameExtension: URL(fileURLWithPath: filename).pathExtension)
+        PartMediaImport.contentType(filename: filename, mediaType: mediaType)
     }
 
     private func validatedPlacement(_ value: CanvasMessage.Placement?, on page: Page) -> PartPlacement? {
@@ -2782,13 +2803,14 @@ struct ContentView: View {
             return asset
         }
 
-        let maximumByteCount = expectedType == .image ? 25_000_000 : 1_000_000_000
+        let maximumByteCount = expectedType == .svg ? 5_000_000 : expectedType == .image ? 25_000_000 : 1_000_000_000
         guard let values = try? url.resourceValues(forKeys: [.isRegularFileKey, .contentTypeKey, .fileSizeKey]),
               values.isRegularFile == true,
-              let type = values.contentType ?? UTType(filenameExtension: url.pathExtension),
+              let type = PartMediaImport.contentType(filename: filename, mediaType: values.contentType?.preferredMIMEType ?? "application/octet-stream"),
               type.conforms(to: expectedType),
               (values.fileSize ?? 0) <= maximumByteCount,
-              let data = try? Data(contentsOf: url, options: .mappedIfSafe) else { return nil }
+              let data = try? Data(contentsOf: url, options: .mappedIfSafe),
+              expectedType != .svg || PartSVGRenderer.sanitized(data, prefix: "validation") != nil else { return nil }
         let id = document.importAsset(
             data: data,
             filename: filename,

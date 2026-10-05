@@ -2214,6 +2214,7 @@ private struct FixedCanvasColumn<Content: View>: View {
 }
 
 private struct WorkspaceColumnView<PanelContent: View>: View {
+    @Environment(\.displayScale) private var displayScale
     @Binding var column: WorkspaceColumn
     let usesSidebarMaterial: Bool
     let canMoveSelectedTabToNewColumn: Bool
@@ -2266,6 +2267,22 @@ private struct WorkspaceColumnView<PanelContent: View>: View {
 //                Color(.clear)
 //            }
 //        }
+        .overlay(alignment: .leading) {
+            if column.role == .inspectorDock {
+                Rectangle()
+                    .fill(Color(nsColor: .separatorColor))
+                    .frame(width: 1 / displayScale)
+                    .allowsHitTesting(false)
+            }
+        }
+        .overlay(alignment: .trailing) {
+            if column.role == .sidebarDock {
+                Rectangle()
+                    .fill(Color(nsColor: .separatorColor))
+                    .frame(width: 1 / displayScale)
+                    .allowsHitTesting(false)
+            }
+        }
         .overlay {
             if consolidationTargeted,
                !leadingTargeted,

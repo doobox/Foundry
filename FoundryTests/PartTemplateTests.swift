@@ -6,7 +6,7 @@ struct PartTemplateTests {
     @Test
     func cssSelectorsDistinguishPackageFromInstance() {
         let instanceID = UUID(uuidString: "AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE")!
-        let css = ":host { display: block; } :instance { color: red; }"
+        let css = ":host { display: block; } :instance { color: red; } :parent:hover :instance { opacity: 1; }"
 
         let rendered = PartTemplateRenderer.scopedCSS(
             css,
@@ -16,6 +16,7 @@ struct PartTemplateTests {
 
         #expect(rendered.contains(":is([data-foundry-package=\"com.example.card\"], .foundry-package-com-example-card)"))
         #expect(rendered.contains("[data-foundry-id=\"AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE\"]"))
+        #expect(rendered.contains("[data-foundry-part]:has([data-foundry-id=\"AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE\"]):not(:has([data-foundry-part] [data-foundry-id=\"AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE\"])):hover [data-foundry-id=\"AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE\"]"))
         #expect(!rendered.contains(":host"))
         #expect(!rendered.contains(":instance"))
     }

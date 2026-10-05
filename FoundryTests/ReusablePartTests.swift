@@ -85,7 +85,7 @@ struct ReusablePartTests {
     @Test
     func globalsRoundTripThroughProjectJSON() throws {
         var site = Site.starter()
-        let global = ReusablePartDefinition(name: "Header", root: PartNode.make(.container))
+        let global = ReusablePartDefinition(name: "Header", root: PartNode.make(.section))
         site.globalPartLibrary = [.part(global)]
 
         let data = try FoundryDocument.encoder.encode(site)
@@ -362,7 +362,7 @@ struct ReusablePartTests {
     func folderCannotMoveInsideItsDescendantAndReorderingWorks() throws {
         let inner = ReusablePartFolder(name: "Inner")
         let outer = ReusablePartFolder(name: "Outer", children: [.folder(inner)])
-        let hero = ReusablePartDefinition(name: "Hero", root: PartNode.make(.container))
+        let hero = ReusablePartDefinition(name: "Hero", root: PartNode.make(.section))
         var nodes: [ReusablePartNode] = [.folder(outer), .part(hero)]
 
         let movedIntoDescendant = nodes.move(id: outer.id, to: .inside(folderID: inner.id))
@@ -388,15 +388,15 @@ struct ReusablePartTests {
     @Test
     func detachingOneGlobalInstanceClearsItsLinkButNotNestedGlobals() throws {
         let nestedDefinitionID = UUID()
-        var nestedGlobal = PartNode.make(.container)
+        var nestedGlobal = PartNode.make(.section)
         nestedGlobal.reusableDefinitionID = nestedDefinitionID
         var overriddenChild = PartNode.make(.heading)
         overriddenChild.overridesGlobalDefinition = true
-        var instance = PartNode.make(.container)
+        var instance = PartNode.make(.section)
         instance.reusableDefinitionID = UUID()
         instance.overridesGlobalDefinition = true
         instance.children = [overriddenChild, nestedGlobal]
-        var untouched = PartNode.make(.container)
+        var untouched = PartNode.make(.section)
         untouched.reusableDefinitionID = instance.reusableDefinitionID
 
         var parts = [instance, untouched]

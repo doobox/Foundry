@@ -310,10 +310,15 @@ nonisolated enum PartVideoTemplateValues {
         let showsControls: Bool
         let loops: Bool
         let startAt: Double
+        var posterFirst = true
     }
 
     static func posterPropertyKey(for propertyID: String) -> PartProperty.Key {
         .init(rawValue: "__foundry_video_poster_" + propertyID)
+    }
+
+    static func posterFirstPropertyKey(for propertyID: String) -> PartProperty.Key {
+        .init(rawValue: "__foundry_video_poster_first_" + propertyID)
     }
 
     static func autoplayPropertyKey(for propertyID: String) -> PartProperty.Key {
@@ -343,7 +348,8 @@ nonisolated enum PartVideoTemplateValues {
             muted: node.propertyValue(mutedPropertyKey(for: propertyID)).booleanValue ?? PlaybackOptions.standard.muted,
             showsControls: node.propertyValue(controlsPropertyKey(for: propertyID)).booleanValue ?? PlaybackOptions.standard.showsControls,
             loops: node.propertyValue(loopPropertyKey(for: propertyID)).booleanValue ?? PlaybackOptions.standard.loops,
-            startAt: max(node.propertyValue(startAtPropertyKey(for: propertyID)).numberValue ?? 0, 0)
+            startAt: max(node.propertyValue(startAtPropertyKey(for: propertyID)).numberValue ?? 0, 0),
+            posterFirst: node.propertyValue(posterFirstPropertyKey(for: propertyID)).booleanValue ?? true
         )
     }
 
@@ -359,7 +365,9 @@ nonisolated enum PartVideoTemplateValues {
         values[propertyID + ".source"] = .string(source(href: href, startAt: playback.startAt))
         values[propertyID + ".attributes"] = .string(attributes(playback))
         values[propertyID + ".href"] = .string(href)
-        values[propertyID + ".poster"] = .string(poster)
+        values[propertyID + ".poster"] = .string(poster.isEmpty ? (YouTubeVideo.id(from: href).map { YouTubeVideo.poster(for: $0) } ?? "") : poster)
+        values[propertyID + ".customPoster"] = .boolean(!poster.isEmpty)
+        values[propertyID + ".posterFirst"] = .boolean(playback.posterFirst)
         values[propertyID + ".autoplay"] = .string(playback.autoplay)
         values[propertyID + ".muted"] = .boolean(playback.muted)
         values[propertyID + ".controls"] = .boolean(playback.showsControls)

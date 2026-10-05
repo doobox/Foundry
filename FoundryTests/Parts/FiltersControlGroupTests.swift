@@ -3,6 +3,76 @@ import Testing
 @testable import Foundry
 
 struct FiltersControlGroupTests {
+    @Test
+    func freshBuiltInPartDoesNotMarkEffectsOrFiltersAsChanged() throws {
+        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
+            .deletingLastPathComponent().deletingLastPathComponent()
+        let package = try PartPackageLoader.load(from: root.appending(path:
+            "Foundry/Resources/BuiltInParts.bundle/Contents/Resources/BuiltInParts.foundrypack/Parts/Section"))
+        PartRegistry.register(package)
+        defer { PartRegistry.unregisterPackage(identifier: package.manifest.identifier) }
+        var part = PartNode.make(.init(rawValue: package.manifest.identifier))
+
+        for name in ["Shadow", "Filters"] {
+            let state = PartInspectorSectionState(
+                part: part,
+                section: PartPropertySection(rawValue: name),
+                framework: .standard
+            )
+            #expect(!state.hasChanges(in: part), "Fresh \(name) controls should match their defaults")
+        }
+
+        part.setProperty(.init(rawValue: "filters.filtersOpacity"), value: .number(40))
+        part.setProperty(.init(rawValue: "filters.filtersBlur"), value: .number(12))
+        let effects = PartInspectorSectionState(
+            part: part,
+            section: PartPropertySection(rawValue: "Shadow"),
+            framework: .standard
+        )
+        let filters = PartInspectorSectionState(
+            part: part,
+            section: PartPropertySection(rawValue: "Filters"),
+            framework: .standard
+        )
+        #expect(!effects.hasChanges(in: part))
+        #expect(!filters.hasChanges(in: part))
+        #expect(!effects.canReset(part))
+        #expect(filters.canReset(part))
+
+        part.setProperty(.init(rawValue: "effects.effectsEnabled"), value: .boolean(true))
+        part.setProperty(.init(rawValue: "filters.filtersMode"), value: .choice("static"))
+        #expect(effects.hasChanges(in: part))
+        #expect(filters.hasChanges(in: part))
+    }
+
+    @Test func opacityTracksStaticAndHoverFilterStates() {
+        let values = resolved([
+            "filtersMode": .string("hover"),
+            "filtersOpacity": .number(40),
+            "filtersHoverOpacity": .number(75)
+        ])
+        #expect(values["visual.css"]?.stringValue.hasPrefix("opacity: 0.4;") == true)
+        #expect(values["visual.hover.css"]?.stringValue.hasPrefix("opacity: 0.75;") == true)
+    }
+
+    @Test func hoverTriggerProducesSafeSelector() {
+        let cases = [
+            ("self", "", ":instance:hover"),
+            ("parent", "", ":parent:hover :instance"),
+            ("custom", "card", "#card:hover :instance"),
+            ("custom", "not a valid id", ":instance:hover")
+        ]
+        for (trigger, id, expected) in cases {
+            let values = resolved([
+                "filtersMode": .string("hover"),
+                "hoverTrigger": .string(trigger),
+                "hoverTriggerID": .string(id)
+            ])
+            #expect(values["visual.hover.selector"] == .string(expected))
+            #expect(values["__foundry_raw.visual.hover.selector"] == .boolean(true))
+        }
+    }
+
     private func resolved(_ overrides: [String: PartPackageValue], namespace: String = "visual") -> [String: PartPackageValue] {
         let group = PartPackageControlGroup(type: .filters, id: namespace)
         var values = Dictionary(uniqueKeysWithValues: group.properties.map { ($0.id, $0.defaultValue) })
@@ -14,7 +84,7 @@ struct FiltersControlGroupTests {
     @Test(arguments: ["none", "static", "hover"])
     func neutralDefaultsDoNotCreateAFilterContainingBlock(mode: String) {
         let values = resolved(["filtersMode": .string(mode)])
-        let reset = PartPackageValue.string("filter: none; backdrop-filter: none; -webkit-backdrop-filter: none;")
+        let reset = PartPackageValue.string("opacity: 1; filter: none; backdrop-filter: none; -webkit-backdrop-filter: none;")
         #expect(values["visual.css"] == reset)
         #expect(values["visual.hover.css"] == reset)
     }
@@ -61,7 +131,7 @@ struct FiltersControlGroupTests {
     @Test func builtInPartsDeclareAndRenderBothFilterStates() throws {
         let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
             .deletingLastPathComponent().deletingLastPathComponent()
-        for name in ["Button", "Columns", "Container", "Copyright", "Divider", "FlexItem",
+        for name in ["Button", "Columns", "Section", "Copyright", "Divider", "FlexItem",
                      "Flexbox", "Grid", "GridItem", "Heading", "Image", "Navigation", "Paragraph", "Video"] {
             let package = try PartPackageLoader.load(from: root.appending(path:
                 "Foundry/Resources/BuiltInParts.bundle/Contents/Resources/BuiltInParts.foundrypack/Parts/" + name))
@@ -75,7 +145,7 @@ struct FiltersControlGroupTests {
         let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
             .deletingLastPathComponent().deletingLastPathComponent()
         let package = try PartPackageLoader.load(from: root.appending(path:
-            "Foundry/Resources/BuiltInParts.bundle/Contents/Resources/BuiltInParts.foundrypack/Parts/Container"))
+            "Foundry/Resources/BuiltInParts.bundle/Contents/Resources/BuiltInParts.foundrypack/Parts/Section"))
         PartRegistry.register(package)
         defer { PartRegistry.unregisterPackage(identifier: package.manifest.identifier) }
         var part = PartNode(type: .init(rawValue: package.manifest.identifier))

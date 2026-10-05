@@ -77,7 +77,7 @@ struct SiteKitLibraryTests {
             publishingHost: "ftp.author.example.com",
             publishingUsername: "author",
             pages: [
-                Page(title: "Home", slug: "index", parts: [PartNode.make(.container)]),
+                Page(title: "Home", slug: "index", parts: [PartNode.make(.section)]),
                 Page(title: "About", slug: "about", parts: [])
             ],
             assetLibrary: []

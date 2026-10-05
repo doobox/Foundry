@@ -1,8 +1,69 @@
 import Foundation
 import Testing
+import WebKit
 @testable import Foundry
 
 struct TransformsControlGroupTests {
+    @Test(.timeLimit(.minutes(1)), arguments: ["Button", "Columns", "Section", "Copyright", "Divider", "FlexItem", "Flexbox", "Grid", "GridItem", "Heading", "Image", "Navigation", "Paragraph", "Video"])
+    @MainActor func contentMovesButHoverHostRemainsStationary(name: String) async throws {
+        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
+            .deletingLastPathComponent().deletingLastPathComponent()
+        let package = try PartPackageLoader.load(from: root.appending(path:
+            "Foundry/Resources/BuiltInParts.bundle/Contents/Resources/BuiltInParts.foundrypack/Parts/" + name))
+        let html: String
+        let id: String
+        do {
+            PartRegistry.register(package)
+            defer { PartRegistry.unregisterPackage(identifier: package.manifest.identifier) }
+            var part = PartNode(type: .init(rawValue: package.manifest.identifier))
+            part.setProperty(.init(rawValue: "transforms.transformsMode"), value: .string("hover"))
+            part.setProperty(.init(rawValue: "transforms.transformsHoverTranslateY"), value: .string("-40px"))
+            part.setProperty(.init(rawValue: "transitions.transitionsEnabled"), value: .boolean(true))
+            let site = Site(name: "Hover", pages: [Page(title: "Home", slug: "index", parts: [part])])
+            html = HTMLPageRenderer(site: site).render(page: site.pages[0], framework: site.framework)
+            id = part.id.uuidString
+        }
+        let configuration = WKWebViewConfiguration()
+        configuration.defaultWebpagePreferences.allowsContentJavaScript = false
+        let webView = WKWebView(frame: CGRect(x: 0, y: 0, width: 600, height: 400), configuration: configuration)
+        defer { webView.stopLoading() }
+        webView.loadHTMLString(html, baseURL: nil)
+        let deadline = ContinuousClock.now + .seconds(10)
+        var ready = false
+        while ContinuousClock.now < deadline {
+            ready = (try? await webView.callAsyncJavaScript("return !!document.querySelector('[data-foundry-id=\"' + id + '\"] > .fd-transform-content');",
+                arguments: ["id": id], in: nil, contentWorld: .defaultClient)) as? Bool == true
+            if ready { break }
+            await Task.yield()
+        }
+        try #require(ready)
+        let result = try await webView.callAsyncJavaScript("""
+            const root = document.querySelector('[data-foundry-id="' + id + '"]');
+            const content = root.querySelector(':scope > .fd-transform-content');
+            const timing = getComputedStyle(content).transitionDuration;
+            // Simulate hover matching while exercising the real generated CSS.
+            const visit = rules => { for (const rule of rules) {
+              if (rule.selectorText) rule.selectorText = rule.selectorText.replaceAll(':hover', '.test-hover');
+              if (rule.cssRules) visit(rule.cssRules);
+            }};
+            for (const sheet of document.styleSheets) { try { visit(sheet.cssRules); } catch {} }
+            root.style.cssText += ';position:fixed;left:100px;top:100px;width:200px;height:100px;margin:0;transition:none';
+            content.style.transition = 'none';
+            const before = root.getBoundingClientRect();
+            const innerBefore = content.getBoundingClientRect();
+            root.classList.add('test-hover');
+            const after = root.getBoundingClientRect();
+            const innerAfter = content.getBoundingClientRect();
+            const hit = document.elementFromPoint(150, 190);
+            const stable = before.top === after.top && before.height === after.height
+              && Math.abs(innerAfter.top - innerBefore.top + 40) < 0.1
+              && getComputedStyle(root).transform === 'none' && root.contains(hit);
+            root.classList.remove('test-hover');
+            return stable && getComputedStyle(content).transform === 'none' && timing !== '0s';
+            """, arguments: ["id": id], in: nil, contentWorld: .defaultClient)
+        #expect(result as? Bool == true, "\(name) must move only content, preserve the root hit area, and apply transition timing to content.")
+    }
+
     private func resolved(_ overrides: [String: PartPackageValue]) -> [String: PartPackageValue] {
         let group = PartPackageControlGroup(type: .transforms, id: "visual")
         var values = Dictionary(uniqueKeysWithValues: group.properties.map { ($0.id, $0.defaultValue) })
@@ -47,13 +108,16 @@ struct TransformsControlGroupTests {
     @Test func builtInPartsDeclareAndRenderBothTransformStates() throws {
         let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
             .deletingLastPathComponent().deletingLastPathComponent()
-        for name in ["Button", "Columns", "Container", "Copyright", "Divider", "FlexItem",
+        for name in ["Button", "Columns", "Section", "Copyright", "Divider", "FlexItem",
                      "Flexbox", "Grid", "GridItem", "Heading", "Image", "Navigation", "Paragraph", "Video"] {
             let package = try PartPackageLoader.load(from: root.appending(path:
                 "Foundry/Resources/BuiltInParts.bundle/Contents/Resources/BuiltInParts.foundrypack/Parts/" + name))
             #expect(package.manifest.controlGroups.contains { $0.type == .transforms })
             #expect(package.css.contains("control.transforms.css"))
             #expect(package.css.contains("control.transforms.hover.css"))
+            #expect(package.css.contains(":instance:hover > .fd-transform-content { {{ control.transforms.hover.css }} }"))
+            #expect(package.css.contains(":instance { {{ control.transforms.css }} }") == false)
+            #expect(package.css.contains(":instance > .fd-transform-content { {{ control.transforms.css }} {{ control.transitions.css }} }"))
         }
     }
 
@@ -61,7 +125,7 @@ struct TransformsControlGroupTests {
         let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
             .deletingLastPathComponent().deletingLastPathComponent()
         let package = try PartPackageLoader.load(from: root.appending(path:
-            "Foundry/Resources/BuiltInParts.bundle/Contents/Resources/BuiltInParts.foundrypack/Parts/Container"))
+            "Foundry/Resources/BuiltInParts.bundle/Contents/Resources/BuiltInParts.foundrypack/Parts/Section"))
         PartRegistry.register(package)
         defer { PartRegistry.unregisterPackage(identifier: package.manifest.identifier) }
         var part = PartNode(type: .init(rawValue: package.manifest.identifier))

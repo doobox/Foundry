@@ -3,7 +3,7 @@
 enum TestSiteFixtures {
     static func populatedSite() -> Site {
         let container = PartNode(
-            type: .container,
+            type: .section,
             name: "Hero",
             children: [
                 PartNode(

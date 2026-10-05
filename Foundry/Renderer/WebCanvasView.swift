@@ -349,7 +349,7 @@ struct WebCanvasView: NSViewRepresentable {
     final class Coordinator: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
         static let handlerName = "foundryCanvas"
         let assetSchemeHandler: CanvasAssetSchemeHandler
-        nonisolated static let interactionScript = CanvasHoverGuard.javaScript + "\n" + """
+        nonisolated static let interactionScript = CanvasHoverGuard.javaScript + "\n" + CanvasYouTubeThumbnails.javaScript + "\n" + """
         (() => {
           if (window.foundryCanvasInstalled) return;
           window.foundryCanvasInstalled = true;
@@ -495,7 +495,7 @@ struct WebCanvasView: NSViewRepresentable {
           const partChromeTitle = part => part?.dataset.foundryName || '';
 
           const chromeRect = target => {
-            // A constrained empty Container keeps its readable drop target
+            // A constrained empty Section keeps its readable drop target
             // outside the smaller layout box. Highlight the visible target.
             if (target.matches('.foundry-empty-drop-zone')) {
               const label = target.querySelector(':scope > .foundry-drop-label');
@@ -2115,7 +2115,7 @@ struct WebCanvasView: NSViewRepresentable {
             menu.addItem(.separator())
             let moveUp = menuItem("Move Up", action: #selector(performContextAction(_:)), representedAction: .moveUp)
             let moveDown = menuItem("Move Down", action: #selector(performContextAction(_:)), representedAction: .moveDown)
-            let outdent = menuItem("Move Out of Container", action: #selector(performContextAction(_:)), representedAction: .outdent)
+            let outdent = menuItem("Move Out of Section", action: #selector(performContextAction(_:)), representedAction: .outdent)
             moveUp.isEnabled = request["canMoveUp"] as? Bool == true
             moveDown.isEnabled = request["canMoveDown"] as? Bool == true
             outdent.isEnabled = request["canOutdent"] as? Bool == true

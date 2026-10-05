@@ -3,7 +3,7 @@
     padding: {{ if control.spacing.spacingEnabled }}{{ control.spacing.frameworkPadding }}{{ else }}0{{ endif }};
     margin: {{ if control.spacing.spacingEnabled }}{{ control.spacing.frameworkMargin }}{{ else }}0{{ endif }};
     border: 0;
-    border-top: {{ control.borderWidth }}px solid {{ control.borderColor }};
+
 }
 
 /* Control groups: declared after the part's own rules so they take precedence. */
@@ -18,6 +18,13 @@
 :instance { {{ control.transitions.css }} }
 
 :instance { {{ control.filters.css }} }
-:instance:hover { {{ control.filters.hover.css }} }
-:instance { {{ control.transforms.css }} }
-:instance:hover { {{ control.transforms.hover.css }} }
+{{ control.filters.hover.selector }} { {{ control.filters.hover.css }} }
+:instance > .fd-transform-content { {{ control.transforms.css }} {{ control.transitions.css }} }
+{{ control.transforms.hover.selector }} > .fd-transform-content { {{ control.transforms.hover.css }} }
+
+:instance > .fd-transform-content {
+    margin: 0;
+    width: 100%;
+    border: 0;
+    border-top: {{ control.borderWidth }}px solid {{ control.borderColor }};
+}

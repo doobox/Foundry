@@ -1,118 +1,108 @@
 {
   "assets": [],
   "author": "Foundry",
-  "description": "A page section. Backgrounds, borders and padding span its full width; inside, content stacks like an ordinary block and stays within the site's content width.",
+  "description": "Five content cells arranged with responsive bento-style presets. Every preset keeps every cell visible.",
   "group": "Layout",
   "icon": {
-    "symbol": "rectangle",
+    "symbol": "app.grid.2x2",
     "tint": "blue"
   },
-  "id": "foundry.layout.container",
+  "id": "foundry.layout.bento-grid",
   "inspector": [
     {
-      "section": "Container",
-      "systemImage": "rectangle.center.inset.filled",
+      "section": "Bento Grid",
+      "systemImage": "app.grid.2x2",
       "controls": [
         {
           "type": "select",
-          "id": "contentWidth",
-          "label": "Content width",
-          "defaults": {
-            "base": "breakpoint"
-          },
+          "id": "preset",
+          "label": "Layout",
           "options": [
             {
-              "value": "auto",
-              "title": "Fit content"
+              "value": "stacked",
+              "title": "Stacked"
             },
             {
-              "value": "full",
-              "title": "Full"
+              "value": "feature-left",
+              "title": "Feature Left"
             },
             {
-              "value": "breakpoint",
-              "title": "Site width"
+              "value": "feature-right",
+              "title": "Feature Right"
             },
             {
-              "value": "custom",
-              "title": "Custom"
+              "value": "feature-top",
+              "title": "Feature Top"
+            },
+            {
+              "value": "feature-bottom",
+              "title": "Feature Bottom"
+            },
+            {
+              "value": "balanced",
+              "title": "Balanced Mosaic"
+            },
+            {
+              "value": "equal",
+              "title": "Five Equal"
             }
           ],
+          "defaults": {
+            "base": "stacked",
+            "medium": "feature-left"
+          },
           "responsive": true,
-          "tooltip": "Sets the inner content area's width, not the whole part. Fit content shrinks to the content. Full spans the section. Site width follows the project's responsive content width. Custom sets an exact width."
+          "tooltip": "The arrangement of the five cells. Every layout uses every cell, so changing presets never hides content."
         },
         {
           "type": "frameworkSpacing",
-          "id": "contentWidthSpacing",
-          "label": "Custom width",
+          "id": "gap",
+          "label": "Gap",
           "defaults": {
-            "base": {
-              "value": 800,
-              "unit": "px"
-            }
+            "base": "md"
           },
-          "noneValue": "auto",
           "responsive": true,
-          "visibleWhen": {
-            "id": "contentWidth",
-            "value": "custom"
-          }
+          "tooltip": "The space between cells."
+        },
+        {
+          "type": "number",
+          "id": "minimumCellHeight",
+          "label": "Minimum Cell Height",
+          "units": "px",
+          "minimum": 0,
+          "maximum": 2000,
+          "step": 1,
+          "defaults": {
+            "base": 160,
+            "medium": 220
+          },
+          "responsive": true,
+          "tooltip": "The smallest height of a regular cell. Featured cells may span two rows."
         },
         {
           "type": "select",
-          "id": "contentAlignment",
-          "label": "Vertical position",
-          "defaults": {
-            "base": "normal"
-          },
+          "id": "contentPosition",
+          "label": "Content Position",
+          "presentation": "segmented",
           "options": [
             {
-              "value": "normal",
-              "title": "Auto"
-            },
-            {
-              "value": "start",
-              "title": "Start"
-            },
-            {
-              "value": "end",
-              "title": "End"
+              "value": "flex-start",
+              "title": "Top"
             },
             {
               "value": "center",
               "title": "Centre"
             },
             {
-              "value": "stretch",
-              "title": "Stretch"
+              "value": "flex-end",
+              "title": "Bottom"
             }
           ],
-          "responsive": true,
-          "tooltip": "Where the content box sits when the section is taller than its content.",
-          "visibleWhen": {
-            "any": [
-              {
-                "id": "sizing.heightMode",
-                "operation": "!=",
-                "value": "auto"
-              },
-              {
-                "id": "sizing.minHeight",
-                "operation": "isNotEmpty"
-              }
-            ]
-          }
-        },
-        {
-          "type": "frameworkSpacing",
-          "id": "contentGap",
-          "label": "Gap",
           "defaults": {
-            "base": "none"
+            "base": "flex-start"
           },
-          "noneValue": "normal",
           "responsive": true,
-          "tooltip": "Space between the parts stacked inside. None uses the normal automatic gap (zero for this layout)."
+          "tooltip": "Where content sits vertically when a cell has extra height."
         }
       ]
     },
@@ -166,7 +156,7 @@
       ]
     },
     {
-      "section": "Effects",
+      "section": "Shadow",
       "systemImage": "sparkles",
       "controls": [
         {
@@ -251,9 +241,9 @@
   "tags": [
     "Foundry",
     "built-in",
-    "layout",
-    "section",
-    "container"
+    "bento",
+    "grid",
+    "mosaic"
   ],
   "templates": {
     "files": [
@@ -264,6 +254,6 @@
     ],
     "html": "part.html"
   },
-  "title": "Container",
-  "version": "3.3.0"
+  "title": "Bento Grid",
+  "version": "1.0.0"
 }

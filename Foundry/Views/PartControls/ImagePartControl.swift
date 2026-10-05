@@ -19,6 +19,7 @@ struct ImagePartControl: View {
     let previewImage: NSImage?
     /// Set when the value links to an image on the web instead of a project asset.
     let remoteURL: URL?
+    var allowsRemoteSource: Bool = true
     let supportsFocalPoint: Bool
     let focalPoint: CGPoint
     let focalPointIndicator: InspectorRowIndicator
@@ -57,10 +58,12 @@ struct ImagePartControl: View {
                         Button("Pick", action: chooseImage)
                             .buttonSizing(.flexible)
                             .frame(maxWidth: .infinity)
-                        Button("Image on the Web", systemImage: "link", action: showURLEntry)
-                            .labelStyle(.iconOnly)
-                            .help("Link or import an image from the web")
-                            .popover(isPresented: $showsURLEntry, arrowEdge: .trailing) { urlEntry }
+                        if allowsRemoteSource {
+                            Button("Image on the Web", systemImage: "link", action: showURLEntry)
+                                .labelStyle(.iconOnly)
+                                .help("Link or import an image from the web")
+                                .popover(isPresented: $showsURLEntry, arrowEdge: .trailing) { urlEntry }
+                        }
                     }
                     .buttonStyle(.bordered)
                     .frame(maxWidth: .infinity)
@@ -240,7 +243,7 @@ struct ImagePartControl: View {
             // Files import at once; an image dragged from a browser arrives
             // as a web address and is downloaded into the project.
             if urls.contains(where: { $0.isFileURL && importImage($0) }) { return true }
-            guard let url = urls.lazy.compactMap({ Self.webURL($0.absoluteString) }).first else { return false }
+            guard allowsRemoteSource, let url = urls.lazy.compactMap({ Self.webURL($0.absoluteString) }).first else { return false }
             Task { _ = await importRemoteImage(url) }
             return true
         } isTargeted: {

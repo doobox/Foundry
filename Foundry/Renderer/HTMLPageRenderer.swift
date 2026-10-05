@@ -161,10 +161,10 @@ nonisolated struct HTMLPageRenderer: PageRendering {
               color: #898989;
             }
             .foundry-drop-label svg { display: block; }
-            /* Empty Containers reserve a comfortable target when auto-sized,
+            /* Empty Sections reserve a comfortable target when auto-sized,
                but may shrink their layout box when the author sets a height.
                The visible target remains readable outside that smaller box. */
-            [data-foundry-package="foundry.layout.container"] > .fd-container__content > .foundry-empty-drop-zone {
+            [data-foundry-package="foundry.layout.section"] > .fd-section__content > .foundry-empty-drop-zone {
               height: 64px;
               min-height: 0;
               padding: 0;
@@ -172,14 +172,14 @@ nonisolated struct HTMLPageRenderer: PageRendering {
               background: transparent;
               overflow: visible;
             }
-            [data-foundry-package="foundry.layout.container"] > .fd-container__content > .foundry-empty-drop-zone::before {
+            [data-foundry-package="foundry.layout.section"] > .fd-section__content > .foundry-empty-drop-zone::before {
               /* Preserve an intrinsic width for the empty Fit content mode. */
               content: "";
               width: 56px;
               height: 0;
               pointer-events: none;
             }
-            [data-foundry-package="foundry.layout.container"] > .fd-container__content > .foundry-empty-drop-zone > .foundry-drop-label {
+            [data-foundry-package="foundry.layout.section"] > .fd-section__content > .foundry-empty-drop-zone > .foundry-drop-label {
               position: absolute;
               inset: 0;
               min-height: 64px;
@@ -844,6 +844,7 @@ nonisolated struct HTMLPageRenderer: PageRendering {
             }
         }
         if let package = partDefinition.package {
+            PartSVGRenderer.insert(node: node, package: package, assets: assets, canvas: true, into: &values)
             for property in manifestProperties where property.control.type == .image {
                 let key = PartProperty.Key(rawValue: property.id)
                 guard case .url(let source) = node.propertyValue(key) else { continue }
@@ -883,7 +884,7 @@ nonisolated struct HTMLPageRenderer: PageRendering {
                 )
                 PartVideoTemplateValues.insert(
                     propertyID: property.id,
-                    href: "",
+                    href: YouTubeVideo.id(from: source) == nil ? "" : source,
                     poster: property.usesAutomaticVideoPoster || customPoster.isEmpty
                         ? asset?.videoMetadata?.posterDataURL ?? ""
                         : canvasSource(customPoster, assets: assets),

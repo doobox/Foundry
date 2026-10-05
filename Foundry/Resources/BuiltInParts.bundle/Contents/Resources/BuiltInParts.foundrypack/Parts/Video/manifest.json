@@ -1,7 +1,7 @@
 {
   "assets": [],
   "author": "Foundry",
-  "description": "Displays a responsive project video.",
+  "description": "Displays a local, remote or YouTube video.",
   "group": "Media",
   "icon": {
     "symbol": "video",
@@ -20,46 +20,14 @@
           "type": "video"
         }
       ],
-      "section": "Content",
-      "systemImage": "doc.text"
+      "section": "Video",
+      "systemImage": "video"
     },
     {
       "controls": [
         {
-          "defaults": {
-            "base": 1200
-          },
-          "id": "maxWidth",
-          "label": "Max Width",
-          "maximum": 2400,
-          "minimum": 100,
-          "responsive": true,
-          "step": 10,
-          "type": "number",
-          "units": "px"
-        },
-        {
-          "defaults": {
-            "base": "center"
-          },
-          "id": "alignment",
-          "label": "Alignment",
-          "options": [
-            {
-              "title": "Start",
-              "value": "start"
-            },
-            {
-              "title": "Centre",
-              "value": "center"
-            },
-            {
-              "title": "End",
-              "value": "end"
-            }
-          ],
-          "responsive": true,
-          "type": "select"
+          "type": "sizing",
+          "id": "sizing"
         }
       ],
       "section": "Sizing",
@@ -101,7 +69,7 @@
       ]
     },
     {
-      "section": "Effects",
+      "section": "Shadow",
       "systemImage": "sparkles",
       "controls": [
         {
@@ -161,6 +129,16 @@
       "systemImage": "sparkles.rectangle.stack"
     },
     {
+      "section": "Lightbox",
+      "systemImage": "rectangle.on.rectangle",
+      "controls": [
+        {
+          "type": "lightbox",
+          "id": "lightbox"
+        }
+      ]
+    },
+    {
       "type": "advanced"
     }
   ],
@@ -180,5 +158,5 @@
     "html": "part.html"
   },
   "title": "Video",
-  "version": "1.0.0"
+  "version": "1.1.0"
 }

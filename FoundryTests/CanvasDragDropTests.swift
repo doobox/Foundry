@@ -83,7 +83,7 @@ struct CanvasDragDropTests {
     @Test @MainActor
     func canvasRendersExplicitDropZonesForEmptyTargets() {
         let emptyPage = Page(title: "Empty", slug: "empty", parts: [])
-        let container = PartNode.make(.container)
+        let container = PartNode.make(.section)
         // Flex and Grid start with three items; empty them to get drop zones.
         var flex = PartNode.make(.flex)
         flex.children = []
@@ -175,7 +175,7 @@ struct CanvasInsertionEditingTests {
         await PartPackageCatalog.shared.waitUntilLoaded()
         var target = PartNode.make(.paragraph)
         target.slotID = "secondary"
-        var parent = PartNode.make(.container)
+        var parent = PartNode.make(.section)
         parent.children = [target]
         var moving = PartNode.make(.image)
         moving.slotID = "stale-slot"
