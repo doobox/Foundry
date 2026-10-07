@@ -98,7 +98,7 @@ nonisolated enum PartPackageControlGroupCSSResolver {
             guard let id = PartAnchorValidator.validated(string(values["hoverTriggerID"])) else {
                 return ":instance:hover"
             }
-            return "#\(id):hover :instance"
+            return "body:has(#\(id):hover) :instance"
         default:
             return ":instance:hover"
         }

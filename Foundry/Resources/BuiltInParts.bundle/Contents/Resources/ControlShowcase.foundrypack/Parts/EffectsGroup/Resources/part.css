@@ -28,12 +28,9 @@
 :instance .fx-values dd { margin: 0; overflow-wrap: anywhere; }
 :instance .fx-values dd:empty::before { content: "(empty)"; color: var(--fx-muted); }
 
-/* Demo boxes. Stripes behind the box show opacity; the padded surround leaves room for a shadow. */
+/* The padded surround leaves room for the shadow. */
 :instance .fx-backdrop { padding: 28px; border-radius: 8px; background: repeating-linear-gradient(-45deg, #e2e8f0 0 8px, #ffffff 8px 16px); }
 :instance .fx-target { display: flex; align-items: center; justify-content: center; min-height: 90px; padding: 14px 18px; border-radius: 8px; background: var(--fx-accent); color: #ffffff; font-size: 13px; }
 
-/* box-shadow and opacity in one value. */
+/* The group composes the box-shadow declaration. */
 :instance .fx-styled { {{ control.effects.css }} }
-
-/* excludeControls: ["frameworkShadow"] — opacity only. */
-:instance .fx-faded { {{ control.fade.css }} }

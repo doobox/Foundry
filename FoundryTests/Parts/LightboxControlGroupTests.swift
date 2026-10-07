@@ -9,7 +9,7 @@ struct LightboxControlGroupTests {
             .appending(path: "Foundry/Resources/BuiltInParts.bundle/Contents/Resources/BuiltInParts.foundrypack/Parts")
     }
 
-    @Test(arguments: ["Image", "SVG", "Video", "Lightbox"])
+    @Test(arguments: ["Image", "SVG", "Video"])
     func builtInsExposeThePublicGroup(_ name: String) throws {
         let package = try PartPackageLoader.load(from: root.appending(path: name))
         #expect(package.manifest.controlGroups.contains { $0.type == .lightbox })
@@ -62,30 +62,6 @@ struct LightboxControlGroupTests {
         let export = StaticSiteRenderer().render(site: site)
         #expect(export.errors.isEmpty)
         #expect(export.files.contains { String(decoding: $0.data, as: UTF8.self).contains("data-foundry-youtube-play=\"") })
-    }
-
-    @Test @MainActor func customSlotRendersInCanvasAndExport() throws {
-        let package = try PartPackageLoader.load(from: root.appending(path: "Lightbox"))
-        let previous = PartType.lightbox.definition.package
-        let section = try PartPackageLoader.load(from: root.appending(path: "Section"))
-        let previousSection = PartType.section.definition.package
-        PartRegistry.register(section)
-        PartRegistry.register(package)
-        defer {
-            if let previous { PartRegistry.register(previous) }
-            else { PartRegistry.unregisterPackage(identifier: package.manifest.identifier) }
-            if let previousSection { PartRegistry.register(previousSection) }
-            else { PartRegistry.unregisterPackage(identifier: section.manifest.identifier) }
-        }
-        var part = PartNode(type: .lightbox)
-        part.setProperty(.init(rawValue: "lightbox.enabled"), value: .boolean(true))
-        part.children = [PartNode(type: .section, slotID: "content", anchor: "modal-child")]
-        let site = Site(name: "Lightbox", pages: [Page(title: "Home", slug: "index", parts: [part])])
-        let canvas = HTMLPageRenderer(site: site).render(page: site.pages[0], framework: site.framework)
-        #expect(canvas.contains("id=\"modal-child\""))
-        let export = StaticSiteRenderer().render(site: site)
-        #expect(export.errors.isEmpty)
-        #expect(export.files.contains { String(decoding: $0.data, as: UTF8.self).contains("id=\"modal-child\"") })
     }
 
     @Test(.timeLimit(.minutes(1))) @MainActor

@@ -44,7 +44,10 @@
 /* Shared state-change timing; never applied to nested parts implicitly. */
 :instance { {{ control.transitions.css }} }
 
-:instance { {{ control.filters.css }} }
-{{ control.filters.hover.selector }} { {{ control.filters.hover.css }} }
+/* Keep filtered media on a stable compositing layer. Without the hint,
+   WebKit can leave colour-only filters on a blank or partially stale layer;
+   adding blur appears to fix it only because blur promotes a layer itself. */
+:instance > .fd-image { will-change: filter, opacity; {{ control.filters.css }} }
+{{ control.filters.hover.selector }} > .fd-image { {{ control.filters.hover.css }} }
 :instance > .fd-transform-content { {{ control.transforms.css }} {{ control.transitions.css }} }
 {{ control.transforms.hover.selector }} > .fd-transform-content { {{ control.transforms.hover.css }} }

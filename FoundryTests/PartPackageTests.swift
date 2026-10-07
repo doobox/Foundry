@@ -1851,7 +1851,7 @@ struct PartPackageTests {
 
     /// Every group that maps onto a set of declarations composes them, so the
     /// details a part would otherwise hand-write — the enabled toggles'
-    /// explicit resets, opacity's conversion out of percent, Layout's
+    /// explicit resets and Layout's
     /// "emit nothing" sentinels — live in one place.
     @Test
     func everyStylingGroupComposesItsDeclarations() throws {
@@ -1903,18 +1903,16 @@ struct PartPackageTests {
             "frameworkRadius": .string("var(--foundry-border-radius-md)")
         ]) == "border-width: 0; border-style: dashed; border-color: #112233; border-radius: 0;")
 
-        // The percentage becomes a CSS fraction here rather than in a calc()
-        // in every part.
+        // Shadow emits its selected value while enabled and an explicit reset
+        // while disabled.
         #expect(try composed("effects", values: [
             "effectsEnabled": .boolean(true),
-            "frameworkShadow": .string("var(--foundry-shadow-lg)"),
-            "opacity": .number(85)
-        ]) == "box-shadow: var(--foundry-shadow-lg); opacity: 0.85;")
+            "frameworkShadow": .string("var(--foundry-shadow-lg)")
+        ]) == "box-shadow: var(--foundry-shadow-lg);")
         #expect(try composed("effects", values: [
             "effectsEnabled": .boolean(false),
-            "frameworkShadow": .string("var(--foundry-shadow-lg)"),
-            "opacity": .number(85)
-        ]) == "box-shadow: none; opacity: 1;")
+            "frameworkShadow": .string("var(--foundry-shadow-lg)")
+        ]) == "box-shadow: none;")
 
         // An untouched Layout group contributes nothing at all.
         // Isolation belongs to the part stylesheet, never Layout output.
@@ -2163,12 +2161,11 @@ struct PartPackageTests {
         var values: [String: PartPackageValue] = [
             "spacing.spacingEnabled": .boolean(true),
             "spacing.frameworkPadding": .string("12px"),
-            "effects.effectsEnabled": .boolean(true),
-            "effects.opacity": .number(50)
+            "effects.effectsEnabled": .boolean(true)
         ]
         PartPackageControlGroupCSSResolver.resolve(&values, properties: manifest.resolvedProperties)
         #expect(values["spacing.css"] == .string("padding: 12px;"))
-        #expect(values["effects.css"] == .string("opacity: 0.5;"))
+        #expect(values["effects.css"] == .string(""))
         #expect(try PartPackageManifestSchema.diagnostics(for: data).isEmpty)
     }
 
@@ -2228,7 +2225,7 @@ struct PartPackageTests {
             ("spacing", ["spacingEnabled", "frameworkMargin", "frameworkPadding"]),
             ("sizing", ["widthMode", "customWidth", "heightMode", "customHeight", "aspectRatio", "aspectRatioWidth", "aspectRatioHeight", "minWidth", "maxWidth", "minHeight", "maxHeight"]),
             ("borders", ["borderEnabled", "frameworkBorder", "frameworkBorderColour", "frameworkRadius"]),
-            ("effects", ["effectsEnabled", "frameworkShadow", "opacity"]),
+            ("effects", ["effectsEnabled", "frameworkShadow"]),
             ("layout", ["position", "zIndexMode", "zIndex", "offsets", "offset", "offsetEdges", "hidden", "visibility", "overflow"]),
             ("flexbox", ["direction", "wrap", "columnGap", "rowGap", "alignItems", "alignContent", "justifyContent"])
         ] {
@@ -2464,7 +2461,7 @@ struct PartPackageTests {
             .contains("Duplicate excludeControls value 'position'."))
         #expect(try messages(#"{"type" : "layout", "id": "layout", "excludeControls" : []}"#)
             .contains("excludeControls must name at least one control, or be removed."))
-        #expect(try messages(#"{"type" : "effects", "id": "effects", "excludeControls" : ["effectsEnabled", "frameworkShadow", "opacity"]}"#)
+        #expect(try messages(#"{"type" : "effects", "id": "effects", "excludeControls" : ["effectsEnabled", "frameworkShadow"]}"#)
             .contains("excludeControls removes every control the effects group generates; remove the group instead."))
         #expect(try messages(#"{"type" : "layout", "id": "layout", "allowedOptions" : {"position" : ["relative", "statik"]}}"#)
             .contains { $0.hasPrefix("'statik' is not an option of 'position'.") })
@@ -6198,7 +6195,6 @@ struct PartPackageTests {
         #expect(PartType.section.definition.properties.contains { $0.key.rawValue == "layout.position" })
         #expect(!PartType.section.definition.properties.contains { $0.key.rawValue == "minimumHeight" })
         #expect(PartType.flex.definition.properties.contains { $0.key.rawValue == "borders.frameworkBorder.width" })
-        #expect(PartType.flex.definition.properties.contains { $0.key.rawValue == "effects.opacity" })
         #expect(PartType.flex.definition.properties.contains { $0.key.rawValue == "reveal.revealEffect" })
         #expect(PartType.grid.definition.properties.contains { $0.key.rawValue == "layout.overflow" })
         #expect(!PartType.grid.definition.properties.contains { $0.key.rawValue == "overflow" })

@@ -59,7 +59,7 @@ struct FiltersControlGroupTests {
         let cases = [
             ("self", "", ":instance:hover"),
             ("parent", "", ":parent:hover :instance"),
-            ("custom", "card", "#card:hover :instance"),
+            ("custom", "card", "body:has(#card:hover) :instance"),
             ("custom", "not a valid id", ":instance:hover")
         ]
         for (trigger, id, expected) in cases {
@@ -71,6 +71,14 @@ struct FiltersControlGroupTests {
             #expect(values["visual.hover.selector"] == .string(expected))
             #expect(values["__foundry_raw.visual.hover.selector"] == .boolean(true))
         }
+
+        let instanceID = UUID()
+        let scoped = PartTemplateRenderer.scopedCSS(
+            "body:has(#card:hover) :instance { filter: grayscale(100%); }",
+            packageIdentifier: "com.example.card",
+            instanceID: instanceID
+        )
+        #expect(scoped.contains("body:has(#card:hover) [data-foundry-id=\"\(instanceID.uuidString)\"]"))
     }
 
     private func resolved(_ overrides: [String: PartPackageValue], namespace: String = "visual") -> [String: PartPackageValue] {
@@ -84,9 +92,22 @@ struct FiltersControlGroupTests {
     @Test(arguments: ["none", "static", "hover"])
     func neutralDefaultsDoNotCreateAFilterContainingBlock(mode: String) {
         let values = resolved(["filtersMode": .string(mode)])
-        let reset = PartPackageValue.string("opacity: 1; filter: none; backdrop-filter: none; -webkit-backdrop-filter: none;")
+        let reset = PartPackageValue.string("filter: none; backdrop-filter: none; -webkit-backdrop-filter: none;")
         #expect(values["visual.css"] == reset)
         #expect(values["visual.hover.css"] == reset)
+    }
+
+    @Test func neutralOpacityIsOmittedUnlessNeededToRestoreAHoverState() {
+        let neutral = resolved(["filtersMode": .string("static"), "filtersGrayscale": .number(100)])
+        #expect(neutral["visual.css"]?.stringValue.contains("opacity:") == false)
+
+        let hover = resolved([
+            "filtersMode": .string("hover"),
+            "filtersOpacity": .number(40),
+            "filtersHoverOpacity": .number(100)
+        ])
+        #expect(hover["visual.css"]?.stringValue.contains("opacity: 0.4;") == true)
+        #expect(hover["visual.hover.css"]?.stringValue.contains("opacity: 1;") == true)
     }
 
     @Test func staticMirrorsNormalValuesOnHover() {
@@ -109,11 +130,11 @@ struct FiltersControlGroupTests {
     @Test func valuesAreClampedAndDisabledClearsBothStates() {
         let values = resolved(["filtersMode": .string("hover"), "filtersBlur": .number(-10),
                                "filtersHoverBlur": .number(900), "filtersHoverSaturate": .number(.infinity)])
-        #expect(values["visual.css"]?.stringValue.hasPrefix("filter: none;") == true)
+        #expect(values["visual.css"]?.stringValue.contains("filter: none;") == true)
         #expect(values["visual.hover.css"]?.stringValue.contains("blur(100px)") == true)
         #expect(values["visual.hover.css"]?.stringValue.contains("saturate(100%)") == true)
         let disabled = resolved(["filtersMode": .string("none"), "filtersBlur": .number(40)])
-        #expect(disabled["visual.css"]?.stringValue.hasPrefix("filter: none;") == true)
+        #expect(disabled["visual.css"]?.stringValue.contains("filter: none;") == true)
     }
 
     @Test func frameworkShadowsBecomeValidDropShadows() {
@@ -138,6 +159,10 @@ struct FiltersControlGroupTests {
             #expect(package.manifest.controlGroups.contains { $0.type == .filters })
             #expect(package.css.contains("control.filters.css"))
             #expect(package.css.contains("control.filters.hover.css"))
+            if name == "Image" {
+                #expect(package.css.contains(":instance > .fd-image { will-change: filter, opacity; {{ control.filters.css }} }"))
+                #expect(package.css.contains("{{ control.filters.hover.selector }} > .fd-image { {{ control.filters.hover.css }} }"))
+            }
         }
     }
 

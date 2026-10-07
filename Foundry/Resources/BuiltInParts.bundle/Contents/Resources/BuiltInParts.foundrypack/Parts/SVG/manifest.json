@@ -4,14 +4,14 @@
   "description": "Displays and styles an inline SVG.",
   "group": "Media",
   "icon": {
-    "symbol": "tent.2",
+    "symbol": "flag.pattern.checkered.2.crossed",
     "tint": "red"
   },
   "id": "foundry.media.svg",
   "inspector": [
     {
       "section": "SVG",
-      "systemImage": "tent.2",
+      "systemImage": "flag.pattern.checkered.2.crossed",
       "controls": [
         {
           "id": "source",
@@ -32,6 +32,8 @@
           "id": "fill",
           "label": "Fill",
           "type": "frameworkColor",
+          "allowsCustom": true,
+          "opacity": true,
           "defaults": {
             "base": {
               "palette": "text"
@@ -56,6 +58,8 @@
           "id": "stroke",
           "label": "Stroke",
           "type": "frameworkColor",
+          "allowsCustom": true,
+          "opacity": true,
           "defaults": {
             "base": {
               "palette": "text"
@@ -102,7 +106,7 @@
           "id": "sizing",
           "defaults": {
             "widthMode": "custom",
-            "customWidth": 240
+            "customWidth": 128
           }
         }
       ]

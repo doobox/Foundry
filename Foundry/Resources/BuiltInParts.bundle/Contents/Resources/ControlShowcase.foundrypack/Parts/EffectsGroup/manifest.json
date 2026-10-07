@@ -1,7 +1,7 @@
 {
   "assets": [],
   "author": "Foundry",
-  "description": "A framework shadow and an opacity percentage, composed into box-shadow and opacity.",
+  "description": "A framework shadow composed into a box-shadow declaration.",
   "group": "Control Groups",
   "helpURL": "https://doobox.github.io/foundry-docs/developer/effects-control-group.html",
   "icon": {
@@ -17,27 +17,6 @@
         {
           "type": "effects",
           "id": "effects"
-        }
-      ]
-    },
-    {
-      "section": "Opacity only",
-      "systemImage": "circle.lefthalf.filled",
-      "controls": [
-        {
-          "type": "note",
-          "body": "excludeControls: [\"frameworkShadow\"] removes the shadow control, so the composed CSS is opacity alone. defaults starts it enabled at 60%."
-        },
-        {
-          "type": "effects",
-          "id": "fade",
-          "excludeControls": [
-            "frameworkShadow"
-          ],
-          "defaults": {
-            "effectsEnabled": true,
-            "opacity": 60
-          }
         }
       ]
     },

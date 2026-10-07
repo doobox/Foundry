@@ -42,7 +42,7 @@
           "value": "parent"
         },
         {
-          "title": "Custom ID",
+          "title": "Part ID",
           "value": "custom"
         }
       ],
@@ -53,7 +53,7 @@
     },
     {
       "id": "hoverTriggerID",
-      "label": "Custom ID",
+      "label": "Part ID",
       "type": "text",
       "responsive": false,
       "defaults": {
@@ -71,7 +71,7 @@
           }
         ]
       },
-      "tooltip": "The HTML ID of an ancestor part, without the #."
+      "tooltip": "The HTML ID of any part on this page, without the #."
     },
     {
       "defaults": {

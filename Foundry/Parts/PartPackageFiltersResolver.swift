@@ -8,12 +8,21 @@ nonisolated enum PartPackageFiltersResolver {
     ) -> [String] {
         let mode = values["filtersMode"]?.stringValue ?? "none"
         guard mode == "static" || mode == "hover" else {
-            return ["opacity: 1;", "filter: none;", "backdrop-filter: none;", "-webkit-backdrop-filter: none;"]
+            return ["filter: none;", "backdrop-filter: none;", "-webkit-backdrop-filter: none;"]
         }
         let prefix = hovered && mode == "hover" ? "filtersHover" : "filters"
         let opacity = declared.contains(prefix + "Opacity")
             ? number(values[prefix + "Opacity"], fallback: 100, maximum: 100) : 100
-        let opacityDeclaration = "opacity: \(formatted(opacity / 100));"
+        let normalOpacity = declared.contains("filtersOpacity")
+            ? number(values["filtersOpacity"], fallback: 100, maximum: 100) : 100
+        let hoverOpacity = declared.contains("filtersHoverOpacity")
+            ? number(values["filtersHoverOpacity"], fallback: 100, maximum: 100) : 100
+        // Avoid putting every filtered element onto a combined opacity/filter
+        // compositing path in WebKit. In Hover mode both declarations are
+        // required when either state changes so 100% can restore its peer.
+        let emitsOpacity = mode == "hover"
+            ? normalOpacity != 100 || hoverOpacity != 100
+            : opacity != 100
         let specifications: [(String, String, Double, Double, String)] = [
             ("Blur", "blur", 0, 100, "px"),
             ("Brightness", "brightness", 100, 200, "%"),
@@ -41,11 +50,11 @@ nonisolated enum PartPackageFiltersResolver {
             ? number(values[prefix + "BackdropBlur"], fallback: 0, maximum: 100) : 0
         let backdrop = blur == 0 ? "none" : "blur(\(formatted(blur))px)"
         return [
-            opacityDeclaration,
+            emitsOpacity ? "opacity: \(formatted(opacity / 100));" : nil,
             "filter: \(hasEffect ? functions.joined(separator: " ") : "none");",
             "backdrop-filter: \(backdrop);",
             "-webkit-backdrop-filter: \(backdrop);"
-        ]
+        ].compactMap { $0 }
     }
 
     private static func number(_ value: PartPackageValue?, fallback: Double, maximum: Double) -> Double {

@@ -57,7 +57,6 @@ nonisolated struct PartType: RawRepresentable, Codable, Hashable, Identifiable, 
     static let image = PartType(rawValue: "foundry.media.image")
     static let svg = PartType(rawValue: "foundry.media.svg")
     static let video = PartType(rawValue: "foundry.media.video")
-    static let lightbox = PartType(rawValue: "foundry.content.lightbox")
     static let divider = PartType(rawValue: "foundry.layout.divider")
 
     static var allCases: [PartType] { PartRegistry.availableTypes }

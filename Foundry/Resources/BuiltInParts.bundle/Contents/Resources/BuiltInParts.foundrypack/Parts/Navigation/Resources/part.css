@@ -19,8 +19,6 @@
     border-color: {{ control.borders.frameworkBorderColour }};
     border-radius: {{ if control.borders.borderEnabled }}{{ control.borders.frameworkRadius }}{{ else }}0{{ endif }};
     box-shadow: {{ if control.effects.effectsEnabled }}{{ control.effects.frameworkShadow }}{{ else }}none{{ endif }};
-    opacity: 1;
-    {{ if control.effects.effectsEnabled }}opacity: calc({{ control.effects.opacity }} / 100);{{ endif }}
 }
 :instance .fd-navigation__bar {
     display: flex;

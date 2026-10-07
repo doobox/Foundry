@@ -18,7 +18,6 @@ struct BuiltInLayoutPartsTests {
             "Sizing", "Spacing", "Background", "Borders", "Shadow", "Filters", "Transforms", "Transitions", "Layout", "Reveal", "Link"
         ]
         let parts = [
-            (directory: "BentoGrid", section: "Bento Grid"),
             (directory: "Section", section: "Section"),
             (directory: "Flexbox", section: "Flexbox"),
             (directory: "FlexItem", section: "Flex Item"),
@@ -33,7 +32,7 @@ struct BuiltInLayoutPartsTests {
         }
     }
 
-    @Test(arguments: ["BentoGrid", "Section", "Flexbox", "FlexItem", "Grid", "GridItem"])
+    @Test(arguments: ["Section", "Flexbox", "FlexItem", "Grid", "GridItem"])
     func videoBackgroundsOptInAndKeepAPositionedHost(_ name: String) throws {
         let manifest = try package(name).manifest
         let group = try #require(manifest.controlGroups.first { $0.type == .background })
@@ -57,31 +56,6 @@ struct BuiltInLayoutPartsTests {
         #expect(grid.resolvedProperties.first { $0.id == "gridMode" }?.defaultValue == .string("auto"))
         #expect(grid.resolvedProperties.first { $0.id == "alignItems" }?.defaultValue == .string("normal"))
         #expect(grid.resolvedProperties.first { $0.id == "justifyItems" }?.defaultValue == .string("normal"))
-    }
-
-    @Test
-    func bentoGridKeepsFiveCellsAcrossEveryResponsivePreset() throws {
-        let loaded = try package("BentoGrid")
-        let preset = try #require(loaded.manifest.resolvedProperties.first { $0.id == "preset" })
-        #expect(preset.responsive)
-        #expect(preset.defaultValue == .string("stacked"))
-        #expect(preset.breakpointDefaults["medium"] == .string("feature-left"))
-        #expect(preset.control.options?.map(\.value) == [
-            "stacked", "feature-left", "feature-right", "feature-top", "feature-bottom", "balanced", "equal"
-        ])
-        #expect(loaded.dropZoneNames == ["cell1", "cell2", "cell3", "cell4", "cell5"])
-
-        for option in preset.control.options ?? [] {
-            var values = Dictionary(uniqueKeysWithValues: loaded.manifest.resolvedProperties.map { ($0.id, $0.defaultValue) })
-            values["preset"] = .string(option.value)
-            PartPackageControlGroupCSSResolver.resolve(&values, properties: loaded.manifest.resolvedProperties)
-            let rendered = PartTemplateRenderer.render(loaded.css, context: .init(
-                instanceID: UUID(), packageIdentifier: loaded.manifest.identifier, properties: values, slots: [:]))
-            for area in ["one", "two", "three", "four", "five"] {
-                #expect(rendered.contains("grid-area: \(area);"), "\(option.value): missing \(area)")
-            }
-            #expect(rendered.contains("{{") == false)
-        }
     }
 
     @Test(arguments: ["flex-start", "center", "flex-end"])
@@ -141,7 +115,7 @@ struct BuiltInLayoutPartsTests {
 
     @Test
     func layoutPartPackagesAndTemplatesValidate() throws {
-        for directory in ["BentoGrid", "Section", "Flexbox", "FlexItem", "Grid", "GridItem"] {
+        for directory in ["Section", "Flexbox", "FlexItem", "Grid", "GridItem"] {
             let loaded = try package(directory)
             let diagnostics = PartPackageValidator.validate(
                 loaded.manifest,
@@ -154,7 +128,7 @@ struct BuiltInLayoutPartsTests {
     @Test @MainActor
     func linkGroupAutomaticallyDecoratesCanvasAndExportAndClearsCleanly() async throws {
         await PartPackageCatalog.shared.waitUntilLoaded()
-        for name in ["BentoGrid", "Section", "Flexbox", "FlexItem", "Grid", "GridItem", "Image"] {
+        for name in ["Section", "Flexbox", "FlexItem", "Grid", "GridItem", "Image"] {
             let loaded = try package(name)
             var part = PartNode.make(.init(rawValue: loaded.manifest.identifier))
             part.setProperty(.init(rawValue: "link.destination"), value: "https://example.com/card")
