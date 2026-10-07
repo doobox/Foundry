@@ -72,6 +72,9 @@ nonisolated enum PartPackageAdapter {
 
     private static func propertyDefinitions(_ property: PartPackageProperty) -> [PartPropertyDefinition] {
         var definitions = basePropertyDefinitions(property)
+        for index in definitions.indices {
+            definitions[index].valueAvailability = property.valueAvailability
+        }
         for (name, value) in property.breakpointDefaults {
             guard let breakpoint = ResponsiveBreakpoint(rawValue: name), breakpoint != .mobile else { continue }
             var variant = property
@@ -86,6 +89,22 @@ nonisolated enum PartPackageAdapter {
     }
 
     private static func basePropertyDefinitions(_ property: PartPackageProperty) -> [PartPropertyDefinition] {
+        if property.control.type == .collection {
+            let fields = property.collectionFields.flatMap { collectionFieldDefinitions($0) }
+            return [PartPropertyDefinition(
+                key: .init(rawValue: property.id),
+                label: property.label,
+                subtitle: property.subtitles.first,
+                section: .init(rawValue: property.group),
+                control: .collection(
+                    itemLabel: property.itemLabel,
+                    fields: fields
+                ),
+                defaultValue: collectionDefaultValue(for: property),
+                isResponsive: false,
+                visibleWhen: property.visibleWhen
+            )]
+        }
         if property.control.type == .video {
             return [
                 PartPropertyDefinition(
@@ -449,6 +468,7 @@ nonisolated enum PartPackageAdapter {
         case .math: .derived
         case .frameworkShadow: .packageShadow
         case .childPicker: .derived
+        case .collection: .derived
         }
     }
 
@@ -503,8 +523,34 @@ nonisolated enum PartPackageAdapter {
             }
         case .array(let values):
             .array(values.map { self.value($0, control: control) })
-        case .object:
-            .string("")
+        case .object(let values):
+            .object(values.mapValues { convertedValue($0, control: control) })
         }
     }
+
+    private static func collectionFieldDefinitions(_ property: PartPackageProperty) -> [PartPropertyDefinition] {
+        guard property.control.type != .collection,
+              property.control.type != .childPicker,
+              property.control.type != .math else { return [] }
+        return propertyDefinitions(property)
+    }
+
+    private static func collectionDefaultValue(for property: PartPackageProperty) -> PartProperty.Value {
+        guard case .array(let records) = property.defaultValue else { return .array([]) }
+        let fields = property.collectionFields.flatMap { collectionFieldDefinitions($0) }
+        return .array(records.compactMap { record in
+            guard case .object(let declaredValues) = record else { return nil }
+            let values = Dictionary(uniqueKeysWithValues: property.collectionFields.map { field in
+                let declared = declaredValues[field.id] ?? field.defaultValue
+                return (field.id, value(declared, control: field.control.type))
+            })
+            let id = declaredValues[PartCollectionValue.identityKey]?.stringValue.nonEmpty
+                .flatMap(UUID.init(uuidString:)) ?? UUID()
+            return PartCollectionValue.record(fields: fields, overriding: values, id: id)
+        })
+    }
+}
+
+private nonisolated extension String {
+    var nonEmpty: String? { isEmpty ? nil : self }
 }

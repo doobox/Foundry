@@ -96,6 +96,46 @@ struct CanvasJavaScriptTests {
         #expect(recorder.messages.last?.event == .importImageAsset)
         #expect(recorder.messages.last?.partID == innerID)
         #expect(recorder.messages.last?.propertyKey?.rawValue == "source")
+
+        let collectionClickMessageCount = recorder.messages.count
+        _ = try await webView.callAsyncJavaScript("""
+            const part = document.querySelector('[data-foundry-id="' + CSS.escape(innerID) + '"]');
+            const firstCard = document.createElement('article');
+            firstCard.dataset.foundryCollectionProperty = 'cards';
+            firstCard.dataset.foundryCollectionLabel = 'Card';
+            firstCard.dataset.foundryPropertyPath = '0';
+            firstCard.style.cssText = 'display:block;width:120px;height:80px';
+            part.appendChild(firstCard);
+            const card = document.createElement('article');
+            card.dataset.foundryCollectionProperty = 'cards';
+            card.dataset.foundryCollectionLabel = 'Card';
+            card.dataset.foundryPropertyPath = '2';
+            card.style.cssText = 'display:block;width:120px;height:80px';
+            part.appendChild(card);
+            card.dispatchEvent(new MouseEvent('click', { bubbles: true, button: 0 }));
+            """, arguments: ["innerID": innerID.uuidString], in: nil, contentWorld: .defaultClient)
+        for _ in 0..<40 where recorder.messages.count == collectionClickMessageCount {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        #expect(recorder.messages.last?.event == .selectPrimitive)
+        #expect(recorder.messages.last?.partID == innerID)
+        #expect(recorder.messages.last?.propertyKey?.rawValue == "cards")
+        #expect(recorder.messages.last?.propertyPath == [2])
+
+        let collectionChrome = try #require(try await webView.callAsyncJavaScript("""
+            window.foundrySetSelection([innerID], {
+              partID: innerID, propertyKey: 'cards', propertyPath: [2]
+            }, false);
+            const root = document.querySelector('[data-foundry-editor-chrome="host"]').shadowRoot;
+            const toolbar = root.querySelector('[data-foundry-editor-chrome="collection-toolbar"]');
+            const outline = root.querySelector('[data-foundry-editor-chrome="selection"]');
+            return [toolbar.textContent.trim(), getComputedStyle(toolbar).display,
+              getComputedStyle(outline).borderTopWidth];
+            """, arguments: ["innerID": innerID.uuidString], in: nil, contentWorld: .defaultClient) as? [String])
+        #expect(collectionChrome[0].hasPrefix("Card 3"))
+        #expect(collectionChrome[1] == "flex")
+        #expect(collectionChrome[2] == "2px")
+
     }
 
     @Test(.timeLimit(.minutes(1)))

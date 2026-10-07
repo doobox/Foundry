@@ -77,6 +77,8 @@ nonisolated enum PartTemplateLoop {
     }
 
     private struct LoopFrame {
+        let source: String
+        let itemLabel: String?
         let index: Int
         let emissionIndex: Int
         let pathIndex: Int
@@ -138,7 +140,7 @@ nonisolated enum PartTemplateLoop {
             switch node {
             case .text(let source):
                 output += annotatePrimitivePaths(
-                    in: replacingLoopValues(in: source, stack: loopStack),
+                    in: replacingLoopValues(in: source, stack: loopStack, environment: environment),
                     path: loopStack.map(\.pathIndex)
                 )
             case .loop(let source, let children):
@@ -150,6 +152,8 @@ nonisolated enum PartTemplateLoop {
                     candidates = sourceItems.enumerated().compactMap { pathIndex, item in
                         guard let predicate = directive.predicate else { return (pathIndex, item) }
                         let frame = LoopFrame(
+                            source: directive.source,
+                            itemLabel: collectionItemLabel(for: directive.source, properties: iterationProperties),
                             index: pathIndex,
                             emissionIndex: pathIndex,
                             pathIndex: pathIndex,
@@ -170,6 +174,8 @@ nonisolated enum PartTemplateLoop {
                         : currentCount(for: directive.source, properties: iterationProperties, maximum: maximum)
                     candidates = (0..<sourceCount).compactMap { pathIndex in
                         let frame = LoopFrame(
+                            source: directive.source,
+                            itemLabel: collectionItemLabel(for: directive.source, properties: iterationProperties),
                             index: pathIndex,
                             emissionIndex: pathIndex,
                             pathIndex: pathIndex,
@@ -194,6 +200,8 @@ nonisolated enum PartTemplateLoop {
                 let iterations = Array(orderedCandidates.prefix(maximumIterationCount))
                 for (emissionIndex, candidate) in iterations.enumerated() {
                     let frame = LoopFrame(
+                        source: directive.source,
+                        itemLabel: collectionItemLabel(for: directive.source, properties: iterationProperties),
                         index: emissionIndex,
                         emissionIndex: emissionIndex,
                         pathIndex: candidate.pathIndex,
@@ -252,6 +260,15 @@ nonisolated enum PartTemplateLoop {
         if case .array(let values) = resolvedValue(key, properties: properties) { return values }
         if !source.hasPrefix("control."), source.contains(".") { return [] }
         return nil
+    }
+
+    private static func collectionItemLabel(
+        for source: String,
+        properties: [String: PartPackageValue]
+    ) -> String? {
+        guard source.hasPrefix("control.") else { return nil }
+        let key = String(source.dropFirst("control.".count))
+        return properties["__foundry_collection_label." + key]?.stringValue
     }
 
     private static func resolvedValue(
@@ -319,9 +336,27 @@ nonisolated enum PartTemplateLoop {
         )
     }
 
-    private static func replacingLoopValues(in source: String, stack: [LoopFrame]) -> String {
+    private static func replacingLoopValues(
+        in source: String,
+        stack: [LoopFrame],
+        environment: PartTemplateEnvironment
+    ) -> String {
         guard let current = stack.last else { return source }
         var result = source
+        let collectionAttributes: String
+        if environment == .canvas, current.source.hasPrefix("control.") {
+            let key = String(current.source.dropFirst("control.".count))
+            let path = stack.map(\.pathIndex).map(String.init).joined(separator: ",")
+            let label = (current.itemLabel ?? "Item")
+                .replacingOccurrences(of: "&", with: "&amp;")
+                .replacingOccurrences(of: "\"", with: "&quot;")
+                .replacingOccurrences(of: "<", with: "&lt;")
+                .replacingOccurrences(of: ">", with: "&gt;")
+            collectionAttributes = "data-foundry-collection-property=\"\(key)\" data-foundry-collection-label=\"\(label)\" data-foundry-property-path=\"\(path)\""
+        } else {
+            collectionAttributes = ""
+        }
+        result = result.replacingOccurrences(of: "{{ loop.attributes }}", with: collectionAttributes)
         let values: [(String, String)] = [
             ("loop.sourceIndex", String(current.pathIndex)),
             ("loop.sourcePosition", String(current.pathIndex + 1)),
@@ -349,9 +384,14 @@ nonisolated enum PartTemplateLoop {
         )
         for match in expression.matches(in: result, range: NSRange(result.startIndex..., in: result)).reversed() {
             guard let range = Range(match.range(at: 0), in: result),
-                  let keyRange = Range(match.range(at: 1), in: result),
-                  let value = resolvedValue(String(result[keyRange]), properties: properties) else { continue }
-            result.replaceSubrange(range, with: escapedOutput(value))
+                  let keyRange = Range(match.range(at: 1), in: result) else { continue }
+            let key = String(result[keyRange])
+            guard let value = resolvedValue(key, properties: properties) else { continue }
+            if key.hasSuffix(".attributes"), case .string(let attributes) = value {
+                result.replaceSubrange(range, with: attributes)
+            } else {
+                result.replaceSubrange(range, with: escapedOutput(value))
+            }
         }
         return result
     }

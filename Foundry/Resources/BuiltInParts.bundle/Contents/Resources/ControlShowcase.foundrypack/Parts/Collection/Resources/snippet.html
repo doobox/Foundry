@@ -1,0 +1,10 @@
+<div class="gallery">
+  {{ loop control.cards as card }}
+  <article {{ loop.attributes }}>
+    {{ if card.image }}<img src="{{ card.image }}" alt="">{{ endif }}
+    <h2>{{ card.title }}</h2>
+    <p>{{ card.description }}</p>
+    {{ if card.link }}<a href="{{ card.link }}" target="{{ card.link.target }}" {{ card.link.attributes }}>View</a>{{ endif }}
+  </article>
+  {{ endloop }}
+</div>

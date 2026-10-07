@@ -767,7 +767,13 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
             guard let minimumWidth = breakpoint.minimumWidth(in: site.framework.screens) else { return nil }
             let rules = nodes.compactMap { node -> String? in
                 guard !Task.isCancelled else { return nil }
-                guard node.responsiveOverrides?.contains(where: { $0.breakpoint == breakpoint }) == true else { return nil }
+                let hasPartOverride = node.responsiveOverrides?.contains(where: { $0.breakpoint == breakpoint }) == true
+                let hasCollectionOverride = node.type.definition.properties.contains { definition in
+                    guard definition.control.isCollection else { return false }
+                    let value = node.storedPropertyValue(definition.key) ?? definition.defaultValue
+                    return PartCollectionValue.hasOverride(in: value, at: breakpoint)
+                }
+                guard hasPartOverride || hasCollectionOverride else { return nil }
                 let resolved = node.resolved(at: breakpoint, screens: site.framework.screens)
                 if let package = resolved.type.definition.package {
                     let css = PartTemplateRenderer.render(
@@ -782,7 +788,8 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
                                 framework: site.framework,
                                 assetPrefix: assetPrefix,
                                 assets: assets,
-                                site: site
+                                site: site,
+                                breakpoint: breakpoint
                             ),
                             templateValues: navigationValues(for: page, in: site),
                             slots: [:],
@@ -922,6 +929,7 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
         case .string(let value), .url(let value), .color(let value), .choice(let value): .string(value)
         case .token(let value): .string(value.rawValue)
         case .array(let values): .array(values.map(packageValue))
+        case .object(let values): .object(values.mapValues(packageValue))
         case .link: .string("")
         case .packageColor(let value): .string(value.source)
         case .packageFontSize(let value): .string(value.source)
@@ -936,7 +944,8 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
         framework: Framework,
         assetPrefix: String,
         assets: ProjectAssetContents,
-        site: Site
+        site: Site,
+        breakpoint: ResponsiveBreakpoint = .mobile
     ) -> [String: PartPackageValue] {
         // One definition fetch, one stored-value index and one manifest
         // property expansion for the whole pass; repeating any of them per
@@ -967,6 +976,49 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
             }
             if case .frameworkFont = definition.control {
                 return (definition.key.rawValue, PartPackageFontControl.resolved(definition.key.rawValue, node: node, framework: framework))
+            }
+            if case .collection(_, let fields) = definition.control {
+                let records = value.arrayValue ?? []
+                return (
+                    definition.key.rawValue,
+                    .array(records.map { record in
+                        PartCollectionRenderResolver.resolve(
+                            record,
+                            fields: fields,
+                            breakpoint: breakpoint,
+                            framework: framework,
+                            source: { source, _ in
+                                exportSource(source, assetPrefix: assetPrefix, assets: assets, site: site)
+                            },
+                            link: { destination, absoluteURL in
+                                PartLinkResolver.resolve(
+                                    destination,
+                                    pages: site.pages,
+                                    folders: site.pageFolders,
+                                    assets: site.assets,
+                                    assetLibrary: site.assetLibrary,
+                                    publicURL: site.publicURL,
+                                    absoluteURL: absoluteURL
+                                )
+                            },
+                            packageColor: { color, opacity in
+                                site.appearanceMode.colour(
+                                    light: PartPackageColorResolver.resolve(
+                                        color,
+                                        framework: framework,
+                                        opacity: opacity
+                                    ),
+                                    dark: PartPackageColorResolver.resolve(
+                                        color,
+                                        framework: framework,
+                                        opacity: opacity,
+                                        appearance: .dark
+                                    )
+                                )
+                            }
+                        )
+                    })
+                )
             }
             if definition.control.isMedia {
                 return (
@@ -1174,6 +1226,10 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
             .array(values.map {
                 resolvedImageValue($0, assetPrefix: assetPrefix, assets: assets, site: site)
             })
+        case .object(let values):
+            .object(values.mapValues {
+                resolvedImageValue($0, assetPrefix: assetPrefix, assets: assets, site: site)
+            })
         default:
             packageValue(value)
         }
@@ -1284,6 +1340,8 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
             raw = value.rawValue
         case .array(let values):
             raw = values.map(\.stringValue).joined(separator: " ")
+        case .object:
+            raw = ""
         case .link:
             raw = ""
         case .packageColor(let value):

@@ -173,6 +173,7 @@ nonisolated struct PartPropertyDefinition: Identifiable, Sendable {
     let isResponsive: Bool
     let isInspectorVisible: Bool
     let visibleWhen: PartPackageVisibilityCondition?
+    var valueAvailability: PartPackageProperty.ValueAvailability
     let frameworkValueSource: PartPackageFrameworkValueSource?
     let allowsCustomFrameworkValue: Bool
     let supportsImageFocalPoint: Bool
@@ -192,6 +193,7 @@ nonisolated struct PartPropertyDefinition: Identifiable, Sendable {
         isResponsive: Bool? = nil,
         isInspectorVisible: Bool = true,
         visibleWhen: PartPackageVisibilityCondition? = nil,
+        valueAvailability: PartPackageProperty.ValueAvailability = .always,
         frameworkValueSource: PartPackageFrameworkValueSource? = nil,
         allowsCustomFrameworkValue: Bool = false,
         supportsImageFocalPoint: Bool = false,
@@ -208,6 +210,7 @@ nonisolated struct PartPropertyDefinition: Identifiable, Sendable {
         self.isResponsive = isResponsive ?? Self.builtInResponsiveKeys.contains(key)
         self.isInspectorVisible = isInspectorVisible
         self.visibleWhen = visibleWhen
+        self.valueAvailability = valueAvailability
         self.frameworkValueSource = frameworkValueSource
         self.allowsCustomFrameworkValue = allowsCustomFrameworkValue
         self.supportsImageFocalPoint = supportsImageFocalPoint
@@ -284,6 +287,7 @@ nonisolated enum PartPropertyControl: Sendable {
     case image
     case svg
     case video
+    case collection(itemLabel: String, fields: [PartPropertyDefinition])
 
     var isFrameworkFontSize: Bool {
         if case .frameworkFontSize = self { true } else { false }
@@ -298,6 +302,10 @@ nonisolated enum PartPropertyControl: Sendable {
         case .image, .svg, .video: true
         default: false
         }
+    }
+
+    var isCollection: Bool {
+        if case .collection = self { true } else { false }
     }
 
 }

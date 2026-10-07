@@ -194,6 +194,7 @@ nonisolated struct PartProperty: Codable, Equatable, Identifiable, Sendable {
         case boolean(Bool)
         case token(DesignToken)
         case array([Value])
+        case object([String: Value])
         case link(PartLink)
         case packageColor(PartPackageColorValue)
         // Retained only to decode saved values from the removed Select extension.
@@ -219,6 +220,8 @@ nonisolated struct PartProperty: Codable, Equatable, Identifiable, Sendable {
                 token.rawValue
             case .array(let values):
                 values.map(\.stringValue).joined(separator: ", ")
+            case .object:
+                ""
             case .link:
                 ""
             case .packageColor(let value):
@@ -254,6 +257,11 @@ nonisolated struct PartProperty: Codable, Equatable, Identifiable, Sendable {
             return value
         }
 
+        var objectValue: [String: Value]? {
+            guard case .object(let value) = self else { return nil }
+            return value
+        }
+
         func replacingFrameworkReference(_ reference: String, with replacement: String) -> Value {
             switch self {
             case .frameworkSpacing(var value):
@@ -275,6 +283,8 @@ nonisolated struct PartProperty: Codable, Equatable, Identifiable, Sendable {
             case .choice(let value): return .choice(value == reference ? replacement : value)
             case .array(let values):
                 return .array(values.map { $0.replacingFrameworkReference(reference, with: replacement) })
+            case .object(let values):
+                return .object(values.mapValues { $0.replacingFrameworkReference(reference, with: replacement) })
             case .packageFontSize(var value):
                 if value.source == reference { value.source = replacement }
                 return .packageFontSize(value)
@@ -321,6 +331,10 @@ nonisolated struct PartProperty: Codable, Equatable, Identifiable, Sendable {
                 return .array(values.map {
                     $0.bakingFrameworkSpacingReference(reference, amountRem: amountRem, fallbackToken: fallbackToken)
                 })
+            case .object(let values):
+                return .object(values.mapValues {
+                    $0.bakingFrameworkSpacingReference(reference, amountRem: amountRem, fallbackToken: fallbackToken)
+                })
             case .frameworkBorderWidth, .frameworkRadius, .packageFontSize, .packageShadow,
                  .packageStackingOrder, .packageColor, .url, .number, .color, .boolean, .token, .link:
                 return self
@@ -345,6 +359,10 @@ nonisolated struct PartProperty: Codable, Equatable, Identifiable, Sendable {
                 return .frameworkRadius(value)
             case .array(let values):
                 return .array(values.map {
+                    $0.bakingFrameworkDimensionReference(reference, amountPx: amountPx, fallbackToken: fallbackToken, isRadius: isRadius)
+                })
+            case .object(let values):
+                return .object(values.mapValues {
                     $0.bakingFrameworkDimensionReference(reference, amountPx: amountPx, fallbackToken: fallbackToken, isRadius: isRadius)
                 })
             default:

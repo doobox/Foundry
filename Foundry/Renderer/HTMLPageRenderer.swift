@@ -283,7 +283,7 @@ nonisolated struct HTMLPageRenderer: PageRendering {
                 context: .init(
                     instanceID: node.id,
                     packageIdentifier: package.manifest.identifier,
-                    properties: packageProperties(node, framework: framework, assets: assets),
+                    properties: packageProperties(node, framework: framework, assets: assets, breakpoint: breakpoint),
                     templateValues: templateValues(for: page, framework: framework),
                     slots: [:],
                     assetBasePath: canvasAssetBasePath(for: package),
@@ -491,7 +491,7 @@ nonisolated struct HTMLPageRenderer: PageRendering {
             let canvasAttributes = attributes(for: node, globalDefinitionID: globalDefinitionID, parentPartID: parentPartID, parentSlot: parentSlot, parentDropZoneSlotID: parentDropZoneSlotID) +
                 (defaultSlotID.map { " data-foundry-default-slot=\"\(escapeAttribute($0))\"" } ?? "") +
                 adjacentDropAttribute
-            let renderedProperties = packageProperties(node, framework: framework, assets: assets)
+            let renderedProperties = packageProperties(node, framework: framework, assets: assets, breakpoint: breakpoint)
             let templateContext = PartTemplateContext(
                     instanceID: node.id,
                     packageIdentifier: package.manifest.identifier,
@@ -621,7 +621,7 @@ nonisolated struct HTMLPageRenderer: PageRendering {
                     context: .init(
                         instanceID: node.id,
                         packageIdentifier: package.manifest.identifier,
-                        properties: packageProperties(node, framework: framework, assets: assets),
+                        properties: packageProperties(node, framework: framework, assets: assets, breakpoint: breakpoint),
                         templateValues: templateValues(for: page, framework: framework),
                         slots: [:],
                         assetBasePath: canvasAssetBasePath(for: package),
@@ -713,7 +713,10 @@ nonisolated struct HTMLPageRenderer: PageRendering {
         })
     }
 
-    private func packageProperties(_ node: PartNode, framework: Framework, assets: ProjectAssetContents) -> [String: PartPackageValue] {
+    private func packageProperties(_ node: PartNode, framework: Framework, assets: ProjectAssetContents, breakpoint: ResponsiveBreakpoint) -> [String: PartPackageValue] {
+        if node.type.definition.properties.contains(where: { $0.control.isCollection }) {
+            return uncachedPackageProperties(node, framework: framework, assets: assets, breakpoint: breakpoint)
+        }
         guard let cacheSession else { return uncachedPackageProperties(node, framework: framework, assets: assets) }
         if case .properties(let values) = cacheSession.value(.properties, key: .init(node: ownValues(node)), compute: {
             .properties(uncachedPackageProperties(node, framework: framework, assets: assets))
@@ -721,7 +724,7 @@ nonisolated struct HTMLPageRenderer: PageRendering {
         return uncachedPackageProperties(node, framework: framework, assets: assets)
     }
 
-    private func uncachedPackageProperties(_ node: PartNode, framework: Framework, assets: ProjectAssetContents) -> [String: PartPackageValue] {
+    private func uncachedPackageProperties(_ node: PartNode, framework: Framework, assets: ProjectAssetContents, breakpoint: ResponsiveBreakpoint = .mobile) -> [String: PartPackageValue] {
         // One definition fetch, one stored-value index and one manifest
         // property expansion for the whole pass; repeating any of them per
         // key dominates page-render profiles.
@@ -752,6 +755,44 @@ nonisolated struct HTMLPageRenderer: PageRendering {
             }
             if case .frameworkFont = definition.control {
                 return (definition.key.rawValue, PartPackageFontControl.resolved(definition.key.rawValue, node: node, framework: framework))
+            }
+            if case .collection(_, let fields) = definition.control {
+                let records = value.arrayValue ?? []
+                return (
+                    definition.key.rawValue,
+                    .array(records.map { record in
+                        PartCollectionRenderResolver.resolve(
+                            record,
+                            fields: fields,
+                            breakpoint: breakpoint,
+                            framework: framework,
+                            source: { source, control in
+                                if case .video = control { return YouTubeVideo.id(from: source) == nil ? "" : source }
+                                return canvasSource(source, assets: assets)
+                            },
+                            link: { destination, absoluteURL in
+                                site.map {
+                                    PartLinkResolver.resolve(
+                                        destination,
+                                        pages: $0.pages,
+                                        folders: $0.pageFolders,
+                                        assets: $0.assets,
+                                        publicURL: $0.publicURL,
+                                        absoluteURL: absoluteURL
+                                    )
+                                }
+                            },
+                            packageColor: { color, opacity in
+                                PartPackageColorResolver.resolve(
+                                    color,
+                                    framework: framework,
+                                    opacity: opacity,
+                                    appearance: appearance
+                                )
+                            }
+                        )
+                    })
+                )
             }
             if case .video = definition.control {
                 // Preserve selection state for template conditions while keeping
@@ -799,6 +840,11 @@ nonisolated struct HTMLPageRenderer: PageRendering {
             }
             return (definition.key.rawValue, packageValue(value))
         })
+        for definition in definitions {
+            if case .collection(let itemLabel, _) = definition.control {
+                values["__foundry_collection_label." + definition.key.rawValue] = .string(itemLabel)
+            }
+        }
         for definition in definitions {
             if definition.control.isFrameworkSpacing,
                case .object(let fields) = values[definition.key.rawValue] {
@@ -953,6 +999,7 @@ nonisolated struct HTMLPageRenderer: PageRendering {
         case .string(let value), .url(let value), .color(let value), .choice(let value): .string(value)
         case .token(let value): .string(value.rawValue)
         case .array(let values): .array(values.map(packageValue))
+        case .object(let values): .object(values.mapValues(packageValue))
         case .link: .string("")
         case .packageColor(let value): .string(value.source)
         case .packageFontSize(let value): .string(value.source)

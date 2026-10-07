@@ -1,0 +1,114 @@
+{
+  "controls": [
+    {
+      "defaults": {
+        "base": {
+          "family": "body",
+          "size": "base",
+          "style": "normal",
+          "weight": 400
+        }
+      },
+      "id": "font",
+      "label": "Font",
+      "responsive": true,
+      "showsSize": true,
+      "showsStyle": true,
+      "showsWeight": true,
+      "type": "frameworkFont"
+    },
+    {
+      "defaults": {
+        "base": false
+      },
+      "id": "customColorEnabled",
+      "label": "Custom Colour",
+      "presentation": "switch",
+      "responsive": true,
+      "type": "toggle"
+    },
+    {
+      "allowsCustom": true,
+      "defaults": {
+        "base": {
+          "palette": "text"
+        }
+      },
+      "id": "textColor",
+      "label": "Colour",
+      "opacity": true,
+      "responsive": true,
+      "type": "frameworkColor",
+      "visibleWhen": {
+        "id": "customColorEnabled",
+        "value": true
+      }
+    },
+    {
+      "defaults": {
+        "base": "start"
+      },
+      "id": "textAlignment",
+      "label": "Alignment",
+      "responsive": true,
+      "type": "textAlignment"
+    },
+    {
+      "defaults": {
+        "base": "none"
+      },
+      "id": "textDecoration",
+      "label": "Decoration",
+      "options": [
+        {
+          "title": "None",
+          "value": "none"
+        },
+        {
+          "title": "Underline",
+          "value": "underline"
+        },
+        {
+          "title": "Overline",
+          "value": "overline"
+        },
+        {
+          "title": "Line Through",
+          "value": "line-through"
+        }
+      ],
+      "responsive": true,
+      "type": "select"
+    },
+    {
+      "defaults": {
+        "base": "none"
+      },
+      "id": "textTransform",
+      "label": "Capitalisation",
+      "options": [
+        {
+          "title": "None",
+          "value": "none"
+        },
+        {
+          "title": "Uppercase",
+          "value": "uppercase"
+        },
+        {
+          "title": "Lowercase",
+          "value": "lowercase"
+        },
+        {
+          "title": "Capitalize",
+          "value": "capitalize"
+        }
+      ],
+      "responsive": true,
+      "type": "select"
+    }
+  ],
+  "name": "Typography",
+  "systemImage": "textformat",
+  "type": "typography"
+}

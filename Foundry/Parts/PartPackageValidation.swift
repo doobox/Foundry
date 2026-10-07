@@ -972,6 +972,50 @@ nonisolated enum PartPackageValidator {
         switch property.control.type {
         case .divider, .spacer, .note:
             break
+        case .collection:
+            guard case .array(let records) = defaultValue else {
+                diagnostics.append(.init(
+                    severity: .error,
+                    location: location,
+                    message: "A collection default must be an array of dictionaries."
+                ))
+                return
+            }
+            let fieldIDs = Set(property.collectionFields.map(\.id))
+            let unsupported: Set<PartPackageControl.Kind> = [.collection, .childPicker, .math]
+            for field in property.collectionFields where unsupported.contains(field.control.type) {
+                diagnostics.append(.init(
+                    severity: .error,
+                    location: "\(location).controls.\(field.id)",
+                    message: "The \(field.control.type.rawValue) control cannot be nested inside a collection."
+                ))
+            }
+            for (index, record) in records.enumerated() {
+                guard case .object(let values) = record else {
+                    diagnostics.append(.init(
+                        severity: .error,
+                        location: "\(location)[\(index)]",
+                        message: "Every collection item must be a dictionary."
+                    ))
+                    continue
+                }
+                for key in values.keys where key != "_id" && !fieldIDs.contains(key) {
+                    diagnostics.append(.init(
+                        severity: .error,
+                        location: "\(location)[\(index)].\(key)",
+                        message: "Unknown collection field '\(key)'."
+                    ))
+                }
+                for field in property.collectionFields {
+                    validate(
+                        values[field.id] ?? field.defaultValue,
+                        for: field,
+                        location: "\(location)[\(index)].\(field.id)",
+                        allowsLiteralColor: false,
+                        into: &diagnostics
+                    )
+                }
+            }
         case .math:
             let operations = Set(["+", "-", "*", "/", "%", "min", "max"])
             if property.control.argument1 == nil || property.control.argument2 == nil {

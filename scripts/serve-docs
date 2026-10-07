@@ -2,7 +2,7 @@
 set -eu
 
 repository_root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
-docs_repository=$(CDPATH= cd -- "$repository_root/../.." && pwd)/Foundry\ Developer\ API
+docs_repository=$(CDPATH= cd -- "$repository_root/../.." && pwd)/Foundry\ Docs
 docs_server="$docs_repository/serve-docs"
 
 if [ ! -x "$docs_server" ]; then

@@ -16,6 +16,8 @@ struct InspectorView: View {
     let publicURL: String
     let part: PartNode?
     let selectedParts: [PartNode]
+    let selectedPrimitive: CanvasPrimitiveSelection?
+    let selectPrimitive: (CanvasPrimitiveSelection?) -> Void
     let allowsMultiPartEditing: Bool
     let libraryPartType: PartType?
     let assetCollectionSelection: AssetCollectionInspectorSelection?
@@ -87,6 +89,8 @@ struct InspectorView: View {
                 PartInspector(
                     part: part,
                     selectedParts: selectedParts,
+                    selectedPrimitive: selectedPrimitive,
+                    selectPrimitive: selectPrimitive,
                     currentPage: currentPage,
                     framework: framework,
                     assets: assets,
@@ -1070,6 +1074,8 @@ private struct PartInspector: View {
     @State private var hoversExplodeGlobal = false
     let part: PartNode
     let selectedParts: [PartNode]
+    let selectedPrimitive: CanvasPrimitiveSelection?
+    let selectPrimitive: (CanvasPrimitiveSelection?) -> Void
     let currentPage: Page?
     let framework: Framework
     let assets: [ProjectAsset]
@@ -1177,6 +1183,8 @@ private struct PartInspector: View {
                             : nil,
                         part: part,
                         selectedParts: selectedParts,
+                        selectedPrimitive: selectedPrimitive,
+                        selectPrimitive: selectPrimitive,
                         currentPage: currentPage,
                         framework: framework,
                         assets: assets,
@@ -1887,6 +1895,8 @@ private struct PartInspectorGroup: View {
     let identityFields: PartIdentityContext?
     let part: PartNode
     let selectedParts: [PartNode]
+    let selectedPrimitive: CanvasPrimitiveSelection?
+    let selectPrimitive: (CanvasPrimitiveSelection?) -> Void
     let currentPage: Page?
     let framework: Framework
     let assets: [ProjectAsset]
@@ -2006,7 +2016,9 @@ private struct PartInspectorGroup: View {
             editor: editor,
             editsSharedDefinition: editsSharedDefinition,
             breakpoint: breakpoint,
-            importMedia: importMedia
+            importMedia: importMedia,
+            selectedPrimitive: selectedPrimitive,
+            selectPrimitive: selectPrimitive
         )
     }
 }
@@ -2101,6 +2113,8 @@ private struct PartInspectorPreviewHarness: View {
                     publicURL: document.site.publicURL,
                     part: part,
                     selectedParts: [part],
+                    selectedPrimitive: nil,
+                    selectPrimitive: { _ in },
                     allowsMultiPartEditing: false,
                     libraryPartType: nil,
                     assetCollectionSelection: nil,

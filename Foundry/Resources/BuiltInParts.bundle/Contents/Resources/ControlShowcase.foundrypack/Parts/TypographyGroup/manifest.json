@@ -1,0 +1,44 @@
+{
+  "assets": [],
+  "author": "Foundry",
+  "description": "Responsive framework typography composed into a reusable CSS declaration block.",
+  "group": "Control Groups",
+  "helpURL": "https://doobox.github.io/foundry-docs/developer/control-groups.html",
+  "icon": {
+    "symbol": "textformat",
+    "tint": "orange"
+  },
+  "id": "foundry.showcase.typography",
+  "inspector": [
+    {
+      "section": "Typography",
+      "systemImage": "textformat",
+      "controls": [
+        {
+          "type": "typography",
+          "id": "typography"
+        }
+      ]
+    },
+    {
+      "type": "advanced"
+    }
+  ],
+  "minimumAPIVersion": 1,
+  "showsInPartLibrary": false,
+  "tags": [
+    "Foundry",
+    "showcase"
+  ],
+  "templates": {
+    "files": [
+      {
+        "path": "part.css",
+        "scope": "instance"
+      }
+    ],
+    "html": "part.html"
+  },
+  "title": "Typography group",
+  "version": "1.0.0"
+}

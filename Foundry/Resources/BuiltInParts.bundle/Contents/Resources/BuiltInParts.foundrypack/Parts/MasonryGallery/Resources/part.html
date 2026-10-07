@@ -1,0 +1,25 @@
+<section class="foundry-masonry {{ part.class }}" {{ part.attributes }}>
+  <div class="foundry-masonry__columns">
+    {{ loop control.images as item }}
+    <figure class="foundry-masonry__item" {{ loop.attributes }}>
+      {{ if item.link }}<a class="foundry-masonry__link" href="{{ item.link }}" target="{{ item.link.target }}" {{ item.link.attributes }}>{{ endif }}
+      <div class="foundry-masonry__media foundry-masonry__media--{{ item.shape }}">
+        <img class="foundry-masonry__image" src="{{ item.image }}" alt="{{ item.image.alt }}" loading="lazy" decoding="async" style="object-position: {{ item.image.focalPointX }}% {{ item.image.focalPointY }}%">
+        {{ if control.captionStyle == "overlay" && (item.title || item.description) }}
+        <figcaption class="foundry-masonry__caption foundry-masonry__caption--overlay">
+          {{ if item.title }}<h3>{{ item.title }}</h3>{{ endif }}
+          {{ if item.description }}<p>{{ item.description }}</p>{{ endif }}
+        </figcaption>
+        {{ endif }}
+      </div>
+      {{ if control.captionStyle == "below" && (item.title || item.description) }}
+      <figcaption class="foundry-masonry__caption foundry-masonry__caption--below">
+        {{ if item.title }}<h3>{{ item.title }}</h3>{{ endif }}
+        {{ if item.description }}<p>{{ item.description }}</p>{{ endif }}
+      </figcaption>
+      {{ endif }}
+      {{ if item.link }}</a>{{ endif }}
+    </figure>
+    {{ endloop }}
+  </div>
+</section>

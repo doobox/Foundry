@@ -1,0 +1,95 @@
+{
+  "assets": [],
+  "author": "Foundry",
+  "description": "A reorderable collection of image cards with per-item titles, descriptions and alternative text.",
+  "group": "Content",
+  "helpURL": "https://doobox.github.io/foundry-docs/developer/collection-control.html",
+  "icon": {
+    "symbol": "square.grid.2x2",
+    "tint": "green"
+  },
+  "id": "foundry.showcase.collection",
+  "inspector": [
+    {
+      "section": "Cards",
+      "systemImage": "square.stack.3d.up",
+      "controls": [
+        {
+          "type": "collection",
+          "id": "cards",
+          "label": "Cards",
+          "itemLabel": "Card",
+          "controls": [
+            {
+              "type": "image",
+              "id": "image",
+              "label": "Image",
+              "responsive": true
+            },
+            {
+              "type": "text",
+              "id": "title",
+              "label": "Title",
+              "responsive": true,
+              "defaults": {
+                "base": "Gallery item"
+              }
+            },
+            {
+              "type": "textArea",
+              "id": "description",
+              "label": "Description",
+              "responsive": true,
+              "defaults": {
+                "base": "Describe this item."
+              }
+            },
+            {
+              "type": "link",
+              "id": "link",
+              "label": "Link",
+              "defaults": {
+                "base": ""
+              }
+            }
+          ],
+          "defaults": {
+            "base": [
+              {
+                "image": "",
+                "title": "First card",
+                "description": "Each item owns a complete set of the declared controls."
+              },
+              {
+                "image": "",
+                "title": "Second card",
+                "description": "Items can be added, duplicated, removed and reordered."
+              }
+            ]
+          },
+          "tooltip": "Choose a card to edit, then use the arrows or menu to manage the collection."
+        }
+      ]
+    },
+    {
+      "type": "advanced"
+    }
+  ],
+  "minimumAPIVersion": 1,
+  "showsInPartLibrary": false,
+  "tags": [
+    "Foundry",
+    "showcase"
+  ],
+  "templates": {
+    "files": [
+      {
+        "path": "part.css",
+        "scope": "instance"
+      }
+    ],
+    "html": "part.html"
+  },
+  "title": "Collection",
+  "version": "1.0.0"
+}

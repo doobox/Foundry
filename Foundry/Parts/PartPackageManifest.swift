@@ -388,6 +388,7 @@ nonisolated struct PartPackageControlGroup: Codable, Equatable, Sendable {
         case transitions
         case filters
         case transforms
+        case typography
         case flexbox
         case layout
         case reveal
@@ -974,6 +975,10 @@ nonisolated struct PartPackageProperty: Codable, Equatable, Identifiable, Sendab
     let pickerItems: [String]
     let initial: [String]
     let containment: PartPackageSlot.Containment
+    /// Fields repeated by a collection control. Collections deliberately use
+    /// ordinary controls so the same declaration vocabulary works at both levels.
+    let collectionFields: [PartPackageProperty]
+    let itemLabel: String
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -1000,6 +1005,8 @@ nonisolated struct PartPackageProperty: Codable, Equatable, Identifiable, Sendab
         case pickerItems
         case initial
         case containment
+        case collectionFields = "controls"
+        case itemLabel
     }
 
     init(
@@ -1042,6 +1049,8 @@ nonisolated struct PartPackageProperty: Codable, Equatable, Identifiable, Sendab
         pickerItems = []
         initial = []
         containment = .open
+        collectionFields = []
+        itemLabel = "Item"
     }
 
     /// Developer ids must start with a letter, so this prefix can never
@@ -1085,6 +1094,8 @@ nonisolated struct PartPackageProperty: Codable, Equatable, Identifiable, Sendab
         accepts = declaredAccepts ?? pickerItems
         initial = try container.decodeIfPresent([String].self, forKey: .initial) ?? []
         containment = try container.decodeIfPresent(PartPackageSlot.Containment.self, forKey: .containment) ?? .open
+        collectionFields = try container.decodeIfPresent([PartPackageProperty].self, forKey: .collectionFields) ?? []
+        itemLabel = try container.decodeIfPresent(String.self, forKey: .itemLabel) ?? "Item"
 
         if control.count != nil {
             subtitles = try container.decodeIfPresent([String].self, forKey: .subtitle) ?? []
@@ -1204,6 +1215,10 @@ nonisolated struct PartPackageProperty: Codable, Equatable, Identifiable, Sendab
             if accepts != pickerItems { try container.encode(accepts, forKey: .accepts) }
             if !initial.isEmpty { try container.encode(initial, forKey: .initial) }
             if containment != .open { try container.encode(containment, forKey: .containment) }
+        }
+        if control.type == .collection {
+            try container.encode(collectionFields, forKey: .collectionFields)
+            if itemLabel != "Item" { try container.encode(itemLabel, forKey: .itemLabel) }
         }
     }
 
@@ -1349,6 +1364,7 @@ nonisolated struct PartPackageControl: Codable, Equatable, Sendable {
         case math
         case frameworkShadow
         case childPicker
+        case collection
         case spacer
 
         /// Controls that hold no value and that nothing can refer to. A
@@ -1665,7 +1681,10 @@ nonisolated enum PartPackageValue: Codable, Equatable, Sendable {
 
     func value(at path: ArraySlice<Substring>) -> PartPackageValue? {
         guard let key = path.first else { return self }
-        guard case .object(let values) = self, let value = values[String(key)] else { return nil }
+        guard case .object(let values) = self else { return nil }
+        let joinedKey = path.map(String.init).joined(separator: ".")
+        if let exact = values[joinedKey] { return exact }
+        guard let value = values[String(key)] else { return nil }
         return value.value(at: path.dropFirst())
     }
 }

@@ -49,6 +49,29 @@ nonisolated enum PartPackageVisibilityEvaluator {
         return evaluate(actual, operation: condition.operation, expected: condition.value)
     }
 
+    /// Evaluates a condition against one collection record. Field IDs are
+    /// scoped to that record, so repeated items never affect each other.
+    static func isVisible(
+        _ condition: PartPackageVisibilityCondition?,
+        values: [String: PartProperty.Value]
+    ) -> Bool {
+        guard let condition else { return true }
+        if let all = condition.all {
+            return !all.isEmpty && all.allSatisfy { isVisible($0, values: values) }
+        }
+        if let any = condition.any {
+            return !any.isEmpty && any.contains { isVisible($0, values: values) }
+        }
+        guard let id = condition.id,
+              let reference = reference(id),
+              var actual = values[reference.key.rawValue] else { return false }
+        if let index = reference.index {
+            guard case .array(let members) = actual, members.indices.contains(index) else { return false }
+            actual = members[index]
+        }
+        return evaluate(actual, operation: condition.operation, expected: condition.value)
+    }
+
     static func evaluate(
         _ actual: PartProperty.Value,
         operation: String,
@@ -138,6 +161,7 @@ nonisolated enum PartPackageVisibilityEvaluator {
         case .boolean(let value): .boolean(value)
         case .token(let value): .string(value.rawValue)
         case .array(let values): .array(values.compactMap(packageValue))
+        case .object(let values): .object(values.compactMapValues(packageValue))
         case .packageColor(let value): .string(value.source)
         case .packageFontSize(let value): .string(value.source)
         case .packageShadow(let value): .string(value.source)

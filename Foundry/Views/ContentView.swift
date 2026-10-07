@@ -518,6 +518,8 @@ struct ContentView: View {
                     publicURL: document.site.publicURL,
                     part: selectedPart,
                     selectedParts: selectedParts,
+                    selectedPrimitive: selectedPrimitive,
+                    selectPrimitive: { selectedPrimitive = $0 },
                     allowsMultiPartEditing: allowsMultiPartEditing,
                     libraryPartType: selectedLibraryPartType,
                     assetCollectionSelection: selectedAssetCollectionContext,
@@ -2859,6 +2861,8 @@ private extension PartProperty.Value {
             return value.foundryAssetID == id ? 1 : 0
         case .array(let values):
             return values.reduce(0) { $0 + $1.assetReferenceCount(to: id) }
+        case .object(let values):
+            return values.values.reduce(0) { $0 + $1.assetReferenceCount(to: id) }
         case .link(let link):
             if case .resource(let resourceID) = link.destination, resourceID == id { return 1 }
             return 0

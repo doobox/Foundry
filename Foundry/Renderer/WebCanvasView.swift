@@ -469,6 +469,21 @@ struct WebCanvasView: NSViewRepresentable {
           applyOutlineBaseStyles(dropChrome);
           dropChrome.style.setProperty('z-index', '2147483647', 'important');
           chromeLayer.appendChild(dropChrome);
+          const collectionToolbar = document.createElement('div');
+          collectionToolbar.setAttribute('data-foundry-editor-chrome', 'collection-toolbar');
+          const collectionToolbarStyles = {
+            all: 'initial', position: 'fixed', display: 'none', alignItems: 'center',
+            minHeight: '22px', padding: '0 8px', borderRadius: '0 0 5px 0',
+            overflow: 'hidden', color: 'white', background: '#007BFF',
+            font: '11px/14px system-ui, sans-serif', whiteSpace: 'nowrap',
+            pointerEvents: 'none', zIndex: '2147483647'
+          };
+          Object.entries(collectionToolbarStyles).forEach(([property, value]) => {
+            collectionToolbar.style.setProperty(property.replace(/[A-Z]/g, match => '-' + match.toLowerCase()), value, 'important');
+          });
+          const collectionToolbarLabel = document.createElement('span');
+          collectionToolbar.appendChild(collectionToolbarLabel);
+          chromeLayer.appendChild(collectionToolbar);
           let activeDropChrome = null;
           let chromeFrame = null;
 
@@ -601,7 +616,7 @@ struct WebCanvasView: NSViewRepresentable {
             return true;
           };
 
-          const positionOutline = (outline, target, color, isPrimitive) => {
+          const positionOutline = (outline, target, color, isPrimitive, isCollection = false) => {
             if (!target?.isConnected) {
               outline.style.setProperty('display', 'none', 'important');
               return;
@@ -613,15 +628,14 @@ struct WebCanvasView: NSViewRepresentable {
               outline.style.setProperty('display', 'none', 'important');
               return;
             }
-            outline.style.setProperty('left', rect.left + 'px', 'important');
-            outline.style.setProperty('top', rect.top + 'px', 'important');
-            outline.style.setProperty('width', rect.width + 'px', 'important');
-            outline.style.setProperty('height', rect.height + 'px', 'important');
-            outline.style.setProperty(
-              'border',
-              chromeStrokeWidth + 'px solid ' + color,
-              'important'
-            );
+            const inset = isCollection ? 1 : 0;
+            outline.style.setProperty('left', rect.left + inset + 'px', 'important');
+            outline.style.setProperty('top', rect.top + inset + 'px', 'important');
+            outline.style.setProperty('width', Math.max(0, rect.width - inset * 2) + 'px', 'important');
+            outline.style.setProperty('height', Math.max(0, rect.height - inset * 2) + 'px', 'important');
+            outline.style.setProperty('border-width', (isCollection ? 2 : chromeStrokeWidth) + 'px', 'important');
+            outline.style.setProperty('border-style', 'solid', 'important');
+            outline.style.setProperty('border-color', color, 'important');
             outline.style.setProperty('border-radius', '0', 'important');
             outline.style.setProperty('display', 'block', 'important');
           };
@@ -655,8 +669,8 @@ struct WebCanvasView: NSViewRepresentable {
                 // selection still paints above secondary selections.
                 outline.style.setProperty('z-index', isPrimary ? '2147483646' : '2147483645', 'important');
                 title.style.setProperty('z-index', isPrimary ? '2147483646' : '2147483645', 'important');
-                positionOutline(outline, entry.element, entry.color, entry.isPrimitive);
-                if (editorOptions.showsTitles) {
+                positionOutline(outline, entry.element, entry.color, entry.isPrimitive, entry.isCollection);
+                if (editorOptions.showsTitles && !entry.isCollection) {
                   positionChromeTitle(
                     title,
                     entry.element,
@@ -671,6 +685,22 @@ struct WebCanvasView: NSViewRepresentable {
                 }
               }
             });
+            const collectionEntry = selectedChromeTargets.find(entry => entry.isCollection);
+            if (!collectionEntry || !editorOptions.showsSelection || !collectionEntry.element?.isConnected) {
+              collectionToolbar.style.setProperty('display', 'none', 'important');
+              return;
+            }
+            const rect = chromeRect(collectionEntry.element);
+            if (rect.width <= 0 || rect.height <= 0 || rect.bottom < 0 || rect.top > window.innerHeight
+                || rect.right < 0 || rect.left > window.innerWidth) {
+              collectionToolbar.style.setProperty('display', 'none', 'important');
+              return;
+            }
+            collectionToolbarLabel.textContent = collectionEntry.title;
+            collectionToolbar.style.setProperty('background', collectionEntry.color, 'important');
+            collectionToolbar.style.setProperty('left', Math.max(0, rect.left) + 'px', 'important');
+            collectionToolbar.style.setProperty('top', Math.max(0, rect.top) + 'px', 'important');
+            collectionToolbar.style.setProperty('display', 'flex', 'important');
           };
 
           // Mirrors FoundryDropZoneGlyphs so the accepting overlay shows the
@@ -1102,10 +1132,22 @@ struct WebCanvasView: NSViewRepresentable {
               if (!element) return;
               let selectionElement = element;
               let isPrimitive = false;
+              let isCollection = false;
+              let selectionTitle = partChromeTitle(element);
               if (selectedPrimitiveSelection?.partID === partID) {
                 const expectedPath = Array.isArray(selectedPrimitiveSelection.propertyPath)
                   ? selectedPrimitiveSelection.propertyPath.join(',')
                   : '';
+                const collectionSelector = '[data-foundry-collection-property="'
+                  + CSS.escape(selectedPrimitiveSelection.propertyKey || '') + '"]';
+                const collectionCandidates = [
+                  ...(element.matches(collectionSelector) ? [element] : []),
+                  ...element.querySelectorAll(collectionSelector)
+                ];
+                const collectionItem = collectionCandidates.find(candidate =>
+                  candidate.closest(selector) === element
+                  && (candidate.dataset.foundryPropertyPath || '') === expectedPath
+                );
                 const primitiveSelector = '[data-foundry-primitive-property="'
                   + CSS.escape(selectedPrimitiveSelection.propertyKey || '') + '"]';
                 const candidates = [
@@ -1116,7 +1158,13 @@ struct WebCanvasView: NSViewRepresentable {
                   candidate.closest(selector) === element
                   && (candidate.dataset.foundryPropertyPath || '') === expectedPath
                 );
-                if (primitive) {
+                if (collectionItem) {
+                  selectionElement = collectionItem;
+                  isPrimitive = true;
+                  isCollection = true;
+                  const position = Number.parseInt(expectedPath.split(',').at(-1), 10) + 1;
+                  selectionTitle = (collectionItem.dataset.foundryCollectionLabel || 'Item') + ' ' + position;
+                } else if (primitive) {
                   selectionElement = primitive;
                   isPrimitive = true;
                 }
@@ -1126,7 +1174,11 @@ struct WebCanvasView: NSViewRepresentable {
                 element: selectionElement,
                 part: element,
                 color: partChromeColor(selectionElement),
-                isPrimitive
+                isPrimitive,
+                isCollection,
+                title: selectionTitle,
+                propertyKey: selectedPrimitiveSelection?.propertyKey,
+                propertyPath: selectedPrimitiveSelection?.propertyPath || []
               });
             });
             updateChromeTitle();
@@ -1896,6 +1948,17 @@ struct WebCanvasView: NSViewRepresentable {
                 event: 'selectPart',
                 partID: nextPart.dataset.foundryId,
                 extendsSelection: false
+              });
+              return;
+            }
+            const collectionItem = event.target.closest('[data-foundry-collection-property]');
+            if (collectionItem && collectionItem.closest(selector) === element && !(event.metaKey || event.shiftKey)) {
+              window.webkit.messageHandlers.foundryCanvas.postMessage({
+                version: 1,
+                event: 'selectPrimitive',
+                partID: element.dataset.foundryId,
+                propertyKey: collectionItem.dataset.foundryCollectionProperty,
+                propertyPath: propertyPath(collectionItem)
               });
               return;
             }

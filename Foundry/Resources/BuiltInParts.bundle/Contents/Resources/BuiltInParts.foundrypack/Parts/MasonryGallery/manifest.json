@@ -1,0 +1,264 @@
+{
+  "assets": [],
+  "author": "Foundry",
+  "description": "A responsive masonry image gallery powered by a collection, with captions and links for every image.",
+  "group": "Media",
+  "helpURL": "https://doobox.github.io/foundry-docs/developer/collection-control.html",
+  "icon": {
+    "symbol": "rectangle.grid.2x2.fill",
+    "tint": "purple"
+  },
+  "id": "foundry.media.masonry-gallery",
+  "inspector": [
+    {
+      "section": "Gallery",
+      "systemImage": "photo.stack",
+      "controls": [
+        {
+          "type": "collection",
+          "id": "images",
+          "label": "Images",
+          "itemLabel": "Image",
+          "controls": [
+            {
+              "type": "image",
+              "id": "image",
+              "label": "Image",
+              "focalPoint": true
+            },
+            {
+              "type": "select",
+              "id": "shape",
+              "label": "Shape",
+              "presentation": "menu",
+              "options": [
+                {
+                  "title": "Natural",
+                  "value": "natural"
+                },
+                {
+                  "title": "Square",
+                  "value": "square"
+                },
+                {
+                  "title": "Portrait",
+                  "value": "portrait"
+                },
+                {
+                  "title": "Landscape",
+                  "value": "landscape"
+                },
+                {
+                  "title": "Wide",
+                  "value": "wide"
+                }
+              ],
+              "defaults": {
+                "base": "natural"
+              },
+              "tooltip": "Natural keeps the source proportions. The other choices crop around the image focal point."
+            },
+            {
+              "type": "text",
+              "id": "title",
+              "label": "Title",
+              "defaults": {
+                "base": "Gallery image"
+              }
+            },
+            {
+              "type": "textArea",
+              "id": "description",
+              "label": "Description",
+              "defaults": {
+                "base": "Add a short description."
+              }
+            },
+            {
+              "type": "link",
+              "id": "link",
+              "label": "Link",
+              "defaults": {
+                "base": ""
+              }
+            }
+          ],
+          "defaults": {
+            "base": [
+              {
+                "image": "",
+                "shape": "portrait",
+                "title": "Portrait image",
+                "description": "Choose an image, then drag this row in the collection popover to reorder it."
+              },
+              {
+                "image": "",
+                "shape": "landscape",
+                "title": "Landscape image",
+                "description": "Each image keeps its own title, description, link and shape."
+              },
+              {
+                "image": "",
+                "shape": "square",
+                "title": "Square image",
+                "description": "Click any rendered image to select its collection item."
+              },
+              {
+                "image": "",
+                "shape": "wide",
+                "title": "Wide image",
+                "description": "The gallery responds from one to four columns."
+              },
+              {
+                "image": "",
+                "shape": "portrait",
+                "title": "Another portrait",
+                "description": "Use the focal point to control cropping."
+              },
+              {
+                "image": "",
+                "shape": "landscape",
+                "title": "Another landscape",
+                "description": "Add, duplicate and delete items from the popover."
+              }
+            ]
+          },
+          "tooltip": "Open the collection popover to select, add, duplicate, delete or reorder gallery images."
+        }
+      ]
+    },
+    {
+      "section": "Title Text",
+      "systemImage": "textformat",
+      "controls": [
+        {
+          "type": "typography",
+          "id": "descriptionTypography",
+          "defaults": {
+            "font": {
+              "family": "body",
+              "size": "sm",
+              "style": "normal",
+              "weight": 400
+            }
+          }
+        }
+      ]
+    },
+    {
+      "section": "Description Text",
+      "systemImage": "textformat",
+      "controls": [
+        {
+          "type": "typography",
+          "id": "titleTypography",
+          "defaults": {
+            "font": {
+              "family": "heading",
+              "size": "base",
+              "style": "normal",
+              "weight": 700
+            }
+          }
+        }
+      ]
+    },
+    {
+      "section": "Layout",
+      "systemImage": "rectangle.3.group",
+      "controls": [
+        {
+          "type": "slider",
+          "id": "columns",
+          "label": "Columns",
+          "minimum": 1,
+          "maximum": 6,
+          "step": 1,
+          "ticks": 6,
+          "editableValue": false,
+          "responsive": true,
+          "defaults": {
+            "base": 1,
+            "medium": 2,
+            "large": 3,
+            "extraLarge": 4
+          }
+        },
+        {
+          "type": "frameworkSpacing",
+          "id": "gap",
+          "label": "Gap",
+          "responsive": true,
+          "defaults": {
+            "base": "md"
+          }
+        },
+        {
+          "type": "frameworkRadius",
+          "id": "cornerRadius",
+          "label": "Corner Radius",
+          "responsive": true,
+          "defaults": {
+            "base": "md"
+          }
+        },
+        {
+          "type": "select",
+          "id": "captionStyle",
+          "label": "Captions",
+          "presentation": "segmented",
+          "responsive": true,
+          "options": [
+            {
+              "title": "Below",
+              "value": "below"
+            },
+            {
+              "title": "Overlay",
+              "value": "overlay"
+            },
+            {
+              "title": "Hidden",
+              "value": "hidden"
+            }
+          ],
+          "defaults": {
+            "base": "below"
+          }
+        }
+      ]
+    },
+    {
+      "section": "Spacing",
+      "systemImage": "arrow.up.and.down.and.arrow.left.and.right",
+      "controls": [
+        {
+          "type": "spacing",
+          "id": "spacing"
+        }
+      ]
+    },
+    {
+      "type": "advanced"
+    }
+  ],
+  "minimumAPIVersion": 1,
+  "tags": [
+    "gallery",
+    "masonry",
+    "collection",
+    "images",
+    "photos"
+  ],
+  "templates": {
+    "files": [
+      {
+        "path": "part.css",
+        "scope": "instance"
+      }
+    ],
+    "html": "part.html"
+  },
+  "title": "Masonry Gallery",
+  "version": "1.0.0"
+}

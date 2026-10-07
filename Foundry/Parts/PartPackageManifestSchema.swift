@@ -35,7 +35,7 @@ nonisolated enum PartPackageManifestSchema {
         "id", "label", "title", "body", "systemImage", "defaults", "responsive", "subtitle", "buttonText", "units", "noneValue", "tooltip", "linked",
         "type", "font", "showsFamily", "showsWeight", "showsStyle", "showsSize", "minimum", "maximum", "step", "options", "frameworkValues", "allowsCustom", "opacity", "outputFormat",
         "customColor", "count", "ticks", "editableValue", "tickLabels", "valueLabels", "minimumLabel", "maximumLabel", "neutralValue", "trueValue", "falseValue",
-        "buttonIcon", "activeButtonText", "activeButtonIcon", "selectionMode", "fontSize", "argument1", "argument2", "operation", "round", "absoluteURL", "presentation", "visibleWhen", "valueAvailability", "alt", "focalPoint", "renditions", "accepts", "pickerItems", "initial", "containment", "height"
+        "buttonIcon", "activeButtonText", "activeButtonIcon", "selectionMode", "fontSize", "argument1", "argument2", "operation", "round", "absoluteURL", "presentation", "visibleWhen", "valueAvailability", "alt", "focalPoint", "renditions", "accepts", "pickerItems", "initial", "containment", "height", "controls", "itemLabel"
     ]
     private static let visibleWhenKeys: Set<String> = ["id", "operation", "value", "all", "any"]
     private static let optionKeys: Set<String> = ["value", "title", "systemImage"]
@@ -728,6 +728,59 @@ nonisolated enum PartPackageManifestSchema {
         }
         guard let type = PartPackageControl.Kind(rawValue: typeName) else {
             diagnostics.append(.init(severity: .error, location: "\(location):type", message: "Unknown control type '\(typeName)'."))
+            return
+        }
+        if type == .collection {
+            let allowed: Set<String> = [
+                "type", "id", "label", "subtitle", "default", "tooltip", "visibleWhen", "valueAvailability",
+                "controls", "itemLabel"
+            ]
+            unknownKeys(in: property, allowed: allowed, location: location, into: &diagnostics)
+            optionalString("label", in: property, location: location, into: &diagnostics)
+            optionalString("subtitle", in: property, location: location, into: &diagnostics)
+            optionalString("tooltip", in: property, location: location, into: &diagnostics)
+            optionalString("itemLabel", in: property, location: location, into: &diagnostics)
+            validateDictionaryArray(property["controls"], key: "controls", parent: location, into: &diagnostics)
+            let fields = dictionaries(in: property["controls"])
+            if fields.isEmpty {
+                diagnostics.append(.init(
+                    severity: .error,
+                    location: "\(location):controls",
+                    message: "A collection requires at least one field control."
+                ))
+            }
+            var fieldIDs = Set<String>()
+            for (index, field) in fields.enumerated() {
+                let fieldLocation = "\(location):controls[\(index)]"
+                if field["type"] as? String == PartPackageControl.Kind.collection.rawValue {
+                    diagnostics.append(.init(
+                        severity: .error,
+                        location: "\(fieldLocation):type",
+                        message: "Collections cannot be nested."
+                    ))
+                    continue
+                }
+                if let fieldID = field["id"] as? String, !fieldIDs.insert(fieldID).inserted {
+                    diagnostics.append(.init(
+                        severity: .error,
+                        location: "\(fieldLocation):id",
+                        message: "Collection field IDs must be unique."
+                    ))
+                }
+                unknownKeys(in: field, allowed: propertyKeys, location: fieldLocation, into: &diagnostics)
+                validateProperty(field, location: fieldLocation, into: &diagnostics)
+            }
+            guard let records = property["default"] as? [Any] else {
+                appendTypeError(key: "default", expected: "an array of dictionaries", location: location, into: &diagnostics)
+                return
+            }
+            for (index, record) in records.enumerated() where !(record is [String: Any]) {
+                diagnostics.append(.init(
+                    severity: .error,
+                    location: "\(location):default[\(index)]",
+                    message: "Every collection default item must be a dictionary."
+                ))
+            }
             return
         }
         if (type == .frameworkSpacing || type == .frameworkPadding || type == .frameworkMargin || type == .frameworkRadius) {

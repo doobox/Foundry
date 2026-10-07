@@ -23,6 +23,12 @@ struct PartPropertyEditor: View {
     let editsSharedDefinition: Bool
     let breakpoint: ResponsiveBreakpoint
     let importMedia: (URL, UTType) -> ProjectAsset?
+    /// When present, this editor reads and writes one collection record rather
+    /// than the selected part. The control UI remains exactly the same.
+    let collectionRecord: Binding<PartProperty.Value>?
+    let collectionDefinitions: [PartPropertyDefinition]
+    let selectedPrimitive: CanvasPrimitiveSelection?
+    let selectPrimitive: (CanvasPrimitiveSelection?) -> Void
 
     init(
         definition: PartPropertyDefinition,
@@ -38,7 +44,11 @@ struct PartPropertyEditor: View {
         editor: ProjectEditor,
         editsSharedDefinition: Bool,
         breakpoint: ResponsiveBreakpoint,
-        importMedia: @escaping (URL, UTType) -> ProjectAsset?
+        importMedia: @escaping (URL, UTType) -> ProjectAsset?,
+        collectionRecord: Binding<PartProperty.Value>? = nil,
+        collectionDefinitions: [PartPropertyDefinition] = [],
+        selectedPrimitive: CanvasPrimitiveSelection? = nil,
+        selectPrimitive: @escaping (CanvasPrimitiveSelection?) -> Void = { _ in }
     ) {
         self.definition = definition
         self.part = part
@@ -54,6 +64,10 @@ struct PartPropertyEditor: View {
         self.editsSharedDefinition = editsSharedDefinition
         self.breakpoint = breakpoint
         self.importMedia = importMedia
+        self.collectionRecord = collectionRecord
+        self.collectionDefinitions = collectionDefinitions
+        self.selectedPrimitive = selectedPrimitive
+        self.selectPrimitive = selectPrimitive
     }
 
     @ViewBuilder
@@ -507,6 +521,32 @@ struct PartPropertyEditor: View {
                 if let asset = selectedAsset { analyseVideoIfNeeded(asset) }
             }
             .onDisappear { videoPosterTask?.cancel() }
+        case .collection(let itemLabel, let fields):
+            CollectionPartControl(
+                label: definition.label,
+                collectionKey: definition.key,
+                itemLabel: itemLabel,
+                fields: fields,
+                values: Binding(
+                    get: { displayPart.propertyValue(definition.key).arrayValue ?? [] },
+                    set: { setProperty(.array($0)) }
+                ),
+                part: part,
+                selectedParts: selectedParts,
+                currentPage: currentPage,
+                framework: framework,
+                assets: assets,
+                assetContents: assetContents,
+                pages: pages,
+                folders: folders,
+                publicURL: publicURL,
+                editor: editor,
+                editsSharedDefinition: editsSharedDefinition,
+                breakpoint: breakpoint,
+                importMedia: importMedia,
+                selectedPrimitive: selectedPrimitive,
+                selectPrimitive: selectPrimitive
+            )
         }
     }
 
@@ -630,7 +670,7 @@ struct PartPropertyEditor: View {
 
     private var imageFocalPoint: CGPoint {
         let point = PartImageTemplateValues.focalPoint(
-            from: part.propertyValue(imageFocalPointKey, at: effectiveBreakpoint(for: imageFocalPointKey), screens: framework.screens)
+            from: displayPart.propertyValue(imageFocalPointKey)
         )
         return CGPoint(x: point.x / 100, y: point.y / 100)
     }
@@ -768,8 +808,18 @@ struct PartPropertyEditor: View {
         guard let file = try? await RemoteVideoImport.download(url) else { return false }
         defer { try? FileManager.default.removeItem(at: file.deletingLastPathComponent()) }
         guard !Task.isCancelled else { return false }
-        if let current = editor.document.site.pages.flatMap(\.parts).node(withID: part.id),
-           current.propertyValue(definition.key) != original { return false }
+        if let collectionRecord {
+            let current = PartCollectionValue.value(
+                fieldID: definition.key.rawValue,
+                in: collectionRecord.wrappedValue,
+                at: effectiveBreakpoint,
+                screens: framework.screens
+            )
+            guard current == original else { return false }
+        } else if let current = editor.document.site.pages.flatMap(\.parts).node(withID: part.id),
+                  current.propertyValue(definition.key) != original {
+            return false
+        }
         guard let asset = importMedia(file, .movie) else { return false }
         selectVideo(asset)
         return true
@@ -843,7 +893,8 @@ struct PartPropertyEditor: View {
     }
 
     private var backgroundInspectorContext: PartBackgroundInspectorContext? {
-        PartBackgroundInspectorContext(property: part.type.definition.package?.manifest.resolvedProperties.first {
+        guard collectionRecord == nil else { return nil }
+        return PartBackgroundInspectorContext(property: part.type.definition.package?.manifest.resolvedProperties.first {
             $0.id == definition.key.rawValue
         })
     }
@@ -870,7 +921,7 @@ struct PartPropertyEditor: View {
     }
 
     private func fontFaceOptions(font: String?, editsWeight: Bool) -> FontFaceOptions {
-        let companions = displayPart.type.definition.properties.filter { property in
+        let companions = availableDefinitions.filter { property in
             guard let font else { return false }
             switch property.control {
             case .fontStyle(let linked): return editsWeight && linked == font
@@ -1124,17 +1175,48 @@ struct PartPropertyEditor: View {
     }
 
     private func resetControl() {
+        if let collectionRecord {
+            if effectiveBreakpoint != .mobile {
+                collectionRecord.wrappedValue = PartCollectionValue.removingOverride(
+                    fieldID: definition.key.rawValue,
+                    from: collectionRecord.wrappedValue,
+                    at: effectiveBreakpoint
+                )
+            } else {
+                collectionRecord.wrappedValue = PartCollectionValue.setting(
+                    definition.defaultValue,
+                    fieldID: definition.key.rawValue,
+                    in: collectionRecord.wrappedValue
+                )
+            }
+            return
+        }
         if effectiveBreakpoint != .mobile { removeOverride(for: definition.key) }
         else { setProperty(definition.defaultValue) }
     }
 
     private var canResetControl: Bool {
-        effectiveBreakpoint != .mobile
+        if let collectionRecord {
+            return effectiveBreakpoint != .mobile
+                ? PartCollectionValue.hasOverride(
+                    fieldID: definition.key.rawValue,
+                    in: collectionRecord.wrappedValue,
+                    at: effectiveBreakpoint
+                )
+                : PartCollectionValue.value(
+                    fieldID: definition.key.rawValue,
+                    in: collectionRecord.wrappedValue,
+                    at: .mobile,
+                    screens: framework.screens
+                ) != definition.defaultValue
+        }
+        return effectiveBreakpoint != .mobile
             ? part.hasResponsiveOverride(definition.key, at: effectiveBreakpoint)
             : part.propertyValue(definition.key) != definition.defaultValue
     }
 
     private var controlHasChanges: Bool {
+        if collectionRecord != nil { return canResetControl }
         let state = PartInspectorControlState(part: part, definition: definition, framework: framework)
         let targets = selectedParts.isEmpty ? [part] : selectedParts
         return targets.contains { target in
@@ -1147,7 +1229,19 @@ struct PartPropertyEditor: View {
     }
 
     private var responsiveIndicator: InspectorRowIndicator {
-        InspectorRowIndicator(
+        if let collectionRecord {
+            return InspectorRowIndicator(
+                isVisible: breakpoint != .mobile && definition.isResponsive,
+                isOverridden: PartCollectionValue.hasOverride(
+                    fieldID: definition.key.rawValue,
+                    in: collectionRecord.wrappedValue,
+                    at: breakpoint
+                ),
+                breakpointName: breakpoint.displayName,
+                toggle: toggleResponsiveOverride
+            )
+        }
+        return InspectorRowIndicator(
             isVisible: breakpoint != .mobile && definition.isResponsive,
             isOverridden: part.hasResponsiveOverride(definition.key, at: breakpoint),
             breakpointName: breakpoint.displayName,
@@ -1156,7 +1250,19 @@ struct PartPropertyEditor: View {
     }
 
     private var imageFocalPointResponsiveIndicator: InspectorRowIndicator {
-        let focalPointDefinition = part.type.definition.properties.first { $0.key == imageFocalPointKey }
+        let focalPointDefinition = availableDefinitions.first { $0.key == imageFocalPointKey }
+        if let collectionRecord {
+            return InspectorRowIndicator(
+                isVisible: breakpoint != .mobile && focalPointDefinition?.isResponsive == true,
+                isOverridden: PartCollectionValue.hasOverride(
+                    fieldID: imageFocalPointKey.rawValue,
+                    in: collectionRecord.wrappedValue,
+                    at: breakpoint
+                ),
+                breakpointName: breakpoint.displayName,
+                toggle: { toggleResponsiveOverride(for: imageFocalPointKey) }
+            )
+        }
         return InspectorRowIndicator(
             isVisible: breakpoint != .mobile && focalPointDefinition?.isResponsive == true,
             isOverridden: part.hasResponsiveOverride(imageFocalPointKey, at: breakpoint),
@@ -1222,6 +1328,24 @@ struct PartPropertyEditor: View {
         key: PartProperty.Key? = nil
     ) {
         let key = key ?? definition.key
+        if let collectionRecord {
+            let viewed = effectiveBreakpoint(for: key)
+            let target = viewed == .mobile
+                ? ResponsiveBreakpoint.mobile
+                : PartCollectionValue.governingBreakpoint(
+                    fieldID: key.rawValue,
+                    in: collectionRecord.wrappedValue,
+                    at: viewed,
+                    screens: framework.screens
+                )
+            collectionRecord.wrappedValue = PartCollectionValue.setting(
+                value,
+                fieldID: key.rawValue,
+                in: collectionRecord.wrappedValue,
+                at: target
+            )
+            return
+        }
         // Overrides are created only by pinning the blue dot; an ordinary edit
         // writes to whichever pin (or the base) governs the viewed breakpoint,
         // so the change flows to every breakpoint inheriting that value.
@@ -1275,6 +1399,14 @@ struct PartPropertyEditor: View {
     }
 
     private func removeOverride(for key: PartProperty.Key) {
+        if let collectionRecord {
+            collectionRecord.wrappedValue = PartCollectionValue.removingOverride(
+                fieldID: key.rawValue,
+                from: collectionRecord.wrappedValue,
+                at: breakpoint
+            )
+            return
+        }
         if selectedParts.count > 1 {
             editor.removeResponsiveOverrides(
                 ids: selectedParts.map(\.id),
@@ -1299,6 +1431,29 @@ struct PartPropertyEditor: View {
     }
 
     private func toggleResponsiveOverride(for key: PartProperty.Key) {
+        if let collectionRecord {
+            if PartCollectionValue.hasOverride(
+                fieldID: key.rawValue,
+                in: collectionRecord.wrappedValue,
+                at: breakpoint
+            ) {
+                removeOverride(for: key)
+            } else {
+                let value = PartCollectionValue.value(
+                    fieldID: key.rawValue,
+                    in: collectionRecord.wrappedValue,
+                    at: breakpoint,
+                    screens: framework.screens
+                )
+                collectionRecord.wrappedValue = PartCollectionValue.setting(
+                    value,
+                    fieldID: key.rawValue,
+                    in: collectionRecord.wrappedValue,
+                    at: breakpoint
+                )
+            }
+            return
+        }
         if part.hasResponsiveOverride(key, at: breakpoint) {
             removeOverride(for: key)
         } else {
@@ -1309,7 +1464,20 @@ struct PartPropertyEditor: View {
     }
 
     private var displayPart: PartNode {
-        part.resolved(at: effectiveBreakpoint, screens: framework.screens)
+        var resolved = part.resolved(at: breakpoint, screens: framework.screens)
+        guard let record = collectionRecord?.wrappedValue else { return resolved }
+        for field in collectionDefinitions {
+            resolved.setProperty(
+                field.key,
+                value: PartCollectionValue.value(
+                    fieldID: field.key.rawValue,
+                    in: record,
+                    at: field.isResponsive ? breakpoint : .mobile,
+                    screens: framework.screens
+                )
+            )
+        }
+        return resolved
     }
 
     private var effectiveBreakpoint: ResponsiveBreakpoint {
@@ -1317,8 +1485,12 @@ struct PartPropertyEditor: View {
     }
 
     private func effectiveBreakpoint(for key: PartProperty.Key) -> ResponsiveBreakpoint {
-        let propertyDefinition = part.type.definition.properties.first { $0.key == key }
+        let propertyDefinition = availableDefinitions.first { $0.key == key }
         return propertyDefinition?.isResponsive == true ? breakpoint : .mobile
+    }
+
+    private var availableDefinitions: [PartPropertyDefinition] {
+        collectionRecord == nil ? part.type.definition.properties : collectionDefinitions
     }
 
     private enum StringValueKind {

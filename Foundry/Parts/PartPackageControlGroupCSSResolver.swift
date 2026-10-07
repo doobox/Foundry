@@ -23,6 +23,7 @@ nonisolated enum PartPackageControlGroupCSSResolver {
         .init(name: "spacing", declarations: spacing),
         .init(name: "borders", declarations: borders),
         .init(name: "effects", declarations: effects),
+        .init(name: "typography", declarations: typography),
         .init(name: "transitions", declarations: transitions),
         .init(name: "filters", declarations: { values, declared in
             PartPackageFiltersResolver.declarations(values: values, declared: declared, hovered: false)
@@ -354,6 +355,41 @@ nonisolated enum PartPackageControlGroupCSSResolver {
         var declarations: [String] = []
         if declared.contains("frameworkShadow") {
             declarations.append("box-shadow: \(enabled ? string(values["frameworkShadow"]) ?? "none" : "none");")
+        }
+        return declarations
+    }
+
+    // MARK: Typography
+
+    /// A typography group deliberately composes inheritable text properties
+    /// only. Parts place the finished block on the exact title, caption or
+    /// body selector they own, so a group never restyles arbitrary children.
+    private static func typography(
+        _ values: [String: PartPackageValue],
+        declared: Set<String>
+    ) -> [String] {
+        var declarations: [String] = []
+        if declared.contains("font") {
+            declarations.append("font-family: \(string(values["font.family"]) ?? "inherit");")
+            declarations.append("font-weight: \(length(values["font.weight"]));")
+            declarations.append("font-style: \(string(values["font.style"]) ?? "normal");")
+            declarations.append("font-size: \(string(values["font.size"]) ?? "inherit");")
+            declarations.append("line-height: \(string(values["font.size.lineHeight"]) ?? "normal");")
+        }
+        if declared.contains("textColor") {
+            let colour = boolean(values["customColorEnabled"]) == true
+                ? string(values["textColor"]) ?? "currentColor"
+                : "inherit"
+            declarations.append("color: \(colour);")
+        }
+        if declared.contains("textAlignment") {
+            declarations.append("text-align: \(string(values["textAlignment"]) ?? "start");")
+        }
+        if declared.contains("textDecoration") {
+            declarations.append("text-decoration-line: \(string(values["textDecoration"]) ?? "none");")
+        }
+        if declared.contains("textTransform") {
+            declarations.append("text-transform: \(string(values["textTransform"]) ?? "none");")
         }
         return declarations
     }
