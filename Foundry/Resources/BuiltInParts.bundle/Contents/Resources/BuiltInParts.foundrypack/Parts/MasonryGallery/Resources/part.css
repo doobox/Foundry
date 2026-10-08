@@ -5,8 +5,14 @@
 }
 
 :instance .foundry-masonry__columns {
-  column-count: {{ control.columns }};
+  --foundry-masonry-column-count: {{ control.columns }};
+  column-count: var(--foundry-masonry-column-count);
   column-gap: {{ control.gap }};
+}
+
+:instance .foundry-masonry__columns[data-foundry-masonry-layout] {
+  position: relative;
+  column-count: initial;
 }
 
 :instance .foundry-masonry__item {
@@ -15,6 +21,11 @@
   margin: 0 0 {{ control.gap }};
   break-inside: avoid;
   vertical-align: top;
+}
+
+:instance .foundry-masonry__columns[data-foundry-masonry-layout] > .foundry-masonry__item {
+  position: absolute;
+  margin: 0;
 }
 
 :instance .foundry-masonry__link {

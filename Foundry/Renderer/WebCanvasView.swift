@@ -234,6 +234,7 @@ final class CanvasWebView: WKWebView {
 
 struct WebCanvasView: NSViewRepresentable {
     let operation: CanvasWebOperation
+    let packageJavaScript: [CanvasJavaScriptProgram]
     let assets: ProjectAssetContents
     let packages: [String: LoadedPartPackage]
     let appearance: SiteAppearance
@@ -325,6 +326,7 @@ struct WebCanvasView: NSViewRepresentable {
         context.coordinator.editorOptions = editorOptions
         context.coordinator.requestFullReconciliation = requestFullReconciliation
         context.coordinator.didApplyRevision = didApplyRevision
+        context.coordinator.packageJavaScript = packageJavaScript
         if context.coordinator.lastSubmittedRevision != operation.revision {
             context.coordinator.lastSubmittedRevision = operation.revision
             context.coordinator.apply(operation, in: webView)
@@ -336,6 +338,36 @@ struct WebCanvasView: NSViewRepresentable {
     @MainActor
     final class Coordinator: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
         static let handlerName = "foundryCanvas"
+        nonisolated static let refreshPackageScript = """
+        return (() => {
+          if (!window.foundryPackageCanvasRuntime) {
+            const cleanups = new Map();
+            window.foundryRegisterCanvasScriptCleanup = (partID, callback) => {
+              if (typeof callback !== 'function') return;
+              const key = typeof partID === 'string' ? partID : '';
+              if (!cleanups.has(key)) cleanups.set(key, []);
+              cleanups.get(key).push(callback);
+            };
+            window.foundryPackageCanvasRuntime = {
+              refresh(source) {
+                Array.from(cleanups.values()).flat().reverse().forEach(cleanup => {
+                  try { cleanup(); } catch (error) { console.error('Foundry canvas script cleanup failed', error); }
+                });
+                cleanups.clear();
+                if (!source) return true;
+                try {
+                  (0, eval)(source);
+                  return true;
+                } catch (error) {
+                  console.error('Foundry package canvas script failed', error);
+                  return false;
+                }
+              }
+            };
+          }
+          return window.foundryPackageCanvasRuntime.refresh(source);
+        })()
+        """
         let assetSchemeHandler: CanvasAssetSchemeHandler
         nonisolated static let interactionScript = CanvasHoverGuard.javaScript + "\n" + CanvasYouTubeThumbnails.javaScript + "\n" + """
         (() => {
@@ -1992,6 +2024,7 @@ struct WebCanvasView: NSViewRepresentable {
         var handleContextMenuAction: (CanvasContextMenuAction, UUID, PartProperty.Key?, [Int]) -> Void
         var requestFullReconciliation: () -> Void
         var didApplyRevision: (UInt64) -> Void = { _ in }
+        var packageJavaScript: [CanvasJavaScriptProgram] = []
         private var loadingRevision: UInt64?
         private var contextMenuPartID: UUID?
         private var contextMenuImageProperty: PartProperty.Key?
@@ -2009,6 +2042,7 @@ struct WebCanvasView: NSViewRepresentable {
         private var scrollPositionBeforeLoad: CGPoint?
         private var isCapturingScrollPosition = false
         private var isPatchingHTML = false
+        private var activeScriptWorlds: Set<String> = []
 
         init(
             assets: ProjectAssetContents,
@@ -2324,6 +2358,7 @@ struct WebCanvasView: NSViewRepresentable {
                     return
                 }
                 if self.revisionGate.apply(revision) {
+                    await self.refreshPackageScripts(in: webView)
                     self.didApplyRevision(revision)
                     self.applyCanvasState()
                 }
@@ -2371,6 +2406,7 @@ struct WebCanvasView: NSViewRepresentable {
                     self.processPendingUpdate(in: webView)
                     return
                 }
+                await self.refreshPackageScripts(in: webView)
                 self.applyCanvasState()
                 self.didApplyRevision(revision)
                 self.processPendingUpdate(in: webView)
@@ -2421,6 +2457,7 @@ struct WebCanvasView: NSViewRepresentable {
                     return
                 }
                 self.loadedHTML = html
+                await self.refreshPackageScripts(in: webView)
                 self.didApplyRevision(revision)
                 self.applyCanvasState()
                 self.processPendingUpdate(in: webView)
@@ -2493,6 +2530,10 @@ struct WebCanvasView: NSViewRepresentable {
                 load(pendingHTML.html, revision: pendingHTML.revision, in: webView)
             } else {
                 pendingHTML = nil
+                Task { [weak self, weak webView] in
+                    guard let self, let webView else { return }
+                    await self.refreshPackageScripts(in: webView)
+                }
                 applyCanvasState()
                 processPendingUpdate(in: webView)
             }
@@ -2556,6 +2597,28 @@ struct WebCanvasView: NSViewRepresentable {
                     contentWorld: .defaultClient
                 )
             }
+        }
+
+        private func refreshPackageScripts(in webView: WKWebView) async {
+            let programs = packageJavaScript
+            let currentWorlds = Set(programs.map(\.contentWorldName))
+            for worldName in activeScriptWorlds.subtracting(currentWorlds) {
+                _ = try? await webView.callAsyncJavaScript(
+                    Self.refreshPackageScript,
+                    arguments: ["source": ""],
+                    in: nil,
+                    contentWorld: .world(name: worldName)
+                )
+            }
+            for program in programs {
+                _ = try? await webView.callAsyncJavaScript(
+                    Self.refreshPackageScript,
+                    arguments: ["source": program.source],
+                    in: nil,
+                    contentWorld: .world(name: program.contentWorldName)
+                )
+            }
+            activeScriptWorlds = currentWorlds
         }
 
         private var cssAccentColor: String {

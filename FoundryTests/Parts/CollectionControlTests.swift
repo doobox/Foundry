@@ -36,7 +36,8 @@ struct CollectionControlTests {
         let part = PartNode.make(.init(rawValue: package.manifest.identifier))
         let page = Page(title: "Masonry", slug: "index", parts: [part])
         let site = Site(name: "Masonry", pages: [page])
-        let html = HTMLPageRenderer(site: site).render(
+        let renderer = HTMLPageRenderer(site: site)
+        let html = renderer.render(
             page: page,
             language: "en",
             framework: site.framework,
@@ -45,12 +46,25 @@ struct CollectionControlTests {
         )
         #expect(html.contains("foundry-masonry__media--portrait"))
         #expect(html.contains("Portrait image"))
-        #expect(html.contains("column-count: 3"))
+        #expect(html.contains("--foundry-masonry-column-count: 3"))
+        #expect(html.contains("data-foundry-masonry-layout"))
+        #expect(html.contains("new ResizeObserver"))
         #expect(html.contains("font-family: var(--foundry-font-heading);"))
         #expect(html.contains("font-weight: 700;"))
         #expect(html.contains("font-size: var(--foundry-font-size-sm);"))
         #expect(html.contains("color: inherit;"))
         #expect(!html.contains("{{"))
+        let canvasPrograms = renderer.canvasJavaScriptPrograms(
+            for: page,
+            framework: site.framework,
+            assets: [:],
+            breakpoint: .large
+        )
+        #expect(canvasPrograms.map(\.packageIdentifier) == ["foundry.media.masonry-gallery"])
+        #expect(canvasPrograms[0].partID == part.id)
+        #expect(canvasPrograms[0].contentWorldName.contains(part.id.uuidString))
+        #expect(canvasPrograms[0].source.contains("new ResizeObserver"))
+        #expect(canvasPrograms[0].source.contains(part.id.uuidString))
     }
 
     @Test @MainActor

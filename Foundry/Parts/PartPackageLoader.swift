@@ -719,7 +719,11 @@ nonisolated enum PartPackageLoader {
                 descendants: foundryDescendants,
                 parent: foundryParent,
                 ancestors: foundryAncestors,
-                closest: (packageIdentifier) => foundryAncestors(packageIdentifier)[0] || null
+                closest: (packageIdentifier) => foundryAncestors(packageIdentifier)[0] || null,
+                cleanup: (callback) => {
+                    if (typeof callback !== "function") return;
+                    globalThis.foundryRegisterCanvasScriptCleanup?.(part?.dataset.foundryId, callback);
+                }
             });
         """
         func javascript(scope: PartPackageTemplateFile.Scope) throws -> String {

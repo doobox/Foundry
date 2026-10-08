@@ -255,6 +255,10 @@
       {
         "path": "part.css",
         "scope": "instance"
+      },
+      {
+        "path": "part.js",
+        "scope": "instance"
       }
     ],
     "html": "part.html"

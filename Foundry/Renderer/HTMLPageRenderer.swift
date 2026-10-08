@@ -312,6 +312,74 @@ nonisolated struct HTMLPageRenderer: PageRendering {
         return source.isEmpty ? "" : "<script>\n\(source)\n</script>"
     }
 
+    /// Package-authored scripts for the canvas. Each program is executed in a
+    /// separate WebKit content world; user-authored page HTML remains inert.
+    func canvasJavaScriptPrograms(
+        for page: Page,
+        framework: Framework,
+        assets: ProjectAssetContents,
+        breakpoint: ResponsiveBreakpoint
+    ) -> [CanvasJavaScriptProgram] {
+        let nodes = page.parts.flatMap(flattened)
+        var programs: [CanvasJavaScriptProgram] = []
+        var packageOrder: [String] = []
+        var packages: [String: LoadedPartPackage] = [:]
+        for sourceNode in nodes {
+            guard !Task.isCancelled else { return [] }
+            let node = sourceNode.resolved(at: breakpoint, screens: framework.screens)
+            guard let package = node.type.definition.package else { continue }
+            let identifier = package.manifest.identifier
+            if packages[identifier] == nil {
+                packageOrder.append(identifier)
+                packages[identifier] = package
+            }
+            let source = [package.instanceJavaScript, package.renderDefinition.controlGroupJavaScript]
+                .filter { !$0.isEmpty }
+                .joined(separator: "\n")
+            guard !source.isEmpty else { continue }
+            programs.append(CanvasJavaScriptProgram(
+                packageIdentifier: identifier,
+                partID: node.id,
+                source: PartTemplateRenderer.render(
+                    source,
+                    context: .init(
+                        instanceID: node.id,
+                        packageIdentifier: identifier,
+                        properties: packageProperties(node, framework: framework, assets: assets, breakpoint: breakpoint),
+                        templateValues: templateValues(for: page, framework: framework),
+                        slots: [:],
+                        assetBasePath: canvasAssetBasePath(for: package),
+                        assetPaths: canvasAssetPaths(for: package),
+                        environment: .canvas,
+                        loopMaximums: package.loopMaximums
+                    )
+                )
+            ))
+        }
+        for identifier in packageOrder {
+            guard let package = packages[identifier], !package.pageJavaScript.isEmpty else { continue }
+            programs.append(CanvasJavaScriptProgram(
+                packageIdentifier: identifier,
+                partID: nil,
+                source: PartTemplateRenderer.render(
+                    package.pageJavaScript,
+                    context: .init(
+                        instanceID: UUID(uuid: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)),
+                        packageIdentifier: identifier,
+                        properties: [:],
+                        templateValues: templateValues(for: page, framework: framework),
+                        slots: [:],
+                        assetBasePath: canvasAssetBasePath(for: package),
+                        assetPaths: canvasAssetPaths(for: package),
+                        environment: .canvas,
+                        loopMaximums: package.loopMaximums
+                    )
+                )
+            ))
+        }
+        return programs
+    }
+
     private func placedHTML(for page: Page, framework: Framework, placement: PartPackageTemplateFile.Placement) -> String {
         var seenPackages: Set<String> = []
         return page.parts.flatMap(flattened).compactMap { node -> String? in
