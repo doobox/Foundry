@@ -6915,10 +6915,9 @@ struct PartPackageTests {
     }
 
     @Test
-    func webLibrariesSupportAlpineGLightboxAndResolveScrollTriggerDependency() {
+    func webLibrariesSupportAlpineAndResolveScrollTriggerDependency() {
         #expect(FoundryWebLibraryRegistry.supports(FoundryWebLibraryRegistry.alpineRequirement))
         #expect(FoundryWebLibraryRegistry.supports(FoundryWebLibraryRegistry.gsapRequirement))
-        #expect(FoundryWebLibraryRegistry.supports(FoundryWebLibraryRegistry.glightboxRequirement))
         #expect(FoundryWebLibraryRegistry.supports(FoundryWebLibraryRegistry.gsapScrollTriggerRequirement))
     }
 

@@ -9,13 +9,6 @@ if (part) {
     let frame = 0;
     let disposed = false;
     let measuredWidth = -1;
-    const lightbox = typeof GLightbox === "function" && part.querySelector("[data-foundry-masonry-lightbox]")
-      ? GLightbox({
-          selector: '[data-foundry-masonry-lightbox="{{ instance.id }}"]',
-          touchNavigation: true,
-          loop: true
-        })
-      : null;
 
     const layout = () => {
       frame = 0;
@@ -83,11 +76,6 @@ if (part) {
       disposed = true;
       if (frame) cancelAnimationFrame(frame);
       observer.disconnect();
-      if (lightbox) {
-        lightbox.settings.openEffect = "none";
-        lightbox.settings.closeEffect = "none";
-        lightbox.destroy();
-      }
       images.forEach((image) => {
         image.removeEventListener("load", schedule);
         image.removeEventListener("error", schedule);
