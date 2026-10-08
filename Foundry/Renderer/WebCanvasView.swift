@@ -839,7 +839,7 @@ struct WebCanvasView: NSViewRepresentable {
           document.fonts.addEventListener('loadingerror', scheduleChromeTitleUpdate);
 
           document.addEventListener('pointermove', event => {
-            window.foundrySetCanvasPointerInside(true);
+            window.foundryUpdateCanvasPointer(event.clientX, event.clientY);
             const part = event.target.closest?.(selector) ?? null;
             const primitive = event.target.closest?.('[data-foundry-primitive-property]') ?? null;
             const editable = event.target.closest?.('[data-foundry-inline-property]') ?? null;

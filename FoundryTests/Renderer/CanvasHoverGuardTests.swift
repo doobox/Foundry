@@ -17,7 +17,10 @@ struct CanvasHoverGuardTests {
             .card { background: red }
             @media (min-width: 0px) { .card:hover { background: blue } }
             [data-text=":hover"] { color: green }
-            </style></head><body><div class="card" data-foundry-id="card">Card</div></body></html>
+            #columns { position: fixed; left: 0; top: 0; width: 100px; height: 100px }
+            .box { position: fixed; left: 200px; top: 0; width: 100px; height: 100px; transform: none }
+            body:has(#columns:hover) .box { transform: translateX(20px) }
+            </style></head><body><div class="card" data-foundry-id="card">Card</div><div id="columns"><div class="box">Box</div></div></body></html>
             """, baseURL: nil)
         let deadline = ContinuousClock.now + .seconds(10)
         var ready = false
@@ -33,15 +36,29 @@ struct CanvasHoverGuardTests {
             const rules = document.styleSheets[0].cssRules;
             const rule = rules[1].cssRules[0];
             const protectedSelector = rule.selectorText;
+            const customTriggerSelector = rules[5].selectorText;
             // Force a persistent match to model WebKit retaining :hover after exit.
             // This tests actual computed CSS, not just the editor's outline state.
             rule.selectorText = protectedSelector.replace(':hover', '.stale-hover');
             document.querySelector('.card').classList.add('stale-hover');
             return protectedSelector.includes('data-foundry-pointer-outside')
+              && customTriggerSelector.includes('#columns[data-foundry-direct-hover]')
+              && !customTriggerSelector.includes('#columns:hover')
               && !rules[2].selectorText.includes('data-foundry-pointer-outside')
               && getComputedStyle(document.querySelector('.card')).backgroundColor === 'rgb(0, 0, 255)';
             """#, arguments: [:], in: nil, contentWorld: .defaultClient)
         try #require(installed as? Bool == true)
+        let geometricCustomTrigger = try await webView.callAsyncJavaScript("""
+            const columns = document.getElementById('columns');
+            const box = document.querySelector('.box');
+            window.foundryUpdateCanvasPointer(50, 50);
+            const active = getComputedStyle(box).transform !== 'none';
+            window.foundryUpdateCanvasPointer(230, 20);
+            return active
+              && columns.contains(document.elementFromPoint(230, 20))
+              && getComputedStyle(box).transform === 'none';
+            """, arguments: [:], in: nil, contentWorld: .defaultClient)
+        #expect(geometricCustomTrigger as? Bool == true)
         await webView.clearHoverChrome().value
         let cleared = try await webView.callAsyncJavaScript("""
             return getComputedStyle(document.querySelector('.card')).backgroundColor === 'rgb(255, 0, 0)';
