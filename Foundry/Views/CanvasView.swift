@@ -105,7 +105,6 @@ struct CanvasView: View {
                                     if let renderedPage {
                                         WebCanvasView(
                                             operation: renderedPage.operation,
-                                            packageJavaScript: renderedPage.packageJavaScript,
                                             assets: assets,
                                             packages: canvasPackages(for: page),
                                             appearance: appearance,
@@ -252,21 +251,15 @@ struct CanvasView: View {
         let consecutiveImpact = requestID.canPatch(after: renderedRequest,
             submittedRevision: renderedPage?.operation.revision,
             acknowledgedRevision: acknowledgedRenderRevision) ? mutationEvent.impact : nil
-        let renderTask = Task.detached(priority: .userInitiated) { () -> (CanvasScene?, CanvasRenderResult, [CanvasJavaScriptProgram])? in
+        let renderTask = Task.detached(priority: .userInitiated) { () -> (CanvasScene?, CanvasRenderResult)? in
             if let sceneRenderer {
                 guard let update = try? CanvasScene.render(renderer: sceneRenderer, page: page,
                     language: snapshot.language, framework: snapshot.framework, assets: snapshot.assets,
                     breakpoint: snapshot.breakpoint, packageRevision: requestID.partPackageRevision,
                     previous: baseline, consecutiveImpact: consecutiveImpact) else { return nil }
-                let javaScript = sceneRenderer.canvasJavaScriptPrograms(
-                    for: page,
-                    framework: snapshot.framework,
-                    assets: snapshot.assets,
-                    breakpoint: snapshot.breakpoint
-                )
-                return (update.scene, update.result, javaScript)
+                return (update.scene, update.result)
             }
-            return (nil, snapshot.render(), [])
+            return (nil, snapshot.render())
         }
         let operation = await withTaskCancellationHandler {
             await renderTask.value
@@ -274,13 +267,9 @@ struct CanvasView: View {
             renderTask.cancel()
         }
         guard !Task.isCancelled, requestID == renderRequestID, revision == renderRevision,
-              let (scene, result, javaScript) = operation else { return }
+              let (scene, result) = operation else { return }
         renderedScene = scene
-        renderedPage = .init(
-            pageID: page.id,
-            operation: result.withRevision(revision),
-            packageJavaScript: javaScript
-        )
+        renderedPage = .init(pageID: page.id, operation: result.withRevision(revision))
         renderedAppearance = appearance
         renderedBreakpoint = requestID.breakpoint
         renderedRequest = requestID
@@ -414,20 +403,6 @@ struct CanvasRenderRequestID: Hashable {
 struct CanvasRenderedPage: Equatable {
     let pageID: UUID
     let operation: CanvasWebOperation
-    let packageJavaScript: [CanvasJavaScriptProgram]
-}
-
-nonisolated struct CanvasJavaScriptProgram: Equatable, Sendable {
-    let packageIdentifier: String
-    let partID: UUID?
-    let source: String
-
-    var contentWorldName: String {
-        if let partID {
-            return "foundry.package.\(packageIdentifier).part.\(partID.uuidString)"
-        }
-        return "foundry.package.\(packageIdentifier).page"
-    }
 }
 
 nonisolated struct CanvasRenderSnapshot: Sendable {

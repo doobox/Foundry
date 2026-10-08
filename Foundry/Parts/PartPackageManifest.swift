@@ -759,10 +759,6 @@ nonisolated struct PartPackageControlGroup: Codable, Equatable, Sendable {
                     }
                 });
             }, root);
-            globalThis.foundryRegisterCanvasScriptCleanup?.("{{ instance.id }}", () => {
-                root._foundryRevealContext?.revert();
-                delete root._foundryRevealContext;
-            });
         })();
         """#
         // JSON quoting prevents selectors becoming executable JavaScript. Escape

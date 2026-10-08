@@ -38,21 +38,11 @@ nonisolated enum PartBackgroundVideoPlayback {
             videos.set(video, false);
             video.pause();
             observer.observe(video);
-          },
-          unobserve(video) {
-            if (!videos.has(video)) return;
-            video.pause();
-            observer.unobserve(video);
-            videos.delete(video);
           }
         };
       }
-      const ownedVideos = Array.from(root.querySelectorAll("video.foundry-background-video")).filter(
-        (video) => video.closest("[data-foundry-id]") === root
-      );
-      ownedVideos.forEach((video) => window.foundryBackgroundPlayback.observe(video));
-      globalThis.foundryRegisterCanvasScriptCleanup?.("{{ instance.id }}", () => {
-        ownedVideos.forEach((video) => window.foundryBackgroundPlayback?.unobserve(video));
+      root.querySelectorAll("video.foundry-background-video").forEach((video) => {
+        if (video.closest("[data-foundry-id]") === root) window.foundryBackgroundPlayback.observe(video);
       });
     })();
     """#
