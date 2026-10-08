@@ -333,48 +333,65 @@ nonisolated struct HTMLPageRenderer: PageRendering {
                 packageOrder.append(identifier)
                 packages[identifier] = package
             }
-            let source = [package.instanceJavaScript, package.renderDefinition.controlGroupJavaScript]
+            let templateSource = [package.instanceJavaScript, package.renderDefinition.controlGroupJavaScript]
+                .filter { !$0.isEmpty }
+                .joined(separator: "\n")
+            let renderedSource = templateSource.isEmpty ? "" : PartTemplateRenderer.render(
+                templateSource,
+                context: .init(
+                    instanceID: node.id,
+                    packageIdentifier: identifier,
+                    properties: packageProperties(node, framework: framework, assets: assets, breakpoint: breakpoint),
+                    templateValues: templateValues(for: page, framework: framework),
+                    slots: [:],
+                    assetBasePath: canvasAssetBasePath(for: package),
+                    assetPaths: canvasAssetPaths(for: package),
+                    environment: .canvas,
+                    loopMaximums: package.loopMaximums
+                )
+            )
+            let source = [
+                FoundryWebLibraryRegistry.canvasJavaScript(for: package, placement: .beforePage),
+                renderedSource,
+                FoundryWebLibraryRegistry.canvasJavaScript(for: package, placement: .afterPage)
+            ]
                 .filter { !$0.isEmpty }
                 .joined(separator: "\n")
             guard !source.isEmpty else { continue }
             programs.append(CanvasJavaScriptProgram(
                 packageIdentifier: identifier,
                 partID: node.id,
-                source: PartTemplateRenderer.render(
-                    source,
-                    context: .init(
-                        instanceID: node.id,
-                        packageIdentifier: identifier,
-                        properties: packageProperties(node, framework: framework, assets: assets, breakpoint: breakpoint),
-                        templateValues: templateValues(for: page, framework: framework),
-                        slots: [:],
-                        assetBasePath: canvasAssetBasePath(for: package),
-                        assetPaths: canvasAssetPaths(for: package),
-                        environment: .canvas,
-                        loopMaximums: package.loopMaximums
-                    )
-                )
+                source: source
             ))
         }
         for identifier in packageOrder {
             guard let package = packages[identifier], !package.pageJavaScript.isEmpty else { continue }
+            let renderedSource = PartTemplateRenderer.render(
+                package.pageJavaScript,
+                context: .init(
+                    instanceID: UUID(uuid: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)),
+                    packageIdentifier: identifier,
+                    properties: [:],
+                    templateValues: templateValues(for: page, framework: framework),
+                    slots: [:],
+                    assetBasePath: canvasAssetBasePath(for: package),
+                    assetPaths: canvasAssetPaths(for: package),
+                    environment: .canvas,
+                    loopMaximums: package.loopMaximums
+                )
+            )
+            let source = [
+                FoundryWebLibraryRegistry.canvasJavaScript(for: package, placement: .beforePage),
+                renderedSource,
+                FoundryWebLibraryRegistry.canvasJavaScript(for: package, placement: .afterPage)
+            ]
+                .filter { !$0.isEmpty }
+                .joined(separator: "\n")
+            guard !source.isEmpty else { continue }
             programs.append(CanvasJavaScriptProgram(
                 packageIdentifier: identifier,
                 partID: nil,
-                source: PartTemplateRenderer.render(
-                    package.pageJavaScript,
-                    context: .init(
-                        instanceID: UUID(uuid: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)),
-                        packageIdentifier: identifier,
-                        properties: [:],
-                        templateValues: templateValues(for: page, framework: framework),
-                        slots: [:],
-                        assetBasePath: canvasAssetBasePath(for: package),
-                        assetPaths: canvasAssetPaths(for: package),
-                        environment: .canvas,
-                        loopMaximums: package.loopMaximums
-                    )
-                )
+                source: source
             ))
         }
         return programs

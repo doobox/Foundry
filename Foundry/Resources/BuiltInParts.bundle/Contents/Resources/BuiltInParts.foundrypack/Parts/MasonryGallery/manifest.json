@@ -9,6 +9,12 @@
     "tint": "purple"
   },
   "id": "foundry.media.masonry-gallery",
+  "libraries": [
+    {
+      "id": "glightbox",
+      "majorVersion": 3
+    }
+  ],
   "inspector": [
     {
       "section": "Gallery",
@@ -124,6 +130,15 @@
             ]
           },
           "tooltip": "Open the collection popover to select, add, duplicate, delete or reorder gallery images."
+        },
+        {
+          "type": "toggle",
+          "id": "lightbox",
+          "label": "Open in Lightbox",
+          "defaults": {
+            "base": true
+          },
+          "tooltip": "Opens images without their own link in a touch-friendly gallery overlay."
         }
       ]
     },

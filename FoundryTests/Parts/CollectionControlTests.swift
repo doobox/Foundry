@@ -1,9 +1,99 @@
 import Foundation
 import Testing
+import WebKit
 @testable import Foundry
 
 @Suite(.serialized)
 struct CollectionControlTests {
+    @Test @MainActor
+    func masonryGLightboxRunsAndCleansUpInItsCanvasWorld() async throws {
+        let catalog = PartPackageCatalog.shared
+        await catalog.waitUntilLoaded()
+        let package = try #require(catalog.packages.values.first {
+            $0.manifest.identifier == "foundry.media.masonry-gallery"
+        })
+        let definition = PartPackageAdapter.definition(from: package)
+        let images = try #require(definition.properties.first { $0.key.rawValue == "images" })
+        guard case .collection(_, let fields) = images.control else {
+            Issue.record("Expected an image collection")
+            return
+        }
+
+        var part = PartNode.make(.init(rawValue: package.manifest.identifier))
+        part.setProperty(images.key, value: .array([
+            PartCollectionValue.record(fields: fields, overriding: [
+                "image": .url("https://example.com/full-size.jpg"),
+                "title": .string("Canvas lightbox"),
+                "description": .string("Runs in the part world")
+            ])
+        ]))
+        let page = Page(title: "Masonry", slug: "index", parts: [part])
+        let site = Site(name: "Masonry", pages: [page])
+        let renderer = HTMLPageRenderer(site: site)
+        let html = renderer.render(
+            page: page,
+            language: "en",
+            framework: site.framework,
+            assets: [:],
+            breakpoint: .large
+        )
+        let program = try #require(renderer.canvasJavaScriptPrograms(
+            for: page,
+            framework: site.framework,
+            assets: [:],
+            breakpoint: .large
+        ).first)
+
+        let configuration = WKWebViewConfiguration()
+        configuration.defaultWebpagePreferences.allowsContentJavaScript = false
+        let webView = WKWebView(frame: .init(x: 0, y: 0, width: 800, height: 600), configuration: configuration)
+        defer { webView.stopLoading() }
+        webView.loadHTMLString(html, baseURL: nil)
+        var ready = false
+        for _ in 0..<200 {
+            ready = (try? await webView.callAsyncJavaScript(
+                "return document.readyState === 'complete'",
+                arguments: [:], in: nil, contentWorld: .defaultClient
+            )) as? Bool == true
+            if ready { break }
+            try await Task.sleep(for: .milliseconds(25))
+        }
+        try #require(ready)
+
+        let world = WKContentWorld.world(name: program.contentWorldName)
+        let refreshed = try await webView.callAsyncJavaScript(
+            WebCanvasView.Coordinator.refreshPackageScript,
+            arguments: ["source": program.source], in: nil, contentWorld: world
+        )
+        #expect(refreshed as? Bool == true)
+        let installed = try await webView.callAsyncJavaScript(
+            "return typeof GLightbox === 'function' && document.querySelectorAll('[data-foundry-masonry-lightbox]').length === 1",
+            arguments: [:], in: nil, contentWorld: world
+        )
+        #expect(installed as? Bool == true)
+
+        _ = try await webView.callAsyncJavaScript(
+            "document.querySelector('[data-foundry-masonry-lightbox]').click()",
+            arguments: [:], in: nil, contentWorld: world
+        )
+        try await Task.sleep(for: .milliseconds(50))
+        let opened = try await webView.callAsyncJavaScript(
+            "return document.querySelector('.glightbox-container') !== null",
+            arguments: [:], in: nil, contentWorld: world
+        )
+        #expect(opened as? Bool == true)
+
+        _ = try await webView.callAsyncJavaScript(
+            WebCanvasView.Coordinator.refreshPackageScript,
+            arguments: ["source": ""], in: nil, contentWorld: world
+        )
+        let cleaned = try await webView.callAsyncJavaScript(
+            "return document.querySelector('.glightbox-container') === null",
+            arguments: [:], in: nil, contentWorld: world
+        )
+        #expect(cleaned as? Bool == true)
+    }
+
     @Test @MainActor
     func builtInMasonryGalleryUsesAResponsiveImageCollection() async throws {
         let catalog = PartPackageCatalog.shared
@@ -32,6 +122,8 @@ struct CollectionControlTests {
         ])
         #expect(images.defaultValue.arrayValue?.count == 6)
         #expect(columns.isResponsive)
+        #expect(package.manifest.libraries == [FoundryWebLibraryRegistry.glightboxRequirement])
+        #expect(FoundryWebLibraryRegistry.supports(FoundryWebLibraryRegistry.glightboxRequirement))
 
         let part = PartNode.make(.init(rawValue: package.manifest.identifier))
         let page = Page(title: "Masonry", slug: "index", parts: [part])
@@ -49,6 +141,8 @@ struct CollectionControlTests {
         #expect(html.contains("--foundry-masonry-column-count: 3"))
         #expect(html.contains("data-foundry-masonry-layout"))
         #expect(html.contains("new ResizeObserver"))
+        #expect(html.contains("data-foundry-library=\"glightbox\""))
+        #expect(!html.contains("<a class=\"foundry-masonry__link foundry-masonry__lightbox\""))
         #expect(html.contains("font-family: var(--foundry-font-heading);"))
         #expect(html.contains("font-weight: 700;"))
         #expect(html.contains("font-size: var(--foundry-font-size-sm);"))
@@ -64,7 +158,15 @@ struct CollectionControlTests {
         #expect(canvasPrograms[0].partID == part.id)
         #expect(canvasPrograms[0].contentWorldName.contains(part.id.uuidString))
         #expect(canvasPrograms[0].source.contains("new ResizeObserver"))
+        #expect(canvasPrograms[0].source.contains(".GLightbox="))
+        #expect(canvasPrograms[0].source.contains("GLightbox({"))
         #expect(canvasPrograms[0].source.contains(part.id.uuidString))
+
+        let bundle = StaticSiteRenderer().render(site: site)
+        #expect(bundle.errors.isEmpty)
+        #expect(bundle.file(at: "files/libraries/glightbox/glightbox.min.js") != nil)
+        #expect(bundle.file(at: "files/site.css")?.contents.contains(".glightbox-container") == true)
+        #expect(bundle.file(at: "index.html")?.contents.contains("files/libraries/glightbox/glightbox.min.js") == true)
     }
 
     @Test @MainActor

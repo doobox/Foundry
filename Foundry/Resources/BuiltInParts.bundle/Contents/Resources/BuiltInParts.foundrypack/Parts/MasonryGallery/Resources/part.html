@@ -3,6 +3,7 @@
     {{ loop control.images as item }}
     <figure class="foundry-masonry__item" {{ loop.attributes }}>
       {{ if item.link }}<a class="foundry-masonry__link" href="{{ item.link }}" target="{{ item.link.target }}" {{ item.link.attributes }}>{{ endif }}
+      {{ if !item.link && control.lightbox && item.image != "" }}<a class="foundry-masonry__link foundry-masonry__lightbox" href="{{ item.image }}" data-foundry-masonry-lightbox="{{ instance.id }}" data-gallery="foundry-masonry-{{ instance.id }}" data-title="{{ item.title }}" data-description="{{ item.description }}">{{ endif }}
       <div class="foundry-masonry__media foundry-masonry__media--{{ item.shape }}">
         <img class="foundry-masonry__image" src="{{ item.image }}" alt="{{ item.image.alt }}" loading="lazy" decoding="async" style="object-position: {{ item.image.focalPointX }}% {{ item.image.focalPointY }}%">
         {{ if control.captionStyle == "overlay" && (item.title || item.description) }}
@@ -18,6 +19,7 @@
         {{ if item.description }}<p>{{ item.description }}</p>{{ endif }}
       </figcaption>
       {{ endif }}
+      {{ if !item.link && control.lightbox && item.image != "" }}</a>{{ endif }}
       {{ if item.link }}</a>{{ endif }}
     </figure>
     {{ endloop }}

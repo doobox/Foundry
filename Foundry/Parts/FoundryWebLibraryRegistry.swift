@@ -27,6 +27,7 @@ nonisolated enum FoundryWebLibraryRegistry {
 
     static let alpineRequirement = PartPackageLibraryRequirement(identifier: "alpine", majorVersion: 3)
     static let gsapRequirement = PartPackageLibraryRequirement(identifier: "gsap", majorVersion: 3)
+    static let glightboxRequirement = PartPackageLibraryRequirement(identifier: "glightbox", majorVersion: 3)
     static let gsapScrollTriggerRequirement = PartPackageLibraryRequirement(
         identifier: "gsapScrollTrigger",
         majorVersion: 3
@@ -75,7 +76,7 @@ nonisolated enum FoundryWebLibraryRegistry {
     }()
 
     static func supports(_ requirement: PartPackageLibraryRequirement) -> Bool {
-        [iconRequirement, alpineRequirement, gsapRequirement, gsapScrollTriggerRequirement]
+        [iconRequirement, alpineRequirement, gsapRequirement, glightboxRequirement, gsapScrollTriggerRequirement]
             .contains(requirement)
     }
 
@@ -107,20 +108,30 @@ nonisolated enum FoundryWebLibraryRegistry {
     }
 
     static func canvasCSS(for packages: [LoadedPartPackage]) -> String {
-        guard uniqueRequirements(in: packages).contains(iconRequirement),
-              let css = resourceString(at: "bootstrap-icons.css"),
-              let font = resourceData(at: "bootstrap-icons.woff2") else { return "" }
-        let dataURL = "data:font/woff2;base64,\(font.base64EncodedString())"
-        return rewrittenIconCSS(css, fontURL: dataURL)
+        uniqueRequirements(in: packages).compactMap { requirement in
+            if requirement == iconRequirement,
+               let css = resourceString(at: "bootstrap-icons.css"),
+               let font = resourceData(at: "bootstrap-icons.woff2") {
+                let dataURL = "data:font/woff2;base64,\(font.base64EncodedString())"
+                return rewrittenIconCSS(css, fontURL: dataURL)
+            }
+            guard let resource = stylesheetResource(for: requirement) else { return nil }
+            return resourceString(at: resource)
+        }.joined(separator: "\n")
     }
 
     static func exportCSS(for packages: [LoadedPartPackage]) -> String {
-        guard uniqueRequirements(in: packages).contains(iconRequirement),
-              let css = resourceString(at: "bootstrap-icons.css") else { return "" }
-        return rewrittenIconCSS(
-            css,
-            fontURL: #"./libraries/bootstrapIcons/bootstrap-icons.woff2"#
-        )
+        uniqueRequirements(in: packages).compactMap { requirement in
+            if requirement == iconRequirement,
+               let css = resourceString(at: "bootstrap-icons.css") {
+                return rewrittenIconCSS(
+                    css,
+                    fontURL: #"./libraries/bootstrapIcons/bootstrap-icons.woff2"#
+                )
+            }
+            guard let resource = stylesheetResource(for: requirement) else { return nil }
+            return resourceString(at: resource)
+        }.joined(separator: "\n")
     }
 
     static func exportFiles(for packages: [LoadedPartPackage]) -> [SiteExportFile] {
@@ -156,6 +167,17 @@ nonisolated enum FoundryWebLibraryRegistry {
         }.joined(separator: "\n")
     }
 
+    static func canvasJavaScript(
+        for package: LoadedPartPackage,
+        placement: ScriptPlacement
+    ) -> String {
+        uniqueRequirements(in: [package]).compactMap { requirement in
+            guard scriptPlacement(for: requirement) == placement,
+                  let resource = scriptResource(for: requirement) else { return nil }
+            return resourceString(at: resource)
+        }.joined(separator: "\n")
+    }
+
     static func exportScriptPaths(
         for packages: [LoadedPartPackage],
         prefix: String,
@@ -172,9 +194,14 @@ nonisolated enum FoundryWebLibraryRegistry {
         switch requirement {
         case alpineRequirement: "alpine.min.js"
         case gsapRequirement: "gsap.min.js"
+        case glightboxRequirement: "glightbox.min.js"
         case gsapScrollTriggerRequirement: "ScrollTrigger.min.js"
         default: nil
         }
+    }
+
+    private static func stylesheetResource(for requirement: PartPackageLibraryRequirement) -> String? {
+        requirement == glightboxRequirement ? "glightbox.min.css" : nil
     }
 
     private static func scriptPlacement(for requirement: PartPackageLibraryRequirement) -> ScriptPlacement? {
