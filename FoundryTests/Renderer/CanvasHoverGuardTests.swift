@@ -42,7 +42,9 @@ struct CanvasHoverGuardTests {
               && getComputedStyle(document.querySelector('.card')).backgroundColor === 'rgb(0, 0, 255)';
             """#, arguments: [:], in: nil, contentWorld: .defaultClient)
         try #require(installed as? Bool == true)
-        await webView.clearHoverChrome().value
+        if let boundaryTransition = webView.setPointerIsInsideCanvas(false) {
+            await boundaryTransition.value
+        }
         let cleared = try await webView.callAsyncJavaScript("""
             return getComputedStyle(document.querySelector('.card')).backgroundColor === 'rgb(255, 0, 0)';
             """, arguments: [:], in: nil, contentWorld: .defaultClient)

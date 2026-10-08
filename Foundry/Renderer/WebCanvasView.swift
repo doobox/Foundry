@@ -184,7 +184,30 @@ nonisolated enum CanvasWebOperation: Equatable, Sendable {
 final class CanvasWebView: WKWebView {
     weak var canvasCoordinator: WebCanvasView.Coordinator?
     private var canvasTrackingArea: NSTrackingArea?
+    private var pointerEventMonitor: Any?
+    private var pointerIsInside: Bool?
     private var hoverTransitionRevision = 0
+
+    deinit {
+        if let pointerEventMonitor {
+            NSEvent.removeMonitor(pointerEventMonitor)
+        }
+    }
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        if let pointerEventMonitor {
+            NSEvent.removeMonitor(pointerEventMonitor)
+            self.pointerEventMonitor = nil
+        }
+        guard window != nil else { return }
+        pointerEventMonitor = NSEvent.addLocalMonitorForEvents(
+            matching: [.mouseMoved, .leftMouseDragged, .rightMouseDragged, .otherMouseDragged]
+        ) { [weak self] event in
+            self?.updatePointerBoundary(with: event)
+            return event
+        }
+    }
 
     override func updateTrackingAreas() {
         super.updateTrackingAreas()
@@ -201,14 +224,39 @@ final class CanvasWebView: WKWebView {
 
     override func mouseExited(with event: NSEvent) {
         super.mouseExited(with: event)
-        clearHoverChrome()
+        setPointerIsInsideCanvas(false)
     }
 
     override func mouseEntered(with event: NSEvent) {
         super.mouseEntered(with: event)
+        setPointerIsInsideCanvas(true)
+    }
+
+    private func updatePointerBoundary(with event: NSEvent) {
+        let isInside: Bool
+        if event.window === window {
+            isInside = visibleRect.contains(convert(event.locationInWindow, from: nil))
+        } else {
+            isInside = false
+        }
+        setPointerIsInsideCanvas(isInside)
+    }
+
+    @discardableResult
+    func setPointerIsInsideCanvas(_ isInside: Bool) -> Task<Void, Never>? {
+        guard pointerIsInside != isInside else { return nil }
+        pointerIsInside = isInside
+        if isInside {
+            return restoreCanvasHover()
+        } else {
+            return clearHoverChrome()
+        }
+    }
+
+    private func restoreCanvasHover() -> Task<Void, Never> {
         hoverTransitionRevision += 1
         let revision = hoverTransitionRevision
-        Task { @MainActor [weak self] in
+        return Task { @MainActor [weak self] in
             guard let self, revision == hoverTransitionRevision else { return }
             _ = try? await callAsyncJavaScript(
                 "window.foundrySetCanvasPointerInside?.(true)",
