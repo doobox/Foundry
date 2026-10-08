@@ -183,7 +183,7 @@ nonisolated enum CanvasWebOperation: Equatable, Sendable {
 @MainActor
 final class CanvasWebView: WKWebView {
     weak var canvasCoordinator: WebCanvasView.Coordinator?
-    private var canvasTrackingArea: NSTrackingArea?
+    private(set) var canvasTrackingArea: NSTrackingArea?
     private var pointerEventMonitor: Any?
     private var pointerIsInside: Bool?
     private var hoverTransitionRevision = 0
@@ -202,9 +202,12 @@ final class CanvasWebView: WKWebView {
         }
         guard window != nil else { return }
         pointerEventMonitor = NSEvent.addLocalMonitorForEvents(
-            matching: [.mouseMoved, .leftMouseDragged, .rightMouseDragged, .otherMouseDragged]
+            matching: [
+                .mouseEntered, .mouseExited, .mouseMoved,
+                .leftMouseDragged, .rightMouseDragged, .otherMouseDragged
+            ]
         ) { [weak self] event in
-            self?.updatePointerBoundary(with: event)
+            self?.updatePointerBoundary()
             return event
         }
     }
@@ -224,22 +227,31 @@ final class CanvasWebView: WKWebView {
 
     override func mouseExited(with event: NSEvent) {
         super.mouseExited(with: event)
-        setPointerIsInsideCanvas(false)
+        handlePointerTrackingTransition(false, trackingArea: event.trackingArea)
     }
 
     override func mouseEntered(with event: NSEvent) {
         super.mouseEntered(with: event)
-        setPointerIsInsideCanvas(true)
+        handlePointerTrackingTransition(true, trackingArea: event.trackingArea)
     }
 
-    private func updatePointerBoundary(with event: NSEvent) {
-        let isInside: Bool
-        if event.window === window {
-            isInside = visibleRect.contains(convert(event.locationInWindow, from: nil))
-        } else {
-            isInside = false
+    @discardableResult
+    func handlePointerTrackingTransition(
+        _ isInside: Bool,
+        trackingArea: NSTrackingArea?
+    ) -> Task<Void, Never>? {
+        guard trackingArea === canvasTrackingArea else { return nil }
+        return setPointerIsInsideCanvas(isInside)
+    }
+
+    private func updatePointerBoundary() {
+        guard let window else {
+            setPointerIsInsideCanvas(false)
+            return
         }
-        setPointerIsInsideCanvas(isInside)
+        let windowPoint = window.convertPoint(fromScreen: NSEvent.mouseLocation)
+        let localPoint = convert(windowPoint, from: nil)
+        setPointerIsInsideCanvas(visibleRect.contains(localPoint))
     }
 
     @discardableResult

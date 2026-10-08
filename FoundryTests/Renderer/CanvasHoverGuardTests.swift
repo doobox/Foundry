@@ -45,10 +45,32 @@ struct CanvasHoverGuardTests {
         if let boundaryTransition = webView.setPointerIsInsideCanvas(false) {
             await boundaryTransition.value
         }
+        webView.updateTrackingAreas()
+        let unrelatedTrackingArea = NSTrackingArea(
+            rect: webView.bounds,
+            options: [.mouseEnteredAndExited, .activeAlways],
+            owner: webView
+        )
+        #expect(webView.handlePointerTrackingTransition(
+            true,
+            trackingArea: unrelatedTrackingArea
+        ) == nil)
         let cleared = try await webView.callAsyncJavaScript("""
             return getComputedStyle(document.querySelector('.card')).backgroundColor === 'rgb(255, 0, 0)';
             """, arguments: [:], in: nil, contentWorld: .defaultClient)
         #expect(cleared as? Bool == true)
+        let canvasTrackingArea = try #require(webView.canvasTrackingArea)
+        if let canvasReentry = webView.handlePointerTrackingTransition(
+            true,
+            trackingArea: canvasTrackingArea
+        ) {
+            await canvasReentry.value
+        }
+        let nativeRestored = try await webView.callAsyncJavaScript("""
+            return !document.documentElement.hasAttribute('data-foundry-pointer-outside');
+            """, arguments: [:], in: nil, contentWorld: .defaultClient)
+        #expect(nativeRestored as? Bool == true)
+        await webView.clearHoverChrome().value
         let restored = try await webView.callAsyncJavaScript("""
             document.querySelector('.card').dispatchEvent(new PointerEvent('pointermove', { bubbles: true }));
             return getComputedStyle(document.querySelector('.card')).backgroundColor === 'rgb(0, 0, 255)';
