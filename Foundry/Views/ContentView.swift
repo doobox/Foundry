@@ -1094,8 +1094,11 @@ struct ContentView: View {
         case .movePart:
             let partIDs = message.partIDs ?? message.partID.map { [$0] } ?? []
             guard partIDs.allSatisfy({ page.parts.node(withID: $0) != nil }),
-                  let placement = validatedPlacement(message.placement, on: page),
-                  movePartsFromStructure(partIDs, placement) else { return }
+                  let placement = validatedPlacement(message.placement, on: page) else { return }
+            let accepted = message.isCopy == true
+                ? copyPartsFromCanvas(partIDs, on: page, to: placement)
+                : movePartsFromStructure(partIDs, placement)
+            guard accepted else { return }
             workspaceLayout.activate(.structure)
         case .editHTMLPart:
             guard let partID = message.partID,
@@ -2245,6 +2248,23 @@ struct ContentView: View {
             return true
         }
         return false
+    }
+
+    private func copyPartsFromCanvas(
+        _ sourceIDs: [UUID],
+        on page: Page,
+        to placement: PartPlacement
+    ) -> Bool {
+        let requestedIDs = Set(sourceIDs)
+        let orderedIDs = topLevelSelectedPartIDs.filter { requestedIDs.contains($0) }
+        let partIDs = orderedIDs.isEmpty ? sourceIDs : orderedIDs
+        let sources = partIDs.compactMap { page.parts.node(withID: $0) }
+        guard sources.count == partIDs.count else { return false }
+        let pastedIDs = editor.pasteParts(sources, on: page.id, placement: placement)
+        guard pastedIDs.count == sources.count else { return false }
+        selectedPartIDs = Set(pastedIDs)
+        selectedPartID = pastedIDs.last
+        return true
     }
 
     private func canMovePartsFromStructure(_ sourceIDs: [UUID], _ placement: PartPlacement) -> Bool {

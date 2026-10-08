@@ -13,8 +13,12 @@ struct TransformsControlGroupTests {
         let html: String
         let id: String
         do {
+            let previous = PartType(rawValue: package.manifest.identifier).definition.package
             PartRegistry.register(package)
-            defer { PartRegistry.unregisterPackage(identifier: package.manifest.identifier) }
+            defer {
+                if let previous { PartRegistry.register(previous) }
+                else { PartRegistry.unregisterPackage(identifier: package.manifest.identifier) }
+            }
             var part = PartNode(type: .init(rawValue: package.manifest.identifier))
             part.setProperty(.init(rawValue: "transforms.transformsMode"), value: .string("hover"))
             part.setProperty(.init(rawValue: "transforms.transformsHoverTranslateY"), value: .string("-40px"))
@@ -115,7 +119,7 @@ struct TransformsControlGroupTests {
             #expect(package.manifest.controlGroups.contains { $0.type == .transforms })
             #expect(package.css.contains("control.transforms.css"))
             #expect(package.css.contains("control.transforms.hover.css"))
-            #expect(package.css.contains(":instance:hover > .fd-transform-content { {{ control.transforms.hover.css }} }"))
+            #expect(package.css.contains("{{ control.transforms.hover.selector }} > .fd-transform-content { {{ control.transforms.hover.css }} }"))
             #expect(package.css.contains(":instance { {{ control.transforms.css }} }") == false)
             #expect(package.css.contains(":instance > .fd-transform-content { {{ control.transforms.css }} {{ control.transitions.css }} }"))
         }
@@ -126,8 +130,12 @@ struct TransformsControlGroupTests {
             .deletingLastPathComponent().deletingLastPathComponent()
         let package = try PartPackageLoader.load(from: root.appending(path:
             "Foundry/Resources/BuiltInParts.bundle/Contents/Resources/BuiltInParts.foundrypack/Parts/Section"))
+        let previous = PartType(rawValue: package.manifest.identifier).definition.package
         PartRegistry.register(package)
-        defer { PartRegistry.unregisterPackage(identifier: package.manifest.identifier) }
+        defer {
+            if let previous { PartRegistry.register(previous) }
+            else { PartRegistry.unregisterPackage(identifier: package.manifest.identifier) }
+        }
         var part = PartNode(type: .init(rawValue: package.manifest.identifier))
         part.setProperty(.init(rawValue: "transforms.transformsMode"), value: .string("hover"))
         part.setProperty(.init(rawValue: "transforms.transformsRotate"), value: .number(4))

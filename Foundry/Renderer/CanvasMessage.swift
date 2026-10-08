@@ -24,6 +24,7 @@ nonisolated struct CanvasMessage: Codable, Equatable, Sendable {
     let reusableDefinitionID: UUID?
     let globalDefinitionID: UUID?
     let isGlobalLinked: Bool?
+    let isCopy: Bool?
     let placement: Placement?
     let propertyKey: PartProperty.Key?
     let propertyPath: [Int]?
@@ -43,6 +44,7 @@ nonisolated struct CanvasMessage: Codable, Equatable, Sendable {
         reusableDefinitionID: UUID? = nil,
         globalDefinitionID: UUID? = nil,
         isGlobalLinked: Bool? = nil,
+        isCopy: Bool? = nil,
         placement: Placement? = nil,
         propertyKey: PartProperty.Key? = nil,
         propertyPath: [Int]? = nil,
@@ -61,6 +63,7 @@ nonisolated struct CanvasMessage: Codable, Equatable, Sendable {
         self.reusableDefinitionID = reusableDefinitionID
         self.globalDefinitionID = globalDefinitionID
         self.isGlobalLinked = isGlobalLinked
+        self.isCopy = isCopy
         self.placement = placement
         self.propertyKey = propertyKey
         self.propertyPath = propertyPath

@@ -9,8 +9,12 @@ struct FiltersControlGroupTests {
             .deletingLastPathComponent().deletingLastPathComponent()
         let package = try PartPackageLoader.load(from: root.appending(path:
             "Foundry/Resources/BuiltInParts.bundle/Contents/Resources/BuiltInParts.foundrypack/Parts/Section"))
+        let previous = PartType(rawValue: package.manifest.identifier).definition.package
         PartRegistry.register(package)
-        defer { PartRegistry.unregisterPackage(identifier: package.manifest.identifier) }
+        defer {
+            if let previous { PartRegistry.register(previous) }
+            else { PartRegistry.unregisterPackage(identifier: package.manifest.identifier) }
+        }
         var part = PartNode.make(.init(rawValue: package.manifest.identifier))
 
         for name in ["Shadow", "Filters"] {
@@ -171,8 +175,12 @@ struct FiltersControlGroupTests {
             .deletingLastPathComponent().deletingLastPathComponent()
         let package = try PartPackageLoader.load(from: root.appending(path:
             "Foundry/Resources/BuiltInParts.bundle/Contents/Resources/BuiltInParts.foundrypack/Parts/Section"))
+        let previous = PartType(rawValue: package.manifest.identifier).definition.package
         PartRegistry.register(package)
-        defer { PartRegistry.unregisterPackage(identifier: package.manifest.identifier) }
+        defer {
+            if let previous { PartRegistry.register(previous) }
+            else { PartRegistry.unregisterPackage(identifier: package.manifest.identifier) }
+        }
         var part = PartNode(type: .init(rawValue: package.manifest.identifier))
         part.setProperty(.init(rawValue: "filters.filtersMode"), value: .string("hover"))
         part.setProperty(.init(rawValue: "filters.filtersBlur"), value: .number(4))

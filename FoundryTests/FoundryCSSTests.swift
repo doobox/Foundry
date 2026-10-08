@@ -38,7 +38,7 @@ struct FoundryCSSTests {
     @Test func baseLayerShipsTokenDrivenDefaults() {
         let css = build(.standard)
         // Reduced motion zeroes the motion tokens so every part honouring them complies.
-        #expect(css.contains("@media (prefers-reduced-motion:reduce){:root{--foundry-motion-fast:0ms;--foundry-motion-normal:0ms;--foundry-motion-slow:0ms}}"))
+        #expect(css.contains("@media (prefers-reduced-motion:reduce){:root{--foundry-motion-fast:0ms;--foundry-motion-normal:0ms;--foundry-motion-slow:0ms;--foundry-transition-motion:0}}"))
         // Native form controls follow the accent role; long words cannot overflow.
         #expect(css.contains("accent-color:var(--foundry-color-accent)"))
         #expect(css.contains("overflow-wrap:break-word"))

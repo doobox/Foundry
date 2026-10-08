@@ -139,7 +139,7 @@ struct ImagePartTests {
         let site = Site(name: "Linked", pages: [Page(title: "Home", slug: "index", parts: [part])])
         let html = try #require(StaticSiteRenderer().render(site: site).file(at: "index.html")?.contents)
         // Nothing is known about a linked image's pixels, so it is offered as is.
-        #expect(html.contains("<img class=\"fd-image\" src=\"https://example.com/photos/harbour.jpg\" loading=\"lazy\""))
+        #expect(html.contains("<img class=\"fd-image fd-transform-content\" src=\"https://example.com/photos/harbour.jpg\" loading=\"lazy\""))
         #expect(!html.contains("srcset"))
         #expect(!html.contains("width=\"\""))
     }

@@ -6,7 +6,7 @@ import Testing
 struct ControlGroupTargetingTests {
     @Test
     func groupLocalValuesKeepDerivedAndIndexedValuesWithinTheirNamespace() {
-        let group = PartPackageControlGroup(type: .background, id: "surface")
+        let group = PartPackageControlGroup(type: .background, id: "surface", backgroundTypes: [.video])
         let values: [String: PartPackageValue] = [
             "surface.backgroundVideo": .string("clip.mp4"),
             "surface.backgroundVideo.href": .string("resolved.mp4"),
@@ -45,7 +45,7 @@ struct ControlGroupTargetingTests {
 
     @Test
     func backgroundNeverChangesHostStructure() throws {
-        let group = PartPackageControlGroup(type: .background, id: "surface")
+        let group = PartPackageControlGroup(type: .background, id: "surface", backgroundTypes: [.video])
         var values: [String: PartPackageValue] = [
             "surface.backgroundMode": .string("static"),
             "surface.backgroundStyle": .string("video"),
@@ -66,7 +66,7 @@ struct ControlGroupTargetingTests {
 
     @Test
     func videoCanvasWithoutPosterDoesNotEmitBrokenImage() {
-        let group = PartPackageControlGroup(type: .background, id: "surface")
+        let group = PartPackageControlGroup(type: .background, id: "surface", backgroundTypes: [.video])
         var values: [String: PartPackageValue] = [
             "surface.backgroundMode": .string("static"),
             "surface.backgroundStyle": .string("video"),

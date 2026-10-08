@@ -19,11 +19,20 @@ struct CanvasDragDropTests {
             "partID": sourceID.uuidString,
             "placement": ["kind": "after", "targetID": targetID.uuidString]
         ])
+        let copy = CanvasMessage.decode([
+            "version": 1,
+            "event": "movePart",
+            "partID": sourceID.uuidString,
+            "isCopy": true,
+            "placement": ["kind": "after", "targetID": targetID.uuidString]
+        ])
 
         #expect(insert?.partType == .button)
         #expect(insert?.placement?.partPlacement == .inside(targetID))
         #expect(move?.partID == sourceID)
         #expect(move?.placement?.partPlacement == .after(targetID))
+        #expect(move?.isCopy == nil)
+        #expect(copy?.isCopy == true)
     }
 
     @Test

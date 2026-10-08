@@ -1311,7 +1311,7 @@ struct WebCanvasView: NSViewRepresentable {
                 requestAnimationFrame(() => dragImage.remove());
               }
               event.dataTransfer.setData('text/plain', value);
-              event.dataTransfer.effectAllowed = 'move';
+              event.dataTransfer.effectAllowed = 'copyMove';
               event.stopPropagation();
               });
               element.addEventListener('dragend', () => {
@@ -1651,8 +1651,12 @@ struct WebCanvasView: NSViewRepresentable {
             }
             placement = candidate;
             showDropChrome(placement);
+            const isPartDrag = draggedValue.startsWith('foundry-node:')
+              || draggedValue.startsWith('foundry-nodes:');
             const allowedEffect = event.dataTransfer.effectAllowed;
-            event.dataTransfer.dropEffect = allowedEffect === 'move' ? 'move' : 'copy';
+            event.dataTransfer.dropEffect = isPartDrag
+              ? (event.altKey ? 'copy' : 'move')
+              : (allowedEffect === 'move' ? 'move' : 'copy');
           });
 
           document.addEventListener('dragleave', event => {
@@ -1752,9 +1756,11 @@ struct WebCanvasView: NSViewRepresentable {
             } else if (value.startsWith('foundry-nodes:')) {
               message.event = 'movePart';
               message.partIDs = value.substring('foundry-nodes:'.length).split(',');
+              message.isCopy = event.altKey;
             } else if (value.startsWith('foundry-node:')) {
               message.event = 'movePart';
               message.partID = value.substring('foundry-node:'.length);
+              message.isCopy = event.altKey;
             } else if (value.startsWith('foundry-image-asset:')) {
               message.event = image ? 'importImageAsset' : 'insertImagePart';
               message.assetID = value.substring('foundry-image-asset:'.length);

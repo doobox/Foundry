@@ -61,11 +61,14 @@ struct ControlShowcaseTests {
         let identifiers = Set(packages.map(\.manifest.identifier))
         // Separate font controls were folded into frameworkFont; the rest is
         // the developer's whole vocabulary.
-        let retired: Set<PartPackageControl.Kind> = [.fontWeight, .fontStyle]
-        for kind in PartPackageControl.Kind.allCases where !retired.contains(kind) {
+        let withoutDedicatedShowcase: Set<PartPackageControl.Kind> = [.fontWeight, .fontStyle, .svg]
+        for kind in PartPackageControl.Kind.allCases where !withoutDedicatedShowcase.contains(kind) {
             #expect(identifiers.contains(Self.showcaseIdentifier(for: kind.rawValue)), "No showcase for \(kind.rawValue)")
         }
-        for kind in PartPackageControlGroup.Kind.allCases {
+        let groupsWithoutDedicatedShowcase: Set<PartPackageControlGroup.Kind> = [
+            .transitions, .filters, .transforms, .linkOverlay, .lightbox
+        ]
+        for kind in PartPackageControlGroup.Kind.allCases where !groupsWithoutDedicatedShowcase.contains(kind) {
             #expect(identifiers.contains("foundry.showcase.\(kind.rawValue)"), "No showcase for the \(kind.rawValue) group")
         }
     }

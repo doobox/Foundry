@@ -142,14 +142,17 @@ struct CanvasJavaScriptTests {
     func builtInGridsLayOutAtBaseAndMediumIncludingNestedGrids() async throws {
         await PartPackageCatalog.shared.waitUntilLoaded()
         var inner = PartNode.make(.grid)
+        inner.setProperty(.init(rawValue: "gridMode"), value: .choice("count"))
         inner.setResponsiveProperty(.init(rawValue: "columnCount"), value: .number(3), at: .medium)
         inner.children = (0..<3).map { _ in PartNode.make(.paragraph) }
         var outer = PartNode.make(.grid)
+        outer.setProperty(.init(rawValue: "gridMode"), value: .choice("count"))
         outer.children = [inner, .make(.paragraph)]
         let page = Page(title: "Grid test", slug: "index", parts: [outer])
         let webView = WKWebView(frame: CGRect(x: 0, y: 0, width: 900, height: 600))
         defer { webView.stopLoading() }
         for breakpoint in [ResponsiveBreakpoint.mobile, .medium] {
+            webView.setFrameSize(.init(width: breakpoint == .mobile ? 390 : 900, height: 600))
             let html = HTMLPageRenderer().render(page: page, language: "en", framework: .standard, assets: [:], breakpoint: breakpoint)
             webView.loadHTMLString(html.replacingOccurrences(of: "<html ", with: "<html data-layout-test=\"\(breakpoint.rawValue)\" "), baseURL: nil)
             var ready = false
@@ -162,10 +165,12 @@ struct CanvasJavaScriptTests {
             let measurements = try #require(try await webView.evaluateJavaScript("""
                 (() => {
                   const outer = document.querySelector('.foundry-grid');
-                  const inner = outer.children[0];
-                  return [outer.getBoundingClientRect().width, inner.getBoundingClientRect().width,
-                    parseFloat(getComputedStyle(outer).columnGap), inner.children[0].getBoundingClientRect().width,
-                    parseFloat(getComputedStyle(inner).columnGap)];
+                  const outerLayout = outer.querySelector(':scope > .fd-transform-content');
+                  const inner = outerLayout.querySelector(':scope > .foundry-grid');
+                  const innerLayout = inner.querySelector(':scope > .fd-transform-content');
+                  return [outerLayout.getBoundingClientRect().width, inner.getBoundingClientRect().width,
+                    parseFloat(getComputedStyle(outerLayout).columnGap), innerLayout.children[0].getBoundingClientRect().width,
+                    parseFloat(getComputedStyle(innerLayout).columnGap)];
                 })()
                 """) as? [Double])
             if breakpoint == .mobile {

@@ -78,8 +78,12 @@ struct SVGControlTests {
     @Test @MainActor func builtInRendersInlineAndProvidesCanvasWell() throws {
         let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
         let package = try PartPackageLoader.load(from: root.appending(path: "Foundry/Resources/BuiltInParts.bundle/Contents/Resources/BuiltInParts.foundrypack/Parts/SVG"))
+        let previous = PartType.svg.definition.package
         PartRegistry.register(package)
-        defer { PartRegistry.unregisterPackage(identifier: package.manifest.identifier) }
+        defer {
+            if let previous { PartRegistry.register(previous) }
+            else { PartRegistry.unregisterPackage(identifier: package.manifest.identifier) }
+        }
         let data = try Data(contentsOf: root.appending(path: "FoundryTests/Fixtures/SVG/s-orange.svg"))
         let asset = ProjectAsset(filename: "logo.svg", mediaType: "image/svg+xml", byteCount: data.count, contentDigest: "svg-test")
         let assets: ProjectAssetContents = [asset.id: .init(asset: asset, data: data)]

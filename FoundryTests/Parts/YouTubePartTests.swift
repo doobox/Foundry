@@ -23,8 +23,12 @@ struct YouTubePartTests {
     func canvasIsInertAndExportIncludesPlayer(posterFirst: Bool, customPoster: Bool) throws {
         let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
         let package = try PartPackageLoader.load(from: root.appending(path: "Foundry/Resources/BuiltInParts.bundle/Contents/Resources/BuiltInParts.foundrypack/Parts/Video"))
+        let previous = PartType.video.definition.package
         PartRegistry.register(package)
-        defer { PartRegistry.unregisterPackage(identifier: package.manifest.identifier) }
+        defer {
+            if let previous { PartRegistry.register(previous) }
+            else { PartRegistry.unregisterPackage(identifier: package.manifest.identifier) }
+        }
         var part = PartNode(type: .video)
         part.setProperty(.init(rawValue: "source"), value: .url("https://youtu.be/M7lc1UVf-VE"))
         part.setProperty(PartVideoTemplateValues.posterFirstPropertyKey(for: "source"), value: .boolean(posterFirst))
