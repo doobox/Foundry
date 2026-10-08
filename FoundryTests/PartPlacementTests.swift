@@ -47,7 +47,7 @@ struct PartPlacementTests {
     @Test
     func flexAndGridAcceptChildren() {
         let heading = PartNode.make(.heading)
-        var tree = [PartNode.make(.flex), PartNode.make(.grid), heading]
+        var tree = [PartNode.make(.stack), PartNode.make(.grid), heading]
 
         let movedIntoFlex = tree.moveNode(withID: heading.id, to: .inside(tree[0].id))
         let flex = tree[0]
@@ -85,7 +85,7 @@ struct PartEditingTests {
     func customizingDirectLayoutChildrenAddsTheMatchingItemWrapper() async throws {
         await PartPackageCatalog.shared.waitUntilLoaded()
 
-        for (layoutType, wrapperType) in [(PartType.grid, PartType.gridItem), (.flex, .flexItem)] {
+        for (layoutType, wrapperType) in [(PartType.grid, PartType.gridItem), (.stack, .stackItem)] {
             var child = PartNode.make(.paragraph)
             child.slotID = "content"
             var layout = PartNode.make(layoutType)

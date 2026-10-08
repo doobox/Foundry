@@ -94,7 +94,7 @@ struct CanvasDragDropTests {
         let emptyPage = Page(title: "Empty", slug: "empty", parts: [])
         let container = PartNode.make(.section)
         // Flex and Grid start with three items; empty them to get drop zones.
-        var flex = PartNode.make(.flex)
+        var flex = PartNode.make(.stack)
         flex.children = []
         var grid = PartNode.make(.grid)
         grid.children = []

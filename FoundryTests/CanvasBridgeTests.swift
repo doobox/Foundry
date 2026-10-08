@@ -438,7 +438,7 @@ struct CanvasBridgeTests {
         // the page render bundled instance CSS into the shared sheet instead,
         // a patch could only append — leaving declarations the part no longer
         // emits (a dropped max-width, say) live in the original block.
-        let flex = PartNode.make(.flex)
+        let flex = PartNode.make(.stack)
         let page = Page(title: "Styles", slug: "styles", parts: [flex])
 
         let html = HTMLPageRenderer().render(page: page, framework: .standard)

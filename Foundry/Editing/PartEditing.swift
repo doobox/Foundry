@@ -7,7 +7,7 @@ nonisolated enum LayoutItemCustomization: Equatable, Sendable {
     init?(parentType: PartType, childType: PartType) {
         if parentType == .grid, childType != .gridItem {
             self = .grid
-        } else if parentType == .flex, childType != .flexItem {
+        } else if parentType == .stack, childType != .stackItem {
             self = .stack
         } else {
             return nil
@@ -17,7 +17,7 @@ nonisolated enum LayoutItemCustomization: Equatable, Sendable {
     var wrapperType: PartType {
         switch self {
         case .grid: .gridItem
-        case .stack: .flexItem
+        case .stack: .stackItem
         }
     }
 

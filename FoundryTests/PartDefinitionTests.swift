@@ -45,7 +45,7 @@ struct PartDefinitionTests {
     @Test
     func registryDeclaresChildCapabilities() {
         #expect(PartType.section.definition.allowsChildren)
-        #expect(PartType.flex.definition.allowsChildren)
+        #expect(PartType.stack.definition.allowsChildren)
         #expect(PartType.grid.definition.allowsChildren)
         #expect(!PartType.paragraph.definition.allowsChildren)
         #expect(!PartType.button.definition.allowsChildren)
@@ -56,7 +56,7 @@ struct PartDefinitionTests {
     func stockRegistryUsesUniqueNamespacedIdentifiers() {
         let identifiers = [
             PartType.section,
-            .flex,
+            .stack,
             .grid,
             .paragraph,
             .heading,
@@ -85,6 +85,39 @@ struct PartDefinitionTests {
         #expect(retiredContainer.definition.renderKind == .unavailable)
         #expect(unknown.rawValue == "com.example.gallery")
         #expect(unknown.definition.renderKind == .unavailable)
+    }
+
+    @Test
+    func legacyFlexboxIdentifiersAndDefaultNamesMigrateToStack() throws {
+        var item = PartNode.make(.stackItem)
+        item.name = "Flex Item"
+        var stack = PartNode.make(.stack)
+        stack.name = "Flexbox"
+        stack.children = [item]
+        let site = Site(
+            name: "Legacy layout",
+            pages: [Page(title: "Home", slug: "index", parts: [stack])],
+            assetLibrary: [],
+            partPackages: [
+                .init(identifier: "foundry.layout.stack"),
+                .init(identifier: "foundry.layout.stackitem")
+            ]
+        )
+        let currentJSON = try #require(String(data: JSONEncoder().encode(site), encoding: .utf8))
+        let legacyJSON = currentJSON
+            .replacingOccurrences(of: "foundry.layout.stackitem", with: "foundry.layout.flexitem")
+            .replacingOccurrences(of: "foundry.layout.stack", with: "foundry.layout.flexbox")
+
+        let migrated = try JSONDecoder().decode(Site.self, from: Data(legacyJSON.utf8))
+        let migratedStack = try #require(migrated.pages.first?.parts.first)
+        #expect(migratedStack.type == .stack)
+        #expect(migratedStack.name == "Stack")
+        #expect(migratedStack.children.first?.type == .stackItem)
+        #expect(migratedStack.children.first?.name == "Stack Item")
+        #expect(migrated.partPackages.map(\.identifier) == [
+            "foundry.layout.stack",
+            "foundry.layout.stackitem"
+        ])
     }
 
     @Test
@@ -137,7 +170,7 @@ struct PartDefinitionTests {
     @Test
     func rendererAppliesPackagePropertiesAndEscapesAccessibilityLabel() {
         var container = PartNode.make(.section)
-        var stack = PartNode.make(.flex)
+        var stack = PartNode.make(.stack)
         var text = PartNode.make(.paragraph)
         var button = PartNode.make(.button)
         container.setProperty(.init(rawValue: "borders.borderEnabled"), value: .boolean(true))
@@ -182,7 +215,7 @@ struct PartDefinitionTests {
         var grid = PartNode.make(.grid)
         grid.children = [PartNode.make(.heading), PartNode.make(.image)]
         let parts: [PartNode] = [
-            PartNode(type: .flex, children: [grid]),
+            PartNode(type: .stack, children: [grid]),
             PartNode.make(.divider)
         ]
         let html = HTMLPageRenderer().render(

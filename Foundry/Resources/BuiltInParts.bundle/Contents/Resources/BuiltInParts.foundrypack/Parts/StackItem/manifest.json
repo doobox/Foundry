@@ -7,7 +7,7 @@
     "symbol": "square.stack.3d.up",
     "tint": "indigo"
   },
-  "id": "foundry.layout.flexitem",
+  "id": "foundry.layout.stackitem",
   "inspector": [
     {
       "section": "Stack Item",
@@ -307,9 +307,9 @@
     "html": "part.html"
   },
   "title": "Stack Item",
-  "version": "3.0.0",
+  "version": "1.0.0",
   "showsInPartLibrary": false,
   "allowedParents": [
-    "foundry.layout.flexbox"
+    "foundry.layout.stack"
   ]
 }

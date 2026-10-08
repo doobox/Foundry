@@ -4,7 +4,7 @@ import WebKit
 @testable import Foundry
 
 struct TransformsControlGroupTests {
-    @Test(.timeLimit(.minutes(1)), arguments: ["Button", "Columns", "Section", "Copyright", "Divider", "FlexItem", "Flexbox", "Grid", "GridItem", "Heading", "Image", "Navigation", "Paragraph", "Video"])
+    @Test(.timeLimit(.minutes(1)), arguments: ["Button", "Columns", "Section", "Copyright", "Divider", "StackItem", "Stack", "Grid", "GridItem", "Heading", "Image", "Navigation", "Paragraph", "Video"])
     @MainActor func contentMovesButHoverHostRemainsStationary(name: String) async throws {
         let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
             .deletingLastPathComponent().deletingLastPathComponent()
@@ -112,8 +112,8 @@ struct TransformsControlGroupTests {
     @Test func builtInPartsDeclareAndRenderBothTransformStates() throws {
         let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
             .deletingLastPathComponent().deletingLastPathComponent()
-        for name in ["Button", "Columns", "Section", "Copyright", "Divider", "FlexItem",
-                     "Flexbox", "Grid", "GridItem", "Heading", "Image", "Navigation", "Paragraph", "Video"] {
+        for name in ["Button", "Columns", "Section", "Copyright", "Divider", "StackItem",
+                     "Stack", "Grid", "GridItem", "Heading", "Image", "Navigation", "Paragraph", "Video"] {
             let package = try PartPackageLoader.load(from: root.appending(path:
                 "Foundry/Resources/BuiltInParts.bundle/Contents/Resources/BuiltInParts.foundrypack/Parts/" + name))
             #expect(package.manifest.controlGroups.contains { $0.type == .transforms })

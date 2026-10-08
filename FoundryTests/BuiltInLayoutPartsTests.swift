@@ -19,8 +19,8 @@ struct BuiltInLayoutPartsTests {
         ]
         let parts = [
             (directory: "Section", section: "Section"),
-            (directory: "Flexbox", section: "Stack"),
-            (directory: "FlexItem", section: "Stack Item"),
+            (directory: "Stack", section: "Stack"),
+            (directory: "StackItem", section: "Stack Item"),
             (directory: "Grid", section: "Grid"),
             (directory: "GridItem", section: "Grid Item"),
             (directory: "Box", section: "Box")
@@ -33,7 +33,7 @@ struct BuiltInLayoutPartsTests {
         }
     }
 
-    @Test(arguments: ["Section", "Flexbox", "FlexItem", "Grid", "GridItem", "Box"])
+    @Test(arguments: ["Section", "Stack", "StackItem", "Grid", "GridItem", "Box"])
     func videoBackgroundsOptInAndKeepAPositionedHost(_ name: String) throws {
         let manifest = try package(name).manifest
         let group = try #require(manifest.controlGroups.first { $0.type == .background })
@@ -50,7 +50,7 @@ struct BuiltInLayoutPartsTests {
 
     @Test
     func layoutPartsUseNeutralResponsiveDefaults() throws {
-        let flexItem = try package("FlexItem").manifest
+        let flexItem = try package("StackItem").manifest
         #expect(flexItem.resolvedProperties.first { $0.id == "flexSize" }?.defaultValue == .string("fit"))
 
         let box = try package("Box")
@@ -62,7 +62,7 @@ struct BuiltInLayoutPartsTests {
         #expect(grid.resolvedProperties.first { $0.id == "alignItems" }?.defaultValue == .string("normal"))
         #expect(grid.resolvedProperties.first { $0.id == "justifyItems" }?.defaultValue == .string("normal"))
 
-        for directory in ["Section", "Flexbox", "Grid", "Columns", "Box"] {
+        for directory in ["Section", "Stack", "Grid", "Columns", "Box"] {
             let manifest = try package(directory).manifest
             let gapIDs = ["contentGap", "flexbox.rowGap", "rowGap", "gap"]
             #expect(manifest.resolvedProperties.contains {
@@ -128,7 +128,7 @@ struct BuiltInLayoutPartsTests {
 
     @Test
     func layoutPartPackagesAndTemplatesValidate() throws {
-        for directory in ["Section", "Flexbox", "FlexItem", "Grid", "GridItem", "Box"] {
+        for directory in ["Section", "Stack", "StackItem", "Grid", "GridItem", "Box"] {
             let loaded = try package(directory)
             let diagnostics = PartPackageValidator.validate(
                 loaded.manifest,
@@ -141,7 +141,7 @@ struct BuiltInLayoutPartsTests {
     @Test @MainActor
     func linkGroupAutomaticallyDecoratesCanvasAndExportAndClearsCleanly() async throws {
         await PartPackageCatalog.shared.waitUntilLoaded()
-        for name in ["Section", "Flexbox", "FlexItem", "Grid", "GridItem", "Box", "Image"] {
+        for name in ["Section", "Stack", "StackItem", "Grid", "GridItem", "Box", "Image"] {
             let loaded = try package(name)
             var part = PartNode.make(.init(rawValue: loaded.manifest.identifier))
             part.setProperty(.init(rawValue: "link.destination"), value: "https://example.com/card")

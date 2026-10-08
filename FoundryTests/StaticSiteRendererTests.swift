@@ -66,7 +66,7 @@ struct StaticSiteRendererTests {
         var site = TestSiteFixtures.populatedSite()
         // Section roots no longer carry the sizing max-width; a Flex
         // exercises the shared responsive control instead.
-        let stack = PartNode.make(.flex)
+        let stack = PartNode.make(.stack)
         site.pages[0].parts.insert(stack, at: 0)
         let partID = stack.id
         site.updatePart(id: partID) {

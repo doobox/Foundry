@@ -156,8 +156,8 @@ struct FiltersControlGroupTests {
     @Test func builtInPartsDeclareAndRenderBothFilterStates() throws {
         let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
             .deletingLastPathComponent().deletingLastPathComponent()
-        for name in ["Button", "Columns", "Section", "Copyright", "Divider", "FlexItem",
-                     "Flexbox", "Grid", "GridItem", "Heading", "Image", "Navigation", "Paragraph", "Video"] {
+        for name in ["Button", "Columns", "Section", "Copyright", "Divider", "StackItem",
+                     "Stack", "Grid", "GridItem", "Heading", "Image", "Navigation", "Paragraph", "Video"] {
             let package = try PartPackageLoader.load(from: root.appending(path:
                 "Foundry/Resources/BuiltInParts.bundle/Contents/Resources/BuiltInParts.foundrypack/Parts/" + name))
             #expect(package.manifest.controlGroups.contains { $0.type == .filters })

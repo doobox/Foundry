@@ -590,6 +590,27 @@ nonisolated struct Site: Codable, Equatable, Identifiable, Sendable {
         projectTemplateLibrary = try container.decodeIfPresent([ReusablePartNode].self, forKey: .projectTemplateLibrary) ?? []
         assetLibrary = try container.decode([ProjectAssetNode].self, forKey: .assetLibrary)
         partPackages = try container.decode([PartPackageLock].self, forKey: .partPackages)
+        for pageIndex in pages.indices {
+            for partIndex in pages[pageIndex].parts.indices {
+                pages[pageIndex].parts[partIndex].migrateLegacyLayoutPartIdentity()
+            }
+        }
+        globalPartLibrary.updateAllDefinitions { definition in
+            definition.root.migrateLegacyLayoutPartIdentity()
+            if definition.name == "Flexbox", definition.root.type == .stack {
+                definition.name = "Stack"
+            } else if definition.name == "Flex Item", definition.root.type == .stackItem {
+                definition.name = "Stack Item"
+            }
+        }
+        projectTemplateLibrary.updateAllDefinitions { definition in
+            definition.root.migrateLegacyLayoutPartIdentity()
+            if definition.name == "Flexbox", definition.root.type == .stack {
+                definition.name = "Stack"
+            } else if definition.name == "Flex Item", definition.root.type == .stackItem {
+                definition.name = "Stack Item"
+            }
+        }
     }
 
     static func starter() -> Site {

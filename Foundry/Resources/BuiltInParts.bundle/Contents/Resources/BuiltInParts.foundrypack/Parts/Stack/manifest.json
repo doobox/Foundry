@@ -3,15 +3,15 @@
   "author": "Foundry",
   "description": "Stacks parts vertically by default; switch Direction to Horizontal for side-by-side layouts. Customize an item only when it needs its own sizing or styling.",
   "group": "Layout",
-  "id": "foundry.layout.flexbox",
+  "id": "foundry.layout.stack",
   "icon": {
-    "symbol": "app.dashed",
+    "symbol": "square.stack",
     "tint": "blue"
   },
   "inspector": [
     {
       "section": "Stack",
-      "systemImage": "rectangle.3.group",
+      "systemImage": "square.stack",
       "controls": [
         {
           "type": "childPicker",
@@ -19,7 +19,7 @@
           "label": "Items",
           "buttonText": "Add Stack Item",
           "pickerItems": [
-            "foundry.layout.flexitem"
+            "foundry.layout.stackitem"
           ],
           "accepts": [
             "*"
@@ -191,5 +191,5 @@
     "html": "part.html"
   },
   "title": "Stack",
-  "version": "3.0.0"
+  "version": "1.0.0"
 }

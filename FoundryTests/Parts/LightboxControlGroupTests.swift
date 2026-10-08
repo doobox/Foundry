@@ -19,7 +19,7 @@ struct LightboxControlGroupTests {
         _ = try package.preparePayload()
     }
 
-    @Test(arguments: ["Section", "Flexbox", "FlexItem", "Grid", "GridItem", "Button"])
+    @Test(arguments: ["Section", "Stack", "StackItem", "Grid", "GridItem", "Button"])
     func layoutAndButtonPartsDoNotOfferLightbox(_ name: String) throws {
         let package = try PartPackageLoader.load(from: root.appending(path: name))
         #expect(package.manifest.controlGroups.contains { $0.type == .lightbox } == false)

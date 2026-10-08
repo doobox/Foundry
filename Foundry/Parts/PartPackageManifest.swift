@@ -1762,6 +1762,29 @@ nonisolated struct PartPackageTemplateFile: Codable, Equatable, Sendable {
 
 nonisolated struct PartPackageLock: Codable, Equatable, Hashable, Sendable {
     let identifier: String
+
+    init(identifier: String) {
+        self.identifier = PartType.migratedIdentifier(identifier)
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        if let identifier = try? container.decode(String.self) {
+            self.init(identifier: identifier)
+            return
+        }
+        let keyed = try decoder.container(keyedBy: CodingKeys.self)
+        self.init(identifier: try keyed.decode(String.self, forKey: .identifier))
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(identifier, forKey: .identifier)
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case identifier
+    }
 }
 
 nonisolated struct MissingPartSnapshot: Codable, Equatable, Sendable {

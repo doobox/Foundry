@@ -210,6 +210,33 @@ nonisolated struct PartNode: Codable, Equatable, Identifiable, Sendable {
         return locks
     }
 
+    mutating func migrateLegacyLayoutPartIdentity() {
+        let legacyName: String?
+        let currentName: String
+        switch type {
+        case .stack:
+            legacyName = "Flexbox"
+            currentName = "Stack"
+        case .stackItem:
+            legacyName = "Flex Item"
+            currentName = "Stack Item"
+        default:
+            legacyName = nil
+            currentName = name
+        }
+        if name == legacyName { name = currentName }
+        if let snapshot = missingPackageSnapshot, snapshot.name == legacyName {
+            missingPackageSnapshot = .init(
+                name: currentName,
+                category: snapshot.category,
+                helpURL: snapshot.helpURL
+            )
+        }
+        for index in children.indices {
+            children[index].migrateLegacyLayoutPartIdentity()
+        }
+    }
+
     func propertyValue(_ key: PartProperty.Key) -> PartProperty.Value {
         if let value = storedPropertyValue(key) {
             return value
