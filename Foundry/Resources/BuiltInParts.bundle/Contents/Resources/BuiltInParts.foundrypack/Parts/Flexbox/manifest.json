@@ -1,7 +1,7 @@
 {
   "assets": [],
   "author": "Foundry",
-  "description": "Stacks parts vertically by default; switch Direction to Horizontal for side-by-side layouts. Add a Flex Item only when an item needs its own sizing or styling.",
+  "description": "Stacks parts vertically by default; switch Direction to Horizontal for side-by-side layouts. Customize an item only when it needs its own sizing or styling.",
   "group": "Layout",
   "id": "foundry.layout.flexbox",
   "icon": {
@@ -10,13 +10,14 @@
   },
   "inspector": [
     {
-      "section": "Flexbox",
+      "section": "Stack",
       "systemImage": "rectangle.3.group",
       "controls": [
         {
           "type": "childPicker",
           "id": "content",
           "label": "Items",
+          "buttonText": "Add Stack Item",
           "pickerItems": [
             "foundry.layout.flexitem"
           ],
@@ -25,7 +26,7 @@
           ],
           "minimum": 0,
           "containment": "open",
-          "tooltip": "Drop any part directly into the layout. Add a Flex Item only when an item needs its own size, background, padding or alignment."
+          "tooltip": "Drop any part directly into the stack. Use Customize Stack Item when one child needs its own size, background, padding or alignment."
         },
         {
           "type": "divider"
@@ -189,6 +190,6 @@
     ],
     "html": "part.html"
   },
-  "title": "Flexbox",
-  "version": "2.2.0"
+  "title": "Stack",
+  "version": "3.0.0"
 }

@@ -433,7 +433,8 @@ struct ContentView: View {
                     editor.explodeGlobalPart(partID: partID)
                     selectedPartIDs = [partID]
                     selectedPartID = partID
-                }
+                },
+                customizeLayoutItem: customizeLayoutItem
             )
         case .assets:
             AssetsPanel(
@@ -1386,6 +1387,8 @@ struct ContentView: View {
             editor.setGlobalPartLinked(partID: partID, isLinked: true)
         case .explodeGlobal:
             editor.explodeGlobalPart(partID: partID)
+        case .customizeLayoutItem:
+            customizeLayoutItem(partID)
         case .moveUp:
             movePart(-1)
         case .moveDown:
@@ -2229,6 +2232,15 @@ struct ContentView: View {
             return
         }
         editor.outdentPart(id: partID, on: pageID)
+    }
+
+    private func customizeLayoutItem(_ partID: UUID) {
+        guard let pageID = selectedPage?.id,
+              let wrapperID = editor.customizeLayoutItem(id: partID, on: pageID) else { return }
+        selectedPartIDs = [wrapperID]
+        selectedPartID = wrapperID
+        expandedStructurePartIDs.insert(wrapperID)
+        workspaceLayout.activate(.structure)
     }
 
     private func movePartsFromStructure(_ sourceIDs: [UUID], _ placement: PartPlacement) -> Bool {

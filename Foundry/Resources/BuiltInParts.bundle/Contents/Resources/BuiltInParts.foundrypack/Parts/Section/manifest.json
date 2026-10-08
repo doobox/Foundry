@@ -108,11 +108,11 @@
           "id": "contentGap",
           "label": "Gap",
           "defaults": {
-            "base": "none"
+            "base": "md"
           },
           "noneValue": "normal",
           "responsive": true,
-          "tooltip": "Space between the parts stacked inside. None uses the normal automatic gap (zero for this layout)."
+          "tooltip": "Space between the parts stacked inside."
         }
       ]
     },
@@ -265,5 +265,5 @@
     "html": "part.html"
   },
   "title": "Section",
-  "version": "4.0.0"
+  "version": "4.1.0"
 }

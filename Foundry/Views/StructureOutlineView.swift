@@ -25,6 +25,7 @@ struct StructureOutlineView: NSViewRepresentable {
     let saveAsGlobalPart: (String) -> Void
     let setGlobalPartLinked: (UUID, Bool) -> Void
     let explodeGlobalPart: (UUID) -> Void
+    let customizeLayoutItem: (UUID) -> Void
     let movePart: (Int) -> Void
     let outdentPart: () -> Void
     let deletePart: () -> Void
@@ -235,6 +236,18 @@ struct StructureOutlineView: NSViewRepresentable {
             menu.addItem(rename)
             if let recoveryMenu = unavailableChildAreaRecoveryMenu(for: item) {
                 menu.addItem(recoveryMenu)
+            }
+            if isSingleSelection,
+               let parentItem = item.parent,
+               let customization = LayoutItemCustomization(
+                   parentType: parentItem.part.type,
+                   childType: item.part.type
+               ) {
+                menu.addItem(menuItem(
+                    customization.actionTitle,
+                    action: #selector(customizeLayoutItemFromContextMenu(_:)),
+                    item: item
+                ))
             }
             menu.addItem(.separator())
 
@@ -512,6 +525,11 @@ struct StructureOutlineView: NSViewRepresentable {
         @objc private func explodeGlobalFromContextMenu(_ sender: NSMenuItem) {
             guard let item = contextItem(from: sender) else { return }
             parent.explodeGlobalPart(item.id)
+        }
+
+        @objc private func customizeLayoutItemFromContextMenu(_ sender: NSMenuItem) {
+            guard let item = contextItem(from: sender) else { return }
+            parent.customizeLayoutItem(item.id)
         }
 
         @objc private func moveUpFromContextMenu(_ sender: NSMenuItem) {

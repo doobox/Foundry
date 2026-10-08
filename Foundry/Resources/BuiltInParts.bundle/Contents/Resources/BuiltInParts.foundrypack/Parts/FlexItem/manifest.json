@@ -1,7 +1,7 @@
 {
   "assets": [],
   "author": "Foundry",
-  "description": "Content and placement settings for one item directly inside Flexbox.",
+  "description": "Content and placement settings for one item directly inside Stack.",
   "group": "Layout",
   "icon": {
     "symbol": "square.stack.3d.up",
@@ -10,7 +10,7 @@
   "id": "foundry.layout.flexitem",
   "inspector": [
     {
-      "section": "Flex Item",
+      "section": "Stack Item",
       "systemImage": "square.on.square",
       "controls": [
         {
@@ -39,7 +39,7 @@
               "title": "Custom"
             }
           ],
-          "tooltip": "Fit Content keeps the item's natural size. Fill Space grows from that size. Equal Space divides the available space evenly along the Flexbox direction. Custom shows Grow, Shrink and Starting Size."
+          "tooltip": "Fit Content keeps the item's natural size. Fill Space grows from that size. Equal Space divides the available space evenly along the Stack direction. Custom shows Grow, Shrink and Starting Size."
         },
         {
           "type": "number",
@@ -124,7 +124,7 @@
               "title": "Baseline"
             }
           ],
-          "tooltip": "Auto follows the Flexbox's Align Items."
+          "tooltip": "Auto follows the Stack's Item Alignment."
         },
         {
           "type": "number",
@@ -306,8 +306,8 @@
     ],
     "html": "part.html"
   },
-  "title": "Flex Item",
-  "version": "1.1.0",
+  "title": "Stack Item",
+  "version": "3.0.0",
   "showsInPartLibrary": false,
   "allowedParents": [
     "foundry.layout.flexbox"

@@ -1,7 +1,68 @@
 import Foundation
 
+nonisolated enum LayoutItemCustomization: Equatable, Sendable {
+    case grid
+    case stack
+
+    init?(parentType: PartType, childType: PartType) {
+        if parentType == .grid, childType != .gridItem {
+            self = .grid
+        } else if parentType == .flex, childType != .flexItem {
+            self = .stack
+        } else {
+            return nil
+        }
+    }
+
+    var wrapperType: PartType {
+        switch self {
+        case .grid: .gridItem
+        case .stack: .flexItem
+        }
+    }
+
+    var actionTitle: String {
+        switch self {
+        case .grid: "Customize Grid Item"
+        case .stack: "Customize Stack Item"
+        }
+    }
+}
+
 @MainActor
 extension ProjectEditor {
+    func layoutItemCustomization(for id: UUID, on pageID: UUID) -> LayoutItemCustomization? {
+        guard let page = document.site.pages.first(where: { $0.id == pageID }),
+              let child = page.parts.node(withID: id),
+              let parentID = page.parts.location(of: id)?.parentID,
+              let parent = page.parts.node(withID: parentID) else { return nil }
+        return LayoutItemCustomization(parentType: parent.type, childType: child.type)
+    }
+
+    @discardableResult
+    func customizeLayoutItem(id: UUID, on pageID: UUID) -> UUID? {
+        guard let page = document.site.pages.first(where: { $0.id == pageID }),
+              let customization = layoutItemCustomization(for: id, on: pageID),
+              let sharedMove = document.site.sharedGlobalMove(
+                partIDs: [id],
+                on: page,
+                to: .before(id)
+              ) else { return nil }
+        let wrapper = PartNode.make(customization.wrapperType, framework: document.site.framework)
+        var wrapped = false
+        mutate(actionName: customization.actionTitle) { site in
+            guard let pageIndex = site.pages.firstIndex(where: { $0.id == pageID }) else { return }
+            wrapped = site.pages[pageIndex].parts.wrapNode(withID: id, in: wrapper)
+            guard wrapped else { return }
+            site.partPackages.append(contentsOf: wrapper.packageLocks.filter {
+                !site.partPackages.contains($0)
+            })
+            site.partPackages.sort { $0.identifier < $1.identifier }
+            site.synchronizeGlobalsAfterStructureMove(sharedMove)
+        }
+        return wrapped ? wrapper.id : nil
+    }
+
     @discardableResult
     func insertPart(
         type: PartType,

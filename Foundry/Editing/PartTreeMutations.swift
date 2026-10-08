@@ -114,6 +114,26 @@ nonisolated extension Array where Element == PartNode {
     }
 
     @discardableResult
+    mutating func wrapNode(withID id: UUID, in wrapper: PartNode) -> Bool {
+        if let index = firstIndex(where: { $0.id == id }) {
+            var child = self[index]
+            var container = wrapper
+            container.slotID = child.slotID
+            child.slotID = container.type.definition.package?.dropZoneNames.first.map {
+                container.type.definition.package?.dropZoneSlotID(for: $0) ?? ""
+            } ?? container.type.definition.package?.manifest.slots.first?.id
+            container.children = [child]
+            guard [container].accepts(child, at: .inside(container.id)) else { return false }
+            self[index] = container
+            return true
+        }
+        for index in indices where self[index].children.wrapNode(withID: id, in: wrapper) {
+            return true
+        }
+        return false
+    }
+
+    @discardableResult
     mutating func insert(
         _ node: PartNode,
         at placement: PartPlacement

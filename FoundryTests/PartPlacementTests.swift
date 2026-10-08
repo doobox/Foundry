@@ -82,6 +82,31 @@ struct PartPlacementTests {
 @MainActor
 struct PartEditingTests {
     @Test
+    func customizingDirectLayoutChildrenAddsTheMatchingItemWrapper() async throws {
+        await PartPackageCatalog.shared.waitUntilLoaded()
+
+        for (layoutType, wrapperType) in [(PartType.grid, PartType.gridItem), (.flex, .flexItem)] {
+            var child = PartNode.make(.paragraph)
+            child.slotID = "content"
+            var layout = PartNode.make(layoutType)
+            layout.children = [child]
+            let page = Page(title: "Home", slug: "index", parts: [layout])
+            let document = FoundryDocument(site: Site(name: "Customization", pages: [page]))
+            let editor = ProjectEditor(document: document, undoManager: nil)
+
+            let wrapperID = try #require(editor.customizeLayoutItem(id: child.id, on: page.id))
+            let updatedLayout = try #require(document.site.pages[0].parts.first)
+            let wrapper = try #require(updatedLayout.children.first)
+            #expect(wrapper.id == wrapperID)
+            #expect(wrapper.type == wrapperType)
+            #expect(wrapper.slotID == "content")
+            #expect(wrapper.children.first?.id == child.id)
+            #expect(wrapper.children.first?.slotID == wrapper.type.definition.package?.dropZoneSlotID(for: "content"))
+            #expect(editor.customizeLayoutItem(id: wrapperID, on: page.id) == nil)
+        }
+    }
+
+    @Test
     func movingMultiplePartsPreservesTheirRequestedOrder() throws {
         let first = PartNode.make(.paragraph)
         let second = PartNode.make(.button)

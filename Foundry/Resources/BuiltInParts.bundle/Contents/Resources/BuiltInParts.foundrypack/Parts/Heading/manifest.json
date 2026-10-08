@@ -160,14 +160,6 @@
     {
       "controls": [
         {
-          "defaults": {
-            "frameworkMargin": {
-              "bottom": "md",
-              "left": "none",
-              "right": "none",
-              "top": "none"
-            }
-          },
           "type": "spacing",
           "id": "spacing"
         }
@@ -280,5 +272,5 @@
     "html": "part.html"
   },
   "title": "Heading",
-  "version": "1.3.0"
+  "version": "1.4.0"
 }

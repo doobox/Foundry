@@ -16,9 +16,11 @@ nonisolated struct PartType: RawRepresentable, Codable, Hashable, Identifiable, 
         case .section:
             "Creates a full-width page section with constrained inner content."
         case .flex:
-            "Arranges child parts with CSS Flexbox."
+            "Stacks child parts vertically or horizontally."
         case .grid:
             "Arranges child parts with CSS Grid."
+        case .box:
+            "Groups content in a neutral styleable box."
         case .paragraph:
             "Adds editable paragraph or body text to the page."
         case .heading:
@@ -50,7 +52,10 @@ nonisolated struct PartType: RawRepresentable, Codable, Hashable, Identifiable, 
 
     static let section = PartType(rawValue: "foundry.layout.section")
     static let flex = PartType(rawValue: "foundry.layout.flexbox")
+    static let flexItem = PartType(rawValue: "foundry.layout.flexitem")
     static let grid = PartType(rawValue: "foundry.layout.grid")
+    static let gridItem = PartType(rawValue: "foundry.layout.griditem")
+    static let box = PartType(rawValue: "foundry.layout.box")
     static let paragraph = PartType(rawValue: "foundry.content.paragraph")
     static let heading = PartType(rawValue: "foundry.content.heading")
     static let button = PartType(rawValue: "foundry.content.button")

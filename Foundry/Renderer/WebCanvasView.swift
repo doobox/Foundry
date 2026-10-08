@@ -138,6 +138,7 @@ nonisolated enum CanvasContextMenuAction: String, Sendable {
     case makeLocalOverride
     case relinkGlobal
     case explodeGlobal
+    case customizeLayoutItem
     case moveUp
     case moveDown
     case outdent
@@ -1896,6 +1897,7 @@ struct WebCanvasView: NSViewRepresentable {
               event: 'contextMenu',
               partID: part.dataset.foundryId,
               partTypeID: part.dataset.foundryPartType,
+              parentPartTypeID: parentPart?.dataset.foundryPartType,
               partType: part.dataset.foundryType,
               partAuthor: part.dataset.foundryAuthor,
               partVersion: part.dataset.foundryVersion,
@@ -2147,6 +2149,20 @@ struct WebCanvasView: NSViewRepresentable {
                 menu.addItem(.separator())
             } else if request["canEdit"] as? Bool == true {
                 menu.addItem(menuItem("Edit", action: #selector(editPart), key: "\r", modifiers: []))
+                menu.addItem(.separator())
+            }
+            if (request["selectionCount"] as? Int ?? 1) == 1,
+               let parentTypeID = request["parentPartTypeID"] as? String,
+               let childTypeID = request["partTypeID"] as? String,
+               let customization = LayoutItemCustomization(
+                   parentType: PartType(rawValue: parentTypeID),
+                   childType: PartType(rawValue: childTypeID)
+               ) {
+                menu.addItem(menuItem(
+                    customization.actionTitle,
+                    action: #selector(performContextAction(_:)),
+                    representedAction: .customizeLayoutItem
+                ))
                 menu.addItem(.separator())
             }
             // The global root explodes back into plain parts; overriding is a

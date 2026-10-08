@@ -1,0 +1,206 @@
+{
+  "assets": [],
+  "author": "Foundry",
+  "description": "A neutral wrapper for grouping content and applying padding, a background, borders or effects.",
+  "group": "Layout",
+  "icon": {
+    "symbol": "square",
+    "tint": "blue"
+  },
+  "id": "foundry.layout.box",
+  "inspector": [
+    {
+      "section": "Box",
+      "systemImage": "square",
+      "controls": [
+        {
+          "type": "frameworkSpacing",
+          "id": "contentGap",
+          "label": "Gap",
+          "defaults": {
+            "base": "md"
+          },
+          "responsive": true,
+          "tooltip": "Space between the parts inside the box."
+        },
+        {
+          "type": "select",
+          "id": "contentAlignment",
+          "label": "Child Width",
+          "defaults": {
+            "base": "stretch"
+          },
+          "options": [
+            {
+              "value": "stretch",
+              "title": "Stretch"
+            },
+            {
+              "value": "flex-start",
+              "title": "Fit Left"
+            },
+            {
+              "value": "center",
+              "title": "Fit Centre"
+            },
+            {
+              "value": "flex-end",
+              "title": "Fit Right"
+            }
+          ],
+          "responsive": true,
+          "tooltip": "Stretch makes children fill the box width. Fit keeps each child's own width and positions it horizontally."
+        }
+      ]
+    },
+    {
+      "section": "Sizing",
+      "systemImage": "arrow.up.left.and.arrow.down.right",
+      "controls": [
+        {
+          "type": "sizing",
+          "defaults": {
+            "widthMode": "full"
+          },
+          "id": "sizing"
+        }
+      ]
+    },
+    {
+      "section": "Spacing",
+      "systemImage": "arrow.up.and.down.and.arrow.left.and.right",
+      "controls": [
+        {
+          "type": "spacing",
+          "id": "spacing"
+        }
+      ]
+    },
+    {
+      "section": "Background",
+      "systemImage": "paintbrush.fill",
+      "controls": [
+        {
+          "type": "background",
+          "id": "background",
+          "backgroundTypes": [
+            "colour",
+            "image",
+            "gradient",
+            "video"
+          ]
+        }
+      ]
+    },
+    {
+      "section": "Borders",
+      "systemImage": "square.dashed",
+      "controls": [
+        {
+          "type": "borders",
+          "id": "borders"
+        }
+      ]
+    },
+    {
+      "section": "Shadow",
+      "systemImage": "sparkles",
+      "controls": [
+        {
+          "type": "effects",
+          "id": "effects"
+        }
+      ]
+    },
+    {
+      "section": "Filters",
+      "systemImage": "camera.filters",
+      "controls": [
+        {
+          "type": "filters",
+          "id": "filters"
+        }
+      ]
+    },
+    {
+      "section": "Transforms",
+      "systemImage": "move.3d",
+      "controls": [
+        {
+          "type": "transforms",
+          "id": "transforms"
+        }
+      ]
+    },
+    {
+      "section": "Transitions",
+      "systemImage": "circle.dotted.circle",
+      "controls": [
+        {
+          "type": "transitions",
+          "id": "transitions"
+        }
+      ]
+    },
+    {
+      "section": "Layout",
+      "systemImage": "square.on.square",
+      "controls": [
+        {
+          "type": "layout",
+          "id": "layout",
+          "allowedOptions": {
+            "position": [
+              "relative",
+              "absolute",
+              "fixed",
+              "sticky"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "section": "Reveal",
+      "systemImage": "sparkles.rectangle.stack",
+      "controls": [
+        {
+          "type": "reveal",
+          "id": "reveal"
+        }
+      ]
+    },
+    {
+      "section": "Link",
+      "systemImage": "link",
+      "controls": [
+        {
+          "type": "linkOverlay",
+          "id": "link"
+        }
+      ]
+    },
+    {
+      "type": "advanced"
+    }
+  ],
+  "minimumAPIVersion": 1,
+  "tags": [
+    "Foundry",
+    "built-in",
+    "layout",
+    "box",
+    "container"
+  ],
+  "templates": {
+    "files": [
+      {
+        "path": "part.css",
+        "scope": "instance"
+      }
+    ],
+    "html": "part.html"
+  },
+  "title": "Box",
+  "version": "1.0.0"
+}

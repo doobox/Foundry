@@ -2067,6 +2067,7 @@ struct StructurePanel: View {
     let saveGlobalPart: (String) -> Void
     let setGlobalPartLinked: (UUID, Bool) -> Void
     let explodeGlobalPart: (UUID) -> Void
+    let customizeLayoutItem: (UUID) -> Void
     @State private var isNamingReusablePart = false
     @State private var reusablePartName = ""
     @State private var isNamingGlobalPart = false
@@ -2104,6 +2105,7 @@ struct StructurePanel: View {
                     },
                     setGlobalPartLinked: setGlobalPartLinked,
                     explodeGlobalPart: explodeGlobalPart,
+                    customizeLayoutItem: customizeLayoutItem,
                     movePart: movePart,
                     outdentPart: outdentPart,
                     deletePart: deletePart
