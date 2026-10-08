@@ -26,7 +26,6 @@ nonisolated enum CanvasHoverGuard {
       window.foundrySetCanvasPointerInside = inside => {
         document.documentElement.toggleAttribute(attribute, !inside);
       };
-      document.addEventListener('pointermove', () => window.foundrySetCanvasPointerInside(true), true);
       protectStyles();
       new MutationObserver(records => {
         if (records.some(record => record.target.nodeName === 'STYLE'

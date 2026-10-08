@@ -183,34 +183,8 @@ nonisolated enum CanvasWebOperation: Equatable, Sendable {
 @MainActor
 final class CanvasWebView: WKWebView {
     weak var canvasCoordinator: WebCanvasView.Coordinator?
-    private(set) var canvasTrackingArea: NSTrackingArea?
-    private var pointerEventMonitor: Any?
-    private var pointerIsInside: Bool?
+    private var canvasTrackingArea: NSTrackingArea?
     private var hoverTransitionRevision = 0
-
-    deinit {
-        if let pointerEventMonitor {
-            NSEvent.removeMonitor(pointerEventMonitor)
-        }
-    }
-
-    override func viewDidMoveToWindow() {
-        super.viewDidMoveToWindow()
-        if let pointerEventMonitor {
-            NSEvent.removeMonitor(pointerEventMonitor)
-            self.pointerEventMonitor = nil
-        }
-        guard window != nil else { return }
-        pointerEventMonitor = NSEvent.addLocalMonitorForEvents(
-            matching: [
-                .mouseEntered, .mouseExited, .mouseMoved,
-                .leftMouseDragged, .rightMouseDragged, .otherMouseDragged
-            ]
-        ) { [weak self] event in
-            self?.updatePointerBoundary()
-            return event
-        }
-    }
 
     override func updateTrackingAreas() {
         super.updateTrackingAreas()
@@ -227,54 +201,7 @@ final class CanvasWebView: WKWebView {
 
     override func mouseExited(with event: NSEvent) {
         super.mouseExited(with: event)
-        handlePointerTrackingTransition(false, trackingArea: event.trackingArea)
-    }
-
-    override func mouseEntered(with event: NSEvent) {
-        super.mouseEntered(with: event)
-        handlePointerTrackingTransition(true, trackingArea: event.trackingArea)
-    }
-
-    @discardableResult
-    func handlePointerTrackingTransition(
-        _ isInside: Bool,
-        trackingArea: NSTrackingArea?
-    ) -> Task<Void, Never>? {
-        guard trackingArea === canvasTrackingArea else { return nil }
-        return setPointerIsInsideCanvas(isInside)
-    }
-
-    private func updatePointerBoundary() {
-        guard let window else {
-            setPointerIsInsideCanvas(false)
-            return
-        }
-        let windowPoint = window.convertPoint(fromScreen: NSEvent.mouseLocation)
-        let localPoint = convert(windowPoint, from: nil)
-        setPointerIsInsideCanvas(visibleRect.contains(localPoint))
-    }
-
-    @discardableResult
-    func setPointerIsInsideCanvas(_ isInside: Bool) -> Task<Void, Never>? {
-        guard pointerIsInside != isInside else { return nil }
-        pointerIsInside = isInside
-        if isInside {
-            return restoreCanvasHover()
-        } else {
-            return clearHoverChrome()
-        }
-    }
-
-    private func restoreCanvasHover() -> Task<Void, Never> {
-        hoverTransitionRevision += 1
-        let revision = hoverTransitionRevision
-        return Task { @MainActor [weak self] in
-            guard let self, revision == hoverTransitionRevision else { return }
-            _ = try? await callAsyncJavaScript(
-                "window.foundrySetCanvasPointerInside?.(true)",
-                arguments: [:], in: nil, contentWorld: .defaultClient
-            )
-        }
+        clearHoverChrome()
     }
 
     @discardableResult
@@ -912,6 +839,7 @@ struct WebCanvasView: NSViewRepresentable {
           document.fonts.addEventListener('loadingerror', scheduleChromeTitleUpdate);
 
           document.addEventListener('pointermove', event => {
+            window.foundrySetCanvasPointerInside(true);
             const part = event.target.closest?.(selector) ?? null;
             const primitive = event.target.closest?.('[data-foundry-primitive-property]') ?? null;
             const editable = event.target.closest?.('[data-foundry-inline-property]') ?? null;
