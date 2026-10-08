@@ -22,34 +22,6 @@
           },
           "responsive": true,
           "tooltip": "Space between the parts inside the box."
-        },
-        {
-          "type": "select",
-          "id": "contentAlignment",
-          "label": "Child Width",
-          "defaults": {
-            "base": "stretch"
-          },
-          "options": [
-            {
-              "value": "stretch",
-              "title": "Stretch"
-            },
-            {
-              "value": "flex-start",
-              "title": "Fit Left"
-            },
-            {
-              "value": "center",
-              "title": "Fit Centre"
-            },
-            {
-              "value": "flex-end",
-              "title": "Fit Right"
-            }
-          ],
-          "responsive": true,
-          "tooltip": "Stretch makes children fill the box width. Fit keeps each child's own width and positions it horizontally."
         }
       ]
     },
@@ -202,5 +174,5 @@
     "html": "part.html"
   },
   "title": "Box",
-  "version": "1.0.0"
+  "version": "1.1.0"
 }

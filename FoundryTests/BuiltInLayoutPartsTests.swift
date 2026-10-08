@@ -53,6 +53,10 @@ struct BuiltInLayoutPartsTests {
         let flexItem = try package("FlexItem").manifest
         #expect(flexItem.resolvedProperties.first { $0.id == "flexSize" }?.defaultValue == .string("fit"))
 
+        let box = try package("Box")
+        #expect(box.manifest.resolvedProperties.contains { $0.id == "contentAlignment" } == false)
+        #expect(box.css.contains("align-items: flex-start;"))
+
         let grid = try package("Grid").manifest
         #expect(grid.resolvedProperties.first { $0.id == "gridMode" }?.defaultValue == .string("auto"))
         #expect(grid.resolvedProperties.first { $0.id == "alignItems" }?.defaultValue == .string("normal"))

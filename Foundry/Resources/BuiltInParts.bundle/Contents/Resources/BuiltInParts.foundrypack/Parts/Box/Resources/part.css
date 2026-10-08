@@ -20,7 +20,9 @@
     min-height: 0;
     display: flex;
     flex-direction: column;
-    align-items: {{ control.contentAlignment }};
+    /* Each child owns its width. Full-width parts still fill the box, while
+       intrinsic parts such as buttons keep their natural width. */
+    align-items: flex-start;
     gap: {{ control.contentGap }};
     {{ control.transforms.css }}
     {{ control.transitions.css }}
