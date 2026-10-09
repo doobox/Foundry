@@ -4120,8 +4120,8 @@ struct PartPackageTests {
 
         let fragment = #"<span data-foundry-color="\#(reference.marker)">Highlight</span>"#
         let richValue = FoundryRichTextCodec.storageValue(forHTMLFragment: fragment)
-        let light = try #require(reference.resolve(in: palettes, appearance: .light))
-        let dark = try #require(reference.resolve(in: palettes, appearance: .dark))
+        let light = try #require(reference.resolveCSS(in: palettes, appearance: .light))
+        let dark = try #require(reference.resolveCSS(in: palettes, appearance: .dark))
 
         func rendered(mode: SiteAppearanceMode) -> String {
             let context = PartTemplateContext(

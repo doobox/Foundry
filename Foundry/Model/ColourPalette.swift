@@ -15,6 +15,7 @@ nonisolated struct ColourPalette: Codable, Equatable, Identifiable, Sendable {
     var single = false
     /// Native Bootstrap scale; hex shades are previews for the macOS UI.
     var bootstrapHue: String?
+    var bootstrapScale: BootstrapColourScale?
 
     struct Generation: Codable, Equatable, Sendable {
         /// A versioned identifier, not "latest". Existing shades never regenerate on load.
@@ -51,6 +52,7 @@ nonisolated struct ColourPalette: Codable, Equatable, Identifiable, Sendable {
     }
 
     func cssColour(at shade: ColourShade) -> String {
+        if let bootstrapScale { return bootstrapScale.expression(at: shade) }
         guard let bootstrapHue else { return colour(at: .shade(shade)) }
         return BootstrapColourCatalogue.reference(hue: bootstrapHue, shade: shade)
     }
@@ -65,6 +67,16 @@ nonisolated struct ColourPalette: Codable, Equatable, Identifiable, Sendable {
         guard values.count == ColourShade.allCases.count else { throw ValidationError.invalidShadeCount }
         shades = values
         bootstrapHue = nil
+        bootstrapScale = nil
+    }
+
+    mutating func setBootstrapScale(_ scale: BootstrapColourScale, previews: [String]) throws {
+        try replaceShades(previews)
+        bootstrapScale = scale
+        generation = nil
+        single = false
+        lightDefaultShade = .seven
+        darkDefaultShade = .seven
     }
 
     func duplicated() throws -> Self {
@@ -72,10 +84,14 @@ nonisolated struct ColourPalette: Codable, Equatable, Identifiable, Sendable {
         var copy = try Self(id: "custom.\(UUID().uuidString.lowercased())", name: name + " Copy",
                          origin: .custom, shades: shades, lightDefaultShade: lightDefaultShade, darkDefaultShade: darkDefaultShade, generation: generation)
         copy.single = single
+        copy.bootstrapScale = bootstrapScale ?? bootstrapHue.flatMap(BootstrapColourScale.native)
+        if copy.bootstrapScale != nil { copy.generation = nil }
+        // Black and White are single colours, not thirteen-stop native scales.
+        if single { copy.bootstrapScale = nil }
         return copy
     }
 
-    private enum CodingKeys: String, CodingKey { case id, name, origin, shades, lightDefaultShade, darkDefaultShade, generation, single, bootstrapHue }
+    private enum CodingKeys: String, CodingKey { case id, name, origin, shades, lightDefaultShade, darkDefaultShade, generation, single, bootstrapHue, bootstrapScale }
 
     init(from decoder: Decoder) throws {
         let values = try decoder.container(keyedBy: CodingKeys.self)
@@ -93,6 +109,7 @@ nonisolated struct ColourPalette: Codable, Equatable, Identifiable, Sendable {
                           generation: try values.decodeIfPresent(Generation.self, forKey: .generation))
         single = try values.decodeIfPresent(Bool.self, forKey: .single) ?? false
         bootstrapHue = try values.decodeIfPresent(String.self, forKey: .bootstrapHue)
+        bootstrapScale = try values.decodeIfPresent(BootstrapColourScale.self, forKey: .bootstrapScale)
         if let bootstrapHue, !(BootstrapColourCatalogue.hues + ["black", "white"]).contains(bootstrapHue) {
             throw DecodingError.dataCorruptedError(forKey: .bootstrapHue, in: values, debugDescription: "Unknown Bootstrap hue")
         }

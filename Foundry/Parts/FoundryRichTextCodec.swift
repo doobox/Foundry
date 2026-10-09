@@ -39,6 +39,10 @@ nonisolated struct RichTextColourReference: Codable, Hashable, Sendable {
             selection: .shade(appearance == .light ? lightShade : darkShade)
         ).resolve(in: palettes)
     }
+
+    func resolveCSS(in palettes: [ColourPalette], appearance: SiteAppearance) -> String? {
+        palettes.resolvedPalette(id: paletteID)?.cssColour(at: appearance == .light ? lightShade : darkShade)
+    }
 }
 
 /// Carries a `RichTextColourReference` through the modal editor's AttributedString.
@@ -140,8 +144,8 @@ nonisolated enum FoundryRichTextCodec {
                   let valueRange = Range(match.range(at: 1), in: result) else { continue }
             let reference = RichTextColourReference(marker: String(result[valueRange]))
             guard let reference,
-                  let light = reference.resolve(in: context.palettes, appearance: .light),
-                  let dark = reference.resolve(in: context.palettes, appearance: .dark) else {
+                  let light = reference.resolveCSS(in: context.palettes, appearance: .light),
+                  let dark = reference.resolveCSS(in: context.palettes, appearance: .dark) else {
                 // A deleted palette inherits the surrounding colour rather than
                 // guessing; the reference survives in the project for re-editing.
                 result.replaceSubrange(wholeRange, with: "<span>")
