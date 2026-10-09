@@ -5,6 +5,23 @@ import Testing
 
 @MainActor
 struct BootstrapColourScaleTests {
+    @Test(arguments: ["#000000", "#FFFFFF", "#FF0000", "#00FF00", "#0000FF", "#8040C0"])
+    func pickerSelectionRoundTripsThroughBrowser(hex: String) async throws {
+        let colour = try #require(Color(hex: hex))
+        let scale = try #require(BootstrapColourScale.picked(NSColor(colour)))
+        let shades = try await BootstrapScalePreviewResolver().resolve(scale)
+        #expect(shades[6] == hex)
+    }
+
+    @Test
+    func openingAndClosingPickerDoesNotChangeStoredColour() {
+        let picker = BootstrapColourPicker()
+        var changes = 0
+        picker.open(colour: .red) { _ in changes += 1 }
+        picker.stop()
+        #expect(changes == 0)
+    }
+
     @Test(.timeLimit(.minutes(1)), arguments: BootstrapColourCatalogue.hues)
     func nativeCopiesMatchEveryBootstrapStop(hue: String) async throws {
         let scale = try #require(BootstrapColourScale.native(hue))

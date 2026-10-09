@@ -144,10 +144,16 @@ struct FrameworkColoursPreview: View {
                                 }
                             }
                             if group == .custom {
-                                BootstrapCustomColourEditor(palette: palette) { value, session in
+                                BootstrapCustomColourEditor(palette: palette, update: { value, session in
                                     model.update(value, session: session, undoManager: undoManager)
-                                }
-                            }
+                                }, duplicate: {
+                                    model.duplicate(palette)
+                                    withAnimation { scrollPosition.scrollTo(edge: .top) }
+                                }, delete: {
+                                    if let requestDelete { requestDelete(palette) }
+                                    else { model.delete(id: palette.id) }
+                                })
+                            } else {
                                 PreviewColourRibbon(palette: palette,
                                     duplicate: {
                                         model.duplicate(palette)
@@ -157,6 +163,7 @@ struct FrameworkColoursPreview: View {
                                         if let requestDelete { requestDelete(palette) }
                                         else { model.delete(id: palette.id) }
                                     })
+                            }
                         }
                         if group == .custom && !model.palettes.contains(where: { $0.group == .custom }) {
                             Text("Add a named colour to try your own palette.").foregroundStyle(.secondary)
@@ -182,10 +189,11 @@ struct FrameworkColoursPreview: View {
     }
 }
 
-private struct PreviewColourRibbon: View {
+struct PreviewColourRibbon: View {
     let palette: PreviewColourPalette
     let duplicate: () -> Void
     let delete: () -> Void
+    var editBase: (() -> Void)? = nil
 
     var body: some View {
         HStack(spacing: 12) {
@@ -202,7 +210,16 @@ private struct PreviewColourRibbon: View {
             .frame(width: 150, alignment: .leading).padding(.leading, 12)
             HStack(spacing: 0) {
                 ForEach(palette.single ? [6] : Array(ColourShade.allCases.indices), id: \.self) { index in
-                    PreviewColourSwatch(palette: palette, index: index)
+                    if index == 6, let editBase {
+                        Button(action: editBase) {
+                            PreviewColourSwatch(palette: palette, index: index)
+                        }
+                        .buttonStyle(.plain)
+                        .help("Edit the base colour — regenerates the whole strip")
+                        .accessibilityLabel("Edit \(palette.name) base colour, 500")
+                    } else {
+                        PreviewColourSwatch(palette: palette, index: index)
+                    }
                 }
             }.frame(minWidth: 440)
         }
@@ -222,7 +239,7 @@ private struct PreviewColourSwatch: View {
             .font(.caption2.monospacedDigit())
             .foregroundStyle(light ? Color.black : Color.white)
             .frame(maxWidth: .infinity).frame(height: 62)
-            .background(colour)
+            .background { Rectangle().fill(colour) }
             .help("\(palette.name) · \(PreviewColourPalette.steps[index]) · sRGB preview \(palette.storedValue.shades[index])")
             .accessibilityLabel("\(palette.name), shade \(PreviewColourPalette.steps[index])")
     }
