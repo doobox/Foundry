@@ -1198,6 +1198,11 @@ nonisolated enum PartTemplateRenderer {
     }
 
     static func colorWithAlpha(_ value: String, alpha: Double) -> String {
+        if value.hasPrefix("var(--bs-") {
+            let percent = (min(max(alpha, 0), 1) * 100).formatted(
+                .number.grouping(.never).precision(.fractionLength(0...3)).locale(Locale(identifier: "en_US_POSIX")))
+            return "color-mix(in oklch, \(value) \(percent)%, transparent)"
+        }
         guard let color = rgb(value) else { return value }
         // CSS wants a dot and no grouping whatever the user's region; the
         // default formatter follows the region and wrote "0,819" in German.

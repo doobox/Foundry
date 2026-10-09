@@ -30,7 +30,8 @@ nonisolated enum SiteAppearanceMode: String, Codable, CaseIterable, Sendable {
           const key = 'foundry.appearance.\(siteID.uuidString.lowercased())';
           const apply = value => {
             if (!['system', 'light', 'dark'].includes(value)) return;
-            document.documentElement.style.colorScheme = value === 'system' ? 'light dark' : value;
+            if (value === 'system') delete document.documentElement.dataset.bsTheme;
+            else document.documentElement.dataset.bsTheme = value;
             try { localStorage.setItem(key, value); } catch (_) {}
           };
           window.foundryAppearance = { set: apply };

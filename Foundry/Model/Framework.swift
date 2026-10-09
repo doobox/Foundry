@@ -50,7 +50,6 @@ nonisolated struct Framework: Codable, Equatable, Sendable {
     var zIndexes: FrameworkDimensionTokens
 
     init(
-        colors: ColorTokens,
         spacing: SpacingTokens,
         shadows: ShadowTokens = .standard,
         typography: TypographyTokens,
@@ -59,7 +58,7 @@ nonisolated struct Framework: Codable, Equatable, Sendable {
         borderRadii: FrameworkDimensionTokens = .standardBorderRadii,
         zIndexes: FrameworkDimensionTokens = .standardZIndexes
     ) {
-        self.colourPalettes = ColourPaletteDefaults.make(colors: colors)
+        self.colourPalettes = ColourPaletteDefaults.make()
         self.spacing = spacing
         self.shadows = shadows
         self.typography = typography
@@ -76,10 +75,15 @@ nonisolated struct Framework: Codable, Equatable, Sendable {
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         if let palettes = try container.decodeIfPresent([ColourPalette].self, forKey: .colourPalettes) {
-            colourPalettes = palettes
+            // Standard hues come from the installed Bootstrap version, never a
+            // saved copy of the obsolete Foundry/Tailwind-like catalogue.
+            colourPalettes = palettes.filter { $0.origin != .standard }
+            if palettes.contains(where: { $0.origin == .standard }) {
+                colourPalettes += ColourPaletteDefaults.standard
+            }
         } else {
-            // Bundled framework definitions may still provide the concise role colours.
-            colourPalettes = ColourPaletteDefaults.make(colors: try container.decode(ColorTokens.self, forKey: .colors))
+            // Definitions without palettes use the bundled Bootstrap defaults.
+            colourPalettes = ColourPaletteDefaults.make()
         }
         spacing = try container.decode(SpacingTokens.self, forKey: .spacing)
         shadows = try container.decodeIfPresent(ShadowTokens.self, forKey: .shadows) ?? .standard
@@ -103,13 +107,6 @@ nonisolated struct Framework: Codable, Equatable, Sendable {
     }
 
     static let standard = Framework(
-        colors: .init(
-            background: "#F7F7F8",
-            surface: "#FFFFFF",
-            text: "#171719",
-            accent: "#5B5BD6",
-            links: "#5B5BD6"
-        ),
         spacing: .standard,
         typography: .init(
             bodyFont: .system(family: "system-ui", weights: [400, 500, 600, 700]),
@@ -359,14 +356,6 @@ nonisolated enum FrameworkColorRole: String, Codable, CaseIterable, Identifiable
     var id: String { rawValue }
     var title: String { rawValue.capitalized }
 
-    var bootstrapCSSValue: String {
-        switch self {
-        case .background: "var(--bs-bg-body)"
-        case .foreground: "var(--bs-fg-body)"
-        case .border: "var(--bs-border-body)"
-        default: "var(--bs-\(rawValue)-base)"
-        }
-    }
 }
 
 nonisolated struct SpacingTokens: Codable, Equatable, Sendable {

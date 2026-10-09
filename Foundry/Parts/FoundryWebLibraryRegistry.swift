@@ -235,7 +235,7 @@ nonisolated enum FoundryWebLibraryRegistry {
             )
     }
 
-    private static func resourceData(at path: String) -> Data? {
+    static func resourceData(at path: String) -> Data? {
         guard let url = resourceURL(at: path) else { return nil }
         return try? Data(contentsOf: url)
     }

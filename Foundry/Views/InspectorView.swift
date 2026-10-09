@@ -823,6 +823,11 @@ private struct PageInspector: View {
             VStack(spacing: 12) {
                 VStack(alignment: .leading) {
                     Text("Page Background").font(.callout)
+                    if page.backgroundOverride == nil {
+                        Text("Using Bootstrap body background. Choosing a colour below creates a page override.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
                     FrameworkColorControlContent(
                         label: "Background",
                         choices: framework.colorChoices,

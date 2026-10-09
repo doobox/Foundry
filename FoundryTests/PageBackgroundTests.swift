@@ -15,7 +15,7 @@ struct PageBackgroundTests {
         framework.colourPalettes[index].setLightDefault(.two)
         framework.colourPalettes[index].setDarkDefault(.nine)
         #expect(page.backgroundOverride == nil)
-        #expect(page.backgroundColour(framework: framework, appearance: .dark) == framework.color(for: .background, appearance: .dark))
+        #expect(page.backgroundColour(framework: framework, appearance: .dark) == "var(--bs-bg-body)")
         let selection = page.backgroundSelection(framework: framework)
         #expect(selection.shade == .two)
         #expect(selection.darkShade == .nine)

@@ -113,11 +113,6 @@ nonisolated enum FoundryCSS {
         .fd-container{width:100%;max-width:var(--foundry-container-width);margin-inline:auto}
         """)
 
-        for role in FrameworkColorRole.allCases {
-            rules.append(".fd-text-\(role.rawValue){color:\(role.bootstrapCSSValue)}")
-            rules.append(".fd-bg-\(role.rawValue){background-color:\(role.bootstrapCSSValue)}")
-        }
-
         rules.append(".fd-font-body{font-family:var(--foundry-font-body)}")
         rules.append(".fd-font-heading{font-family:var(--foundry-font-heading)}")
         rules.append(".fd-font-mono{font-family:var(--foundry-font-monospace)}")

@@ -78,12 +78,13 @@ final class FrameworkColourPreviewModel {
 
     func duplicate(_ palette: PreviewColourPalette) {
         var copy = palette
-        if palette.group == .standard && !palette.single {
+        if palette.bootstrapHue != nil || (palette.group == .standard && !palette.single) {
             copy.overrides = Dictionary(uniqueKeysWithValues: ColourShade.allCases.indices.map {
                 ($0, palette.colour(at: $0).hexString ?? "#000000")
             })
             copy.generated = false
         }
+        copy.bootstrapHue = nil
         copy.id = "custom.\(UUID().uuidString.lowercased())"
         let names = Set(storedPalettes.map(\.name))
         let base = palette.name + " Copy"
@@ -103,7 +104,7 @@ struct PreviewColourPalette: Identifiable, Equatable {
         case custom = "Custom Colours"
         case theme = "Bootstrap Theme Colours"
         case layer = "Bootstrap Layer Colours"
-        case standard = "Standard Colours"
+        case standard = "Bootstrap Hue Scales"
     }
     static let steps = ColourShade.bootstrapLabels
     static let finalIndex = ColourShade.allCases.count - 1
@@ -120,6 +121,7 @@ struct PreviewColourPalette: Identifiable, Equatable {
     var single = false
     var softening = 0.0
     var reversed = false
+    var bootstrapHue: String?
     private var snapshot: ColourPalette?
 
     init(id: String = "custom.\(UUID().uuidString.lowercased())", name: String, hex: String,
@@ -135,6 +137,7 @@ struct PreviewColourPalette: Identifiable, Equatable {
 
     init(stored: ColourPalette) {
         id = stored.id; name = stored.name
+        bootstrapHue = stored.bootstrapHue
         switch stored.origin {
         case .custom: group = .custom
         case .framework: group = Self.bootstrapLayerIDs.contains(stored.id) ? .layer : .theme
@@ -153,7 +156,7 @@ struct PreviewColourPalette: Identifiable, Equatable {
     }
 
     private var generationSettings: ColourPalette.Generation {
-        .init(algorithm: snapshot?.generation?.algorithm ?? "bootstrap.runtime-scale.v1",
+        .init(algorithm: snapshot?.generation?.algorithm ?? "foundry.rgb-soften.v1",
               anchor: ColourShade(rawValue: anchor + 1)!, anchorHex: hex,
               softening: softening, reversed: reversed, enabled: generated, overrides: overrides)
     }
@@ -168,8 +171,9 @@ struct PreviewColourPalette: Identifiable, Equatable {
         var value = try! ColourPalette(id: id, name: name, origin: origin,
             shades: ColourShade.allCases.indices.map { colour(at: $0).hexString ?? "#000000" },
             lightDefaultShade: ColourShade(rawValue: lightDefaultShade + 1)!,
-            darkDefaultShade: ColourShade(rawValue: darkDefaultShade + 1)!, generation: generationSettings)
+            darkDefaultShade: ColourShade(rawValue: darkDefaultShade + 1)!, generation: bootstrapHue == nil ? generationSettings : nil)
         value.single = single
+        value.bootstrapHue = bootstrapHue
         return value
     }
 
@@ -179,9 +183,15 @@ struct PreviewColourPalette: Identifiable, Equatable {
         && lhs.darkDefaultShade == rhs.darkDefaultShade
         && lhs.generated == rhs.generated && lhs.overrides == rhs.overrides
         && lhs.single == rhs.single && lhs.softening == rhs.softening && lhs.reversed == rhs.reversed
+        && lhs.bootstrapHue == rhs.bootstrapHue
     }
 
     func colour(at index: Int) -> Color {
+        if let bootstrapHue {
+            if bootstrapHue == "black" { return .black }
+            if bootstrapHue == "white" { return .white }
+            return Color(hex: BootstrapColourCatalogue.previews.palettes[bootstrapHue]![index])!
+        }
         if let snapshot, snapshot.generation == generationSettings, snapshot.single == single {
             return Color(hex: snapshot.shades[index]) ?? .gray
         }
@@ -221,51 +231,8 @@ struct PreviewColourPalette: Identifiable, Equatable {
     }
 
     static var samples: [Self] {
-        [Self(name: "Primary", hex: "#5B5BD6", group: .theme, anchor: 6, lightDefaultShade: 6),
-         Self(name: "Accent", hex: "#6366F1", group: .theme, anchor: 6, lightDefaultShade: 6),
-         Self(name: "Success", hex: "#22C55E", group: .theme, anchor: 6, lightDefaultShade: 6),
-         Self(name: "Danger", hex: "#EF4444", group: .theme, anchor: 6, lightDefaultShade: 6),
-         Self(name: "Warning", hex: "#EAB308", group: .theme, anchor: 6, lightDefaultShade: 6),
-         Self(name: "Info", hex: "#06B6D4", group: .theme, anchor: 6, lightDefaultShade: 6),
-         Self(name: "Inverse", hex: "#171719", group: .theme, anchor: 10, lightDefaultShade: 10),
-         Self(name: "Secondary", hex: "#64748B", group: .theme, anchor: 6, lightDefaultShade: 6),
-         Self(name: "Background", hex: "#FFFFFF", group: .layer, anchor: 0, lightDefaultShade: 0),
-         Self(name: "Foreground", hex: "#171719", group: .layer, anchor: 10, lightDefaultShade: 10),
-         Self(name: "Border", hex: "#94A3B8", group: .layer, anchor: 4, lightDefaultShade: 4),
-         Self(name: "Brand", hex: "#F97316", group: .custom),
-         Self(name: "Black", hex: "#000000", group: .standard, single: true),
-         Self(name: "White", hex: "#FFFFFF", group: .standard, single: true),
-         // Familiar colour families, with shades generated by Foundry rather
-         // than importing a framework's individually specified shade values.
-         Self(name: "Red", hex: "#EF4444", group: .standard),
-         Self(name: "Orange", hex: "#F97316", group: .standard),
-         Self(name: "Amber", hex: "#F59E0B", group: .standard),
-         Self(name: "Yellow", hex: "#EAB308", group: .standard),
-         Self(name: "Lime", hex: "#84CC16", group: .standard),
-         Self(name: "Green", hex: "#22C55E", group: .standard),
-         Self(name: "Emerald", hex: "#10B981", group: .standard),
-         Self(name: "Teal", hex: "#14B8A6", group: .standard),
-         Self(name: "Cyan", hex: "#06B6D4", group: .standard),
-         Self(name: "Sky", hex: "#0EA5E9", group: .standard),
-         Self(name: "Blue", hex: "#3B82F6", group: .standard),
-         Self(name: "Indigo", hex: "#6366F1", group: .standard),
-         Self(name: "Violet", hex: "#8B5CF6", group: .standard),
-         Self(name: "Purple", hex: "#A855F7", group: .standard),
-         Self(name: "Fuchsia", hex: "#D946EF", group: .standard),
-         Self(name: "Pink", hex: "#EC4899", group: .standard),
-         Self(name: "Rose", hex: "#F43F5E", group: .standard),
-         Self(name: "Slate", hex: "#64748B", group: .standard),
-         Self(name: "Grey", hex: "#6B7280", group: .standard),
-         Self(name: "Zinc", hex: "#71717A", group: .standard),
-         Self(name: "Neutral", hex: "#737373", group: .standard),
-         Self(name: "Stone", hex: "#78716C", group: .standard)].map { palette in
-             var palette = palette
-             if palette.group != .custom {
-                 let prefix = palette.group == .standard ? "standard" : "framework"
-                 palette.id = prefix + "." + palette.name.lowercased().replacingOccurrences(of: " ", with: "-")
-             }
-             return palette
-         }
+        ColourPaletteDefaults.make().map { Self(stored: $0) }
+            + [Self(name: "Brand", hex: "#F97316", group: .custom)]
     }
 }
 
@@ -282,6 +249,13 @@ struct FrameworkColoursPreview: View {
                 ForEach(PreviewColourPalette.Group.allCases, id: \.self) { group in
                     Section {
                         ForEach(model.palettes.filter { $0.group == group }) { palette in
+                            if group == .theme || group == .layer {
+                                BootstrapHuePicker(palette: palette, canEdit: canEditFramework) { hue in
+                                    guard let role = FrameworkColorRole(rawValue: palette.id.replacingOccurrences(of: "framework.", with: "")) else { return }
+                                    model.update(PreviewColourPalette(stored: BootstrapColourCatalogue.palette(role: role, hue: hue)),
+                                        session: UUID(), undoManager: undoManager)
+                                }
+                            }
                                 PreviewColourRibbon(palette: model.binding(for: palette),
                                     canEditFramework: canEditFramework,
                                     update: { value, session in model.update(value, session: session, undoManager: undoManager) },
@@ -336,7 +310,7 @@ private struct PreviewColourRibbon: View {
     @State private var confirmGenerated = false
 
     private var isEditable: Bool {
-        palette.group == .custom || ([.theme, .layer].contains(palette.group) && canEditFramework)
+        palette.group == .custom
     }
 
     var body: some View {

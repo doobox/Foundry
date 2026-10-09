@@ -202,7 +202,7 @@ struct InspectorPaletteMenu: View {
                     ForEach([ColourPalette.Origin.custom, .framework, .standard], id: \.self) { group in
                         let matches = filtered.filter { $0.origin == group }
                         if !matches.isEmpty {
-                            Text(group == .custom ? "Custom Colours" : (group == .framework ? "Framework Colours" : "Standard Colours"))
+                            Text(group == .custom ? "Custom Colours" : (group == .framework ? "Framework Colours" : "Bootstrap Hue Scales"))
                                 .font(.caption).foregroundStyle(.secondary)
                                 .padding(.top, 6)
                                 .accessibilityAddTraits(.isHeader)

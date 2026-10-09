@@ -13,6 +13,8 @@ nonisolated struct ColourPalette: Codable, Equatable, Identifiable, Sendable {
     private(set) var darkDefaultShade: ColourShade
     var generation: Generation?
     var single = false
+    /// Native Bootstrap scale; hex shades are previews for the macOS UI.
+    var bootstrapHue: String?
 
     struct Generation: Codable, Equatable, Sendable {
         /// A versioned identifier, not "latest". Existing shades never regenerate on load.
@@ -48,6 +50,11 @@ nonisolated struct ColourPalette: Codable, Equatable, Identifiable, Sendable {
         return shades[shade.rawValue - 1]
     }
 
+    func cssColour(at shade: ColourShade) -> String {
+        guard let bootstrapHue else { return colour(at: .shade(shade)) }
+        return BootstrapColourCatalogue.reference(hue: bootstrapHue, shade: shade)
+    }
+
     mutating func setLightDefault(_ shade: ColourShade) { lightDefaultShade = shade }
     mutating func setDarkDefault(_ shade: ColourShade) { darkDefaultShade = shade }
     func defaultShade(for appearance: SiteAppearance) -> ColourShade {
@@ -57,6 +64,7 @@ nonisolated struct ColourPalette: Codable, Equatable, Identifiable, Sendable {
     mutating func replaceShades(_ values: [String]) throws {
         guard values.count == ColourShade.allCases.count else { throw ValidationError.invalidShadeCount }
         shades = values
+        bootstrapHue = nil
     }
 
     func duplicated() throws -> Self {
@@ -67,7 +75,7 @@ nonisolated struct ColourPalette: Codable, Equatable, Identifiable, Sendable {
         return copy
     }
 
-    private enum CodingKeys: String, CodingKey { case id, name, origin, shades, lightDefaultShade, darkDefaultShade, generation, single }
+    private enum CodingKeys: String, CodingKey { case id, name, origin, shades, lightDefaultShade, darkDefaultShade, generation, single, bootstrapHue }
 
     init(from decoder: Decoder) throws {
         let values = try decoder.container(keyedBy: CodingKeys.self)
@@ -84,6 +92,10 @@ nonisolated struct ColourPalette: Codable, Equatable, Identifiable, Sendable {
                           darkDefaultShade: try values.decode(ColourShade.self, forKey: .darkDefaultShade),
                           generation: try values.decodeIfPresent(Generation.self, forKey: .generation))
         single = try values.decodeIfPresent(Bool.self, forKey: .single) ?? false
+        bootstrapHue = try values.decodeIfPresent(String.self, forKey: .bootstrapHue)
+        if let bootstrapHue, !(BootstrapColourCatalogue.hues + ["black", "white"]).contains(bootstrapHue) {
+            throw DecodingError.dataCorruptedError(forKey: .bootstrapHue, in: values, debugDescription: "Unknown Bootstrap hue")
+        }
     }
 
 }

@@ -221,7 +221,7 @@ struct FrameworkEditingTests {
         let session = FrameworkEditorSession(document: document, undoManager: undo)
         let original = document.site.framework.colourPalettes
         #expect(!original.contains { $0.origin == .custom })
-        #expect(original.filter { $0.origin == .standard }.count == 24)
+        #expect(original.filter { $0.origin == .standard }.count == 18)
         var values = original
         let index = try #require(values.firstIndex { $0.id == "framework.accent" })
         var shades = values[index].shades
@@ -439,7 +439,7 @@ struct FrameworkEditingTests {
         let page = Page(title: "Colour", slug: "colour", parts: [paragraph])
         let frameworkdHTML = HTMLPageRenderer().render(page: page, framework: .standard)
 
-        #expect(frameworkdHTML.contains("color: \(PartTemplateRenderer.colorWithAlpha(Framework.standard.color(for: .accent), alpha: 0.5))"))
+        #expect(frameworkdHTML.contains("color: color-mix(in oklch, var(--bs-indigo-500) 50%, transparent)"))
 
         paragraph.setProperty(.init(rawValue: "textColor"), value: .packageColor(.init(
             source: PartFrameworkValueSelection.manualCustom,

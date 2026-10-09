@@ -143,7 +143,7 @@ nonisolated struct Page: Codable, Equatable, Identifiable, Sendable {
     }
 
     func backgroundColour(framework: Framework, appearance: SiteAppearance) -> String {
-        guard let backgroundOverride else { return framework.color(for: .background, appearance: appearance) }
+        guard let backgroundOverride else { return "var(--bs-bg-body)" }
         return PartPackageColorResolver.resolve(backgroundOverride, framework: framework, opacity: false, appearance: appearance)
     }
 

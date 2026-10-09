@@ -167,9 +167,9 @@ struct InspectorPaletteTests {
     @Test func paletteOpacityRespectsOptInAndBothAppearances() throws {
         var value = PartPackageColorValue(source: "standard.black", customColor: "#000000", opacity: 0.2)
         value.darkOpacity = 0.7
-        #expect(PartPackageColorResolver.resolve(value, framework: .standard, opacity: false) == "#000000")
-        #expect(PartPackageColorResolver.resolve(value, framework: .standard, opacity: true) == "rgb(0 0 0 / 0.2)")
-        #expect(PartPackageColorResolver.resolve(value, framework: .standard, opacity: true, appearance: .dark) == "rgb(0 0 0 / 0.7)")
+        #expect(PartPackageColorResolver.resolve(value, framework: .standard, opacity: false) == "var(--bs-black)")
+        #expect(PartPackageColorResolver.resolve(value, framework: .standard, opacity: true) == "color-mix(in oklch, var(--bs-black) 20%, transparent)")
+        #expect(PartPackageColorResolver.resolve(value, framework: .standard, opacity: true, appearance: .dark) == "color-mix(in oklch, var(--bs-black) 70%, transparent)")
         #expect(PartPackageColorResolver.channels(value, framework: .standard, opacity: false, appearance: .dark)?.alpha == 1)
         #expect(PartPackageColorResolver.channels(value, framework: .standard, opacity: true, appearance: .dark)?.alpha == 0.7)
         let restored = try JSONDecoder().decode(PartPackageColorValue.self, from: JSONEncoder().encode(value))

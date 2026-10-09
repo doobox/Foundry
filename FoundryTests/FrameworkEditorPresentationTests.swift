@@ -50,7 +50,7 @@ struct FrameworkEditorPresentationTests {
         let model = FrameworkColourPreviewModel()
         let custom = model.palettes.first { $0.group == .custom }!
         let binding = model.binding(for: custom)
-        let other = model.palettes.last!
+        let other = model.palettes.first { $0.group == .standard }!
         let otherBinding = model.binding(for: other)
         model.delete(id: custom.id)
         #expect(binding.wrappedValue == custom)
@@ -83,7 +83,9 @@ struct FrameworkEditorPresentationTests {
 
     @Test
     func liveColourEditsCoalesceAndSupportUndoRedo() {
-        let model = FrameworkColourPreviewModel()
+        let model = FrameworkColourPreviewModel(storedPalettes: [
+            PreviewColourPalette(name: "Test", hex: "#F97316", group: .custom).storedValue
+        ])
         let undo = UndoManager()
         undo.groupsByEvent = false
         let original = model.palettes[0]

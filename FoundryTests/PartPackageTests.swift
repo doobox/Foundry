@@ -675,7 +675,7 @@ struct PartPackageTests {
         #expect(responsiveHTML.contains("--numeric-top: 12px"))
         #expect(responsiveHTML.contains("border-style: dashed"))
         let lime = try #require(ColourPaletteDefaults.standard.first { $0.id == "standard.lime" })
-        #expect(responsiveHTML.contains(lime.colour(at: .shade(ColourShade(rawValue: 8)!))))
+        #expect(responsiveHTML.contains(lime.cssColour(at: .eight)))
         let exported = StaticSiteRenderer().render(site: responsiveSite)
         #expect(exported.files.contains { $0.contents.contains("border-width: " + expected) })
         #expect(exported.files.contains { $0.contents.contains("--numeric-top: 12px") })
@@ -740,7 +740,7 @@ struct PartPackageTests {
             #expect(colour.darkShade.rawValue == 3)
             let node = PartNode(type: .init(rawValue: package.manifest.identifier))
             let site = Site(name: "Standard palette", pages: [Page(title: "Home", slug: "index", parts: [node])])
-            let expected = palette.colour(at: .shade(.init(rawValue: 8)!))
+            let expected = palette.cssColour(at: .eight)
             #expect(HTMLPageRenderer(site: site).render(page: site.pages[0], framework: site.framework).contains(expected))
             #expect(try #require(StaticSiteRenderer().render(site: site).file(at: "index.html")?.contents).contains(expected))
         }

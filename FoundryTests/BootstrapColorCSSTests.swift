@@ -27,11 +27,13 @@ struct BootstrapColorCSSTests {
         #expect(css.contains("--bs-primary-focus-ring:light-dark(color-mix(in oklch,"))
     }
 
-    @Test func canvasResolvesOneAppearanceWithoutLightDarkPairs() {
+    @Test func canvasSelectsASchemeAndPreservesAdaptiveTokens() {
         let light = BootstrapColorCSS.canvas(framework: .standard, appearance: .light)
         let dark = BootstrapColorCSS.canvas(framework: .standard, appearance: .dark)
-        #expect(!light.contains("light-dark("))
-        #expect(!dark.contains("light-dark("))
+        #expect(light.contains("color-scheme:light;"))
+        #expect(dark.contains("color-scheme:dark;"))
+        #expect(light.contains("light-dark("))
+        #expect(dark.contains("light-dark("))
         #expect(light != dark)
     }
 
