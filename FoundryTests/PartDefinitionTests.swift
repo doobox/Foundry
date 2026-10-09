@@ -160,9 +160,9 @@ struct PartDefinitionTests {
         let buttonProperties = PartType.button.definition.properties
 
         #expect(buttonProperties.first(where: { $0.key.rawValue == "label" })?.section == .content)
-        #expect(buttonProperties.first(where: { $0.key.rawValue == "textColor" })?.section == .typography)
+        #expect(buttonProperties.first(where: { $0.key.rawValue == "theme" })?.section == .appearance)
         #expect(!buttonProperties.contains { $0.key.rawValue == "textSize" })
-        #expect(buttonProperties.first(where: { $0.key == .backgroundColor })?.section == .appearance)
+        #expect(buttonProperties.first(where: { $0.key.rawValue == "variant" })?.section == .appearance)
         #expect(buttonProperties.first(where: { $0.key == .destination })?.section == .link)
         #expect(buttonProperties.first(where: { $0.key == .accessibilityLabel })?.section == .accessibility)
     }
@@ -206,7 +206,7 @@ struct PartDefinitionTests {
         #expect(PartType.paragraph.definition.package!.css.contains("font-size: {{ control.fontSize }}"))
         #expect(PartType.paragraph.definition.package!.css.contains("line-height: {{ control.fontSize.lineHeight }}"))
         #expect(html.contains("aria-label=\"Open &quot;details&quot;\""))
-        #expect(html.contains("btn btn-primary"))
+        #expect(html.contains("btn btn-solid theme-primary"))
         #expect(html.contains("--bs-primary-base"))
         #expect(html.contains("--foundry-editor-part: #007BFF"))
         #expect(html.contains("--foundry-editor-global: #30D158"))

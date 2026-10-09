@@ -4,7 +4,7 @@ import WebKit
 @testable import Foundry
 
 struct TransformsControlGroupTests {
-    @Test(.timeLimit(.minutes(1)), arguments: ["Button", "Columns", "Section", "Copyright", "Divider", "StackItem", "Stack", "Grid", "GridItem", "Heading", "Image", "Navigation", "Paragraph", "Video"])
+    @Test(.timeLimit(.minutes(1)), arguments: ["Columns", "Section", "Copyright", "Divider", "StackItem", "Stack", "Grid", "GridItem", "Heading", "Image", "Navigation", "Paragraph", "Video"])
     @MainActor func contentMovesButHoverHostRemainsStationary(name: String) async throws {
         let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
             .deletingLastPathComponent().deletingLastPathComponent()
@@ -109,10 +109,10 @@ struct TransformsControlGroupTests {
         #expect(values["visual.css"] == .string("transform: translate(0px, 50%) rotate(-360deg) skew(0deg, 0deg) scale(10); transform-origin: center;"))
     }
 
-    @Test func builtInPartsDeclareAndRenderBothTransformStates() throws {
+    @Test func unmigratedBuiltInPartsDeclareAndRenderBothTransformStates() throws {
         let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
             .deletingLastPathComponent().deletingLastPathComponent()
-        for name in ["Button", "Columns", "Section", "Copyright", "Divider", "StackItem",
+        for name in ["Columns", "Section", "Copyright", "Divider", "StackItem",
                      "Stack", "Grid", "GridItem", "Heading", "Image", "Navigation", "Paragraph", "Video"] {
             let package = try PartPackageLoader.load(from: root.appending(path:
                 "Foundry/Resources/BuiltInParts.bundle/Contents/Resources/BuiltInParts.foundrypack/Parts/" + name))

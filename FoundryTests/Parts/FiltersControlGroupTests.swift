@@ -153,10 +153,10 @@ struct FiltersControlGroupTests {
         #expect(PartPackageShadowResolver.filter(.init(source: "none", customLayers: []), framework: .standard) == "none")
     }
 
-    @Test func builtInPartsDeclareAndRenderBothFilterStates() throws {
+    @Test func unmigratedBuiltInPartsDeclareAndRenderBothFilterStates() throws {
         let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
             .deletingLastPathComponent().deletingLastPathComponent()
-        for name in ["Button", "Columns", "Section", "Copyright", "Divider", "StackItem",
+        for name in ["Columns", "Section", "Copyright", "Divider", "StackItem",
                      "Stack", "Grid", "GridItem", "Heading", "Image", "Navigation", "Paragraph", "Video"] {
             let package = try PartPackageLoader.load(from: root.appending(path:
                 "Foundry/Resources/BuiltInParts.bundle/Contents/Resources/BuiltInParts.foundrypack/Parts/" + name))

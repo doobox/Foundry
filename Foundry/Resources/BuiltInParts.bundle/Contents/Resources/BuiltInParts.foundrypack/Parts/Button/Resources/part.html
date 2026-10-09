@@ -1,1 +1,1 @@
-<div class="{{ part.class }} btn btn-primary" {{ part.attributes }}><span class="fd-transform-content">{{ text("label", default: "Button") }}</span></div>
+<a class="{{ part.class }} btn {{ control.variant }} {{ control.theme }} {{ control.size }}" {{ part.attributes }} href="{{ control.destination }}" {{ if control.destination.target }}target="{{ control.destination.target }}"{{ endif }} {{ control.destination.attributes }} {{ if control.accessibilityLabel }}aria-label="{{ control.accessibilityLabel }}"{{ endif }}>{{ text("label", default: "Button") }}</a>

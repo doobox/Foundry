@@ -6949,7 +6949,7 @@ struct PartPackageTests {
         """
         let packageURL = try makePackage(
             manifest: manifest,
-            template: "<button class=\"btn btn-primary\" {{ part.attributes }}>Bootstrap</button>"
+            template: "<button class=\"btn btn-solid theme-primary\" {{ part.attributes }}>Bootstrap</button>"
         )
         defer { try? FileManager.default.removeItem(at: packageURL) }
         let package = try PartPackageLoader.load(from: packageURL)

@@ -1,5 +1,28 @@
 # Foundry workspace notes
 
+## Bootstrap 6 is the generated-site framework
+
+Use Bootstrap 6's native markup, classes, component variants, theme classes,
+colour names, tokens and defaults as the contract for generated sites.
+Verify against the bundled Bootstrap 6 version and the official Bootstrap skills.
+Do not assume Bootstrap 5 conventions still apply: a solid primary button uses
+`btn btn-solid theme-primary`, not `btn btn-primary`.
+
+Foundry may add identifiers, editing metadata and behaviour hooks. These must
+preserve the underlying Bootstrap component. Inspector controls should select
+Bootstrap themes, variants, sizes and tokens; avoid parallel Foundry styling
+defaults or unconditional CSS that overrides Bootstrap's component states.
+Custom styling must be explicit and use Bootstrap's supported extension points.
+Breaking changes are accepted for this migration; remove obsolete contracts
+instead of retaining compatibility styling. Work one section at a time, update
+the matching developer docs, and verify computed browser styles as well as
+generated markup before calling a component converted.
+
+For each part's first switchover, strip its inspector to Bootstrap basics.
+Keep only essential content, behaviour, accessibility and native Bootstrap
+options. Remove legacy styling control groups; add extra capabilities back
+progressively when Gary requests them.
+
 ## Built-in framework artwork
 
 Always ask Gary for a supplied tile image when creating a built-in framework. Do not generate or substitute fallback artwork. See `.cursor/rules/framework-artwork.mdc`.
