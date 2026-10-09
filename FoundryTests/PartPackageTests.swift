@@ -5003,10 +5003,18 @@ struct PartPackageTests {
         let bundle = StaticSiteRenderer().render(site: site)
         let html = try #require(bundle.file(at: "index.html")?.contents)
         let pageJavaScript = try #require(bundle.file(at: "files/page.js")?.contents)
+        let canvas = HTMLPageRenderer(site: site).render(
+            page: site.pages[0],
+            language: "en",
+            framework: site.framework,
+            assets: [:],
+            breakpoint: .large
+        )
 
         #expect(html.contains("data-foundry-id=\"\(node.id.uuidString)\""))
         #expect(!html.contains("id=\"foundry-"))
         #expect(pageJavaScript.contains(##"document.querySelector('[data-foundry-id=\"\##(node.id.uuidString)\"]')"##))
+        #expect(!canvas.contains("part.querySelector('button')"))
     }
 
     @Test @MainActor
@@ -6915,9 +6923,10 @@ struct PartPackageTests {
     }
 
     @Test
-    func webLibrariesSupportAlpineAndResolveScrollTriggerDependency() {
+    func webLibrariesSupportPublishedRuntimeLibraries() {
         #expect(FoundryWebLibraryRegistry.supports(FoundryWebLibraryRegistry.alpineRequirement))
         #expect(FoundryWebLibraryRegistry.supports(FoundryWebLibraryRegistry.gsapRequirement))
+        #expect(FoundryWebLibraryRegistry.supports(FoundryWebLibraryRegistry.glightboxRequirement))
         #expect(FoundryWebLibraryRegistry.supports(FoundryWebLibraryRegistry.gsapScrollTriggerRequirement))
     }
 
@@ -7186,6 +7195,63 @@ struct PartPackageTests {
         #expect(try PartPackageManifestSchema.diagnostics(for: Data(legacyGroups.utf8)).contains {
             $0.location == "manifest.json:groups" && $0.message.contains("Unknown key 'groups'")
         })
+    }
+
+    @Test @MainActor
+    func inspectorSectionsCanBeConditionallyVisible() throws {
+        let controls = """
+        {
+            "id" : "captionStyle",
+            "label" : "Page Captions",
+            "type" : "select",
+            "options" : [
+                {"title" : "Below", "value" : "below"},
+                {"title" : "None", "value" : "hidden"}
+            ],
+            "defaults" : {"base" : "below"}
+        },
+        {
+            "section" : "Caption Text",
+            "visibleWhen" : {
+                "id" : "captionStyle",
+                "operation" : "!=",
+                "value" : "hidden"
+            },
+            "controls" : [
+                {"id" : "caption", "type" : "text", "defaults" : {"base" : "Caption"}}
+            ]
+        }
+        """
+        let source = manifest(withInspectorEntries: controls)
+        let packageURL = try makePackage(
+            manifest: source,
+            template: "<div {{ part.attributes }}>{{ control.caption }}{{ childArea(\"content\") }}</div>"
+        )
+        defer { try? FileManager.default.removeItem(at: packageURL) }
+        let package = try PartPackageLoader.load(from: packageURL)
+        PartRegistry.register(package)
+        defer { PartRegistry.unregisterPackage(identifier: package.manifest.identifier) }
+
+        #expect(try PartPackageManifestSchema.diagnostics(for: Data(source.utf8)).isEmpty)
+        let validationErrors = PartPackageValidator.validate(
+            package.manifest,
+            rootURL: package.resourceRootURL
+        ).filter { $0.severity == .error }
+        #expect(validationErrors.isEmpty, "\(validationErrors)")
+
+        let section = PartPropertySection(rawValue: "Caption Text")
+        let condition = try #require(package.manifest.controlSections.first { $0.name == section.rawValue }?.visibleWhen)
+        #expect(condition == .init(id: "captionStyle", operation: "!=", value: .string("hidden")))
+        #expect(package.manifest.controlSections.first { $0.name == section.rawValue }?.entries.count == 1)
+
+        var part = PartNode.make(.init(rawValue: package.manifest.identifier))
+        #expect(PartPackageVisibilityEvaluator.isVisible(condition, for: part, at: .mobile))
+        part.setProperty(.init(rawValue: "captionStyle"), value: .choice("hidden"))
+        #expect(!PartPackageVisibilityEvaluator.isVisible(condition, for: part, at: .mobile))
+
+        let reencoded = try JSONEncoder().encode(package.manifest)
+        let roundTripped = try JSONDecoder().decode(PartPackageManifest.self, from: reencoded)
+        #expect(roundTripped.controlSections.first { $0.name == section.rawValue }?.visibleWhen == condition)
     }
 
     private func manifest(withInspectorEntries items: String) -> String {

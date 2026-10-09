@@ -7,6 +7,8 @@
 :instance .foundry-masonry__columns {
   column-count: {{ control.columns }};
   column-gap: {{ control.gap }};
+  column-fill: balance;
+  line-height: 0;
 }
 
 :instance .foundry-masonry__item {
@@ -15,6 +17,7 @@
   margin: 0 0 {{ control.gap }};
   break-inside: avoid;
   vertical-align: top;
+  line-height: normal;
 }
 
 :instance .foundry-masonry__link {
@@ -27,6 +30,7 @@
   position: relative;
   min-height: 8rem;
   overflow: hidden;
+  isolation: isolate;
   border-radius: {{ control.cornerRadius }};
   background: color-mix(in srgb, currentColor 7%, transparent);
 }
@@ -82,22 +86,31 @@
   opacity: 0.82;
 }
 
-:instance .foundry-masonry__link .foundry-masonry__image {
-  transition: transform 180ms ease;
+:instance .foundry-masonry__media--zoomable .foundry-masonry__image {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  transition: top 180ms ease, left 180ms ease, width 180ms ease, height 180ms ease;
 }
 
-:instance .foundry-masonry__link:hover .foundry-masonry__image {
-  transform: scale(1.025);
+:instance .foundry-masonry__link:hover .foundry-masonry__media--zoomable .foundry-masonry__image {
+  top: -1.25%;
+  left: -1.25%;
+  width: 102.5%;
+  height: 102.5%;
 }
 
 :instance .foundry-masonry__link:focus-visible {
   outline: 2px solid currentColor;
-  outline-offset: 3px;
+  outline-offset: -2px;
   border-radius: {{ control.cornerRadius }};
 }
 
 @media (prefers-reduced-motion: reduce) {
-  :instance .foundry-masonry__link .foundry-masonry__image {
+  :instance .foundry-masonry__media--zoomable .foundry-masonry__image {
     transition: none;
   }
 }

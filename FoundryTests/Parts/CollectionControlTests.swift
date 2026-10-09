@@ -32,6 +32,9 @@ struct CollectionControlTests {
         ])
         #expect(images.defaultValue.arrayValue?.count == 6)
         #expect(columns.isResponsive)
+        #expect(!definition.properties.contains { $0.key.rawValue == "cards" })
+        #expect(!definition.properties.contains { $0.key.rawValue == "cardShadow" })
+        #expect(package.manifest.libraries == [FoundryWebLibraryRegistry.glightboxRequirement])
 
         let part = PartNode.make(.init(rawValue: package.manifest.identifier))
         let page = Page(title: "Masonry", slug: "index", parts: [part])
@@ -50,7 +53,147 @@ struct CollectionControlTests {
         #expect(html.contains("font-weight: 700;"))
         #expect(html.contains("font-size: var(--foundry-font-size-sm);"))
         #expect(html.contains("color: inherit;"))
+        #expect(html.contains("foundry-masonry__shell") == false)
+        #expect(!html.contains("-webkit-mask-image"))
+        #expect(html.contains("width: 102.5%"))
+        #expect(!html.contains("transform: scale(1.025)"))
+        #expect(!html.contains("data-foundry-masonry-lightbox"))
+        #expect(!html.contains("data-foundry-library=\"glightbox\""))
         #expect(!html.contains("{{"))
+    }
+
+    @Test @MainActor
+    func masonryUsesLightboxInPreviewAndPublishUnlessAnImageHasALink() async throws {
+        let catalog = PartPackageCatalog.shared
+        await catalog.waitUntilLoaded()
+        let package = try #require(catalog.packages.values.first {
+            $0.manifest.identifier == "foundry.media.masonry-gallery"
+        })
+        let definition = PartPackageAdapter.definition(from: package)
+        let images = try #require(definition.properties.first { $0.key.rawValue == "images" })
+        guard case .collection(_, let fields) = images.control else {
+            Issue.record("Expected an image collection")
+            return
+        }
+
+        var destination = PartLink()
+        destination.destination = .url("https://example.com/destination")
+        var part = PartNode.make(.init(rawValue: package.manifest.identifier))
+        part.setProperty(images.key, value: .array([
+            PartCollectionValue.record(fields: fields, overriding: [
+                "image": .url("https://example.com/lightbox.jpg"),
+                "title": .string("Lightbox image"),
+                "description": .string("Opens the full image")
+            ]),
+            PartCollectionValue.record(fields: fields, overriding: [
+                "image": .url("https://example.com/linked.jpg"),
+                "title": .string("Linked image"),
+                "link": .link(destination)
+            ])
+        ]))
+        let page = Page(title: "Masonry", slug: "index", parts: [part])
+        let site = Site(name: "Masonry", pages: [page])
+
+        let canvas = HTMLPageRenderer(site: site).render(
+            page: page,
+            language: "en",
+            framework: site.framework,
+            assets: [:],
+            breakpoint: .large
+        )
+        #expect(!canvas.contains("data-foundry-masonry-lightbox"))
+        #expect(!canvas.contains("data-foundry-library=\"glightbox\""))
+
+        for environment in [PartTemplateEnvironment.preview, .published] {
+            let bundle = StaticSiteRenderer(environment: environment).render(site: site)
+            #expect(bundle.errors.isEmpty)
+            let document = try #require(bundle.file(at: "index.html")?.contents)
+            let pageJavaScript = try #require(bundle.file(at: "files/page.js")?.contents)
+            let stylesheet = try #require(bundle.file(at: "files/site.css")?.contents)
+
+            #expect(document.contains("href=\"https://example.com/lightbox.jpg\""))
+            #expect(document.contains("data-title=\"Lightbox image\""))
+            #expect(document.contains("data-description=\"Opens the full image\""))
+            #expect(document.contains("href=\"https://example.com/destination\""))
+            #expect(document.components(separatedBy: "data-foundry-masonry-lightbox").count - 1 == 1)
+            #expect(document.contains("files/libraries/glightbox/glightbox.min.js"))
+            #expect(pageJavaScript.contains("GLightbox({"))
+            #expect(pageJavaScript.contains("enableGeometryZoom"))
+            #expect(pageJavaScript.contains("image.naturalWidth"))
+            #expect(stylesheet.contains(".glightbox-container"))
+            #expect(stylesheet.contains(".glightbox-clean .gslide-desc { color: #3f3f46; }"))
+            #expect(bundle.file(at: "files/libraries/glightbox/glightbox.min.js") != nil)
+        }
+    }
+
+    @Test @MainActor
+    func masonryPageAndLightboxCaptionsCanBeChosenIndependently() async throws {
+        let catalog = PartPackageCatalog.shared
+        await catalog.waitUntilLoaded()
+        let package = try #require(catalog.packages.values.first {
+            $0.manifest.identifier == "foundry.media.masonry-gallery"
+        })
+        let definition = PartPackageAdapter.definition(from: package)
+        let images = try #require(definition.properties.first { $0.key.rawValue == "images" })
+        let captionStyle = try #require(package.manifest.resolvedProperties.first { $0.id == "captionStyle" })
+        let lightboxCaptions = try #require(package.manifest.resolvedProperties.first { $0.id == "lightboxCaptions" })
+        guard case .collection(_, let fields) = images.control else {
+            Issue.record("Expected an image collection")
+            return
+        }
+
+        #expect(captionStyle.control.options?.map(\.value) == ["below", "overlay", "hidden"])
+        #expect(captionStyle.control.options?.map(\.title) == ["Below", "Overlay", "None"])
+        #expect(lightboxCaptions.defaultValue == .boolean(true))
+
+        let titleSection = PartPropertySection(rawValue: "Titles Text")
+        let descriptionSection = PartPropertySection(rawValue: "Descriptions Text")
+        let titleCondition = try #require(definition.visibilityCondition(for: titleSection))
+        let descriptionCondition = try #require(definition.visibilityCondition(for: descriptionSection))
+
+        var part = PartNode.make(.init(rawValue: package.manifest.identifier))
+        part.setProperty(images.key, value: .array([
+            PartCollectionValue.record(fields: fields, overriding: [
+                "image": .url("https://example.com/captioned.jpg"),
+                "title": .string("Caption title"),
+                "description": .string("Caption description")
+            ])
+        ]))
+
+        func document(for part: PartNode) throws -> String {
+            let page = Page(title: "Masonry", slug: "index", parts: [part])
+            let site = Site(name: "Masonry", pages: [page])
+            let bundle = StaticSiteRenderer(environment: .published).render(site: site)
+            #expect(bundle.errors.isEmpty)
+            return try #require(bundle.file(at: "index.html")?.contents)
+        }
+
+        let both = try document(for: part)
+        #expect(both.contains("<figcaption"))
+        #expect(both.contains("data-title=\"Caption title\""))
+        #expect(PartPackageVisibilityEvaluator.isVisible(titleCondition, for: part, at: .mobile))
+        #expect(PartPackageVisibilityEvaluator.isVisible(descriptionCondition, for: part, at: .mobile))
+
+        part.setProperty(.init(rawValue: "lightboxCaptions"), value: .boolean(false))
+        let pageOnly = try document(for: part)
+        #expect(pageOnly.contains("<figcaption"))
+        #expect(!pageOnly.contains("data-title=\"Caption title\""))
+        #expect(!pageOnly.contains("data-description=\"Caption description\""))
+
+        part.setProperty(.init(rawValue: "captionStyle"), value: .choice("hidden"))
+        part.setProperty(.init(rawValue: "lightboxCaptions"), value: .boolean(true))
+        let lightboxOnly = try document(for: part)
+        #expect(!lightboxOnly.contains("<figcaption"))
+        #expect(lightboxOnly.contains("data-title=\"Caption title\""))
+        #expect(lightboxOnly.contains("data-description=\"Caption description\""))
+        #expect(!PartPackageVisibilityEvaluator.isVisible(titleCondition, for: part, at: .mobile))
+        #expect(!PartPackageVisibilityEvaluator.isVisible(descriptionCondition, for: part, at: .mobile))
+
+        part.setProperty(.init(rawValue: "lightboxCaptions"), value: .boolean(false))
+        let neither = try document(for: part)
+        #expect(!neither.contains("<figcaption"))
+        #expect(!neither.contains("data-title=\"Caption title\""))
+        #expect(!neither.contains("data-description=\"Caption description\""))
     }
 
     @Test @MainActor

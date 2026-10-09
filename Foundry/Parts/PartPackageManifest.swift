@@ -44,6 +44,7 @@ nonisolated enum PartPackageControlsEntry: Codable, Equatable, Sendable {
 nonisolated struct PartPackageControlSection: Codable, Equatable, Sendable {
     let name: String
     let systemImage: String?
+    let visibleWhen: PartPackageVisibilityCondition?
     /// Property and Grouped-control entries in declaration order; sections
     /// cannot nest.
     let entries: [PartPackageControlsEntry]
@@ -51,12 +52,19 @@ nonisolated struct PartPackageControlSection: Codable, Equatable, Sendable {
     private enum CodingKeys: String, CodingKey {
         case name = "section"
         case systemImage
+        case visibleWhen
         case entries = "controls"
     }
 
-    init(name: String, systemImage: String? = nil, entries: [PartPackageControlsEntry] = []) {
+    init(
+        name: String,
+        systemImage: String? = nil,
+        visibleWhen: PartPackageVisibilityCondition? = nil,
+        entries: [PartPackageControlsEntry] = []
+    ) {
         self.name = name
         self.systemImage = systemImage
+        self.visibleWhen = visibleWhen
         self.entries = entries.map { entry in
             guard case .property(var property) = entry else { return entry }
             property.group = name
@@ -77,6 +85,7 @@ nonisolated struct PartPackageControlSection: Codable, Equatable, Sendable {
         self.init(
             name: try container.decode(String.self, forKey: .name),
             systemImage: try container.decodeIfPresent(String.self, forKey: .systemImage),
+            visibleWhen: try container.decodeIfPresent(PartPackageVisibilityCondition.self, forKey: .visibleWhen),
             entries: entries
         )
     }
@@ -85,6 +94,7 @@ nonisolated struct PartPackageControlSection: Codable, Equatable, Sendable {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encode(name, forKey: .name)
         try container.encodeIfPresent(systemImage, forKey: .systemImage)
+        try container.encodeIfPresent(visibleWhen, forKey: .visibleWhen)
         try container.encode(entries, forKey: .entries)
     }
 

@@ -1256,6 +1256,12 @@ private struct PartInspector: View {
         var sections: [[String]] = []
         var indices: [PartPropertySection: Int] = [:]
         for row in part.type.definition.inspectorRows {
+            guard PartPackageVisibilityEvaluator.isVisible(
+                part.type.definition.visibilityCondition(for: row.section),
+                for: part,
+                at: breakpoint,
+                screens: framework.screens
+            ) else { continue }
             guard let visible = row.filtered(
                 properties: { isVisible($0) },
                 childPickers: { selectedParts.count == 1 && isVisible($0) }

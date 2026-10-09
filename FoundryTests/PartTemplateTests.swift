@@ -191,6 +191,39 @@ struct PartTemplateTests {
     }
 
     @Test
+    func convertsNumericStringsToNumbersExplicitly() {
+        let context = PartTemplateContext(
+            instanceID: UUID(),
+            packageIdentifier: "com.example.number-conversion",
+            properties: [
+                "value": .string(" 50 "),
+                "maxValue": .number(100),
+                "decimal": .string("12.5"),
+                "markup": .string("<strong>50</strong>"),
+                "nonFinite": .string("infinity")
+            ],
+            slots: [:]
+        )
+
+        #expect(PartTemplateRenderer.render("{{ number(control.value) / control.maxValue * 100 }}", context: context) == "50")
+        #expect(PartTemplateRenderer.render("{{ number(control.decimal) }}", context: context) == "12.5")
+        #expect(PartTemplateRenderer.render("{{ number(control.maxValue) }}", context: context) == "100")
+        #expect(PartTemplateRenderer.render("{{ number(control.markup) }}", context: context).isEmpty)
+        #expect(PartTemplateRenderer.render("{{ number(control.nonFinite) }}", context: context).isEmpty)
+        #expect(PartTemplateRenderer.render("{{ number(control.markup, 0) }}", context: context) == "0")
+        #expect(PartTemplateRenderer.render("{{ number(control.missing, \"2.5\") }}", context: context) == "2.5")
+        #expect(PartTemplateRenderer.render("{{ number(control.missing, false) }}", context: context).isEmpty)
+        #expect(PartTemplateRenderer.render(#"{{ html("value", default: "0") }}|{{ number(control.value) }}"#, context: context) == " 50 |50")
+
+        #expect(throws: PartTemplateExpression.ExpressionError.self) {
+            try PartTemplateExpression.validate(PartTemplateExpression.parse("number()"))
+        }
+        #expect(throws: PartTemplateExpression.ExpressionError.self) {
+            try PartTemplateExpression.validate(PartTemplateExpression.parse("number(control.value, 0, 1)"))
+        }
+    }
+
+    @Test
     func supportsStringWildcardCollectionAndEmptyPredicates() {
         let context = PartTemplateContext(
             instanceID: UUID(),

@@ -119,6 +119,13 @@ nonisolated enum PartTemplateExpression {
             try validate(lhs)
             try validate(rhs)
         case .call(let name, let arguments):
+            if name == "number" {
+                guard (1...2).contains(arguments.count) else {
+                    throw ExpressionError(description: "Unknown function or incorrect number of arguments for 'number'.")
+                }
+                try arguments.forEach(validate)
+                return
+            }
             let argumentCounts = [
                 "abs": 1, "round": 1, "floor": 1, "ceil": 1,
                 "min": 2, "max": 2, "clamp": 3,
@@ -229,6 +236,16 @@ nonisolated enum PartTemplateExpression {
     }
 
     private static func call(_ name: String, arguments: [Value]) throws -> Value {
+        if name == "number", (1...2).contains(arguments.count) {
+            if let converted = convertedNumber(arguments[0]) {
+                return .number(converted)
+            }
+            if arguments.count == 2, let fallback = convertedNumber(arguments[1]) {
+                return .number(fallback)
+            }
+            throw ExpressionError(description: "Function 'number' requires a Number or numeric String.")
+        }
+
         if PartExpressionPredicates.binaryFunctionNames.contains(name) ||
             PartExpressionPredicates.unaryFunctionNames.contains(name) {
             guard let lhs = arguments.first.flatMap(packageValue),
@@ -256,6 +273,19 @@ nonisolated enum PartTemplateExpression {
             }
             return .number(min(max(numbers[0], numbers[1]), numbers[2]))
         default: throw ExpressionError(description: "Unknown function or incorrect number of arguments for '\(name)'.")
+        }
+    }
+
+    private static func convertedNumber(_ value: Value) -> Double? {
+        switch value {
+        case .number(let value):
+            return value
+        case .string(let value):
+            let source = value.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard let converted = Double(source), converted.isFinite else { return nil }
+            return converted
+        default:
+            return nil
         }
     }
 

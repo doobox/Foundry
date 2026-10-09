@@ -67,16 +67,6 @@ nonisolated struct HTMLPageRenderer: PageRendering {
         let headEnd = placedHTML(for: page, framework: framework, placement: .headEnd)
         let bodyStart = placedHTML(for: page, framework: framework, placement: .bodyStart)
         let bodyEnd = placedHTML(for: page, framework: framework, placement: .bodyEnd)
-        let pagePackages = PartArtifactPlan(page: page).packages
-        let libraryScriptsBefore = FoundryWebLibraryRegistry.canvasScriptTags(
-            for: pagePackages,
-            placement: .beforePage
-        )
-        let scripts = packageScripts(for: page, framework: framework, assets: assets, breakpoint: breakpoint)
-        let libraryScriptsAfter = FoundryWebLibraryRegistry.canvasScriptTags(
-            for: pagePackages,
-            placement: .afterPage
-        )
         let customHeadCode = site?.customCodeEnabled == true ? site?.headCode ?? "" : ""
         let customBodyStartCode = site?.customCodeEnabled == true ? site?.bodyStartCode ?? "" : ""
         let customBodyEndCode = site?.customCodeEnabled == true ? site?.bodyEndCode ?? "" : ""
@@ -219,7 +209,7 @@ nonisolated struct HTMLPageRenderer: PageRendering {
         \(analyticsCode)
         \(headEnd)
         </head>
-        <body>\(customBodyStartCode)\(bodyStart)<!--foundry-roots-start-->\(body)<!--foundry-roots-end-->\(bodyEnd)\(libraryScriptsBefore)\(scripts)\(libraryScriptsAfter)\(customBodyEndCode)</body>
+        <body>\(customBodyStartCode)\(bodyStart)<!--foundry-roots-start-->\(body)<!--foundry-roots-end-->\(bodyEnd)\(customBodyEndCode)</body>
         </html>
         """
     }
@@ -261,55 +251,6 @@ nonisolated struct HTMLPageRenderer: PageRendering {
                 uniquingKeysWith: { first, _ in first }
             )
         )
-    }
-
-    private func packageScripts(
-        for page: Page,
-        framework: Framework,
-        assets: ProjectAssetContents,
-        breakpoint: ResponsiveBreakpoint
-    ) -> String {
-        let nodes = page.parts.flatMap(flattened)
-        let instanceScripts = nodes.compactMap { sourceNode -> String? in
-            guard !Task.isCancelled else { return nil }
-            let node = sourceNode.resolved(at: breakpoint, screens: framework.screens)
-            guard let package = node.type.definition.package else { return nil }
-            let source = [package.instanceJavaScript, package.renderDefinition.controlGroupJavaScript]
-                .filter { !$0.isEmpty }
-                .joined(separator: "\n")
-            guard !source.isEmpty else { return nil }
-            return cachedText(.script, key: .init(node: ownValues(node))) { PartTemplateRenderer.render(
-                source,
-                context: .init(
-                    instanceID: node.id,
-                    packageIdentifier: package.manifest.identifier,
-                    properties: packageProperties(node, framework: framework, assets: assets, breakpoint: breakpoint),
-                    templateValues: templateValues(for: page, framework: framework),
-                    slots: [:],
-                    assetBasePath: canvasAssetBasePath(for: package),
-                    assetPaths: canvasAssetPaths(for: package),
-                    environment: .canvas,
-                    loopMaximums: package.loopMaximums
-                )
-            ) }
-        }
-        var seenPackages: Set<String> = []
-        let sharedScripts = nodes.compactMap { node -> String? in
-            guard let package = node.type.definition.package,
-                  seenPackages.insert(package.manifest.identifier).inserted else { return nil }
-            let source = package.pageJavaScript
-            guard !source.isEmpty else { return nil }
-            return PartTemplateRenderer.render(
-                source,
-                context: .init(instanceID: UUID(uuid: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)), packageIdentifier: package.manifest.identifier, properties: [:], templateValues: templateValues(for: page, framework: framework), slots: [:], assetBasePath: canvasAssetBasePath(for: package), assetPaths: canvasAssetPaths(for: package), environment: .canvas, loopMaximums: package.loopMaximums)
-            )
-        }
-        let htmlScripts = nodes.map {
-            PartArtifactPlan.htmlArtifact(for: $0.resolved(at: breakpoint, screens: framework.screens), suffix: "JavaScript")
-        }
-            .filter { !$0.isEmpty }
-        let source = (instanceScripts + htmlScripts + sharedScripts).joined(separator: "\n")
-        return source.isEmpty ? "" : "<script>\n\(source)\n</script>"
     }
 
     private func placedHTML(for page: Page, framework: Framework, placement: PartPackageTemplateFile.Placement) -> String {

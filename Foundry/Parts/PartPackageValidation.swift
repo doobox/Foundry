@@ -122,6 +122,9 @@ nonisolated enum PartPackageValidator {
                 diagnostics.append(.init(severity: .error, location: "manifest.json:inspector.\(property.id).font", message: "font must reference a frameworkFont control in this part."))
             }
         }
+        for section in manifest.controlSections {
+            validateVisibility(section, properties: manifest.resolvedProperties, into: &diagnostics)
+        }
         validateVisibilityCycles(manifest.resolvedProperties, into: &diagnostics)
         for slot in manifest.slots {
             validate(slot.id, expression: propertyExpression, location: "manifest.json:slots.\(slot.id)", message: "Slot IDs must start with a letter and contain only letters, numbers, underscores, or hyphens.", into: &diagnostics)
@@ -1400,25 +1403,35 @@ nonisolated enum PartPackageValidator {
     ) {
         guard let visibleWhen = property.visibleWhen else { return }
         let location = "manifest.json:inspector.\(property.id).visibleWhen"
-        validateVisibilityCondition(visibleWhen, property: property, properties: properties, location: location, into: &diagnostics)
+        validateVisibilityCondition(visibleWhen, excludingID: property.id, properties: properties, location: location, into: &diagnostics)
+    }
+
+    private static func validateVisibility(
+        _ section: PartPackageControlSection,
+        properties: [PartPackageProperty],
+        into diagnostics: inout [PartPackageDiagnostic]
+    ) {
+        guard let visibleWhen = section.visibleWhen else { return }
+        let location = "manifest.json:inspector.\(section.name).visibleWhen"
+        validateVisibilityCondition(visibleWhen, excludingID: nil, properties: properties, location: location, into: &diagnostics)
     }
 
     private static func validateVisibilityCondition(
         _ visibleWhen: PartPackageVisibilityCondition,
-        property: PartPackageProperty,
+        excludingID: String?,
         properties: [PartPackageProperty],
         location: String,
         into diagnostics: inout [PartPackageDiagnostic]
     ) {
         if let all = visibleWhen.all {
             for (index, condition) in all.enumerated() {
-                validateVisibilityCondition(condition, property: property, properties: properties, location: "\(location).all[\(index)]", into: &diagnostics)
+                validateVisibilityCondition(condition, excludingID: excludingID, properties: properties, location: "\(location).all[\(index)]", into: &diagnostics)
             }
             return
         }
         if let any = visibleWhen.any {
             for (index, condition) in any.enumerated() {
-                validateVisibilityCondition(condition, property: property, properties: properties, location: "\(location).any[\(index)]", into: &diagnostics)
+                validateVisibilityCondition(condition, excludingID: excludingID, properties: properties, location: "\(location).any[\(index)]", into: &diagnostics)
             }
             return
         }
@@ -1433,7 +1446,7 @@ nonisolated enum PartPackageValidator {
             return
         }
         let key = String(id[keyRange])
-        guard key != property.id else {
+        guard key != excludingID else {
             diagnostics.append(.init(severity: .error, location: location, message: "A control's visibleWhen condition cannot reference itself."))
             return
         }

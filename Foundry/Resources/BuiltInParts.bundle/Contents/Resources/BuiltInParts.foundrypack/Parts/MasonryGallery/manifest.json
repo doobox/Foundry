@@ -9,6 +9,12 @@
     "tint": "purple"
   },
   "id": "foundry.media.masonry-gallery",
+  "libraries": [
+    {
+      "id": "glightbox",
+      "majorVersion": 3
+    }
+  ],
   "inspector": [
     {
       "section": "Gallery",
@@ -124,30 +130,26 @@
             ]
           },
           "tooltip": "Open the collection popover to select, add, duplicate, delete or reorder gallery images."
-        }
-      ]
-    },
-    {
-      "section": "Title Text",
-      "systemImage": "textformat",
-      "controls": [
+        },
         {
-          "type": "typography",
-          "id": "descriptionTypography",
+          "type": "toggle",
+          "id": "lightboxCaptions",
+          "label": "Lightbox Captions",
           "defaults": {
-            "font": {
-              "family": "body",
-              "size": "sm",
-              "style": "normal",
-              "weight": 400
-            }
-          }
+            "base": true
+          },
+          "tooltip": "Shows each image title and description in the lightbox. Turn this off for page-only captions."
         }
       ]
     },
     {
-      "section": "Description Text",
+      "section": "Titles Text",
       "systemImage": "textformat",
+      "visibleWhen": {
+        "id": "captionStyle",
+        "operation": "!=",
+        "value": "hidden"
+      },
       "controls": [
         {
           "type": "typography",
@@ -158,6 +160,29 @@
               "size": "base",
               "style": "normal",
               "weight": 700
+            }
+          }
+        }
+      ]
+    },
+    {
+      "section": "Descriptions Text",
+      "systemImage": "textformat",
+      "visibleWhen": {
+        "id": "captionStyle",
+        "operation": "!=",
+        "value": "hidden"
+      },
+      "controls": [
+        {
+          "type": "typography",
+          "id": "descriptionTypography",
+          "defaults": {
+            "font": {
+              "family": "body",
+              "size": "sm",
+              "style": "normal",
+              "weight": 400
             }
           }
         }
@@ -205,7 +230,7 @@
         {
           "type": "select",
           "id": "captionStyle",
-          "label": "Captions",
+          "label": "Page Captions",
           "presentation": "segmented",
           "responsive": true,
           "options": [
@@ -218,7 +243,7 @@
               "value": "overlay"
             },
             {
-              "title": "Hidden",
+              "title": "None",
               "value": "hidden"
             }
           ],
@@ -254,6 +279,10 @@
     "files": [
       {
         "path": "part.css",
+        "scope": "instance"
+      },
+      {
+        "path": "part.js",
         "scope": "instance"
       }
     ],

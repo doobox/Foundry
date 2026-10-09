@@ -81,6 +81,10 @@ nonisolated struct PartDefinition: Sendable {
         }
         return PartPropertySection.genericSystemImage
     }
+
+    func visibilityCondition(for section: PartPropertySection) -> PartPackageVisibilityCondition? {
+        package?.manifest.controlSections.first { $0.name == section.rawValue }?.visibleWhen
+    }
 }
 
 nonisolated struct PartCategory: RawRepresentable, Hashable, Sendable {

@@ -48,7 +48,7 @@ nonisolated enum PartPackageManifestSchema {
     private static let controlGroupKeys: Set<String> = [
         "type", "id", "targetSelector", "backgroundTypes", "supportsHover", "defaults", "visibleWhen", "excludeControls", "allowedOptions"
     ]
-    private static let sectionKeys: Set<String> = ["section", "systemImage", "controls"]
+    private static let sectionKeys: Set<String> = ["section", "systemImage", "visibleWhen", "controls"]
 
     static func inspect(_ data: Data) throws -> String {
         let dictionary = try rootDictionary(from: data)
@@ -271,6 +271,12 @@ nonisolated enum PartPackageManifestSchema {
             return
         }
         optionalString("systemImage", in: entry, location: location, into: &diagnostics)
+        if let visibleWhen = entry["visibleWhen"] as? [String: Any] {
+            unknownKeys(in: visibleWhen, allowed: visibleWhenKeys, location: "\(location).visibleWhen", into: &diagnostics)
+            validateVisibility(visibleWhen, location: "\(location).visibleWhen", into: &diagnostics)
+        } else if entry["visibleWhen"] != nil {
+            appendTypeError(key: "visibleWhen", expected: "a dictionary", location: location, into: &diagnostics)
+        }
         if !seenNames.insert(name).inserted {
             diagnostics.append(.init(
                 severity: .error,
