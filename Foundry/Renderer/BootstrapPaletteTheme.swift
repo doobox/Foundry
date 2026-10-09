@@ -49,10 +49,17 @@ nonisolated enum BootstrapPaletteTheme {
         guard hex.count == 6, let value = UInt32(hex, radix: 16) else { return "var(--bs-white)" }
         func linear(_ byte: UInt32) -> Double {
             let x = Double(byte) / 255
-            return x <= 0.04045 ? x / 12.92 : pow((x + 0.055) / 1.055, 2.4)
+            // Bootstrap's Sass luminance() uses a four-decimal lookup table
+            // for the nonlinear branch and direct division for dark channels.
+            return x < 0.04045 ? x / 12.92 : (pow((x + 0.055) / 1.055, 2.4) * 10_000).rounded() / 10_000
         }
         let luminance = 0.2126 * linear((value >> 16) & 255) + 0.7152 * linear((value >> 8) & 255) + 0.0722 * linear(value & 255)
-        return (luminance + 0.05) / 0.05 >= 1.05 / (luminance + 0.05) ? "var(--bs-black)" : "var(--bs-white)"
+        // Native equivalent of Bootstrap color-contrast() with its defaults:
+        // light (#fff), dark (#000), #fff, #000; first ratio >= 4.5 wins.
+        // For opaque RGB, at least one of black/white always reaches 4.5, so
+        // the duplicate candidates and highest-ratio fallback are unreachable.
+        // https://github.com/twbs/bootstrap/blob/v6-dev/scss/_functions.scss
+        return 1.05 / (luminance + 0.05) >= 4.5 ? "var(--bs-white)" : "var(--bs-black)"
     }
 
     static func css(framework: Framework) -> String {

@@ -4,6 +4,20 @@ import WebKit
 
 @MainActor
 struct BootstrapPaletteThemeTests {
+    @Test(arguments: [
+        ("#000000", "white"), ("#FFFFFF", "black"),
+        ("#757575", "white"), ("#767676", "white"), ("#777777", "black"),
+        ("#7740FF", "white"), ("#FFC900", "black"), ("#0087FE", "black")
+    ])
+    func contrastUsesBootstrapCandidateOrder(sample: (String, String)) throws {
+        let palette = try ColourPalette(id: "custom.contrast", name: "Contrast", origin: .custom,
+            shades: Array(repeating: sample.0, count: 13), lightDefaultShade: .seven, darkDefaultShade: .seven)
+        let tokens = Dictionary(uniqueKeysWithValues: BootstrapPaletteTheme.properties(for: palette))
+        #expect(tokens["--bs-theme-contrast"] == "var(--bs-\(sample.1))")
+        // #767676 is deliberate: both candidates pass, black has the higher
+        // ratio, but Bootstrap returns white because it is tested first.
+    }
+
     @Test
     func everyPaletteHasStableCompleteTheme() throws {
         var framework = Framework.standard
