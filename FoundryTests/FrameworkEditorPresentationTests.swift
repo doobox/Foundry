@@ -20,7 +20,7 @@ struct FrameworkEditorPresentationTests {
         #expect(reloaded.storedPalettes == model.storedPalettes)
         let restored = reloaded.palettes.first { $0.id == source.id }!
         #expect(restored == edit.palette)
-        for index in 0..<11 {
+        for index in ColourShade.allCases.indices {
             #expect(restored.colour(at: index).hexString == edit.palette.colour(at: index).hexString)
         }
         var custom = restored
@@ -35,14 +35,14 @@ struct FrameworkEditorPresentationTests {
 
     @Test
     func storedShadesAreNotRegeneratedOnReadOrRename() throws {
-        let original = PreviewColourPalette.samples.first { $0.group == .framework }!.storedValue
+        let original = PreviewColourPalette.samples.first { $0.group == .theme }!.storedValue
         var record = original
-        try record.replaceShades(Array(repeating: "#123456", count: 11))
+        try record.replaceShades(Array(repeating: "#123456", count: ColourShade.allCases.count))
         var adapter = PreviewColourPalette(stored: record)
         adapter.name = "Renamed"
         #expect(adapter.storedValue.shades == record.shades)
         #expect(adapter.storedValue.id == record.id)
-        #expect(PreviewColourPalette.samples.first { $0.group == .framework }!.id == original.id)
+        #expect(PreviewColourPalette.samples.first { $0.group == .theme }!.id == original.id)
     }
 
     @Test
@@ -66,7 +66,7 @@ struct FrameworkEditorPresentationTests {
     @Test
     func softeningFirstPreservesSelectedShadeAndDefault() {
         let palette = PreviewColourPalette(name: "Test", hex: "#F97316", group: .custom)
-        for index in 0..<11 {
+        for index in ColourShade.allCases.indices {
             var edit = PreviewShadeEdit(palette: palette, index: index)
             let selectedHex = palette.colour(at: index).hexString
             #expect(edit.palette == palette)
@@ -119,15 +119,15 @@ struct FrameworkEditorPresentationTests {
         for custom in [false, true] {
             palette.generated = !custom
             if custom { palette.overrides[2] = "#ABCDEF" }
-            let before = (0..<11).map { palette.colour(at: $0).hexString }
+            let before = ColourShade.allCases.indices.map { palette.colour(at: $0).hexString }
             let originalDefault = palette.lightDefaultShade
             var edit = PreviewShadeEdit(palette: palette, index: palette.anchor)
             edit.setReversed(true)
-            #expect(edit.index == 10 - palette.anchor)
-            #expect(edit.palette.lightDefaultShade == 10 - originalDefault)
-            #expect((0..<11).map { edit.palette.colour(at: $0).hexString } == Array(before.reversed()))
+            #expect(edit.index == PreviewColourPalette.finalIndex - palette.anchor)
+            #expect(edit.palette.lightDefaultShade == PreviewColourPalette.finalIndex - originalDefault)
+            #expect(ColourShade.allCases.indices.map { edit.palette.colour(at: $0).hexString } == Array(before.reversed()))
             edit.setReversed(false)
-            #expect((0..<11).map { edit.palette.colour(at: $0).hexString } == before)
+            #expect(ColourShade.allCases.indices.map { edit.palette.colour(at: $0).hexString } == before)
             #expect(edit.palette.lightDefaultShade == originalDefault)
         }
     }
@@ -136,13 +136,13 @@ struct FrameworkEditorPresentationTests {
     func colourEditsKeepDefaultUntilExplicitlyChanged() {
         let palette = PreviewColourPalette(name: "Test", hex: "#6366F1", group: .custom)
         var edit = PreviewShadeEdit(palette: palette, index: 4)
-        #expect(edit.palette.lightDefaultShade == 5)
+        #expect(edit.palette.lightDefaultShade == 6)
         edit.setHex("#250C42")
-        #expect(edit.palette.lightDefaultShade == 5)
+        #expect(edit.palette.lightDefaultShade == 6)
         #expect(edit.palette.anchor == 4)
         edit.setDefault(for: .light)
         #expect(edit.palette.lightDefaultShade == 4)
-        #expect(edit.palette.darkDefaultShade == 5)
+        #expect(edit.palette.darkDefaultShade == 6)
         edit.setColour(Color(hex: "#450C42")!)
         #expect(edit.palette.lightDefaultShade == 4)
         edit.setDefault(for: .dark)
@@ -153,24 +153,24 @@ struct FrameworkEditorPresentationTests {
         custom.generated = false
         var customEdit = PreviewShadeEdit(palette: custom, index: 4)
         customEdit.setHex("#250C42")
-        #expect(customEdit.palette.lightDefaultShade == 5)
+        #expect(customEdit.palette.lightDefaultShade == 6)
     }
 
     @Test
     func perceptualRampPreservesAnchorAndLightnessOrder() {
         for hex in ["#250C42", "#FFFF00", "#0000FF", "#FF0000", "#00FF00", "#808080", "#FFFFFF", "#000000", "#FDFDFD"] {
-            for anchor in 0..<11 {
+            for anchor in ColourShade.allCases.indices {
                 let palette = PreviewColourPalette(name: "Test", hex: hex, group: .custom, anchor: anchor, softening: 1)
                 #expect(palette.colour(at: anchor).hexString?.uppercased() == hex)
-                let levels = (0..<11).map { index in
+                let levels = ColourShade.allCases.indices.map { index in
                     PreviewPerceptualRamp.lab(NSColor(palette.colour(at: index))).lightness
                 }
                 #expect(levels.allSatisfy { $0.isFinite && $0 >= -0.00001 && $0 <= 1.00001 })
-                for index in 0..<10 { #expect(levels[index] + 0.00001 >= levels[index + 1]) }
+                for index in 0..<PreviewColourPalette.finalIndex { #expect(levels[index] + 0.00001 >= levels[index + 1]) }
             }
         }
         let purple = PreviewColourPalette(name: "Test", hex: "#250C42", group: .custom, anchor: 4, softening: 1)
-        let levels = (0..<11).map { PreviewPerceptualRamp.lab(NSColor(purple.colour(at: $0))).lightness }
+        let levels = ColourShade.allCases.indices.map { PreviewPerceptualRamp.lab(NSColor(purple.colour(at: $0))).lightness }
         #expect(abs((levels[3] - levels[4]) - (levels[4] - levels[5])) < 0.02)
         #expect(levels[0] < 0.7) // Do not force this dark colour's light end almost to white.
         let red = PreviewPerceptualRamp.lab(NSColor(srgbRed: 1, green: 0, blue: 0, alpha: 1))
@@ -188,7 +188,7 @@ struct FrameworkEditorPresentationTests {
         #expect(edit.palette.anchor == 7)
         #expect(edit.palette.colour(at: 7).hexString?.uppercased() == "#AABBCC")
         #expect(original.hex == "#6366F1")
-        #expect(original.anchor == 5)
+        #expect(original.anchor == 6)
         edit.setHex("#nope")
         #expect(PreviewShadeEdit.normalizedHex(edit.hex) == nil)
         #expect(edit.palette.colour(at: 7).hexString?.uppercased() == "#AABBCC")
@@ -229,7 +229,7 @@ struct FrameworkEditorPresentationTests {
         palette.setColour(Color(hex: "#123456")!, at: 7)
         #expect(palette.anchor == 7)
         #expect(palette.colour(at: 7).hexString?.lowercased() == "#123456")
-        #expect(palette.lightDefaultShade == 5)
+        #expect(palette.lightDefaultShade == 6)
         palette.generated = false
         palette.setColour(Color(hex: "#ABCDEF")!, at: 2)
         #expect(palette.anchor == 7)
@@ -299,7 +299,7 @@ struct FrameworkEditorPresentationTests {
                 for configuration in sizes {
                     let name = "\(section.rawValue)\(variant)-\(configuration.name)"
                     let previewModel = FrameworkColourPreviewModel()
-                    previewModel.palettes.insert(PreviewColourPalette(name: "Purple test", hex: "#250C42", group: .framework, anchor: 4, lightDefaultShade: 4), at: 0)
+                    previewModel.palettes.insert(PreviewColourPalette(name: "Purple test", hex: "#250C42", group: .theme, anchor: 4, lightDefaultShade: 4), at: 0)
                     let root = (section == .colors
                         ? AnyView(FrameworkColoursPreview(model: previewModel))
                         : AnyView(FrameworkSettingsDetail(

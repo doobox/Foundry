@@ -77,7 +77,7 @@
           "outputFormat": "hsl",
           "defaults": {
             "base": {
-              "palette": "text"
+              "palette": "foreground"
             }
           },
           "tooltip": "outputFormat: hsl — only complete-colour formats (hex, rgb, rgba, hsl, hsla) are accepted."
@@ -95,10 +95,10 @@
           "responsive": true,
           "defaults": {
             "base": {
-              "palette": "surface"
+              "palette": "background"
             },
             "medium": {
-              "palette": "brand"
+              "palette": "primary"
             }
           },
           "tooltip": "responsive: true — base is the phone selection; medium and wider start on the brand palette."

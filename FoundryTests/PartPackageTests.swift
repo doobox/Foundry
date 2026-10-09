@@ -1209,7 +1209,7 @@ struct PartPackageTests {
     @Test
     func frameworkColourAcceptsAnOptionalInitialShade() throws {
         for key in ["lightShade", "darkShade"] {
-        for shade in [nil, 1, 8, 11] as [Int?] {
+        for shade in [nil, 1, 8, 13] as [Int?] {
             let item = """
             {"id" : "colour",
             "type" : "frameworkColor",
@@ -1229,7 +1229,7 @@ struct PartPackageTests {
             if let shade { #expect((key == "lightShade" ? value.shade : value.darkShade).rawValue == shade) }
         }
         }
-        for (type, value, initial) in [("frameworkColor", "accent", 0), ("frameworkColor", "accent", 12),
+        for (type, value, initial) in [("frameworkColor", "accent", 0), ("frameworkColor", "accent", 14),
                                        ("frameworkColor", "custom", 3)] {
             let item = """
             {"id" : "colour", "type" : "\(type)",
@@ -6376,7 +6376,7 @@ struct PartPackageTests {
         let textDecoration = try #require(properties.first(where: { $0.key.rawValue == "textDecoration" }))
 
         #expect(color.defaultValue == .packageColor(.init(
-            source: FrameworkColorRole.text.rawValue,
+            source: FrameworkColorRole.foreground.rawValue,
             customColor: "#000000",
             opacity: 1
         )))
@@ -6459,7 +6459,7 @@ struct PartPackageTests {
         #expect(heading.propertyValue(.init(rawValue: "font.weight")) == .number(700))
         #expect(heading.propertyValue(.init(rawValue: "font.style")).stringValue == "normal")
         #expect(color.defaultValue == .packageColor(.init(
-            source: FrameworkColorRole.text.rawValue,
+            source: FrameworkColorRole.foreground.rawValue,
             customColor: "#000000",
             opacity: 1
         )))
@@ -6862,6 +6862,7 @@ struct PartPackageTests {
         #expect(FoundryWebLibraryRegistry.icon(named: "stars")?.cssClass == "bi-stars")
         #expect(FoundryWebLibraryRegistry.icon(named: "bi-stars")?.name == "stars")
         #expect(FoundryWebLibraryRegistry.uniqueRequirements(in: [package, package]) == [
+            FoundryWebLibraryRegistry.bootstrapRequirement,
             FoundryWebLibraryRegistry.iconRequirement
         ])
     }
@@ -6892,6 +6893,7 @@ struct PartPackageTests {
         PartRegistry.register(package)
 
         #expect(FoundryWebLibraryRegistry.uniqueRequirements(in: [package]) == [
+            FoundryWebLibraryRegistry.bootstrapRequirement,
             FoundryWebLibraryRegistry.alpineRequirement,
             FoundryWebLibraryRegistry.gsapRequirement,
             FoundryWebLibraryRegistry.gsapScrollTriggerRequirement

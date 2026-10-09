@@ -89,7 +89,6 @@ nonisolated struct HTMLPageRenderer: PageRendering {
           <style>
             \(FoundryCSS.build(
                 framework: framework,
-                colour: { framework.color(for: $0, appearance: appearance) },
                 colorScheme: appearance.rawValue
             ))
           </style>
@@ -201,6 +200,7 @@ nonisolated struct HTMLPageRenderer: PageRendering {
             }
             .unavailable { padding: 16px; border: 2px dashed #C33; color: #922; background: #FFF5F5; }
             \(FoundryWebLibraryRegistry.canvasCSS(for: PartArtifactPlan(page: page).packages))
+            \(BootstrapColorCSS.canvas(framework: framework, appearance: appearance))
           </style>
         \(instanceStyleElements(for: page, framework: framework, assets: assets, breakpoint: breakpoint))
           <style data-foundry-shared-styles>

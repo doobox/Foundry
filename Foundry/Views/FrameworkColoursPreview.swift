@@ -79,7 +79,7 @@ final class FrameworkColourPreviewModel {
     func duplicate(_ palette: PreviewColourPalette) {
         var copy = palette
         if palette.group == .standard && !palette.single {
-            copy.overrides = Dictionary(uniqueKeysWithValues: (0..<11).map {
+            copy.overrides = Dictionary(uniqueKeysWithValues: ColourShade.allCases.indices.map {
                 ($0, palette.colour(at: $0).hexString ?? "#000000")
             })
             copy.generated = false
@@ -100,16 +100,21 @@ final class FrameworkColourPreviewModel {
 
 struct PreviewColourPalette: Identifiable, Equatable {
     enum Group: String, CaseIterable {
-        case custom = "Custom Colours", framework = "Framework Colours", standard = "Standard Colours"
+        case custom = "Custom Colours"
+        case theme = "Bootstrap Theme Colours"
+        case layer = "Bootstrap Layer Colours"
+        case standard = "Standard Colours"
     }
-    static let steps = Array(1...11)
+    static let steps = ColourShade.bootstrapLabels
+    static let finalIndex = ColourShade.allCases.count - 1
+    static let bootstrapLayerIDs: Set<String> = ["framework.background", "framework.foreground", "framework.border"]
     var id = "custom.\(UUID().uuidString.lowercased())"
     var name: String
     var hex: String
     var group: Group
-    var anchor = 5
-    var lightDefaultShade = 5
-    var darkDefaultShade = 5
+    var anchor = 6
+    var lightDefaultShade = 6
+    var darkDefaultShade = 6
     var generated = true
     var overrides: [Int: String] = [:]
     var single = false
@@ -118,12 +123,12 @@ struct PreviewColourPalette: Identifiable, Equatable {
     private var snapshot: ColourPalette?
 
     init(id: String = "custom.\(UUID().uuidString.lowercased())", name: String, hex: String,
-         group: Group, anchor: Int = 5, lightDefaultShade: Int = 5, darkDefaultShade: Int? = nil, generated: Bool = true,
+         group: Group, anchor: Int = 6, lightDefaultShade: Int = 6, darkDefaultShade: Int? = nil, generated: Bool = true,
          overrides: [Int: String] = [:], single: Bool = false, softening: Double = 0,
          reversed: Bool = false) {
         self.id = id; self.name = name; self.hex = hex; self.group = group
         self.anchor = anchor; self.lightDefaultShade = lightDefaultShade; self.generated = generated
-        self.darkDefaultShade = darkDefaultShade ?? 10 - lightDefaultShade
+        self.darkDefaultShade = darkDefaultShade ?? Self.finalIndex - lightDefaultShade
         self.overrides = overrides; self.single = single; self.softening = softening
         self.reversed = reversed
     }
@@ -132,7 +137,7 @@ struct PreviewColourPalette: Identifiable, Equatable {
         id = stored.id; name = stored.name
         switch stored.origin {
         case .custom: group = .custom
-        case .framework: group = .framework
+        case .framework: group = Self.bootstrapLayerIDs.contains(stored.id) ? .layer : .theme
         case .standard: group = .standard
         }
         lightDefaultShade = stored.lightDefaultShade.rawValue - 1
@@ -148,16 +153,20 @@ struct PreviewColourPalette: Identifiable, Equatable {
     }
 
     private var generationSettings: ColourPalette.Generation {
-        .init(algorithm: snapshot?.generation?.algorithm ?? "foundry.rgb-soften.v1",
+        .init(algorithm: snapshot?.generation?.algorithm ?? "bootstrap.runtime-scale.v1",
               anchor: ColourShade(rawValue: anchor + 1)!, anchorHex: hex,
               softening: softening, reversed: reversed, enabled: generated, overrides: overrides)
     }
 
     var storedValue: ColourPalette {
-        let origin: ColourPalette.Origin = group == .custom ? .custom : (group == .framework ? .framework : .standard)
-        // Eleven values are always produced, and shade indices are editor-controlled.
+        let origin: ColourPalette.Origin = switch group {
+        case .custom: .custom
+        case .theme, .layer: .framework
+        case .standard: .standard
+        }
+        // Bootstrap's thirteen scale values are always produced, and shade indices are editor-controlled.
         var value = try! ColourPalette(id: id, name: name, origin: origin,
-            shades: (0..<11).map { colour(at: $0).hexString ?? "#000000" },
+            shades: ColourShade.allCases.indices.map { colour(at: $0).hexString ?? "#000000" },
             lightDefaultShade: ColourShade(rawValue: lightDefaultShade + 1)!,
             darkDefaultShade: ColourShade(rawValue: darkDefaultShade + 1)!, generation: generationSettings)
         value.single = single
@@ -179,13 +188,13 @@ struct PreviewColourPalette: Identifiable, Equatable {
         if let value = overrides[index], !generated { return Color(hex: value) ?? .gray }
         guard let base = Color(hex: hex), let rgb = NSColor(base).usingColorSpace(.sRGB) else { return .gray }
         if single || index == anchor { return base }
-        let position = reversed ? 10 - index : index
-        let origin = reversed ? 10 - anchor : anchor
+        let position = reversed ? Self.finalIndex - index : index
+        let origin = reversed ? Self.finalIndex - anchor : anchor
         // Keep the existing read-only sample palettes stable during generator experiments.
         let lighter = position < origin
         let fraction = lighter
             ? Double(origin - position) / Double(max(origin, 1)) * 0.94
-            : Double(position - origin) / Double(max(10 - origin, 1)) * 0.85
+            : Double(position - origin) / Double(max(Self.finalIndex - origin, 1)) * 0.94
         let target = lighter ? 1.0 : 0.0
         let fullRange = Color(.sRGB,
                      red: rgb.redComponent + (target - rgb.redComponent) * fraction,
@@ -199,10 +208,10 @@ struct PreviewColourPalette: Identifiable, Equatable {
     mutating func reverseShades() {
         guard !single else { return }
         reversed.toggle()
-        anchor = 10 - anchor
-        lightDefaultShade = 10 - lightDefaultShade
-        darkDefaultShade = 10 - darkDefaultShade
-        overrides = Dictionary(uniqueKeysWithValues: overrides.map { (10 - $0.key, $0.value) })
+        anchor = Self.finalIndex - anchor
+        lightDefaultShade = Self.finalIndex - lightDefaultShade
+        darkDefaultShade = Self.finalIndex - darkDefaultShade
+        overrides = Dictionary(uniqueKeysWithValues: overrides.map { (Self.finalIndex - $0.key, $0.value) })
     }
 
     mutating func setColour(_ colour: Color, at index: Int) {
@@ -212,13 +221,17 @@ struct PreviewColourPalette: Identifiable, Equatable {
     }
 
     static var samples: [Self] {
-        [Self(name: "Page", hex: "#F8FAFC", group: .framework, anchor: 0, lightDefaultShade: 0),
-         Self(name: "Background", hex: "#F8FAFC", group: .framework, anchor: 0, lightDefaultShade: 0),
-         Self(name: "Surface", hex: "#FFFFFF", group: .framework, anchor: 0, lightDefaultShade: 0),
-         Self(name: "Text", hex: "#1E293B", group: .framework, anchor: 9, lightDefaultShade: 9),
-         Self(name: "Muted Text", hex: "#64748B", group: .framework),
-         Self(name: "Accent", hex: "#6366F1", group: .framework),
-         Self(name: "Links", hex: "#2563EB", group: .framework, anchor: 6, lightDefaultShade: 6),
+        [Self(name: "Primary", hex: "#5B5BD6", group: .theme, anchor: 6, lightDefaultShade: 6),
+         Self(name: "Accent", hex: "#6366F1", group: .theme, anchor: 6, lightDefaultShade: 6),
+         Self(name: "Success", hex: "#22C55E", group: .theme, anchor: 6, lightDefaultShade: 6),
+         Self(name: "Danger", hex: "#EF4444", group: .theme, anchor: 6, lightDefaultShade: 6),
+         Self(name: "Warning", hex: "#EAB308", group: .theme, anchor: 6, lightDefaultShade: 6),
+         Self(name: "Info", hex: "#06B6D4", group: .theme, anchor: 6, lightDefaultShade: 6),
+         Self(name: "Inverse", hex: "#171719", group: .theme, anchor: 10, lightDefaultShade: 10),
+         Self(name: "Secondary", hex: "#64748B", group: .theme, anchor: 6, lightDefaultShade: 6),
+         Self(name: "Background", hex: "#FFFFFF", group: .layer, anchor: 0, lightDefaultShade: 0),
+         Self(name: "Foreground", hex: "#171719", group: .layer, anchor: 10, lightDefaultShade: 10),
+         Self(name: "Border", hex: "#94A3B8", group: .layer, anchor: 4, lightDefaultShade: 4),
          Self(name: "Brand", hex: "#F97316", group: .custom),
          Self(name: "Black", hex: "#000000", group: .standard, single: true),
          Self(name: "White", hex: "#FFFFFF", group: .standard, single: true),
@@ -248,7 +261,7 @@ struct PreviewColourPalette: Identifiable, Equatable {
          Self(name: "Stone", hex: "#78716C", group: .standard)].map { palette in
              var palette = palette
              if palette.group != .custom {
-                 let prefix = palette.group == .framework ? "framework" : "standard"
+                 let prefix = palette.group == .standard ? "standard" : "framework"
                  palette.id = prefix + "." + palette.name.lowercased().replacingOccurrences(of: " ", with: "-")
              }
              return palette
@@ -323,7 +336,7 @@ private struct PreviewColourRibbon: View {
     @State private var confirmGenerated = false
 
     private var isEditable: Bool {
-        palette.group == .custom || (palette.group == .framework && canEditFramework)
+        palette.group == .custom || ([.theme, .layer].contains(palette.group) && canEditFramework)
     }
 
     var body: some View {
@@ -394,7 +407,7 @@ private struct PreviewColourRibbon: View {
 
     private var ribbon: some View {
         HStack(spacing: 0) {
-            ForEach(palette.single ? [5] : Array(0..<11), id: \.self) { index in
+            ForEach(palette.single ? [6] : Array(ColourShade.allCases.indices), id: \.self) { index in
                 swatch(index)
             }
         }
@@ -514,7 +527,7 @@ struct PreviewShadeEdit {
     mutating func setReversed(_ value: Bool) {
         guard value != palette.reversed && !palette.single else { return }
         palette.reverseShades()
-        index = 10 - index
+        index = PreviewColourPalette.finalIndex - index
         hex = palette.colour(at: index).hexString ?? hex
     }
 }

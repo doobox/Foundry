@@ -78,7 +78,7 @@
         {
           "defaults": {
             "base": {
-              "palette": "text"
+              "palette": "foreground"
             }
           },
           "id": "textColour",

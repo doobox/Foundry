@@ -29,13 +29,13 @@ nonisolated struct ColourPalette: Codable, Equatable, Identifiable, Sendable {
 
     init(id: String, name: String, origin: Origin, shades: [String],
          lightDefaultShade: ColourShade, darkDefaultShade: ColourShade? = nil, generation: Generation? = nil) throws {
-        guard shades.count == 11 else { throw ValidationError.invalidShadeCount }
+        guard shades.count == ColourShade.allCases.count else { throw ValidationError.invalidShadeCount }
         self.id = id
         self.name = name
         self.origin = origin
         self.shades = shades
         self.lightDefaultShade = lightDefaultShade
-        self.darkDefaultShade = darkDefaultShade ?? ColourShade(rawValue: 12 - lightDefaultShade.rawValue)!
+        self.darkDefaultShade = darkDefaultShade ?? ColourShade(rawValue: ColourShade.mirroredRawValue(for: lightDefaultShade))!
         self.generation = generation
     }
 
@@ -55,7 +55,7 @@ nonisolated struct ColourPalette: Codable, Equatable, Identifiable, Sendable {
     }
 
     mutating func replaceShades(_ values: [String]) throws {
-        guard values.count == 11 else { throw ValidationError.invalidShadeCount }
+        guard values.count == ColourShade.allCases.count else { throw ValidationError.invalidShadeCount }
         shades = values
     }
 
@@ -72,9 +72,9 @@ nonisolated struct ColourPalette: Codable, Equatable, Identifiable, Sendable {
     init(from decoder: Decoder) throws {
         let values = try decoder.container(keyedBy: CodingKeys.self)
         let shades = try values.decode([String].self, forKey: .shades)
-        guard shades.count == 11 else {
+        guard shades.count == ColourShade.allCases.count else {
             throw DecodingError.dataCorruptedError(forKey: .shades, in: values,
-                debugDescription: "A colour palette must contain exactly 11 resolved shades.")
+                debugDescription: "A Bootstrap colour palette must contain exactly 13 resolved shades.")
         }
         try self.init(id: values.decode(String.self, forKey: .id),
                           name: try values.decode(String.self, forKey: .name),
@@ -90,7 +90,15 @@ nonisolated struct ColourPalette: Codable, Equatable, Identifiable, Sendable {
 
 /// UI and stored references use the same one-based shade positions.
 nonisolated enum ColourShade: Int, Codable, CaseIterable, Sendable {
-    case one = 1, two, three, four, five, six, seven, eight, nine, ten, eleven
+    case one = 1, two, three, four, five, six, seven, eight, nine, ten, eleven, twelve, thirteen
+
+    static let bootstrapLabels = ["025", "050", "100", "200", "300", "400", "500", "600", "700", "800", "900", "950", "975"]
+
+    var bootstrapLabel: String { Self.bootstrapLabels[rawValue - 1] }
+
+    static func mirroredRawValue(for shade: ColourShade) -> Int {
+        allCases.count + 1 - shade.rawValue
+    }
 }
 
 nonisolated enum ColourShadeSelection: Codable, Equatable, Sendable {

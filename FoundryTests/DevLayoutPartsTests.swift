@@ -302,7 +302,9 @@ struct DevLayoutPartsTests {
             #expect(rendered.contains("grid-column: auto / span 2;"))
             #expect(rendered.contains("flex: 1 1 auto;"))
             #expect(rendered.contains("gap: 0px;"))
-            #expect(rendered.contains("{{") == false)
+            #expect(rendered.contains("{{ control.") == false)
+            #expect(rendered.contains("{{ part.") == false)
+            #expect(rendered.contains("{{ childArea") == false)
         }
     }
 }

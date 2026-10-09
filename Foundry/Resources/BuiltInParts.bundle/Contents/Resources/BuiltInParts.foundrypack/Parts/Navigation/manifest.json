@@ -239,7 +239,7 @@
           "customColor": "#000000",
           "defaults": {
             "base": {
-              "palette": "text"
+              "palette": "foreground"
             }
           },
           "id": "linkColor",
@@ -253,7 +253,7 @@
           "customColor": "#0000EE",
           "defaults": {
             "base": {
-              "palette": "links"
+              "palette": "primary"
             }
           },
           "id": "activeColor",

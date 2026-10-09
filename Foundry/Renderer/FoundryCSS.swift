@@ -8,18 +8,17 @@ import Foundation
 nonisolated enum FoundryCSS {
     static let version = 1
 
-    /// The complete framework build. `colour` supplies each role's CSS value so the
-    /// canvas can resolve one appearance while exports emit light-dark() pairs.
+    /// The complete non-colour framework build. Bootstrap's semantic colour
+    /// properties are compiled separately by `BootstrapColorCSS`.
     static func build(
         framework: Framework,
-        colour: (FrameworkColorRole) -> String,
         colorScheme: String
     ) -> String {
         """
         /* Foundry CSS \(version) */
         @layer foundry.tokens, foundry.base, foundry.utilities;
         @layer foundry.tokens {
-        :root{font-size:16px;color-scheme:\(colorScheme);\(tokenVariables(framework: framework, colour: colour))}
+        :root{font-size:16px;color-scheme:\(colorScheme);\(tokenVariables(framework: framework))}
         \(framework.screens.containerCSS)
         @media (prefers-reduced-motion:reduce){:root{--foundry-motion-fast:0ms;--foundry-motion-normal:0ms;--foundry-motion-slow:0ms;--foundry-transition-motion:0}}
         }
@@ -34,13 +33,7 @@ nonisolated enum FoundryCSS {
 
     // MARK: Tokens
 
-    private static func tokenVariables(
-        framework: Framework,
-        colour: (FrameworkColorRole) -> String
-    ) -> String {
-        let colours = FrameworkColorRole.allCases.map {
-            "--foundry-color-\($0.rawValue):\(colour($0));"
-        }.joined()
+    private static func tokenVariables(framework: Framework) -> String {
         let fonts = "--foundry-font-body:\(framework.typography.bodyFont.cssFamily);"
             + "--foundry-font-heading:\(framework.typography.headingFont.cssFamily);"
             + "--foundry-font-monospace:\(framework.typography.monospacedFont.cssFamily);"
@@ -50,9 +43,8 @@ nonisolated enum FoundryCSS {
             + "--foundry-motion-ease:cubic-bezier(0.4,0,0.2,1);"
         // An outline value, not a box-shadow: outlines are the one focus channel
         // that nothing else (utility shadows, part box-shadows) can overwrite.
-        let focus = "--foundry-focus-ring:2px solid var(--foundry-color-accent);"
-        return colours
-            + fonts
+        let focus = "--foundry-focus-ring:2px solid var(--bs-primary-focus-ring);"
+        return fonts
             + framework.customFontCSSVariables
             + framework.fontSizeCSSVariables
             + framework.spacingCSSVariables
@@ -72,7 +64,7 @@ nonisolated enum FoundryCSS {
         *,*::before,*::after{box-sizing:border-box;border-width:0;border-style:solid;border-color:currentColor}
         html{-webkit-text-size-adjust:100%}
         html,body{min-height:100%}
-        body{margin:0;min-height:100svh;background:var(--foundry-color-page);color:var(--foundry-color-text);font-family:var(--foundry-font-body);font-size:var(--foundry-font-size-base);line-height:var(--foundry-font-size-base-line-height);accent-color:var(--foundry-color-accent);overflow-wrap:break-word;display:flex;flex-direction:column;align-items:stretch}
+        body{margin:0;min-height:100svh;background:var(--bs-bg-body);color:var(--bs-fg-body);font-family:var(--foundry-font-body);font-size:var(--foundry-font-size-base);line-height:var(--foundry-font-size-base-line-height);accent-color:var(--bs-primary-base);overflow-wrap:break-word;display:flex;flex-direction:column;align-items:stretch}
         h1,h2,h3,h4,h5,h6,p,figure,dl,dd{margin:0}
         ul,ol,menu{margin:0;padding-inline-start:var(--foundry-space-lg)}
         fieldset{margin:0;padding:0}
@@ -82,14 +74,14 @@ nonisolated enum FoundryCSS {
         .foundry-background-layer::after{content:"";position:absolute;inset:0;background-color:var(--foundry-background-overlay,transparent);pointer-events:none}
         .foundry-background-layer>.foundry-background-video{position:absolute;inset:0;width:100%;height:100%;max-width:none;object-fit:cover;pointer-events:none}
         input,button,textarea,select{font:inherit;color:inherit;margin:0}
-        ::placeholder{color:var(--foundry-color-muted);opacity:1}
+        ::placeholder{color:var(--bs-fg-3);opacity:1}
         b,strong{font-weight:bolder}
         sub,sup{font-size:75%;line-height:0;position:relative;vertical-align:baseline}
         sub{bottom:-0.25em}
         sup{top:-0.5em}
-        a{color:var(--foundry-color-links)}
+        a{color:var(--bs-primary-fg)}
         :focus-visible{outline:var(--foundry-focus-ring);outline-offset:2px}
-        ::selection{background:color-mix(in srgb, var(--foundry-color-accent) 30%, transparent)}
+        ::selection{background:color-mix(in srgb, var(--bs-accent-base) 30%, transparent)}
         h1,h2,h3,h4,h5,h6{font-family:var(--foundry-font-heading);text-wrap:balance}
         h1{font-size:var(--foundry-font-size-4xl);line-height:var(--foundry-font-size-4xl-line-height)}
         h2{font-size:var(--foundry-font-size-3xl);line-height:var(--foundry-font-size-3xl-line-height)}
@@ -98,10 +90,10 @@ nonisolated enum FoundryCSS {
         h5{font-size:var(--foundry-font-size-lg);line-height:var(--foundry-font-size-lg-line-height)}
         h6{font-size:var(--foundry-font-size-base);line-height:var(--foundry-font-size-base-line-height)}
         code,pre,kbd,samp{font-family:var(--foundry-font-monospace);font-size:1em}
-        hr{border:none;border-top:1px solid color-mix(in srgb, var(--foundry-color-text) 20%, transparent);margin-block:var(--foundry-space-lg)}
-        blockquote{margin:var(--foundry-space-lg) 0;padding-inline-start:var(--foundry-space-md);border-inline-start:2px solid color-mix(in srgb, var(--foundry-color-text) 20%, transparent);color:var(--foundry-color-muted)}
+        hr{border:none;border-top:1px solid var(--bs-border-body);margin-block:var(--foundry-space-lg)}
+        blockquote{margin:var(--foundry-space-lg) 0;padding-inline-start:var(--foundry-space-md);border-inline-start:2px solid var(--bs-border-body);color:var(--bs-fg-3)}
         table{border-collapse:collapse}
-        th,td{border:1px solid color-mix(in srgb, var(--foundry-color-text) 20%, transparent);padding:var(--foundry-space-2xs) var(--foundry-space-xs);text-align:start}
+        th,td{border:1px solid var(--bs-border-body);padding:var(--foundry-space-2xs) var(--foundry-space-xs);text-align:start}
         .fd-image{display:block;width:100%;height:auto}
         """
     }
@@ -122,8 +114,8 @@ nonisolated enum FoundryCSS {
         """)
 
         for role in FrameworkColorRole.allCases {
-            rules.append(".fd-text-\(role.rawValue){color:var(--foundry-color-\(role.rawValue))}")
-            rules.append(".fd-bg-\(role.rawValue){background-color:var(--foundry-color-\(role.rawValue))}")
+            rules.append(".fd-text-\(role.rawValue){color:\(role.bootstrapCSSValue)}")
+            rules.append(".fd-bg-\(role.rawValue){background-color:\(role.bootstrapCSSValue)}")
         }
 
         rules.append(".fd-font-body{font-family:var(--foundry-font-body)}")

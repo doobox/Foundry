@@ -57,7 +57,7 @@
           "customColor": "#5B5BD6",
           "defaults": {
             "base": {
-              "palette": "custom"
+              "palette": "primary"
             }
           },
           "id": "backgroundColor",

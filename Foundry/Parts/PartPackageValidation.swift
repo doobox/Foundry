@@ -1266,12 +1266,14 @@ nonisolated enum PartPackageValidator {
             }
             for key in ["lightShade", "darkShade"] {
                 guard let supplied = initial[key] else { continue }
-                if case .number(let number) = supplied, let shade = Int(exactly: number), (1...11).contains(shade) {
+                if case .number(let number) = supplied,
+                   let shade = Int(exactly: number),
+                   (1...ColourShade.allCases.count).contains(shade) {
                     if value == PartFrameworkValueSelection.manifestCustom {
                         diagnostics.append(.init(severity: .error, location: "\(location).\(key)", message: "\(key) requires a framework or standard palette, not custom."))
                     }
                 } else {
-                    diagnostics.append(.init(severity: .error, location: "\(location).\(key)", message: "\(key) must be an integer from 1 to 11."))
+                    diagnostics.append(.init(severity: .error, location: "\(location).\(key)", message: "\(key) must be an integer from 1 to 13."))
                 }
             }
             let isFrameworkRole = FrameworkColorRole(rawValue: value) != nil

@@ -154,7 +154,7 @@
       "allowsCustom": true,
       "defaults": {
         "base": {
-          "palette": "surface"
+          "palette": "background"
         }
       },
       "id": "backgroundColor",
@@ -474,7 +474,7 @@
       "allowsCustom": true,
       "defaults": {
         "base": {
-          "palette": "surface"
+          "palette": "background"
         }
       },
       "id": "backgroundGradientFrom",
@@ -720,7 +720,7 @@
       "allowsCustom": true,
       "defaults": {
         "base": {
-          "palette": "surface"
+          "palette": "background"
         }
       },
       "id": "backgroundHoverColor",
@@ -968,7 +968,7 @@
       "allowsCustom": true,
       "defaults": {
         "base": {
-          "palette": "surface"
+          "palette": "background"
         }
       },
       "id": "backgroundHoverGradientFrom",

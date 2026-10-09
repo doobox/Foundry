@@ -31,7 +31,7 @@
       "allowsCustom": true,
       "defaults": {
         "base": {
-          "palette": "text"
+          "palette": "foreground"
         }
       },
       "id": "textColor",

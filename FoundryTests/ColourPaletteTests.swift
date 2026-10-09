@@ -19,7 +19,7 @@ struct ColourPaletteTests {
             var custom = try original.duplicated()
             #expect(custom.name == original.name + " Copy")
             custom.name = original.name
-            try custom.replaceShades((1...11).map { String(format: "#1234%02X", $0) })
+            try custom.replaceShades((1...ColourShade.allCases.count).map { String(format: "#1234%02X", $0) })
             custom.setLightDefault(.four)
             let following = PaletteColourValue.palette(id: original.id, selection: .default)
             let fixed = PaletteColourValue.palette(id: original.id, selection: .shade(.eight))
@@ -32,20 +32,20 @@ struct ColourPaletteTests {
         }
     }
 
-    @Test func pageIsTheFirstFixedRoleAndCustomColoursRemainIndependent() throws {
+    @Test func primaryIsTheFirstFixedRoleAndCustomColoursRemainIndependent() throws {
         var framework = Framework.standard
-        #expect(FrameworkColorRole.allCases.first == .page)
-        #expect(framework.colourPalettes.first?.id == "framework.page")
+        #expect(FrameworkColorRole.allCases.first == .primary)
+        #expect(framework.colourPalettes.first?.id == "framework.primary")
         let original = try #require(framework.colourPalettes.first)
         var custom = try original.duplicated()
-        try custom.replaceShades(Array(repeating: "#ABCDEF", count: 11))
+        try custom.replaceShades(Array(repeating: "#ABCDEF", count: ColourShade.allCases.count))
         framework.colourPalettes.insert(custom, at: 0)
-        #expect(framework.color(for: .page) == original.colour(at: .default))
+        #expect(framework.color(for: .primary) == original.colour(at: .default))
         #expect(framework.fixedFrameworkColourPalettes.first == original)
     }
     @Test func defaultReferencesFollowButExplicitShadesDoNot() throws {
         var palette = try ColourPalette(id: "framework.accent", name: "Accent", origin: .framework,
-            shades: (1...11).map { String(format: "#%06X", $0) }, lightDefaultShade: .six)
+            shades: (1...ColourShade.allCases.count).map { String(format: "#%06X", $0) }, lightDefaultShade: .six)
         let following = PaletteColourValue.palette(id: palette.id, selection: .default)
         let fixed = PaletteColourValue.palette(id: palette.id, selection: .shade(.six))
         #expect(following.resolve(in: [palette]) == fixed.resolve(in: [palette]))
@@ -59,7 +59,7 @@ struct ColourPaletteTests {
 
     @Test func storageAndDuplicationPreserveResolvedColours() throws {
         let palette = try ColourPalette(id: "framework.accent", name: "Accent", origin: .framework,
-            shades: Array(repeating: "#123456", count: 11), lightDefaultShade: .six,
+            shades: Array(repeating: "#123456", count: ColourShade.allCases.count), lightDefaultShade: .six,
             generation: .init(algorithm: "foundry.rgb-soften.v1", anchor: .six,
                               anchorHex: "#123456", softening: 0.5, reversed: false))
         let restored = try JSONDecoder().decode(ColourPalette.self, from: JSONEncoder().encode(palette))
@@ -74,7 +74,7 @@ struct ColourPaletteTests {
 
     @Test func invalidShadePositionsAndCountsAreRejected() throws {
         #expect(throws: (any Error).self) {
-            try JSONDecoder().decode(ColourShade.self, from: Data("12".utf8))
+            try JSONDecoder().decode(ColourShade.self, from: Data("14".utf8))
         }
         #expect(throws: (any Error).self) {
             try ColourPalette(id: "bad", name: "Bad", origin: .custom, shades: [], lightDefaultShade: .one)

@@ -186,7 +186,7 @@ enum FrameworkWindowSection: String, CaseIterable, Identifiable, Hashable {
         case .screens:
             "Define responsive breakpoints and the maximum container width at each size."
         case .colors:
-            "Set the core colours shared by pages, parts and editable text."
+            "Customize Bootstrap theme roles and adaptive background, foreground and border layers."
         case .fontFamily:
             "Choose the typefaces used for body text, headings and monospaced content."
         case .fontSize:

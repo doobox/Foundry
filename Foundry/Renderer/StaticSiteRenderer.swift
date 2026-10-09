@@ -625,9 +625,6 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
 
     private func stylesheet(for site: Site, assets: ProjectAssetContents) -> String {
         let framework = site.framework
-        func colour(_ role: FrameworkColorRole) -> String {
-            site.appearanceMode.colour(light: framework.color(for: role), dark: framework.color(for: role, appearance: .dark))
-        }
         let sitePackages = PartArtifactPlan.sitePackages(in: site)
         return """
         \(framework.fontSourceCSS(
@@ -637,10 +634,10 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
         ))
         \(FoundryCSS.build(
             framework: framework,
-            colour: colour,
             colorScheme: site.appearanceMode.cssColorScheme
         ))
         \(FoundryWebLibraryRegistry.exportCSS(for: sitePackages))
+        \(BootstrapColorCSS.export(framework: framework, mode: site.appearanceMode))
         \(sitePackageStyles(for: site))
         """
     }

@@ -10,12 +10,12 @@ struct PageBackgroundTests {
         undo.groupsByEvent = false
         let editor = ProjectEditor(document: document, undoManager: undo)
         let page = document.site.pages[0]
-        let index = try #require(document.site.framework.colourPalettes.firstIndex { $0.id == "framework.page" })
+        let index = try #require(document.site.framework.colourPalettes.firstIndex { $0.id == "framework.background" })
         var framework = document.site.framework
         framework.colourPalettes[index].setLightDefault(.two)
         framework.colourPalettes[index].setDarkDefault(.nine)
         #expect(page.backgroundOverride == nil)
-        #expect(page.backgroundColour(framework: framework, appearance: .dark) == framework.color(for: .page, appearance: .dark))
+        #expect(page.backgroundColour(framework: framework, appearance: .dark) == framework.color(for: .background, appearance: .dark))
         let selection = page.backgroundSelection(framework: framework)
         #expect(selection.shade == .two)
         #expect(selection.darkShade == .nine)
@@ -65,9 +65,9 @@ struct PageBackgroundTests {
         #expect(session.colourIsInUse(custom.id))
         session.deleteColour(custom.id, replacement: nil)
         #expect(document.site.framework.colourPalettes.contains { $0.id == custom.id })
-        session.deleteColour(custom.id, replacement: "framework.page")
+        session.deleteColour(custom.id, replacement: "framework.background")
         #expect(!document.site.framework.colourPalettes.contains { $0.id == custom.id })
-        #expect(document.site.pages[0].backgroundOverride?.paletteID == "framework.page")
+        #expect(document.site.pages[0].backgroundOverride?.paletteID == "framework.background")
         #expect(document.site.pages[0].backgroundOverride?.shade == .three)
         #expect(document.site.pages[0].backgroundOverride?.darkShade == .eight)
     }

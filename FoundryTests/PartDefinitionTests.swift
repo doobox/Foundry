@@ -136,7 +136,7 @@ struct PartDefinitionTests {
             customValue: "1rem"
         )))
         #expect(decoded.propertyValue(.init(rawValue: "textColor")) == .packageColor(.init(
-            source: "text",
+            source: "foreground",
             customColor: "#000000",
             opacity: 1
         )))
@@ -151,7 +151,7 @@ struct PartDefinitionTests {
 
         #expect(!text.type.definition.properties.contains { ["typeface", "textSize"].contains($0.key.rawValue) })
         #expect(text.propertyValue(.init(rawValue: "textColor")) == .packageColor(.init(
-            source: "text", customColor: "#000000", opacity: 1
+            source: "foreground", customColor: "#000000", opacity: 1
         )))
     }
 

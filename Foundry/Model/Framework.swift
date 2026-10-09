@@ -25,12 +25,12 @@ nonisolated struct Framework: Codable, Equatable, Sendable {
             func value(_ id: String) -> String {
                 colourPalettes.resolvedPalette(id: "framework." + id)?.colour(at: .default) ?? "#000000"
             }
-            return .init(background: value("background"), surface: value("surface"), text: value("text"),
-                         accent: value("accent"), links: value("links"))
+            return .init(background: value("background"), surface: value("background"), text: value("foreground"),
+                         accent: value("accent"), links: value("primary"))
         }
         set {
-            let values = [("background", newValue.background), ("surface", newValue.surface),
-                          ("text", newValue.text), ("accent", newValue.accent), ("links", newValue.links)]
+            let values = [("background", newValue.background), ("foreground", newValue.text),
+                          ("accent", newValue.accent), ("primary", newValue.links)]
             for (id, hex) in values {
                 guard let index = colourPalettes.firstIndex(where: { $0.id == "framework." + id }),
                       colourPalettes[index].colour(at: .default) != hex else { continue }
@@ -344,16 +344,29 @@ nonisolated struct ColorTokens: Codable, Equatable, Sendable {
 }
 
 nonisolated enum FrameworkColorRole: String, Codable, CaseIterable, Identifiable, Sendable {
-    case page
-    case surface
-    case text
-    case muted
-    case brand
+    case primary
     case accent
-    case links
+    case success
+    case danger
+    case warning
+    case info
+    case inverse
+    case secondary
+    case background
+    case foreground
+    case border
 
     var id: String { rawValue }
     var title: String { rawValue.capitalized }
+
+    var bootstrapCSSValue: String {
+        switch self {
+        case .background: "var(--bs-bg-body)"
+        case .foreground: "var(--bs-fg-body)"
+        case .border: "var(--bs-border-body)"
+        default: "var(--bs-\(rawValue)-base)"
+        }
+    }
 }
 
 nonisolated struct SpacingTokens: Codable, Equatable, Sendable {
@@ -785,18 +798,8 @@ nonisolated extension Framework {
     }
 
     func color(for role: FrameworkColorRole, appearance: SiteAppearance = .light) -> String {
-        if appearance == .dark, let palette = colourPalettes.resolvedPalette(id: "framework." + role.rawValue) {
-            return palette.colour(at: .shade(palette.darkDefaultShade))
-        }
-        return switch role {
-        case .page: colourPalettes.resolvedPalette(id: "framework.page")?.colour(at: .default) ?? "#000000"
-        case .surface: colors.surface
-        case .text: colors.text
-        case .muted: colourPalettes.resolvedPalette(id: "framework.muted")?.colour(at: .default) ?? colors.text
-        case .brand: colourPalettes.resolvedPalette(id: "framework.brand")?.colour(at: .default) ?? colors.accent
-        case .accent: colors.accent
-        case .links: colors.links
-        }
+        guard let palette = colourPalettes.resolvedPalette(id: "framework." + role.rawValue) else { return "#000000" }
+        return palette.colour(at: .shade(palette.defaultShade(for: appearance)))
     }
 
     var fontFamilyChoices: [PartPropertyChoice] {

@@ -100,7 +100,7 @@
 :instance .fd-navigation__link.is-current,
 :instance .fd-navigation__link.is-ancestor {
     background: {{ control.activeColor }};
-    color: var(--foundry-color-surface);
+    color: var(--bs-bg-body);
 }
 {{ endif }}
 {{ if control.linkStyle == "underline" }}
@@ -159,8 +159,8 @@
     margin: 0;
     padding: var(--foundry-space-2xs);
     list-style: none;
-    background: var(--foundry-color-surface);
-    border: 1px solid color-mix(in srgb, var(--foundry-color-text) 12%, transparent);
+    background: var(--bs-bg-body);
+    border: 1px solid var(--bs-border-body);
     border-radius: var(--foundry-border-radius-md);
     box-shadow: var(--foundry-shadow-md, 0 10px 30px rgba(0, 0, 0, 0.12));
     z-index: var(--foundry-z-index-dropdown);
@@ -188,7 +188,7 @@
 }
 :instance .fd-navigation__dropdown-link:hover {
     color: {{ control.activeColor }};
-    background: color-mix(in srgb, var(--foundry-color-text) 6%, transparent);
+    background: var(--bs-bg-2);
 }
 :instance .fd-navigation__dropdown-link.is-current {
     color: {{ control.activeColor }};

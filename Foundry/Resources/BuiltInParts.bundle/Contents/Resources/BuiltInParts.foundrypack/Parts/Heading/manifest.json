@@ -130,7 +130,7 @@
           "customColor": "#000000",
           "defaults": {
             "base": {
-              "palette": "text"
+              "palette": "foreground"
             }
           },
           "id": "textColor",

@@ -577,7 +577,7 @@ struct CanvasJavaScriptTests {
 
     private func page(colour: String) -> String {
         """
-        <!doctype html><html><head><style id="framework">:root { --foundry-color-accent: \(colour); }</style></head>
+        <!doctype html><html><head><style id="framework">:root { --bs-accent-base: \(colour); }</style></head>
         <body><div data-foundry-id="test-part">Example</div></body></html>
         """
     }

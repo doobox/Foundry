@@ -439,7 +439,7 @@ struct FrameworkEditingTests {
         let page = Page(title: "Colour", slug: "colour", parts: [paragraph])
         let frameworkdHTML = HTMLPageRenderer().render(page: page, framework: .standard)
 
-        #expect(frameworkdHTML.contains("color: \(PartTemplateRenderer.colorWithAlpha("#5B5BD6", alpha: 0.5))"))
+        #expect(frameworkdHTML.contains("color: \(PartTemplateRenderer.colorWithAlpha(Framework.standard.color(for: .accent), alpha: 0.5))"))
 
         paragraph.setProperty(.init(rawValue: "textColor"), value: .packageColor(.init(
             source: PartFrameworkValueSelection.manualCustom,
@@ -556,7 +556,6 @@ struct FrameworkEditingTests {
         #expect(document.site.framework.zIndexCSSVariables.contains("\(zIndex.cssVariable(prefix: "z-index")):1700"))
         let css = FoundryCSS.build(
             framework: document.site.framework,
-            colour: { document.site.framework.color(for: $0) },
             colorScheme: "light"
         )
         #expect(css.contains(".fd-z-mega-modal{z-index:var(\(zIndex.cssVariable(prefix: "z-index")))}"))
